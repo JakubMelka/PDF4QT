@@ -727,10 +727,10 @@ void PDFThumbnailsItemModel::setThumbnailsSize(int size)
 {
     if (m_thumbnailSize != size)
     {
-        emit layoutAboutToBeChanged();
+        Q_EMIT layoutAboutToBeChanged();
         m_thumbnailSize = size;
         m_thumbnailCache.clear();
-        emit layoutChanged();
+        Q_EMIT layoutChanged();
     }
 }
 
@@ -773,7 +773,7 @@ void PDFThumbnailsItemModel::onPageImageChanged(bool all, const std::vector<PDFI
     if (all)
     {
         m_thumbnailCache.clear();
-        emit dataChanged(index(0, 0, QModelIndex()), index(rowCount(QModelIndex()) - 1, 0, QModelIndex()));
+        Q_EMIT dataChanged(index(0, 0, QModelIndex()), index(rowCount(QModelIndex()) - 1, 0, QModelIndex()));
     }
     else
     {
@@ -783,7 +783,7 @@ void PDFThumbnailsItemModel::onPageImageChanged(bool all, const std::vector<PDFI
             if (pageIndex < rowCount)
             {
                 m_thumbnailCache.remove(getKey(pageIndex));
-                emit dataChanged(index(pageIndex, 0, QModelIndex()), index(pageIndex, 0, QModelIndex()));
+                Q_EMIT dataChanged(index(pageIndex, 0, QModelIndex()), index(pageIndex, 0, QModelIndex()));
             }
         }
     }

@@ -544,7 +544,7 @@ PDFObjectEditorMappedComboBoxAdapter::PDFObjectEditorMappedComboBoxAdapter(QLabe
         comboBox->addItem(item.name, item.flags);
     }
 
-    connect(comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this, attribute](){ emit commitRequested(attribute); });
+    connect(comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this, attribute](){ Q_EMIT commitRequested(attribute); });
 }
 
 PDFObject PDFObjectEditorMappedComboBoxAdapter::getValue() const
@@ -604,7 +604,7 @@ PDFObjectEditorMappedLineEditAdapter::PDFObjectEditorMappedLineEditAdapter(QLabe
     initLabel(label);
     lineEdit->setClearButtonEnabled(true);
 
-    connect(lineEdit, &QLineEdit::editingFinished, this, [this, attribute](){ emit commitRequested(attribute); });
+    connect(lineEdit, &QLineEdit::editingFinished, this, [this, attribute](){ Q_EMIT commitRequested(attribute); });
 }
 
 PDFObject PDFObjectEditorMappedLineEditAdapter::getValue() const
@@ -645,7 +645,7 @@ PDFObjectEditorMappedTextBrowserAdapter::PDFObjectEditorMappedTextBrowserAdapter
     textBrowser->setUndoRedoEnabled(true);
     textBrowser->setTextInteractionFlags(Qt::TextEditorInteraction);
 
-    connect(textBrowser, &QTextBrowser::textChanged, this, [this, attribute](){ emit commitRequested(attribute); });
+    connect(textBrowser, &QTextBrowser::textChanged, this, [this, attribute](){ Q_EMIT commitRequested(attribute); });
 }
 
 PDFObject PDFObjectEditorMappedTextBrowserAdapter::getValue() const
@@ -721,7 +721,7 @@ PDFObjectEditorMappedDateTimeAdapter::PDFObjectEditorMappedDateTimeAdapter(QLabe
 {
     initLabel(label);
 
-    connect(dateTimeEdit, &QDateTimeEdit::editingFinished, this, [this, attribute](){ emit commitRequested(attribute); });
+    connect(dateTimeEdit, &QDateTimeEdit::editingFinished, this, [this, attribute](){ Q_EMIT commitRequested(attribute); });
 }
 
 PDFObject PDFObjectEditorMappedDateTimeAdapter::getValue() const
@@ -767,7 +767,7 @@ PDFObjectEditorMappedFlagsAdapter::PDFObjectEditorMappedFlagsAdapter(std::vector
     for (const auto& item : m_flagCheckBoxes)
     {
         QCheckBox* checkBox = item.second;
-        connect(checkBox, &QCheckBox::clicked, this, [this, attribute](){ emit commitRequested(attribute); });
+        connect(checkBox, &QCheckBox::clicked, this, [this, attribute](){ Q_EMIT commitRequested(attribute); });
     }
 }
 
@@ -822,7 +822,7 @@ PDFObjectEditorMappedCheckBoxAdapter::PDFObjectEditorMappedCheckBoxAdapter(QLabe
     m_checkBox(checkBox)
 {
     initLabel(label);
-    connect(checkBox, &QCheckBox::clicked, this, [this, attribute](){ emit commitRequested(attribute); });
+    connect(checkBox, &QCheckBox::clicked, this, [this, attribute](){ Q_EMIT commitRequested(attribute); });
 }
 
 PDFObject PDFObjectEditorMappedCheckBoxAdapter::getValue() const
@@ -858,7 +858,7 @@ PDFObjectEditorMappedDoubleAdapter::PDFObjectEditorMappedDoubleAdapter(QLabel* l
 {
     initLabel(label);
 
-    connect(spinBox, &QDoubleSpinBox::editingFinished, this, [this, attribute](){ emit commitRequested(attribute); });
+    connect(spinBox, &QDoubleSpinBox::editingFinished, this, [this, attribute](){ Q_EMIT commitRequested(attribute); });
 }
 
 PDFObject PDFObjectEditorMappedDoubleAdapter::getValue() const
@@ -904,7 +904,7 @@ PDFObjectEditorMappedColorAdapter::PDFObjectEditorMappedColorAdapter(QLabel* lab
         comboBox->addItem(getIconForColor(color), colorName, color);
     }
 
-    connect(comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this, attribute](){ emit commitRequested(attribute); });
+    connect(comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this, attribute](){ Q_EMIT commitRequested(attribute); });
 }
 
 PDFObject PDFObjectEditorMappedColorAdapter::getValue() const

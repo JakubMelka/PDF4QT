@@ -30,7 +30,7 @@ void PDFViewerSettings::setSettings(const PDFViewerSettings::Settings& settings)
     if (m_settings != settings)
     {
         m_settings = settings;
-        emit settingsChanged();
+        Q_EMIT settingsChanged();
     }
 }
 
@@ -100,7 +100,7 @@ void PDFViewerSettings::readSettings(QSettings& settings, const pdf::PDFCMSSetti
     m_settings.m_signatureUseSystemStore = settings.value("signatureUseSystemStore", defaultSettings.m_signatureUseSystemStore).toBool();
     settings.endGroup();
 
-    emit settingsChanged();
+    Q_EMIT settingsChanged();
 }
 
 void PDFViewerSettings::writeSettings(QSettings& settings)
@@ -178,7 +178,7 @@ void PDFViewerSettings::setDirectory(const QString& directory)
     if (m_settings.m_directory != directory)
     {
         m_settings.m_directory = directory;
-        emit settingsChanged();
+        Q_EMIT settingsChanged();
     }
 }
 
@@ -192,7 +192,7 @@ void PDFViewerSettings::setFeatures(const pdf::PDFRenderer::Features& features)
     if (m_settings.m_features != features)
     {
         m_settings.m_features = features;
-        emit settingsChanged();
+        Q_EMIT settingsChanged();
     }
 }
 
@@ -206,7 +206,7 @@ void PDFViewerSettings::setRendererEngine(pdf::RendererEngine rendererEngine)
     if (m_settings.m_rendererEngine != rendererEngine)
     {
         m_settings.m_rendererEngine = rendererEngine;
-        emit settingsChanged();
+        Q_EMIT settingsChanged();
     }
 }
 
@@ -220,7 +220,7 @@ void PDFViewerSettings::setRendererSamples(int rendererSamples)
     if (m_settings.m_rendererSamples != rendererSamples)
     {
         m_settings.m_rendererSamples = rendererSamples;
-        emit settingsChanged();
+        Q_EMIT settingsChanged();
     }
 }
 
@@ -229,7 +229,7 @@ void PDFViewerSettings::setPreferredMeshResolutionRatio(pdf::PDFReal preferredMe
     if (m_settings.m_preferredMeshResolutionRatio != preferredMeshResolutionRatio)
     {
         m_settings.m_preferredMeshResolutionRatio = preferredMeshResolutionRatio;
-        emit settingsChanged();
+        Q_EMIT settingsChanged();
     }
 }
 
@@ -238,7 +238,7 @@ void PDFViewerSettings::setMinimalMeshResolutionRatio(pdf::PDFReal minimalMeshRe
     if (m_settings.m_minimalMeshResolutionRatio != minimalMeshResolutionRatio)
     {
         m_settings.m_minimalMeshResolutionRatio = minimalMeshResolutionRatio;
-        emit settingsChanged();
+        Q_EMIT settingsChanged();
     }
 }
 
@@ -247,7 +247,7 @@ void PDFViewerSettings::setColorTolerance(pdf::PDFReal colorTolerance)
     if (m_settings.m_colorTolerance != colorTolerance)
     {
         m_settings.m_colorTolerance = colorTolerance;
-        emit settingsChanged();
+        Q_EMIT settingsChanged();
     }
 }
 

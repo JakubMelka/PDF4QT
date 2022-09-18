@@ -1964,7 +1964,7 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
 
                     if (linkAction)
                     {
-                        emit actionTriggered(linkAction);
+                        Q_EMIT actionTriggered(linkAction);
                     }
                 }
             }
@@ -1987,7 +1987,7 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
     // If appearance has changed, then we must redraw the page
     if (appearanceChanged)
     {
-        emit widget->getDrawWidgetProxy()->repaintNeeded();
+        Q_EMIT widget->getDrawWidgetProxy()->repaintNeeded();
     }
 }
 
@@ -2051,7 +2051,7 @@ void PDFWidgetAnnotationManager::onCopyAnnotation()
 
         if (modifier.finalize())
         {
-            emit documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+            Q_EMIT documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
         }
     }
 }
@@ -2075,7 +2075,7 @@ void PDFWidgetAnnotationManager::onEditAnnotation()
 
             if (modifier.finalize())
             {
-                emit documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+                Q_EMIT documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
             }
         }
     }
@@ -2091,7 +2091,7 @@ void PDFWidgetAnnotationManager::onDeleteAnnotation()
 
         if (modifier.finalize())
         {
-            emit documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+            Q_EMIT documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
         }
     }
 }

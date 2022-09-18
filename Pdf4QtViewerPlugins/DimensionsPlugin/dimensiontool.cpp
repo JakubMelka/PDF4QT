@@ -98,7 +98,7 @@ void DimensionTool::onPointPicked(pdf::PDFInteger pageIndex, QPointF pagePoint)
         }
 
         pdf::PDFReal measuredValue = getMeasuredValue(pageIndex, points);
-        emit dimensionCreated(Dimension(getDimensionType(), pageIndex, measuredValue, qMove(points)));
+        Q_EMIT dimensionCreated(Dimension(getDimensionType(), pageIndex, measuredValue, qMove(points)));
         m_pickTool->resetTool();
     }
 
@@ -118,7 +118,7 @@ void DimensionTool::onRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRect
     std::vector<QPointF> points = { pageRectangle.topLeft(), pageRectangle.topRight(), pageRectangle.bottomRight(), pageRectangle.bottomLeft(), pageRectangle.topLeft() };
     Q_ASSERT(Dimension::isComplete(getDimensionType(), points));
     pdf::PDFReal measuredValue = getMeasuredValue(pageIndex, points);
-    emit dimensionCreated(Dimension(getDimensionType(), pageIndex, measuredValue, qMove(points)));
+    Q_EMIT dimensionCreated(Dimension(getDimensionType(), pageIndex, measuredValue, qMove(points)));
 }
 
 QPointF DimensionTool::adjustPagePoint(QPointF pagePoint) const

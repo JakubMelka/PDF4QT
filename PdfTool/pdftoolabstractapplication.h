@@ -18,6 +18,7 @@
 #ifndef PDFTOOLABSTRACTAPPLICATION_H
 #define PDFTOOLABSTRACTAPPLICATION_H
 
+#include "pdfglobal.h"
 #include "pdfoutputformatter.h"
 #include "pdfdocument.h"
 #include "pdfdocumenttextflow.h"

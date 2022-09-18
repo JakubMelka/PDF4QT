@@ -1538,7 +1538,7 @@ void PDFProgramController::openDocument(const QString& fileName)
         {
             QString result;
             *ok = false;
-            emit queryPasswordRequest(&result, ok);
+            Q_EMIT queryPasswordRequest(&result, ok);
             return result;
         };
 

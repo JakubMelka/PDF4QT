@@ -251,7 +251,7 @@ void PDFDocumentTextFlowEditorModel::setSelectionActivated(bool activate)
 
     m_editor->setSelectionActive(activate);
     m_editor->deselect();
-    emit dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
+    Q_EMIT dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
 }
 
 void PDFDocumentTextFlowEditorModel::selectByRectangle(QRectF rectangle)
@@ -262,7 +262,7 @@ void PDFDocumentTextFlowEditorModel::selectByRectangle(QRectF rectangle)
     }
 
     m_editor->selectByRectangle(rectangle);
-    emit dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
+    Q_EMIT dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
 }
 
 void PDFDocumentTextFlowEditorModel::selectByContainedText(QString text)
@@ -273,7 +273,7 @@ void PDFDocumentTextFlowEditorModel::selectByContainedText(QString text)
     }
 
     m_editor->selectByContainedText(text);
-    emit dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
+    Q_EMIT dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
 }
 
 void PDFDocumentTextFlowEditorModel::selectByRegularExpression(const QRegularExpression& expression)
@@ -284,7 +284,7 @@ void PDFDocumentTextFlowEditorModel::selectByRegularExpression(const QRegularExp
     }
 
     m_editor->selectByRegularExpression(expression);
-    emit dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
+    Q_EMIT dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
 }
 
 void PDFDocumentTextFlowEditorModel::selectByPageIndices(const PDFClosedIntervalSet& indices)
@@ -295,7 +295,7 @@ void PDFDocumentTextFlowEditorModel::selectByPageIndices(const PDFClosedInterval
     }
 
     m_editor->selectByPageIndices(indices);
-    emit dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
+    Q_EMIT dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
 }
 
 void PDFDocumentTextFlowEditorModel::restoreOriginalTexts()
@@ -307,7 +307,7 @@ void PDFDocumentTextFlowEditorModel::restoreOriginalTexts()
 
     m_editor->restoreOriginalTexts();
     m_editor->deselect();
-    emit dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
+    Q_EMIT dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
 }
 
 void PDFDocumentTextFlowEditorModel::moveSelectionUp()
@@ -339,7 +339,7 @@ void PDFDocumentTextFlowEditorModel::notifyDataChanged()
         return;
     }
 
-    emit dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
+    Q_EMIT dataChanged(index(0, 0), index(rowCount(QModelIndex()) - 1, ColumnLast));
 }
 
 }   // namespace pdf

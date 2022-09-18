@@ -98,7 +98,7 @@ void PDFAsynchronousPageCompilerWorkerThread::run()
                         // we do not want to emit signals with locked mutexes.
                         // If direct connection is applied, this can lead to deadlock.
                         locker.unlock();
-                        emit pageCompiled();
+                        Q_EMIT pageCompiled();
                         locker.relock();
                     }
                 }
@@ -311,13 +311,13 @@ void PDFAsynchronousPageCompiler::onPageCompiled()
 
     for (const auto& error : errors)
     {
-        emit renderingError(error.first, { error.second });
+        Q_EMIT renderingError(error.first, { error.second });
     }
 
     if (!compiledPages.empty())
     {
         Q_ASSERT(std::is_sorted(compiledPages.cbegin(), compiledPages.cend()));
-        emit pageImageChanged(false, compiledPages);
+        Q_EMIT pageImageChanged(false, compiledPages);
     }
 }
 
@@ -629,7 +629,7 @@ void PDFAsynchronousTextLayoutCompiler::onTextLayoutCreated()
 
     m_textLayouts = m_textLayoutCompileFuture.result();
     m_isRunning = false;
-    emit textLayoutChanged();
+    Q_EMIT textLayoutChanged();
 }
 
 }   // namespace pdf

@@ -407,7 +407,7 @@ void PDFOptionalContentActivity::setState(PDFObjectReference ocg, OCState state,
         }
 
         it->second = state;
-        emit optionalContentGroupStateChanged(ocg, state);
+        Q_EMIT optionalContentGroupStateChanged(ocg, state);
     }
 }
 

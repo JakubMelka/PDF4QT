@@ -221,7 +221,7 @@ void PDFPageContentEditorWidget::onItemSelectionChanged()
 {
     if (m_selectionChangeEnabled)
     {
-        emit itemSelectionChangedByUser();
+        Q_EMIT itemSelectionChangedByUser();
     }
 }
 

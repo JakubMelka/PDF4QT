@@ -116,6 +116,10 @@ target_link_libraries(Pdf4QtLib PRIVATE freetype)
 target_link_libraries(Pdf4QtLib PRIVATE openjp2)
 target_link_libraries(Pdf4QtLib PRIVATE JPEG::JPEG)
 
+if(LINUX_GCC)
+    target_link_libraries(Pdf4QtLib PRIVATE tbb)
+endif()
+
 if(MINGW)
     target_link_libraries(Pdf4QtLib PRIVATE Secur32 Mscms Gdi32 User32 crypt32)
 endif()

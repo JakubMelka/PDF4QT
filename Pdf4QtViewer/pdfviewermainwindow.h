@@ -18,6 +18,7 @@
 #ifndef PDFVIEWERMAINWINDOW_H
 #define PDFVIEWERMAINWINDOW_H
 
+#include "pdfglobal.h"
 #include "pdfviewerglobal.h"
 #include "pdfcatalog.h"
 #include "pdfrenderer.h"

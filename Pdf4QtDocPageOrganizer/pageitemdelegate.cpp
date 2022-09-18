@@ -135,7 +135,7 @@ void PageItemDelegate::setPageImageSize(QSize pageImageSize)
     if (m_pageImageSize != pageImageSize)
     {
         m_pageImageSize = pageImageSize;
-        emit sizeHintChanged(QModelIndex());
+        Q_EMIT sizeHintChanged(QModelIndex());
     }
 }
 

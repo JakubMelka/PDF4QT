@@ -92,7 +92,7 @@ void PDFOptimizeDocumentDialog::optimize()
     m_optimizationInfo.msecsElapsed = msecsElapsed;
     m_optimizationInfo.bytesBeforeOptimization = pdf::PDFDocumentWriter::getDocumentFileSize(m_document);
     m_optimizationInfo.bytesAfterOptimization = pdf::PDFDocumentWriter::getDocumentFileSize(&m_optimizedDocument);
-    emit displayOptimizationInfo();
+    Q_EMIT displayOptimizationInfo();
 }
 
 void PDFOptimizeDocumentDialog::onOptimizeButtonClicked()

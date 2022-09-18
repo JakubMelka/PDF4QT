@@ -133,7 +133,7 @@ void RedactPlugin::onRedactTextSelectionTriggered()
 
     if (modifier.finalize())
     {
-        emit m_widget->getToolManager()->documentModified(pdf::PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+        Q_EMIT m_widget->getToolManager()->documentModified(pdf::PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
     }
 }
 
@@ -164,7 +164,7 @@ void RedactPlugin::onRedactPageTriggered()
 
         if (modifier.finalize())
         {
-            emit m_widget->getToolManager()->documentModified(pdf::PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+            Q_EMIT m_widget->getToolManager()->documentModified(pdf::PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
         }
     }
 }

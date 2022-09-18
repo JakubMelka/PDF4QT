@@ -1426,7 +1426,7 @@ void PDFCMSManager::setSettings(const PDFCMSSettings& settings)
             clearCache();
         }
 
-        emit colorManagementSystemChanged();
+        Q_EMIT colorManagementSystemChanged();
     }
 }
 
@@ -1571,7 +1571,7 @@ void PDFCMSManager::setDocument(const PDFDocument* document)
     if (outputIntentProfilesChanged)
     {
         lock = std::nullopt;
-        emit colorManagementSystemChanged();
+        Q_EMIT colorManagementSystemChanged();
     }
 }
 

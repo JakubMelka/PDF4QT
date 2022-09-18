@@ -432,7 +432,7 @@ void PDFDrawSpaceController::recalculate()
         }
     }
 
-    emit drawSpaceChanged();
+    Q_EMIT drawSpaceChanged();
 }
 
 void PDFDrawSpaceController::clear(bool emitSignal)
@@ -442,7 +442,7 @@ void PDFDrawSpaceController::clear(bool emitSignal)
 
     if (emitSignal)
     {
-        emit drawSpaceChanged();
+        Q_EMIT drawSpaceChanged();
     }
 }
 
@@ -676,7 +676,7 @@ void PDFDrawWidgetProxy::update()
         }
     }
 
-    emit drawSpaceChanged();
+    Q_EMIT drawSpaceChanged();
 }
 
 QTransform PDFDrawWidgetProxy::createPagePointToDevicePointMatrix(const PDFPage* page, const QRectF& rectangle) const
@@ -893,7 +893,7 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
                     {
                         errors.append(drawInterfaceErrors);
                     }
-                    emit renderingError(item.pageIndex, qMove(errors));
+                    Q_EMIT renderingError(item.pageIndex, qMove(errors));
                 }
             }
         }
@@ -1268,7 +1268,7 @@ void PDFDrawWidgetProxy::setPageLayout(PageLayout pageLayout)
     if (getPageLayout() != pageLayout)
     {
         m_controller->setPageLayout(pageLayout);
-        emit pageLayoutChanged();
+        Q_EMIT pageLayoutChanged();
     }
 }
 
@@ -1277,7 +1277,7 @@ void PDFDrawWidgetProxy::setCustomPageLayout(PDFDrawSpaceController::LayoutItems
     if (m_controller->getCustomLayout() != layoutItems)
     {
         m_controller->setCustomLayout(std::move(layoutItems));
-        emit pageLayoutChanged();
+        Q_EMIT pageLayoutChanged();
     }
 }
 
@@ -1299,8 +1299,8 @@ void PDFDrawWidgetProxy::performPageCacheClear()
 
 void PDFDrawWidgetProxy::onTextLayoutChanged()
 {
-    emit repaintNeeded();
-    emit textLayoutChanged();
+    Q_EMIT repaintNeeded();
+    Q_EMIT textLayoutChanged();
 }
 
 bool PDFDrawWidgetProxy::isBlockMode() const
@@ -1402,7 +1402,7 @@ void PDFDrawWidgetProxy::setHorizontalOffset(int value)
     {
         m_horizontalOffset = horizontalOffset;
         updateHorizontalScrollbarFromOffset();
-        emit drawSpaceChanged();
+        Q_EMIT drawSpaceChanged();
     }
 }
 
@@ -1414,7 +1414,7 @@ void PDFDrawWidgetProxy::setVerticalOffset(int value)
     {
         m_verticalOffset = verticalOffset;
         updateVerticalScrollbarFromOffset();
-        emit drawSpaceChanged();
+        Q_EMIT drawSpaceChanged();
     }
 }
 
@@ -1480,7 +1480,7 @@ void PDFDrawWidgetProxy::setFeatures(PDFRenderer::Features features)
         m_features = features;
         m_compiler->start();
         m_textLayoutCompiler->start();
-        emit pageImageChanged(true, { });
+        Q_EMIT pageImageChanged(true, { });
     }
 }
 
@@ -1491,7 +1491,7 @@ void PDFDrawWidgetProxy::setPreferredMeshResolutionRatio(PDFReal ratio)
         m_compiler->stop(true);
         m_meshQualitySettings.preferredMeshResolutionRatio = ratio;
         m_compiler->start();
-        emit pageImageChanged(true, { });
+        Q_EMIT pageImageChanged(true, { });
     }
 }
 
@@ -1502,7 +1502,7 @@ void PDFDrawWidgetProxy::setMinimalMeshResolutionRatio(PDFReal ratio)
         m_compiler->stop(true);
         m_meshQualitySettings.minimalMeshResolutionRatio = ratio;
         m_compiler->start();
-        emit pageImageChanged(true, { });
+        Q_EMIT pageImageChanged(true, { });
     }
 }
 
@@ -1513,21 +1513,21 @@ void PDFDrawWidgetProxy::setColorTolerance(PDFReal colorTolerance)
         m_compiler->stop(true);
         m_meshQualitySettings.tolerance = colorTolerance;
         m_compiler->start();
-        emit pageImageChanged(true, { });
+        Q_EMIT pageImageChanged(true, { });
     }
 }
 
 void PDFDrawWidgetProxy::onColorManagementSystemChanged()
 {
     m_compiler->reset();
-    emit pageImageChanged(true, { });
+    Q_EMIT pageImageChanged(true, { });
 }
 
 void PDFDrawWidgetProxy::onOptionalContentGroupStateChanged()
 {
     m_compiler->reset();
     m_textLayoutCompiler->reset();
-    emit pageImageChanged(true, { });
+    Q_EMIT pageImageChanged(true, { });
 }
 
 void IDocumentDrawInterface::drawPage(QPainter* painter,

@@ -22,6 +22,10 @@ add_executable(Pdf4QtViewerProfi
 
 target_link_libraries(Pdf4QtViewerProfi PRIVATE Pdf4QtLib Pdf4QtViewer Qt6::Core Qt6::Gui Qt6::Widgets)
 
+if(LINUX_GCC)
+    target_link_libraries(Pdf4QtViewerProfi PRIVATE tbb)
+endif()
+
 set_target_properties(Pdf4QtViewerProfi PROPERTIES
     WIN32_EXECUTABLE ON
     MACOSX_BUNDLE ON

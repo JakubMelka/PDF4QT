@@ -46,7 +46,7 @@ void PDFCreatePCElementTool::setPen(const QPen& pen)
     if (PDFPageContentStyledElement* styledElement = dynamic_cast<PDFPageContentStyledElement*>(getElement()))
     {
         styledElement->setPen(pen);
-        emit getProxy()->repaintNeeded();
+        Q_EMIT getProxy()->repaintNeeded();
     }
 }
 
@@ -55,7 +55,7 @@ void PDFCreatePCElementTool::setBrush(const QBrush& brush)
     if (PDFPageContentStyledElement* styledElement = dynamic_cast<PDFPageContentStyledElement*>(getElement()))
     {
         styledElement->setBrush(brush);
-        emit getProxy()->repaintNeeded();
+        Q_EMIT getProxy()->repaintNeeded();
     }
 }
 
@@ -64,7 +64,7 @@ void PDFCreatePCElementTool::setFont(const QFont& font)
     if (PDFPageContentElementTextBox* textBoxElement = dynamic_cast<PDFPageContentElementTextBox*>(getElement()))
     {
         textBoxElement->setFont(font);
-        emit getProxy()->repaintNeeded();
+        Q_EMIT getProxy()->repaintNeeded();
     }
 }
 
@@ -73,7 +73,7 @@ void PDFCreatePCElementTool::setAlignment(Qt::Alignment alignment)
     if (PDFPageContentElementTextBox* textBoxElement = dynamic_cast<PDFPageContentElementTextBox*>(getElement()))
     {
         textBoxElement->setAlignment(alignment);
-        emit getProxy()->repaintNeeded();
+        Q_EMIT getProxy()->repaintNeeded();
     }
 }
 
@@ -82,7 +82,7 @@ void PDFCreatePCElementTool::setTextAngle(PDFReal angle)
     if (PDFPageContentElementTextBox* textBoxElement = dynamic_cast<PDFPageContentElementTextBox*>(getElement()))
     {
         textBoxElement->setAngle(angle);
-        emit getProxy()->repaintNeeded();
+        Q_EMIT getProxy()->repaintNeeded();
     }
 }
 
@@ -590,7 +590,7 @@ void PDFCreatePCElementFreehandCurveTool::mousePressEvent(QWidget* widget, QMous
         resetTool();
     }
 
-    emit getProxy()->repaintNeeded();
+    Q_EMIT getProxy()->repaintNeeded();
 }
 
 void PDFCreatePCElementFreehandCurveTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
@@ -618,7 +618,7 @@ void PDFCreatePCElementFreehandCurveTool::mouseReleaseEvent(QWidget* widget, QMo
         resetTool();
     }
 
-    emit getProxy()->repaintNeeded();
+    Q_EMIT getProxy()->repaintNeeded();
 }
 
 void PDFCreatePCElementFreehandCurveTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
@@ -636,7 +636,7 @@ void PDFCreatePCElementFreehandCurveTool::mouseMoveEvent(QWidget* widget, QMouse
             m_element->addPoint(pagePoint);
         }
 
-        emit getProxy()->repaintNeeded();
+        Q_EMIT getProxy()->repaintNeeded();
     }
 }
 
@@ -940,14 +940,14 @@ void PDFCreatePCElementTextTool::setFont(const QFont& font)
 {
     BaseClass::setFont(font);
     m_textEditWidget->setAppearance(font, m_element->getAlignment(), m_element->getRectangle(), std::numeric_limits<int>::max(), m_element->getPen().color());
-    emit getProxy()->repaintNeeded();
+    Q_EMIT getProxy()->repaintNeeded();
 }
 
 void PDFCreatePCElementTextTool::setAlignment(Qt::Alignment alignment)
 {
     BaseClass::setAlignment(alignment);
     m_textEditWidget->setAppearance(m_element->getFont(), alignment, m_element->getRectangle(), std::numeric_limits<int>::max(), m_element->getPen().color());
-    emit getProxy()->repaintNeeded();
+    Q_EMIT getProxy()->repaintNeeded();
 }
 
 void PDFCreatePCElementTextTool::setPen(const QPen& pen)
@@ -962,7 +962,7 @@ void PDFCreatePCElementTextTool::setPen(const QPen& pen)
     }
 
     m_textEditWidget->setAppearance(font, m_element->getAlignment(), m_element->getRectangle(), std::numeric_limits<int>::max(), pen.color());
-    emit getProxy()->repaintNeeded();
+    Q_EMIT getProxy()->repaintNeeded();
 }
 
 }   // namespace pdf

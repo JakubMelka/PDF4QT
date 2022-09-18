@@ -25,6 +25,7 @@ option(PDF4QT_INSTALL_DEPENDENCIES "Install dependencies" ON)
 option(PDF4QT_INSTALL_QT_DEPENDENCIES "Install Qt dependencies" ON)
 
 add_compile_definitions(PDF4QT_PROJECT_VERSION="${PDF4QT_VERSION}")
+add_compile_definitions(QT_NO_EMIT)
 
 if(WIN32 AND MSVC)
     option(PDF4QT_INSTALL_MSVC_REDISTRIBUTABLE "Install MSVC redistributable package" ON)
@@ -64,6 +65,10 @@ endif()
 
 if (MINGW)
     add_compile_options("-Wa,-mbig-obj")
+endif()
+
+if (UNIX AND NOT APPLE AND CMAKE_COMPILER_IS_GNUCXX)
+    set(LINUX_GCC ON)
 endif()
 
 add_subdirectory(Pdf4QtLib)

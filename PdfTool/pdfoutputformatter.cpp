@@ -679,7 +679,7 @@ void PDFConsole::writeError(QString text, QStringConverter::Encoding encoding)
 #else
     QTextStream stream(stdout);
     stream << text;
-    stream << endl;
+    stream << Qt::endl;
 #endif
 }
 

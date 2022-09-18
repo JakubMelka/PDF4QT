@@ -35,7 +35,7 @@ void PDFProgress::start(size_t stepCount, ProgressStartupInfo startupInfo)
     m_stepCount = stepCount;
     m_percentage = 0;
 
-    emit progressStarted(qMove(startupInfo));
+    Q_EMIT progressStarted(qMove(startupInfo));
 }
 
 void PDFProgress::step()
@@ -55,13 +55,13 @@ void PDFProgress::step()
 
     if (emitSignal)
     {
-        emit progressStep(newPercentage);
+        Q_EMIT progressStep(newPercentage);
     }
 }
 
 void PDFProgress::finish()
 {
-    emit progressFinished();
+    Q_EMIT progressFinished();
 }
 
 } // namespace pdf

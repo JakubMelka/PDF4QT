@@ -344,7 +344,7 @@ void PDFPageContentScene::addElement(PDFPageContentElement* element)
 {
     element->setElementId(m_firstFreeId++);
     m_elements.emplace_back(element);
-    emit sceneChanged(false);
+    Q_EMIT sceneChanged(false);
 }
 
 void PDFPageContentScene::replaceElement(PDFPageContentElement* element)
@@ -356,7 +356,7 @@ void PDFPageContentScene::replaceElement(PDFPageContentElement* element)
         if (m_elements[i]->getElementId() == element->getElementId())
         {
             m_elements[i] = std::move(elementPtr);
-            emit sceneChanged(false);
+            Q_EMIT sceneChanged(false);
             break;
         }
     }
@@ -379,7 +379,7 @@ void PDFPageContentScene::clear()
     {
         m_manipulator.reset();
         m_elements.clear();
-        emit sceneChanged(false);
+        Q_EMIT sceneChanged(false);
     }
 }
 
@@ -507,7 +507,7 @@ void PDFPageContentScene::mouseDoubleClickEvent(QWidget* widget, QMouseEvent* ev
     MouseEventInfo info = getMouseEventInfo(widget, event->pos());
     if (info.isValid())
     {
-        emit editElementRequest(info.hoveredElementIds);
+        Q_EMIT editElementRequest(info.hoveredElementIds);
     }
 
     // If mouse is grabbed, then event is accepted always (because
@@ -602,7 +602,7 @@ void PDFPageContentScene::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
 
     if (m_manipulator.isManipulationInProgress())
     {
-        emit sceneChanged(true);
+        Q_EMIT sceneChanged(true);
     }
 }
 
@@ -815,8 +815,8 @@ void PDFPageContentScene::updateMouseCursor(const MouseEventInfo& info, PDFReal 
 
 void PDFPageContentScene::onSelectionChanged()
 {
-    emit sceneChanged(true);
-    emit selectionChanged();
+    Q_EMIT sceneChanged(true);
+    Q_EMIT selectionChanged();
 }
 
 PDFWidget* PDFPageContentScene::widget() const
@@ -846,7 +846,7 @@ void PDFPageContentScene::setActive(bool newIsActive)
             m_manipulator.reset();
         }
 
-        emit sceneChanged(false);
+        Q_EMIT sceneChanged(false);
     }
 }
 
@@ -917,7 +917,7 @@ void PDFPageContentScene::removeElementsById(const std::vector<PDFInteger>& sele
 
     if (newSize < oldSize)
     {
-        emit sceneChanged(false);
+        Q_EMIT sceneChanged(false);
     }
 }
 
@@ -1518,7 +1518,7 @@ void PDFPageContentElementManipulator::update(PDFInteger id, SelectionModes mode
 
     if (modified)
     {
-        emit selectionChanged();
+        Q_EMIT selectionChanged();
     }
 }
 
@@ -1580,7 +1580,7 @@ void PDFPageContentElementManipulator::update(const std::set<PDFInteger>& ids, S
 
     if (modified)
     {
-        emit selectionChanged();
+        Q_EMIT selectionChanged();
     }
 }
 
@@ -2195,7 +2195,7 @@ void PDFPageContentElementManipulator::startManipulation(PDFInteger pageIndex,
         m_isManipulationInProgress = true;
         m_lastUpdatedPoint = startPoint;
         updateManipulation(pageIndex, startPoint, currentPoint);
-        emit stateChanged();
+        Q_EMIT stateChanged();
     }
 }
 
@@ -2216,7 +2216,7 @@ void PDFPageContentElementManipulator::updateManipulation(PDFInteger pageIndex,
     }
 
     m_lastUpdatedPoint = currentPoint;
-    emit stateChanged();
+    Q_EMIT stateChanged();
 }
 
 void PDFPageContentElementManipulator::finishManipulation(PDFInteger pageIndex,
@@ -2252,7 +2252,7 @@ void PDFPageContentElementManipulator::cancelManipulation()
         m_isManipulationInProgress = false;
         m_manipulatedElements.clear();
         m_manipulationModes.clear();
-        emit stateChanged();
+        Q_EMIT stateChanged();
     }
 
     Q_ASSERT(!m_isManipulationInProgress);

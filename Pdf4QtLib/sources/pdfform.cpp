@@ -1202,7 +1202,7 @@ void PDFFormManager::setFormFieldValue(PDFFormField::SetValueParameters paramete
 
         if (modifier.finalize())
         {
-            emit documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+            Q_EMIT documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
         }
     }
 }
@@ -1565,7 +1565,7 @@ void PDFFormManager::performPaging()
 
         if (modifier.finalize())
         {
-            emit documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+            Q_EMIT documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
         }
     }
 }
@@ -1727,7 +1727,7 @@ void PDFFormManager::performResetAction(const PDFActionResetForm* action)
 
     if (modifier.finalize())
     {
-        emit documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+        Q_EMIT documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
     }
 }
 
@@ -1967,11 +1967,11 @@ void PDFFormFieldPushButtonEditor::click()
 {
     if (const PDFAction* mousePressAction = m_formManager->getAction(PDFAnnotationAdditionalActions::MousePressed, getFormWidget()))
     {
-        emit m_formManager->actionTriggered(mousePressAction);
+        Q_EMIT m_formManager->actionTriggered(mousePressAction);
     }
     else if (const PDFAction* defaultAction = m_formManager->getAction(PDFAnnotationAdditionalActions::Default, getFormWidget()))
     {
-        emit m_formManager->actionTriggered(defaultAction);
+        Q_EMIT m_formManager->actionTriggered(defaultAction);
     }
 }
 

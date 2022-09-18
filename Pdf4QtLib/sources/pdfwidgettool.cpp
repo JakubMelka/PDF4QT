@@ -102,8 +102,8 @@ void PDFWidgetTool::setActive(bool active)
         setActiveImpl(active);
         updateActions();
 
-        emit m_proxy->repaintNeeded();
-        emit toolActivityChanged(active);
+        Q_EMIT m_proxy->repaintNeeded();
+        Q_EMIT toolActivityChanged(active);
     }
 }
 
@@ -1176,7 +1176,7 @@ void PDFPickTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
                 m_snapper.setReferencePoint(pageIndex, pagePoint);
 
                 // Emit signal about picked point
-                emit pointPicked(pageIndex, pagePoint);
+                Q_EMIT pointPicked(pageIndex, pagePoint);
 
                 if (m_mode == Mode::Rectangles && m_pickedPoints.size() == 2)
                 {
@@ -1189,14 +1189,14 @@ void PDFPickTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
                     const qreal yMax = qMax(first.y(), second.y());
 
                     QRectF pageRectangle(xMin, yMin, xMax - xMin, yMax - yMin);
-                    emit rectanglePicked(pageIndex, pageRectangle);
+                    Q_EMIT rectanglePicked(pageIndex, pageRectangle);
 
                     // We must reset tool, to pick next rectangle
                     resetTool();
                 }
 
                 buildSnapData();
-                emit getProxy()->repaintNeeded();
+                Q_EMIT getProxy()->repaintNeeded();
             }
         }
         else
@@ -1204,7 +1204,7 @@ void PDFPickTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
             // Try to perform pick image
             if (const PDFSnapper::ViewportSnapImage* snappedImage = m_snapper.getSnappedImage())
             {
-                emit imagePicked(snappedImage->image);
+                Q_EMIT imagePicked(snappedImage->image);
             }
         }
     }
@@ -1230,7 +1230,7 @@ void PDFPickTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
     {
         m_mousePosition = mousePos;
         m_snapper.updateSnappedPoint(m_mousePosition);
-        emit getProxy()->repaintNeeded();
+        Q_EMIT getProxy()->repaintNeeded();
     }
 }
 
@@ -1271,7 +1271,7 @@ void PDFPickTool::resetTool()
     m_snapper.clearReferencePoint();
 
     buildSnapData();
-    emit getProxy()->repaintNeeded();
+    Q_EMIT getProxy()->repaintNeeded();
 }
 
 void PDFPickTool::buildSnapData()
@@ -1334,7 +1334,7 @@ void PDFScreenshotTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRecta
             }
 
             QApplication::clipboard()->setImage(image, QClipboard::Clipboard);
-            emit messageDisplayRequest(tr("Page contents of size %1 x %2 pixels were copied to the clipboard.").arg(image.width()).arg(image.height()), 5000);
+            Q_EMIT messageDisplayRequest(tr("Page contents of size %1 x %2 pixels were copied to the clipboard.").arg(image.width()).arg(image.height()), 5000);
         }
     }
 }
@@ -1365,7 +1365,7 @@ void PDFExtractImageTool::onImagePicked(const QImage& image)
     if (!image.isNull())
     {
         QApplication::clipboard()->setImage(image, QClipboard::Clipboard);
-        emit messageDisplayRequest(tr("Image of size %1 x %2 pixels was copied to the clipboard.").arg(image.width()).arg(image.height()), 5000);
+        Q_EMIT messageDisplayRequest(tr("Image of size %1 x %2 pixels was copied to the clipboard.").arg(image.width()).arg(image.height()), 5000);
     }
 }
 
@@ -1487,7 +1487,7 @@ void PDFSelectTableTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
                 }
             }
 
-            emit getProxy()->repaintNeeded();
+            Q_EMIT getProxy()->repaintNeeded();
             event->accept();
         }
     }
@@ -1671,7 +1671,7 @@ void PDFSelectTableTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRect
 
     autodetectTableGeometry();
 
-    emit messageDisplayRequest(tr("Table region was selected. Use left/right mouse buttons to add/remove rows/columns, then use Enter key to copy the table."), 5000);
+    Q_EMIT messageDisplayRequest(tr("Table region was selected. Use left/right mouse buttons to add/remove rows/columns, then use Enter key to copy the table."), 5000);
 }
 
 void PDFSelectTableTool::autodetectTableGeometry()

@@ -426,7 +426,7 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
     QElapsedTimer timer;
     timer.start();
 
-    emit renderError(PDFCatalog::INVALID_PAGE_INDEX, PDFRenderError(RenderErrorType::Information, PDFTranslationContext::tr("Start at %1...").arg(QTime::currentTime().toString(Qt::TextDate))));
+    Q_EMIT renderError(PDFCatalog::INVALID_PAGE_INDEX, PDFRenderError(RenderErrorType::Information, PDFTranslationContext::tr("Start at %1...").arg(QTime::currentTime().toString(Qt::TextDate))));
 
     if (progress)
     {
@@ -445,7 +445,7 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
             {
                 progress->step();
             }
-            emit renderError(pageIndex, PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Page %1 not found.").arg(pageIndex)));
+            Q_EMIT renderError(pageIndex, PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Page %1 not found.").arg(pageIndex)));
             return;
         }
 
@@ -465,7 +465,7 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
 
         for (const PDFRenderError& error : precompiledPage.getErrors())
         {
-            emit renderError(pageIndex, error);
+            Q_EMIT renderError(pageIndex, error);
         }
 
         // We can const-cast here, because we do not modify the document in annotation manager.
@@ -506,8 +506,8 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
         progress->finish();
     }
 
-    emit renderError(PDFCatalog::INVALID_PAGE_INDEX, PDFRenderError(RenderErrorType::Information, PDFTranslationContext::tr("Finished at %1...").arg(QTime::currentTime().toString(Qt::TextDate))));
-    emit renderError(PDFCatalog::INVALID_PAGE_INDEX, PDFRenderError(RenderErrorType::Information, PDFTranslationContext::tr("%1 miliseconds elapsed to render %2 pages...").arg(timer.nsecsElapsed() / 1000000).arg(pageIndices.size())));
+    Q_EMIT renderError(PDFCatalog::INVALID_PAGE_INDEX, PDFRenderError(RenderErrorType::Information, PDFTranslationContext::tr("Finished at %1...").arg(QTime::currentTime().toString(Qt::TextDate))));
+    Q_EMIT renderError(PDFCatalog::INVALID_PAGE_INDEX, PDFRenderError(RenderErrorType::Information, PDFTranslationContext::tr("%1 miliseconds elapsed to render %2 pages...").arg(timer.nsecsElapsed() / 1000000).arg(pageIndices.size())));
 }
 
 int PDFRasterizerPool::getDefaultRasterizerCount()

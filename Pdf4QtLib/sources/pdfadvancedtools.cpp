@@ -86,7 +86,7 @@ void PDFCreateStickyNoteTool::onPointPicked(PDFInteger pageIndex, QPointF pagePo
 
         if (modifier.finalize())
         {
-            emit m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+            Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
         }
 
         setActive(false);
@@ -135,7 +135,7 @@ void PDFCreateHyperlinkTool::onRectanglePicked(PDFInteger pageIndex, QRectF page
 
         if (modifier.finalize())
         {
-            emit m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+            Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
         }
 
         setActive(false);
@@ -170,7 +170,7 @@ void PDFCreateFreeTextTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageR
 
         if (modifier.finalize())
         {
-            emit m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+            Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
         }
 
         setActive(false);
@@ -241,7 +241,7 @@ void PDFCreateLineTypeTool::finishDefinition()
 
                 if (modifier.finalize())
                 {
-                    emit m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+                    Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
                 }
 
                 setActive(false);
@@ -268,7 +268,7 @@ void PDFCreateLineTypeTool::finishDefinition()
 
                 if (modifier.finalize())
                 {
-                    emit m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+                    Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
                 }
 
                 setActive(false);
@@ -301,7 +301,7 @@ void PDFCreateLineTypeTool::finishDefinition()
 
                 if (modifier.finalize())
                 {
-                    emit m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+                    Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
                 }
 
                 setActive(false);
@@ -594,7 +594,7 @@ void PDFCreateEllipseTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRe
 
     if (modifier.finalize())
     {
-        emit m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+        Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
     }
 
     setActive(false);
@@ -659,7 +659,7 @@ void PDFCreateFreehandCurveTool::mousePressEvent(QWidget* widget, QMouseEvent* e
         resetTool();
     }
 
-    emit getProxy()->repaintNeeded();
+    Q_EMIT getProxy()->repaintNeeded();
 }
 
 void PDFCreateFreehandCurveTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
@@ -695,7 +695,7 @@ void PDFCreateFreehandCurveTool::mouseReleaseEvent(QWidget* widget, QMouseEvent*
 
                 if (modifier.finalize())
                 {
-                    emit m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+                    Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
                 }
 
                 setActive(false);
@@ -705,7 +705,7 @@ void PDFCreateFreehandCurveTool::mouseReleaseEvent(QWidget* widget, QMouseEvent*
         resetTool();
     }
 
-    emit getProxy()->repaintNeeded();
+    Q_EMIT getProxy()->repaintNeeded();
 }
 
 void PDFCreateFreehandCurveTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
@@ -852,7 +852,7 @@ void PDFCreateStampTool::onPointPicked(PDFInteger pageIndex, QPointF pagePoint)
 
     if (modifier.finalize())
     {
-        emit m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+        Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
     }
 
     setActive(false);
@@ -965,7 +965,7 @@ void PDFCreateHighlightTextTool::mouseReleaseEvent(QWidget* widget, QMouseEvent*
 
                     if (modifier.finalize())
                     {
-                        emit m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+                        Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
                     }
                 }
             }
@@ -1063,7 +1063,7 @@ void PDFCreateHighlightTextTool::setSelection(PDFTextSelection&& textSelection)
     if (m_textSelection != textSelection)
     {
         m_textSelection = qMove(textSelection);
-        emit getProxy()->repaintNeeded();
+        Q_EMIT getProxy()->repaintNeeded();
     }
 }
 
@@ -1096,7 +1096,7 @@ void PDFCreateRedactRectangleTool::onRectanglePicked(PDFInteger pageIndex, QRect
 
     if (modifier.finalize())
     {
-        emit m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+        Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
     }
 
     setActive(false);
@@ -1180,7 +1180,7 @@ void PDFCreateRedactTextTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* ev
 
                     if (modifier.finalize())
                     {
-                        emit m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+                        Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
                     }
                 }
             }

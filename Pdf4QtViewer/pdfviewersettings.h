@@ -18,6 +18,7 @@
 #ifndef PDFVIEWERSETTINGS_H
 #define PDFVIEWERSETTINGS_H
 
+#include "pdfglobal.h"
 #include "pdfrenderer.h"
 #include "pdfcms.h"
 #include "pdfexecutionpolicy.h"

@@ -146,7 +146,7 @@ void PDFWidget::onRenderingError(PDFInteger pageIndex, const QList<PDFRenderErro
     // Empty list of error should not be reported!
     Q_ASSERT(!errors.empty());
     m_pageRenderingErrors[pageIndex] = errors;
-    emit pageRenderingErrorsChanged(pageIndex, errors.size());
+    Q_EMIT pageRenderingErrorsChanged(pageIndex, errors.size());
 }
 
 void PDFWidget::onPageImageChanged(bool all, const std::vector<PDFInteger>& pages)

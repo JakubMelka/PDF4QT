@@ -143,7 +143,7 @@ void PDFDiff::start()
     {
         // Just do comparation immediately
         m_result = perform();
-        emit comparationFinished();
+        Q_EMIT comparationFinished();
     }
 }
 
@@ -898,7 +898,7 @@ void PDFDiff::onComparationPerformed()
 {
     m_cancelled = false;
     m_result = m_future.result();
-    emit comparationFinished();
+    Q_EMIT comparationFinished();
 }
 
 PDFReal PDFDiff::calculateEpsilonForPage(const PDFPage* page) const
@@ -1806,7 +1806,7 @@ void PDFDiffResultNavigator::setResult(const PDFDiffResult* diffResult)
     if (m_diffResult != diffResult)
     {
         m_diffResult = diffResult;
-        emit selectionChanged(m_currentIndex);
+        Q_EMIT selectionChanged(m_currentIndex);
     }
 }
 
@@ -1836,7 +1836,7 @@ void PDFDiffResultNavigator::goNext()
     }
 
     ++m_currentIndex;
-    emit selectionChanged(m_currentIndex);
+    Q_EMIT selectionChanged(m_currentIndex);
 }
 
 void PDFDiffResultNavigator::goPrevious()
@@ -1855,7 +1855,7 @@ void PDFDiffResultNavigator::goPrevious()
     {
         --m_currentIndex;
     }
-    emit selectionChanged(m_currentIndex);
+    Q_EMIT selectionChanged(m_currentIndex);
 }
 
 void PDFDiffResultNavigator::update()
@@ -1864,7 +1864,7 @@ void PDFDiffResultNavigator::update()
     if (limit > 0 && m_currentIndex >= limit)
     {
         m_currentIndex = limit - 1;
-        emit selectionChanged(m_currentIndex);
+        Q_EMIT selectionChanged(m_currentIndex);
     }
 }
 
@@ -1873,7 +1873,7 @@ void PDFDiffResultNavigator::select(size_t currentIndex)
     if (currentIndex < getLimit() && m_currentIndex != currentIndex)
     {
         m_currentIndex = currentIndex;
-        emit selectionChanged(m_currentIndex);
+        Q_EMIT selectionChanged(m_currentIndex);
     }
 }
 
