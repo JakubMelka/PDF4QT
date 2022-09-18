@@ -551,7 +551,16 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D::parseBlockWithDeclaration(PDF3D_U3D_DataRe
     QByteArray metaData = reader.readByteArray(metaDataSize);
     reader.skipBytes(getBlockPadding(metaDataSize));
 
-    return parseBlock(blockType, blockData, metaData);
+    auto block = parseBlock(blockType, blockData, metaData);
+
+    LoadBlockInfo info;
+    info.success = block != nullptr;
+    info.blockType = blockType;
+    info.dataSize = dataSize;
+    info.metaDataSize = metaDataSize;
+    m_blockLoadFails.push_back(info);
+
+    return block;
 }
 
 PDF3D_U3D PDF3D_U3D::parse(QByteArray data)
@@ -620,6 +629,9 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D::parseBlock(uint32_t blockType,
         case PDF3D_U3D_ViewNodeBlock::ID:
             return PDF3D_U3D_ViewNodeBlock::parse(data, metaData, this);
 
+        case PDF3D_U3D_CLODMeshDeclarationBlock::ID:
+            return PDF3D_U3D_CLODMeshDeclarationBlock::parse(data, metaData, this);
+
         default:
             break;
     }
@@ -664,7 +676,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_FileBlock::parse(QByteArray data, QByteArra
         block->m_unitScalingFactor = reader.readF64();
     }
 
-    block->parseMetadata(metaData);
+    block->parseMetadata(metaData, object);
 
     return pointer;
 }
@@ -704,15 +716,34 @@ PDFReal PDF3D_U3D_FileBlock::getUnitScalingFactor() const
     return m_unitScalingFactor;
 }
 
-void PDF3D_U3D_AbstractBlock::parseMetadata(QByteArray metaData)
+void PDF3D_U3D_AbstractBlock::parseMetadata(QByteArray metaData, PDF3D_U3D* object)
 {
     if (metaData.isEmpty())
     {
         return;
     }
 
-    // TODO: MelkaJ - parse meta data
-    Q_ASSERT(false);
+    PDF3D_U3D_DataReader reader(metaData, object->isCompressed());
+
+    const uint32_t itemCount = reader.readU32();
+    for (uint32_t i = 0; i < itemCount; ++i)
+    {
+        MetaDataItem item;
+        item.attributes = reader.readU32();
+        item.key = reader.readString(object->getTextCodec());
+
+        if (item.attributes & 0x00000001)
+        {
+            uint32_t binaryLength = reader.readU32();
+            item.binaryData = reader.readByteArray(binaryLength);
+        }
+        else
+        {
+            item.value = reader.readString(object->getTextCodec());
+        }
+
+        m_metaData.emplace_back(std::move(item));
+    }
 }
 
 PDF3D_U3D_AbstractBlock::ParentNodesData PDF3D_U3D_AbstractBlock::parseParentNodeData(PDF3D_U3D_DataReader& reader, PDF3D_U3D* object)
@@ -785,7 +816,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_FileReferenceBlock::parse(QByteArray data, 
     block->m_nameCollisionPolicy = reader.readU8();
     block->m_worldAliasName = reader.readString(object->getTextCodec());
 
-    block->parseMetadata(metaData);
+    block->parseMetadata(metaData, object);
 
     return pointer;
 }
@@ -870,7 +901,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_ModifierChainBlock::parse(QByteArray data, 
         }
     }
 
-    block->parseMetadata(metaData);
+    block->parseMetadata(metaData, object);
     return pointer;
 }
 
@@ -919,7 +950,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_PriorityUpdateBlock::parse(QByteArray data,
     // Read the data
     block->m_newPriority = reader.readU32();
 
-    block->parseMetadata(metaData);
+    block->parseMetadata(metaData, object);
     return pointer;
 }
 
@@ -952,7 +983,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_NewObjectTypeBlock::parse(QByteArray data, 
     block->m_urls = reader.readStringList(block->m_urlCount, object->getTextCodec());
     block->m_extensionInformationString = reader.readString(object->getTextCodec());
 
-    block->parseMetadata(metaData);
+    block->parseMetadata(metaData, object);
     return pointer;
 }
 
@@ -1018,7 +1049,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_NewObjectBlock::parse(QByteArray data, QByt
     block->m_chainIndex = reader.readU32();
     block->m_data = reader.readRemainingData();
 
-    block->parseMetadata(metaData);
+    block->parseMetadata(metaData, object);
     return pointer;
 }
 
@@ -1048,7 +1079,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_GroupNodeBlock::parse(QByteArray data, QByt
     block->m_groupNodeName = reader.readString(object->getTextCodec());
     block->m_parentNodesData = parseParentNodeData(reader, object);
 
-    block->parseMetadata(metaData);
+    block->parseMetadata(metaData, object);
     return pointer;
 }
 
@@ -1075,7 +1106,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_ModelNodeBlock::parse(QByteArray data, QByt
     block->m_modelResourceName = reader.readString(object->getTextCodec());
     block->m_modelVisibility = reader.readU32();
 
-    block->parseMetadata(metaData);
+    block->parseMetadata(metaData, object);
     return pointer;
 }
 
@@ -1111,7 +1142,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_LightNodeBlock::parse(QByteArray data, QByt
     block->m_parentNodesData = parseParentNodeData(reader, object);
     block->m_lightResourceName = reader.readString(object->getTextCodec());
 
-    block->parseMetadata(metaData);
+    block->parseMetadata(metaData, object);
     return pointer;
 }
 
@@ -1197,7 +1228,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_ViewNodeBlock::parse(QByteArray data, QByte
     // Overlay
     block->m_overlay = readBackdropOrOverlayItems();
 
-    block->parseMetadata(metaData);
+    block->parseMetadata(metaData, object);
     return pointer;
 }
 
@@ -1274,6 +1305,235 @@ const std::vector<PDF3D_U3D_ViewNodeBlock::BackdropItem>& PDF3D_U3D_ViewNodeBloc
 const std::vector<PDF3D_U3D_ViewNodeBlock::OverlayItem>& PDF3D_U3D_ViewNodeBlock::getOverlay() const
 {
     return m_overlay;
+}
+
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_CLODMeshDeclarationBlock::parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object)
+{
+    PDF3D_U3D_CLODMeshDeclarationBlock* block = new PDF3D_U3D_CLODMeshDeclarationBlock();
+    PDF3D_U3D_AbstractBlockPtr pointer(block);
+
+    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+
+    // Read the data
+    block->m_meshName = reader.readString(object->getTextCodec());
+    block->m_chainIndex = reader.readU32();
+
+    /* max mesh  description */
+    block->m_meshAttributes = reader.readU32();
+    block->m_faceCount = reader.readU32();
+    block->m_positionCount = reader.readU32();
+    block->m_normalCount = reader.readU32();
+    block->m_diffuseColorCount = reader.readU32();
+    block->m_specularColorCount = reader.readU32();
+    block->m_textureColorCount = reader.readU32();
+    block->m_shadingCount = reader.readU32();
+
+    for (uint32_t i = 0; i < block->m_shadingCount; ++i)
+    {
+        ShadingDescription item;
+
+        item.shadingAttributes = reader.readU32();
+        item.textureLayerCount = reader.readU32();
+        for (uint32_t j = 0; j < item.textureLayerCount; ++j)
+        {
+            item.textureCoordDimensions.push_back(reader.readU32());
+        }
+        item.originalShading = reader.readU32();
+
+        block->m_shadingDescription.emplace_back(std::move(item));
+    }
+
+    /* clod description */
+    block->m_minimumResolution = reader.readU32();
+    block->m_finalResolution = reader.readU32();
+
+    /* resource description */
+    block->m_positionQualityFactor = reader.readU32();
+    block->m_normalQualityFactor = reader.readU32();
+    block->m_textureCoordQualityFactor = reader.readU32();
+    block->m_positionInverseQuant = reader.readF32();
+    block->m_normalInverseQuant = reader.readF32();
+    block->m_textureCoordInverseQuant = reader.readF32();
+    block->m_diffuseColorInverseQuant = reader.readF32();
+    block->m_specularColorInverseQuant = reader.readF32();
+    block->m_normalCreaseParameter = reader.readF32();
+    block->m_normalUpdateParameter = reader.readF32();
+    block->m_normalToleranceParameter = reader.readF32();
+
+    /* bone description */
+    block->m_boneCount = reader.readU32();
+    for (uint32_t i = 0; i < block->m_boneCount; ++i)
+    {
+        BoneDescription item;
+
+        item.boneName = reader.readString(object->getTextCodec());
+        item.parentBoneName = reader.readString(object->getTextCodec());
+        item.boneAttributes = reader.readU32();
+        item.boneLength = reader.readF32();
+        reader.readFloats32(item.boneDisplacement);
+        reader.readFloats32(item.boneOrientation);
+
+        if (item.isLinkPresent())
+        {
+            item.boneLinkCount = reader.readU32();
+            item.boneLinkLength = reader.readF32();
+        }
+
+        if (item.isJointPresent())
+        {
+            item.startJoint.jointCenterU = reader.readF32();
+            item.startJoint.jointCenterV = reader.readF32();
+            item.startJoint.jointScaleU = reader.readF32();
+            item.startJoint.jointScaleV = reader.readF32();
+
+            item.endJoint.jointCenterU = reader.readF32();
+            item.endJoint.jointCenterV = reader.readF32();
+            item.endJoint.jointScaleU = reader.readF32();
+            item.endJoint.jointScaleV = reader.readF32();
+        }
+
+        item.rotationConstraintMax[0] = reader.readF32();
+        item.rotationConstraintMin[0] = reader.readF32();
+        item.rotationConstraintMax[1] = reader.readF32();
+        item.rotationConstraintMin[1] = reader.readF32();
+        item.rotationConstraintMax[2] = reader.readF32();
+        item.rotationConstraintMin[2] = reader.readF32();
+
+        block->m_boneDescription.emplace_back(std::move(item));
+    }
+
+    block->parseMetadata(metaData, object);
+    return pointer;
+}
+
+const QString& PDF3D_U3D_CLODMeshDeclarationBlock::getMeshName() const
+{
+    return m_meshName;
+}
+
+uint32_t PDF3D_U3D_CLODMeshDeclarationBlock::getChainIndex() const
+{
+    return m_chainIndex;
+}
+
+uint32_t PDF3D_U3D_CLODMeshDeclarationBlock::getMeshAttributes() const
+{
+    return m_meshAttributes;
+}
+
+uint32_t PDF3D_U3D_CLODMeshDeclarationBlock::getFaceCount() const
+{
+    return m_faceCount;
+}
+
+uint32_t PDF3D_U3D_CLODMeshDeclarationBlock::getPositionCount() const
+{
+    return m_positionCount;
+}
+
+uint32_t PDF3D_U3D_CLODMeshDeclarationBlock::getNormalCount() const
+{
+    return m_normalCount;
+}
+
+uint32_t PDF3D_U3D_CLODMeshDeclarationBlock::getDiffuseColorCount() const
+{
+    return m_diffuseColorCount;
+}
+
+uint32_t PDF3D_U3D_CLODMeshDeclarationBlock::getSpecularColorCount() const
+{
+    return m_specularColorCount;
+}
+
+uint32_t PDF3D_U3D_CLODMeshDeclarationBlock::getTextureColorCount() const
+{
+    return m_textureColorCount;
+}
+
+uint32_t PDF3D_U3D_CLODMeshDeclarationBlock::getShadingCount() const
+{
+    return m_shadingCount;
+}
+
+const std::vector<PDF3D_U3D_CLODMeshDeclarationBlock::ShadingDescription>& PDF3D_U3D_CLODMeshDeclarationBlock::getShadingDescription() const
+{
+    return m_shadingDescription;
+}
+
+uint32_t PDF3D_U3D_CLODMeshDeclarationBlock::getMinimumResolution() const
+{
+    return m_minimumResolution;
+}
+
+uint32_t PDF3D_U3D_CLODMeshDeclarationBlock::getFinalResolution() const
+{
+    return m_finalResolution;
+}
+
+uint32_t PDF3D_U3D_CLODMeshDeclarationBlock::getPositionQualityFactor() const
+{
+    return m_positionQualityFactor;
+}
+
+uint32_t PDF3D_U3D_CLODMeshDeclarationBlock::getNormalQualityFactor() const
+{
+    return m_normalQualityFactor;
+}
+
+uint32_t PDF3D_U3D_CLODMeshDeclarationBlock::getTextureCoordQualityFactor() const
+{
+    return m_textureCoordQualityFactor;
+}
+
+float PDF3D_U3D_CLODMeshDeclarationBlock::getPositionInverseQuant() const
+{
+    return m_positionInverseQuant;
+}
+
+float PDF3D_U3D_CLODMeshDeclarationBlock::getNormalInverseQuant() const
+{
+    return m_normalInverseQuant;
+}
+
+float PDF3D_U3D_CLODMeshDeclarationBlock::getTextureCoordInverseQuant() const
+{
+    return m_textureCoordInverseQuant;
+}
+
+float PDF3D_U3D_CLODMeshDeclarationBlock::getDiffuseColorInverseQuant() const
+{
+    return m_diffuseColorInverseQuant;
+}
+
+float PDF3D_U3D_CLODMeshDeclarationBlock::getSpecularColorInverseQuant() const
+{
+    return m_specularColorInverseQuant;
+}
+
+float PDF3D_U3D_CLODMeshDeclarationBlock::getNormalCreaseParameter() const
+{
+    return m_normalCreaseParameter;
+}
+
+float PDF3D_U3D_CLODMeshDeclarationBlock::getNormalUpdateParameter() const
+{
+    return m_normalUpdateParameter;
+}
+
+float PDF3D_U3D_CLODMeshDeclarationBlock::getNormalToleranceParameter() const
+{
+    return m_normalToleranceParameter;
+}
+
+uint32_t PDF3D_U3D_CLODMeshDeclarationBlock::getBoneCount() const
+{
+    return m_boneCount;
+}
+
+const std::vector<PDF3D_U3D_CLODMeshDeclarationBlock::BoneDescription>& PDF3D_U3D_CLODMeshDeclarationBlock::getBoneDescription() const
+{
+    return m_boneDescription;
 }
 
 }   // namespace u3d

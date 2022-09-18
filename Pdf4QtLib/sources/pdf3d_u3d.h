@@ -42,6 +42,7 @@ class PDF3D_U3D_AbstractBlock;
 using PDF3D_U3D_AbstractBlockPtr = QSharedPointer<PDF3D_U3D_AbstractBlock>;
 
 using PDF3D_U3D_Vec3 = std::array<float, 3>;
+using PDF3D_U3D_Vec4 = std::array<float, 4>;
 
 class PDF3D_U3D_AbstractBlock
 {
@@ -49,7 +50,7 @@ public:
     inline constexpr PDF3D_U3D_AbstractBlock() = default;
     virtual ~PDF3D_U3D_AbstractBlock() = default;
 
-    void parseMetadata(QByteArray metaData);
+    void parseMetadata(QByteArray metaData, PDF3D_U3D* object);
 
     struct ParentNodeData
     {
@@ -59,7 +60,18 @@ public:
 
     using ParentNodesData = std::vector<ParentNodeData>;
 
+    struct MetaDataItem
+    {
+        uint32_t attributes = 0;
+        QString key;
+        QString value;
+        QByteArray binaryData;
+    };
+
     static ParentNodesData parseParentNodeData(PDF3D_U3D_DataReader& reader, PDF3D_U3D* object);
+
+private:
+    std::vector<MetaDataItem> m_metaData;
 };
 
 // Bounding sphere - x, y, z position and radius
@@ -367,6 +379,124 @@ private:
 };
 
 // -------------------------------------------------------------------------------
+//                                 GEOMETRY BLOCKS
+// -------------------------------------------------------------------------------
+
+class PDF3D_U3D_CLODMeshDeclarationBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = 0xFFFFFF31;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object);
+
+    struct ShadingDescription
+    {
+        uint32_t shadingAttributes = 0;
+        uint32_t textureLayerCount = 0;
+        std::vector<uint32_t> textureCoordDimensions;
+        uint32_t originalShading = 0;
+    };
+
+    struct BoneJoint
+    {
+        float jointCenterU = 0.0;
+        float jointCenterV = 0.0;
+        float jointScaleU = 0.0;
+        float jointScaleV = 0.0;
+    };
+
+    struct BoneDescription
+    {
+        QString boneName;
+        QString parentBoneName;
+        uint32_t boneAttributes = 0;
+        float boneLength = 0.0;
+        PDF3D_U3D_Vec3 boneDisplacement = PDF3D_U3D_Vec3();
+        PDF3D_U3D_Vec4 boneOrientation = PDF3D_U3D_Vec4();
+        uint32_t boneLinkCount = 0;
+        float boneLinkLength = 0.0;
+        BoneJoint startJoint = BoneJoint();
+        BoneJoint endJoint = BoneJoint();
+        PDF3D_U3D_Vec3 rotationConstraintMin = PDF3D_U3D_Vec3();
+        PDF3D_U3D_Vec3 rotationConstraintMax = PDF3D_U3D_Vec3();
+
+        bool isLinkPresent() const { return boneAttributes & 0x00000001; }
+        bool isJointPresent() const { return boneAttributes & 0x00000002; }
+    };
+
+    const QString& getMeshName() const;
+    uint32_t getChainIndex() const;
+
+    /* max mesh description */
+    uint32_t getMeshAttributes() const;
+    uint32_t getFaceCount() const;
+    uint32_t getPositionCount() const;
+    uint32_t getNormalCount() const;
+    uint32_t getDiffuseColorCount() const;
+    uint32_t getSpecularColorCount() const;
+    uint32_t getTextureColorCount() const;
+    uint32_t getShadingCount() const;
+    const std::vector<ShadingDescription>& getShadingDescription() const;
+
+    /* clod description */
+    uint32_t getMinimumResolution() const;
+    uint32_t getFinalResolution() const;
+
+    /* resource description */
+    uint32_t getPositionQualityFactor() const;
+    uint32_t getNormalQualityFactor() const;
+    uint32_t getTextureCoordQualityFactor() const;
+    float getPositionInverseQuant() const;
+    float getNormalInverseQuant() const;
+    float getTextureCoordInverseQuant() const;
+    float getDiffuseColorInverseQuant() const;
+    float getSpecularColorInverseQuant() const;
+    float getNormalCreaseParameter() const;
+    float getNormalUpdateParameter() const;
+    float getNormalToleranceParameter() const;
+
+    /* bone description */
+    uint32_t getBoneCount() const;
+    const std::vector<BoneDescription>& getBoneDescription() const;
+
+private:
+    QString m_meshName;
+    uint32_t m_chainIndex = 0;
+
+    /* max mesh description */
+    uint32_t m_meshAttributes = 0;
+    uint32_t m_faceCount = 0;
+    uint32_t m_positionCount = 0;
+    uint32_t m_normalCount = 0;
+    uint32_t m_diffuseColorCount = 0;
+    uint32_t m_specularColorCount = 0;
+    uint32_t m_textureColorCount = 0;
+    uint32_t m_shadingCount = 0;
+    std::vector<ShadingDescription> m_shadingDescription;
+
+    /* clod description */
+    uint32_t m_minimumResolution = 0;
+    uint32_t m_finalResolution = 0;
+
+    /* resource description */
+    uint32_t m_positionQualityFactor = 0;
+    uint32_t m_normalQualityFactor = 0;
+    uint32_t m_textureCoordQualityFactor = 0;
+    float m_positionInverseQuant = 0.0;
+    float m_normalInverseQuant = 0.0;
+    float m_textureCoordInverseQuant = 0.0;
+    float m_diffuseColorInverseQuant = 0.0;
+    float m_specularColorInverseQuant = 0.0;
+    float m_normalCreaseParameter = 0.0;
+    float m_normalUpdateParameter = 0.0;
+    float m_normalToleranceParameter = 0.0;
+
+    /* bone description */
+    uint32_t m_boneCount = 0;
+    std::vector<BoneDescription> m_boneDescription;
+};
+
+// -------------------------------------------------------------------------------
 //                                  PDF3D_U3D
 // -------------------------------------------------------------------------------
 
@@ -386,7 +516,16 @@ private:
     PDF3D_U3D_AbstractBlockPtr parseBlock(uint32_t blockType, const QByteArray& data, const QByteArray& metaData);
     static uint32_t getBlockPadding(uint32_t blockSize);
 
+    struct LoadBlockInfo
+    {
+        bool success = false;
+        uint32_t blockType = 0;
+        uint32_t dataSize = 0;
+        uint32_t metaDataSize = 0;
+    };
+
     std::vector<PDF3D_U3D_AbstractBlockPtr> m_blocks;
+    std::vector<LoadBlockInfo> m_blockLoadFails;
     const PDF3D_U3D_FileBlock* m_fileBlock = nullptr;
     QTextCodec* m_textCodec = nullptr;
     bool m_isCompressed = true;
