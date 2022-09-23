@@ -554,6 +554,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D::parseBlockWithDeclaration(PDF3D_U3D_DataRe
     auto block = parseBlock(blockType, blockData, metaData);
 
     LoadBlockInfo info;
+    info.typeName = QByteArray::fromRawData(reinterpret_cast<const char*>(&blockType), sizeof(decltype(blockType))).toHex();
     info.success = block != nullptr;
     info.blockType = blockType;
     info.dataSize = dataSize;
@@ -577,6 +578,36 @@ PDF3D_U3D PDF3D_U3D::parse(QByteArray data)
     }
 
     return object;
+}
+
+const PDF3D_U3D_CLODMeshDeclarationBlock* PDF3D_U3D::getCLODMeshDeclarationBlock(const QString& meshName) const
+{
+    for (const auto& block : m_blocks)
+    {
+        if (auto typedBlock = dynamic_cast<const PDF3D_U3D_CLODMeshDeclarationBlock*>(block.data()))
+        {
+            if (typedBlock->getMeshName() == meshName)
+            {
+                return typedBlock;
+            }
+        }
+
+        if (auto typedBlock = dynamic_cast<const PDF3D_U3D_ModifierChainBlock*>(block.data()))
+        {
+            for (const auto& modifierChainChildBlock : typedBlock->getModifierDeclarationBlocks())
+            {
+                if (auto modifierChainChildTypedBlock = dynamic_cast<const PDF3D_U3D_CLODMeshDeclarationBlock*>(modifierChainChildBlock.data()))
+                {
+                    if (modifierChainChildTypedBlock->getMeshName() == meshName)
+                    {
+                        return modifierChainChildTypedBlock;
+                    }
+                }
+            }
+        }
+    }
+
+    return nullptr;
 }
 
 PDF3D_U3D_AbstractBlockPtr PDF3D_U3D::parseBlock(uint32_t blockType,
@@ -631,6 +662,9 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D::parseBlock(uint32_t blockType,
 
         case PDF3D_U3D_CLODMeshDeclarationBlock::ID:
             return PDF3D_U3D_CLODMeshDeclarationBlock::parse(data, metaData, this);
+
+        case PDF3D_U3D_CLODBaseMeshContinuationBlock::ID:
+            return PDF3D_U3D_CLODBaseMeshContinuationBlock::parse(data, metaData, this);
 
         default:
             break;
@@ -1534,6 +1568,84 @@ uint32_t PDF3D_U3D_CLODMeshDeclarationBlock::getBoneCount() const
 const std::vector<PDF3D_U3D_CLODMeshDeclarationBlock::BoneDescription>& PDF3D_U3D_CLODMeshDeclarationBlock::getBoneDescription() const
 {
     return m_boneDescription;
+}
+
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_CLODBaseMeshContinuationBlock::parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object)
+{
+    PDF3D_U3D_CLODBaseMeshContinuationBlock* block = new PDF3D_U3D_CLODBaseMeshContinuationBlock();
+    PDF3D_U3D_AbstractBlockPtr pointer(block);
+
+    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+
+    // Read the data
+    block->m_meshName = reader.readString(object->getTextCodec());
+    block->m_chainIndex = reader.readU32();
+
+    /* max mesh description */
+    block->m_faceCount = reader.readU32();
+    block->m_positionCount = reader.readU32();
+    block->m_normalCount = reader.readU32();
+    block->m_diffuseColorCount = reader.readU32();
+    block->m_specularColorCount = reader.readU32();
+    block->m_textureColorCount = reader.readU32();
+
+    block->m_basePositions = reader.readVectorFloats32<PDF3D_U3D_Vec3>(block->m_positionCount);
+    block->m_baseNormals = reader.readVectorFloats32<PDF3D_U3D_Vec3>(block->m_normalCount);
+    block->m_baseDiffuseColors = reader.readVectorFloats32<PDF3D_U3D_Vec4>(block->m_diffuseColorCount);
+    block->m_baseSpecularColors = reader.readVectorFloats32<PDF3D_U3D_Vec4>(block->m_specularColorCount);
+    block->m_baseTextureCoords = reader.readVectorFloats32<PDF3D_U3D_Vec4>(block->m_textureColorCount);
+
+    // We must read attributes of the mesh to read faces
+    if (auto declarationBlock = object->getCLODMeshDeclarationBlock(block->m_meshName))
+    {
+        const bool hasNormals = !declarationBlock->isNormalsExcluded();
+
+        for (size_t i = 0; i < block->m_faceCount; ++i)
+        {
+            BaseFace face;
+            face.m_shadingId = reader.readCompressedU32(reader.getStaticContext(cShading));
+
+            const PDF3D_U3D_CLODMeshDeclarationBlock::ShadingDescription* shadingDescription = declarationBlock->getShadingDescriptionItem(face.m_shadingId);
+            if (!shadingDescription)
+            {
+                return nullptr;
+            }
+
+            for (size_t ci = 0; ci < face.m_corners.size(); ++ci)
+            {
+                BaseCornerInfo cornerInfo;
+
+                cornerInfo.basePositionIndex = reader.readCompressedU32(reader.getRangeContext(block->m_positionCount));
+
+                if (hasNormals)
+                {
+                    cornerInfo.baseNormalIndex = reader.readCompressedU32(reader.getRangeContext(block->m_normalCount));
+                }
+
+                if (shadingDescription->hasDiffuseColors())
+                {
+                    cornerInfo.baseDiffuseColorIndex = reader.readCompressedU32(reader.getRangeContext(block->m_diffuseColorCount));
+                }
+
+                if (shadingDescription->hasSpecularColors())
+                {
+                    cornerInfo.baseSpecularColorIndex = reader.readCompressedU32(reader.getRangeContext(block->m_specularColorCount));
+                }
+
+                for (uint32_t ti = 0; ti < shadingDescription->textureLayerCount; ++ti)
+                {
+                    cornerInfo.baseTextureCoordIndex.push_back(reader.readCompressedU32(reader.getRangeContext(block->m_textureColorCount)));
+                }
+
+                face.m_corners[ci] = std::move(cornerInfo);
+            }
+
+            block->m_baseFaces.emplace_back(std::move(face));
+        }
+    }
+
+    block->parseMetadata(metaData, object);
+    return pointer;
 }
 
 }   // namespace u3d

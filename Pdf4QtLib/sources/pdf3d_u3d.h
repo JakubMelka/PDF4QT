@@ -395,6 +395,9 @@ public:
         uint32_t textureLayerCount = 0;
         std::vector<uint32_t> textureCoordDimensions;
         uint32_t originalShading = 0;
+
+        bool hasDiffuseColors() const { return shadingAttributes & 0x00000001; }
+        bool hasSpecularColors() const { return shadingAttributes & 0x00000002; }
     };
 
     struct BoneJoint
@@ -427,6 +430,8 @@ public:
     const QString& getMeshName() const;
     uint32_t getChainIndex() const;
 
+    bool isNormalsExcluded() const { return getMeshAttributes() & 0x00000001; }
+
     /* max mesh description */
     uint32_t getMeshAttributes() const;
     uint32_t getFaceCount() const;
@@ -437,6 +442,7 @@ public:
     uint32_t getTextureColorCount() const;
     uint32_t getShadingCount() const;
     const std::vector<ShadingDescription>& getShadingDescription() const;
+    const ShadingDescription* getShadingDescriptionItem(uint32_t index) const { return index < m_shadingDescription.size() ? &m_shadingDescription[index] : nullptr; }
 
     /* clod description */
     uint32_t getMinimumResolution() const;
@@ -496,6 +502,56 @@ private:
     std::vector<BoneDescription> m_boneDescription;
 };
 
+class PDF3D_U3D_CLODBaseMeshContinuationBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = 0xFFFFFF3B;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object);
+
+    struct BaseCornerInfo
+    {
+        uint32_t basePositionIndex = 0; // rBasePositionCount
+        uint32_t baseNormalIndex = 0; // rBaseNormalCount
+        uint32_t baseDiffuseColorIndex = 0; // rBaseDiffColorCnt
+        uint32_t baseSpecularColorIndex = 0; // rBaseSpecColorCnt
+        std::vector<uint32_t> baseTextureCoordIndex; // rBaseTexCoordCnt
+    };
+
+    struct BaseFace
+    {
+        uint32_t m_shadingId = 0; // cShading
+        std::array<BaseCornerInfo, 3> m_corners = { };
+    };
+
+    const QString& getMeshName() const;
+    uint32_t getChainIndex() const;
+
+private:
+    enum Context
+    {
+        cShading = 1
+    };
+
+    QString m_meshName;
+    uint32_t m_chainIndex = 0;
+
+    /* base mesh description */
+    uint32_t m_faceCount = 0;
+    uint32_t m_positionCount = 0;
+    uint32_t m_normalCount = 0;
+    uint32_t m_diffuseColorCount = 0;
+    uint32_t m_specularColorCount = 0;
+    uint32_t m_textureColorCount = 0;
+
+    std::vector<PDF3D_U3D_Vec3> m_basePositions;
+    std::vector<PDF3D_U3D_Vec3> m_baseNormals;
+    std::vector<PDF3D_U3D_Vec4> m_baseDiffuseColors;
+    std::vector<PDF3D_U3D_Vec4> m_baseSpecularColors;
+    std::vector<PDF3D_U3D_Vec4> m_baseTextureCoords;
+    std::vector<BaseFace> m_baseFaces;
+};
+
 // -------------------------------------------------------------------------------
 //                                  PDF3D_U3D
 // -------------------------------------------------------------------------------
@@ -510,6 +566,8 @@ public:
 
     static PDF3D_U3D parse(QByteArray data);
 
+    const PDF3D_U3D_CLODMeshDeclarationBlock* getCLODMeshDeclarationBlock(const QString& meshName) const;
+
     PDF3D_U3D_AbstractBlockPtr parseBlockWithDeclaration(PDF3D_U3D_DataReader& reader);
 
 private:
@@ -518,6 +576,7 @@ private:
 
     struct LoadBlockInfo
     {
+        QString typeName;
         bool success = false;
         uint32_t blockType = 0;
         uint32_t dataSize = 0;
@@ -593,6 +652,9 @@ public:
 
     void setData(QByteArray data);
 
+    static constexpr uint32_t getRangeContext(uint32_t value) { return value + PDF3D_U3D_Constants::S_STATIC_FULL; }
+    static constexpr uint32_t getStaticContext(uint32_t value) { return value; }
+
     uint8_t readU8();
     uint16_t readU16();
     uint32_t readU32();
@@ -624,6 +686,22 @@ public:
         {
             value = readF32();
         }
+    }
+
+    template<typename T>
+    std::vector<T> readVectorFloats32(uint32_t count)
+    {
+        std::vector<T> result;
+        result.reserve(count);
+
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            T value = T();
+            readFloats32(value);
+            result.emplace_back(std::move(value));
+        }
+
+        return result;
     }
 
 private:
