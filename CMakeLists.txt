@@ -52,6 +52,7 @@ find_package(ZLIB REQUIRED)
 find_package(freetype CONFIG REQUIRED)
 find_package(OpenJPEG CONFIG REQUIRED)
 find_package(JPEG REQUIRED)
+find_package(PNG REQUIRED)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
