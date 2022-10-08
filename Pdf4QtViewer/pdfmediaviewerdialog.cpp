@@ -198,6 +198,14 @@ void PDFMediaViewerDialog::initFrom3DAnnotation(const pdf::PDFDocument* document
         {
             case pdf::PDF3DStream::Type::U3D:
             {
+                QString file = "K:\\Programming\\PDF\\PDF_For_Qt\\U3D_parser\\u3d-tools\\src\\test.u3d";
+                QFile f(file);
+                if (f.open(QFile::WriteOnly | QFile::Truncate))
+                {
+                    f.write(data);
+                    f.close();
+                }
+
                 pdf::u3d::PDF3D_U3D u3d = pdf::u3d::PDF3D_U3D::parse(data);
                 break;
             }

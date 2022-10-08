@@ -35,8 +35,49 @@ namespace pdf
 namespace u3d
 {
 
+enum Context
+{
+    cPosDiffSign = 1,
+    cPosDiffX,
+    cPosDiffY,
+    cPosDiffZ,
+    cNormlCnt,
+    cDiffNormalSign,
+    cDiffNormalX,
+    cDiffNormalY,
+    cDiffNormalZ,
+    cLineCnt,
+    cShading,
+    cNormlIdx,
+    cDiffDup,
+    cDiffuseColorSign,
+    cColorDiffR,
+    cColorDiffG,
+    cColorDiffB,
+    cColorDiffA,
+    cSpecDup,
+    cSpecularColorSign,
+    cTexCDup,
+    cTexCoordSign,
+    cTexCDiffU,
+    cTexCDiffV,
+    cTexCDiffS,
+    cTexCDiffT,
+    cZero,
+    cDiffuseCount,
+    cSpecularCount,
+    cTexCoordCount,
+    cFaceCnt,
+    cFaceOrnt,
+    cLocal3rdPos,
+    cThrdPosType
+};
+
 class PDF3D_U3D;
 class PDF3D_U3D_DataReader;
+class PDF3D_U3D_ContextManager;
+
+struct PDF3D_U3D_Block_Data;
 
 class PDF3D_U3D_AbstractBlock;
 using PDF3D_U3D_AbstractBlockPtr = QSharedPointer<PDF3D_U3D_AbstractBlock>;
@@ -59,6 +100,14 @@ struct PDF3D_U3D_QuantizedVec3
     uint32_t diff1;
     uint32_t diff2;
     uint32_t diff3;
+};
+
+struct PDF3D_U3D_Block_Data
+{
+    uint32_t blockType = 0;
+
+    QByteArray blockData;
+    QByteArray metaData;
 };
 
 struct PDF3D_U3D_ShadingDescription
@@ -202,7 +251,7 @@ public:
     const PDF3D_U3D_BoundingSphere& getBoundingSphere() const;
     const PDF3D_U3D_AxisAlignedBoundingBox& getBoundingBox() const;
     uint32_t getModifierCount() const;
-    const std::vector<PDF3D_U3D_AbstractBlockPtr>& getModifierDeclarationBlocks() const;
+    const std::vector<PDF3D_U3D_Block_Data>& getModifierDeclarationBlocks() const;
 
 private:
     QString m_modifierChainName;
@@ -212,7 +261,7 @@ private:
     PDF3D_U3D_AxisAlignedBoundingBox m_boundingBox = PDF3D_U3D_AxisAlignedBoundingBox();
     // Padding 0-3 bytes
     uint32_t m_modifierCount = 0;
-    std::vector<PDF3D_U3D_AbstractBlockPtr> m_modifierDeclarationBlocks;
+    std::vector<PDF3D_U3D_Block_Data> m_modifierDeclarationBlocks;
 };
 
 class PDF3D_U3D_PriorityUpdateBlock : public PDF3D_U3D_AbstractBlock
@@ -559,11 +608,6 @@ public:
     const std::vector<BaseFace>& getBaseFaces() const;
 
 private:
-    enum Context
-    {
-        cShading = 1
-    };
-
     QString m_meshName;
     uint32_t m_chainIndex = 0;
 
@@ -610,30 +654,6 @@ public:
     };
 
 private:
-    enum Context
-    {
-        cZero = 1,
-        cDiffuseCount,
-        cDiffuseColorSign,
-        cColorDiffR,
-        cColorDiffG,
-        cColorDiffB,
-        cColorDiffA,
-        cSpecularCount,
-        cSpecularColorSign,
-        cTexCoordCount,
-        cTexCoordSign,
-        cTexCDiffU,
-        cTexCDiffV,
-        cTexCDiffS,
-        cTexCDiffT,
-        cFaceCnt,
-        cShading,
-        cFaceOrnt,
-        cLocal3rdPos,
-        cThrdPosType
-    };
-
     QString m_meshName;
     uint32_t m_chainIndex = 0;
 
@@ -737,40 +757,9 @@ public:
 
     const QString& getName() const { return m_lineSetName; }
 
-    const std::vector<UpdateItem>& updateItems() const;
+    const std::vector<UpdateItem>& getUpdateItems() const;
 
 private:
-
-    enum Context
-    {
-        cPosDiffSign = 1,
-        cPosDiffX,
-        cPosDiffY,
-        cPosDiffZ,
-        cNormlCnt,
-        cDiffNormalSign,
-        cDiffNormalX,
-        cDiffNormalY,
-        cDiffNormalZ,
-        cLineCnt,
-        cShading,
-        cNormlIdx,
-        cDiffDup,
-        cDiffuseColorSign,
-        cColorDiffR,
-        cColorDiffG,
-        cColorDiffB,
-        cColorDiffA,
-        cSpecDup,
-        cSpecularColorSign,
-        cTexCDup,
-        cTexCoordSign,
-        cTexCDiffU,
-        cTexCDiffV,
-        cTexCDiffS,
-        cTexCDiffT
-    };
-
     QString m_lineSetName;
     uint32_t m_chainIndex = 0;
 
@@ -794,6 +783,12 @@ public:
 
     static PDF3D_U3D parse(QByteArray data);
 
+    static void processBlock(PDF3D_U3D& object,
+                             const PDF3D_U3D_Block_Data& blockData,
+                             PDF3D_U3D_DecoderLists& decoderLists,
+                             QStringList& errors,
+                             PDF3D_U3D_DecoderLists::EPalette palette);
+
     const PDF3D_U3D_CLODMeshDeclarationBlock* getCLODMeshDeclarationBlock(const QString& meshName) const;
     const PDF3D_U3D_LineSetDeclarationBlock* getLineSetDeclarationBlock(const QString& lineSetName) const;
 
@@ -801,10 +796,16 @@ public:
     const T* getBlock(const QString& name) const;
 
     PDF3D_U3D_AbstractBlockPtr parseBlockWithDeclaration(PDF3D_U3D_DataReader& reader);
+    PDF3D_U3D_ContextManager* getContextManager() { return m_contextManager.lock().get(); }
+    void setContextManager(std::weak_ptr<PDF3D_U3D_ContextManager> contextManager) { m_contextManager = std::move(contextManager); }
+
+    static PDF3D_U3D_Block_Data readBlockData(PDF3D_U3D_DataReader& reader);
 
 private:
     PDF3D_U3D_AbstractBlockPtr parseBlock(uint32_t blockType, const QByteArray& data, const QByteArray& metaData);
+    PDF3D_U3D_AbstractBlockPtr parseBlock(const PDF3D_U3D_Block_Data& data);
     static uint32_t getBlockPadding(uint32_t blockSize);
+    static bool isContinuationBlock(uint32_t blockType);
 
     struct LoadBlockInfo
     {
@@ -816,11 +817,13 @@ private:
         PDF3D_U3D_AbstractBlockPtr block;
     };
 
+    PDF3D_U3D_AbstractBlockPtr m_fileBlock;
     std::vector<PDF3D_U3D_AbstractBlockPtr> m_blocks;
     std::vector<LoadBlockInfo> m_allBlocks;
-    const PDF3D_U3D_FileBlock* m_fileBlock = nullptr;
     QTextCodec* m_textCodec = nullptr;
     bool m_isCompressed = true;
+    uint32_t m_priority = 0;
+    std::weak_ptr<PDF3D_U3D_ContextManager> m_contextManager;
 };
 
 // -------------------------------------------------------------------------------
@@ -877,10 +880,55 @@ public:
     static constexpr uint32_t S_MAXIMUM_SYMBOL_IN_HISTOGRAM = 0x0000FFFF;
 };
 
+struct PDF3D_U3D_DecorderList_ChainItem
+{
+    std::vector<PDF3D_U3D_Block_Data> blocks;
+};
+
+class PDF3D_U3D_DecoderList
+{
+public:
+    PDF3D_U3D_DecoderList() = default;
+
+    const QString& getName() const;
+    void setName(const QString& newName);
+
+    const std::vector<PDF3D_U3D_DecorderList_ChainItem>& getChains() const;
+    void setChains(const std::vector<PDF3D_U3D_DecorderList_ChainItem>& newChains);
+    PDF3D_U3D_DecorderList_ChainItem* getChain(size_t index);
+
+    void createChain(const PDF3D_U3D_Block_Data& data);
+
+private:
+    QString m_name;
+    std::vector<PDF3D_U3D_DecorderList_ChainItem> m_chains;
+};
+
+class PDF3D_U3D_DecoderLists
+{
+public:
+
+    enum EPalette
+    {
+        Node,
+        View,
+        Light,
+        LastPalette
+    };
+
+    PDF3D_U3D_DecoderList* getDecoderList(QString name);
+
+    bool addContinuationBlock(QString name, uint32_t chainIndex, const PDF3D_U3D_Block_Data& data);
+    void addDecoderList(PDF3D_U3D_DecoderList&& list) { m_decoderLists.emplace_back(std::move(list)); }
+
+private:
+    std::vector<PDF3D_U3D_DecoderList> m_decoderLists;
+};
+
 class PDF3D_U3D_DataReader
 {
 public:
-    PDF3D_U3D_DataReader(QByteArray data, bool isCompressed);
+    PDF3D_U3D_DataReader(QByteArray data, bool isCompressed, PDF3D_U3D_ContextManager* contextManager);
     ~PDF3D_U3D_DataReader();
 
     void setData(QByteArray data);
@@ -957,7 +1005,7 @@ private:
     uint32_t read15Bits();
 
     QByteArray m_data;
-    PDF3D_U3D_ContextManager m_contextManager;
+    PDF3D_U3D_ContextManager* m_contextManager;
 
     uint32_t m_high;
     uint32_t m_low;

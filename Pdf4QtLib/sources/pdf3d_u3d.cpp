@@ -27,8 +27,9 @@ namespace pdf
 namespace u3d
 {
 
-PDF3D_U3D_DataReader::PDF3D_U3D_DataReader(QByteArray data, bool isCompressed) :
+PDF3D_U3D_DataReader::PDF3D_U3D_DataReader(QByteArray data, bool isCompressed, PDF3D_U3D_ContextManager* contextManager) :
     m_data(std::move(data)),
+    m_contextManager(contextManager),
     m_high(0x0000FFFF),
     m_low(0),
     m_underflow(0),
@@ -106,7 +107,7 @@ double PDF3D_U3D_DataReader::readF64()
 
 uint8_t PDF3D_U3D_DataReader::readCompressedU8(uint32_t context)
 {
-    if (m_isCompressed && m_contextManager.isContextCompressed(context))
+    if (m_isCompressed && m_contextManager->isContextCompressed(context))
     {
         const uint32_t symbol = readSymbol(context);
         if (symbol != 0)
@@ -118,7 +119,7 @@ uint8_t PDF3D_U3D_DataReader::readCompressedU8(uint32_t context)
         {
             // New symbol
             const uint32_t value = readU8();
-            m_contextManager.addSymbol(context, value + 1);
+            m_contextManager->addSymbol(context, value + 1);
             return value;
         }
     }
@@ -128,7 +129,7 @@ uint8_t PDF3D_U3D_DataReader::readCompressedU8(uint32_t context)
 
 uint16_t PDF3D_U3D_DataReader::readCompressedU16(uint32_t context)
 {
-    if (m_isCompressed && m_contextManager.isContextCompressed(context))
+    if (m_isCompressed && m_contextManager->isContextCompressed(context))
     {
         const uint32_t symbol = readSymbol(context);
         if (symbol != 0)
@@ -140,7 +141,7 @@ uint16_t PDF3D_U3D_DataReader::readCompressedU16(uint32_t context)
         {
             // New symbol
             const uint32_t value = readU16();
-            m_contextManager.addSymbol(context, value + 1);
+            m_contextManager->addSymbol(context, value + 1);
             return value;
         }
     }
@@ -150,7 +151,7 @@ uint16_t PDF3D_U3D_DataReader::readCompressedU16(uint32_t context)
 
 uint32_t PDF3D_U3D_DataReader::readCompressedU32(uint32_t context)
 {
-    if (m_isCompressed && m_contextManager.isContextCompressed(context))
+    if (m_isCompressed && m_contextManager->isContextCompressed(context))
     {
         const uint32_t symbol = readSymbol(context);
         if (symbol != 0)
@@ -162,7 +163,7 @@ uint32_t PDF3D_U3D_DataReader::readCompressedU32(uint32_t context)
         {
             // New symbol
             const uint32_t value = readU32();
-            m_contextManager.addSymbol(context, value + 1);
+            m_contextManager->addSymbol(context, value + 1);
             return value;
         }
     }
@@ -312,19 +313,19 @@ uint32_t PDF3D_U3D_DataReader::readSymbol(uint32_t context)
     m_code = (m_code << 15) | read15Bits();
     m_position = position;
 
-    const uint32_t totalCumFreq = m_contextManager.getTotalSymbolFrequency(context);
+    const uint32_t totalCumFreq = m_contextManager->getTotalSymbolFrequency(context);
     const uint32_t range = (m_high + 1) - m_low;
     const uint32_t codeCumFreq = ((totalCumFreq) * (1 + m_code - m_low) - 1) / range;
-    const uint32_t value = m_contextManager.getSymbolFromFrequency(context, codeCumFreq);
-    const uint32_t valueCumFreq = m_contextManager.getCumulativeSymbolFrequency(context, value);
-    const uint32_t valueFreq = m_contextManager.getSymbolFrequency(context, value);
+    const uint32_t value = m_contextManager->getSymbolFromFrequency(context, codeCumFreq);
+    const uint32_t valueCumFreq = m_contextManager->getCumulativeSymbolFrequency(context, value);
+    const uint32_t valueFreq = m_contextManager->getSymbolFrequency(context, value);
 
     uint32_t low = m_low;
     uint32_t high = m_high;
 
     high = low - 1 + range * (valueCumFreq + valueFreq) / totalCumFreq;
     low = low + range * valueCumFreq / totalCumFreq;
-    m_contextManager.addSymbol(context, value);
+    m_contextManager->addSymbol(context, value);
 
     constexpr std::array S_BIT_COUNTS = { 4, 3, 2, 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0 };
     uint32_t bitCount = S_BIT_COUNTS[((low >> 12) ^ (high >> 12)) & 0x0000000F];
@@ -619,20 +620,134 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D::parseBlockWithDeclaration(PDF3D_U3D_DataRe
     return block;
 }
 
+PDF3D_U3D_Block_Data PDF3D_U3D::readBlockData(PDF3D_U3D_DataReader& reader)
+{
+    PDF3D_U3D_Block_Data data;
+
+    // Read block
+    uint32_t blockType = reader.readU32();
+    uint32_t dataSize = reader.readU32();
+    uint32_t metaDataSize = reader.readU32();
+
+    //qDebug() << QString("BT: %1, data size = %2").arg(QString::number(blockType, 16), QString::number(dataSize));
+
+    // Read block data
+    QByteArray blockData = reader.readByteArray(dataSize);
+    reader.skipBytes(getBlockPadding(dataSize));
+
+    // Read block metadata
+    QByteArray metaData = reader.readByteArray(metaDataSize);
+    reader.skipBytes(getBlockPadding(metaDataSize));
+
+    data.blockType = blockType;
+    data.blockData = std::move(blockData);
+    data.metaData = std::move(metaData);
+
+    return data;
+}
+
 PDF3D_U3D PDF3D_U3D::parse(QByteArray data)
 {
     PDF3D_U3D object;
-    PDF3D_U3D_DataReader reader(data, true);
+
+    // Why to use shared ptr and weak ptr in the object?
+    // In case exception is thrown in the parser, context
+    // manager will be automatically released.
+    std::shared_ptr<PDF3D_U3D_ContextManager> contextManager = std::make_shared<PDF3D_U3D_ContextManager>();
+    object.setContextManager(contextManager);
+    PDF3D_U3D_DataReader reader(data, true, contextManager.get());
+
+    object.m_priority = 0;
+
+    QStringList errors;
+    PDF3D_U3D_DecoderLists decoderLists;
 
     while (!reader.isAtEnd())
     {
-        if (auto block = object.parseBlockWithDeclaration(reader))
-        {
-            object.m_blocks.emplace_back(std::move(block));
-        }
+        PDF3D_U3D_Block_Data blockData = readBlockData(reader);
+        processBlock(blockData, decoderLists, errors);
     }
 
     return object;
+}
+
+void PDF3D_U3D::processBlock(PDF3D_U3D& object,
+                             const PDF3D_U3D_Block_Data& blockData,
+                             PDF3D_U3D_DecoderLists& decoderLists,
+                             QStringList& errors,
+                             PDF3D_U3D_DecoderLists::EPalette palette)
+{
+    switch (blockData.blockType)
+    {
+        case PDF3D_U3D_FileBlock::ID:
+        {
+            // Parse file block
+            object.m_fileBlock = object.parseBlock(blockData);
+            break;
+        }
+
+        case PDF3D_U3D_PriorityUpdateBlock::ID:
+        {
+            // Parse priority update block
+            auto block = object.parseBlock(blockData);
+            const PDF3D_U3D_PriorityUpdateBlock* priorityUpdateBlock = dynamic_cast<const PDF3D_U3D_PriorityUpdateBlock*>(block.get());
+            object.m_priority = priorityUpdateBlock->getNewPriority();
+            break;
+        }
+
+        case PDF3D_U3D_NewObjectTypeBlock::ID:
+        case PDF3D_U3D_FileReferenceBlock::ID:
+            // Skip this block, we do not handle these type of blocks,
+            // just read it... to check errors.
+            object.parseBlock(blockData);
+            break;
+
+        case PDF3D_U3D_ModifierChainBlock::ID:
+        {
+            // Add decoder list for modifier chain block
+            auto block = object.parseBlock(blockData);
+            const PDF3D_U3D_ModifierChainBlock* chainBlock = dynamic_cast<const PDF3D_U3D_ModifierChainBlock*>(block.get());
+
+            PDF3D_U3D_DecoderList decoderList;
+            decoderList.setName(chainBlock->getModifierChainName());
+
+            for (const auto& block : chainBlock->getModifierDeclarationBlocks())
+            {
+                decoderList.createChain(block);
+            }
+
+            decoderLists.addDecoderList(std::move(decoderList));
+            break;
+        }
+
+        default:
+        {
+            PDF3D_U3D_DataReader blockReader(blockData.blockData, object.isCompressed(), object.getContextManager());
+            QString blockName = blockReader.readString(object.getTextCodec());
+
+            if (isContinuationBlock(blockData.blockType))
+            {
+                uint32_t chainIndex = 0;
+                if (blockData.blockType != 0xFFFFFF5C)
+                {
+                    chainIndex = blockReader.readU32();
+                }
+
+                if (!decoderLists.addContinuationBlock(blockName, chainIndex, blockData))
+                {
+                    errors << QString("Failed to add continuation block '%1'").arg(blockName);
+                }
+            }
+            else
+            {
+                PDF3D_U3D_DecoderList decoderList;
+                decoderList.createChain(blockData);
+                decoderLists.addDecoderList(std::move(decoderList));
+            }
+
+            break;
+        }
+    }
 }
 
 template<typename T>
@@ -678,7 +793,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D::parseBlock(uint32_t blockType,
 
                 if (const PDF3D_U3D_FileBlock* fileBlock = dynamic_cast<const PDF3D_U3D_FileBlock*>(fileBlockPtr.get()))
                 {
-                    m_fileBlock = fileBlock;
+                    m_fileBlock = fileBlockPtr;
                     m_textCodec = QTextCodec::codecForMib(fileBlock->getCharacterEncoding());
                     m_isCompressed = !fileBlock->isNoCompressionMode();
                 }
@@ -736,6 +851,11 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D::parseBlock(uint32_t blockType,
     return PDF3D_U3D_AbstractBlockPtr();
 }
 
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D::parseBlock(const PDF3D_U3D_Block_Data& data)
+{
+    return parseBlock(data.blockType, data.blockData, data.metaData);
+}
+
 uint32_t PDF3D_U3D::getBlockPadding(uint32_t blockSize)
 {
     uint32_t extraBytes = blockSize % 4;
@@ -748,12 +868,30 @@ uint32_t PDF3D_U3D::getBlockPadding(uint32_t blockSize)
     return 0;
 }
 
+bool PDF3D_U3D::isContinuationBlock(uint32_t blockType)
+{
+    switch (blockType)
+    {
+        case 0xFFFFFF3B:
+        case 0xFFFFFF3C:
+        case 0xFFFFFF3E:
+        case 0xFFFFFF3F:
+        case 0xFFFFFF5C:
+            return true;
+
+        default:
+            break;
+    }
+
+    return false;
+}
+
 PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_FileBlock::parse(QByteArray data, QByteArray metaData, PDF3D_U3D* object)
 {
     PDF3D_U3D_FileBlock* block = new PDF3D_U3D_FileBlock();
     PDF3D_U3D_AbstractBlockPtr pointer(block);
 
-    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+    PDF3D_U3D_DataReader reader(data, object->isCompressed(), object->getContextManager());
 
     // Read the data
     block->m_majorVersion = reader.readI16();
@@ -815,7 +953,7 @@ void PDF3D_U3D_AbstractBlock::parseMetadata(QByteArray metaData, PDF3D_U3D* obje
         return;
     }
 
-    PDF3D_U3D_DataReader reader(metaData, object->isCompressed());
+    PDF3D_U3D_DataReader reader(metaData, object->isCompressed(), object->getContextManager());
 
     const uint32_t itemCount = reader.readU32();
     for (uint32_t i = 0; i < itemCount; ++i)
@@ -866,7 +1004,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_FileReferenceBlock::parse(QByteArray data, 
     PDF3D_U3D_FileReferenceBlock* block = new PDF3D_U3D_FileReferenceBlock();
     PDF3D_U3D_AbstractBlockPtr pointer(block);
 
-    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+    PDF3D_U3D_DataReader reader(data, object->isCompressed(), object->getContextManager());
 
     // Read the data
     block->m_scopeName = reader.readString(object->getTextCodec());
@@ -968,7 +1106,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_ModifierChainBlock::parse(QByteArray data, 
     PDF3D_U3D_ModifierChainBlock* block = new PDF3D_U3D_ModifierChainBlock();
     PDF3D_U3D_AbstractBlockPtr pointer(block);
 
-    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+    PDF3D_U3D_DataReader reader(data, object->isCompressed(), object->getContextManager());
 
     // Read the data
     block->m_modifierChainName = reader.readString(object->getTextCodec());
@@ -987,10 +1125,8 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_ModifierChainBlock::parse(QByteArray data, 
     const uint32_t modifierCount = reader.readU32();
     for (uint32_t i = 0; i < modifierCount; ++i)
     {
-        if (auto parsedBlock = object->parseBlockWithDeclaration(reader))
-        {
-            block->m_modifierDeclarationBlocks.emplace_back(std::move(parsedBlock));
-        }
+        PDF3D_U3D_Block_Data blockData = object->readBlockData(reader);
+        block->m_modifierDeclarationBlocks.emplace_back(std::move(blockData));
     }
 
     block->parseMetadata(metaData, object);
@@ -1027,7 +1163,7 @@ uint32_t PDF3D_U3D_ModifierChainBlock::getModifierCount() const
     return m_modifierCount;
 }
 
-const std::vector<PDF3D_U3D_AbstractBlockPtr>& PDF3D_U3D_ModifierChainBlock::getModifierDeclarationBlocks() const
+const std::vector<PDF3D_U3D_Block_Data>& PDF3D_U3D_ModifierChainBlock::getModifierDeclarationBlocks() const
 {
     return m_modifierDeclarationBlocks;
 }
@@ -1037,7 +1173,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_PriorityUpdateBlock::parse(QByteArray data,
     PDF3D_U3D_PriorityUpdateBlock* block = new PDF3D_U3D_PriorityUpdateBlock();
     PDF3D_U3D_AbstractBlockPtr pointer(block);
 
-    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+    PDF3D_U3D_DataReader reader(data, object->isCompressed(), object->getContextManager());
 
     // Read the data
     block->m_newPriority = reader.readU32();
@@ -1056,7 +1192,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_NewObjectTypeBlock::parse(QByteArray data, 
     PDF3D_U3D_NewObjectTypeBlock* block = new PDF3D_U3D_NewObjectTypeBlock();
     PDF3D_U3D_AbstractBlockPtr pointer(block);
 
-    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+    PDF3D_U3D_DataReader reader(data, object->isCompressed(), object->getContextManager());
 
     // Read the data
     block->m_newObjectTypeName = reader.readString(object->getTextCodec());
@@ -1134,7 +1270,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_NewObjectBlock::parse(QByteArray data, QByt
     PDF3D_U3D_NewObjectBlock* block = new PDF3D_U3D_NewObjectBlock();
     PDF3D_U3D_AbstractBlockPtr pointer(block);
 
-    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+    PDF3D_U3D_DataReader reader(data, object->isCompressed(), object->getContextManager());
 
     // Read the data
     block->m_objectName = reader.readString(object->getTextCodec());
@@ -1165,7 +1301,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_GroupNodeBlock::parse(QByteArray data, QByt
     PDF3D_U3D_GroupNodeBlock* block = new PDF3D_U3D_GroupNodeBlock();
     PDF3D_U3D_AbstractBlockPtr pointer(block);
 
-    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+    PDF3D_U3D_DataReader reader(data, object->isCompressed(), object->getContextManager());
 
     // Read the data
     block->m_groupNodeName = reader.readString(object->getTextCodec());
@@ -1190,7 +1326,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_ModelNodeBlock::parse(QByteArray data, QByt
     PDF3D_U3D_ModelNodeBlock* block = new PDF3D_U3D_ModelNodeBlock();
     PDF3D_U3D_AbstractBlockPtr pointer(block);
 
-    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+    PDF3D_U3D_DataReader reader(data, object->isCompressed(), object->getContextManager());
 
     // Read the data
     block->m_modelNodeName = reader.readString(object->getTextCodec());
@@ -1227,7 +1363,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_LightNodeBlock::parse(QByteArray data, QByt
     PDF3D_U3D_LightNodeBlock* block = new PDF3D_U3D_LightNodeBlock();
     PDF3D_U3D_AbstractBlockPtr pointer(block);
 
-    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+    PDF3D_U3D_DataReader reader(data, object->isCompressed(), object->getContextManager());
 
     // Read the data
     block->m_lightNodeName = reader.readString(object->getTextCodec());
@@ -1258,7 +1394,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_ViewNodeBlock::parse(QByteArray data, QByte
     PDF3D_U3D_ViewNodeBlock* block = new PDF3D_U3D_ViewNodeBlock();
     PDF3D_U3D_AbstractBlockPtr pointer(block);
 
-    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+    PDF3D_U3D_DataReader reader(data, object->isCompressed(), object->getContextManager());
 
     // Read the data
     block->m_viewNodeName = reader.readString(object->getTextCodec());
@@ -1404,7 +1540,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_CLODMeshDeclarationBlock::parse(QByteArray 
     PDF3D_U3D_CLODMeshDeclarationBlock* block = new PDF3D_U3D_CLODMeshDeclarationBlock();
     PDF3D_U3D_AbstractBlockPtr pointer(block);
 
-    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+    PDF3D_U3D_DataReader reader(data, object->isCompressed(), object->getContextManager());
 
     // Read the data
     block->m_meshName = reader.readString(object->getTextCodec());
@@ -1613,7 +1749,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_CLODBaseMeshContinuationBlock::parse(QByteA
     PDF3D_U3D_CLODBaseMeshContinuationBlock* block = new PDF3D_U3D_CLODBaseMeshContinuationBlock();
     PDF3D_U3D_AbstractBlockPtr pointer(block);
 
-    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+    PDF3D_U3D_DataReader reader(data, object->isCompressed(), object->getContextManager());
 
     // Read the data
     block->m_meshName = reader.readString(object->getTextCodec());
@@ -1751,10 +1887,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_CLODProgressiveMeshContinuationBlock::parse
     PDF3D_U3D_CLODProgressiveMeshContinuationBlock* block = new PDF3D_U3D_CLODProgressiveMeshContinuationBlock();
     PDF3D_U3D_AbstractBlockPtr pointer(block);
 
-    PDF3D_U3D_DataReader reader(data, object->isCompressed());
-
-    // TODO: finish this block
-    return nullptr;
+    PDF3D_U3D_DataReader reader(data, object->isCompressed(), object->getContextManager());
 
     // Read the data
     block->m_meshName = reader.readString(object->getTextCodec());
@@ -1770,12 +1903,10 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_CLODProgressiveMeshContinuationBlock::parse
     }
 
     block->m_resolutionUpdateCount = block->m_endResolution - block->m_startResolution;
-    uint32_t rCurrentPositionCount = block->m_startResolution;
 
-    for (uint32_t i = 0; i < block->m_resolutionUpdateCount; ++i)
+    for (uint32_t i = block->m_startResolution; i < block->m_endResolution; ++i)
     {
         ResolutionUpdate updateItem;
-        ++rCurrentPositionCount;
 
         if (i == 0)
         {
@@ -1837,7 +1968,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_CLODProgressiveMeshContinuationBlock::parse
             }
             else
             {
-                facePositionInfo.globalThirdPositionIndex = reader.readCompressedU32(reader.getRangeContext(rCurrentPositionCount));
+                facePositionInfo.globalThirdPositionIndex = reader.readCompressedU32(reader.getRangeContext(i));
             }
 
             updateItem.newFaces.emplace_back(std::move(facePositionInfo));
@@ -1855,7 +1986,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_LineSetDeclarationBlock::parse(QByteArray d
     PDF3D_U3D_LineSetDeclarationBlock* block = new PDF3D_U3D_LineSetDeclarationBlock();
     PDF3D_U3D_AbstractBlockPtr pointer(block);
 
-    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+    PDF3D_U3D_DataReader reader(data, object->isCompressed(), object->getContextManager());
 
     // Read the data
     block->m_lineSetName = reader.readString(object->getTextCodec());
@@ -1968,7 +2099,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_LineSetContinuationBlock::parse(QByteArray 
     PDF3D_U3D_LineSetContinuationBlock* block = new PDF3D_U3D_LineSetContinuationBlock();
     PDF3D_U3D_AbstractBlockPtr pointer(block);
 
-    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+    PDF3D_U3D_DataReader reader(data, object->isCompressed(), object->getContextManager());
 
     // Read the data
     block->m_lineSetName = reader.readString(object->getTextCodec());
@@ -1982,7 +2113,16 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_LineSetContinuationBlock::parse(QByteArray 
         for (uint32_t i = block->m_startResolution; i < block->m_endResolution; ++i)
         {
             UpdateItem item;
-            item.splitPositionIndex = reader.readCompressedU32(reader.getRangeContext(qMax(i, 1u)));
+
+            if (i > 0)
+            {
+                item.splitPositionIndex = reader.readCompressedU32(reader.getRangeContext(i));
+            }
+            else
+            {
+                item.splitPositionIndex = reader.readCompressedU32(reader.getRangeContext(i + 1));
+            }
+
             item.newPositionInfo = reader.readQuantizedVec3(reader.getStaticContext(cPosDiffSign),
                                                             reader.getStaticContext(cPosDiffX),
                                                             reader.getStaticContext(cPosDiffY),
@@ -2076,9 +2216,73 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_LineSetContinuationBlock::parse(QByteArray 
     return pointer;
 }
 
-const std::vector<UpdateItem>& PDF3D_U3D_LineSetContinuationBlock::updateItems() const
+const std::vector<PDF3D_U3D_LineSetContinuationBlock::UpdateItem>& PDF3D_U3D_LineSetContinuationBlock::getUpdateItems() const
 {
     return m_updateItems;
+}
+
+const QString& PDF3D_U3D_DecoderList::getName() const
+{
+    return m_name;
+}
+
+void PDF3D_U3D_DecoderList::setName(const QString& newName)
+{
+    m_name = newName;
+}
+
+const std::vector<PDF3D_U3D_DecorderList_ChainItem>& PDF3D_U3D_DecoderList::getChains() const
+{
+    return m_chains;
+}
+
+void PDF3D_U3D_DecoderList::setChains(const std::vector<PDF3D_U3D_DecorderList_ChainItem>& newChains)
+{
+    m_chains = newChains;
+}
+
+PDF3D_U3D_DecorderList_ChainItem* PDF3D_U3D_DecoderList::getChain(size_t index)
+{
+    if (index < m_chains.size())
+    {
+        return &m_chains[index];
+    }
+
+    return nullptr;
+}
+
+void PDF3D_U3D_DecoderList::createChain(const PDF3D_U3D_Block_Data& data)
+{
+    PDF3D_U3D_DecorderList_ChainItem item;
+    item.blocks = { data };
+    m_chains.emplace_back(std::move(item));
+}
+
+PDF3D_U3D_DecoderList* PDF3D_U3D_DecoderLists::getDecoderList(QString name)
+{
+    for (PDF3D_U3D_DecoderList& decoderList : m_decoderLists)
+    {
+        if (decoderList.getName() == name)
+        {
+            return &decoderList;
+        }
+    }
+
+    return nullptr;
+}
+
+bool PDF3D_U3D_DecoderLists::addContinuationBlock(QString name, uint32_t chainIndex, const PDF3D_U3D_Block_Data& data)
+{
+    if (PDF3D_U3D_DecoderList* decoderList = getDecoderList(name))
+    {
+        if (PDF3D_U3D_DecorderList_ChainItem* chain = decoderList->getChain(chainIndex))
+        {
+            chain->blocks.push_back(data);
+            return true;
+        }
+    }
+
+    return false;
 }
 
 }   // namespace u3d
