@@ -83,27 +83,39 @@ entirely by myself.
 
 ## 6. COMPILING
 
-Compilation on Windows and Linux is available. There are two options for Windows,
-and one for Linux. To compile this project, compiler supporting C++20 is needed.
-On Windows, you can use Visual Studio 2019, clang or mingw. On linux, only GCC 10
-was tested.
+Compilation on Windows and Linux is available. To compile this project, compiler supporting C++20 is needed.
+On Windows, you can use Visual Studio 2022 or mingw. On linux, only GCC 11.2.0 was tested.
 
-### Compilation instructions (.pro file, Windows, Visual Studio):
-1. Download Visual Studio 2022
-2. Download Qt, minimal supported version is 5.15.2
-3. Download [precompiled libraries](https://github.com/JakubMelka/PdfForQt-Dependencies),
-   or compile them yourself. Libraries must be in same root directory as this project,
-   so root folder of this project will have a sibling folder with these libraries
-4. Open Qt Creator and root project Pdf4Qt.pro
-5. Create target for Microsoft Visual Studio 2022 and compile the project
-
-### Compilation instructions (.qbs file, Windows/Linux)
-For QBS build, you will need to install [Conan](https://conan.io/), a C++ package manager, Qt framework
-(minimal supported version is 5.15.2), and compiler supporting C++20 (Visual Studio 2022, Clang, Mingw,
-GCC).
-1. Prepare prerequisites (Conan, Qt, compiler)
-2. Open QBS project file
+### Compilation instructions (both Windows/Linux)
+1. Download Qt 6.4 or higher, and VCPKG package manager (https://vcpkg.io/en/index.html)
+2. Open Qt Creator and configure the project
 3. Build
+ 
+### CMAKE Compilation Options
+
+Several important compilation options is available and should be set before building. On Windows,
+CMake can prepare Wix project to create *.msi installer package.
+
+|                  Option                | Platform |     Description                                          |
+| ------------------------------------   | ---------|--------------------------------------------------------- |
+| `PDF4QT_INSTALL_MSVC_REDISTRIBUTABLE`  | Windows  |Includes MSVC redistributable in installation             |
+| `PDF4QT_INSTALL_PREPARE_WIX_INSTALLER` | Windows  |Prepare .msi installator using Wix installer              |
+| `PDF4QT_INSTALL_DEPENDENCIES`          | Any      |Install dependent libraries into installation directory   |
+| `PDF4QT_INSTALL_QT_DEPENDENCIES`       | Any      |Install Qt dependent libraries into installation directory|
+
+Following important variables should be set or checked before any attempt to compile this project:
+
+|                  Variable              | Platform |     Description                                          |
+| ------------------------------------   | ---------|--------------------------------------------------------- |
+| `PDF4QT_QT_ROOT`                       | Any      |Qt installation directory                                 |
+| `QT_CREATOR_SKIP_VCPKG_SETUP`          | Any      |Enable or disable automatic vcpkg setup                   |
+
+### Tested Compilers - Windows
+ - Visual Studio 2022 (Microsoft Visual C++ Compiler 17.1)
+ - MinGW 11.2.0
+ 
+### Tested Compilers - Linux
+ - GCC 11.2.0
 
 ## 7. DISCLAIMER
 
