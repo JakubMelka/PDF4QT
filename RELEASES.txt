@@ -3,6 +3,7 @@ CURRENT:
  - Issue #22: Solve compilation warnings
  - Issue #24: Text selection and table selection algorithm improvement
  - Issue #25: Move Qt 6.4, change build system to CMake and VCPKG
+ - Issue #28: Add multiple PDF files at once for merging
 
 V: 1.2.1 30.6.2022
  - Issue #17: Public key security handler

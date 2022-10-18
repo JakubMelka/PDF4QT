@@ -99,14 +99,14 @@ public:
 
 private slots:
     void on_actionClose_triggered();
-    void on_actionAddDocument_triggered();
+    void on_actionAddDocuments_triggered();
     void onMappedActionTriggered(int actionId);
     void updateActions();
 
 private:
     void loadSettings();
     void saveSettings();
-    void insertDocument(const QString& fileName, const QModelIndex& insertIndex);
+    bool insertDocument(const QString& fileName, const QModelIndex& insertIndex);
 
     bool canPerformOperation(Operation operation) const;
     void performOperation(Operation operation);

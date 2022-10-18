@@ -55,7 +55,7 @@
     <property name="title">
      <string>File</string>
     </property>
-    <addaction name="actionAddDocument"/>
+    <addaction name="actionAddDocuments"/>
     <addaction name="actionClear"/>
     <addaction name="actionClose"/>
    </widget>
@@ -145,13 +145,16 @@
    <addaction name="menuHelp"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
-  <action name="actionAddDocument">
+  <action name="actionAddDocuments">
    <property name="icon">
     <iconset resource="resources.qrc">
      <normaloff>:/pdfdocpage/resources/open.svg</normaloff>:/pdfdocpage/resources/open.svg</iconset>
    </property>
    <property name="text">
-    <string>Add Document</string>
+    <string>Add Documents...</string>
+   </property>
+   <property name="toolTip">
+    <string>Add Documents</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+O</string>

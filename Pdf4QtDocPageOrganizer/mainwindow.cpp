@@ -94,7 +94,7 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->actionRegroup_by_Alternating_Pages_Reversed_Order->setData(int(Operation::RegroupAlternatingPagesReversed));
     ui->actionPrepare_Icon_Theme->setData(int(Operation::PrepareIconTheme));
 
-    m_iconTheme.registerAction(ui->actionAddDocument, ":/pdfdocpage/resources/open.svg");
+    m_iconTheme.registerAction(ui->actionAddDocuments, ":/pdfdocpage/resources/open.svg");
     m_iconTheme.registerAction(ui->actionClose, ":/pdfdocpage/resources/close.svg");
     m_iconTheme.registerAction(ui->actionCloneSelection, ":/pdfdocpage/resources/clone-selection.svg");
     m_iconTheme.registerAction(ui->actionRemoveSelection, ":/pdfdocpage/resources/remove-selection.svg");
@@ -139,7 +139,7 @@ MainWindow::MainWindow(QWidget* parent) :
 
     QToolBar* mainToolbar = addToolBar(tr("Main"));
     mainToolbar->setObjectName("main_toolbar");
-    mainToolbar->addAction(ui->actionAddDocument);
+    mainToolbar->addAction(ui->actionAddDocuments);
     mainToolbar->addSeparator();
     mainToolbar->addActions({ ui->actionCloneSelection, ui->actionRemoveSelection });
     mainToolbar->addSeparator();
@@ -224,12 +224,18 @@ void MainWindow::on_actionClose_triggered()
     close();
 }
 
-void MainWindow::on_actionAddDocument_triggered()
+void MainWindow::on_actionAddDocuments_triggered()
 {
-    QString fileName = QFileDialog::getOpenFileName(this, tr("Select PDF document"), m_settings.directory, tr("PDF document (*.pdf)"));
-    if (!fileName.isEmpty())
+    QStringList fileNames = QFileDialog::getOpenFileNames(this, tr("Select PDF document(s)"), m_settings.directory, tr("PDF document (*.pdf)"));
+    if (!fileNames.isEmpty())
     {
-        insertDocument(fileName, QModelIndex());
+        for (const QString& fileName : fileNames)
+        {
+            if (!insertDocument(fileName, QModelIndex()))
+            {
+                break;
+            }
+        }
     }
 }
 
@@ -293,16 +299,19 @@ void MainWindow::saveSettings()
     settings.endGroup();
 }
 
-void MainWindow::insertDocument(const QString& fileName, const QModelIndex& insertIndex)
+bool MainWindow::insertDocument(const QString& fileName, const QModelIndex& insertIndex)
 {
-    auto queryPassword = [this](bool* ok)
+    bool isDocumentInserted = true;
+
+    QFileInfo fileInfo(fileName);
+
+    auto queryPassword = [this, &fileInfo](bool* ok)
     {
         *ok = false;
-        return QInputDialog::getText(this, tr("Encrypted document"), tr("Enter password to access document content"), QLineEdit::Password, QString(), ok);
+        return QInputDialog::getText(this, tr("Encrypted document"), tr("Enter password to access document '%1'").arg(fileInfo.fileName()), QLineEdit::Password, QString(), ok);
     };
 
     // Mark current directory as this
-    QFileInfo fileInfo(fileName);
     m_settings.directory = fileInfo.dir().absolutePath();
 
     // Try to open a new document
@@ -321,15 +330,22 @@ void MainWindow::insertDocument(const QString& fileName, const QModelIndex& inse
         }
         else
         {
+            isDocumentInserted = false;
             QMessageBox::critical(this, tr("Error"), tr("Document security doesn't permit to organize pages."));
         }
     }
     else if (result == pdf::PDFDocumentReader::Result::Failed)
     {
+        isDocumentInserted = false;
         QMessageBox::critical(this, tr("Error"), errorMessage);
+    }
+    else if (result == pdf::PDFDocumentReader::Result::Cancelled)
+    {
+        isDocumentInserted = false;
     }
 
     updateActions();
+    return isDocumentInserted;
 }
 
 bool MainWindow::canPerformOperation(Operation operation) const
@@ -763,23 +779,39 @@ void MainWindow::performOperation(Operation operation)
                 filters << QString::fromLatin1(imageFormat).toLower();
             }
             QString filter = tr("Images (*.%1)").arg(filters.join(" *."));
-            QString fileName = QFileDialog::getOpenFileName(this, tr("Select Image"), m_settings.directory, filter, nullptr);
+            QStringList fileNames = QFileDialog::getOpenFileNames(this, tr("Select Image(s)"), m_settings.directory, filter, nullptr);
 
-            if (!fileName.isEmpty())
+            if (!fileNames.isEmpty())
             {
                 QModelIndexList indexes = ui->documentItemsView->selectionModel()->selection().indexes();
-                m_model->insertImage(fileName, !indexes.isEmpty() ? indexes.front() : QModelIndex());
+                QModelIndex insertIndex = !indexes.isEmpty() ? indexes.front() : QModelIndex();
+
+                for (const QString& fileName : fileNames)
+                {
+                    m_model->insertImage(fileName, insertIndex);
+                    insertIndex = insertIndex.sibling(insertIndex.row() + 1, insertIndex.column());
+                }
             }
             break;
         }
 
         case Operation::InsertPDF:
         {
-            QModelIndexList indexes = ui->documentItemsView->selectionModel()->selection().indexes();
-            QString fileName = QFileDialog::getOpenFileName(this, tr("Select PDF document"), m_settings.directory, tr("PDF document (*.pdf)"));
-            if (!fileName.isEmpty())
+            QStringList fileNames = QFileDialog::getOpenFileNames(this, tr("Select PDF document(s)"), m_settings.directory, tr("PDF document (*.pdf)"));
+
+            if (!fileNames.isEmpty())
             {
-                insertDocument(fileName, !indexes.isEmpty() ? indexes.back() : QModelIndex());
+                QModelIndexList indexes = ui->documentItemsView->selectionModel()->selection().indexes();
+                QModelIndex insertIndex = !indexes.isEmpty() ? indexes.front() : QModelIndex();
+
+                for (const QString& fileName : fileNames)
+                {
+                    if (!insertDocument(fileName, insertIndex))
+                    {
+                        break;
+                    }
+                    insertIndex = insertIndex.sibling(insertIndex.row() + 1, insertIndex.column());
+                }
             }
             break;
         }
