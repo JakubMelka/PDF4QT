@@ -772,7 +772,7 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
 
         if (const PDFDictionary* fixedPrintDictionary = storage->getDictionaryFromObject(dictionary->get("FixedPrint")))
         {
-            annotation->m_matrix = loader.readMatrixFromDictionary(fixedPrintDictionary, "Matrix", QMatrix());
+            annotation->m_matrix = loader.readMatrixFromDictionary(fixedPrintDictionary, "Matrix", QTransform());
             annotation->m_relativeHorizontalOffset = loader.readNumberFromDictionary(fixedPrintDictionary, "H", 0.0);
             annotation->m_relativeVerticalOffset = loader.readNumberFromDictionary(fixedPrintDictionary, "V", 0.0);
         }
@@ -1204,14 +1204,14 @@ PDFAnnotationManager::~PDFAnnotationManager()
 
 }
 
-QMatrix PDFAnnotationManager::prepareTransformations(const QMatrix& pagePointToDevicePointMatrix,
+QTransform PDFAnnotationManager::prepareTransformations(const QTransform& pagePointToDevicePointMatrix,
                                                      QPaintDevice* device,
                                                      const PDFAnnotation::Flags annotationFlags,
                                                      const PDFPage* page,
                                                      QRectF& annotationRectangle) const
 {
     // "Unrotate" user coordinate space, if NoRotate flag is set
-    QMatrix userSpaceToDeviceSpace = pagePointToDevicePointMatrix;
+    QTransform userSpaceToDeviceSpace = pagePointToDevicePointMatrix;
     if (annotationFlags.testFlag(PDFAnnotation::NoRotate))
     {
         PDFReal rotationAngle = 0.0;
@@ -1237,12 +1237,12 @@ QMatrix PDFAnnotationManager::prepareTransformations(const QMatrix& pagePointToD
                 break;
         }
 
-        QMatrix rotationMatrix;
+        QTransform rotationMatrix;
         rotationMatrix.rotate(-rotationAngle);
         QPointF topLeft = annotationRectangle.bottomLeft(); // Do not forget, that y is upward instead of Qt
         QPointF difference = topLeft - rotationMatrix.map(topLeft);
 
-        QMatrix finalMatrix;
+        QTransform finalMatrix;
         finalMatrix.translate(difference.x(), difference.y());
         finalMatrix.rotate(-rotationAngle);
         userSpaceToDeviceSpace = finalMatrix * userSpaceToDeviceSpace;
@@ -1270,7 +1270,7 @@ QMatrix PDFAnnotationManager::prepareTransformations(const QMatrix& pagePointToD
 void PDFAnnotationManager::drawWidgetAnnotationHighlight(QRectF annotationRectangle,
                                                          const PDFAnnotation* annotation,
                                                          QPainter* painter,
-                                                         QMatrix userSpaceToDeviceSpace) const
+                                                         QTransform userSpaceToDeviceSpace) const
 {
     const bool isWidget = annotation->getType() == AnnotationType::Widget;
     if (m_formManager && isWidget)
@@ -1309,7 +1309,7 @@ void PDFAnnotationManager::drawWidgetAnnotationHighlight(QRectF annotationRectan
 
             if (color.isValid())
             {
-                color.setAlphaF(0.2);
+                color.setAlphaF(0.2f);
 
                 // Draw annotation rectangle by highlight color
                 QPainterPath highlightArea;
@@ -1325,7 +1325,7 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
                                     PDFInteger pageIndex,
                                     const PDFPrecompiledPage* compiledPage,
                                     PDFTextLayoutGetter& layoutGetter,
-                                    const QMatrix& pagePointToDevicePointMatrix,
+                                    const QTransform& pagePointToDevicePointMatrix,
                                     QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -1387,7 +1387,7 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
 }
 
 void PDFAnnotationManager::drawAnnotation(const PageAnnotation& annotation,
-                                          const QMatrix& pagePointToDevicePointMatrix,
+                                          const QTransform& pagePointToDevicePointMatrix,
                                           const PDFPage* page,
                                           const PDFCMS* cms,
                                           bool isEditorDrawEnabled,
@@ -1448,7 +1448,7 @@ bool PDFAnnotationManager::isAnnotationDrawnByEditor(const PageAnnotation& annot
 }
 
 void PDFAnnotationManager::drawAnnotationDirect(const PageAnnotation& annotation,
-                                                const QMatrix& pagePointToDevicePointMatrix,
+                                                const QTransform& pagePointToDevicePointMatrix,
                                                 const PDFPage* page,
                                                 const PDFCMS* cms,
                                                 bool isEditorDrawEnabled,
@@ -1495,7 +1495,7 @@ void PDFAnnotationManager::drawAnnotationDirect(const PageAnnotation& annotation
 
 void PDFAnnotationManager::drawAnnotationUsingAppearanceStream(const PageAnnotation& annotation,
                                                                const PDFObject& appearanceStreamObject,
-                                                               const QMatrix& pagePointToDevicePointMatrix,
+                                                               const QTransform& pagePointToDevicePointMatrix,
                                                                const PDFPage* page,
                                                                const PDFCMS* cms,
                                                                QPainter* painter) const
@@ -1507,7 +1507,7 @@ void PDFAnnotationManager::drawAnnotationUsingAppearanceStream(const PageAnnotat
     const PDFAnnotation::Flags annotationFlags = annotation.annotation->getEffectiveFlags();
     QRectF annotationRectangle = annotation.annotation->getRectangle();
     QRectF formBoundingBox = loader.readRectangle(formDictionary->get("BBox"), QRectF());
-    QMatrix formMatrix = loader.readMatrixFromDictionary(formDictionary, "Matrix", QMatrix());
+    QTransform formMatrix = loader.readMatrixFromDictionary(formDictionary, "Matrix", QTransform());
     QByteArray content = m_document->getDecodedStream(formStream);
     PDFObject resources = m_document->getObject(formDictionary->get("Resources"));
     PDFObject transparencyGroup = m_document->getObject(formDictionary->get("Group"));
@@ -1519,7 +1519,7 @@ void PDFAnnotationManager::drawAnnotationUsingAppearanceStream(const PageAnnotat
         return;
     }
 
-    QMatrix userSpaceToDeviceSpace = prepareTransformations(pagePointToDevicePointMatrix, painter->device(), annotationFlags, page, annotationRectangle);
+    QTransform userSpaceToDeviceSpace = prepareTransformations(pagePointToDevicePointMatrix, painter->device(), annotationFlags, page, annotationRectangle);
 
     PDFRenderer::Features features = m_features;
     if (annotationFlags.testFlag(PDFAnnotation::NoZoom))
@@ -1540,10 +1540,10 @@ void PDFAnnotationManager::drawAnnotationUsingAppearanceStream(const PageAnnotat
     const PDFReal scaleY = annotationRectangle.height() / transformedAppearanceBox.height();
     const PDFReal translateX = annotationRectangle.left() - transformedAppearanceBox.left() * scaleX;
     const PDFReal translateY = annotationRectangle.bottom() - transformedAppearanceBox.bottom() * scaleY;
-    QMatrix A(scaleX, 0.0, 0.0, scaleY, translateX, translateY);
+    QTransform A(scaleX, 0.0, 0.0, scaleY, translateX, translateY);
 
     // Step 3) - compute final matrix AA
-    QMatrix AA = formMatrix * A;
+    QTransform AA = formMatrix * A;
 
     bool isContentVisible = false;
 
@@ -1872,7 +1872,7 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
 
             const PDFAppeareanceStreams::Appearance oldAppearance = pageAnnotation.appearance;
             QRectF annotationRect = pageAnnotation.annotation->getRectangle();
-            QMatrix matrix = prepareTransformations(snapshotItem.pageToDeviceMatrix, widget, pageAnnotation.annotation->getEffectiveFlags(), m_document->getCatalog()->getPage(snapshotItem.pageIndex), annotationRect);
+            QTransform matrix = prepareTransformations(snapshotItem.pageToDeviceMatrix, widget, pageAnnotation.annotation->getEffectiveFlags(), m_document->getCatalog()->getPage(snapshotItem.pageIndex), annotationRect);
             QPainterPath path;
             path.addRect(annotationRect);
             path = matrix.map(path);
@@ -1964,7 +1964,7 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
 
                     if (linkAction)
                     {
-                        emit actionTriggered(linkAction);
+                        Q_EMIT actionTriggered(linkAction);
                     }
                 }
             }
@@ -1987,7 +1987,7 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
     // If appearance has changed, then we must redraw the page
     if (appearanceChanged)
     {
-        emit widget->getDrawWidgetProxy()->repaintNeeded();
+        Q_EMIT widget->getDrawWidgetProxy()->repaintNeeded();
     }
 }
 
@@ -2051,7 +2051,7 @@ void PDFWidgetAnnotationManager::onCopyAnnotation()
 
         if (modifier.finalize())
         {
-            emit documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+            Q_EMIT documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
         }
     }
 }
@@ -2075,7 +2075,7 @@ void PDFWidgetAnnotationManager::onEditAnnotation()
 
             if (modifier.finalize())
             {
-                emit documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+                Q_EMIT documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
             }
         }
     }
@@ -2091,7 +2091,7 @@ void PDFWidgetAnnotationManager::onDeleteAnnotation()
 
         if (modifier.finalize())
         {
-            emit documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+            Q_EMIT documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
         }
     }
 }
@@ -2119,19 +2119,17 @@ void PDFWidgetAnnotationManager::createWidgetsForMarkupAnnotations(QWidget* pare
 
     QVBoxLayout* layout = new QVBoxLayout(parentWidget);
     layout->addWidget(scrollArea);
-    layout->setMargin(0);
     layout->setContentsMargins(QMargins());
 
     QWidget* frameWidget = new QWidget(scrollArea);
     QVBoxLayout* frameLayout = new QVBoxLayout(frameWidget);
-    frameLayout->setMargin(0);
     frameLayout->setSpacing(0);
     scrollArea->setWidget(frameWidget);
 
     const PDFMarkupAnnotation* markupMainAnnotation = pageAnnotation.annotation->asMarkupAnnotation();
     QColor color = markupMainAnnotation->getDrawColorFromAnnotationColor(markupMainAnnotation->getColor(), 1.0);
-    QColor titleColor = QColor::fromHslF(color.hueF(), color.saturationF(), 0.2, 1.0);
-    QColor backgroundColor = QColor::fromHslF(color.hueF(), color.saturationF(), 0.9, 1.0);
+    QColor titleColor = QColor::fromHslF(color.hueF(), color.saturationF(), 0.2f, 1.0f);
+    QColor backgroundColor = QColor::fromHslF(color.hueF(), color.saturationF(), 0.9f, 1.0f);
 
     QString style = "QGroupBox { "
                     "border: 2px solid black; "
@@ -2333,7 +2331,7 @@ void PDFTextAnnotation::draw(AnnotationDrawParameters& parameters) const
 
     QPainterPath textPath;
     textPath.addText(0.0, 0.0, font, text);
-    textPath = QMatrix(1.0, 0.0, 0.0, -1.0, 0.0, 0.0).map(textPath);
+    textPath = QTransform(1.0, 0.0, 0.0, -1.0, 0.0, 0.0).map(textPath);
     QRectF textBoundingRect = textPath.boundingRect();
     QPointF offset = rectangle.center() - textBoundingRect.center();
     textPath.translate(offset);
@@ -2566,8 +2564,8 @@ void PDFPolygonalGeometryAnnotation::draw(AnnotationDrawParameters& parameters) 
                 boundingPath = m_path;
                 painter.drawPath(m_path);
 
-                QMatrix LCStoGCS_start = LineGeometryInfo::create(QLineF(m_path.pointAtPercent(0.00), m_path.pointAtPercent(0.01))).LCStoGCS;
-                QMatrix LCStoGCS_end = LineGeometryInfo::create(QLineF(m_path.pointAtPercent(0.99), m_path.pointAtPercent(1.00))).LCStoGCS;
+                QTransform LCStoGCS_start = LineGeometryInfo::create(QLineF(m_path.pointAtPercent(0.00), m_path.pointAtPercent(0.01))).LCStoGCS;
+                QTransform LCStoGCS_end = LineGeometryInfo::create(QLineF(m_path.pointAtPercent(0.99), m_path.pointAtPercent(1.00))).LCStoGCS;
 
                 drawLineEnding(&painter, m_path.pointAtPercent(0), lineEndingSize, arrowAxisLength, getStartLineEnding(), false, LCStoGCS_start, boundingPath);
                 drawLineEnding(&painter, m_path.pointAtPercent(1), lineEndingSize, arrowAxisLength, getEndLineEnding(), true, LCStoGCS_end, boundingPath);
@@ -2604,7 +2602,7 @@ PDFAnnotation::LineGeometryInfo PDFAnnotation::LineGeometryInfo::create(QLineF l
     // Matrix LCStoGCS is local coordinate system of line line. It transforms
     // points on the line to the global coordinate system. So, point (0, 0) will
     // map onto p1 and point (length(p1-p2), 0) will map onto p2.
-    result.LCStoGCS = QMatrix();
+    result.LCStoGCS = QTransform();
     result.LCStoGCS.translate(p1.x(), p1.y());
     result.LCStoGCS.rotate(angle);
     result.GCStoLCS = result.LCStoGCS.inverted();
@@ -2618,7 +2616,7 @@ void PDFAnnotation::drawLineEnding(QPainter* painter,
                                    PDFReal arrowAxisLength,
                                    AnnotationLineEnding ending,
                                    bool flipAxis,
-                                   const QMatrix& LCStoGCS,
+                                   const QTransform& LCStoGCS,
                                    QPainterPath& boundingPath) const
 {
     QPainterPath path;
@@ -2714,7 +2712,7 @@ void PDFAnnotation::drawLineEnding(QPainter* painter,
         // Flip the x-axis (we are drawing endpoint)
         if (flipAxis && ending != AnnotationLineEnding::Slash)
         {
-            QMatrix matrix;
+            QTransform matrix;
             matrix.scale(-1.0, 1.0);
             path = matrix.map(path);
         }
@@ -2779,7 +2777,7 @@ void PDFAnnotation::drawLine(const PDFAnnotation::LineGeometryInfo& info,
         textVerticalOffset = fontMetrics.descent() + fontMetrics.leading();
 
         textPath.addText(0, 0, font, text);
-        textPath = QMatrix(1, 0, 0, -1, 0, 0).map(textPath);
+        textPath = QTransform(1, 0, 0, -1, 0, 0).map(textPath);
     }
 
     drawLineEnding(&painter, info.transformedLine.p1(), lineEndingSize, arrowAxisLength, p1Ending, false, info.LCStoGCS, boundingPath);
@@ -3340,7 +3338,7 @@ void PDFStampAnnotation::draw(AnnotationDrawParameters& parameters) const
     font.setPixelSize(textHeight);
 
     QFontMetricsF fontMetrics(font, painter.device());
-    const qreal textWidth = fontMetrics.width(text);
+    const qreal textWidth = fontMetrics.horizontalAdvance(text);
     const qreal rectangleWidth = textWidth + 10;
     const qreal rectangleHeight = textHeight * 1.2;
     const qreal penWidth = 2.0;
@@ -3358,7 +3356,7 @@ void PDFStampAnnotation::draw(AnnotationDrawParameters& parameters) const
     // Draw text
     QPainterPath textPath;
     textPath.addText(0, 0, font, text);
-    textPath = QMatrix(1, 0, 0, -1, 0, 0).map(textPath);
+    textPath = QTransform(1, 0, 0, -1, 0, 0).map(textPath);
 
     QPointF center = textPath.boundingRect().center();
     textPath.translate(rectangle.center() - center);
@@ -3462,7 +3460,7 @@ void PDFAnnotation::drawCharacterSymbol(QString text, PDFReal opacity, Annotatio
 
     QPainterPath textPath;
     textPath.addText(0.0, 0.0, font, text);
-    textPath = QMatrix(1.0, 0.0, 0.0, -1.0, 0.0, 0.0).map(textPath);
+    textPath = QTransform(1.0, 0.0, 0.0, -1.0, 0.0, 0.0).map(textPath);
     QRectF textBoundingRect = textPath.boundingRect();
     QPointF offset = rectangle.center() - textBoundingRect.center();
     textPath.translate(offset);

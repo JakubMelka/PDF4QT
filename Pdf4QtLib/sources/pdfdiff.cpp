@@ -143,7 +143,7 @@ void PDFDiff::start()
     {
         // Just do comparation immediately
         m_result = perform();
-        emit comparationFinished();
+        Q_EMIT comparationFinished();
     }
 }
 
@@ -677,8 +677,11 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
             const auto& aItem = a.left ? context.leftTextFlow : context.rightTextFlow;
             const auto& bItem = b.left ? context.leftTextFlow : context.rightTextFlow;
 
-            QStringRef aText(&aItem.getItem(a.index)->text, a.charIndex, a.charCount);
-            QStringRef bText(&bItem.getItem(b.index)->text, b.charIndex, b.charCount);
+            QStringView aText(aItem.getItem(a.index)->text);
+            aText = aText.mid(a.charIndex, a.charCount);
+
+            QStringView bText(bItem.getItem(b.index)->text);
+            bText = bText.mid(b.charIndex, b.charCount);
 
             return aText == bText;
         };
@@ -758,7 +761,10 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
                     const TextCompareItem& textCompareItem = leftItems[item.index1];
                     const auto& textFlow = textCompareItem.left ? context.leftTextFlow : context.rightTextFlow;
                     const PDFDocumentTextFlow::Item* textItem = textFlow.getItem(textCompareItem.index);
-                    QStringRef text(&textItem->text, textCompareItem.charIndex, textCompareItem.charCount);
+
+                    QStringView text(textItem->text);
+                    text = text.mid(textCompareItem.charIndex, textCompareItem.charCount);
+
                     leftStrings << text.toString();
 
                     if (pageIndex1 == -1)
@@ -783,7 +789,10 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
                     const TextCompareItem& textCompareItem = rightItems[item.index2];
                     const auto& textFlow = textCompareItem.left ? context.leftTextFlow : context.rightTextFlow;
                     const PDFDocumentTextFlow::Item* textItem = textFlow.getItem(textCompareItem.index);
-                    QStringRef text(&textItem->text, textCompareItem.charIndex, textCompareItem.charCount);
+
+                    QStringView text(textItem->text);
+                    text = text.mid(textCompareItem.charIndex, textCompareItem.charCount);
+
                     rightStrings << text.toString();
 
                     if (pageIndex2 == -1)
@@ -874,7 +883,8 @@ void PDFDiff::finalizeGraphicsPieces(PDFDiffPageContext& context)
             continue;
         }
 
-        hasher.addData(reinterpret_cast<const char*>(info.hash.data()), int(info.hash.size()));
+        QByteArrayView view(reinterpret_cast<const char*>(info.hash.data()), info.hash.size());
+        hasher.addData(view);
     }
 
     QByteArray hash = hasher.result();
@@ -888,7 +898,7 @@ void PDFDiff::onComparationPerformed()
 {
     m_cancelled = false;
     m_result = m_future.result();
-    emit comparationFinished();
+    Q_EMIT comparationFinished();
 }
 
 PDFReal PDFDiff::calculateEpsilonForPage(const PDFPage* page) const
@@ -1796,7 +1806,7 @@ void PDFDiffResultNavigator::setResult(const PDFDiffResult* diffResult)
     if (m_diffResult != diffResult)
     {
         m_diffResult = diffResult;
-        emit selectionChanged(m_currentIndex);
+        Q_EMIT selectionChanged(m_currentIndex);
     }
 }
 
@@ -1826,7 +1836,7 @@ void PDFDiffResultNavigator::goNext()
     }
 
     ++m_currentIndex;
-    emit selectionChanged(m_currentIndex);
+    Q_EMIT selectionChanged(m_currentIndex);
 }
 
 void PDFDiffResultNavigator::goPrevious()
@@ -1845,7 +1855,7 @@ void PDFDiffResultNavigator::goPrevious()
     {
         --m_currentIndex;
     }
-    emit selectionChanged(m_currentIndex);
+    Q_EMIT selectionChanged(m_currentIndex);
 }
 
 void PDFDiffResultNavigator::update()
@@ -1854,7 +1864,7 @@ void PDFDiffResultNavigator::update()
     if (limit > 0 && m_currentIndex >= limit)
     {
         m_currentIndex = limit - 1;
-        emit selectionChanged(m_currentIndex);
+        Q_EMIT selectionChanged(m_currentIndex);
     }
 }
 
@@ -1863,7 +1873,7 @@ void PDFDiffResultNavigator::select(size_t currentIndex)
     if (currentIndex < getLimit() && m_currentIndex != currentIndex)
     {
         m_currentIndex = currentIndex;
-        emit selectionChanged(m_currentIndex);
+        Q_EMIT selectionChanged(m_currentIndex);
     }
 }
 

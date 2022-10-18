@@ -189,16 +189,16 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     connect(ui->trustedCertificateStoreTableWidget, &QTableWidget::itemSelectionChanged, this, &PDFViewerSettingsDialog::updateTrustedCertificatesTableActions);
     connect(ui->pluginsTableWidget, &QTableWidget::itemSelectionChanged, this, &PDFViewerSettingsDialog::updatePluginInformation);
 
-    setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(1000, 700)));
+    setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(1000, 800)));
     pdf::PDFWidgetUtils::style(this);
 
     ui->optionsPagesWidget->setCurrentRow(0);
-    adjustSize();
     loadData();
     loadActionShortcutsTable();
     loadPluginsTable();
     updateTrustedCertificatesTable();
     updateTrustedCertificatesTableActions();
+    resize(sizeHint());
 }
 
 PDFViewerSettingsDialog::~PDFViewerSettingsDialog()
@@ -387,8 +387,7 @@ void PDFViewerSettingsDialog::loadData()
 
     // Text-to-speech
     ui->speechEnginesComboBox->setCurrentIndex(ui->speechEnginesComboBox->findData(m_settings.m_speechEngine));
-    QString speechEngine = ui->speechEnginesComboBox->currentData().toString();
-    setSpeechEngine(speechEngine);
+    setSpeechEngine(m_settings.m_speechEngine, m_settings.m_speechLocale);
     ui->speechLocaleComboBox->setCurrentIndex(ui->speechLocaleComboBox->findData(m_settings.m_speechLocale));
     ui->speechVoiceComboBox->setCurrentIndex(ui->speechVoiceComboBox->findData(m_settings.m_speechVoice));
     ui->speechRateEdit->setValue(m_settings.m_speechRate);
@@ -795,24 +794,31 @@ void PDFViewerSettingsDialog::updatePluginInformation()
     }
 }
 
-void PDFViewerSettingsDialog::setSpeechEngine(const QString& engine)
+void PDFViewerSettingsDialog::setSpeechEngine(const QString& engine, const QString& locale)
 {
-    if (m_currentSpeechEngine == engine)
+    if (m_currentSpeechEngine == engine && m_currentSpeechLocale == locale)
     {
         return;
     }
 
-    m_currentSpeechEngine = engine;
     QTextToSpeech textToSpeech(engine, nullptr);
+    textToSpeech.setLocale(QLocale(locale));
 
-    QVector<QLocale> locales = textToSpeech.availableLocales();
-    ui->speechLocaleComboBox->setUpdatesEnabled(false);
-    ui->speechLocaleComboBox->clear();
-    for (const QLocale& locale : locales)
+    if (m_currentSpeechEngine != engine)
     {
-        ui->speechLocaleComboBox->addItem(QString("%1 (%2)").arg(locale.nativeLanguageName(), locale.nativeCountryName()), locale.name());
+        m_currentSpeechEngine = engine;
+
+        QVector<QLocale> locales = textToSpeech.availableLocales();
+        ui->speechLocaleComboBox->setUpdatesEnabled(false);
+        ui->speechLocaleComboBox->clear();
+        for (const QLocale& currentLocale : locales)
+        {
+            ui->speechLocaleComboBox->addItem(QString("%1 (%2)").arg(currentLocale.nativeLanguageName(), currentLocale.nativeCountryName()), currentLocale.name());
+        }
+        ui->speechLocaleComboBox->setUpdatesEnabled(true);
     }
-    ui->speechLocaleComboBox->setUpdatesEnabled(true);
+
+    m_currentSpeechLocale = locale;
 
     QVector<QVoice> voices = textToSpeech.availableVoices();
     ui->speechVoiceComboBox->setUpdatesEnabled(false);

@@ -19,7 +19,7 @@
 #include "pdfdbgheap.h"
 
 #include <QTimeZone>
-#include <QTextCodec>
+#include <QStringDecoder>
 
 #include <cctype>
 #include <cstring>
@@ -2233,9 +2233,9 @@ QString PDFEncoding::convertTextString(const QByteArray& stream)
 
 QString PDFEncoding::convertFromUnicode(const QByteArray& stream)
 {
-    const ushort* bytes = reinterpret_cast<const ushort*>(stream.data());
+    const char16_t* bytes = reinterpret_cast<const char16_t*>(stream.data());
     const int sizeInChars = stream.size();
-    const int sizeSizeInUShorts = sizeInChars / sizeof(const ushort) * sizeof(char);
+    const size_t sizeSizeInUShorts = sizeInChars / sizeof(const ushort) * sizeof(char);
 
     return QString::fromUtf16(bytes, sizeSizeInUShorts);
 }
@@ -2373,21 +2373,21 @@ QString PDFEncoding::convertSmartFromByteStringToUnicode(const QByteArray& strea
 
     if (hasUnicodeLeadMarkings(stream))
     {
-        QTextCodec::ConverterState state = { };
-
         {
-            QTextCodec* codec = QTextCodec::codecForName("UTF-16BE");
-            QString text = codec->toUnicode(stream.constData(), stream.length(), &state);
-            if (state.invalidChars == 0)
+            QStringDecoder decoder(QStringDecoder::Utf16BE);
+            QString text = decoder.decode(stream);
+
+            if (!decoder.hasError())
             {
                 return text;
             }
         }
 
         {
-            QTextCodec* codec = QTextCodec::codecForName("UTF-16LE");
-            QString text = codec->toUnicode(stream.constData(), stream.length(), &state);
-            if (state.invalidChars == 0)
+            QStringDecoder decoder(QStringDecoder::Utf16LE);
+            QString text = decoder.decode(stream);
+
+            if (!decoder.hasError())
             {
                 return text;
             }
@@ -2396,11 +2396,10 @@ QString PDFEncoding::convertSmartFromByteStringToUnicode(const QByteArray& strea
 
     if (hasUTF8LeadMarkings(stream))
     {
-        QTextCodec::ConverterState state = { };
+        QStringDecoder decoder(QStringDecoder::Utf8);
+        QString text = decoder.decode(stream);
 
-        QTextCodec* codec = QTextCodec::codecForName("UTF-8");
-        QString text = codec->toUnicode(stream.constData(), stream.length(), &state);
-        if (state.invalidChars == 0)
+        if (!decoder.hasError())
         {
             return text;
         }

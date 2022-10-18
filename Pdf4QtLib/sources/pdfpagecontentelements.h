@@ -48,7 +48,7 @@ public:
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix,
+                          const QTransform& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const = 0;
 
     /// Returns manipulation mode. If manipulation mode is zero, then element
@@ -151,7 +151,7 @@ public:
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix,
+                          const QTransform& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
     virtual uint getManipulationMode(const QPointF& point,
@@ -185,7 +185,7 @@ public:
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix,
+                          const QTransform& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
     virtual uint getManipulationMode(const QPointF& point,
@@ -218,7 +218,7 @@ public:
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix,
+                          const QTransform& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
     virtual uint getManipulationMode(const QPointF& point,
@@ -247,7 +247,7 @@ public:
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix,
+                          const QTransform& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
     virtual uint getManipulationMode(const QPointF& point,
@@ -282,7 +282,7 @@ public:
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix,
+                          const QTransform& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
     virtual uint getManipulationMode(const QPointF& point,
@@ -320,7 +320,7 @@ public:
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix,
+                          const QTransform& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
     virtual uint getManipulationMode(const QPointF& point,
@@ -439,7 +439,7 @@ public:
                   PDFInteger pageIndex,
                   const PDFPrecompiledPage* compiledPage,
                   PDFTextLayoutGetter& layoutGetter,
-                  const QMatrix& pagePointToDevicePointMatrix,
+                  const QTransform& pagePointToDevicePointMatrix,
                   QList<PDFRenderError>& errors) const;
 
     /// Returns bounding box of whole selection
@@ -541,7 +541,7 @@ public:
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix,
+                          const QTransform& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
     PDFWidget* widget() const;
@@ -550,7 +550,7 @@ public:
     void drawElements(QPainter* painter,
                       PDFInteger pageIndex,
                       PDFTextLayoutGetter& layoutGetter,
-                      const QMatrix& pagePointToDevicePointMatrix,
+                      const QTransform& pagePointToDevicePointMatrix,
                       const PDFPrecompiledPage* compiledPage,
                       QList<PDFRenderError>& errors) const;
 

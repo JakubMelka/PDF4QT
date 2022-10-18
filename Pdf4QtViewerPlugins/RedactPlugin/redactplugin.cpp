@@ -121,7 +121,7 @@ void RedactPlugin::onRedactTextSelectionTriggered()
 
         QPolygonF quadrilaterals;
         pdf::PDFTextSelectionPainter textSelectionPainter(&selectedText);
-        QPainterPath path = textSelectionPainter.prepareGeometry(pageIndex, textLayoutGetter, QMatrix(), &quadrilaterals);
+        QPainterPath path = textSelectionPainter.prepareGeometry(pageIndex, textLayoutGetter, QTransform(), &quadrilaterals);
 
         if (!path.isEmpty())
         {
@@ -133,7 +133,7 @@ void RedactPlugin::onRedactTextSelectionTriggered()
 
     if (modifier.finalize())
     {
-        emit m_widget->getToolManager()->documentModified(pdf::PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+        Q_EMIT m_widget->getToolManager()->documentModified(pdf::PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
     }
 }
 
@@ -164,7 +164,7 @@ void RedactPlugin::onRedactPageTriggered()
 
         if (modifier.finalize())
         {
-            emit m_widget->getToolManager()->documentModified(pdf::PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+            Q_EMIT m_widget->getToolManager()->documentModified(pdf::PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
         }
     }
 }

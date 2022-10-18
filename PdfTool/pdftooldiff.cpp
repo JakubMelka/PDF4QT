@@ -89,7 +89,7 @@ int PDFToolDiff::execute(const PDFToolOptions& options)
     const pdf::PDFDiffResult& result = diff.getResult();
     if (result.getResult())
     {
-        PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+        PDFOutputFormatter formatter(options.outputStyle);
         formatter.beginDocument("diff", PDFToolTranslationContext::tr("Difference Report").arg(options.document));
         formatter.endl();
 

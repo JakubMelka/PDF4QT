@@ -21,6 +21,16 @@
 #include <QFile>
 #include <QStandardPaths>
 
+#if defined(PDF4QT_COMPILER_MINGW) || defined(PDF4QT_COMPILER_GCC)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
+#if defined(PDF4QT_COMPILER_MSVC)
+#pragma warning(push)
+#pragma warning(disable: 4996)
+#endif
+
 #include <openssl/bio.h>
 #include <openssl/rsa.h>
 #include <openssl/rsaerr.h>
@@ -249,3 +259,11 @@ bool PDFSignatureFactory::sign(QString certificateName, QString password, QByteA
 }
 
 }   // namespace pdf
+
+#if defined(PDF4QT_COMPILER_MINGW) || defined(PDF4QT_COMPILER_GCC)
+#pragma GCC diagnostic pop
+#endif
+
+#if defined(PDF4QT_COMPILER_MSVC)
+#pragma warning(pop)
+#endif

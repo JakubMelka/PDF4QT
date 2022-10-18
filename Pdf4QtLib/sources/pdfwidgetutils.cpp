@@ -33,6 +33,11 @@ int qt_default_dpi_y() { return 96; }
 namespace pdf
 {
 
+static constexpr bool isScalingNeeded()
+{
+    return QT_VERSION_MAJOR < 6;
+}
+
 int PDFWidgetUtils::getPixelSize(const QPaintDevice* device, pdf::PDFReal sizeMM)
 {
     const int width = device->width();
@@ -50,27 +55,53 @@ int PDFWidgetUtils::getPixelSize(const QPaintDevice* device, pdf::PDFReal sizeMM
 
 int PDFWidgetUtils::scaleDPI_x(const QPaintDevice* device, int unscaledSize)
 {
-    const double logicalDPI_x = device->logicalDpiX();
-    const double defaultDPI_x = qt_default_dpi_x();
-    return (logicalDPI_x / defaultDPI_x) * unscaledSize;
+    if constexpr (isScalingNeeded())
+    {
+        const double logicalDPI_x = device->logicalDpiX();
+        const double defaultDPI_x = qt_default_dpi_x();
+        return (logicalDPI_x / defaultDPI_x) * unscaledSize;
+    }
+    else
+    {
+        return unscaledSize;
+    }
 }
 
 int PDFWidgetUtils::scaleDPI_y(const QPaintDevice* device, int unscaledSize)
 {
-    const double logicalDPI_y = device->logicalDpiY();
-    const double defaultDPI_y = qt_default_dpi_y();
-    return (logicalDPI_y / defaultDPI_y) * unscaledSize;
+    if constexpr (isScalingNeeded())
+    {
+        const double logicalDPI_y = device->logicalDpiY();
+        const double defaultDPI_y = qt_default_dpi_y();
+        return (logicalDPI_y / defaultDPI_y) * unscaledSize;
+    }
+    else
+    {
+        return unscaledSize;
+    }
 }
 
 PDFReal PDFWidgetUtils::scaleDPI_x(const QPaintDevice* device, PDFReal unscaledSize)
 {
-    const double logicalDPI_x = device->logicalDpiX();
-    const double defaultDPI_x = qt_default_dpi_x();
-    return (logicalDPI_x / defaultDPI_x) * unscaledSize;
+    if constexpr (isScalingNeeded())
+    {
+        const double logicalDPI_x = device->logicalDpiX();
+        const double defaultDPI_x = qt_default_dpi_x();
+        return (logicalDPI_x / defaultDPI_x) * unscaledSize;
+    }
+    else
+    {
+        return unscaledSize;
+    }
 }
 
 void PDFWidgetUtils::scaleWidget(QWidget* widget, QSize unscaledSize)
 {
+    if constexpr (!isScalingNeeded())
+    {
+        return;
+    }
+
     const double logicalDPI_x = widget->logicalDpiX();
     const double logicalDPI_y = widget->logicalDpiY();
     const double defaultDPI_x = qt_default_dpi_x();
@@ -84,15 +115,22 @@ void PDFWidgetUtils::scaleWidget(QWidget* widget, QSize unscaledSize)
 
 QSize PDFWidgetUtils::scaleDPI(const QPaintDevice* widget, QSize unscaledSize)
 {
-    const double logicalDPI_x = widget->logicalDpiX();
-    const double logicalDPI_y = widget->logicalDpiY();
-    const double defaultDPI_x = qt_default_dpi_x();
-    const double defaultDPI_y = qt_default_dpi_y();
+    if constexpr (isScalingNeeded())
+    {
+        const double logicalDPI_x = widget->logicalDpiX();
+        const double logicalDPI_y = widget->logicalDpiY();
+        const double defaultDPI_x = qt_default_dpi_x();
+        const double defaultDPI_y = qt_default_dpi_y();
 
-    const int width = (logicalDPI_x / defaultDPI_x) * unscaledSize.width();
-    const int height = (logicalDPI_y / defaultDPI_y) * unscaledSize.height();
+        const int width = (logicalDPI_x / defaultDPI_x) * unscaledSize.width();
+        const int height = (logicalDPI_y / defaultDPI_y) * unscaledSize.height();
 
-    return QSize(width, height);
+        return QSize(width, height);
+    }
+    else
+    {
+        return unscaledSize;
+    }
 }
 
 void PDFWidgetUtils::style(QWidget* widget)

@@ -46,7 +46,7 @@ public:
     /// \param page Page
     /// \param errors Error list (for reporting rendering errors)
     /// \param painter Painter
-    void draw(const QMatrix& pagePointToDevicePointMatrix,
+    void draw(const QTransform& pagePointToDevicePointMatrix,
               const PDFPage* page,
               QList<PDFRenderError>& errors,
               QPainter* painter);

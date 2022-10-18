@@ -45,7 +45,7 @@ public:
                             const PDFFontCache* fontCache,
                             const PDFCMS* cms,
                             const PDFOptionalContentActivity* optionalContentActivity,
-                            QMatrix pagePointToDevicePointMatrix,
+                            QTransform pagePointToDevicePointMatrix,
                             const PDFMeshQualitySettings& meshQualitySettings);
 
     virtual bool isContentSuppressedByOC(PDFObjectReference ocgOrOcmd) override;
@@ -54,7 +54,7 @@ protected:
     virtual void performUpdateGraphicsState(const PDFPageContentProcessorState& state) override;
     virtual void performBeginTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup) override;
     virtual void performEndTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup) override;
-    virtual void setWorldMatrix(const QMatrix& matrix) = 0;
+    virtual void setWorldMatrix(const QTransform& matrix) = 0;
     virtual void setCompositionMode(QPainter::CompositionMode mode) = 0;
 
     /// Returns current pen
@@ -120,7 +120,7 @@ public:
     /// \param meshQualitySettings Mesh quality settings
     explicit PDFPainter(QPainter* painter,
                         PDFRenderer::Features features,
-                        QMatrix pagePointToDevicePointMatrix,
+                        QTransform pagePointToDevicePointMatrix,
                         const PDFPage* page,
                         const PDFDocument* document,
                         const PDFFontCache* fontCache,
@@ -136,7 +136,7 @@ protected:
     virtual void performMeshPainting(const PDFMesh& mesh) override;
     virtual void performSaveGraphicState(ProcessOrder order) override;
     virtual void performRestoreGraphicState(ProcessOrder order) override;
-    virtual void setWorldMatrix(const QMatrix& matrix) override;
+    virtual void setWorldMatrix(const QTransform& matrix) override;
     virtual void setCompositionMode(QPainter::CompositionMode mode) override;
 
 private:
@@ -191,7 +191,7 @@ public:
     /// \param opacity Opacity of page graphics
     void draw(QPainter* painter,
               const QRectF& cropBox,
-              const QMatrix& pagePointToDevicePointMatrix,
+              const QTransform& pagePointToDevicePointMatrix,
               PDFRenderer::Features features,
               PDFReal opacity) const;
 
@@ -199,7 +199,7 @@ public:
     /// and fill redact path with given color.
     /// \param redactPath Redaction path in page coordinates
     /// \param color Redaction color (if invalid, nothing is being drawn)
-    void redact(QPainterPath redactPath, const QMatrix& matrix, QColor color);
+    void redact(QPainterPath redactPath, const QTransform& matrix, QColor color);
 
     void addPath(QPen pen, QBrush brush, QPainterPath path, bool isText);
     void addClip(QPainterPath path);
@@ -207,7 +207,7 @@ public:
     void addMesh(PDFMesh mesh, PDFReal alpha);
     void addSaveGraphicState() { m_instructions.emplace_back(InstructionType::SaveGraphicState, 0); }
     void addRestoreGraphicState() { m_instructions.emplace_back(InstructionType::RestoreGraphicState, 0); }
-    void addSetWorldMatrix(const QMatrix& matrix);
+    void addSetWorldMatrix(const QTransform& matrix);
     void addSetCompositionMode(QPainter::CompositionMode compositionMode);
 
     /// Optimizes page memory allocation to contain less space
@@ -354,7 +354,7 @@ private:
     std::vector<ClipData> m_clips;
     std::vector<ImageData> m_images;
     std::vector<MeshPaintData> m_meshes;
-    std::vector<QMatrix> m_matrices;
+    std::vector<QTransform> m_matrices;
     std::vector<QPainter::CompositionMode> m_compositionModes;
     QList<PDFRenderError> m_errors;
     PDFSnapInfo m_snapInfo;
@@ -384,7 +384,7 @@ protected:
     virtual void performMeshPainting(const PDFMesh& mesh) override;
     virtual void performSaveGraphicState(ProcessOrder order) override;
     virtual void performRestoreGraphicState(ProcessOrder order) override;
-    virtual void setWorldMatrix(const QMatrix& matrix) override;
+    virtual void setWorldMatrix(const QTransform& matrix) override;
     virtual void setCompositionMode(QPainter::CompositionMode mode) override;
 
 private:

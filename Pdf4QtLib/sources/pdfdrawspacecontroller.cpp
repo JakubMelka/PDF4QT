@@ -432,7 +432,7 @@ void PDFDrawSpaceController::recalculate()
         }
     }
 
-    emit drawSpaceChanged();
+    Q_EMIT drawSpaceChanged();
 }
 
 void PDFDrawSpaceController::clear(bool emitSignal)
@@ -442,7 +442,7 @@ void PDFDrawSpaceController::clear(bool emitSignal)
 
     if (emitSignal)
     {
-        emit drawSpaceChanged();
+        Q_EMIT drawSpaceChanged();
     }
 }
 
@@ -676,12 +676,12 @@ void PDFDrawWidgetProxy::update()
         }
     }
 
-    emit drawSpaceChanged();
+    Q_EMIT drawSpaceChanged();
 }
 
-QMatrix PDFDrawWidgetProxy::createPagePointToDevicePointMatrix(const PDFPage* page, const QRectF& rectangle) const
+QTransform PDFDrawWidgetProxy::createPagePointToDevicePointMatrix(const PDFPage* page, const QRectF& rectangle) const
 {
-    QMatrix matrix;
+    QTransform matrix;
 
     // We want to create transformation from unrotated rectangle
     // to rotated page rectangle.
@@ -788,7 +788,7 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
 
                 const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(item.pageIndex);
                 QTransform matrix = QTransform(createPagePointToDevicePointMatrix(page, placedRect)) * baseMatrix;
-                compiledPage->draw(painter, page->getCropBox(), matrix.toAffine(), features, groupInfo.transparency);
+                compiledPage->draw(painter, page->getCropBox(), matrix, features, groupInfo.transparency);
                 PDFTextLayoutGetter layoutGetter = m_textLayoutCompiler->getTextLayoutLazy(item.pageIndex);
 
                 // Draw text blocks/text lines, if it is enabled
@@ -810,7 +810,7 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
                         QString blockNumber = QString::number(blockIndex++);
 
                         painter->drawPath(matrix.map(block.getBoundingBox()));
-                        painter->drawText(matrix.map(block.getTopLeft()) - QPointF(fontMetrics.width(blockNumber), 0), blockNumber, Qt::TextSingleLine, 0);
+                        painter->drawText(matrix.map(block.getTopLeft()) - QPointF(fontMetrics.horizontalAdvance(blockNumber), 0), blockNumber, Qt::TextSingleLine, 0);
                     }
 
                     painter->restore();
@@ -835,7 +835,7 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
                             QString lineNumber = QString::number(lineIndex++);
 
                             painter->drawPath(matrix.map(line.getBoundingBox()));
-                            painter->drawText(matrix.map(line.getTopLeft()) - QPointF(fontMetrics.width(lineNumber), 0), lineNumber, Qt::TextSingleLine, 0);
+                            painter->drawText(matrix.map(line.getTopLeft()) - QPointF(fontMetrics.horizontalAdvance(lineNumber), 0), lineNumber, Qt::TextSingleLine, 0);
                         }
                     }
 
@@ -848,7 +848,7 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
                     for (IDocumentDrawInterface* drawInterface : m_drawInterfaces)
                     {
                         painter->save();
-                        drawInterface->drawPage(painter, item.pageIndex, compiledPage, layoutGetter, matrix.toAffine(), drawInterfaceErrors);
+                        drawInterface->drawPage(painter, item.pageIndex, compiledPage, layoutGetter, matrix, drawInterfaceErrors);
                         painter->restore();
                     }
                 }
@@ -893,7 +893,7 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
                     {
                         errors.append(drawInterfaceErrors);
                     }
-                    emit renderingError(item.pageIndex, qMove(errors));
+                    Q_EMIT renderingError(item.pageIndex, qMove(errors));
                 }
             }
         }
@@ -998,7 +998,7 @@ PDFInteger PDFDrawWidgetProxy::getPageUnderPoint(QPoint point, QPointF* pagePoin
             if (pagePoint)
             {
                 const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(item.pageIndex);
-                QMatrix matrix = createPagePointToDevicePointMatrix(page, placedRect).inverted();
+                QTransform matrix = createPagePointToDevicePointMatrix(page, placedRect).inverted();
                 *pagePoint = matrix.map(point);
             }
 
@@ -1268,7 +1268,7 @@ void PDFDrawWidgetProxy::setPageLayout(PageLayout pageLayout)
     if (getPageLayout() != pageLayout)
     {
         m_controller->setPageLayout(pageLayout);
-        emit pageLayoutChanged();
+        Q_EMIT pageLayoutChanged();
     }
 }
 
@@ -1277,7 +1277,7 @@ void PDFDrawWidgetProxy::setCustomPageLayout(PDFDrawSpaceController::LayoutItems
     if (m_controller->getCustomLayout() != layoutItems)
     {
         m_controller->setCustomLayout(std::move(layoutItems));
-        emit pageLayoutChanged();
+        Q_EMIT pageLayoutChanged();
     }
 }
 
@@ -1299,8 +1299,8 @@ void PDFDrawWidgetProxy::performPageCacheClear()
 
 void PDFDrawWidgetProxy::onTextLayoutChanged()
 {
-    emit repaintNeeded();
-    emit textLayoutChanged();
+    Q_EMIT repaintNeeded();
+    Q_EMIT textLayoutChanged();
 }
 
 bool PDFDrawWidgetProxy::isBlockMode() const
@@ -1402,7 +1402,7 @@ void PDFDrawWidgetProxy::setHorizontalOffset(int value)
     {
         m_horizontalOffset = horizontalOffset;
         updateHorizontalScrollbarFromOffset();
-        emit drawSpaceChanged();
+        Q_EMIT drawSpaceChanged();
     }
 }
 
@@ -1414,7 +1414,7 @@ void PDFDrawWidgetProxy::setVerticalOffset(int value)
     {
         m_verticalOffset = verticalOffset;
         updateVerticalScrollbarFromOffset();
-        emit drawSpaceChanged();
+        Q_EMIT drawSpaceChanged();
     }
 }
 
@@ -1480,7 +1480,7 @@ void PDFDrawWidgetProxy::setFeatures(PDFRenderer::Features features)
         m_features = features;
         m_compiler->start();
         m_textLayoutCompiler->start();
-        emit pageImageChanged(true, { });
+        Q_EMIT pageImageChanged(true, { });
     }
 }
 
@@ -1491,7 +1491,7 @@ void PDFDrawWidgetProxy::setPreferredMeshResolutionRatio(PDFReal ratio)
         m_compiler->stop(true);
         m_meshQualitySettings.preferredMeshResolutionRatio = ratio;
         m_compiler->start();
-        emit pageImageChanged(true, { });
+        Q_EMIT pageImageChanged(true, { });
     }
 }
 
@@ -1502,7 +1502,7 @@ void PDFDrawWidgetProxy::setMinimalMeshResolutionRatio(PDFReal ratio)
         m_compiler->stop(true);
         m_meshQualitySettings.minimalMeshResolutionRatio = ratio;
         m_compiler->start();
-        emit pageImageChanged(true, { });
+        Q_EMIT pageImageChanged(true, { });
     }
 }
 
@@ -1513,28 +1513,28 @@ void PDFDrawWidgetProxy::setColorTolerance(PDFReal colorTolerance)
         m_compiler->stop(true);
         m_meshQualitySettings.tolerance = colorTolerance;
         m_compiler->start();
-        emit pageImageChanged(true, { });
+        Q_EMIT pageImageChanged(true, { });
     }
 }
 
 void PDFDrawWidgetProxy::onColorManagementSystemChanged()
 {
     m_compiler->reset();
-    emit pageImageChanged(true, { });
+    Q_EMIT pageImageChanged(true, { });
 }
 
 void PDFDrawWidgetProxy::onOptionalContentGroupStateChanged()
 {
     m_compiler->reset();
     m_textLayoutCompiler->reset();
-    emit pageImageChanged(true, { });
+    Q_EMIT pageImageChanged(true, { });
 }
 
 void IDocumentDrawInterface::drawPage(QPainter* painter,
                                       PDFInteger pageIndex,
                                       const PDFPrecompiledPage* compiledPage,
                                       PDFTextLayoutGetter& layoutGetter,
-                                      const QMatrix& pagePointToDevicePointMatrix,
+                                      const QTransform& pagePointToDevicePointMatrix,
                                       QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(painter);

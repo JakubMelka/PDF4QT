@@ -107,7 +107,7 @@ int PDFToolInfoPageBoxesApplication::execute(const PDFToolOptions& options)
 
     QLocale locale;
 
-    PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+    PDFOutputFormatter formatter(options.outputStyle);
     formatter.beginDocument("info-page-boxes", PDFToolTranslationContext::tr("Page boxes in document %1").arg(options.document));
 
     auto writeBox = [&formatter, &locale](const QString& name, const QString& title, const QRectF& rect)

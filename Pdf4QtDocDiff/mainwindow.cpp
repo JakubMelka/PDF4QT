@@ -30,12 +30,13 @@
 #include "pdfdocumentwriter.h"
 
 #include <QToolBar>
-#include <QDesktopWidget>
 #include <QDesktopServices>
 #include <QMessageBox>
 #include <QInputDialog>
 #include <QFileDialog>
 #include <QVBoxLayout>
+#include <QActionGroup>
+#include <QScreen>
 
 namespace pdfdocdiff
 {
@@ -44,7 +45,7 @@ MainWindow::MainWindow(QWidget* parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow),
     m_progress(new pdf::PDFProgress(this)),
-#ifdef Q_OS_WIN
+#ifdef WIN_TASKBAR_BUTTON
     m_taskbarButton(new QWinTaskbarButton(this)),
     m_progressTaskbarIndicator(nullptr),
 #endif
@@ -64,7 +65,7 @@ MainWindow::MainWindow(QWidget* parent) :
     setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(800, 600)));
 
     // Initialize task bar progress
-#ifdef Q_OS_WIN
+#ifdef WIN_TASKBAR_BUTTON
     m_progressTaskbarIndicator = m_taskbarButton->progress();
 #endif
 
@@ -190,7 +191,7 @@ MainWindow::~MainWindow()
 void MainWindow::showEvent(QShowEvent* event)
 {
     Q_UNUSED(event);
-#ifdef Q_OS_WIN
+#ifdef WIN_TASKBAR_BUTTON
     m_taskbarButton->setWindow(windowHandle());
 #endif
 }
@@ -311,7 +312,7 @@ void MainWindow::loadSettings()
     QByteArray geometry = settings.value("geometry", QByteArray()).toByteArray();
     if (geometry.isEmpty())
     {
-        QRect availableGeometry = QApplication::desktop()->availableGeometry(this);
+        QRect availableGeometry = QApplication::primaryScreen()->availableGeometry();
         QRect windowRect(0, 0, availableGeometry.width() / 2, availableGeometry.height() / 2);
         windowRect = windowRect.translated(availableGeometry.center() - windowRect.center());
         setGeometry(windowRect);
@@ -845,7 +846,7 @@ std::optional<pdf::PDFDocument> MainWindow::openDocument()
 
 void MainWindow::onProgressStarted(pdf::ProgressStartupInfo info)
 {
-#ifdef Q_OS_WIN
+#ifdef WIN_TASKBAR_BUTTON
     m_progressTaskbarIndicator->setRange(0, 100);
     m_progressTaskbarIndicator->reset();
     m_progressTaskbarIndicator->show();
@@ -862,7 +863,7 @@ void MainWindow::onProgressStep(int percentage)
     }
 
     pdf::PDFTemporaryValueChange guard(&m_isChangingProgressStep, true);
-#ifdef Q_OS_WIN
+#ifdef WIN_TASKBAR_BUTTON
     m_progressTaskbarIndicator->setValue(percentage);
 #else
     Q_UNUSED(percentage);
@@ -871,7 +872,7 @@ void MainWindow::onProgressStep(int percentage)
 
 void MainWindow::onProgressFinished()
 {
-#ifdef Q_OS_WIN
+#ifdef WIN_TASKBAR_BUTTON
     m_progressTaskbarIndicator->hide();
 #endif
 }

@@ -62,7 +62,7 @@ int PDFToolInfoNamedDestinationsApplication::execute(const PDFToolOptions& optio
         return ErrorInvalidArguments;
     }
 
-    PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+    PDFOutputFormatter formatter(options.outputStyle);
     formatter.beginDocument("info-named-destinations", PDFToolTranslationContext::tr("Named destinations used in document %1").arg(options.document));
     formatter.endl();
 

@@ -636,7 +636,7 @@ public:
         QPointF mousePosition;
 
         /// Matrix, which maps from device space to widget space
-        QMatrix deviceToWidget;
+        QTransform deviceToWidget;
 
         /// Returns true, if mouse event info is valid, i.e.
         /// mouse event occurs above some form field.
@@ -682,7 +682,7 @@ public:
     /// \param page Page
     /// \param errors Error list (for reporting rendering errors)
     /// \param painter Painter
-    void drawXFAForm(const QMatrix& pagePointToDevicePointMatrix,
+    void drawXFAForm(const QTransform& pagePointToDevicePointMatrix,
                      const PDFPage* page,
                      QList<PDFRenderError>& errors,
                      QPainter* painter);

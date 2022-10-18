@@ -621,7 +621,7 @@ void PDFSidebarWidget::onOutlineItemClicked(const QModelIndex& index)
 {
     if (const pdf::PDFAction* action = m_outlineTreeModel->getAction(index))
     {
-        emit actionTriggered(action);
+        Q_EMIT actionTriggered(action);
     }
 }
 

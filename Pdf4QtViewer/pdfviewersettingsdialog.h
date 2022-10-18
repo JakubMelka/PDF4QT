@@ -107,7 +107,7 @@ private:
     void savePluginsTable();
     void updatePluginInformation();
 
-    void setSpeechEngine(const QString& engine);
+    void setSpeechEngine(const QString& engine, const QString& locale);
 
     /// Returns true, if dialog can be closed. If not, then message is displayed
     /// and false is returned.
@@ -121,6 +121,7 @@ private:
     bool m_isLoadingData;
     QStringList m_textToSpeechEngines;
     QString m_currentSpeechEngine;
+    QString m_currentSpeechLocale;
     pdf::PDFCertificateStore m_certificateStore;
     QStringList m_enabledPlugins;
     pdf::PDFPluginInfos m_plugins;

@@ -38,6 +38,7 @@ OutputPreviewDialog::OutputPreviewDialog(const pdf::PDFDocument* document, pdf::
     m_document(document),
     m_widget(widget),
     m_needUpdateImage(false),
+    m_outputPreviewWidget(new OutputPreviewWidget(this)),
     m_futureWatcher(nullptr)
 {
     ui->setupUi(this);
@@ -45,6 +46,8 @@ OutputPreviewDialog::OutputPreviewDialog(const pdf::PDFDocument* document, pdf::
     ui->pageIndexScrollBar->setMinimum(1);
     ui->pageIndexScrollBar->setValue(1);
     ui->pageIndexScrollBar->setMaximum(int(document->getCatalog()->getPageCount()));
+
+    ui->frameViewLayout->insertWidget(0, m_outputPreviewWidget);
 
     ui->displayModeComboBox->addItem(tr("Separations"), OutputPreviewWidget::Separations);
     ui->displayModeComboBox->addItem(tr("Color Warnings | Ink Coverage"), OutputPreviewWidget::ColorWarningInkCoverage);
@@ -54,7 +57,7 @@ OutputPreviewDialog::OutputPreviewDialog(const pdf::PDFDocument* document, pdf::
     ui->displayModeComboBox->addItem(tr("Opacity Channel"), OutputPreviewWidget::OpacityChannel);
     ui->displayModeComboBox->setCurrentIndex(0);
 
-    ui->imageWidget->setInkMapper(&m_inkMapper);
+    m_outputPreviewWidget->setInkMapper(&m_inkMapper);
     ui->inksTreeWidget->setMinimumHeight(pdf::PDFWidgetUtils::scaleDPI_y(ui->inksTreeWidget, 150));
 
     m_inkMapper.createSpotColors(ui->simulateSeparationsCheckBox->isChecked());
@@ -191,7 +194,7 @@ void OutputPreviewDialog::updateAlarmColorButtonIcon()
 {
     QSize iconSize = ui->alarmColorButton->iconSize();
     QPixmap pixmap(iconSize);
-    pixmap.fill(ui->imageWidget->getAlarmColor());
+    pixmap.fill(m_outputPreviewWidget->getAlarmColor());
     ui->alarmColorButton->setIcon(QIcon(pixmap));
 }
 
@@ -206,10 +209,10 @@ void OutputPreviewDialog::onPaperColorChanged()
 
 void OutputPreviewDialog::onAlarmColorButtonClicked()
 {
-    QColorDialog colorDialog(ui->imageWidget->getAlarmColor(), this);
+    QColorDialog colorDialog(m_outputPreviewWidget->getAlarmColor(), this);
     if (colorDialog.exec() == QColorDialog::Accepted)
     {
-        ui->imageWidget->setAlarmColor(colorDialog.currentColor());
+        m_outputPreviewWidget->setAlarmColor(colorDialog.currentColor());
         updateAlarmColorButtonIcon();
     }
 }
@@ -231,7 +234,7 @@ void OutputPreviewDialog::onSimulatePaperColorChecked(bool checked)
 
 void OutputPreviewDialog::onDisplayModeChanged()
 {
-    ui->imageWidget->setDisplayMode(OutputPreviewWidget::DisplayMode(ui->displayModeComboBox->currentData().toInt()));
+    m_outputPreviewWidget->setDisplayMode(OutputPreviewWidget::DisplayMode(ui->displayModeComboBox->currentData().toInt()));
 }
 
 void OutputPreviewDialog::onInksChanged(const QModelIndex& topLeft, const QModelIndex& bottomRight, const QVector<int>& roles)
@@ -247,12 +250,12 @@ void OutputPreviewDialog::onInksChanged(const QModelIndex& topLeft, const QModel
 
 void OutputPreviewDialog::onInkCoverageLimitChanged(double value)
 {
-    ui->imageWidget->setInkCoverageLimit(value / 100.0);
+    m_outputPreviewWidget->setInkCoverageLimit(value / 100.0);
 }
 
 void OutputPreviewDialog::onRichBlackLimtiChanged(double value)
 {
-    ui->imageWidget->setRichBlackLimit(value / 100.0);
+    m_outputPreviewWidget->setRichBlackLimit(value / 100.0);
 }
 
 void OutputPreviewDialog::updatePageImage()
@@ -268,7 +271,7 @@ void OutputPreviewDialog::updatePageImage()
     const pdf::PDFPage* page = m_document->getCatalog()->getPage(ui->pageIndexScrollBar->value() - 1);
     if (!page)
     {
-        ui->imageWidget->clear();
+        m_outputPreviewWidget->clear();
         return;
     }
 
@@ -318,7 +321,7 @@ void OutputPreviewDialog::updatePageImage()
     flags.setFlag(pdf::PDFTransparencyRendererSettings::SaveOriginalProcessImage, true);
 
     m_inkMapperForRendering = m_inkMapper;
-    QSize renderSize = ui->imageWidget->getPageImageSizeHint();
+    QSize renderSize = m_outputPreviewWidget->getPageImageSizeHint();
     auto renderImage = [this, page, renderSize, paperColor, activeColorMask, flags]() -> RenderedImage
     {
         return renderPage(page, renderSize, paperColor, activeColorMask, flags);
@@ -360,7 +363,7 @@ OutputPreviewDialog::RenderedImage OutputPreviewDialog::renderPage(const pdf::PD
     settings.flags.setFlag(pdf::PDFTransparencyRendererSettings::SeparationSimulation, m_inkMapperForRendering.getActiveSpotColorCount() > 0);
     settings.activeColorMask = activeColorMask;
 
-    QMatrix pagePointToDevicePoint = pdf::PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), imageSize));
+    QTransform pagePointToDevicePoint = pdf::PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), imageSize));
     pdf::PDFDrawWidgetProxy* proxy = m_widget->getDrawWidgetProxy();
     pdf::PDFCMSPointer cms = proxy->getCMSManager()->getCurrentCMS();
     pdf::PDFTransparencyRenderer renderer(page, m_document, proxy->getFontCache(), cms.data(), proxy->getOptionalContentActivity(),
@@ -389,7 +392,7 @@ void OutputPreviewDialog::onPageImageRendered()
         m_futureWatcher->deleteLater();
         m_futureWatcher = nullptr;
 
-        ui->imageWidget->setPageImage(qMove(result.image), qMove(result.originalProcessImage), result.pageSize);
+        m_outputPreviewWidget->setPageImage(qMove(result.image), qMove(result.originalProcessImage), result.pageSize);
 
         if (m_needUpdateImage)
         {

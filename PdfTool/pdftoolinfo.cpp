@@ -62,7 +62,7 @@ int PDFToolInfoApplication::execute(const PDFToolOptions& options)
     const pdf::PDFDocumentInfo* info = document.getInfo();
     const pdf::PDFCatalog* catalog = document.getCatalog();
 
-    PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+    PDFOutputFormatter formatter(options.outputStyle);
     formatter.beginDocument("info", PDFToolTranslationContext::tr("Information about document %1").arg(options.document));
     formatter.endl();
 
@@ -155,7 +155,7 @@ int PDFToolInfoApplication::execute(const PDFToolOptions& options)
         {
             QString key = QString::fromLatin1(item.first);
             QVariant valueVariant = item.second;
-            QString value = (valueVariant.type() == QVariant::DateTime) ? convertDateTimeToString(valueVariant.toDateTime().toLocalTime(), options.outputDateFormat) : valueVariant.toString();
+            QString value = (valueVariant.typeId() == QMetaType::QDateTime) ? convertDateTimeToString(valueVariant.toDateTime().toLocalTime(), options.outputDateFormat) : valueVariant.toString();
             writeProperty("custom-property", key, value);
         }
     }

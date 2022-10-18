@@ -1398,7 +1398,7 @@ bool PDFCMSGeneric::transformColorSpace(const PDFCMS::ColorSpaceTransformParams&
 PDFCMSManager::PDFCMSManager(QObject* parent) :
     BaseClass(parent),
     m_document(nullptr),
-    m_mutex(QMutex::Recursive)
+    m_mutex()
 {
 
 }
@@ -1426,7 +1426,7 @@ void PDFCMSManager::setSettings(const PDFCMSSettings& settings)
             clearCache();
         }
 
-        emit colorManagementSystemChanged();
+        Q_EMIT colorManagementSystemChanged();
     }
 }
 
@@ -1485,7 +1485,7 @@ PDFCMSSettings PDFCMSManager::getDefaultSettings() const
 
 void PDFCMSManager::setDocument(const PDFDocument* document)
 {
-    std::optional<QMutexLocker> lock;
+    std::optional<QMutexLocker<QRecursiveMutex>> lock;
     lock.emplace(&m_mutex);
 
     if (m_document == document)
@@ -1571,7 +1571,7 @@ void PDFCMSManager::setDocument(const PDFDocument* document)
     if (outputIntentProfilesChanged)
     {
         lock = std::nullopt;
-        emit colorManagementSystemChanged();
+        Q_EMIT colorManagementSystemChanged();
     }
 }
 

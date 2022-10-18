@@ -24,12 +24,13 @@
 namespace pdf
 {
 
-#define PDF4QT_STRINGIFY(x) PDF4QT_STRINGIFY_IMPL(x)
-#define PDF4QT_STRINGIFY_IMPL(x) #x
+#ifndef PDF4QT_PROJECT_VERSION
+#define PDF4QT_PROJECT_VERSION "UNKNOWN"
+#endif
 
 // Name of the library, together with version
-static constexpr const char* PDF_LIBRARY_NAME = "PDF4QT " PDF4QT_STRINGIFY(PDF4QT_PROJECT_VERSION);
-static constexpr const char* PDF_LIBRARY_VERSION = PDF4QT_STRINGIFY(PDF4QT_PROJECT_VERSION);
+static constexpr const char* PDF_LIBRARY_NAME = "PDF4QT " PDF4QT_PROJECT_VERSION;
+static constexpr const char* PDF_LIBRARY_VERSION = PDF4QT_PROJECT_VERSION;
 
 // Structure file constants
 static constexpr const char* PDF_END_OF_FILE_MARK = "%%EOF";

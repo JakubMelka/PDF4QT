@@ -177,7 +177,7 @@ private:
     /// Creates text box transform matrix, which transforms from
     /// widget space to page space.
     /// \param edit Create matrix for text editing?
-    QMatrix createTextBoxTransformMatrix(bool edit) const;
+    QTransform createTextBoxTransformMatrix(bool edit) const;
 
     /// Returns vector of cursor positions (which may be not equal
     /// to edit string length, because edit string can contain surrogates,

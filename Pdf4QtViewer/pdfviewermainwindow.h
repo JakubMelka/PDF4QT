@@ -1,4 +1,4 @@
-//    Copyright (C) 2019-2021 Jakub Melka
+//    Copyright (C) 2019-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -18,6 +18,7 @@
 #ifndef PDFVIEWERMAINWINDOW_H
 #define PDFVIEWERMAINWINDOW_H
 
+#include "pdfglobal.h"
 #include "pdfviewerglobal.h"
 #include "pdfcatalog.h"
 #include "pdfrenderer.h"
@@ -34,14 +35,11 @@
 #include "pdfundoredomanager.h"
 #include "pdfplugin.h"
 #include "pdfprogramcontroller.h"
+#include "pdfwintaskbarprogress.h"
 
 #include <QFuture>
 #include <QTreeView>
 #include <QMainWindow>
-#ifdef Q_OS_WIN
-#include <QWinTaskbarButton>
-#include <QWinTaskbarProgress>
-#endif
 #include <QFutureWatcher>
 #include <QProgressDialog>
 
@@ -120,10 +118,7 @@ private:
     QDoubleSpinBox* m_pageZoomSpinBox;
     bool m_isLoadingUI;
     pdf::PDFProgress* m_progress;
-#ifdef Q_OS_WIN
-    QWinTaskbarButton* m_taskbarButton;
-    QWinTaskbarProgress* m_progressTaskbarIndicator;
-#endif
+    PDFWinTaskBarProgress* m_progressTaskbarIndicator;
 
     QProgressDialog* m_progressDialog;
     bool m_isChangingProgressStep;

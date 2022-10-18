@@ -25,7 +25,7 @@
 
 #include <QtCore>
 #include <QColor>
-#include <QMatrix>
+#include <QTransform>
 #include <QDateTime>
 
 #include <optional>
@@ -257,7 +257,7 @@ public:
 
     /// Tries to read matrix from the dictionary. If matrix entry is not present, default value is returned.
     /// If it is present and invalid, exception is thrown.
-    QMatrix readMatrixFromDictionary(const PDFDictionary* dictionary, const char* key, QMatrix defaultValue) const;
+    QTransform readMatrixFromDictionary(const PDFDictionary* dictionary, const char* key, QTransform defaultValue) const;
 
     /// Tries to read array of real values from dictionary. If entry dictionary doesn't exist,
     /// or error occurs, default value is returned.

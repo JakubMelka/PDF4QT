@@ -494,7 +494,7 @@ void PageItemModel::rotateLeft(const QModelIndexList& list)
     rowMin = qMax(rowMin, 0);
     rowMax = qMin(rowMax, rowCount(QModelIndex()) - 1);
 
-    emit dataChanged(index(rowMin, 0, QModelIndex()), index(rowMax, 0, QModelIndex()));
+    Q_EMIT dataChanged(index(rowMin, 0, QModelIndex()), index(rowMax, 0, QModelIndex()));
 }
 
 void PageItemModel::rotateRight(const QModelIndexList& list)
@@ -523,7 +523,7 @@ void PageItemModel::rotateRight(const QModelIndexList& list)
     rowMin = qMax(rowMin, 0);
     rowMax = qMin(rowMax, rowCount(QModelIndex()) - 1);
 
-    emit dataChanged(index(rowMin, 0, QModelIndex()), index(rowMax, 0, QModelIndex()));
+    Q_EMIT dataChanged(index(rowMin, 0, QModelIndex()), index(rowMax, 0, QModelIndex()));
 }
 
 PageItemModel::SelectionInfo PageItemModel::getSelectionInfo(const QModelIndexList& list) const

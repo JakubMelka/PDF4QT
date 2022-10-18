@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>955</width>
-    <height>677</height>
+    <height>686</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -40,9 +40,6 @@
         <property name="bottomMargin">
          <number>0</number>
         </property>
-        <item>
-         <widget class="pdfplugin::OutputPreviewWidget" name="imageWidget" native="true"/>
-        </item>
         <item>
          <widget class="QScrollBar" name="pageIndexScrollBar">
           <property name="orientation">
@@ -316,14 +313,6 @@
    </item>
   </layout>
  </widget>
- <customwidgets>
-  <customwidget>
-   <class>pdfplugin::OutputPreviewWidget</class>
-   <extends>QWidget</extends>
-   <header>outputpreviewwidget.h</header>
-   <container>1</container>
-  </customwidget>
- </customwidgets>
  <resources/>
  <connections>
   <connection>

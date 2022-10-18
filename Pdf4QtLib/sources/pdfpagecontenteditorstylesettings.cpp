@@ -192,7 +192,7 @@ void PDFPageContentEditorStyleSettings::setPen(const QPen& pen, bool forceUpdate
         setColorToComboBox(ui->penColorCombo, pen.color());
 
         blockSignals(oldBlockSignals);
-        emit penChanged(m_pen);
+        Q_EMIT penChanged(m_pen);
     }
 }
 
@@ -207,7 +207,7 @@ void PDFPageContentEditorStyleSettings::setBrush(const QBrush& brush, bool force
         setColorToComboBox(ui->brushColorCombo, brush.color());
 
         blockSignals(oldBlockSignals);
-        emit brushChanged(m_brush);
+        Q_EMIT brushChanged(m_brush);
     }
 }
 
@@ -221,7 +221,7 @@ void PDFPageContentEditorStyleSettings::setFont(const QFont& font, bool forceUpd
         ui->fontComboBox->setCurrentFont(m_font);
 
         blockSignals(oldBlockSignals);
-        emit fontChanged(m_font);
+        Q_EMIT fontChanged(m_font);
     }
 }
 
@@ -241,7 +241,7 @@ void PDFPageContentEditorStyleSettings::setFontAlignment(Qt::Alignment alignment
         radioButton->setChecked(true);
 
         blockSignals(oldBlockSignals);
-        emit alignmentChanged(m_alignment);
+        Q_EMIT alignmentChanged(m_alignment);
     }
 }
 
@@ -252,7 +252,7 @@ void PDFPageContentEditorStyleSettings::setTextAngle(PDFReal angle, bool forceUp
         const bool oldBlockSignals = blockSignals(true);
         ui->textAngleEdit->setValue(angle);
         blockSignals(oldBlockSignals);
-        emit textAngleChanged(ui->textAngleEdit->value());
+        Q_EMIT textAngleChanged(ui->textAngleEdit->value());
     }
 }
 
@@ -371,7 +371,7 @@ void PDFPageContentEditorStyleSettings::onSelectFontButtonClicked()
     {
         m_font = font;
         ui->fontComboBox->setCurrentFont(m_font);
-        emit fontChanged(m_font);
+        Q_EMIT fontChanged(m_font);
     }
 }
 
@@ -381,7 +381,7 @@ void PDFPageContentEditorStyleSettings::setPenColor(QColor color)
     {
         m_pen.setColor(color);
         setColorToComboBox(ui->penColorCombo, color);
-        emit penChanged(m_pen);
+        Q_EMIT penChanged(m_pen);
     }
 }
 
@@ -397,7 +397,7 @@ void PDFPageContentEditorStyleSettings::setBrushColor(QColor color)
     {
         m_brush.setColor(color);
         setColorToComboBox(ui->brushColorCombo, color);
-        emit brushChanged(m_brush);
+        Q_EMIT brushChanged(m_brush);
     }
 }
 
@@ -437,13 +437,13 @@ void PDFPageContentEditorStyleSettings::onPenWidthChanged(double value)
     if (m_pen.widthF() != value)
     {
         m_pen.setWidthF(value);
-        emit penChanged(m_pen);
+        Q_EMIT penChanged(m_pen);
     }
 }
 
 void PDFPageContentEditorStyleSettings::onTextAngleChanged(double value)
 {
-    emit textAngleChanged(value);
+    Q_EMIT textAngleChanged(value);
 }
 
 void PDFPageContentEditorStyleSettings::onAlignmentRadioButtonClicked(int alignment)
@@ -452,7 +452,7 @@ void PDFPageContentEditorStyleSettings::onAlignmentRadioButtonClicked(int alignm
     if (m_alignment != alignmentValue)
     {
         m_alignment = alignmentValue;
-        emit alignmentChanged(m_alignment);
+        Q_EMIT alignmentChanged(m_alignment);
     }
 }
 
@@ -462,7 +462,7 @@ void PDFPageContentEditorStyleSettings::onPenStyleChanged()
     if (m_pen.style() != penStyle)
     {
         m_pen.setStyle(penStyle);
-        emit penChanged(m_pen);
+        Q_EMIT penChanged(m_pen);
     }
 }
 
@@ -472,7 +472,7 @@ void PDFPageContentEditorStyleSettings::onBrushStyleChanged()
     if (m_brush.style() != brushStyle)
     {
         m_brush.setStyle(brushStyle);
-        emit brushChanged(m_brush);
+        Q_EMIT brushChanged(m_brush);
     }
 }
 
@@ -486,7 +486,7 @@ void PDFPageContentEditorStyleSettings::onPenColorComboTextChanged()
         if (m_pen.color() != color)
         {
             m_pen.setColor(color);
-            emit penChanged(m_pen);
+            Q_EMIT penChanged(m_pen);
         }
     }
     else if (ui->penColorCombo->currentIndex() != -1)
@@ -502,7 +502,7 @@ void PDFPageContentEditorStyleSettings::onPenColorComboIndexChanged()
     if (color.isValid() && m_pen.color() != color)
     {
         m_pen.setColor(color);
-        emit penChanged(m_pen);
+        Q_EMIT penChanged(m_pen);
     }
 }
 
@@ -516,7 +516,7 @@ void PDFPageContentEditorStyleSettings::onBrushColorComboTextChanged()
         if (m_brush.color() != color)
         {
             m_brush.setColor(color);
-            emit brushChanged(m_brush);
+            Q_EMIT brushChanged(m_brush);
         }
     }
     else if (ui->brushColorCombo->currentIndex() != -1)
@@ -532,7 +532,7 @@ void PDFPageContentEditorStyleSettings::onBrushColorComboIndexChanged()
     if (color.isValid() && m_brush.color() != color)
     {
         m_brush.setColor(color);
-        emit brushChanged(m_brush);
+        Q_EMIT brushChanged(m_brush);
     }
 }
 
@@ -541,7 +541,7 @@ void PDFPageContentEditorStyleSettings::onFontChanged(const QFont& font)
     if (m_font != font)
     {
         m_font = font;
-        emit fontChanged(m_font);
+        Q_EMIT fontChanged(m_font);
     }
 }
 

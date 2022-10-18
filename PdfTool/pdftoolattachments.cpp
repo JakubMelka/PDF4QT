@@ -110,7 +110,7 @@ int PDFToolAttachmentsApplication::execute(const PDFToolOptions& options)
     if (savedFileCount == 0)
     {
         // Just print a list of embedded files
-        PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+        PDFOutputFormatter formatter(options.outputStyle);
         formatter.beginDocument("attachments", PDFToolTranslationContext::tr("Attached files of document %1").arg(options.document));
         formatter.endl();
 

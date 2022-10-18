@@ -1,4 +1,4 @@
- //    Copyright (C) 2020-2022 Jakub Melka
+//    Copyright (C) 2020-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -23,6 +23,16 @@
 #include "pdfdbgheap.h"
 #include "pdfsignaturehandler_impl.h"
 
+#if defined(PDF4QT_COMPILER_MINGW) || defined(PDF4QT_COMPILER_GCC)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
+#if defined(PDF4QT_COMPILER_MSVC)
+#pragma warning(push)
+#pragma warning(disable: 4996)
+#endif
+
 #include <openssl/err.h>
 #include <openssl/sha.h>
 #include <openssl/rsa.h>
@@ -46,7 +56,7 @@ namespace pdf
 template<typename T>
 using openssl_ptr = std::unique_ptr<T, void(*)(T*)>;
 
-static QMutex s_globalOpenSSLMutex(QMutex::Recursive);
+static QRecursiveMutex s_globalOpenSSLMutex;
 
 /// OpenSSL is not thread safe.
 class PDFOpenSSLGlobalLock
@@ -56,7 +66,7 @@ public:
     inline ~PDFOpenSSLGlobalLock() = default;
 
 private:
-    QMutexLocker m_mutexLocker;
+    QMutexLocker<QRecursiveMutex> m_mutexLocker;
 };
 
 PDFSignatureReference PDFSignatureReference::parse(const PDFObjectStorage* storage, PDFObject object)
@@ -2100,3 +2110,11 @@ pdf::PDFCertificateStore::CertificateEntries pdf::PDFCertificateStore::getSystem
 
     return result;
 }
+
+#if defined(PDF4QT_COMPILER_MINGW) || defined(PDF4QT_COMPILER_GCC)
+#pragma GCC diagnostic pop
+#endif
+
+#if defined(PDF4QT_COMPILER_MSVC)
+#pragma warning(pop)
+#endif

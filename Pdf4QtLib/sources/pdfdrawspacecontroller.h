@@ -181,7 +181,7 @@ struct PDFWidgetSnapshot
     {
         PDFInteger pageIndex = -1;  ///< Index of page
         QRectF rect;                ///< Page rectangle on viewport
-        QMatrix pageToDeviceMatrix;             ///< Transforms page coordinates to widget coordinates
+        QTransform pageToDeviceMatrix;             ///< Transforms page coordinates to widget coordinates
         const PDFPrecompiledPage* compiledPage = nullptr; ///< Compiled page (can be nullptr)
     };
 
@@ -217,7 +217,7 @@ public:
     /// from page's media box to the target rectangle.
     /// \param page Page, for which we want to create matrix
     /// \param rectangle Page rectangle, to which is page media box transformed
-    QMatrix createPagePointToDevicePointMatrix(const PDFPage* page, const QRectF& rectangle) const;
+    QTransform createPagePointToDevicePointMatrix(const PDFPage* page, const QRectF& rectangle) const;
 
     /// Draws the actually visible pages on the painter using the rectangle.
     /// Rectangle is space in the widget, which is used for painting the PDF.

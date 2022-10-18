@@ -87,7 +87,7 @@ int PDFToolInkCoverageApplication::execute(const PDFToolOptions& options)
 
     fontCache.setCacheShrinkEnabled(nullptr, true);
 
-    PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+    PDFOutputFormatter formatter(options.outputStyle);
     formatter.beginDocument("ink-coverage", PDFToolTranslationContext::tr("Ink Coverage"));
     formatter.endl();
 

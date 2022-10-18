@@ -26,6 +26,16 @@
 
 #include <QRandomGenerator>
 
+#if defined(PDF4QT_COMPILER_MINGW) || defined(PDF4QT_COMPILER_GCC)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
+#if defined(PDF4QT_COMPILER_MSVC)
+#pragma warning(push)
+#pragma warning(disable: 4996)
+#endif
+
 #include <openssl/rc4.h>
 #include <openssl/md5.h>
 #include <openssl/aes.h>
@@ -41,6 +51,11 @@ namespace pdf
 
 template<typename T>
 using openssl_ptr = std::unique_ptr<T, void(*)(T*)>;
+
+void sk_x509_free_impl(STACK_OF(X509)* ptr)
+{
+    sk_X509_free(ptr);
+}
 
 // Padding password
 static constexpr std::array<uint8_t, 32> PDFPasswordPadding = {
@@ -1993,7 +2008,7 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
                 {
                     openssl_ptr<EVP_PKEY> key(keyPtr, EVP_PKEY_free);
                     openssl_ptr<X509> certificate(certificatePtr, X509_free);
-                    openssl_ptr<STACK_OF(X509)> certificates(certificatesPtr, sk_X509_free);
+                    openssl_ptr<STACK_OF(X509)> certificates(certificatesPtr, sk_x509_free_impl);
                     openssl_ptr<BIO> dataToBeSigned(BIO_new(BIO_s_mem()), BIO_free_all);
 
                     uint32_t permissions = qToLittleEndian(publicKeyHandler->m_permissions);
@@ -2002,7 +2017,7 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
                     BIO_write(dataToBeSigned.get(), randomKey.data(), randomKey.length());
                     BIO_write(dataToBeSigned.get(), &permissions, sizeof(permissions));
 
-                    openssl_ptr<STACK_OF(X509)> recipientCertificates(sk_X509_new_null(), sk_X509_free);
+                    openssl_ptr<STACK_OF(X509)> recipientCertificates(sk_X509_new_null(), sk_x509_free_impl);
                     sk_X509_push(recipientCertificates.get(), certificate.get());
 
                     openssl_ptr<PKCS7> pkcs7(PKCS7_encrypt(recipientCertificates.get(), dataToBeSigned.get(), EVP_aes_256_cbc(), PKCS7_BINARY), PKCS7_free);
@@ -2444,7 +2459,7 @@ PDFSecurityHandler::AuthorizationResult PDFPublicKeySecurityHandler::authenticat
 
                     openssl_ptr<EVP_PKEY> key(keyPtr, EVP_PKEY_free);
                     openssl_ptr<X509> certificate(certificatePtr, X509_free);
-                    openssl_ptr<STACK_OF(X509)> certificates2(certificatesPtr, sk_X509_free);
+                    openssl_ptr<STACK_OF(X509)> certificates2(certificatesPtr, sk_x509_free_impl);
 
                     for (const auto& recipientItem : recipients)
                     {
@@ -2595,7 +2610,7 @@ PDFObject PDFPublicKeySecurityHandler::createEncryptionDictionaryObject() const
     factory << PDFInteger(int32_t(m_permissions));
     factory.endDictionaryItem();
 
-    // Jakub Melka: 131105 is mysterious value set by Adobe Acrobat Pro
+    // Jakub Melka: 131105 is mysterious value set by Acrobat Pro
     // when using public key security
     factory.beginDictionaryItem("R");
     factory << PDFInteger(131105);
@@ -2607,3 +2622,11 @@ PDFObject PDFPublicKeySecurityHandler::createEncryptionDictionaryObject() const
 }
 
 }   // namespace pdf
+
+#if defined(PDF4QT_COMPILER_MINGW) || defined(PDF4QT_COMPILER_GCC)
+#pragma GCC diagnostic pop
+#endif
+
+#if defined(PDF4QT_COMPILER_MSVC)
+#pragma warning(pop)
+#endif

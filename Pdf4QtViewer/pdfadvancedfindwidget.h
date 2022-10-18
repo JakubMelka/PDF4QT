@@ -53,7 +53,7 @@ public:
                           pdf::PDFInteger pageIndex,
                           const pdf::PDFPrecompiledPage* compiledPage,
                           pdf::PDFTextLayoutGetter& layoutGetter,
-                          const QMatrix& pagePointToDevicePointMatrix,
+                          const QTransform& pagePointToDevicePointMatrix,
                           QList<pdf::PDFRenderError>& errors) const override;
 
     void setDocument(const pdf::PDFModifiedDocument& document);

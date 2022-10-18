@@ -95,7 +95,7 @@ void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& opti
     if (option.state.testFlag(QStyle::State_Selected))
     {
         QColor selectedColor = option.palette.color(QPalette::Active, QPalette::Highlight);
-        selectedColor.setAlphaF(0.3);
+        selectedColor.setAlphaF(0.3f);
         painter->fillRect(rect, selectedColor);
     }
 
@@ -135,7 +135,7 @@ void PageItemDelegate::setPageImageSize(QSize pageImageSize)
     if (m_pageImageSize != pageImageSize)
     {
         m_pageImageSize = pageImageSize;
-        emit sizeHintChanged(QModelIndex());
+        Q_EMIT sizeHintChanged(QModelIndex());
     }
 }
 
@@ -211,7 +211,7 @@ QPixmap PageItemDelegate::getPageImagePixmap(const PageGroupItem* item, QRect re
                         QRect drawRect(QPoint(0, 0), rect.size());
                         QRect mediaBox(QPoint(0, 0), image.size());
                         QRectF rotatedMediaBox = pdf::PDFPage::getRotatedBox(mediaBox, groupItem.pageAdditionalRotation);
-                        QMatrix matrix = pdf::PDFRenderer::createMediaBoxToDevicePointMatrix(rotatedMediaBox, drawRect, groupItem.pageAdditionalRotation);
+                        QTransform matrix = pdf::PDFRenderer::createMediaBoxToDevicePointMatrix(rotatedMediaBox, drawRect, groupItem.pageAdditionalRotation);
 
                         QPainter painter(&pixmap);
                         painter.setWorldTransform(QTransform(matrix));

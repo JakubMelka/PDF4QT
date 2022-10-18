@@ -86,8 +86,7 @@ void GeneratedCodeStorage::generateCode(QTextStream& stream, CodeGeneratorParame
 QObject* Serializer::load(const QDomElement& element, QObject* parent)
 {
     QString className = element.attribute("class");
-    const int metaTypeId = QMetaType::type(className.toLatin1());
-    const QMetaObject* metaObject = QMetaType::metaObjectForType(metaTypeId);
+    const QMetaObject* metaObject = QMetaType::fromName(QByteArrayView(className.toLatin1())).metaObject();
 
     if (metaObject)
     {
@@ -306,7 +305,7 @@ QString CodeGenerator::generateHeader(int indent) const
     QByteArray ba;
     {
         QTextStream stream(&ba, QIODevice::WriteOnly);
-        stream.setCodec("UTF-8");
+        stream.setEncoding(QStringConverter::Utf8);
         stream.setRealNumberPrecision(3);
         stream.setRealNumberNotation(QTextStream::FixedNotation);
 
@@ -324,7 +323,7 @@ QString CodeGenerator::generateSource(QString className, int indent) const
     QByteArray ba;
     {
         QTextStream stream(&ba, QIODevice::WriteOnly);
-        stream.setCodec("UTF-8");
+        stream.setEncoding(QStringConverter::Utf8);
         stream.setRealNumberPrecision(3);
         stream.setRealNumberNotation(QTextStream::FixedNotation);
 
@@ -1647,7 +1646,7 @@ QString XFACodeGenerator::generateSource() const
     QByteArray ba;
     {
         QTextStream stream(&ba, QIODevice::WriteOnly);
-        stream.setCodec("UTF-8");
+        stream.setEncoding(QStringConverter::Utf8);
         stream.setRealNumberPrecision(3);
         stream.setRealNumberNotation(QTextStream::FixedNotation);
 
@@ -1898,7 +1897,7 @@ QString XFACodeGenerator::generateHeader() const
     QByteArray ba;
     {
         QTextStream stream(&ba, QIODevice::WriteOnly);
-        stream.setCodec("UTF-8");
+        stream.setEncoding(QStringConverter::Utf8);
         stream.setRealNumberPrecision(3);
         stream.setRealNumberNotation(QTextStream::FixedNotation);
 

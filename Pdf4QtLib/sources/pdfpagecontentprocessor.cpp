@@ -225,7 +225,7 @@ PDFPageContentProcessor::PDFPageContentProcessor(const PDFPage* page,
                                                  const PDFFontCache* fontCache,
                                                  const PDFCMS* CMS,
                                                  const PDFOptionalContentActivity* optionalContentActivity,
-                                                 QMatrix pagePointToDevicePointMatrix,
+                                                 QTransform pagePointToDevicePointMatrix,
                                                  const PDFMeshQualitySettings& meshQualitySettings) :
     m_page(page),
     m_document(document),
@@ -729,7 +729,7 @@ void PDFPageContentProcessor::processContentStream(const PDFStream* stream)
     }
 }
 
-void PDFPageContentProcessor::processForm(const QMatrix& matrix,
+void PDFPageContentProcessor::processForm(const QTransform& matrix,
                                           const QRectF& boundingBox,
                                           const PDFObject& resources,
                                           const PDFObject& transparencyGroup,
@@ -764,11 +764,11 @@ void PDFPageContentProcessor::processForm(const QMatrix& matrix,
         m_graphicState.setSoftMask(nullptr);
     }
 
-    QMatrix formMatrix = matrix * m_graphicState.getCurrentTransformationMatrix();
+    QTransform formMatrix = matrix * m_graphicState.getCurrentTransformationMatrix();
     m_graphicState.setCurrentTransformationMatrix(formMatrix);
     updateGraphicState();
 
-    QMatrix patternMatrix = formMatrix * m_pagePointToDevicePointMatrix;
+    QTransform patternMatrix = formMatrix * m_pagePointToDevicePointMatrix;
     PDFTemporaryValueChange patternMatrixGuard(&m_patternBaseMatrix, patternMatrix);
 
     // If the clipping box is valid, then use clipping. Clipping box is in the form coordinate system
@@ -1029,9 +1029,9 @@ void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPatte
     Q_ASSERT(m_pagePointToDevicePointMatrix.isInvertible());
 
     // Initialize rendering matrix
-    QMatrix patternMatrix = tilingPattern->getMatrix() * getPatternBaseMatrix();
-    QMatrix matrix = patternMatrix * m_pagePointToDevicePointMatrix.inverted();
-    QMatrix pathTransformationMatrix = m_graphicState.getCurrentTransformationMatrix() * matrix.inverted();
+    QTransform patternMatrix = tilingPattern->getMatrix() * getPatternBaseMatrix();
+    QTransform matrix = patternMatrix * m_pagePointToDevicePointMatrix.inverted();
+    QTransform pathTransformationMatrix = m_graphicState.getCurrentTransformationMatrix() * matrix.inverted();
     m_graphicState.setCurrentTransformationMatrix(matrix);
 
     int uncoloredTilingPatternFlag = 0;
@@ -1082,18 +1082,18 @@ void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPatte
     const PDFInteger columns = qMax<PDFInteger>(qCeil(tilingArea.width() / xStep), 1);
     const PDFInteger rows = qMax<PDFInteger>(qCeil(tilingArea.height() / yStep), 1);
 
-    QMatrix baseTransformationMatrix = m_graphicState.getCurrentTransformationMatrix();
+    QTransform baseTransformationMatrix = m_graphicState.getCurrentTransformationMatrix();
     for (PDFInteger column = 0; column < columns; ++column)
     {
         for (PDFInteger row = 0; row < rows; ++row)
         {
             PDFPageContentProcessorGraphicStateSaveRestoreGuard guard3(this);
 
-            QMatrix transformationMatrix = baseTransformationMatrix;
+            QTransform transformationMatrix = baseTransformationMatrix;
             transformationMatrix.translate(tilingArea.left(), tilingArea.top());
             transformationMatrix.translate(column * xStep, row * yStep);
 
-            QMatrix currentPatternMatrix = transformationMatrix * m_pagePointToDevicePointMatrix;
+            QTransform currentPatternMatrix = transformationMatrix * m_pagePointToDevicePointMatrix;
             PDFTemporaryValueChange patternMatrixGuard(&m_patternBaseMatrix, currentPatternMatrix);
 
             m_graphicState.setCurrentTransformationMatrix(transformationMatrix);
@@ -1630,7 +1630,7 @@ void PDFPageContentProcessor::operatorSetLineWidth(PDFReal lineWidth)
 
 Qt::PenCapStyle PDFPageContentProcessor::convertLineCapToPenCapStyle(PDFInteger lineCap)
 {
-    lineCap = qBound<PDFInteger>(0, lineCap, 2);
+    lineCap = qBound<PDFInteger>(PDFInteger(0), lineCap, PDFInteger(2));
 
     Qt::PenCapStyle penCapStyle = Qt::FlatCap;
     switch (lineCap)
@@ -1693,7 +1693,7 @@ void PDFPageContentProcessor::operatorSetLineCap(PDFInteger lineCap)
 
 Qt::PenJoinStyle PDFPageContentProcessor::convertLineJoinToPenJoinStyle(PDFInteger lineJoin)
 {
-    lineJoin = qBound<PDFInteger>(0, lineJoin, 2);
+    lineJoin = qBound<PDFInteger>(PDFInteger(0), lineJoin, PDFInteger(2));
 
     Qt::PenJoinStyle penJoinStyle = Qt::MiterJoin;
     switch (lineJoin)
@@ -2079,7 +2079,7 @@ void PDFPageContentProcessor::operatorAdjustCurrentTransformationMatrix(PDFReal 
     //                             [ a, b, 0 ]
     //  [x', y', 1] = [ x, y, 1] * [ c, d, 0 ]
     //                             [ e, f, 1 ]
-    // If we transpose this equation (we want this, because Qt uses transposed matrices (QMatrix).
+    // If we transpose this equation (we want this, because Qt uses transposed matrices (QTransform).
     // So, we will get following result:
     //
     // [ x' ]   [ a, c, e]    [ x ]
@@ -2093,8 +2093,8 @@ void PDFPageContentProcessor::operatorAdjustCurrentTransformationMatrix(PDFReal 
     // We must also check, that matrix is invertible. If it is not, then we will throw exception
     // to avoid errors later (for some operations, we assume matrix is invertible).
 
-    QMatrix matrix(a, b, c, d, e, f);
-    QMatrix transformMatrix = matrix * m_graphicState.getCurrentTransformationMatrix();
+    QTransform matrix(a, b, c, d, e, f);
+    QTransform transformMatrix = matrix * m_graphicState.getCurrentTransformationMatrix();
 
     if (!transformMatrix.isInvertible())
     {
@@ -2645,8 +2645,8 @@ void PDFPageContentProcessor::operatorColorSetDeviceCMYKFilling(PDFReal c, PDFRe
 void PDFPageContentProcessor::operatorTextBegin()
 {
     performTextBegin(ProcessOrder::BeforeOperation);
-    m_graphicState.setTextMatrix(QMatrix());
-    m_graphicState.setTextLineMatrix(QMatrix());
+    m_graphicState.setTextMatrix(QTransform());
+    m_graphicState.setTextLineMatrix(QTransform());
     updateGraphicState();
 
     ++m_textBeginEndState;
@@ -2738,7 +2738,7 @@ void PDFPageContentProcessor::operatorTextSetFontAndFontSize(PDFOperandName font
 
 void PDFPageContentProcessor::operatorTextSetRenderMode(PDFInteger mode)
 {
-    mode = qBound<PDFInteger>(0, mode, 7);
+    mode = qBound<PDFInteger>(PDFInteger(0), mode, PDFInteger(7));
     m_graphicState.setTextRenderingMode(static_cast<TextRenderingMode>(mode));
     updateGraphicState();
 }
@@ -2751,8 +2751,8 @@ void PDFPageContentProcessor::operatorTextSetRise(PDFReal rise)
 
 void PDFPageContentProcessor::operatorTextMoveByOffset(PDFReal t_x, PDFReal t_y)
 {
-    const QMatrix& textLineMatrix = m_graphicState.getTextLineMatrix();
-    QMatrix transformedMatrix = QMatrix(1, 0, 0, 1, t_x, t_y) * textLineMatrix;
+    const QTransform& textLineMatrix = m_graphicState.getTextLineMatrix();
+    QTransform transformedMatrix = QTransform(1, 0, 0, 1, t_x, t_y) * textLineMatrix;
 
     m_graphicState.setTextMatrix(transformedMatrix);
     m_graphicState.setTextLineMatrix(transformedMatrix);
@@ -2773,7 +2773,7 @@ void PDFPageContentProcessor::operatorTextSetMatrix(PDFReal a, PDFReal b, PDFRea
     //                             [ a, b, 0 ]
     //  [x', y', 1] = [ x, y, 1] * [ c, d, 0 ]
     //                             [ e, f, 1 ]
-    // If we transpose this equation (we want this, because Qt uses transposed matrices (QMatrix).
+    // If we transpose this equation (we want this, because Qt uses transposed matrices (QTransform).
     // So, we will get following result:
     //
     // [ x' ]   [ a, c, e]    [ x ]
@@ -2787,7 +2787,7 @@ void PDFPageContentProcessor::operatorTextSetMatrix(PDFReal a, PDFReal b, PDFRea
     // We must also check, that matrix is invertible. If it is not, then we will throw exception
     // to avoid errors later (for some operations, we assume matrix is invertible).
 
-    QMatrix matrix(a, b, c, d, e, f);
+    QTransform matrix(a, b, c, d, e, f);
 
     m_graphicState.setTextMatrix(matrix);
     m_graphicState.setTextLineMatrix(matrix);
@@ -2914,7 +2914,7 @@ void PDFPageContentProcessor::operatorShadingPaintShape(PDFPageContentProcessor:
         return;
     }
 
-    QMatrix matrix = getCurrentWorldMatrix();
+    QTransform matrix = getCurrentWorldMatrix();
     PDFPageContentProcessorStateGuard guard(this);
     PDFTemporaryValueChange guard2(&m_patternBaseMatrix, matrix);
 
@@ -2923,7 +2923,7 @@ void PDFPageContentProcessor::operatorShadingPaintShape(PDFPageContentProcessor:
         throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Shading '%1' not found.").arg(QString::fromLatin1(name.name)));
     }
 
-    PDFPatternPtr pattern = PDFPattern::createShadingPattern(m_colorSpaceDictionary, m_document, m_shadingDictionary->get(name.name), QMatrix(), PDFObject(), m_CMS, m_graphicState.getRenderingIntent(), this, true);
+    PDFPatternPtr pattern = PDFPattern::createShadingPattern(m_colorSpaceDictionary, m_document, m_shadingDictionary->get(name.name), QTransform(), PDFObject(), m_CMS, m_graphicState.getRenderingIntent(), this, true);
 
     // We will do a trick: we will set current fill color space, and then paint
     // bounding rectangle in the color pattern.
@@ -2931,7 +2931,7 @@ void PDFPageContentProcessor::operatorShadingPaintShape(PDFPageContentProcessor:
     updateGraphicState();
 
     Q_ASSERT(matrix.isInvertible());
-    QMatrix inverted = matrix.inverted();
+    QTransform inverted = matrix.inverted();
 
     QPainterPath deviceBoundingRectPath;
     deviceBoundingRectPath.addRect(m_pageBoundingRectDeviceSpace);
@@ -3007,7 +3007,7 @@ void PDFPageContentProcessor::processForm(const PDFStream* stream)
     QRectF boundingBox = loader.readRectangle(streamDictionary->get("BBox"), QRectF());
 
     // Read the transformation matrix, if it is present
-    QMatrix transformationMatrix = loader.readMatrixFromDictionary(streamDictionary, "Matrix", QMatrix());
+    QTransform transformationMatrix = loader.readMatrixFromDictionary(streamDictionary, "Matrix", QTransform());
 
     // Read the dictionary content
     QByteArray content = m_document->getDecodedStream(stream);
@@ -3176,8 +3176,8 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
         const bool isHorizontalWritingSystem = font->isHorizontalWritingSystem();
 
         // Calculate text rendering matrix
-        QMatrix adjustMatrix(horizontalScaling, 0.0, 0.0, 1.0, 0.0, textRise);
-        QMatrix textMatrix = m_graphicState.getTextMatrix();
+        QTransform adjustMatrix(horizontalScaling, 0.0, 0.0, 1.0, 0.0, textRise);
+        QTransform textMatrix = m_graphicState.getTextMatrix();
 
         if (!isType3Font)
         {
@@ -3208,8 +3208,8 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
                     {
                         const QPainterPath& glyphPath = *item.glyph;
 
-                        QMatrix textRenderingMatrix = adjustMatrix * textMatrix;
-                        QMatrix toDeviceSpaceTransform = textRenderingMatrix * m_graphicState.getCurrentTransformationMatrix();
+                        QTransform textRenderingMatrix = adjustMatrix * textMatrix;
+                        QTransform toDeviceSpaceTransform = textRenderingMatrix * m_graphicState.getCurrentTransformationMatrix();
 
                         if (!glyphPath.isEmpty())
                         {
@@ -3262,7 +3262,7 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
             Q_ASSERT(dynamic_cast<const PDFType3Font*>(m_graphicState.getTextFont().get()));
             const PDFType3Font* parentFont = static_cast<const PDFType3Font*>(m_graphicState.getTextFont().get());
 
-            QMatrix fontMatrix = parentFont->getFontMatrix();
+            QTransform fontMatrix = parentFont->getFontMatrix();
             if (!fontMatrix.isInvertible())
             {
                 throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Type 3 font matrix is not invertible."));
@@ -3276,9 +3276,9 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
                 initDictionaries(resources);
             }
 
-            QMatrix scaleMatrix(fontSize, 0.0, 0.0, fontSize, 0.0, 0.0);
+            QTransform scaleMatrix(fontSize, 0.0, 0.0, fontSize, 0.0, 0.0);
             adjustMatrix = scaleMatrix * adjustMatrix;
-            QMatrix fontAdjustedMatrix = fontMatrix * adjustMatrix;
+            QTransform fontAdjustedMatrix = fontMatrix * adjustMatrix;
 
             for (const TextSequenceItem& item : textSequence.items)
             {
@@ -3298,7 +3298,7 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
                     // We must clear operands, because we are processing a new content stream
                     m_operands.clear();
 
-                    QMatrix worldMatrix = fontAdjustedMatrix * textMatrix * m_graphicState.getCurrentTransformationMatrix();
+                    QTransform worldMatrix = fontAdjustedMatrix * textMatrix * m_graphicState.getCurrentTransformationMatrix();
                     m_graphicState.setCurrentTransformationMatrix(worldMatrix);
                     updateGraphicState();
 
@@ -3492,7 +3492,7 @@ PDFPageContentProcessor::PDFPageContentProcessorState& PDFPageContentProcessor::
     return *this;
 }
 
-void PDFPageContentProcessor::PDFPageContentProcessorState::setCurrentTransformationMatrix(const QMatrix& currentTransformationMatrix)
+void PDFPageContentProcessor::PDFPageContentProcessorState::setCurrentTransformationMatrix(const QTransform& currentTransformationMatrix)
 {
     if (m_currentTransformationMatrix != currentTransformationMatrix)
     {
@@ -3638,7 +3638,7 @@ void PDFPageContentProcessor::PDFPageContentProcessorState::setTextKnockout(bool
     }
 }
 
-void PDFPageContentProcessor::PDFPageContentProcessorState::setTextLineMatrix(const QMatrix& textLineMatrix)
+void PDFPageContentProcessor::PDFPageContentProcessorState::setTextLineMatrix(const QTransform& textLineMatrix)
 {
     if (m_textLineMatrix != textLineMatrix)
     {
@@ -3827,7 +3827,7 @@ void PDFPageContentProcessor::PDFPageContentProcessorState::setBlackGenerationFu
     }
 }
 
-void PDFPageContentProcessor::PDFPageContentProcessorState::setTextMatrix(const QMatrix& textMatrix)
+void PDFPageContentProcessor::PDFPageContentProcessorState::setTextMatrix(const QTransform& textMatrix)
 {
     if (m_textMatrix != textMatrix)
     {

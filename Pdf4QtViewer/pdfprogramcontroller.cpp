@@ -49,7 +49,6 @@
 #include <QFileDialog>
 #include <QtConcurrent/QtConcurrent>
 #include <QInputDialog>
-#include <QDesktopWidget>
 #include <QMainWindow>
 #include <QToolBar>
 #include <QXmlStreamWriter>
@@ -1376,7 +1375,7 @@ void PDFProgramController::readSettings(Settings settingsFlags)
         QByteArray geometry = settings.value("geometry", QByteArray()).toByteArray();
         if (geometry.isEmpty())
         {
-            QRect availableGeometry = QApplication::desktop()->availableGeometry(m_mainWindow);
+            QRect availableGeometry = QApplication::primaryScreen()->availableGeometry();
             QRect windowRect(0, 0, availableGeometry.width() / 2, availableGeometry.height() / 2);
             windowRect = windowRect.translated(availableGeometry.center() - windowRect.center());
             m_mainWindow->setGeometry(windowRect);
@@ -1457,7 +1456,7 @@ void PDFProgramController::setPageLayout(pdf::PageLayout pageLayout)
 void PDFProgramController::updateActionsAvailability()
 {
     const bool isBusy = (m_futureWatcher && m_futureWatcher->isRunning()) || m_isBusy;
-    const bool hasDocument = m_pdfDocument;
+    const bool hasDocument = m_pdfDocument != nullptr;
     const bool hasValidDocument = !isBusy && hasDocument;
     bool canPrint = false;
     if (m_pdfDocument)
@@ -1539,7 +1538,7 @@ void PDFProgramController::openDocument(const QString& fileName)
         {
             QString result;
             *ok = false;
-            emit queryPasswordRequest(&result, ok);
+            Q_EMIT queryPasswordRequest(&result, ok);
             return result;
         };
 

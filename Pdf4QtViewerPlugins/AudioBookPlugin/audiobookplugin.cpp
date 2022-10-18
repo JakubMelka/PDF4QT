@@ -164,7 +164,7 @@ void AudioBookPlugin::drawPage(QPainter* painter,
                                pdf::PDFInteger pageIndex,
                                const pdf::PDFPrecompiledPage* compiledPage,
                                pdf::PDFTextLayoutGetter& layoutGetter,
-                               const QMatrix& pagePointToDevicePointMatrix,
+                               const QTransform& pagePointToDevicePointMatrix,
                                QList<pdf::PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -200,7 +200,7 @@ void AudioBookPlugin::drawPage(QPainter* painter,
 
         QColor strokeColor = color;
         QColor fillColor = color;
-        fillColor.setAlphaF(0.2);
+        fillColor.setAlphaF(0.2f);
 
         pen.setColor(strokeColor);
         painter->setPen(pen);

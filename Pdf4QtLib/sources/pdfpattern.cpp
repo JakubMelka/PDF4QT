@@ -41,17 +41,17 @@ const PDFAbstractColorSpace* PDFShadingPattern::getColorSpace() const
     return m_colorSpace.data();
 }
 
-QMatrix PDFShadingPattern::getPatternSpaceToDeviceSpaceMatrix(const PDFMeshQualitySettings& settings) const
+QTransform PDFShadingPattern::getPatternSpaceToDeviceSpaceMatrix(const PDFMeshQualitySettings& settings) const
 {
     return m_matrix * settings.userSpaceToDeviceSpaceMatrix;
 }
 
-QMatrix PDFShadingPattern::getPatternSpaceToDeviceSpaceMatrix(const QMatrix& userSpaceToDeviceSpaceMatrix) const
+QTransform PDFShadingPattern::getPatternSpaceToDeviceSpaceMatrix(const QTransform& userSpaceToDeviceSpaceMatrix) const
 {
     return m_matrix * userSpaceToDeviceSpaceMatrix;
 }
 
-PDFShadingSampler* PDFShadingPattern::createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const
+PDFShadingSampler* PDFShadingPattern::createSampler(QTransform userSpaceToDeviceSpaceMatrix) const
 {
     Q_UNUSED(userSpaceToDeviceSpaceMatrix);
 
@@ -100,7 +100,7 @@ PDFPatternPtr PDFPattern::createPattern(const PDFDictionary* colorSpaceDictionar
                 const PDFReal xStep = loader.readNumberFromDictionary(patternDictionary, "XStep", 0.0);
                 const PDFReal yStep = loader.readNumberFromDictionary(patternDictionary, "YStep", 0.0);
                 PDFObject resources = document->getObject(patternDictionary->get("Resources"));
-                QMatrix matrix = loader.readMatrixFromDictionary(patternDictionary, "Matrix", QMatrix());
+                QTransform matrix = loader.readMatrixFromDictionary(patternDictionary, "Matrix", QTransform());
 
                 // Verify the data
                 if (paintType != PDFTilingPattern::PaintType::Colored && paintType != PDFTilingPattern::PaintType::Uncolored)
@@ -136,7 +136,7 @@ PDFPatternPtr PDFPattern::createPattern(const PDFDictionary* colorSpaceDictionar
             case PatternType::Shading:
             {
                 PDFObject patternGraphicState = document->getObject(patternDictionary->get("ExtGState"));
-                QMatrix matrix = loader.readMatrixFromDictionary(patternDictionary, "Matrix", QMatrix());
+                QTransform matrix = loader.readMatrixFromDictionary(patternDictionary, "Matrix", QTransform());
                 return createShadingPattern(colorSpaceDictionary, document, patternDictionary->get("Shading"), matrix, patternGraphicState, cms, intent, reporter, false);
             }
 
@@ -151,7 +151,7 @@ PDFPatternPtr PDFPattern::createPattern(const PDFDictionary* colorSpaceDictionar
 PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDictionary,
                                                const PDFDocument* document,
                                                const PDFObject& shadingObject,
-                                               const QMatrix& matrix,
+                                               const QTransform& matrix,
                                                const PDFObject& patternGraphicState,
                                                const PDFCMS* cms,
                                                RenderingIntent intent,
@@ -252,7 +252,7 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
                 throw PDFException(PDFTranslationContext::tr("Invalid function shading pattern domain. Invalid domain ranges."));
             }
 
-            QMatrix domainToTargetTransform = loader.readMatrixFromDictionary(shadingDictionary, "Matrix", QMatrix());
+            QTransform domainToTargetTransform = loader.readMatrixFromDictionary(shadingDictionary, "Matrix", QTransform());
 
             size_t colorComponentCount = colorSpace->getColorComponentCount();
             if (functions.size() > 1 && colorComponentCount != functions.size())
@@ -505,13 +505,13 @@ PDFPatternPtr PDFPattern::createShadingPattern(const PDFDictionary* colorSpaceDi
 class PDFFunctionShadingSampler : public PDFShadingSampler
 {
 public:
-    PDFFunctionShadingSampler(const PDFFunctionShading* functionShadingPattern, QMatrix userSpaceToDeviceSpaceMatrix) :
+    PDFFunctionShadingSampler(const PDFFunctionShading* functionShadingPattern, QTransform userSpaceToDeviceSpaceMatrix) :
         PDFShadingSampler(functionShadingPattern),
         m_functionShadingPattern(functionShadingPattern),
         m_domain(functionShadingPattern->getDomain())
     {
-        QMatrix patternSpaceToDeviceSpaceMatrix = functionShadingPattern->getMatrix() * userSpaceToDeviceSpaceMatrix;
-        QMatrix domainToDeviceSpaceMatrix = functionShadingPattern->getDomainToTargetTransform() * patternSpaceToDeviceSpaceMatrix;
+        QTransform patternSpaceToDeviceSpaceMatrix = functionShadingPattern->getMatrix() * userSpaceToDeviceSpaceMatrix;
+        QTransform domainToDeviceSpaceMatrix = functionShadingPattern->getDomainToTargetTransform() * patternSpaceToDeviceSpaceMatrix;
 
         if (domainToDeviceSpaceMatrix.isInvertible())
         {
@@ -519,7 +519,7 @@ public:
         }
         else
         {
-            m_deviceSpaceToDomainMatrix = QMatrix();
+            m_deviceSpaceToDomainMatrix = QTransform();
         }
     }
 
@@ -594,7 +594,7 @@ public:
 private:
     const PDFFunctionShading* m_functionShadingPattern;
     QRectF m_domain;
-    QMatrix m_deviceSpaceToDomainMatrix;
+    QTransform m_deviceSpaceToDomainMatrix;
 };
 
 ShadingType PDFFunctionShading::getShadingType() const
@@ -612,13 +612,13 @@ PDFMesh PDFFunctionShading::createMesh(const PDFMeshQualitySettings& settings,
 
     Q_UNUSED(operationControl);
 
-    QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(settings);
-    QMatrix domainToDeviceSpaceMatrix = m_domainToTargetTransform * patternSpaceToDeviceSpaceMatrix;
+    QTransform patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(settings);
+    QTransform domainToDeviceSpaceMatrix = m_domainToTargetTransform * patternSpaceToDeviceSpaceMatrix;
     QLineF topLine(m_domain.topLeft(), m_domain.topRight());
     QLineF leftLine(m_domain.topLeft(), m_domain.bottomLeft());
 
     Q_ASSERT(domainToDeviceSpaceMatrix.isInvertible());
-    QMatrix deviceSpaceToDomainMatrix = domainToDeviceSpaceMatrix.inverted();
+    QTransform deviceSpaceToDomainMatrix = domainToDeviceSpaceMatrix.inverted();
 
     QLineF topLineDS = domainToDeviceSpaceMatrix.map(topLine);
     QLineF leftLineDS = domainToDeviceSpaceMatrix.map(leftLine);
@@ -911,7 +911,7 @@ PDFMesh PDFFunctionShading::createMesh(const PDFMeshQualitySettings& settings,
     return mesh;
 }
 
-PDFShadingSampler* PDFFunctionShading::createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const
+PDFShadingSampler* PDFFunctionShading::createSampler(QTransform userSpaceToDeviceSpaceMatrix) const
 {
     return new PDFFunctionShadingSampler(this, userSpaceToDeviceSpaceMatrix);
 }
@@ -926,7 +926,7 @@ PDFMesh PDFAxialShading::createMesh(const PDFMeshQualitySettings& settings,
 
     Q_UNUSED(operationControl);
 
-    QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(settings);
+    QTransform patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(settings);
     QPointF p1 = patternSpaceToDeviceSpaceMatrix.map(m_startPoint);
     QPointF p2 = patternSpaceToDeviceSpaceMatrix.map(m_endPoint);
 
@@ -939,10 +939,10 @@ PDFMesh PDFAxialShading::createMesh(const PDFMeshQualitySettings& settings,
     // Matrix p1p2LCS is local coordinate system of line p1-p2. It transforms
     // points on the line to the global coordinate system. So, point (0, 0) will
     // map onto p1 and point (length(p1-p2), 0) will map onto p2.
-    QMatrix p1p2LCS;
+    QTransform p1p2LCS;
     p1p2LCS.translate(p1.x(), p1.y());
     p1p2LCS.rotate(angle);
-    QMatrix p1p2GCS = p1p2LCS.inverted();
+    QTransform p1p2GCS = p1p2LCS.inverted();
 
     QPointF p1m = p1p2GCS.map(p1);
     QPointF p2m = p1p2GCS.map(p2);
@@ -1150,7 +1150,7 @@ PDFMesh PDFAxialShading::createMesh(const PDFMeshQualitySettings& settings,
 class PDFAxialShadingSampler : public PDFShadingSampler
 {
 public:
-    PDFAxialShadingSampler(const PDFAxialShading* axialShadingPattern, QMatrix userSpaceToDeviceSpaceMatrix) :
+    PDFAxialShadingSampler(const PDFAxialShading* axialShadingPattern, QTransform userSpaceToDeviceSpaceMatrix) :
         PDFShadingSampler(axialShadingPattern),
         m_axialShadingPattern(axialShadingPattern),
         m_xStart(0.0),
@@ -1160,7 +1160,7 @@ public:
         m_tMin(0.0),
         m_tMax(0.0)
     {
-        QMatrix patternSpaceToDeviceSpace = axialShadingPattern->getMatrix() * userSpaceToDeviceSpaceMatrix;
+        QTransform patternSpaceToDeviceSpace = axialShadingPattern->getMatrix() * userSpaceToDeviceSpaceMatrix;
 
         QPointF p1 = patternSpaceToDeviceSpace.map(axialShadingPattern->getStartPoint());
         QPointF p2 = patternSpaceToDeviceSpace.map(axialShadingPattern->getEndPoint());
@@ -1174,10 +1174,10 @@ public:
         // Matrix p1p2LCS is local coordinate system of line p1-p2. It transforms
         // points on the line to the global coordinate system. So, point (0, 0) will
         // map onto p1 and point (length(p1-p2), 0) will map onto p2.
-        QMatrix p1p2LCS;
+        QTransform p1p2LCS;
         p1p2LCS.translate(p1.x(), p1.y());
         p1p2LCS.rotate(angle);
-        QMatrix p1p2GCS = p1p2LCS.inverted();
+        QTransform p1p2GCS = p1p2LCS.inverted();
 
         QPointF p1m = p1p2GCS.map(p1);
         QPointF p2m = p1p2GCS.map(p2);
@@ -1297,7 +1297,7 @@ public:
 
 private:
     const PDFAxialShading* m_axialShadingPattern;
-    QMatrix m_p1p2GCS;
+    QTransform m_p1p2GCS;
     PDFReal m_xStart;
     PDFReal m_xEnd;
     PDFReal m_tAtStart;
@@ -1306,7 +1306,7 @@ private:
     PDFReal m_tMax;
 };
 
-PDFShadingSampler* PDFAxialShading::createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const
+PDFShadingSampler* PDFAxialShading::createSampler(QTransform userSpaceToDeviceSpaceMatrix) const
 {
     return new PDFAxialShadingSampler(this, userSpaceToDeviceSpaceMatrix);
 }
@@ -1357,7 +1357,7 @@ void PDFMesh::paint(QPainter* painter, PDFReal alpha) const
     painter->restore();
 }
 
-void PDFMesh::transform(const QMatrix& matrix)
+void PDFMesh::transform(const QTransform& matrix)
 {
     for (QPointF& vertex : m_vertices)
     {
@@ -1439,7 +1439,7 @@ PDFMesh PDFRadialShading::createMesh(const PDFMeshQualitySettings& settings,
 
     Q_UNUSED(operationControl);
 
-    QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(settings);
+    QTransform patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(settings);
     QPointF p1 = patternSpaceToDeviceSpaceMatrix.map(m_startPoint);
     QPointF p2 = patternSpaceToDeviceSpaceMatrix.map(m_endPoint);
 
@@ -1458,10 +1458,10 @@ PDFMesh PDFRadialShading::createMesh(const PDFMeshQualitySettings& settings,
     // Matrix p1p2LCS is local coordinate system of line p1-p2. It transforms
     // points on the line to the global coordinate system. So, point (0, 0) will
     // map onto p1 and point (length(p1-p2), 0) will map onto p2.
-    QMatrix p1p2LCS;
+    QTransform p1p2LCS;
     p1p2LCS.translate(p1.x(), p1.y());
     p1p2LCS.rotate(angle);
-    QMatrix p1p2GCS = p1p2LCS.inverted();
+    QTransform p1p2GCS = p1p2LCS.inverted();
 
     QPointF p1m = p1p2GCS.map(p1);
     QPointF p2m = p1p2GCS.map(p2);
@@ -1723,7 +1723,7 @@ PDFMesh PDFRadialShading::createMesh(const PDFMeshQualitySettings& settings,
 class PDFRadialShadingSampler : public PDFShadingSampler
 {
 public:
-    PDFRadialShadingSampler(const PDFRadialShading* radialShadingPattern, QMatrix userSpaceToDeviceSpaceMatrix) :
+    PDFRadialShadingSampler(const PDFRadialShading* radialShadingPattern, QTransform userSpaceToDeviceSpaceMatrix) :
         PDFShadingSampler(radialShadingPattern),
         m_radialShadingPattern(radialShadingPattern),
         m_xStart(0.0),
@@ -1735,7 +1735,7 @@ public:
         m_r0(0.0),
         m_r1(0.0)
     {
-        QMatrix patternSpaceToDeviceSpace = radialShadingPattern->getMatrix() * userSpaceToDeviceSpaceMatrix;
+        QTransform patternSpaceToDeviceSpace = radialShadingPattern->getMatrix() * userSpaceToDeviceSpaceMatrix;
 
         QPointF p1 = patternSpaceToDeviceSpace.map(radialShadingPattern->getStartPoint());
         QPointF p2 = patternSpaceToDeviceSpace.map(radialShadingPattern->getEndPoint());
@@ -1754,10 +1754,10 @@ public:
         // Matrix p1p2LCS is local coordinate system of line p1-p2. It transforms
         // points on the line to the global coordinate system. So, point (0, 0) will
         // map onto p1 and point (length(p1-p2), 0) will map onto p2.
-        QMatrix p1p2LCS;
+        QTransform p1p2LCS;
         p1p2LCS.translate(p1.x(), p1.y());
         p1p2LCS.rotate(angle);
-        QMatrix p1p2GCS = p1p2LCS.inverted();
+        QTransform p1p2GCS = p1p2LCS.inverted();
 
         QPointF p1m = p1p2GCS.map(p1);
         QPointF p2m = p1p2GCS.map(p2);
@@ -1970,7 +1970,7 @@ public:
 
 private:
     const PDFRadialShading* m_radialShadingPattern;
-    QMatrix m_p1p2GCS;
+    QTransform m_p1p2GCS;
     PDFReal m_xStart;
     PDFReal m_xEnd;
     PDFReal m_tAtStart;
@@ -1981,7 +1981,7 @@ private:
     PDFReal m_r1;
 };
 
-PDFShadingSampler* PDFRadialShading::createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const
+PDFShadingSampler* PDFRadialShading::createSampler(QTransform userSpaceToDeviceSpaceMatrix) const
 {
     return new PDFRadialShadingSampler(this, userSpaceToDeviceSpaceMatrix);
 }
@@ -1993,11 +1993,11 @@ private:
     {
         std::array<uint32_t, 3> vertexIndices = { };
         std::array<PDFColor, 3> vertexColors;
-        QMatrix barycentricCoordinateMatrix;
+        QTransform barycentricCoordinateMatrix;
     };
 
 public:
-    PDFTriangleShadingSampler(const PDFType4567Shading* shadingPattern, QMatrix userSpaceToDeviceSpaceMatrix) :
+    PDFTriangleShadingSampler(const PDFType4567Shading* shadingPattern, QTransform userSpaceToDeviceSpaceMatrix) :
         PDFShadingSampler(shadingPattern),
         m_type4567ShadingPattern(shadingPattern)
     {
@@ -2098,7 +2098,7 @@ public:
         QPointF p1p3 = p1 - p3;
         QPointF p2p3 = p2 - p3;
 
-        QMatrix B(p1p3.x(), p1p3.y(), p2p3.x(), p2p3.y(), 0.0, 0.0);
+        QTransform B(p1p3.x(), p1p3.y(), p2p3.x(), p2p3.y(), 0.0, 0.0);
 
         if (!B.isInvertible())
         {
@@ -2108,9 +2108,9 @@ public:
 
         // We precalculate B^-1 * (-p3), so we do not have it to compute it
         // in each iteration.
-        QMatrix Binv = B.inverted();
+        QTransform Binv = B.inverted();
         QPointF pt = Binv.map(-p3);
-        Binv.setMatrix(Binv.m11(), Binv.m12(), Binv.m21(), Binv.m22(), pt.x(), pt.y());
+        Binv = QTransform(Binv.m11(), Binv.m12(), Binv.m21(), Binv.m22(), pt.x(), pt.y());
 
         triangle.barycentricCoordinateMatrix = Binv;
         m_triangles.emplace_back(qMove(triangle));
@@ -2132,10 +2132,10 @@ ShadingType PDFFreeFormGouradTriangleShading::getShadingType() const
 
 bool PDFFreeFormGouradTriangleShading::processTriangles(InitializeFunction initializeMeshFunction,
                                                         AddTriangleFunction addTriangle,
-                                                        const QMatrix& userSpaceToDeviceSpaceMatrix,
+                                                        const QTransform& userSpaceToDeviceSpaceMatrix,
                                                         bool convertColors) const
 {
-    QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(userSpaceToDeviceSpaceMatrix);
+    QTransform patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(userSpaceToDeviceSpaceMatrix);
     size_t bitsPerVertex = m_bitsPerFlag + 2 * m_bitsPerCoordinate + m_colorComponentCount * m_bitsPerComponent;
     size_t remainder = (8 - (bitsPerVertex % 8)) % 8;
     bitsPerVertex += remainder;
@@ -2292,7 +2292,7 @@ PDFMesh PDFFreeFormGouradTriangleShading::createMesh(const PDFMeshQualitySetting
     return mesh;
 }
 
-PDFShadingSampler* PDFFreeFormGouradTriangleShading::createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const
+PDFShadingSampler* PDFFreeFormGouradTriangleShading::createSampler(QTransform userSpaceToDeviceSpaceMatrix) const
 {
     PDFTriangleShadingSampler* sampler = new PDFTriangleShadingSampler(this, userSpaceToDeviceSpaceMatrix);
 
@@ -2328,10 +2328,10 @@ ShadingType PDFLatticeFormGouradTriangleShading::getShadingType() const
 
 bool PDFLatticeFormGouradTriangleShading::processTriangles(InitializeFunction initializeMeshFunction,
                                                            AddTriangleFunction addTriangle,
-                                                           const QMatrix& userSpaceToDeviceSpaceMatrix,
+                                                           const QTransform& userSpaceToDeviceSpaceMatrix,
                                                            bool convertColors) const
 {
-    QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(userSpaceToDeviceSpaceMatrix);
+    QTransform patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(userSpaceToDeviceSpaceMatrix);
     size_t bitsPerVertex = 2 * m_bitsPerCoordinate + m_colorComponentCount * m_bitsPerComponent;
     size_t remainder = (8 - (bitsPerVertex % 8)) % 8;
     bitsPerVertex += remainder;
@@ -2460,7 +2460,7 @@ PDFMesh PDFLatticeFormGouradTriangleShading::createMesh(const PDFMeshQualitySett
     return mesh;
 }
 
-PDFShadingSampler* PDFLatticeFormGouradTriangleShading::createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const
+PDFShadingSampler* PDFLatticeFormGouradTriangleShading::createSampler(QTransform userSpaceToDeviceSpaceMatrix) const
 {
     PDFTriangleShadingSampler* sampler = new PDFTriangleShadingSampler(this, userSpaceToDeviceSpaceMatrix);
 
@@ -2874,9 +2874,9 @@ ShadingType PDFTensorProductPatchShading::getShadingType() const
     return ShadingType::TensorProductPatchMesh;
 }
 
-PDFTensorPatches PDFTensorProductPatchShading::createPatches(QMatrix userSpaceToDeviceSpaceMatrix, bool transformColor) const
+PDFTensorPatches PDFTensorProductPatchShading::createPatches(QTransform userSpaceToDeviceSpaceMatrix, bool transformColor) const
 {
-    QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(userSpaceToDeviceSpaceMatrix);
+    QTransform patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(userSpaceToDeviceSpaceMatrix);
 
     size_t bitsPerPatch = m_bitsPerFlag + 16 * 2 * m_bitsPerCoordinate + 4 * m_colorComponentCount * m_bitsPerComponent;
     size_t remainder = (8 - (bitsPerPatch % 8)) % 8;
@@ -3158,7 +3158,7 @@ struct PDFTensorProductPatchShadingBase::Triangle
 class PDFTensorPatchesSample : public PDFShadingSampler
 {
 public:
-    PDFTensorPatchesSample(const PDFTensorProductPatchShadingBase* shadingPattern, QMatrix userSpaceToDeviceSpaceMatrix) :
+    PDFTensorPatchesSample(const PDFTensorProductPatchShadingBase* shadingPattern, QTransform userSpaceToDeviceSpaceMatrix) :
         PDFShadingSampler(shadingPattern),
         m_tensorProductShadingPattern(shadingPattern)
     {
@@ -3238,7 +3238,7 @@ private:
     PDFTensorPatches m_patches;
 };
 
-PDFShadingSampler* PDFTensorProductPatchShadingBase::createSampler(QMatrix userSpaceToDeviceSpaceMatrix) const
+PDFShadingSampler* PDFTensorProductPatchShadingBase::createSampler(QTransform userSpaceToDeviceSpaceMatrix) const
 {
     PDFTensorPatches patches = createPatches(userSpaceToDeviceSpaceMatrix, false);
 
@@ -3448,7 +3448,7 @@ void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
 }
 
 void PDFTensorProductPatchShadingBase::fillMesh(PDFMesh& mesh,
-                                                const QMatrix& patternSpaceToDeviceSpaceMatrix,
+                                                const QTransform& patternSpaceToDeviceSpaceMatrix,
                                                 const PDFMeshQualitySettings& settings,
                                                 const PDFTensorPatches& patches,
                                                 const PDFCMS* cms,
@@ -3495,9 +3495,9 @@ ShadingType PDFCoonsPatchShading::getShadingType() const
     return ShadingType::CoonsPatchMesh;
 }
 
-PDFTensorPatches PDFCoonsPatchShading::createPatches(QMatrix userSpaceToDeviceSpaceMatrix, bool transformColor) const
+PDFTensorPatches PDFCoonsPatchShading::createPatches(QTransform userSpaceToDeviceSpaceMatrix, bool transformColor) const
 {
-    QMatrix patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(userSpaceToDeviceSpaceMatrix);
+    QTransform patternSpaceToDeviceSpaceMatrix = getPatternSpaceToDeviceSpaceMatrix(userSpaceToDeviceSpaceMatrix);
 
     size_t bitsPerPatch = m_bitsPerFlag + 16 * 2 * m_bitsPerCoordinate + 4 * m_colorComponentCount * m_bitsPerComponent;
     size_t remainder = (8 - (bitsPerPatch % 8)) % 8;

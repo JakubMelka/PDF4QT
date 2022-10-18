@@ -9688,7 +9688,7 @@ public:
     inline void setLayoutItems(PDFInteger pageIndex, LayoutItems layoutItems) { m_layout.layoutItems[pageIndex] = std::move(layoutItems); }
     inline void setParagraphSettings(std::vector<xfa::XFA_ParagraphSettings> paragraphSettings) { m_layout.paragraphSettings = std::move(paragraphSettings); }
 
-    void draw(const QMatrix& pagePointToDevicePointMatrix,
+    void draw(const QTransform& pagePointToDevicePointMatrix,
               const PDFPage* page,
               QList<PDFRenderError>& errors,
               QPainter* painter);
@@ -10360,7 +10360,7 @@ void PDFXFALayoutEngine::layoutFlow(LayoutParameters& layoutParameters, bool bre
         QStringList colWidths = layoutParameters.colWidths.split(' ', Qt::SkipEmptyParts);
         for (size_t i = 0; i < columnWidths.size(); ++i)
         {
-            if (i >= colWidths.size())
+            if (i >= static_cast<size_t>(colWidths.size()))
             {
                 break;
             }
@@ -11609,7 +11609,7 @@ std::vector<QSizeF> PDFXFAEngine::getPageSizes() const
     return m_impl->getPageSizes();
 }
 
-void PDFXFAEngine::draw(const QMatrix& pagePointToDevicePointMatrix,
+void PDFXFAEngine::draw(const QTransform& pagePointToDevicePointMatrix,
                         const PDFPage* page,
                         QList<PDFRenderError>& errors,
                         QPainter* painter)
@@ -11694,7 +11694,7 @@ void PDFXFAEngineImpl::setDocument(const PDFModifiedDocument& document, PDFForm*
     }
 }
 
-void PDFXFAEngineImpl::draw(const QMatrix& pagePointToDevicePointMatrix,
+void PDFXFAEngineImpl::draw(const QTransform& pagePointToDevicePointMatrix,
                             const PDFPage* page,
                             QList<PDFRenderError>& errors,
                             QPainter* painter)
@@ -12134,19 +12134,19 @@ void PDFXFAEngineImpl::drawUi(const xfa::XFA_ui* ui,
                                 passwordEdit || signature || textEdit;
     const bool isDefaultUi = !isNonDefaultUi || defaultUi;
 
-    if (textEdit || (isDefaultUi && value.value.type() == QVariant::String))
+    if (textEdit || (isDefaultUi && value.value.typeId() == QMetaType::QString))
     {
         drawUiTextEdit(textEdit, value, errors, nominalExtentArea, paragraphSettingsIndex, painter);
     }
-    else if (checkButton || (isDefaultUi && value.value.type() == QVariant::Bool))
+    else if (checkButton || (isDefaultUi && value.value.typeId() == QMetaType::Bool))
     {
         drawUiCheckButton(checkButton, value, nominalExtentArea, painter);
     }
-    else if (imageEdit || (isDefaultUi && value.value.type() == QVariant::Image))
+    else if (imageEdit || (isDefaultUi && value.value.typeId() == QMetaType::QImage))
     {
         drawUiImageEdit(imageEdit, value, errors, nominalExtentArea, painter);
     }
-    else if (numericEdit || (isDefaultUi && value.value.type() == QVariant::Double))
+    else if (numericEdit || (isDefaultUi && value.value.typeId() == QMetaType::Double))
     {
         drawUiNumericEdit(numericEdit, value, errors, nominalExtentArea, paragraphSettingsIndex, painter);
     }
@@ -12166,9 +12166,9 @@ void PDFXFAEngineImpl::drawUi(const xfa::XFA_ui* ui,
     {
         errors << PDFRenderError(RenderErrorType::NotImplemented, PDFTranslationContext::tr("XFA: Buttons not implemented."));
     }
-    else if (dateTimeEdit || (isDefaultUi && (value.value.type() == QVariant::DateTime ||
-                                              value.value.type() == QVariant::Date ||
-                                              value.value.type() == QVariant::Time)))
+    else if (dateTimeEdit || (isDefaultUi && (value.value.typeId() == QMetaType::QDateTime ||
+                                              value.value.typeId() == QMetaType::QDate ||
+                                              value.value.typeId() == QMetaType::QTime)))
     {
         drawUiDateTimeEdit(dateTimeEdit, value, errors, nominalExtentArea, paragraphSettingsIndex, painter);
     }
@@ -12391,15 +12391,15 @@ void PDFXFAEngineImpl::drawUiDateTimeEdit(const xfa::XFA_dateTimeEdit* dateTimeE
 
     QString text;
 
-    if (value.value.type() == QVariant::DateTime)
+    if (value.value.typeId() == QMetaType::QDateTime)
     {
         text = value.value.toDateTime().toString();
     }
-    else if (value.value.type() == QVariant::Time)
+    else if (value.value.typeId() == QMetaType::QTime)
     {
         text = value.value.toTime().toString();
     }
-    else if (value.value.type() == QVariant::Date)
+    else if (value.value.typeId() == QMetaType::QDate)
     {
         text = value.value.toDate().toString();
     }

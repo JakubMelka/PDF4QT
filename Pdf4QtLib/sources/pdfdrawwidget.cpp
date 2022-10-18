@@ -28,6 +28,7 @@
 #include <QKeyEvent>
 #include <QApplication>
 #include <QPixmapCache>
+#include <QColorSpace>
 
 namespace pdf
 {
@@ -52,7 +53,7 @@ PDFWidget::PDFWidget(const PDFCMSManager* cmsManager, RendererEngine engine, int
     layout->addWidget(m_drawWidget->getWidget(), 0, 0);
     layout->addWidget(m_horizontalScrollBar, 1, 0);
     layout->addWidget(m_verticalScrollBar, 0, 1);
-    layout->setMargin(0);
+    layout->setContentsMargins(QMargins());
 
     setLayout(layout);
     setFocusProxy(m_drawWidget->getWidget());
@@ -145,7 +146,7 @@ void PDFWidget::onRenderingError(PDFInteger pageIndex, const QList<PDFRenderErro
     // Empty list of error should not be reported!
     Q_ASSERT(!errors.empty());
     m_pageRenderingErrors[pageIndex] = errors;
-    emit pageRenderingErrorsChanged(pageIndex, errors.size());
+    Q_EMIT pageRenderingErrorsChanged(pageIndex, errors.size());
 }
 
 void PDFWidget::onPageImageChanged(bool all, const std::vector<PDFInteger>& pages)
@@ -566,7 +567,7 @@ PDFOpenGLDrawWidget::PDFOpenGLDrawWidget(PDFWidget* widget, int samplesCount, QW
     QSurfaceFormat format = this->format();
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setSamples(samplesCount);
-    format.setColorSpace(QSurfaceFormat::sRGBColorSpace);
+    format.setColorSpace(QColorSpace(QColorSpace::SRgb));
     format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
     setFormat(format);
 }

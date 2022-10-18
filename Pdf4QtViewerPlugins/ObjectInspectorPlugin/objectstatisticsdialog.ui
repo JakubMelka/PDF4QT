@@ -13,23 +13,12 @@
   <property name="windowTitle">
    <string>Object Statistics</string>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout">
+  <layout class="QVBoxLayout" name="dialogLayout">
    <item>
     <widget class="QComboBox" name="comboBox"/>
    </item>
-   <item>
-    <widget class="pdfplugin::StatisticsGraphWidget" name="graphWidget" native="true"/>
-   </item>
   </layout>
  </widget>
- <customwidgets>
-  <customwidget>
-   <class>pdfplugin::StatisticsGraphWidget</class>
-   <extends>QWidget</extends>
-   <header>StatisticsGraphWidget.h</header>
-   <container>1</container>
-  </customwidget>
- </customwidgets>
  <resources/>
  <connections/>
 </ui>

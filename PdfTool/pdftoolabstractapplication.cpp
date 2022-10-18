@@ -59,7 +59,7 @@ QString PDFToolHelpApplication::getStandardString(StandardString standardString)
 
 int PDFToolHelpApplication::execute(const PDFToolOptions& options)
 {
-    PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+    PDFOutputFormatter formatter(options.outputStyle);
     formatter.beginDocument("help", PDFToolTranslationContext::tr("PDFTool help"));
     formatter.endl();
 
@@ -114,7 +114,7 @@ int PDFToolHelpApplication::execute(const PDFToolOptions& options)
     formatter.writeText("header", PDFToolTranslationContext::tr("When you redirect console to a file, then specific codec is used to transform output text to target encoding. UTF-8 encoding is used by default. For XML output, you should use only UTF-8 codec. Available codecs:"));
     formatter.endl();
 
-    QList<QByteArray> codecs = QTextCodec::availableCodecs();
+    QList<QByteArray> codecs = getAvailableEncodings();
     QStringList codecNames;
     for (const QByteArray& codecName : codecs)
     {
@@ -122,7 +122,7 @@ int PDFToolHelpApplication::execute(const PDFToolOptions& options)
     }
     formatter.writeText("codecs", codecNames.join(", "));
     formatter.endl();
-    formatter.writeText("default-codec", PDFToolTranslationContext::tr("Suggested codec: UTF-8 or %1").arg(QString::fromLatin1(QTextCodec::codecForLocale()->name())));
+    formatter.writeText("default-codec", PDFToolTranslationContext::tr("Suggested codec: UTF-8 or %1").arg(QString::fromLatin1(getDefaultEncoding())));
 
     formatter.endHeader();
 
@@ -373,7 +373,7 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
             options.outputStyle = PDFOutputFormatter::Style::Text;
         }
 
-        options.outputCodec = parser->value("text-codec");
+        options.outputCodec = getEncoding(parser->value("text-codec"));
     }
 
     if (optionFlags.testFlag(DateFormat))
@@ -1040,6 +1040,40 @@ bool PDFToolAbstractApplication::readDocument(const PDFToolOptions& options, pdf
     }
 
     return true;
+}
+
+QList<QByteArray> PDFToolAbstractApplication::getAvailableEncodings()
+{
+    QList<QByteArray> encodings;
+    encodings << "utf8";
+    encodings << "latin1";
+    encodings << "system";
+    return encodings;
+}
+
+QByteArray PDFToolAbstractApplication::getDefaultEncoding()
+{
+    return getAvailableEncodings().front();
+}
+
+QStringConverter::Encoding PDFToolAbstractApplication::getEncoding(const QString& encodingName)
+{
+    if (encodingName == "utf8")
+    {
+        return QStringConverter::Utf8;
+    }
+
+    if (encodingName == "latin1")
+    {
+        return QStringConverter::Latin1;
+    }
+
+    if (encodingName == "system")
+    {
+        return QStringConverter::System;
+    }
+
+    return QStringConverter::System;
 }
 
 PDFToolAbstractApplication* PDFToolApplicationStorage::getApplicationByCommand(const QString& command)

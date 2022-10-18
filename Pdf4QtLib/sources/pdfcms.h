@@ -23,7 +23,7 @@
 #include "pdfexception.h"
 #include "pdfutils.h"
 
-#include <QMutex>
+#include <QRecursiveMutex>
 #include <QSharedPointer>
 
 #include <compare>
@@ -415,7 +415,7 @@ private:
     const PDFDocument* m_document;
     PDFColorProfileIdentifiers m_outputIntentProfiles;
 
-    mutable QMutex m_mutex;
+    mutable QRecursiveMutex m_mutex;
     mutable PDFCachedItem<PDFCMSPointer> m_CMS;
     mutable PDFCachedItem<PDFColorProfileIdentifiers> m_outputProfiles;
     mutable PDFCachedItem<PDFColorProfileIdentifiers> m_grayProfiles;

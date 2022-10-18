@@ -130,7 +130,7 @@ void PDFDocumentPropertiesDialog::initializeProperties(const pdf::PDFDocument* d
         {
             QString key = QString::fromLatin1(item.first);
             QVariant valueVariant = item.second;
-            QString value = (valueVariant.type() == QVariant::DateTime) ? locale.toString(valueVariant.toDateTime()) : valueVariant.toString();
+            QString value = (valueVariant.typeId() == QMetaType::QDateTime) ? locale.toString(valueVariant.toDateTime()) : valueVariant.toString();
             new QTreeWidgetItem(customRoot, { key, value });
         }
         ui->propertiesTreeWidget->addTopLevelItem(customRoot);

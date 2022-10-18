@@ -143,7 +143,7 @@ void SettingsDockWidget::onEditColorChanged()
 
     if (isChanged)
     {
-        emit colorsChanged();
+        Q_EMIT colorsChanged();
     }
 }
 

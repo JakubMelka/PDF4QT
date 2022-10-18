@@ -70,5 +70,4 @@ PDFPluginInfo PDFPluginInfo::loadFromJson(const QJsonObject* json)
     return result;
 }
 
-
 }   // namespace pdf

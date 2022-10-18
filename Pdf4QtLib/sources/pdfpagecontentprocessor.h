@@ -28,7 +28,7 @@
 #include "pdftextlayout.h"
 #include "pdfoperationcontrol.h"
 
-#include <QMatrix>
+#include <QTransform>
 #include <QPainterPath>
 #include <QSharedPointer>
 
@@ -82,7 +82,7 @@ public:
                                      const PDFFontCache* fontCache,
                                      const PDFCMS* CMS,
                                      const PDFOptionalContentActivity* optionalContentActivity,
-                                     QMatrix pagePointToDevicePointMatrix,
+                                     QTransform pagePointToDevicePointMatrix,
                                      const PDFMeshQualitySettings& meshQualitySettings);
     virtual ~PDFPageContentProcessor();
 
@@ -223,7 +223,7 @@ public:
     /// \param transparencyGroup Transparency group object
     /// \param content Content stream of the form
     /// \param formStructuralParent Structural parent key for form
-    void processForm(const QMatrix& matrix,
+    void processForm(const QTransform& matrix,
                      const QRectF& boundingBox,
                      const PDFObject& resources,
                      const PDFObject& transparencyGroup,
@@ -366,8 +366,8 @@ protected:
 
         using StateFlags = PDFFlags<StateFlag>;
 
-        const QMatrix& getCurrentTransformationMatrix() const { return m_currentTransformationMatrix; }
-        void setCurrentTransformationMatrix(const QMatrix& currentTransformationMatrix);
+        const QTransform& getCurrentTransformationMatrix() const { return m_currentTransformationMatrix; }
+        void setCurrentTransformationMatrix(const QTransform& currentTransformationMatrix);
 
         const PDFAbstractColorSpace* getStrokeColorSpace() const { return m_strokeColorSpace.data(); }
         void setStrokeColorSpace(const QSharedPointer<PDFAbstractColorSpace>& strokeColorSpace);
@@ -437,11 +437,11 @@ protected:
         bool getTextKnockout() const { return m_textKnockout; }
         void setTextKnockout(bool textKnockout);
 
-        const QMatrix& getTextMatrix() const { return m_textMatrix; }
-        void setTextMatrix(const QMatrix& textMatrix);
+        const QTransform& getTextMatrix() const { return m_textMatrix; }
+        void setTextMatrix(const QTransform& textMatrix);
 
-        const QMatrix& getTextLineMatrix() const { return m_textLineMatrix; }
-        void setTextLineMatrix(const QMatrix& textLineMatrix);
+        const QTransform& getTextLineMatrix() const { return m_textLineMatrix; }
+        void setTextLineMatrix(const QTransform& textLineMatrix);
 
         PDFReal getAlphaStroking() const { return m_alphaStroking; }
         void setAlphaStroking(PDFReal alpha);
@@ -492,7 +492,7 @@ protected:
         void setHalftoneOrigin(const QPointF& halftoneOrigin);
 
     private:
-        QMatrix m_currentTransformationMatrix;
+        QTransform m_currentTransformationMatrix;
         PDFColorSpacePointer m_strokeColorSpace;
         PDFColorSpacePointer m_fillColorSpace;
         QColor m_strokeColor;
@@ -516,8 +516,8 @@ protected:
         TextRenderingMode m_textRenderingMode; // Text rendering mode
         PDFReal m_textRise; // T_rise
         bool m_textKnockout;
-        QMatrix m_textMatrix;
-        QMatrix m_textLineMatrix;
+        QTransform m_textMatrix;
+        QTransform m_textLineMatrix;
         PDFReal m_alphaStroking;
         PDFReal m_alphaFilling;
         BlendMode m_blendMode;
@@ -670,13 +670,13 @@ protected:
     bool isContentSuppressed() const;
 
     /// Returns page point to device point matrix
-    const QMatrix& getPagePointToDevicePointMatrix() const { return m_pagePointToDevicePointMatrix; }
+    const QTransform& getPagePointToDevicePointMatrix() const { return m_pagePointToDevicePointMatrix; }
 
     /// Returns base matrix for patterns
-    const QMatrix& getPatternBaseMatrix() const { return m_patternBaseMatrix; }
+    const QTransform& getPatternBaseMatrix() const { return m_patternBaseMatrix; }
 
     /// Returns current world matrix (translating actual point to the device point)
-    QMatrix getCurrentWorldMatrix() const { return getGraphicState()->getCurrentTransformationMatrix() * m_pagePointToDevicePointMatrix; }
+    QTransform getCurrentWorldMatrix() const { return getGraphicState()->getCurrentTransformationMatrix() * m_pagePointToDevicePointMatrix; }
 
     /// Returns page bounding rectangle in device space
     const QRectF& getPageBoundingRectDeviceSpace() const { return m_pageBoundingRectDeviceSpace; }
@@ -1071,10 +1071,10 @@ private:
 
     /// Base matrix to be used when drawing patterns. Concatenate this matrix
     /// with pattern matrix to get transformation from pattern space to device space.
-    QMatrix m_patternBaseMatrix;
+    QTransform m_patternBaseMatrix;
 
     /// Matrix mapping page points to the device points
-    QMatrix m_pagePointToDevicePointMatrix;
+    QTransform m_pagePointToDevicePointMatrix;
 
     /// Bounding rectangle of pages media box in device space coordinates. If drawing rotation
     /// is zero, then it corresponds to the scaled media box of the page.

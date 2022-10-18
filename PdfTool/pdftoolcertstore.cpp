@@ -63,7 +63,7 @@ int PDFToolCertStore::execute(const PDFToolOptions& options)
         certificates.insert(certificates.end(), std::make_move_iterator(systemCertificates.begin()), std::make_move_iterator(systemCertificates.end()));
     }
 
-    PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+    PDFOutputFormatter formatter(options.outputStyle);
     formatter.beginDocument("cert-store", PDFToolTranslationContext::tr("Certificates used in signature verification"));
     formatter.endl();
 

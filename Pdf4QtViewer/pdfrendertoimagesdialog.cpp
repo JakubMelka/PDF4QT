@@ -340,13 +340,12 @@ void PDFRenderToImagesDialog::on_buttonBox_clicked(QAbstractButton* button)
                     imageWriter.setSubType(m_imageWriterSettings.getCurrentSubtype());
                     imageWriter.setCompression(m_imageWriterSettings.getCompression());
                     imageWriter.setQuality(m_imageWriterSettings.getQuality());
-                    imageWriter.setGamma(m_imageWriterSettings.getGamma());
                     imageWriter.setOptimizedWrite(m_imageWriterSettings.hasOptimizedWrite());
                     imageWriter.setProgressiveScanWrite(m_imageWriterSettings.hasProgressiveScanWrite());
 
                     if (!imageWriter.write(renderedPageImage.pageImage))
                     {
-                        emit m_rasterizerPool->renderError(renderedPageImage.pageIndex, pdf::PDFRenderError(pdf::RenderErrorType::Error, tr("Cannot write page image to file '%1', because: %2.").arg(fileName).arg(imageWriter.errorString())));
+                        Q_EMIT m_rasterizerPool->renderError(renderedPageImage.pageIndex, pdf::PDFRenderError(pdf::RenderErrorType::Error, tr("Cannot write page image to file '%1', because: %2.").arg(fileName).arg(imageWriter.errorString())));
                     }
                 };
 

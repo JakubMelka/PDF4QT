@@ -20,7 +20,7 @@
 
 #include "pdfglobal.h"
 
-#include <QMatrix>
+#include <QTransform>
 
 namespace pdf
 {
@@ -38,7 +38,7 @@ struct PDFMeshQualitySettings
 
     /// Matrix, which transforms user space points (user space is target space of the shading)
     /// to the device space of the paint device.
-    QMatrix userSpaceToDeviceSpaceMatrix;
+    QTransform userSpaceToDeviceSpaceMatrix;
 
     /// Rectangle in device space coordinate system, onto which is area meshed.
     QRectF deviceSpaceMeshingArea;

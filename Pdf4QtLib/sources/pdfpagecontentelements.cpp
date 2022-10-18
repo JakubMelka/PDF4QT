@@ -269,7 +269,7 @@ void PDFPageContentElementRectangle::drawPage(QPainter* painter,
                                               PDFInteger pageIndex,
                                               const PDFPrecompiledPage* compiledPage,
                                               PDFTextLayoutGetter& layoutGetter,
-                                              const QMatrix& pagePointToDevicePointMatrix,
+                                              const QTransform& pagePointToDevicePointMatrix,
                                               QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -344,7 +344,7 @@ void PDFPageContentScene::addElement(PDFPageContentElement* element)
 {
     element->setElementId(m_firstFreeId++);
     m_elements.emplace_back(element);
-    emit sceneChanged(false);
+    Q_EMIT sceneChanged(false);
 }
 
 void PDFPageContentScene::replaceElement(PDFPageContentElement* element)
@@ -356,7 +356,7 @@ void PDFPageContentScene::replaceElement(PDFPageContentElement* element)
         if (m_elements[i]->getElementId() == element->getElementId())
         {
             m_elements[i] = std::move(elementPtr);
-            emit sceneChanged(false);
+            Q_EMIT sceneChanged(false);
             break;
         }
     }
@@ -379,7 +379,7 @@ void PDFPageContentScene::clear()
     {
         m_manipulator.reset();
         m_elements.clear();
-        emit sceneChanged(false);
+        Q_EMIT sceneChanged(false);
     }
 }
 
@@ -507,7 +507,7 @@ void PDFPageContentScene::mouseDoubleClickEvent(QWidget* widget, QMouseEvent* ev
     MouseEventInfo info = getMouseEventInfo(widget, event->pos());
     if (info.isValid())
     {
-        emit editElementRequest(info.hoveredElementIds);
+        Q_EMIT editElementRequest(info.hoveredElementIds);
     }
 
     // If mouse is grabbed, then event is accepted always (because
@@ -602,7 +602,7 @@ void PDFPageContentScene::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
 
     if (m_manipulator.isManipulationInProgress())
     {
-        emit sceneChanged(true);
+        Q_EMIT sceneChanged(true);
     }
 }
 
@@ -641,7 +641,7 @@ int PDFPageContentScene::getInputPriority() const
 void PDFPageContentScene::drawElements(QPainter* painter,
                                        PDFInteger pageIndex,
                                        PDFTextLayoutGetter& layoutGetter,
-                                       const QMatrix& pagePointToDevicePointMatrix,
+                                       const QTransform& pagePointToDevicePointMatrix,
                                        const PDFPrecompiledPage* compiledPage,
                                        QList<PDFRenderError>& errors) const
 {
@@ -660,7 +660,7 @@ void PDFPageContentScene::drawPage(QPainter* painter,
                                    PDFInteger pageIndex,
                                    const PDFPrecompiledPage* compiledPage,
                                    PDFTextLayoutGetter& layoutGetter,
-                                   const QMatrix& pagePointToDevicePointMatrix,
+                                   const QTransform& pagePointToDevicePointMatrix,
                                    QList<PDFRenderError>& errors) const
 {
     if (!m_isActive)
@@ -815,8 +815,8 @@ void PDFPageContentScene::updateMouseCursor(const MouseEventInfo& info, PDFReal 
 
 void PDFPageContentScene::onSelectionChanged()
 {
-    emit sceneChanged(true);
-    emit selectionChanged();
+    Q_EMIT sceneChanged(true);
+    Q_EMIT selectionChanged();
 }
 
 PDFWidget* PDFPageContentScene::widget() const
@@ -846,7 +846,7 @@ void PDFPageContentScene::setActive(bool newIsActive)
             m_manipulator.reset();
         }
 
-        emit sceneChanged(false);
+        Q_EMIT sceneChanged(false);
     }
 }
 
@@ -917,7 +917,7 @@ void PDFPageContentScene::removeElementsById(const std::vector<PDFInteger>& sele
 
     if (newSize < oldSize)
     {
-        emit sceneChanged(false);
+        Q_EMIT sceneChanged(false);
     }
 }
 
@@ -952,7 +952,7 @@ void PDFPageContentElementLine::drawPage(QPainter* painter,
                                          PDFInteger pageIndex,
                                          const PDFPrecompiledPage* compiledPage,
                                          PDFTextLayoutGetter& layoutGetter,
-                                         const QMatrix& pagePointToDevicePointMatrix,
+                                         const QTransform& pagePointToDevicePointMatrix,
                                          QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -1134,7 +1134,7 @@ void PDFPageContentImageElement::drawPage(QPainter* painter,
                                         PDFInteger pageIndex,
                                         const PDFPrecompiledPage* compiledPage,
                                         PDFTextLayoutGetter& layoutGetter,
-                                        const QMatrix& pagePointToDevicePointMatrix,
+                                        const QTransform& pagePointToDevicePointMatrix,
                                         QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -1261,7 +1261,7 @@ void PDFPageContentElementDot::drawPage(QPainter* painter,
                                         PDFInteger pageIndex,
                                         const PDFPrecompiledPage* compiledPage,
                                         PDFTextLayoutGetter& layoutGetter,
-                                        const QMatrix& pagePointToDevicePointMatrix,
+                                        const QTransform& pagePointToDevicePointMatrix,
                                         QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -1349,7 +1349,7 @@ void PDFPageContentElementFreehandCurve::drawPage(QPainter* painter,
                                                   PDFInteger pageIndex,
                                                   const PDFPrecompiledPage* compiledPage,
                                                   PDFTextLayoutGetter& layoutGetter,
-                                                  const QMatrix& pagePointToDevicePointMatrix,
+                                                  const QTransform& pagePointToDevicePointMatrix,
                                                   QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -1518,7 +1518,7 @@ void PDFPageContentElementManipulator::update(PDFInteger id, SelectionModes mode
 
     if (modified)
     {
-        emit selectionChanged();
+        Q_EMIT selectionChanged();
     }
 }
 
@@ -1580,7 +1580,7 @@ void PDFPageContentElementManipulator::update(const std::set<PDFInteger>& ids, S
 
     if (modified)
     {
-        emit selectionChanged();
+        Q_EMIT selectionChanged();
     }
 }
 
@@ -2195,7 +2195,7 @@ void PDFPageContentElementManipulator::startManipulation(PDFInteger pageIndex,
         m_isManipulationInProgress = true;
         m_lastUpdatedPoint = startPoint;
         updateManipulation(pageIndex, startPoint, currentPoint);
-        emit stateChanged();
+        Q_EMIT stateChanged();
     }
 }
 
@@ -2216,7 +2216,7 @@ void PDFPageContentElementManipulator::updateManipulation(PDFInteger pageIndex,
     }
 
     m_lastUpdatedPoint = currentPoint;
-    emit stateChanged();
+    Q_EMIT stateChanged();
 }
 
 void PDFPageContentElementManipulator::finishManipulation(PDFInteger pageIndex,
@@ -2252,7 +2252,7 @@ void PDFPageContentElementManipulator::cancelManipulation()
         m_isManipulationInProgress = false;
         m_manipulatedElements.clear();
         m_manipulationModes.clear();
-        emit stateChanged();
+        Q_EMIT stateChanged();
     }
 
     Q_ASSERT(!m_isManipulationInProgress);
@@ -2264,7 +2264,7 @@ void PDFPageContentElementManipulator::drawPage(QPainter* painter,
                                                 PDFInteger pageIndex,
                                                 const PDFPrecompiledPage* compiledPage,
                                                 PDFTextLayoutGetter& layoutGetter,
-                                                const QMatrix& pagePointToDevicePointMatrix,
+                                                const QTransform& pagePointToDevicePointMatrix,
                                                 QList<PDFRenderError>& errors) const
 {
     // Draw selection
@@ -2286,9 +2286,9 @@ void PDFPageContentElementManipulator::drawPage(QPainter* painter,
             PDFPainterStateGuard guard(painter);
             QPen pen(Qt::SolidLine);
             pen.setWidthF(2.0);
-            pen.setColor(QColor::fromRgbF(0.8, 0.8, 0.1, 0.7));
+            pen.setColor(QColor::fromRgbF(0.8f, 0.8f, 0.1f, 0.7f));
             QBrush brush(Qt::SolidPattern);
-            brush.setColor(QColor::fromRgbF(1.0, 1.0, 0.0, 0.2));
+            brush.setColor(QColor::fromRgbF(1.0f, 1.0f, 0.0f, 0.2f));
 
             painter->setPen(std::move(pen));
             painter->setBrush(std::move(brush));
@@ -2374,7 +2374,7 @@ void PDFPageContentElementTextBox::drawPage(QPainter* painter,
                                             PDFInteger pageIndex,
                                             const PDFPrecompiledPage* compiledPage,
                                             PDFTextLayoutGetter& layoutGetter,
-                                            const QMatrix& pagePointToDevicePointMatrix,
+                                            const QTransform& pagePointToDevicePointMatrix,
                                             QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -2416,7 +2416,7 @@ void PDFPageContentElementTextBox::drawPage(QPainter* painter,
     {
         QRectF textBoundingRect = painter->boundingRect(textRect, getText(), option);
 
-        QMatrix matrix;
+        QTransform matrix;
         matrix.rotate(getAngle());
         QRectF mappedTextBoundingRect = matrix.mapRect(textBoundingRect);
 

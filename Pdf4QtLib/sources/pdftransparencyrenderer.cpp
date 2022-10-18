@@ -986,7 +986,7 @@ PDFTransparencyRenderer::PDFTransparencyRenderer(const PDFPage* page,
                                                  const PDFOptionalContentActivity* optionalContentActivity,
                                                  const PDFInkMapper* inkMapper,
                                                  PDFTransparencyRendererSettings settings,
-                                                 QMatrix pagePointToDevicePointMatrix) :
+                                                 QTransform pagePointToDevicePointMatrix) :
     BaseClass(page, document, fontCache, cms, optionalContentActivity, pagePointToDevicePointMatrix, PDFMeshQualitySettings()),
     m_inkMapper(inkMapper),
     m_active(false),
@@ -1295,7 +1295,7 @@ void PDFTransparencyRenderer::performFillFragmentFromTexture(const PDFReal shape
                                                              const uint8_t colorChannelEnd,
                                                              int x,
                                                              int y,
-                                                             const QMatrix& worldToTextureMatrix,
+                                                             const QTransform& worldToTextureMatrix,
                                                              const PDFFloatBitmap& texture,
                                                              const PDFPainterPathSampler& clipSampler)
 {
@@ -2102,7 +2102,7 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
     Q_UNUSED(text);
     Q_UNUSED(fillRule);
 
-    QMatrix worldMatrix = getCurrentWorldMatrix();
+    QTransform worldMatrix = getCurrentWorldMatrix();
 
     const PDFReal shapeStroking = getShapeStroking();
     const PDFReal opacityStroking = getOpacityStroking();
@@ -2262,7 +2262,7 @@ bool PDFTransparencyRenderer::performPathPaintingUsingShading(const QPainterPath
     // Exactly one of stroke/fill must be true and other must be false
     Q_ASSERT(stroke != fill);
 
-    QMatrix worldMatrix = getCurrentWorldMatrix();
+    QTransform worldMatrix = getCurrentWorldMatrix();
     QPainterPath worldPath = worldMatrix.map(path);
     QRect fillRect = getActualFillRect(worldPath.controlPointRect());
 
@@ -2626,7 +2626,7 @@ bool PDFTransparencyRenderer::performOriginalImagePainting(const PDFImage& image
         //  2) We are shrinking the image
         //  3) Aspect ratio of the image is the same
 
-        QMatrix matrix = getCurrentWorldMatrix();
+        QTransform matrix = getCurrentWorldMatrix();
         QLineF mappedWidthVector = matrix.map(QLineF(0, 0, texture.getWidth(), 0));
         QLineF mappedHeightVector = matrix.map(QLineF(0, 0, 0, texture.getHeight()));
         qreal angle = mappedWidthVector.angleTo(mappedHeightVector);
@@ -2649,8 +2649,8 @@ bool PDFTransparencyRenderer::performOriginalImagePainting(const PDFImage& image
         }
     }
 
-    QMatrix imageTransform(1.0 / qreal(texture.getWidth()), 0, 0, 1.0 / qreal(texture.getHeight()), 0, 0);
-    QMatrix worldMatrix = imageTransform * getCurrentWorldMatrix();
+    QTransform imageTransform(1.0 / qreal(texture.getWidth()), 0, 0, 1.0 / qreal(texture.getHeight()), 0, 0);
+    QTransform worldMatrix = imageTransform * getCurrentWorldMatrix();
 
     // Because Qt uses opposite axis direction than PDF, then we must transform the y-axis
     // to the opposite (so the image is then unchanged)
@@ -2663,7 +2663,7 @@ bool PDFTransparencyRenderer::performOriginalImagePainting(const PDFImage& image
     imagePolygon << QPointF(texture.getWidth(), texture.getHeight());
     imagePolygon << QPointF(texture.getWidth(), 0.0);
 
-    QMatrix worldToTextureMatrix = worldMatrix.inverted();
+    QTransform worldToTextureMatrix = worldMatrix.inverted();
     QRectF boundingRectangle = worldMatrix.map(imagePolygon).boundingRect();
     QRect fillRect = getActualFillRect(boundingRectangle);
 
@@ -3920,7 +3920,7 @@ void PDFInkCoverageCalculator::perform(QSize size, const std::vector<PDFInteger>
         settings.flags.setFlag(PDFTransparencyRendererSettings::SeparationSimulation, true);
         settings.activeColorMask = PDFPixelFormat::getAllColorsMask();
 
-        QMatrix pagePointToDevicePoint = pdf::PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), imageSize));
+        QTransform pagePointToDevicePoint = pdf::PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), imageSize));
         pdf::PDFCMSPointer cms = m_cmsManager->getCurrentCMS();
         pdf::PDFTransparencyRenderer renderer(page, m_document, m_fontCache, cms.data(), m_optionalContentActivity,
                                               m_inkMapper, settings, pagePointToDevicePoint);

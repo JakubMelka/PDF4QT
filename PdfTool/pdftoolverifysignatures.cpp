@@ -107,7 +107,7 @@ int PDFToolVerifySignaturesApplication::execute(const PDFToolOptions& options)
     pdf::PDFForm form = pdf::PDFForm::parse(&document, document.getCatalog()->getFormObject());
     std::vector<pdf::PDFSignatureVerificationResult> signatures = pdf::PDFSignatureHandler::verifySignatures(form, reader.getSource(), parameters);
 
-    PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+    PDFOutputFormatter formatter(options.outputStyle);
     formatter.beginDocument("signatures", PDFToolTranslationContext::tr("Digital signatures/timestamps verification of %1").arg(options.document));
     formatter.endl();
 

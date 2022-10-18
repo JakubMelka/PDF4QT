@@ -257,7 +257,7 @@ void PDFObjectEditorAbstractModel::setEditedObject(PDFObject object)
     {
         m_editedObject = qMove(object);
         updateSelectorValues();
-        emit editedObjectChanged();
+        Q_EMIT editedObjectChanged();
     }
 }
 

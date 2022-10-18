@@ -57,7 +57,7 @@ void PDFPageNavigation::navigateToPage(size_t pageIndex)
     executeNavigationNode(isForward ? Direction::Forward : Direction::Backward);
 
     // Step c) Navigate to new page - send navigation request.
-    emit pageChangeRequest(m_currentPageIndex, &m_transition);
+    Q_EMIT pageChangeRequest(m_currentPageIndex, &m_transition);
 }
 
 void PDFPageNavigation::navigateForward()
@@ -104,7 +104,7 @@ void PDFPageNavigation::executeNavigationNode(Direction direction)
             {
                 for (const PDFAction* currentAction : action->getActionList())
                 {
-                    emit actionTriggered(currentAction);
+                    Q_EMIT actionTriggered(currentAction);
                 }
             }
             break;
@@ -116,7 +116,7 @@ void PDFPageNavigation::executeNavigationNode(Direction direction)
             {
                 for (const PDFAction* currentAction : action->getActionList())
                 {
-                    emit actionTriggered(currentAction);
+                    Q_EMIT actionTriggered(currentAction);
                 }
             }
             break;

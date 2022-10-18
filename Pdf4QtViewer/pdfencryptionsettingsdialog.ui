@@ -20,9 +20,6 @@
       <string>Encryption Method</string>
      </property>
      <layout class="QGridLayout" name="methodGroupBoxLayout">
-      <item row="0" column="2">
-       <widget class="pdfviewer::PDFEncryptionStrengthHintWidget" name="algorithmHintWidget" native="true"/>
-      </item>
       <item row="0" column="0">
        <widget class="QLabel" name="encryptionAlgorithm">
         <property name="text">
@@ -62,17 +59,20 @@
       <string>Passwords</string>
      </property>
      <layout class="QGridLayout" name="passwordsGroupBoxLayout">
-      <item row="1" column="0">
-       <widget class="QCheckBox" name="ownerPasswordEnableCheckBox">
-        <property name="text">
-         <string>Password (owner access)</string>
-        </property>
-       </widget>
-      </item>
       <item row="0" column="0">
        <widget class="QCheckBox" name="userPasswordEnableCheckBox">
         <property name="text">
          <string>Password (document open)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="ownerPasswordEdit">
+        <property name="echoMode">
+         <enum>QLineEdit::Password</enum>
+        </property>
+        <property name="clearButtonEnabled">
+         <bool>true</bool>
         </property>
        </widget>
       </item>
@@ -86,21 +86,12 @@
         </property>
        </widget>
       </item>
-      <item row="0" column="2">
-       <widget class="pdfviewer::PDFEncryptionStrengthHintWidget" name="userPasswordStrengthHintWidget" native="true"/>
-      </item>
-      <item row="1" column="1">
-       <widget class="QLineEdit" name="ownerPasswordEdit">
-        <property name="echoMode">
-         <enum>QLineEdit::Password</enum>
-        </property>
-        <property name="clearButtonEnabled">
-         <bool>true</bool>
+      <item row="1" column="0">
+       <widget class="QCheckBox" name="ownerPasswordEnableCheckBox">
+        <property name="text">
+         <string>Password (owner access)</string>
         </property>
        </widget>
-      </item>
-      <item row="1" column="2">
-       <widget class="pdfviewer::PDFEncryptionStrengthHintWidget" name="ownerPasswordStrengthHintWidget" native="true"/>
       </item>
      </layout>
     </widget>
@@ -215,14 +206,6 @@
    </item>
   </layout>
  </widget>
- <customwidgets>
-  <customwidget>
-   <class>pdfviewer::PDFEncryptionStrengthHintWidget</class>
-   <extends>QWidget</extends>
-   <header>pdfencryptionstrengthhintwidget.h</header>
-   <container>1</container>
-  </customwidget>
- </customwidgets>
  <resources/>
  <connections>
   <connection>

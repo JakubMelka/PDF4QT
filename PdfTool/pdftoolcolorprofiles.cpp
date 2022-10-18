@@ -46,7 +46,7 @@ QString PDFToolColorProfiles::getStandardString(StandardString standardString) c
 
 int PDFToolColorProfiles::execute(const PDFToolOptions& options)
 {
-    PDFOutputFormatter formatter(options.outputStyle, options.outputCodec);
+    PDFOutputFormatter formatter(options.outputStyle);
     formatter.beginDocument("color-profiles", PDFToolTranslationContext::tr("Available Color Profiles"));
     formatter.endl();
 

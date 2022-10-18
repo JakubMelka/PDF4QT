@@ -47,11 +47,7 @@
        <attribute name="title">
         <string>Current Object</string>
        </attribute>
-       <layout class="QVBoxLayout" name="verticalLayout_3">
-        <item>
-         <widget class="pdfplugin::ObjectViewerWidget" name="currentObjectWidget" native="true"/>
-        </item>
-       </layout>
+       <layout class="QVBoxLayout" name="currentObjectTabLayout"/>
       </widget>
      </widget>
     </widget>
@@ -68,14 +64,6 @@
    </item>
   </layout>
  </widget>
- <customwidgets>
-  <customwidget>
-   <class>pdfplugin::ObjectViewerWidget</class>
-   <extends>QWidget</extends>
-   <header>objectviewerwidget.h</header>
-   <container>1</container>
-  </customwidget>
- </customwidgets>
  <resources/>
  <connections>
   <connection>

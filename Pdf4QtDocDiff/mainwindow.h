@@ -27,7 +27,7 @@
 
 #include <QMainWindow>
 #include <QSignalMapper>
-#ifdef Q_OS_WIN
+#ifdef WIN_TASKBAR_BUTTON
 #include <QWinTaskbarButton>
 #include <QWinTaskbarProgress>
 #endif
@@ -123,7 +123,7 @@ private:
     Ui::MainWindow* ui;
 
     pdf::PDFProgress* m_progress;
-#ifdef Q_OS_WIN
+#ifdef WIN_TASKBAR_BUTTON
     QWinTaskbarButton* m_taskbarButton;
     QWinTaskbarProgress* m_progressTaskbarIndicator;
 #endif
