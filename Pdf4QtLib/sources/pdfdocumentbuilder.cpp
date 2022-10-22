@@ -821,9 +821,10 @@ void PDFPageContentStreamBuilder::end(QPainter* painter)
                 }
             }
 
-            PDFObject oldResourcesObject = pageDictionary->get("Resources");
+            PDFObject oldResourcesObject = m_documentBuilder->getObject(pageDictionary->get("Resources"));
+            oldResourcesObject = removeDictionaryReferencesFromResources(oldResourcesObject);
             replaceResources(contentsReference, resourcesReference, oldResourcesObject);
-            m_documentBuilder->mergeTo(resourcesReference, m_documentBuilder->getObject(oldResourcesObject));
+            m_documentBuilder->mergeTo(resourcesReference, oldResourcesObject);
         }
 
         switch (m_mode)
@@ -857,6 +858,38 @@ void PDFPageContentStreamBuilder::end(QPainter* painter)
 
         m_documentBuilder->mergeTo(m_pageReference, pageUpdateFactory.takeObject());
     }
+}
+
+PDFObject PDFPageContentStreamBuilder::removeDictionaryReferencesFromResources(PDFObject resources)
+{
+    PDFObjectFactory resourcesBuilder;
+
+    resources = m_documentBuilder->getObject(resources);
+    if (resources.isDictionary())
+    {
+        resourcesBuilder.beginDictionary();
+
+        const PDFDictionary* resourcesDictionary = resources.getDictionary();
+        const size_t count = resourcesDictionary->getCount();
+        for (size_t i = 0; i < count; ++i)
+        {
+            PDFObject object = m_documentBuilder->getObject(resourcesDictionary->getValue(i));
+
+            if (object.isNull())
+            {
+                continue;
+            }
+
+            resourcesBuilder.beginDictionaryItem(resourcesDictionary->getKey(i).getString());
+            resourcesBuilder << object;
+            resourcesBuilder.endDictionaryItem();
+        }
+
+        resourcesBuilder.endDictionary();
+        resources = resourcesBuilder.takeObject();
+    }
+
+    return resources;
 }
 
 void PDFPageContentStreamBuilder::replaceResources(PDFObjectReference contentStreamReference,

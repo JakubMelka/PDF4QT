@@ -301,6 +301,8 @@ public:
     void end(QPainter* painter);
 
 private:
+    PDFObject removeDictionaryReferencesFromResources(PDFObject resources);
+
     void replaceResources(PDFObjectReference contentStreamReference,
                           PDFObjectReference resourcesReference,
                           PDFObject oldResources);
