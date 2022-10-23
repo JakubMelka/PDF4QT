@@ -29,7 +29,7 @@ namespace u3d
 
 PDF3D_U3D_DataReader::PDF3D_U3D_DataReader(QByteArray data, bool isCompressed, PDF3D_U3D_ContextManager* contextManager) :
     m_data(std::move(data)),
-    m_contextManager(contextManager),
+    m_contextManager(),
     m_high(0x0000FFFF),
     m_low(0),
     m_underflow(0),
@@ -107,7 +107,7 @@ double PDF3D_U3D_DataReader::readF64()
 
 uint8_t PDF3D_U3D_DataReader::readCompressedU8(uint32_t context)
 {
-    if (m_isCompressed && m_contextManager->isContextCompressed(context))
+    if (m_isCompressed && m_contextManager.isContextCompressed(context))
     {
         const uint32_t symbol = readSymbol(context);
         if (symbol != 0)
@@ -119,7 +119,7 @@ uint8_t PDF3D_U3D_DataReader::readCompressedU8(uint32_t context)
         {
             // New symbol
             const uint32_t value = readU8();
-            m_contextManager->addSymbol(context, value + 1);
+            m_contextManager.addSymbol(context, value + 1);
             return value;
         }
     }
@@ -129,7 +129,7 @@ uint8_t PDF3D_U3D_DataReader::readCompressedU8(uint32_t context)
 
 uint16_t PDF3D_U3D_DataReader::readCompressedU16(uint32_t context)
 {
-    if (m_isCompressed && m_contextManager->isContextCompressed(context))
+    if (m_isCompressed && m_contextManager.isContextCompressed(context))
     {
         const uint32_t symbol = readSymbol(context);
         if (symbol != 0)
@@ -141,7 +141,7 @@ uint16_t PDF3D_U3D_DataReader::readCompressedU16(uint32_t context)
         {
             // New symbol
             const uint32_t value = readU16();
-            m_contextManager->addSymbol(context, value + 1);
+            m_contextManager.addSymbol(context, value + 1);
             return value;
         }
     }
@@ -151,7 +151,7 @@ uint16_t PDF3D_U3D_DataReader::readCompressedU16(uint32_t context)
 
 uint32_t PDF3D_U3D_DataReader::readCompressedU32(uint32_t context)
 {
-    if (m_isCompressed && m_contextManager->isContextCompressed(context))
+    if (m_isCompressed && m_contextManager.isContextCompressed(context))
     {
         const uint32_t symbol = readSymbol(context);
         if (symbol != 0)
@@ -163,7 +163,7 @@ uint32_t PDF3D_U3D_DataReader::readCompressedU32(uint32_t context)
         {
             // New symbol
             const uint32_t value = readU32();
-            m_contextManager->addSymbol(context, value + 1);
+            m_contextManager.addSymbol(context, value + 1);
             return value;
         }
     }
@@ -300,6 +300,53 @@ std::vector<PDF3D_U3D_ShadingDescription> PDF3D_U3D_DataReader::readShadingDescr
     return result;
 }
 
+std::vector<PDF3D_U3D_BoneDescription> PDF3D_U3D_DataReader::readBoneDescriptions(QTextCodec* textCodec, uint32_t count)
+{
+    std::vector<PDF3D_U3D_BoneDescription> result;
+
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        PDF3D_U3D_BoneDescription item;
+
+        item.boneName = readString(textCodec);
+        item.parentBoneName = readString(textCodec);
+        item.boneAttributes = readU32();
+        item.boneLength = readF32();
+        readFloats32(item.boneDisplacement);
+        readFloats32(item.boneOrientation);
+
+        if (item.isLinkPresent())
+        {
+            item.boneLinkCount = readU32();
+            item.boneLinkLength = readF32();
+        }
+
+        if (item.isJointPresent())
+        {
+            item.startJoint.jointCenterU = readF32();
+            item.startJoint.jointCenterV = readF32();
+            item.startJoint.jointScaleU = readF32();
+            item.startJoint.jointScaleV = readF32();
+
+            item.endJoint.jointCenterU = readF32();
+            item.endJoint.jointCenterV = readF32();
+            item.endJoint.jointScaleU = readF32();
+            item.endJoint.jointScaleV = readF32();
+        }
+
+        item.rotationConstraintMax[0] = readF32();
+        item.rotationConstraintMin[0] = readF32();
+        item.rotationConstraintMax[1] = readF32();
+        item.rotationConstraintMin[1] = readF32();
+        item.rotationConstraintMax[2] = readF32();
+        item.rotationConstraintMin[2] = readF32();
+
+        result.emplace_back(std::move(item));
+    }
+
+    return result;
+}
+
 bool PDF3D_U3D_DataReader::isAtEnd() const
 {
     return m_position >= uint32_t(m_data.size()) * 8;
@@ -313,19 +360,19 @@ uint32_t PDF3D_U3D_DataReader::readSymbol(uint32_t context)
     m_code = (m_code << 15) | read15Bits();
     m_position = position;
 
-    const uint32_t totalCumFreq = m_contextManager->getTotalSymbolFrequency(context);
+    const uint32_t totalCumFreq = m_contextManager.getTotalSymbolFrequency(context);
     const uint32_t range = (m_high + 1) - m_low;
     const uint32_t codeCumFreq = ((totalCumFreq) * (1 + m_code - m_low) - 1) / range;
-    const uint32_t value = m_contextManager->getSymbolFromFrequency(context, codeCumFreq);
-    const uint32_t valueCumFreq = m_contextManager->getCumulativeSymbolFrequency(context, value);
-    const uint32_t valueFreq = m_contextManager->getSymbolFrequency(context, value);
+    const uint32_t value = m_contextManager.getSymbolFromFrequency(context, codeCumFreq);
+    const uint32_t valueCumFreq = m_contextManager.getCumulativeSymbolFrequency(context, value);
+    const uint32_t valueFreq = m_contextManager.getSymbolFrequency(context, value);
 
     uint32_t low = m_low;
     uint32_t high = m_high;
 
     high = low - 1 + range * (valueCumFreq + valueFreq) / totalCumFreq;
     low = low + range * valueCumFreq / totalCumFreq;
-    m_contextManager->addSymbol(context, value);
+    m_contextManager.addSymbol(context, value);
 
     constexpr std::array S_BIT_COUNTS = { 4, 3, 2, 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0 };
     uint32_t bitCount = S_BIT_COUNTS[((low >> 12) ^ (high >> 12)) & 0x0000000F];
@@ -617,6 +664,87 @@ PDF3D_U3D_Block_Data PDF3D_U3D_Parser::readBlockData(PDF3D_U3D_DataReader& reade
     return data;
 }
 
+void PDF3D_U3D_Parser::processCLODMesh(const PDF3D_U3D_Decoder& decoder)
+{
+    auto block = parseBlock(decoder.front());
+    const PDF3D_U3D_CLODMeshDeclarationBlock* declarationBlock = dynamic_cast<const PDF3D_U3D_CLODMeshDeclarationBlock*>(block.data());
+
+    for (auto it = std::next(decoder.begin()); it != decoder.end(); ++it)
+    {
+        auto blockData = *it;
+        switch (blockData.blockType)
+        {
+            case PDF3D_U3D_Block_Info::BT_GeneratorCLODBaseMesh:
+            {
+                // TODO: process block data
+                auto currentBlock = PDF3D_U3D_CLODBaseMeshContinuationBlock::parse(blockData.blockData, blockData.metaData, this, declarationBlock);
+                break;
+            }
+
+            case PDF3D_U3D_Block_Info::BT_GeneratorCLODProgMesh:
+            {
+                // TODO: process block data
+                auto currentBlock = PDF3D_U3D_CLODProgressiveMeshContinuationBlock::parse(blockData.blockData, blockData.metaData, this/*, declarationBlock*/);
+                break;
+            }
+
+            default:
+                m_errors << QString("Invalid block type for CLOD mesh!");
+        }
+    }
+}
+
+void PDF3D_U3D_Parser::processPointSet(const PDF3D_U3D_Decoder& decoder)
+{
+    auto block = parseBlock(decoder.front());
+    const PDF3D_U3D_PointSetDeclarationBlock* declarationBlock = dynamic_cast<const PDF3D_U3D_PointSetDeclarationBlock*>(block.data());
+
+    for (auto it = std::next(decoder.begin()); it != decoder.end(); ++it)
+    {
+        auto blockData = *it;
+        switch (blockData.blockType)
+        {
+            case PDF3D_U3D_Block_Info::BT_GeneratorPointSetCont:
+            {
+                // TODO: process block data
+                auto currentBlock = PDF3D_U3D_PointSetContinuationBlock::parse(blockData.blockData, blockData.metaData, this, declarationBlock);
+                break;
+            }
+
+            default:
+                m_errors << QString("Invalid block type for Point set!");
+        }
+    }
+}
+
+void PDF3D_U3D_Parser::processLineSet(const PDF3D_U3D_Decoder& decoder)
+{
+    auto block = parseBlock(decoder.front());
+    const PDF3D_U3D_LineSetDeclarationBlock* declarationBlock = dynamic_cast<const PDF3D_U3D_LineSetDeclarationBlock*>(block.data());
+
+    for (auto it = std::next(decoder.begin()); it != decoder.end(); ++it)
+    {
+        auto blockData = *it;
+        switch (blockData.blockType)
+        {
+            case PDF3D_U3D_Block_Info::BT_GeneratorLineSetCont:
+            {
+                // TODO: process block data
+                auto currentBlock = PDF3D_U3D_LineSetContinuationBlock::parse(blockData.blockData, blockData.metaData, this, declarationBlock);
+                break;
+            }
+
+            default:
+                m_errors << QString("Invalid block type for line set!");
+        }
+    }
+}
+
+void PDF3D_U3D_Parser::addBlockToU3D(PDF3D_U3D_AbstractBlockPtr block)
+{
+    // TODO: add block to U3D
+}
+
 PDF3D_U3D_Parser::PDF3D_U3D_Parser()
 {
     // Jakub Melka: 106 is default value for U3D strings
@@ -634,6 +762,42 @@ PDF3D_U3D PDF3D_U3D_Parser::parse(QByteArray data)
         processBlock(blockData, PDF3D_U3D_Block_Info::PL_LastPalette);
     }
 
+    for (const PDF3D_U3D_DecoderPalette& palette : m_decoderPalettes)
+    {
+        for (const PDF3D_U3D_DecoderChain& chain : palette)
+        {
+            for (const PDF3D_U3D_Decoder& decoder : chain)
+            {
+                if (decoder.isEmpty())
+                {
+                    continue;
+                }
+
+                const PDF3D_U3D_Block_Data& blockData = decoder.front();
+                switch (blockData.blockType)
+                {
+                    case PDF3D_U3D_Block_Info::BT_GeneratorCLODMeshDecl:
+                        processCLODMesh(decoder);
+                        break;
+
+                    case PDF3D_U3D_Block_Info::BT_GeneratorPointSet:
+                        processPointSet(decoder);
+                        break;
+
+                    case PDF3D_U3D_Block_Info::BT_GeneratorLineSet:
+                        processLineSet(decoder);
+                        break;
+
+                    default:
+                    {
+                        auto block = parseBlock(blockData);
+                        addBlockToU3D(block);
+                    }
+                }
+            }
+        }
+    }
+
     return m_object;
 }
 
@@ -649,11 +813,11 @@ void PDF3D_U3D_Parser::processBlock(const PDF3D_U3D_Block_Data& blockData,
             break;
         }
 
-        case PDF3D_U3D_PriorityUpdateBlock::ID:
+        case PDF3D_U3D_FilePriorityUpdateBlock::ID:
         {
             // Parse priority update block
             auto block = parseBlock(blockData);
-            const PDF3D_U3D_PriorityUpdateBlock* priorityUpdateBlock = dynamic_cast<const PDF3D_U3D_PriorityUpdateBlock*>(block.get());
+            const PDF3D_U3D_FilePriorityUpdateBlock* priorityUpdateBlock = dynamic_cast<const PDF3D_U3D_FilePriorityUpdateBlock*>(block.get());
             m_priority = priorityUpdateBlock->getNewPriority();
             break;
         }
@@ -716,7 +880,7 @@ void PDF3D_U3D_Parser::processGenericBlock(const PDF3D_U3D_Block_Data& blockData
     PDF3D_U3D_Block_Info::EPalette effectivePalette = PDF3D_U3D_Block_Info::isChain(blockData.blockType) ? palette
                                                                                                          : PDF3D_U3D_Block_Info::getPalette(blockData.blockType);
 
-    PDF3D_U3D_DecoderPalette* decoderPalette = m_decoderLists.getDecoderPalette(effectivePalette);
+    PDF3D_U3D_DecoderPalette* decoderPalette = m_decoderPalettes.getDecoderPalette(effectivePalette);
 
     if (PDF3D_U3D_Block_Info::isContinuation(blockData.blockType))
     {
@@ -756,18 +920,6 @@ void PDF3D_U3D_Parser::processGenericBlock(const PDF3D_U3D_Block_Data& blockData
     }
 }
 
-const PDF3D_U3D_CLODMeshDeclarationBlock* PDF3D_U3D::getCLODMeshDeclarationBlock(const QString& meshName) const
-{
-    // TODO: Opravit
-    return nullptr; //getBlock<PDF3D_U3D_CLODMeshDeclarationBlock>(meshName);
-}
-
-const PDF3D_U3D_LineSetDeclarationBlock* PDF3D_U3D::getLineSetDeclarationBlock(const QString& lineSetName) const
-{
-    // TODO: Opravit
-    return nullptr; //getBlock<PDF3D_U3D_LineSetDeclarationBlock>(lineSetName);
-}
-
 PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_Parser::parseBlock(uint32_t blockType,
                                                         const QByteArray& data,
                                                         const QByteArray& metaData)
@@ -800,8 +952,8 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_Parser::parseBlock(uint32_t blockType,
         case PDF3D_U3D_ModifierChainBlock::ID:
             return PDF3D_U3D_ModifierChainBlock::parse(data, metaData, this);
 
-        case PDF3D_U3D_PriorityUpdateBlock::ID:
-            return PDF3D_U3D_PriorityUpdateBlock::parse(data, metaData, this);
+        case PDF3D_U3D_FilePriorityUpdateBlock::ID:
+            return PDF3D_U3D_FilePriorityUpdateBlock::parse(data, metaData, this);
 
         case PDF3D_U3D_NewObjectTypeBlock::ID:
             return PDF3D_U3D_NewObjectTypeBlock::parse(data, metaData, this);
@@ -821,16 +973,11 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_Parser::parseBlock(uint32_t blockType,
         case PDF3D_U3D_CLODMeshDeclarationBlock::ID:
             return PDF3D_U3D_CLODMeshDeclarationBlock::parse(data, metaData, this);
 
-        case PDF3D_U3D_CLODBaseMeshContinuationBlock::ID:
-            return PDF3D_U3D_CLODBaseMeshContinuationBlock::parse(data, metaData, this);
-
         case PDF3D_U3D_LineSetDeclarationBlock::ID:
             return PDF3D_U3D_LineSetDeclarationBlock::parse(data, metaData, this);
 
-        case PDF3D_U3D_LineSetContinuationBlock::ID:
-            return PDF3D_U3D_LineSetContinuationBlock::parse(data, metaData, this);
-
         default:
+            m_errors << QString("Unable to parse block.");
             break;
     }
 
@@ -1141,9 +1288,9 @@ const std::vector<PDF3D_U3D_Block_Data>& PDF3D_U3D_ModifierChainBlock::getModifi
     return m_modifierDeclarationBlocks;
 }
 
-PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_PriorityUpdateBlock::parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object)
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_FilePriorityUpdateBlock::parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object)
 {
-    PDF3D_U3D_PriorityUpdateBlock* block = new PDF3D_U3D_PriorityUpdateBlock();
+    PDF3D_U3D_FilePriorityUpdateBlock* block = new PDF3D_U3D_FilePriorityUpdateBlock();
     PDF3D_U3D_AbstractBlockPtr pointer(block);
 
     PDF3D_U3D_DataReader reader(data, object->isCompressed(), object->getContextManager());
@@ -1155,7 +1302,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_PriorityUpdateBlock::parse(QByteArray data,
     return pointer;
 }
 
-uint32_t PDF3D_U3D_PriorityUpdateBlock::getNewPriority() const
+uint32_t PDF3D_U3D_FilePriorityUpdateBlock::getNewPriority() const
 {
     return m_newPriority;
 }
@@ -1548,45 +1695,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_CLODMeshDeclarationBlock::parse(QByteArray 
 
     /* bone description */
     block->m_boneCount = reader.readU32();
-    for (uint32_t i = 0; i < block->m_boneCount; ++i)
-    {
-        BoneDescription item;
-
-        item.boneName = reader.readString(object->getTextCodec());
-        item.parentBoneName = reader.readString(object->getTextCodec());
-        item.boneAttributes = reader.readU32();
-        item.boneLength = reader.readF32();
-        reader.readFloats32(item.boneDisplacement);
-        reader.readFloats32(item.boneOrientation);
-
-        if (item.isLinkPresent())
-        {
-            item.boneLinkCount = reader.readU32();
-            item.boneLinkLength = reader.readF32();
-        }
-
-        if (item.isJointPresent())
-        {
-            item.startJoint.jointCenterU = reader.readF32();
-            item.startJoint.jointCenterV = reader.readF32();
-            item.startJoint.jointScaleU = reader.readF32();
-            item.startJoint.jointScaleV = reader.readF32();
-
-            item.endJoint.jointCenterU = reader.readF32();
-            item.endJoint.jointCenterV = reader.readF32();
-            item.endJoint.jointScaleU = reader.readF32();
-            item.endJoint.jointScaleV = reader.readF32();
-        }
-
-        item.rotationConstraintMax[0] = reader.readF32();
-        item.rotationConstraintMin[0] = reader.readF32();
-        item.rotationConstraintMax[1] = reader.readF32();
-        item.rotationConstraintMin[1] = reader.readF32();
-        item.rotationConstraintMax[2] = reader.readF32();
-        item.rotationConstraintMin[2] = reader.readF32();
-
-        block->m_boneDescription.emplace_back(std::move(item));
-    }
+    block->m_boneDescription = reader.readBoneDescriptions(object->getTextCodec(), block->m_boneCount);
 
     block->parseMetadata(metaData, object);
     return pointer;
@@ -1712,12 +1821,15 @@ uint32_t PDF3D_U3D_CLODMeshDeclarationBlock::getBoneCount() const
     return m_boneCount;
 }
 
-const std::vector<PDF3D_U3D_CLODMeshDeclarationBlock::BoneDescription>& PDF3D_U3D_CLODMeshDeclarationBlock::getBoneDescription() const
+const std::vector<PDF3D_U3D_BoneDescription>& PDF3D_U3D_CLODMeshDeclarationBlock::getBoneDescription() const
 {
     return m_boneDescription;
 }
 
-PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_CLODBaseMeshContinuationBlock::parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object)
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_CLODBaseMeshContinuationBlock::parse(QByteArray data,
+                                                                          QByteArray metaData,
+                                                                          PDF3D_U3D_Parser* object,
+                                                                          const PDF3D_U3D_CLODMeshDeclarationBlock* declarationBlock)
 {
     PDF3D_U3D_CLODBaseMeshContinuationBlock* block = new PDF3D_U3D_CLODBaseMeshContinuationBlock();
     PDF3D_U3D_AbstractBlockPtr pointer(block);
@@ -1742,55 +1854,51 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_CLODBaseMeshContinuationBlock::parse(QByteA
     block->m_baseSpecularColors = reader.readVectorFloats32<PDF3D_U3D_Vec4>(block->m_specularColorCount);
     block->m_baseTextureCoords = reader.readVectorFloats32<PDF3D_U3D_Vec4>(block->m_textureColorCount);
 
-    // TODO: Fix this
     // We must read attributes of the mesh to read faces
-    /*if (auto declarationBlock = object->getCLODMeshDeclarationBlock(block->m_meshName))
+    const bool hasNormals = !declarationBlock->isNormalsExcluded();
+
+    for (size_t i = 0; i < block->m_faceCount; ++i)
     {
-        const bool hasNormals = !declarationBlock->isNormalsExcluded();
+        BaseFace face;
+        face.m_shadingId = reader.readCompressedU32(reader.getStaticContext(cShading));
 
-        for (size_t i = 0; i < block->m_faceCount; ++i)
+        const PDF3D_U3D_ShadingDescription* shadingDescription = declarationBlock->getShadingDescriptionItem(face.m_shadingId);
+        if (!shadingDescription)
         {
-            BaseFace face;
-            face.m_shadingId = reader.readCompressedU32(reader.getStaticContext(cShading));
-
-            const PDF3D_U3D_ShadingDescription* shadingDescription = declarationBlock->getShadingDescriptionItem(face.m_shadingId);
-            if (!shadingDescription)
-            {
-                return nullptr;
-            }
-
-            for (size_t ci = 0; ci < face.m_corners.size(); ++ci)
-            {
-                BaseCornerInfo cornerInfo;
-
-                cornerInfo.basePositionIndex = reader.readCompressedU32(reader.getRangeContext(block->m_positionCount));
-
-                if (hasNormals)
-                {
-                    cornerInfo.baseNormalIndex = reader.readCompressedU32(reader.getRangeContext(block->m_normalCount));
-                }
-
-                if (shadingDescription->hasDiffuseColors())
-                {
-                    cornerInfo.baseDiffuseColorIndex = reader.readCompressedU32(reader.getRangeContext(block->m_diffuseColorCount));
-                }
-
-                if (shadingDescription->hasSpecularColors())
-                {
-                    cornerInfo.baseSpecularColorIndex = reader.readCompressedU32(reader.getRangeContext(block->m_specularColorCount));
-                }
-
-                for (uint32_t ti = 0; ti < shadingDescription->textureLayerCount; ++ti)
-                {
-                    cornerInfo.baseTextureCoordIndex.push_back(reader.readCompressedU32(reader.getRangeContext(block->m_textureColorCount)));
-                }
-
-                face.m_corners[ci] = std::move(cornerInfo);
-            }
-
-            block->m_baseFaces.emplace_back(std::move(face));
+            return nullptr;
         }
-    }*/
+
+        for (size_t ci = 0; ci < face.m_corners.size(); ++ci)
+        {
+            BaseCornerInfo cornerInfo;
+
+            cornerInfo.basePositionIndex = reader.readCompressedU32(reader.getRangeContext(block->m_positionCount));
+
+            if (hasNormals)
+            {
+                cornerInfo.baseNormalIndex = reader.readCompressedU32(reader.getRangeContext(block->m_normalCount));
+            }
+
+            if (shadingDescription->hasDiffuseColors())
+            {
+                cornerInfo.baseDiffuseColorIndex = reader.readCompressedU32(reader.getRangeContext(block->m_diffuseColorCount));
+            }
+
+            if (shadingDescription->hasSpecularColors())
+            {
+                cornerInfo.baseSpecularColorIndex = reader.readCompressedU32(reader.getRangeContext(block->m_specularColorCount));
+            }
+
+            for (uint32_t ti = 0; ti < shadingDescription->textureLayerCount; ++ti)
+            {
+                cornerInfo.baseTextureCoordIndex.push_back(reader.readCompressedU32(reader.getRangeContext(block->m_textureColorCount)));
+            }
+
+            face.m_corners[ci] = std::move(cornerInfo);
+        }
+
+        block->m_baseFaces.emplace_back(std::move(face));
+    }
 
     block->parseMetadata(metaData, object);
     return pointer;
@@ -1948,6 +2056,8 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_CLODProgressiveMeshContinuationBlock::parse
             updateItem.newFaces.emplace_back(std::move(facePositionInfo));
         }
 
+        // TODO: Fixme
+
         block->m_resolutionUpdates.emplace_back(std::move(updateItem));
     }
 
@@ -2068,7 +2178,10 @@ float PDF3D_U3D_LineSetDeclarationBlock::getSpecularColorInverseQuant() const
     return m_specularColorInverseQuant;
 }
 
-PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_LineSetContinuationBlock::parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object)
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_LineSetContinuationBlock::parse(QByteArray data,
+                                                                     QByteArray metaData,
+                                                                     PDF3D_U3D_Parser* object,
+                                                                     const PDF3D_U3D_LineSetDeclarationBlock* declarationBlock)
 {
     PDF3D_U3D_LineSetContinuationBlock* block = new PDF3D_U3D_LineSetContinuationBlock();
     PDF3D_U3D_AbstractBlockPtr pointer(block);
@@ -2082,110 +2195,102 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_LineSetContinuationBlock::parse(QByteArray 
     block->m_startResolution = reader.readU32();
     block->m_endResolution = reader.readU32();
 
-    // TODO: Fix this
-    /*if (auto declarationBlock = object->getLineSetDeclarationBlock(block->m_lineSetName))
+    for (uint32_t i = block->m_startResolution; i < block->m_endResolution; ++i)
     {
-        for (uint32_t i = block->m_startResolution; i < block->m_endResolution; ++i)
+        UpdateItem item;
+
+        if (i > 0)
         {
-            UpdateItem item;
-
-            if (i > 0)
-            {
-                item.splitPositionIndex = reader.readCompressedU32(reader.getRangeContext(i));
-            }
-            else
-            {
-                item.splitPositionIndex = reader.readCompressedU32(reader.getRangeContext(i + 1));
-            }
-
-            item.newPositionInfo = reader.readQuantizedVec3(reader.getStaticContext(cPosDiffSign),
-                                                            reader.getStaticContext(cPosDiffX),
-                                                            reader.getStaticContext(cPosDiffY),
-                                                            reader.getStaticContext(cPosDiffZ));
-
-            const uint32_t newNormalCount = reader.readCompressedU32(reader.getStaticContext(cNormlCnt));
-            for (uint32_t ni = 0; ni < newNormalCount; ++ni)
-            {
-                item.newNormals.push_back(reader.readQuantizedVec3(reader.getStaticContext(cDiffNormalSign),
-                                                                   reader.getStaticContext(cDiffNormalX),
-                                                                   reader.getStaticContext(cDiffNormalY),
-                                                                   reader.getStaticContext(cDiffNormalZ)));
-            }
-
-            const uint32_t newLineCount = reader.readCompressedU32(reader.getStaticContext(cLineCnt));
-            for (uint32_t li = 0; li < newLineCount; ++li)
-            {
-                NewLineInfo lineInfo;
-
-                lineInfo.shadingId = reader.readCompressedU32(reader.getStaticContext(cShading));
-                lineInfo.firstPositionIndex = reader.readCompressedU32(reader.getRangeContext(i));
-
-                const PDF3D_U3D_ShadingDescription* shadingDescription = declarationBlock->getShadingDescriptionItem(lineInfo.shadingId);
-                if (!shadingDescription)
-                {
-                    return nullptr;
-                }
-
-                for (NewLineEndingInfo* endingInfo : { &lineInfo.p1, &lineInfo.p2 })
-                {
-                    endingInfo->normalLocalIndex = reader.readCompressedU32(reader.getStaticContext(cNormlIdx));
-
-                    if (shadingDescription->hasDiffuseColors())
-                    {
-                        endingInfo->duplicateDiffuse = reader.readCompressedU8(reader.getStaticContext(cDiffDup)) & 0x02;
-
-                        if (!endingInfo->duplicateDiffuse)
-                        {
-                            endingInfo->diffuseColor = reader.readQuantizedVec4(reader.getStaticContext(cDiffuseColorSign),
-                                                                                reader.getStaticContext(cColorDiffR),
-                                                                                reader.getStaticContext(cColorDiffG),
-                                                                                reader.getStaticContext(cColorDiffB),
-                                                                                reader.getStaticContext(cColorDiffA));
-                        }
-                    }
-
-                    if (shadingDescription->hasSpecularColors())
-                    {
-                        endingInfo->duplicateSpecular = reader.readCompressedU8(reader.getStaticContext(cSpecDup)) & 0x02;
-
-                        if (!endingInfo->duplicateSpecular)
-                        {
-                            endingInfo->specularColor = reader.readQuantizedVec4(reader.getStaticContext(cSpecularColorSign),
-                                                                                 reader.getStaticContext(cColorDiffR),
-                                                                                 reader.getStaticContext(cColorDiffG),
-                                                                                 reader.getStaticContext(cColorDiffB),
-                                                                                 reader.getStaticContext(cColorDiffA));
-                        }
-                    }
-
-                    for (uint32_t ti = 0; ti < shadingDescription->textureLayerCount; ++ti)
-                    {
-                        PDF3D_U3D_QuantizedVec4 textCoord = { };
-                        const bool duplicateTextCoord = reader.readCompressedU8(reader.getStaticContext(cTexCDup)) & 0x02;
-
-                        if (!duplicateTextCoord)
-                        {
-                            textCoord = reader.readQuantizedVec4(reader.getStaticContext(cTexCoordSign),
-                                                                 reader.getStaticContext(cTexCDiffU),
-                                                                 reader.getStaticContext(cTexCDiffV),
-                                                                 reader.getStaticContext(cTexCDiffS),
-                                                                 reader.getStaticContext(cTexCDiffT));
-                        }
-
-                        endingInfo->textureCoords.emplace_back(duplicateTextCoord, textCoord);
-                    }
-                }
-
-                item.newLines.emplace_back(std::move(lineInfo));
-            }
-
-            block->m_updateItems.emplace_back(std::move(item));
+            item.splitPositionIndex = reader.readCompressedU32(reader.getRangeContext(i));
         }
+        else
+        {
+            item.splitPositionIndex = reader.readCompressedU32(reader.getRangeContext(i + 1));
+        }
+
+        item.newPositionInfo = reader.readQuantizedVec3(reader.getStaticContext(cPosDiffSign),
+                                                        reader.getStaticContext(cPosDiffX),
+                                                        reader.getStaticContext(cPosDiffY),
+                                                        reader.getStaticContext(cPosDiffZ));
+
+        const uint32_t newNormalCount = reader.readCompressedU32(reader.getStaticContext(cNormlCnt));
+        for (uint32_t ni = 0; ni < newNormalCount; ++ni)
+        {
+            item.newNormals.push_back(reader.readQuantizedVec3(reader.getStaticContext(cDiffNormalSign),
+                                                               reader.getStaticContext(cDiffNormalX),
+                                                               reader.getStaticContext(cDiffNormalY),
+                                                               reader.getStaticContext(cDiffNormalZ)));
+        }
+
+        const uint32_t newLineCount = reader.readCompressedU32(reader.getStaticContext(cLineCnt));
+        for (uint32_t li = 0; li < newLineCount; ++li)
+        {
+            NewLineInfo lineInfo;
+
+            lineInfo.shadingId = reader.readCompressedU32(reader.getStaticContext(cShading));
+            lineInfo.firstPositionIndex = reader.readCompressedU32(reader.getRangeContext(i));
+
+            const PDF3D_U3D_ShadingDescription* shadingDescription = declarationBlock->getShadingDescriptionItem(lineInfo.shadingId);
+            if (!shadingDescription)
+            {
+                return nullptr;
+            }
+
+            for (NewLineEndingInfo* endingInfo : { &lineInfo.p1, &lineInfo.p2 })
+            {
+                endingInfo->normalLocalIndex = reader.readCompressedU32(reader.getStaticContext(cNormlIdx));
+
+                if (shadingDescription->hasDiffuseColors())
+                {
+                    endingInfo->duplicateDiffuse = reader.readCompressedU8(reader.getStaticContext(cDiffDup)) & 0x02;
+
+                    if (!endingInfo->duplicateDiffuse)
+                    {
+                        endingInfo->diffuseColor = reader.readQuantizedVec4(reader.getStaticContext(cDiffuseColorSign),
+                                                                            reader.getStaticContext(cColorDiffR),
+                                                                            reader.getStaticContext(cColorDiffG),
+                                                                            reader.getStaticContext(cColorDiffB),
+                                                                            reader.getStaticContext(cColorDiffA));
+                    }
+                }
+
+                if (shadingDescription->hasSpecularColors())
+                {
+                    endingInfo->duplicateSpecular = reader.readCompressedU8(reader.getStaticContext(cSpecDup)) & 0x02;
+
+                    if (!endingInfo->duplicateSpecular)
+                    {
+                        endingInfo->specularColor = reader.readQuantizedVec4(reader.getStaticContext(cSpecularColorSign),
+                                                                             reader.getStaticContext(cColorDiffR),
+                                                                             reader.getStaticContext(cColorDiffG),
+                                                                             reader.getStaticContext(cColorDiffB),
+                                                                             reader.getStaticContext(cColorDiffA));
+                    }
+                }
+
+                for (uint32_t ti = 0; ti < shadingDescription->textureLayerCount; ++ti)
+                {
+                    PDF3D_U3D_QuantizedVec4 textCoord = { };
+                    const bool duplicateTextCoord = reader.readCompressedU8(reader.getStaticContext(cTexCDup)) & 0x02;
+
+                    if (!duplicateTextCoord)
+                    {
+                        textCoord = reader.readQuantizedVec4(reader.getStaticContext(cTexCoordSign),
+                                                             reader.getStaticContext(cTexCDiffU),
+                                                             reader.getStaticContext(cTexCDiffV),
+                                                             reader.getStaticContext(cTexCDiffS),
+                                                             reader.getStaticContext(cTexCDiffT));
+                    }
+
+                    endingInfo->textureCoords.emplace_back(duplicateTextCoord, textCoord);
+                }
+            }
+
+            item.newLines.emplace_back(std::move(lineInfo));
+        }
+
+        block->m_updateItems.emplace_back(std::move(item));
     }
-    else
-    {
-        return nullptr;
-    }*/
 
     block->parseMetadata(metaData, object);
     return pointer;
@@ -2335,6 +2440,248 @@ PDF3D_U3D_DecoderChain* PDF3D_U3D_DecoderPalette::createDecoderChain(const QStri
     m_decoderChains.emplace_back();
     m_decoderChains.back().setName(name);
     return &m_decoderChains.back();
+}
+
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_PointSetDeclarationBlock::parse(QByteArray data,
+                                                                     QByteArray metaData,
+                                                                     PDF3D_U3D_Parser* object)
+{
+    PDF3D_U3D_PointSetDeclarationBlock* block = new PDF3D_U3D_PointSetDeclarationBlock();
+    PDF3D_U3D_AbstractBlockPtr pointer(block);
+
+    PDF3D_U3D_DataReader reader(data, object->isCompressed(), object->getContextManager());
+
+    // Read the data
+    block->m_pointSetName = reader.readString(object->getTextCodec());
+    block->m_chainIndex = reader.readU32();
+
+    // point set description
+    block->m_pointSetReserved = reader.readU32();
+    block->m_pointCount = reader.readU32();
+    block->m_positionCount = reader.readU32();
+    block->m_normalCount = reader.readU32();
+    block->m_diffuseColorCount = reader.readU32();
+    block->m_specularColorCount = reader.readU32();
+    block->m_textureCoordCount = reader.readU32();
+    block->m_shadingDescriptions = reader.readShadingDescriptions(reader.readU32());
+
+    // resource description
+    block->m_positionQualityFactor = reader.readU32();
+    block->m_normalQualityFactor = reader.readU32();
+    block->m_textureCoordQualityFactor = reader.readU32();
+    block->m_positionInverseQuant = reader.readF32();
+    block->m_normalInverseQuant = reader.readF32();
+    block->m_textureCoordInverseQuant = reader.readF32();
+    block->m_diffuseColorInverseQuant = reader.readF32();
+    block->m_specularColorInverseQuant = reader.readF32();
+    block->m_reserved1 = reader.readF32();
+    block->m_reserved2 = reader.readF32();
+    block->m_reserved3 = reader.readF32();
+
+    /* bone description */
+    block->m_boneCount = reader.readU32();
+    block->m_boneDescription = reader.readBoneDescriptions(object->getTextCodec(), block->m_boneCount);
+
+    block->parseMetadata(metaData, object);
+    return pointer;
+}
+
+uint32_t PDF3D_U3D_PointSetDeclarationBlock::getPointCount() const
+{
+    return m_pointCount;
+}
+
+uint32_t PDF3D_U3D_PointSetDeclarationBlock::getPositionCount() const
+{
+    return m_positionCount;
+}
+
+uint32_t PDF3D_U3D_PointSetDeclarationBlock::getNormalCount() const
+{
+    return m_normalCount;
+}
+
+uint32_t PDF3D_U3D_PointSetDeclarationBlock::getDiffuseColorCount() const
+{
+    return m_diffuseColorCount;
+}
+
+uint32_t PDF3D_U3D_PointSetDeclarationBlock::getSpecularColorCount() const
+{
+    return m_specularColorCount;
+}
+
+uint32_t PDF3D_U3D_PointSetDeclarationBlock::getTextureCoordCount() const
+{
+    return m_textureCoordCount;
+}
+
+const std::vector<PDF3D_U3D_ShadingDescription>& PDF3D_U3D_PointSetDeclarationBlock::getShadingDescriptions() const
+{
+    return m_shadingDescriptions;
+}
+
+uint32_t PDF3D_U3D_PointSetDeclarationBlock::getPositionQualityFactor() const
+{
+    return m_positionQualityFactor;
+}
+
+uint32_t PDF3D_U3D_PointSetDeclarationBlock::getNormalQualityFactor() const
+{
+    return m_normalQualityFactor;
+}
+
+uint32_t PDF3D_U3D_PointSetDeclarationBlock::getTextureCoordQualityFactor() const
+{
+    return m_textureCoordQualityFactor;
+}
+
+float PDF3D_U3D_PointSetDeclarationBlock::getPositionInverseQuant() const
+{
+    return m_positionInverseQuant;
+}
+
+float PDF3D_U3D_PointSetDeclarationBlock::getNormalInverseQuant() const
+{
+    return m_normalInverseQuant;
+}
+
+float PDF3D_U3D_PointSetDeclarationBlock::getTextureCoordInverseQuant() const
+{
+    return m_textureCoordInverseQuant;
+}
+
+float PDF3D_U3D_PointSetDeclarationBlock::getDiffuseColorInverseQuant() const
+{
+    return m_diffuseColorInverseQuant;
+}
+
+float PDF3D_U3D_PointSetDeclarationBlock::getSpecularColorInverseQuant() const
+{
+    return m_specularColorInverseQuant;
+}
+
+uint32_t PDF3D_U3D_PointSetDeclarationBlock::getBoneCount() const
+{
+    return m_boneCount;
+}
+
+const std::vector<PDF3D_U3D_BoneDescription>& PDF3D_U3D_PointSetDeclarationBlock::getBoneDescription() const
+{
+    return m_boneDescription;
+}
+
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_PointSetContinuationBlock::parse(QByteArray data,
+                                                                      QByteArray metaData,
+                                                                      PDF3D_U3D_Parser* object,
+                                                                      const PDF3D_U3D_PointSetDeclarationBlock* declarationBlock)
+{
+    PDF3D_U3D_PointSetContinuationBlock* block = new PDF3D_U3D_PointSetContinuationBlock();
+    PDF3D_U3D_AbstractBlockPtr pointer(block);
+
+    PDF3D_U3D_DataReader reader(data, object->isCompressed(), object->getContextManager());
+
+    // Read the data
+    block->m_pointSetName = reader.readString(object->getTextCodec());
+    block->m_chainIndex = reader.readU32();
+
+    block->m_startResolution = reader.readU32();
+    block->m_endResolution = reader.readU32();
+
+    for (uint32_t i = block->m_startResolution; i < block->m_endResolution; ++i)
+    {
+        UpdateItem item;
+
+        if (i > 0)
+        {
+            item.splitPositionIndex = reader.readCompressedU32(reader.getRangeContext(i));
+        }
+        else
+        {
+            item.splitPositionIndex = reader.readCompressedU32(reader.getRangeContext(i + 1));
+        }
+
+        item.newPositionInfo = reader.readQuantizedVec3(reader.getStaticContext(cPosDiffSign),
+                                                        reader.getStaticContext(cPosDiffX),
+                                                        reader.getStaticContext(cPosDiffY),
+                                                        reader.getStaticContext(cPosDiffZ));
+
+        const uint32_t newNormalCount = reader.readCompressedU32(reader.getStaticContext(cNormlCnt));
+        for (uint32_t ni = 0; ni < newNormalCount; ++ni)
+        {
+            item.newNormals.push_back(reader.readQuantizedVec3(reader.getStaticContext(cDiffNormalSign),
+                                                               reader.getStaticContext(cDiffNormalX),
+                                                               reader.getStaticContext(cDiffNormalY),
+                                                               reader.getStaticContext(cDiffNormalZ)));
+        }
+
+        const uint32_t newPointCount = reader.readCompressedU32(reader.getStaticContext(cPointCnt));
+        for (uint32_t li = 0; li < newPointCount; ++li)
+        {
+            NewPointInfo pointInfo;
+            pointInfo.shadingId = reader.readCompressedU32(reader.getStaticContext(cShading));
+
+            const PDF3D_U3D_ShadingDescription* shadingDescription = declarationBlock->getShadingDescriptionItem(pointInfo.shadingId);
+            if (!shadingDescription)
+            {
+                return nullptr;
+            }
+
+            pointInfo.normalLocalIndex = reader.readCompressedU32(reader.getStaticContext(cNormlIdx));
+
+            if (shadingDescription->hasDiffuseColors())
+            {
+                pointInfo.duplicateDiffuse = reader.readCompressedU8(reader.getStaticContext(cDiffDup)) & 0x02;
+
+                if (!pointInfo.duplicateDiffuse)
+                {
+                    pointInfo.diffuseColor = reader.readQuantizedVec4(reader.getStaticContext(cDiffuseColorSign),
+                                                                      reader.getStaticContext(cColorDiffR),
+                                                                      reader.getStaticContext(cColorDiffG),
+                                                                      reader.getStaticContext(cColorDiffB),
+                                                                      reader.getStaticContext(cColorDiffA));
+                }
+            }
+
+            if (shadingDescription->hasSpecularColors())
+            {
+                pointInfo.duplicateSpecular = reader.readCompressedU8(reader.getStaticContext(cSpecDup)) & 0x02;
+
+                if (!pointInfo.duplicateSpecular)
+                {
+                    pointInfo.specularColor = reader.readQuantizedVec4(reader.getStaticContext(cSpecularColorSign),
+                                                                       reader.getStaticContext(cColorDiffR),
+                                                                       reader.getStaticContext(cColorDiffG),
+                                                                       reader.getStaticContext(cColorDiffB),
+                                                                       reader.getStaticContext(cColorDiffA));
+                }
+            }
+
+            for (uint32_t ti = 0; ti < shadingDescription->textureLayerCount; ++ti)
+            {
+                PDF3D_U3D_QuantizedVec4 textCoord = { };
+                const bool duplicateTextCoord = reader.readCompressedU8(reader.getStaticContext(cTexCDup)) & 0x02;
+
+                if (!duplicateTextCoord)
+                {
+                    textCoord = reader.readQuantizedVec4(reader.getStaticContext(cTexCoordSign),
+                                                         reader.getStaticContext(cTexCDiffU),
+                                                         reader.getStaticContext(cTexCDiffV),
+                                                         reader.getStaticContext(cTexCDiffS),
+                                                         reader.getStaticContext(cTexCDiffT));
+                }
+
+                pointInfo.textureCoords.emplace_back(duplicateTextCoord, textCoord);
+            }
+
+            item.newPoints.emplace_back(std::move(pointInfo));
+        }
+
+        block->m_updateItems.emplace_back(std::move(item));
+    }
+
+    block->parseMetadata(metaData, object);
+    return pointer;
 }
 
 }   // namespace u3d

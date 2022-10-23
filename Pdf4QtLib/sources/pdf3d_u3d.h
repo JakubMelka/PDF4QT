@@ -46,8 +46,9 @@ enum Context
     cDiffNormalX,
     cDiffNormalY,
     cDiffNormalZ,
-    cLineCnt,
     cShading,
+    cLineCnt = cShading, // Undocumented, that cLineCnt equals to cShading
+    cPointCnt = cShading, // Undocumented, that cPointCnt equals to cShading
     cNormlIdx,
     cDiffDup,
     cDiffuseColorSign,
@@ -169,6 +170,33 @@ struct PDF3D_U3D_Block_Data
     QByteArray metaData;
 };
 
+struct PDF3D_U3D_BoneJoint
+{
+    float jointCenterU = 0.0;
+    float jointCenterV = 0.0;
+    float jointScaleU = 0.0;
+    float jointScaleV = 0.0;
+};
+
+struct PDF3D_U3D_BoneDescription
+{
+    QString boneName;
+    QString parentBoneName;
+    uint32_t boneAttributes = 0;
+    float boneLength = 0.0;
+    PDF3D_U3D_Vec3 boneDisplacement = PDF3D_U3D_Vec3();
+    PDF3D_U3D_Vec4 boneOrientation = PDF3D_U3D_Vec4();
+    uint32_t boneLinkCount = 0;
+    float boneLinkLength = 0.0;
+    PDF3D_U3D_BoneJoint startJoint = PDF3D_U3D_BoneJoint();
+    PDF3D_U3D_BoneJoint endJoint = PDF3D_U3D_BoneJoint();
+    PDF3D_U3D_Vec3 rotationConstraintMin = PDF3D_U3D_Vec3();
+    PDF3D_U3D_Vec3 rotationConstraintMax = PDF3D_U3D_Vec3();
+
+    bool isLinkPresent() const { return boneAttributes & 0x00000001; }
+    bool isJointPresent() const { return boneAttributes & 0x00000002; }
+};
+
 struct PDF3D_U3D_ShadingDescription
 {
     uint32_t shadingAttributes = 0;
@@ -223,7 +251,7 @@ using PDF3D_U3D_AxisAlignedBoundingBox = std::array<float, 4>;
 class PDF3D_U3D_FileBlock : public PDF3D_U3D_AbstractBlock
 {
 public:
-    static constexpr uint32_t ID = 0x00443355;
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_FileHeader;
 
     static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
 
@@ -252,7 +280,7 @@ private:
 class PDF3D_U3D_FileReferenceBlock : public PDF3D_U3D_AbstractBlock
 {
 public:
-    static constexpr uint32_t ID = 0xFFFFFF12;
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_FileReference;
 
     bool isBoundingSpherePresent() const { return m_fileReferenceAttributes & 0x00000001; }
     bool isAxisAlignedBoundingBoxPresent() const { return m_fileReferenceAttributes & 0x00000002; }
@@ -293,7 +321,7 @@ private:
 class PDF3D_U3D_ModifierChainBlock : public PDF3D_U3D_AbstractBlock
 {
 public:
-    static constexpr uint32_t ID = 0xFFFFFF14;
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_FileModifierChain;
 
     static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
 
@@ -323,10 +351,10 @@ private:
     std::vector<PDF3D_U3D_Block_Data> m_modifierDeclarationBlocks;
 };
 
-class PDF3D_U3D_PriorityUpdateBlock : public PDF3D_U3D_AbstractBlock
+class PDF3D_U3D_FilePriorityUpdateBlock : public PDF3D_U3D_AbstractBlock
 {
 public:
-    static constexpr uint32_t ID = 0xFFFFFF15;
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_FilePriorityUpdate;
 
     static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
 
@@ -339,7 +367,7 @@ private:
 class PDF3D_U3D_NewObjectTypeBlock : public PDF3D_U3D_AbstractBlock
 {
 public:
-    static constexpr uint32_t ID = 0xFFFFFF16;
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_FileNewObject;
 
     static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
 
@@ -392,7 +420,7 @@ private:
 class PDF3D_U3D_GroupNodeBlock : public PDF3D_U3D_AbstractBlock
 {
 public:
-    static constexpr uint32_t ID = 0xFFFFFF21;
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_NodeGroup;
 
     static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
 
@@ -407,7 +435,7 @@ private:
 class PDF3D_U3D_ModelNodeBlock : public PDF3D_U3D_AbstractBlock
 {
 public:
-    static constexpr uint32_t ID = 0xFFFFFF22;
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_NodeModel;
 
     static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
 
@@ -431,7 +459,7 @@ private:
 class PDF3D_U3D_LightNodeBlock : public PDF3D_U3D_AbstractBlock
 {
 public:
-    static constexpr uint32_t ID = 0xFFFFFF23;
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_NodeLight;
 
     static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
 
@@ -448,7 +476,7 @@ private:
 class PDF3D_U3D_ViewNodeBlock : public PDF3D_U3D_AbstractBlock
 {
 public:
-    static constexpr uint32_t ID = 0xFFFFFF24;
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_NodeView;
 
     static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
 
@@ -521,36 +549,9 @@ private:
 class PDF3D_U3D_CLODMeshDeclarationBlock : public PDF3D_U3D_AbstractBlock
 {
 public:
-    static constexpr uint32_t ID = 0xFFFFFF31;
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_GeneratorCLODMeshDecl;
 
     static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
-
-    struct BoneJoint
-    {
-        float jointCenterU = 0.0;
-        float jointCenterV = 0.0;
-        float jointScaleU = 0.0;
-        float jointScaleV = 0.0;
-    };
-
-    struct BoneDescription
-    {
-        QString boneName;
-        QString parentBoneName;
-        uint32_t boneAttributes = 0;
-        float boneLength = 0.0;
-        PDF3D_U3D_Vec3 boneDisplacement = PDF3D_U3D_Vec3();
-        PDF3D_U3D_Vec4 boneOrientation = PDF3D_U3D_Vec4();
-        uint32_t boneLinkCount = 0;
-        float boneLinkLength = 0.0;
-        BoneJoint startJoint = BoneJoint();
-        BoneJoint endJoint = BoneJoint();
-        PDF3D_U3D_Vec3 rotationConstraintMin = PDF3D_U3D_Vec3();
-        PDF3D_U3D_Vec3 rotationConstraintMax = PDF3D_U3D_Vec3();
-
-        bool isLinkPresent() const { return boneAttributes & 0x00000001; }
-        bool isJointPresent() const { return boneAttributes & 0x00000002; }
-    };
 
     const QString& getName() const { return getMeshName(); }
     const QString& getMeshName() const;
@@ -589,7 +590,7 @@ public:
 
     /* bone description */
     uint32_t getBoneCount() const;
-    const std::vector<BoneDescription>& getBoneDescription() const;
+    const std::vector<PDF3D_U3D_BoneDescription>& getBoneDescription() const;
 
 private:
     QString m_meshName;
@@ -624,15 +625,15 @@ private:
 
     /* bone description */
     uint32_t m_boneCount = 0;
-    std::vector<BoneDescription> m_boneDescription;
+    std::vector<PDF3D_U3D_BoneDescription> m_boneDescription;
 };
 
 class PDF3D_U3D_CLODBaseMeshContinuationBlock : public PDF3D_U3D_AbstractBlock
 {
 public:
-    static constexpr uint32_t ID = 0xFFFFFF3B;
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_GeneratorCLODBaseMesh;
 
-    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object, const PDF3D_U3D_CLODMeshDeclarationBlock* declarationBlock);
 
     struct BaseCornerInfo
     {
@@ -689,7 +690,7 @@ private:
 class PDF3D_U3D_CLODProgressiveMeshContinuationBlock : public PDF3D_U3D_AbstractBlock
 {
 public:
-    static constexpr uint32_t ID = 0xFFFFFF3C;
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_GeneratorCLODProgMesh;
 
     static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
 
@@ -723,10 +724,114 @@ private:
     std::vector<ResolutionUpdate> m_resolutionUpdates;
 };
 
+class PDF3D_U3D_PointSetDeclarationBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_GeneratorPointSet;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
+
+    const QString& getName() const { return m_pointSetName; }
+    uint32_t getPointCount() const;
+    uint32_t getPositionCount() const;
+    uint32_t getNormalCount() const;
+    uint32_t getDiffuseColorCount() const;
+    uint32_t getSpecularColorCount() const;
+    uint32_t getTextureCoordCount() const;
+    const std::vector<PDF3D_U3D_ShadingDescription>& getShadingDescriptions() const;
+    const PDF3D_U3D_ShadingDescription* getShadingDescriptionItem(uint32_t index) const { return index < m_shadingDescriptions.size() ? &m_shadingDescriptions[index] : nullptr; }
+
+    uint32_t getPositionQualityFactor() const;
+    uint32_t getNormalQualityFactor() const;
+    uint32_t getTextureCoordQualityFactor() const;
+    float getPositionInverseQuant() const;
+    float getNormalInverseQuant() const;
+    float getTextureCoordInverseQuant() const;
+    float getDiffuseColorInverseQuant() const;
+    float getSpecularColorInverseQuant() const;
+
+    uint32_t getBoneCount() const;
+
+    const std::vector<PDF3D_U3D_BoneDescription>& getBoneDescription() const;
+
+private:
+    QString m_pointSetName;
+    uint32_t m_chainIndex = 0;
+
+    /* point set description */
+    uint32_t m_pointSetReserved = 0;
+    uint32_t m_pointCount = 0;
+    uint32_t m_positionCount = 0;
+    uint32_t m_normalCount = 0;
+    uint32_t m_diffuseColorCount = 0;
+    uint32_t m_specularColorCount = 0;
+    uint32_t m_textureCoordCount = 0;
+    std::vector<PDF3D_U3D_ShadingDescription> m_shadingDescriptions;
+
+    /* resource description */
+    uint32_t m_positionQualityFactor = 0;
+    uint32_t m_normalQualityFactor = 0;
+    uint32_t m_textureCoordQualityFactor = 0;
+    float m_positionInverseQuant = 0.0;
+    float m_normalInverseQuant = 0.0;
+    float m_textureCoordInverseQuant = 0.0;
+    float m_diffuseColorInverseQuant = 0.0;
+    float m_specularColorInverseQuant = 0.0;
+    float m_reserved1 = 0.0;
+    float m_reserved2 = 0.0;
+    float m_reserved3 = 0.0;
+
+    /* bone description */
+    uint32_t m_boneCount = 0;
+    std::vector<PDF3D_U3D_BoneDescription> m_boneDescription;
+};
+
+class PDF3D_U3D_PointSetContinuationBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_GeneratorPointSetCont;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object, const PDF3D_U3D_PointSetDeclarationBlock* declarationBlock);
+
+    struct NewPointInfo
+    {
+        uint32_t shadingId = 0;
+        uint32_t normalLocalIndex = 0;
+
+        bool duplicateDiffuse = false;
+        bool duplicateSpecular = false;
+
+        PDF3D_U3D_QuantizedVec4 diffuseColor = PDF3D_U3D_QuantizedVec4();
+        PDF3D_U3D_QuantizedVec4 specularColor = PDF3D_U3D_QuantizedVec4();
+        std::vector<std::pair<bool, PDF3D_U3D_QuantizedVec4>> textureCoords;
+    };
+
+    struct UpdateItem
+    {
+        uint32_t splitPositionIndex = 0;
+
+        PDF3D_U3D_QuantizedVec3 newPositionInfo;
+        std::vector<PDF3D_U3D_QuantizedVec3> newNormals;
+        std::vector<NewPointInfo> newPoints;
+    };
+
+    const QString& getName() const { return m_pointSetName; }
+    const std::vector<UpdateItem>& getUpdateItems() const;
+
+private:
+    QString m_pointSetName;
+    uint32_t m_chainIndex = 0;
+
+    uint32_t m_startResolution = 0;
+    uint32_t m_endResolution = 0;
+
+    std::vector<UpdateItem> m_updateItems;
+};
+
 class PDF3D_U3D_LineSetDeclarationBlock : public PDF3D_U3D_AbstractBlock
 {
 public:
-    static constexpr uint32_t ID = 0xFFFFFF37;
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_GeneratorLineSet;
 
     static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
 
@@ -780,9 +885,9 @@ private:
 class PDF3D_U3D_LineSetContinuationBlock : public PDF3D_U3D_AbstractBlock
 {
 public:
-    static constexpr uint32_t ID = 0xFFFFFF3F;
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_GeneratorLineSetCont;
 
-    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object, const PDF3D_U3D_LineSetDeclarationBlock* declarationBlock);
 
     struct NewLineEndingInfo
     {
@@ -836,9 +941,6 @@ class PDF4QTLIBSHARED_EXPORT PDF3D_U3D
 {
 public:
     PDF3D_U3D();
-
-    const PDF3D_U3D_CLODMeshDeclarationBlock* getCLODMeshDeclarationBlock(const QString& meshName) const;
-    const PDF3D_U3D_LineSetDeclarationBlock* getLineSetDeclarationBlock(const QString& lineSetName) const;
 };
 
 // -------------------------------------------------------------------------------
@@ -901,6 +1003,14 @@ public:
 
     void addBlock(const PDF3D_U3D_Block_Data& block) { m_blocks.push_back(block); }
 
+    bool isEmpty() const { return m_blocks.empty(); }
+
+    auto begin() const { return m_blocks.begin(); }
+    auto end() const { return m_blocks.end(); }
+
+    auto front() const { return m_blocks.front(); }
+    auto back() const { return m_blocks.back(); }
+
 private:
     std::vector<PDF3D_U3D_Block_Data> m_blocks;
 };
@@ -915,6 +1025,9 @@ public:
     PDF3D_U3D_Decoder* getDecoder(uint32_t chainPosition);
     void addDecoder(PDF3D_U3D_Decoder&& decoder) { m_decoders.emplace_back(std::move(decoder)); }
 
+    auto begin() const { return m_decoders.begin(); }
+    auto end() const { return m_decoders.end(); }
+
 private:
     QString m_name;
     std::vector<PDF3D_U3D_Decoder> m_decoders;
@@ -927,6 +1040,9 @@ public:
     PDF3D_U3D_DecoderChain* getDecoderChain(const QString& name);
     PDF3D_U3D_DecoderChain* createDecoderChain(const QString& name);
 
+    auto begin() const { return m_decoderChains.begin(); }
+    auto end() const { return m_decoderChains.end(); }
+
 private:
     std::vector<PDF3D_U3D_DecoderChain> m_decoderChains;
 };
@@ -937,6 +1053,9 @@ public:
     using EPalette = PDF3D_U3D_Block_Info::EPalette;
 
     PDF3D_U3D_DecoderPalette* getDecoderPalette(EPalette palette);
+
+    auto begin() const { return m_decoderLists.begin(); }
+    auto end() const { return m_decoderLists.end(); }
 
 private:
     std::array<PDF3D_U3D_DecoderPalette, PDF3D_U3D_Block_Info::PL_LastPalette> m_decoderLists;
@@ -964,6 +1083,12 @@ public:
 
     static PDF3D_U3D_Block_Data readBlockData(PDF3D_U3D_DataReader& reader);
 
+    void processCLODMesh(const PDF3D_U3D_Decoder& decoder);
+    void processPointSet(const PDF3D_U3D_Decoder& decoder);
+    void processLineSet(const PDF3D_U3D_Decoder& decoder);
+
+    void addBlockToU3D(PDF3D_U3D_AbstractBlockPtr block);
+
 private:
     struct LoadBlockInfo
     {
@@ -979,7 +1104,7 @@ private:
     std::vector<LoadBlockInfo> m_allBlocks;
 
     QStringList m_errors;
-    PDF3D_U3D_DecoderPalettes m_decoderLists;
+    PDF3D_U3D_DecoderPalettes m_decoderPalettes;
     PDF3D_U3D_ContextManager m_contextManager;
     PDF3D_U3D m_object;
     PDF3D_U3D_AbstractBlockPtr m_fileBlock;
@@ -1033,6 +1158,7 @@ public:
                                               uint32_t context3);
 
     std::vector<PDF3D_U3D_ShadingDescription> readShadingDescriptions(uint32_t count);
+    std::vector<PDF3D_U3D_BoneDescription> readBoneDescriptions(QTextCodec* textCodec, uint32_t count);
 
     bool isAtEnd() const;
 
@@ -1068,7 +1194,7 @@ private:
     uint32_t read15Bits();
 
     QByteArray m_data;
-    PDF3D_U3D_ContextManager* m_contextManager;
+    PDF3D_U3D_ContextManager m_contextManager;
 
     uint32_t m_high;
     uint32_t m_low;
