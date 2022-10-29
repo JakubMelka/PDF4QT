@@ -24,6 +24,7 @@
 #include <QByteArray>
 #include <QSharedPointer>
 #include <QMatrix4x4>
+#include <QPainterPath>
 
 #include <array>
 
@@ -71,7 +72,10 @@ enum Context
     cFaceCnt,
     cFaceOrnt,
     cLocal3rdPos,
-    cThrdPosType
+    cThrdPosType,
+    cBoneWeightCnt,
+    cBoneIdx,
+    cQntBoneWeight
 };
 
 class PDF3D_U3D;
@@ -933,6 +937,157 @@ private:
     std::vector<UpdateItem> m_updateItems;
 };
 
+class PDF3D_U3D_2DGlyphModifierBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_Modifier2DGlyph;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
+
+    const QString& getModifierName() const;
+    uint32_t getChainIndex() const;
+    uint32_t getGlyphAttributes() const;
+    QPainterPath getPath() const;
+    const QMatrix4x4& getMatrix() const;
+
+private:
+    QString m_modifierName;
+    uint32_t m_chainIndex = 0;
+    uint32_t m_glyphAttributes = 0;
+
+    QPainterPath m_path;
+    QMatrix4x4 m_matrix;
+};
+
+class PDF3D_U3D_SubdivisionModifierBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_ModifierSubdivision;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
+
+    const QString& getModifierName() const;
+    uint32_t getChainIndex() const;
+    uint32_t getAttributes() const;
+    uint32_t getDepth() const;
+    float getTension() const;
+    float getError() const;
+
+private:
+    QString m_modifierName;
+    uint32_t m_chainIndex = 0;
+    uint32_t m_attributes = 0;
+    uint32_t m_depth = 0;
+
+    float m_tension = 0.0;
+    float m_error = 0.0;
+};
+
+class PDF3D_U3D_AnimationModifierBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_ModifierAnimation;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
+
+    struct MotionInformation
+    {
+        QString motionName;
+        uint32_t motionAttributes = 0;
+        float timeOffset = 0.0;
+        float timeScale = 0.0;
+    };
+
+    const QString& getModifierName() const;
+    uint32_t getChainIndex() const;
+
+    uint32_t getAttributes() const;
+    float getTimescale() const;
+    uint32_t getMotionCount() const;
+    const std::vector<MotionInformation>& getMotionInformations() const;
+    float getBlendTime() const;
+
+private:
+    QString m_modifierName;
+    uint32_t m_chainIndex = 0;
+
+    uint32_t m_attributes = 0;
+    float m_timescale = 0.0;
+    uint32_t m_motionCount = 0;
+    std::vector<MotionInformation> m_motionInformations;
+
+    float m_blendTime = 0.0;
+};
+
+class PDF3D_U3D_BoneWeightModifierBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_ModifierBoneWeights;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
+
+    struct BoneWeightList
+    {
+        std::vector<uint32_t> boneIndex;
+        std::vector<uint32_t> boneWeight;
+    };
+
+    const QString& getModifierName() const;
+    uint32_t getChainIndex() const;
+    uint32_t getAttributes() const;
+    float getInverseQuant() const;
+    const std::vector<BoneWeightList>& getBoneWeightLists() const;
+
+private:
+    QString m_modifierName;
+    uint32_t m_chainIndex = 0;
+    uint32_t m_attributes = 0;
+    float m_inverseQuant = 0.0;
+    std::vector<BoneWeightList> m_boneWeightLists;
+};
+
+class PDF3D_U3D_ShadingModifierBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_ModifierShading;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
+
+    using ShaderLists = std::vector<QStringList>;
+
+    const QString& getModifierName() const;
+    uint32_t getChainIndex() const;
+    uint32_t getAttributes() const;
+    const ShaderLists& getShaderLists() const;
+
+private:
+    QString m_modifierName;
+    uint32_t m_chainIndex = 0;
+    uint32_t m_attributes = 0;
+    ShaderLists m_shaderLists;
+};
+
+class PDF3D_U3D_CLODModifierBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_ModifierCLOD;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
+
+    const QString& getModifierName() const;
+    uint32_t getChainIndex() const;
+    uint32_t getAttributes() const;
+    float getCLODAutomaticLevelOfDetails() const;
+    float getCLODModifierLevel() const;
+
+private:
+    QString m_modifierName;
+    uint32_t m_chainIndex = 0;
+    uint32_t m_attributes = 0;
+    float m_CLODAutomaticLevelOfDetails = 0.0;
+    float m_CLODModifierLevel = 0.0;
+};
+
 // -------------------------------------------------------------------------------
 //                                  PDF3D_U3D
 // -------------------------------------------------------------------------------
@@ -1116,7 +1271,7 @@ private:
 class PDF3D_U3D_DataReader
 {
 public:
-    PDF3D_U3D_DataReader(QByteArray data, bool isCompressed, PDF3D_U3D_ContextManager* contextManager);
+    PDF3D_U3D_DataReader(QByteArray data, bool isCompressed);
     ~PDF3D_U3D_DataReader();
 
     void setData(QByteArray data);
