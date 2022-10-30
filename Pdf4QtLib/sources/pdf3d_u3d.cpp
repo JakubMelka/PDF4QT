@@ -246,6 +246,15 @@ QStringList PDF3D_U3D_DataReader::readStringList(uint32_t count, QTextCodec* tex
     return stringList;
 }
 
+QMatrix4x4 PDF3D_U3D_DataReader::readMatrix4x4()
+{
+    std::array<float, 16> transformMatrix = { };
+    readFloats32(transformMatrix);
+
+    QMatrix4x4 matrix(transformMatrix.data());
+    return matrix.transposed();
+}
+
 PDF3D_U3D_QuantizedVec4 PDF3D_U3D_DataReader::readQuantizedVec4(uint32_t contextSign,
                                                                 uint32_t context1,
                                                                 uint32_t context2,
@@ -976,6 +985,24 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_Parser::parseBlock(uint32_t blockType,
         case PDF3D_U3D_LineSetDeclarationBlock::ID:
             return PDF3D_U3D_LineSetDeclarationBlock::parse(data, metaData, this);
 
+        case PDF3D_U3D_2DGlyphModifierBlock::ID:
+            return PDF3D_U3D_2DGlyphModifierBlock::parse(data, metaData, this);
+
+        case PDF3D_U3D_SubdivisionModifierBlock::ID:
+            return PDF3D_U3D_SubdivisionModifierBlock::parse(data, metaData, this);
+
+        case PDF3D_U3D_AnimationModifierBlock::ID:
+            return PDF3D_U3D_AnimationModifierBlock::parse(data, metaData, this);
+
+        case PDF3D_U3D_BoneWeightModifierBlock::ID:
+            return PDF3D_U3D_BoneWeightModifierBlock::parse(data, metaData, this);
+
+        case PDF3D_U3D_ShadingModifierBlock::ID:
+            return PDF3D_U3D_ShadingModifierBlock::parse(data, metaData, this);
+
+        case PDF3D_U3D_CLODModifierBlock::ID:
+            return PDF3D_U3D_CLODModifierBlock::parse(data, metaData, this);
+
         default:
             m_errors << QString("Unable to parse block.");
             break;
@@ -1107,12 +1134,7 @@ PDF3D_U3D_AbstractBlock::ParentNodesData PDF3D_U3D_AbstractBlock::parseParentNod
     {
         ParentNodeData data;
         data.parentNodeName = reader.readString(object->getTextCodec());
-
-        std::array<float, 16> transformMatrix = { };
-        reader.readFloats32(transformMatrix);
-
-        QMatrix4x4 matrix(transformMatrix.data());
-        data.transformMatrix = matrix.transposed();
+        data.transformMatrix = reader.readMatrix4x4();
         result.emplace_back(std::move(data));
     }
 
@@ -3027,6 +3049,250 @@ float PDF3D_U3D_CLODModifierBlock::getCLODAutomaticLevelOfDetails() const
 float PDF3D_U3D_CLODModifierBlock::getCLODModifierLevel() const
 {
     return m_CLODModifierLevel;
+}
+
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_LightResourceBlock::parse(QByteArray data,
+                                                               QByteArray metaData,
+                                                               PDF3D_U3D_Parser* object)
+{
+    PDF3D_U3D_LightResourceBlock* block = new PDF3D_U3D_LightResourceBlock();
+    PDF3D_U3D_AbstractBlockPtr pointer(block);
+
+    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+
+    // Read the data
+    block->m_resourceName = reader.readString(object->getTextCodec());
+    block->m_attributes = reader.readU32();
+    block->m_type = reader.readU8();
+    reader.readFloats32(block->m_color);
+    reader.readFloats32(block->m_attenuation);
+    block->m_spotAngle = reader.readF32();
+    block->m_intensity = reader.readF32();
+
+    block->parseMetadata(metaData, object);
+    return pointer;
+}
+
+const QString& PDF3D_U3D_LightResourceBlock::getResourceName() const
+{
+    return m_resourceName;
+}
+
+uint32_t PDF3D_U3D_LightResourceBlock::getAttributes() const
+{
+    return m_attributes;
+}
+
+uint8_t PDF3D_U3D_LightResourceBlock::getType() const
+{
+    return m_type;
+}
+
+const PDF3D_U3D_Vec4& PDF3D_U3D_LightResourceBlock::getColor() const
+{
+    return m_color;
+}
+
+const PDF3D_U3D_Vec3& PDF3D_U3D_LightResourceBlock::getAttenuation() const
+{
+    return m_attenuation;
+}
+
+float PDF3D_U3D_LightResourceBlock::getSpotAngle() const
+{
+    return m_spotAngle;
+}
+
+float PDF3D_U3D_LightResourceBlock::getIntensity() const
+{
+    return m_intensity;
+}
+
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_ViewResourceBlock::parse(QByteArray data,
+                                                              QByteArray metaData,
+                                                              PDF3D_U3D_Parser* object)
+{
+    PDF3D_U3D_ViewResourceBlock* block = new PDF3D_U3D_ViewResourceBlock();
+    PDF3D_U3D_AbstractBlockPtr pointer(block);
+
+    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+
+    // Read the data
+    block->m_resourceName = reader.readString(object->getTextCodec());
+
+    const uint32_t passCount = reader.readU32();
+    for (uint32_t i = 0; i < passCount; ++i)
+    {
+        Pass pass;
+
+        pass.rootNodeName = reader.readString(object->getTextCodec());
+        pass.renderAttributes = reader.readU32();
+        pass.fogMode = reader.readU32();
+        reader.readFloats32(pass.color);
+        pass.fogNear = reader.readF32();
+        pass.fogFar = reader.readF32();
+
+        block->m_renderPasses.emplace_back(std::move(pass));
+    }
+
+    block->parseMetadata(metaData, object);
+    return pointer;
+}
+
+const std::vector<PDF3D_U3D_ViewResourceBlock::Pass>& PDF3D_U3D_ViewResourceBlock::getRenderPasses() const
+{
+    return m_renderPasses;
+}
+
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_LitTextureShaderResourceBlock::parse(QByteArray data,
+                                                                          QByteArray metaData,
+                                                                          PDF3D_U3D_Parser* object)
+{
+    PDF3D_U3D_LitTextureShaderResourceBlock* block = new PDF3D_U3D_LitTextureShaderResourceBlock();
+    PDF3D_U3D_AbstractBlockPtr pointer(block);
+
+    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+
+    // Read the data
+    block->m_resourceName = reader.readString(object->getTextCodec());
+    block->m_attributes = reader.readU32();
+    block->m_alphaTestReference = reader.readF32();
+    block->m_alphaTestFunction = reader.readU32();
+    block->m_colorBlendFunction = reader.readU32();
+    block->m_renderPassEnabled = reader.readU32();
+    block->m_shaderChannels = reader.readU32();
+    block->m_alphaTextureChannels = reader.readU32();
+    block->m_materialName = reader.readString(object->getTextCodec());
+
+    uint32_t value = block->m_shaderChannels & 0xFF;
+    uint32_t activeChannelCount = 0;
+    for (; value; ++activeChannelCount)
+    {
+        value = value & (value - 1);
+    }
+
+    for (uint32_t i = 0; i < activeChannelCount; ++i)
+    {
+        TextureInfo info;
+
+        info.textureName = reader.readString(object->getTextCodec());
+        info.textureIntensity = reader.readF32();
+        info.blendFunction = reader.readU8();
+        info.blendSource = reader.readU8();
+        info.blendConstant = reader.readF32();
+        info.textureMode = reader.readU8();
+        info.textureTransform = reader.readMatrix4x4();
+        info.textureMap = reader.readMatrix4x4();
+        info.repeat = reader.readU8();
+
+        block->m_textureInfos.emplace_back(std::move(info));
+    }
+
+    block->parseMetadata(metaData, object);
+    return pointer;
+}
+
+uint32_t PDF3D_U3D_LitTextureShaderResourceBlock::getAttributes() const
+{
+    return m_attributes;
+}
+
+float PDF3D_U3D_LitTextureShaderResourceBlock::getAlphaTestReference() const
+{
+    return m_alphaTestReference;
+}
+
+uint32_t PDF3D_U3D_LitTextureShaderResourceBlock::getColorBlendFunction() const
+{
+    return m_colorBlendFunction;
+}
+
+uint32_t PDF3D_U3D_LitTextureShaderResourceBlock::getAlphaTestFunction() const
+{
+    return m_alphaTestFunction;
+}
+
+uint32_t PDF3D_U3D_LitTextureShaderResourceBlock::getRenderPassEnabled() const
+{
+    return m_renderPassEnabled;
+}
+
+uint32_t PDF3D_U3D_LitTextureShaderResourceBlock::getShaderChannels() const
+{
+    return m_shaderChannels;
+}
+
+uint32_t PDF3D_U3D_LitTextureShaderResourceBlock::getAlphaTextureChannels() const
+{
+    return m_alphaTextureChannels;
+}
+
+const QString& PDF3D_U3D_LitTextureShaderResourceBlock::getMaterialName() const
+{
+    return m_materialName;
+}
+
+const std::vector<PDF3D_U3D_LitTextureShaderResourceBlock::TextureInfo>& PDF3D_U3D_LitTextureShaderResourceBlock::getTextureInfos() const
+{
+    return m_textureInfos;
+}
+
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_MaterialResourceBlock::parse(QByteArray data,
+                                                                  QByteArray metaData,
+                                                                  PDF3D_U3D_Parser* object)
+{
+    PDF3D_U3D_MaterialResourceBlock* block = new PDF3D_U3D_MaterialResourceBlock();
+    PDF3D_U3D_AbstractBlockPtr pointer(block);
+
+    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+
+    // Read the data
+    block->m_resourceName = reader.readString(object->getTextCodec());
+    block->m_materialAttributes = reader.readU32();
+    reader.readFloats32(block->m_ambientColor);
+    reader.readFloats32(block->m_diffuseColor);
+    reader.readFloats32(block->m_specularColor);
+    reader.readFloats32(block->m_emissiveColor);
+    block->m_reflectivity = reader.readF32();
+    block->m_opacity = reader.readF32();
+
+    block->parseMetadata(metaData, object);
+    return pointer;
+}
+
+uint32_t PDF3D_U3D_MaterialResourceBlock::getMaterialAttributes() const
+{
+    return m_materialAttributes;
+}
+
+const PDF3D_U3D_Vec3& PDF3D_U3D_MaterialResourceBlock::getAmbientColor() const
+{
+    return m_ambientColor;
+}
+
+const PDF3D_U3D_Vec3& PDF3D_U3D_MaterialResourceBlock::getDiffuseColor() const
+{
+    return m_diffuseColor;
+}
+
+const PDF3D_U3D_Vec3& PDF3D_U3D_MaterialResourceBlock::getSpecularColor() const
+{
+    return m_specularColor;
+}
+
+const PDF3D_U3D_Vec3& PDF3D_U3D_MaterialResourceBlock::getEmissiveColor() const
+{
+    return m_emissiveColor;
+}
+
+float PDF3D_U3D_MaterialResourceBlock::getReflectivity() const
+{
+    return m_reflectivity;
+}
+
+float PDF3D_U3D_MaterialResourceBlock::getOpacity() const
+{
+    return m_opacity;
 }
 
 }   // namespace u3d

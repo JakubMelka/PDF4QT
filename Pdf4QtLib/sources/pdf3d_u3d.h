@@ -1088,6 +1088,127 @@ private:
     float m_CLODModifierLevel = 0.0;
 };
 
+class PDF3D_U3D_LightResourceBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_ResourceLight;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
+
+    const QString& getResourceName() const;
+    uint32_t getAttributes() const;
+    uint8_t getType() const;
+    const PDF3D_U3D_Vec4& getColor() const;
+    const PDF3D_U3D_Vec3& getAttenuation() const;
+    float getSpotAngle() const;
+    float getIntensity() const;
+
+private:
+    QString m_resourceName;
+    uint32_t m_attributes = 0;
+    uint8_t m_type = 0;
+    PDF3D_U3D_Vec4 m_color = { };
+    PDF3D_U3D_Vec3 m_attenuation = { };
+    float m_spotAngle = 0.0;
+    float m_intensity = 0.0;
+};
+
+class PDF3D_U3D_ViewResourceBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_ResourceView;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
+
+    struct Pass
+    {
+        QString rootNodeName;
+        uint32_t renderAttributes = 0;
+        uint32_t fogMode = 0;
+        PDF3D_U3D_Vec4 color = { };
+        float fogNear = 0.0;
+        float fogFar = 0.0;
+    };
+
+    const QString& getResourceName() const;
+    const std::vector<Pass>& getRenderPasses() const;
+
+private:
+    QString m_resourceName;
+    std::vector<Pass> m_renderPasses;
+};
+
+class PDF3D_U3D_LitTextureShaderResourceBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_ResourceLitShader;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
+
+    struct TextureInfo
+    {
+        QString textureName;
+        float textureIntensity = 0.0;
+        uint8_t blendFunction = 0;
+        uint8_t blendSource = 0;
+        float blendConstant = 0.0;
+        uint8_t textureMode = 0;
+        QMatrix4x4 textureTransform;
+        QMatrix4x4 textureMap;
+        uint8_t repeat = 0;
+    };
+
+    const QString& getResourceName() const;
+    uint32_t getAttributes() const;
+    float getAlphaTestReference() const;
+    uint32_t getColorBlendFunction() const;
+    uint32_t getAlphaTestFunction() const;
+    uint32_t getRenderPassEnabled() const;
+    uint32_t getShaderChannels() const;
+    uint32_t getAlphaTextureChannels() const;
+    const QString& getMaterialName() const;
+    const std::vector<TextureInfo>& getTextureInfos() const;
+
+private:
+    QString m_resourceName;
+    uint32_t m_attributes = 0;
+    float m_alphaTestReference = 0.0;
+    uint32_t m_alphaTestFunction = 0;
+    uint32_t m_colorBlendFunction = 0;
+    uint32_t m_renderPassEnabled = 0;
+    uint32_t m_shaderChannels = 0;
+    uint32_t m_alphaTextureChannels = 0;
+    QString m_materialName;
+    std::vector<TextureInfo> m_textureInfos;
+};
+
+class PDF3D_U3D_MaterialResourceBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_ResourceMaterial;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
+
+    const QString& getResourceName() const;
+    uint32_t getMaterialAttributes() const;
+    const PDF3D_U3D_Vec3& getAmbientColor() const;
+    const PDF3D_U3D_Vec3& getDiffuseColor() const;
+    const PDF3D_U3D_Vec3& getSpecularColor() const;
+    const PDF3D_U3D_Vec3& getEmissiveColor() const;
+    float getReflectivity() const;
+    float getOpacity() const;
+
+private:
+    QString m_resourceName;
+    uint32_t m_materialAttributes = 0;
+    PDF3D_U3D_Vec3 m_ambientColor = { };
+    PDF3D_U3D_Vec3 m_diffuseColor = { };
+    PDF3D_U3D_Vec3 m_specularColor = { };
+    PDF3D_U3D_Vec3 m_emissiveColor = { };
+    float m_reflectivity = 0.0;
+    float m_opacity = 0.0;
+};
+
 // -------------------------------------------------------------------------------
 //                                  PDF3D_U3D
 // -------------------------------------------------------------------------------
@@ -1300,6 +1421,8 @@ public:
     QUuid readUuid();
     QString readString(QTextCodec* textCodec);
     QStringList readStringList(uint32_t count, QTextCodec* textCodec);
+
+    QMatrix4x4 readMatrix4x4();
 
     PDF3D_U3D_QuantizedVec4 readQuantizedVec4(uint32_t contextSign,
                                               uint32_t context1,
