@@ -28,6 +28,8 @@
 
 #include <array>
 
+#include <QImage>
+
 class QTextCodec;
 
 namespace pdf
@@ -1209,6 +1211,56 @@ private:
     float m_opacity = 0.0;
 };
 
+class PDF3D_U3D_TextureResourceBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_ResourceTexture;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
+
+    struct ContinuationImageFormat
+    {
+        bool isExternal() const { return attributes & 0x0001; }
+
+        uint8_t compressionType = 0;
+        uint8_t channels = 0;
+        uint16_t attributes = 0;
+        uint32_t imageDataByteCount = 0;
+        uint32_t imageURLCount = 0;
+        QStringList imageURLs;
+    };
+
+    const QString& getResourceName() const;
+    uint32_t getTextureHeight() const;
+    uint32_t getTextureWidth() const;
+    uint8_t getType() const;
+    const std::vector<ContinuationImageFormat>& getFormats() const;
+
+private:
+    QString m_resourceName;
+    uint32_t m_textureHeight = 0;
+    uint32_t m_textureWidth = 0;
+    uint8_t m_type = 0;
+    std::vector<ContinuationImageFormat> m_formats;
+};
+
+class PDF3D_U3D_TextureContinuationResourceBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_ResourceTextureCont;
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
+
+    const QString& getResourceName() const;
+    uint32_t getImageIndex() const;
+    const QByteArray& getImageData() const;
+
+private:
+    QString m_resourceName;
+    uint32_t m_imageIndex = 0;
+    QByteArray m_imageData;
+};
+
 // -------------------------------------------------------------------------------
 //                                  PDF3D_U3D
 // -------------------------------------------------------------------------------
@@ -1217,6 +1269,11 @@ class PDF4QTLIBSHARED_EXPORT PDF3D_U3D
 {
 public:
     PDF3D_U3D();
+
+    void setTexture(const QString& textureName, QImage texture);
+
+private:
+    std::map<QString, QImage> m_textures;
 };
 
 // -------------------------------------------------------------------------------
@@ -1286,6 +1343,8 @@ public:
 
     auto front() const { return m_blocks.front(); }
     auto back() const { return m_blocks.back(); }
+
+    auto size() const { return m_blocks.size(); }
 
 private:
     std::vector<PDF3D_U3D_Block_Data> m_blocks;
@@ -1362,6 +1421,7 @@ public:
     void processCLODMesh(const PDF3D_U3D_Decoder& decoder);
     void processPointSet(const PDF3D_U3D_Decoder& decoder);
     void processLineSet(const PDF3D_U3D_Decoder& decoder);
+    void processTexture(const PDF3D_U3D_Decoder& decoder);
 
     void addBlockToU3D(PDF3D_U3D_AbstractBlockPtr block);
 

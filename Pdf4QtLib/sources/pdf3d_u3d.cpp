@@ -18,6 +18,7 @@
 #include "pdf3d_u3d.h"
 
 #include <QTextCodec>
+#include <QImageReader>
 
 #include <array>
 
@@ -647,6 +648,11 @@ PDF3D_U3D::PDF3D_U3D()
 
 }
 
+void PDF3D_U3D::setTexture(const QString& textureName, QImage texture)
+{
+    m_textures[textureName] = std::move(texture);
+}
+
 PDF3D_U3D_Block_Data PDF3D_U3D_Parser::readBlockData(PDF3D_U3D_DataReader& reader)
 {
     PDF3D_U3D_Block_Data data;
@@ -698,7 +704,7 @@ void PDF3D_U3D_Parser::processCLODMesh(const PDF3D_U3D_Decoder& decoder)
             }
 
             default:
-                m_errors << QString("Invalid block type for CLOD mesh!");
+                m_errors << PDFTranslationContext::tr("Invalid block type '%1' for CLOD mesh!").arg(blockData.blockType, 8, 16);
         }
     }
 }
@@ -721,7 +727,7 @@ void PDF3D_U3D_Parser::processPointSet(const PDF3D_U3D_Decoder& decoder)
             }
 
             default:
-                m_errors << QString("Invalid block type for Point set!");
+                m_errors << PDFTranslationContext::tr("Invalid block type '%1' for Point set!").arg(blockData.blockType, 8, 16);
         }
     }
 }
@@ -744,9 +750,138 @@ void PDF3D_U3D_Parser::processLineSet(const PDF3D_U3D_Decoder& decoder)
             }
 
             default:
-                m_errors << QString("Invalid block type for line set!");
+                m_errors << PDFTranslationContext::tr("Invalid block type '%1' for line set!").arg(blockData.blockType, 8, 16);
         }
     }
+}
+
+void PDF3D_U3D_Parser::processTexture(const PDF3D_U3D_Decoder& decoder)
+{
+    auto block = parseBlock(decoder.front());
+    const PDF3D_U3D_TextureResourceBlock* declarationBlock = dynamic_cast<const PDF3D_U3D_TextureResourceBlock*>(block.data());
+
+    std::map<uint32_t, QByteArray> imageData;
+
+    for (auto it = std::next(decoder.begin()); it != decoder.end(); ++it)
+    {
+        auto blockData = *it;
+        switch (blockData.blockType)
+        {
+            case PDF3D_U3D_Block_Info::BT_ResourceTextureCont:
+            {
+                // TODO: process block data
+                auto currentBlock = PDF3D_U3D_TextureContinuationResourceBlock::parse(blockData.blockData, blockData.metaData, this);
+                const PDF3D_U3D_TextureContinuationResourceBlock* typedBlock = dynamic_cast<const PDF3D_U3D_TextureContinuationResourceBlock*>(currentBlock.data());
+
+                imageData[typedBlock->getImageIndex()].append(typedBlock->getImageData());
+                break;
+            }
+
+            default:
+                m_errors << PDFTranslationContext::tr("Invalid block type '%1' for texture!").arg(blockData.blockType, 8, 16);
+        }
+    }
+
+    QImage::Format format = QImage::Format_Invalid;
+    switch (declarationBlock->getType())
+    {
+        case 0x01:
+            format = QImage::Format_Alpha8;
+            break;
+
+        case 0x0E:
+            format = QImage::Format_RGB888;
+            break;
+
+        case 0x0F:
+            format = QImage::Format_RGBA8888;
+            break;
+
+        case 0x10:
+            format = QImage::Format_Grayscale8;
+            break;
+
+        case 0x11:
+            format = QImage::Format_RGBA8888;
+            break;
+
+        default:
+            m_errors << PDFTranslationContext::tr("Invalid texture format '%1'.").arg(declarationBlock->getType(), 2, 16);
+            break;
+    }
+
+    if (format == QImage::Format_Invalid)
+    {
+        m_errors << PDFTranslationContext::tr("Texture image bad format.");
+        return;
+    }
+
+    QImage texture(declarationBlock->getTextureWidth(),
+                   declarationBlock->getTextureHeight(),
+                   format);
+    texture.fill(Qt::transparent);
+
+    const std::vector<PDF3D_U3D_TextureResourceBlock::ContinuationImageFormat>& formats = declarationBlock->getFormats();
+    for (size_t i = 0; i < formats.size(); ++i)
+    {
+        const PDF3D_U3D_TextureResourceBlock::ContinuationImageFormat& format = formats[i];
+
+        if (format.isExternal())
+        {
+            m_errors << PDFTranslationContext::tr("Textures with external images not supported.");
+            continue;
+        }
+
+        QBuffer buffer(&imageData[static_cast<uint32_t>(i)]);
+        buffer.open(QBuffer::ReadOnly);
+
+        QImageReader reader;
+        reader.setAutoDetectImageFormat(true);
+        reader.setAutoTransform(false);
+        reader.setDecideFormatFromContent(true);
+        reader.setDevice(&buffer);
+
+        QImage image = reader.read();
+        buffer.close();
+
+        if (image.width() != texture.width() || image.height() != texture.height())
+        {
+            m_errors << PDFTranslationContext::tr("Texture image bad size.");
+            continue;
+        }
+
+        switch (declarationBlock->getType())
+        {
+            case QImage::Format_Alpha8:
+            {
+                if (image.hasAlphaChannel())
+                {
+                    texture = image.alphaChannel();
+                }
+                else
+                {
+                    image = image.convertToFormat(QImage::Format_Grayscale8);
+                    std::memcpy(texture.bits(), image.bits(), image.sizeInBytes());
+                }
+
+                break;
+            }
+            case QImage::Format_RGB888:
+            case QImage::Format_RGBA8888:
+            case QImage::Format_Grayscale8:
+            {
+                // Jakub Melka: We will ignore channel bit flags - they are very often not used anyway
+                texture = image.convertToFormat(texture.format());
+                break;
+            }
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+    }
+
+    m_object.setTexture(declarationBlock->getResourceName(), std::move(texture));
 }
 
 void PDF3D_U3D_Parser::addBlockToU3D(PDF3D_U3D_AbstractBlockPtr block)
@@ -797,8 +932,17 @@ PDF3D_U3D PDF3D_U3D_Parser::parse(QByteArray data)
                         processLineSet(decoder);
                         break;
 
+                    case PDF3D_U3D_Block_Info::BT_ResourceTexture:
+                        processTexture(decoder);
+                        break;
+
                     default:
                     {
+                        if (decoder.size() > 1)
+                        {
+                            m_errors << PDFTranslationContext::tr("Invalid block count in decoder.");
+                        }
+
                         auto block = parseBlock(blockData);
                         addBlockToU3D(block);
                     }
@@ -901,14 +1045,14 @@ void PDF3D_U3D_Parser::processGenericBlock(const PDF3D_U3D_Block_Data& blockData
         PDF3D_U3D_DecoderChain* decoderChain = decoderPalette->getDecoderChain(blockName);
         if (!decoderChain)
         {
-            m_errors << QString("Failed to add continuation block '%1' - decoder chain does not exist!").arg(blockName);
+            m_errors << PDFTranslationContext::tr("Failed to add continuation block '%1' - decoder chain does not exist!").arg(blockName);
             return;
         }
 
         PDF3D_U3D_Decoder* decoder = decoderChain->getDecoder(chainIndex);
         if (!decoder)
         {
-            m_errors << QString("Failed to add continuation block '%1' - decoder does not exist at position %2!").arg(blockName).arg(chainIndex);
+            m_errors << PDFTranslationContext::tr("Failed to add continuation block '%1' - decoder does not exist at position %2!").arg(blockName).arg(chainIndex);
             return;
         }
 
@@ -1003,8 +1147,23 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_Parser::parseBlock(uint32_t blockType,
         case PDF3D_U3D_CLODModifierBlock::ID:
             return PDF3D_U3D_CLODModifierBlock::parse(data, metaData, this);
 
+        case PDF3D_U3D_LightResourceBlock::ID:
+            return PDF3D_U3D_LightResourceBlock::parse(data, metaData, this);
+
+        case PDF3D_U3D_ViewResourceBlock::ID:
+            return PDF3D_U3D_ViewResourceBlock::parse(data, metaData, this);
+
+        case PDF3D_U3D_LitTextureShaderResourceBlock::ID:
+            return PDF3D_U3D_LitTextureShaderResourceBlock::parse(data, metaData, this);
+
+        case PDF3D_U3D_MaterialResourceBlock::ID:
+            return PDF3D_U3D_MaterialResourceBlock::parse(data, metaData, this);
+
+        case PDF3D_U3D_TextureResourceBlock::ID:
+            return PDF3D_U3D_TextureResourceBlock::parse(data, metaData, this);
+
         default:
-            m_errors << QString("Unable to parse block.");
+            m_errors << PDFTranslationContext::tr("Unable to parse block of type '%1'.").arg(blockType, 8, 16);
             break;
     }
 
@@ -3293,6 +3452,98 @@ float PDF3D_U3D_MaterialResourceBlock::getReflectivity() const
 float PDF3D_U3D_MaterialResourceBlock::getOpacity() const
 {
     return m_opacity;
+}
+
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_TextureResourceBlock::parse(QByteArray data,
+                                                                 QByteArray metaData,
+                                                                 PDF3D_U3D_Parser* object)
+{
+    PDF3D_U3D_TextureResourceBlock* block = new PDF3D_U3D_TextureResourceBlock();
+    PDF3D_U3D_AbstractBlockPtr pointer(block);
+
+    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+
+    // Read the data
+    block->m_resourceName = reader.readString(object->getTextCodec());
+    block->m_textureHeight = reader.readU32();
+    block->m_textureWidth = reader.readU32();
+    block->m_type = reader.readU8();
+
+    const uint32_t imageCount = reader.readU32();
+    for (uint32_t i = 0; i < imageCount; ++i)
+    {
+        ContinuationImageFormat format;
+
+        format.compressionType = reader.readU8();
+        format.channels = reader.readU8();
+        format.attributes = reader.readU16();
+
+        if (!format.isExternal())
+        {
+            format.imageDataByteCount = reader.readU32();
+        }
+        else
+        {
+            format.imageURLCount = reader.readU32();
+            format.imageURLs = reader.readStringList(format.imageURLCount, object->getTextCodec());
+        }
+
+        block->m_formats.emplace_back(std::move(format));
+    }
+
+    block->parseMetadata(metaData, object);
+    return pointer;
+}
+
+const QString& PDF3D_U3D_TextureResourceBlock::getResourceName() const
+{
+    return m_resourceName;
+}
+
+uint32_t PDF3D_U3D_TextureResourceBlock::getTextureHeight() const
+{
+    return m_textureHeight;
+}
+
+uint32_t PDF3D_U3D_TextureResourceBlock::getTextureWidth() const
+{
+    return m_textureWidth;
+}
+
+uint8_t PDF3D_U3D_TextureResourceBlock::getType() const
+{
+    return m_type;
+}
+
+const std::vector<PDF3D_U3D_TextureResourceBlock::ContinuationImageFormat>& PDF3D_U3D_TextureResourceBlock::getFormats() const
+{
+    return m_formats;
+}
+
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_TextureContinuationResourceBlock::parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object)
+{
+    PDF3D_U3D_TextureContinuationResourceBlock* block = new PDF3D_U3D_TextureContinuationResourceBlock();
+    PDF3D_U3D_AbstractBlockPtr pointer(block);
+
+    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+
+    // Read the data
+    block->m_resourceName = reader.readString(object->getTextCodec());
+    block->m_imageIndex = reader.readU32();
+    block->m_imageData = reader.readRemainingData();
+
+    block->parseMetadata(metaData, object);
+    return pointer;
+}
+
+uint32_t PDF3D_U3D_TextureContinuationResourceBlock::getImageIndex() const
+{
+    return m_imageIndex;
+}
+
+const QByteArray& PDF3D_U3D_TextureContinuationResourceBlock::getImageData() const
+{
+    return m_imageData;
 }
 
 }   // namespace u3d
