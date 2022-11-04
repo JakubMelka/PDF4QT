@@ -648,9 +648,14 @@ PDF3D_U3D::PDF3D_U3D()
 
 }
 
-void PDF3D_U3D::setTexture(const QString& textureName, QImage texture)
+void PDF3D_U3D::setLightResource(const QString& lightName, PDF3D_U3D_Light light)
 {
-    m_textures[textureName] = std::move(texture);
+    m_lightResources[lightName] = std::move(light);
+}
+
+void PDF3D_U3D::setTextureResource(const QString& textureName, QImage texture)
+{
+    m_textureResources[textureName] = std::move(texture);
 }
 
 PDF3D_U3D_Block_Data PDF3D_U3D_Parser::readBlockData(PDF3D_U3D_DataReader& reader)
@@ -769,7 +774,6 @@ void PDF3D_U3D_Parser::processTexture(const PDF3D_U3D_Decoder& decoder)
         {
             case PDF3D_U3D_Block_Info::BT_ResourceTextureCont:
             {
-                // TODO: process block data
                 auto currentBlock = PDF3D_U3D_TextureContinuationResourceBlock::parse(blockData.blockData, blockData.metaData, this);
                 const PDF3D_U3D_TextureContinuationResourceBlock* typedBlock = dynamic_cast<const PDF3D_U3D_TextureContinuationResourceBlock*>(currentBlock.data());
 
@@ -850,7 +854,7 @@ void PDF3D_U3D_Parser::processTexture(const PDF3D_U3D_Decoder& decoder)
             continue;
         }
 
-        switch (declarationBlock->getType())
+        switch (texture.format())
         {
             case QImage::Format_Alpha8:
             {
@@ -866,8 +870,8 @@ void PDF3D_U3D_Parser::processTexture(const PDF3D_U3D_Decoder& decoder)
 
                 break;
             }
-            case QImage::Format_RGB888:
-            case QImage::Format_RGBA8888:
+            case QImage::Format_RGB888:  
+            case QImage::Format_RGBA8888:  
             case QImage::Format_Grayscale8:
             {
                 // Jakub Melka: We will ignore channel bit flags - they are very often not used anyway
@@ -881,12 +885,65 @@ void PDF3D_U3D_Parser::processTexture(const PDF3D_U3D_Decoder& decoder)
         }
     }
 
-    m_object.setTexture(declarationBlock->getResourceName(), std::move(texture));
+    m_object.setTextureResource(declarationBlock->getResourceName(), std::move(texture));
 }
 
 void PDF3D_U3D_Parser::addBlockToU3D(PDF3D_U3D_AbstractBlockPtr block)
 {
-    // TODO: add block to U3D
+    switch (block->getBlockType())
+    {
+        case PDF3D_U3D_Block_Info::BT_ResourceLight:
+        {
+            const PDF3D_U3D_LightResourceBlock* lightResourceBlock = dynamic_cast<const PDF3D_U3D_LightResourceBlock*>(block.data());
+            PDF3D_U3D_Light light;
+
+            auto colorVector = lightResourceBlock->getColor();
+            auto attenuation = lightResourceBlock->getAttenuation();
+
+            light.setIsEnabled(lightResourceBlock->getAttributes() & 0x01);
+            light.setIsSpecular(lightResourceBlock->getAttributes() & 0x02);
+            light.setIsSpotDecay(lightResourceBlock->getAttributes() & 0x04);
+            light.setColor(QColor::fromRgbF(colorVector[0], colorVector[1], colorVector[2], colorVector[3]));
+            light.setSpotAngle(lightResourceBlock->getSpotAngle());
+            light.setIntensity(lightResourceBlock->getIntensity());
+            light.setAttenuation(QVector3D(attenuation[0], attenuation[1], attenuation[2]));
+
+
+            PDF3D_U3D_Light::Type type = PDF3D_U3D_Light::Ambient;
+            switch (lightResourceBlock->getType())
+            {
+                case 0x00:
+                    type = PDF3D_U3D_Light::Ambient;
+                    break;
+
+                case 0x01:
+                    type = PDF3D_U3D_Light::Directional;
+                    break;
+
+                case 0x02:
+                    type = PDF3D_U3D_Light::Point;
+                    break;
+
+                case 0x03:
+                    type = PDF3D_U3D_Light::Spot;
+                    break;
+
+                default:
+                    m_errors << PDFTranslationContext::tr("Unkown light type '%1'.").arg(lightResourceBlock->getType(), 2, 16);
+                    break;
+            }
+
+            m_object.setLightResource(lightResourceBlock->getResourceName(), std::move(light));
+            break;
+        }
+
+        default:
+        {
+            // TODO: add block to U3D
+            m_errors << PDFTranslationContext::tr("Block type (%1) not supported in scene decoder.").arg(block->getBlockType(), 8, 16);
+            break;
+        }
+    }
 }
 
 PDF3D_U3D_Parser::PDF3D_U3D_Parser()
@@ -3544,6 +3601,86 @@ uint32_t PDF3D_U3D_TextureContinuationResourceBlock::getImageIndex() const
 const QByteArray& PDF3D_U3D_TextureContinuationResourceBlock::getImageData() const
 {
     return m_imageData;
+}
+
+bool PDF3D_U3D_Light::isEnabled() const
+{
+    return m_isEnabled;
+}
+
+void PDF3D_U3D_Light::setIsEnabled(bool newIsEnabled)
+{
+    m_isEnabled = newIsEnabled;
+}
+
+bool PDF3D_U3D_Light::isSpecular() const
+{
+    return m_isSpecular;
+}
+
+void PDF3D_U3D_Light::setIsSpecular(bool newIsSpecular)
+{
+    m_isSpecular = newIsSpecular;
+}
+
+bool PDF3D_U3D_Light::isSpotDecay() const
+{
+    return m_isSpotDecay;
+}
+
+void PDF3D_U3D_Light::setIsSpotDecay(bool newIsSpotDecay)
+{
+    m_isSpotDecay = newIsSpotDecay;
+}
+
+PDF3D_U3D_Light::Type PDF3D_U3D_Light::getType() const
+{
+    return m_type;
+}
+
+void PDF3D_U3D_Light::setType(Type newType)
+{
+    m_type = newType;
+}
+
+const QColor& PDF3D_U3D_Light::getColor() const
+{
+    return m_color;
+}
+
+void PDF3D_U3D_Light::setColor(const QColor& newColor)
+{
+    m_color = newColor;
+}
+
+const QVector3D& PDF3D_U3D_Light::getAttenuation() const
+{
+    return m_attenuation;
+}
+
+void PDF3D_U3D_Light::setAttenuation(const QVector3D& newAttenuation)
+{
+    m_attenuation = newAttenuation;
+}
+
+float PDF3D_U3D_Light::getSpotAngle() const
+{
+    return m_spotAngle;
+}
+
+void PDF3D_U3D_Light::setSpotAngle(float newSpotAngle)
+{
+    m_spotAngle = newSpotAngle;
+}
+
+float PDF3D_U3D_Light::getIntensity() const
+{
+    return m_intensity;
+}
+
+void PDF3D_U3D_Light::setIntensity(float newIntensity)
+{
+    m_intensity = newIntensity;
 }
 
 }   // namespace u3d
