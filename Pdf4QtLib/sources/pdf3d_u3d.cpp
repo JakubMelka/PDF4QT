@@ -256,6 +256,17 @@ QMatrix4x4 PDF3D_U3D_DataReader::readMatrix4x4()
     return matrix.transposed();
 }
 
+PDF3D_U3D_QuantizedVec1 PDF3D_U3D_DataReader::readQuantizedVec1(uint32_t contextSign,
+                                                                uint32_t context1)
+{
+    PDF3D_U3D_QuantizedVec1 result;
+
+    result.signBits = readCompressedU8(contextSign);
+    result.diff1 = readCompressedU32(context1);
+
+    return result;
+}
+
 PDF3D_U3D_QuantizedVec4 PDF3D_U3D_DataReader::readQuantizedVec4(uint32_t contextSign,
                                                                 uint32_t context1,
                                                                 uint32_t context2,
@@ -648,6 +659,28 @@ PDF3D_U3D::PDF3D_U3D()
 
 }
 
+const PDF3D_U3D_Node& PDF3D_U3D::getNode(const QString& nodeName) const
+{
+    auto it = m_sceneGraph.find(nodeName);
+    if (it != m_sceneGraph.end())
+    {
+        return it.second;
+    }
+
+    static const PDF3D_U3D_Node dummyNode;
+    return dummyNode;
+}
+
+PDF3D_U3D_Node& PDF3D_U3D::getOrCreateNode(const QString& nodeName)
+{
+    return m_sceneGraph[nodeName];
+}
+
+void PDF3D_U3D::setViewResource(const QString& viewName, PDF3D_U3D_View view)
+{
+    m_viewResoures[viewName] = std::move(view);
+}
+
 void PDF3D_U3D::setLightResource(const QString& lightName, PDF3D_U3D_Light light)
 {
     m_lightResources[lightName] = std::move(light);
@@ -656,6 +689,16 @@ void PDF3D_U3D::setLightResource(const QString& lightName, PDF3D_U3D_Light light
 void PDF3D_U3D::setTextureResource(const QString& textureName, QImage texture)
 {
     m_textureResources[textureName] = std::move(texture);
+}
+
+void PDF3D_U3D::setShaderResource(const QString& shaderName, PDF3D_U3D_Shader shader)
+{
+    m_shaderResources[shaderName] = std::move(shader);
+}
+
+void PDF3D_U3D::setMaterialResource(const QString& materialName, PDF3D_U3D_Material material)
+{
+    m_materialResources[materialName] = std::move(material);
 }
 
 PDF3D_U3D_Block_Data PDF3D_U3D_Parser::readBlockData(PDF3D_U3D_DataReader& reader)
@@ -929,11 +972,191 @@ void PDF3D_U3D_Parser::addBlockToU3D(PDF3D_U3D_AbstractBlockPtr block)
                     break;
 
                 default:
-                    m_errors << PDFTranslationContext::tr("Unkown light type '%1'.").arg(lightResourceBlock->getType(), 2, 16);
+                    m_errors << PDFTranslationContext::tr("Unknown light type '%1'.").arg(lightResourceBlock->getType(), 2, 16);
                     break;
             }
 
             m_object.setLightResource(lightResourceBlock->getResourceName(), std::move(light));
+            break;
+        }
+
+        case PDF3D_U3D_Block_Info::BT_ResourceView:
+        {
+            const PDF3D_U3D_ViewResourceBlock* viewResourceBlock = dynamic_cast<const PDF3D_U3D_ViewResourceBlock*>(block.data());
+            PDF3D_U3D_View view;
+
+            std::vector<PDF3D_U3D_RenderPass> renderPasses;
+            for (const PDF3D_U3D_ViewResourceBlock::Pass& sourceRenderPass : viewResourceBlock->getRenderPasses())
+            {
+                PDF3D_U3D_RenderPass renderPass;
+
+                renderPass.setRootNodeName(sourceRenderPass.rootNodeName);
+
+                if (sourceRenderPass.renderAttributes & 0x00000001)
+                {
+                    PDF3D_U3D_Fog fog;
+
+                    fog.setEnabled(true);
+                    fog.setMode(static_cast<PDF3D_U3D_Fog::FogMode>(sourceRenderPass.fogMode));
+                    fog.setColor(QColor::fromRgbF(sourceRenderPass.fogColor[0],
+                                                  sourceRenderPass.fogColor[1],
+                                                  sourceRenderPass.fogColor[2],
+                                                  sourceRenderPass.fogColor[3]));
+                    fog.setNear(sourceRenderPass.fogNear);
+                    fog.setFar(sourceRenderPass.fogFar);
+
+                    renderPass.setFog(fog);
+                }
+
+                renderPasses.emplace_back(std::move(renderPass));
+            }
+
+            view.setRenderPasses(std::move(renderPasses));
+
+            m_object.setViewResource(viewResourceBlock->getResourceName(), std::move(view));
+            break;
+        }
+
+        case PDF3D_U3D_Block_Info::BT_ResourceLitShader:
+        {
+            const PDF3D_U3D_LitTextureShaderResourceBlock* shaderBlock = dynamic_cast<const PDF3D_U3D_LitTextureShaderResourceBlock*>(block.data());
+
+            PDF3D_U3D_Shader shader;
+
+            shader.setIsLightingEnabled(shaderBlock->getAttributes() & 0x01);
+            shader.setIsAlphaTestEnabled(shaderBlock->getAttributes() & 0x02);
+            shader.setIsUseVertexColor(shaderBlock->getAttributes() & 0x04);
+            shader.setAlphaTestReference(shaderBlock->getAlphaTestReference());
+            shader.setAlphaTestFunction(static_cast<PDF3D_U3D_Shader::AlphaTestFunction>(shaderBlock->getAlphaTestFunction()));
+            shader.setColorBlendFunction(static_cast<PDF3D_U3D_Shader::ColorBlendFunction>(shaderBlock->getColorBlendFunction()));
+            shader.setRenderPassEnabledFlags(shaderBlock->getRenderPassEnabled());
+            shader.setShaderChannels(shaderBlock->getShaderChannels());
+            shader.setAlphaTextureChannels(shaderBlock->getAlphaTextureChannels());
+            shader.setMaterialName(shaderBlock->getMaterialName());
+
+            PDF3D_U3D_Shader::PDF_U3D_TextureInfos textureInfos;
+            for (const PDF3D_U3D_LitTextureShaderResourceBlock::TextureInfo& textureInfo : shaderBlock->getTextureInfos())
+            {
+                PDF3D_U3D_Shader::PDF_U3D_TextureInfo info;
+
+                info.textureName = textureInfo.textureName;
+                info.textureIntensity = textureInfo.textureIntensity;
+                info.blendFunction = static_cast<PDF3D_U3D_Shader::TextureBlendFunction>(textureInfo.blendFunction);
+                info.blendSource = static_cast<PDF3D_U3D_Shader::TextureBlendSource>(textureInfo.blendSource);
+                info.blendConstant = textureInfo.blendConstant;
+                info.textureMode = static_cast<PDF3D_U3D_Shader::TextureMode>(textureInfo.textureMode);
+                info.textureTransform = textureInfo.textureTransform;
+                info.textureMap = textureInfo.textureMap;
+                info.repeatU = textureInfo.repeat & 0x01;
+                info.repeatV = textureInfo.repeat & 0x02;
+
+                textureInfos.emplace_back(std::move(info));
+            }
+            shader.setTextureInfos(std::move(textureInfos));
+
+            m_object.setShaderResource(shaderBlock->getResourceName(), std::move(shader));
+            break;
+        }
+
+        case PDF3D_U3D_Block_Info::BT_ResourceMaterial:
+        {
+            const PDF3D_U3D_MaterialResourceBlock* materialBlock = dynamic_cast<const PDF3D_U3D_MaterialResourceBlock*>(block.data());
+
+            PDF3D_U3D_Material material;
+
+            const bool hasAmbient = materialBlock->getMaterialAttributes() & 0x01;
+            const bool hasDiffuse = materialBlock->getMaterialAttributes() & 0x02;
+            const bool hasSpecular = materialBlock->getMaterialAttributes() & 0x04;
+            const bool hasEmmissive = materialBlock->getMaterialAttributes() & 0x08;
+            const bool hasReflectivity = materialBlock->getMaterialAttributes() & 0x10;
+            const bool hasOpacity = materialBlock->getMaterialAttributes() & 0x20;
+
+            const float opacity = hasOpacity ? materialBlock->getOpacity() : 1.0f;
+            const float reflectivity = hasReflectivity ? materialBlock->getReflectivity() : 0.0f;
+
+            auto a = materialBlock->getAmbientColor();
+            auto d = materialBlock->getDiffuseColor();
+            auto s = materialBlock->getSpecularColor();
+            auto e = materialBlock->getEmissiveColor();
+
+            QColor ambientColor = hasAmbient ? QColor::fromRgbF(a[0], a[1], a[2], opacity) : QColor();
+            QColor diffuseColor = hasDiffuse ? QColor::fromRgbF(d[0], d[1], d[2], opacity) : QColor();
+            QColor specularColor = hasSpecular ? QColor::fromRgbF(s[0], s[1], s[2], opacity) : QColor();
+            QColor emmisiveColor = hasEmmissive ? QColor::fromRgbF(e[0], e[1], e[2], opacity) : QColor();
+
+            material.setAmbientColor(ambientColor);
+            material.setDiffuseColor(diffuseColor);
+            material.setSpecularColor(specularColor);
+            material.setEmmisiveColor(emmisiveColor);
+            material.setReflectivity(reflectivity);
+
+            m_object.setMaterialResource(materialBlock->getResourceName(), std::move(material));
+            break;
+        }
+
+        case PDF3D_U3D_Block_Info::BT_NodeGroup:
+        {
+            const PDF3D_U3D_GroupNodeBlock* groupNodeBlock = dynamic_cast<const PDF3D_U3D_GroupNodeBlock*>(block.data());
+
+            PDF3D_U3D_Node& node = m_object.getOrCreateNode(groupNodeBlock);
+            node.setNodeName(groupNodeBlock->getGroupNodeName());
+            node.setType(PDF3D_U3D_Node::Group);
+
+            for (const PDF3D_U3D_AbstractBlock::ParentNodeData& parentNodeData : groupNodeBlock->getParentNodesData())
+            {
+                m_object.getOrCreateNode(parentNodeData.parentNodeName).addChild(groupNodeBlock->getGroupNodeName(), parentNodeData.transformMatrix);
+            }
+
+            break;
+        }
+
+        case PDF3D_U3D_Block_Info::BT_NodeModel:
+        {
+            const PDF3D_U3D_ModelNodeBlock* modelNodeBlock = dynamic_cast<const PDF3D_U3D_ModelNodeBlock*>(block.data());
+
+            PDF3D_U3D_Node& node = m_object.getOrCreateNode(modelNodeBlock);
+            node.setNodeName(modelNodeBlock->getModelNodeName());
+            node.setResourceName(modelNodeBlock->getModelResourceName());
+            node.setType(PDF3D_U3D_Node::Model);
+            node.setIsEnabled(!modelNodeBlock->isHidden());
+            node.setIsFrontVisible(modelNodeBlock->isFrontVisible() || modelNodeBlock->isFrontAndBackVisible());
+            node.setIsBackVisible(modelNodeBlock->isBackVisible() || modelNodeBlock->isFrontAndBackVisible());
+
+            for (const PDF3D_U3D_AbstractBlock::ParentNodeData& parentNodeData : modelNodeBlock->getParentNodesData())
+            {
+                m_object.getOrCreateNode(parentNodeData.parentNodeName).addChild(modelNodeBlock->getModelNodeName(), parentNodeData.transformMatrix);
+            }
+
+            break;
+        }
+
+        case PDF3D_U3D_Block_Info::BT_NodeLight:
+        {
+            const PDF3D_U3D_LightNodeBlock* lightNodeBlock = dynamic_cast<const PDF3D_U3D_LightNodeBlock*>(block.data());
+
+            PDF3D_U3D_Node& node = m_object.getOrCreateNode(lightNodeBlock);
+            node.setNodeName(lightNodeBlock->getLightNodeName());
+            node.setResourceName(lightNodeBlock->getLightResourceName());
+            node.setType(PDF3D_U3D_Node::Light);
+
+            for (const PDF3D_U3D_AbstractBlock::ParentNodeData& parentNodeData : lightNodeBlock->getParentNodesData())
+            {
+                m_object.getOrCreateNode(parentNodeData.parentNodeName).addChild(lightNodeBlock->getLightNodeName(), parentNodeData.transformMatrix);
+            }
+
+            break;
+        }
+
+        case PDF3D_U3D_Block_Info::BT_NodeView:
+        {
+            const PDF3D_U3D_ViewNodeBlock* viewNodeBlock = dynamic_cast<const PDF3D_U3D_ViewNodeBlock*>(block.data());
+
+            break;
+        }
+
+        case PDF3D_U3D_Block_Info::BT_ResourceMotion:
+        {
+            m_errors << PDFTranslationContext::tr("Motion block (%1) is not supported.").arg(block->getBlockType(), 8, 16);
             break;
         }
 
@@ -1218,6 +1441,9 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_Parser::parseBlock(uint32_t blockType,
 
         case PDF3D_U3D_TextureResourceBlock::ID:
             return PDF3D_U3D_TextureResourceBlock::parse(data, metaData, this);
+
+        case PDF3D_U3D_MotionResourceBlock::ID:
+            return PDF3D_U3D_MotionResourceBlock::parse(data, metaData, this);
 
         default:
             m_errors << PDFTranslationContext::tr("Unable to parse block of type '%1'.").arg(blockType, 8, 16);
@@ -3344,7 +3570,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_ViewResourceBlock::parse(QByteArray data,
         pass.rootNodeName = reader.readString(object->getTextCodec());
         pass.renderAttributes = reader.readU32();
         pass.fogMode = reader.readU32();
-        reader.readFloats32(pass.color);
+        reader.readFloats32(pass.fogColor);
         pass.fogNear = reader.readF32();
         pass.fogFar = reader.readF32();
 
@@ -3353,6 +3579,11 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_ViewResourceBlock::parse(QByteArray data,
 
     block->parseMetadata(metaData, object);
     return pointer;
+}
+
+const QString& PDF3D_U3D_ViewResourceBlock::getResourceName() const
+{
+    return m_resourceName;
 }
 
 const std::vector<PDF3D_U3D_ViewResourceBlock::Pass>& PDF3D_U3D_ViewResourceBlock::getRenderPasses() const
@@ -3406,6 +3637,11 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_LitTextureShaderResourceBlock::parse(QByteA
 
     block->parseMetadata(metaData, object);
     return pointer;
+}
+
+const QString& PDF3D_U3D_LitTextureShaderResourceBlock::getResourceName() const
+{
+    return m_resourceName;
 }
 
 uint32_t PDF3D_U3D_LitTextureShaderResourceBlock::getAttributes() const
@@ -3474,6 +3710,11 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_MaterialResourceBlock::parse(QByteArray dat
 
     block->parseMetadata(metaData, object);
     return pointer;
+}
+
+const QString& PDF3D_U3D_MaterialResourceBlock::getResourceName() const
+{
+    return m_resourceName;
 }
 
 uint32_t PDF3D_U3D_MaterialResourceBlock::getMaterialAttributes() const
@@ -3681,6 +3922,397 @@ float PDF3D_U3D_Light::getIntensity() const
 void PDF3D_U3D_Light::setIntensity(float newIntensity)
 {
     m_intensity = newIntensity;
+}
+
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_MotionResourceBlock::parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object)
+{
+    PDF3D_U3D_MotionResourceBlock* block = new PDF3D_U3D_MotionResourceBlock();
+    PDF3D_U3D_AbstractBlockPtr pointer(block);
+
+    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+
+    // Read the data
+    block->m_resourceName = reader.readString(object->getTextCodec());
+    block->m_trackCount = reader.readU32();
+    block->m_timeInverseQuant = reader.readF32();
+    block->m_rotationInverseQuant = reader.readF32();
+
+    for (uint32_t i = 0; i < block->m_trackCount; ++i)
+    {
+        Motion motion;
+
+        motion.trackName = reader.readString(object->getTextCodec());
+        motion.timeCount = reader.readU32();
+        motion.displacementInverseQuant = reader.readF32();
+        motion.rotationInverseQuant = reader.readF32();
+
+        for (uint32_t j = 0; j < motion.timeCount; ++j)
+        {
+            KeyFrame keyFrame;
+
+            if (j == 0 || j == motion.timeCount - 1)
+            {
+                keyFrame.time = reader.readF32();
+                reader.readFloats32(keyFrame.displacement);
+                reader.readFloats32(keyFrame.rotation);
+                reader.readFloats32(keyFrame.scale);
+            }
+            else
+            {
+                keyFrame.timeDiff = reader.readQuantizedVec1(cTimeSign, cTimeDiff);
+                keyFrame.displacementDiff = reader.readQuantizedVec3(cDispSign, cDispDiff, cDispDiff, cDispDiff);
+                keyFrame.rotationDiff = reader.readQuantizedVec3(cRotSign, cRotDiff, cRotDiff, cRotDiff);
+                keyFrame.scaleDiff = reader.readQuantizedVec3(cScalSign, cScalDiff, cScalDiff, cScalDiff);
+            }
+
+            motion.keyFrames.emplace_back(std::move(keyFrame));
+        }
+
+        block->m_motions.emplace_back(std::move(motion));
+    }
+
+    block->parseMetadata(metaData, object);
+    return pointer;
+}
+
+uint32_t PDF3D_U3D_MotionResourceBlock::getTrackCount() const
+{
+    return m_trackCount;
+}
+
+float PDF3D_U3D_MotionResourceBlock::getTimeInverseQuant() const
+{
+    return m_timeInverseQuant;
+}
+
+float PDF3D_U3D_MotionResourceBlock::getRotationInverseQuant() const
+{
+    return m_rotationInverseQuant;
+}
+
+const std::vector<PDF3D_U3D_MotionResourceBlock::Motion>& PDF3D_U3D_MotionResourceBlock::getMotions() const
+{
+    return m_motions;
+}
+
+bool PDF3D_U3D_Fog::isEnabled() const
+{
+    return m_enabled;
+}
+
+void PDF3D_U3D_Fog::setEnabled(bool newEnabled)
+{
+    m_enabled = newEnabled;
+}
+
+const QColor& PDF3D_U3D_Fog::getColor() const
+{
+    return m_color;
+}
+
+void PDF3D_U3D_Fog::setColor(const QColor& newColor)
+{
+    m_color = newColor;
+}
+
+float PDF3D_U3D_Fog::getNear() const
+{
+    return m_near;
+}
+
+void PDF3D_U3D_Fog::setNear(float newNear)
+{
+    m_near = newNear;
+}
+
+float PDF3D_U3D_Fog::getFar() const
+{
+    return m_far;
+}
+
+void PDF3D_U3D_Fog::setFar(float newFar)
+{
+    m_far = newFar;
+}
+
+PDF3D_U3D_Fog::FogMode PDF3D_U3D_Fog::getMode() const
+{
+    return m_mode;
+}
+
+void PDF3D_U3D_Fog::setMode(FogMode newMode)
+{
+    m_mode = newMode;
+}
+
+const QString& PDF3D_U3D_RenderPass::getRootNodeName() const
+{
+    return m_rootNodeName;
+}
+
+const PDF3D_U3D_Fog& PDF3D_U3D_RenderPass::getFog() const
+{
+    return m_fog;
+}
+
+void PDF3D_U3D_RenderPass::setRootNodeName(const QString& newRootNodeName)
+{
+    m_rootNodeName = newRootNodeName;
+}
+
+void PDF3D_U3D_RenderPass::setFog(const PDF3D_U3D_Fog& newFog)
+{
+    m_fog = newFog;
+}
+
+const std::vector<PDF3D_U3D_RenderPass>& PDF3D_U3D_View::renderPasses() const
+{
+    return m_renderPasses;
+}
+
+void PDF3D_U3D_View::setRenderPasses(const std::vector<PDF3D_U3D_RenderPass>& newRenderPasses)
+{
+    m_renderPasses = newRenderPasses;
+}
+
+bool PDF3D_U3D_Shader::isLightingEnabled() const
+{
+    return m_isLightingEnabled;
+}
+
+void PDF3D_U3D_Shader::setIsLightingEnabled(bool newIsLightingEnabled)
+{
+    m_isLightingEnabled = newIsLightingEnabled;
+}
+
+bool PDF3D_U3D_Shader::isAlphaTestEnabled() const
+{
+    return m_isAlphaTestEnabled;
+}
+
+void PDF3D_U3D_Shader::setIsAlphaTestEnabled(bool newIsAlphaTestEnabled)
+{
+    m_isAlphaTestEnabled = newIsAlphaTestEnabled;
+}
+
+bool PDF3D_U3D_Shader::isUseVertexColor() const
+{
+    return m_isUseVertexColor;
+}
+
+void PDF3D_U3D_Shader::setIsUseVertexColor(bool newIsUseVertexColor)
+{
+    m_isUseVertexColor = newIsUseVertexColor;
+}
+
+float PDF3D_U3D_Shader::getAlphaTestReference() const
+{
+    return m_alphaTestReference;
+}
+
+void PDF3D_U3D_Shader::setAlphaTestReference(float newAlphaTestReference)
+{
+    m_alphaTestReference = newAlphaTestReference;
+}
+
+PDF3D_U3D_Shader::AlphaTestFunction PDF3D_U3D_Shader::getAlphaTestFunction() const
+{
+    return m_alphaTestFunction;
+}
+
+void PDF3D_U3D_Shader::setAlphaTestFunction(AlphaTestFunction newAlphaTestFunction)
+{
+    m_alphaTestFunction = newAlphaTestFunction;
+}
+
+PDF3D_U3D_Shader::ColorBlendFunction PDF3D_U3D_Shader::getColorBlendFunction() const
+{
+    return m_colorBlendFunction;
+}
+
+void PDF3D_U3D_Shader::setColorBlendFunction(ColorBlendFunction newColorBlendFunction)
+{
+    m_colorBlendFunction = newColorBlendFunction;
+}
+
+uint32_t PDF3D_U3D_Shader::getRenderPassEnabledFlags() const
+{
+    return m_renderPassEnabledFlags;
+}
+
+void PDF3D_U3D_Shader::setRenderPassEnabledFlags(uint32_t newRenderPassEnabledFlags)
+{
+    m_renderPassEnabledFlags = newRenderPassEnabledFlags;
+}
+
+uint32_t PDF3D_U3D_Shader::getShaderChannels() const
+{
+    return m_shaderChannels;
+}
+
+void PDF3D_U3D_Shader::setShaderChannels(uint32_t newShaderChannels)
+{
+    m_shaderChannels = newShaderChannels;
+}
+
+uint32_t PDF3D_U3D_Shader::getAlphaTextureChannels() const
+{
+    return m_alphaTextureChannels;
+}
+
+void PDF3D_U3D_Shader::setAlphaTextureChannels(uint32_t newAlphaTextureChannels)
+{
+    m_alphaTextureChannels = newAlphaTextureChannels;
+}
+
+const QString& PDF3D_U3D_Shader::getMaterialName() const
+{
+    return m_materialName;
+}
+
+void PDF3D_U3D_Shader::setMaterialName(const QString& newMaterialName)
+{
+    m_materialName = newMaterialName;
+}
+
+const PDF3D_U3D_Shader::PDF_U3D_TextureInfos& PDF3D_U3D_Shader::getTextureInfos() const
+{
+    return m_textureInfos;
+}
+
+void PDF3D_U3D_Shader::setTextureInfos(const PDF_U3D_TextureInfos& newTextureInfos)
+{
+    m_textureInfos = newTextureInfos;
+}
+
+const QColor& PDF3D_U3D_Material::getAmbientColor() const
+{
+    return m_ambientColor;
+}
+
+void PDF3D_U3D_Material::setAmbientColor(const QColor& newAmbientColor)
+{
+    m_ambientColor = newAmbientColor;
+}
+
+const QColor& PDF3D_U3D_Material::getDiffuseColor() const
+{
+    return m_diffuseColor;
+}
+
+void PDF3D_U3D_Material::setDiffuseColor(const QColor& newDiffuseColor)
+{
+    m_diffuseColor = newDiffuseColor;
+}
+
+const QColor& PDF3D_U3D_Material::getSpecularColor() const
+{
+    return m_specularColor;
+}
+
+void PDF3D_U3D_Material::setSpecularColor(const QColor& newSpecularColor)
+{
+    m_specularColor = newSpecularColor;
+}
+
+const QColor& PDF3D_U3D_Material::getEmmisiveColor() const
+{
+    return m_emmisiveColor;
+}
+
+void PDF3D_U3D_Material::setEmmisiveColor(const QColor& newEmmisiveColor)
+{
+    m_emmisiveColor = newEmmisiveColor;
+}
+
+float PDF3D_U3D_Material::getReflectivity() const
+{
+    return m_reflectivity;
+}
+
+void PDF3D_U3D_Material::setReflectivity(float newReflectivity)
+{
+    m_reflectivity = newReflectivity;
+}
+
+PDF3D_U3D_Node::NodeType PDF3D_U3D_Node::getType() const
+{
+    return m_type;
+}
+
+void PDF3D_U3D_Node::setType(NodeType newType)
+{
+    m_type = newType;
+}
+
+const QString& PDF3D_U3D_Node::getNodeName() const
+{
+    return m_nodeName;
+}
+
+void PDF3D_U3D_Node::setNodeName(const QString& newNodeName)
+{
+    m_nodeName = newNodeName;
+}
+
+const QString& PDF3D_U3D_Node::getResourceName() const
+{
+    return m_resourceName;
+}
+
+void PDF3D_U3D_Node::setResourceName(const QString& newResourceName)
+{
+    m_resourceName = newResourceName;
+}
+
+const QStringList& PDF3D_U3D_Node::getChildren() const
+{
+    return m_children;
+}
+
+void PDF3D_U3D_Node::setChildren(const QStringList& newChildren)
+{
+    m_children = newChildren;
+}
+
+void PDF3D_U3D_Node::addChild(const QString& child, QMatrix4x4 childTransform)
+{
+    m_children << child;
+
+    if (!childTransform.isIdentity())
+    {
+        m_childTransforms[child] = childTransform;
+    }
+}
+
+bool PDF3D_U3D_Node::isEnabled() const
+{
+    return m_isEnabled;
+}
+
+void PDF3D_U3D_Node::setIsEnabled(bool newIsEnabled)
+{
+    m_isEnabled = newIsEnabled;
+}
+
+bool PDF3D_U3D_Node::isFrontVisible() const
+{
+    return m_isFrontVisible;
+}
+
+void PDF3D_U3D_Node::setIsFrontVisible(bool newIsFrontVisible)
+{
+    m_isFrontVisible = newIsFrontVisible;
+}
+
+bool PDF3D_U3D_Node::isBackVisible() const
+{
+    return m_isBackVisible;
+}
+
+void PDF3D_U3D_Node::setIsBackVisible(bool newIsBackVisible)
+{
+    m_isBackVisible = newIsBackVisible;
 }
 
 }   // namespace u3d

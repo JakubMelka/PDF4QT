@@ -77,7 +77,15 @@ enum Context
     cThrdPosType,
     cBoneWeightCnt,
     cBoneIdx,
-    cQntBoneWeight
+    cQntBoneWeight,
+    cTimeSign,
+    cTimeDiff,
+    cDispSign,
+    cDispDiff,
+    cRotSign,
+    cRotDiff,
+    cScalSign,
+    cScalDiff
 };
 
 class PDF3D_U3D;
@@ -108,6 +116,12 @@ struct PDF3D_U3D_QuantizedVec3
     uint32_t diff1;
     uint32_t diff2;
     uint32_t diff3;
+};
+
+struct PDF3D_U3D_QuantizedVec1
+{
+    uint8_t signBits;
+    uint32_t diff1;
 };
 
 struct PDF3D_U3D_Block_Info
@@ -1157,7 +1171,7 @@ public:
         QString rootNodeName;
         uint32_t renderAttributes = 0;
         uint32_t fogMode = 0;
-        PDF3D_U3D_Vec4 color = { };
+        PDF3D_U3D_Vec4 fogColor = { };
         float fogNear = 0.0;
         float fogFar = 0.0;
     };
@@ -1295,9 +1309,101 @@ private:
     QByteArray m_imageData;
 };
 
+class PDF3D_U3D_MotionResourceBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    static constexpr uint32_t ID = PDF3D_U3D_Block_Info::BT_ResourceMotion;
+    virtual EBlockType getBlockType() const override { return static_cast<EBlockType>(ID); }
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
+
+    struct KeyFrame
+    {
+        float time = 0.0;
+        PDF3D_U3D_Vec3 displacement = { };
+        PDF3D_U3D_Vec4 rotation = { };
+        PDF3D_U3D_Vec3 scale = { };
+
+        PDF3D_U3D_QuantizedVec1 timeDiff;
+        PDF3D_U3D_QuantizedVec3 displacementDiff;
+        PDF3D_U3D_QuantizedVec3 rotationDiff;
+        PDF3D_U3D_QuantizedVec3 scaleDiff;
+    };
+
+    struct Motion
+    {
+        QString trackName;
+        uint32_t timeCount = 0;
+        float displacementInverseQuant = 0.0;
+        float rotationInverseQuant = 0.0;
+        std::vector<KeyFrame> keyFrames;
+    };
+
+    const QString& getResourceName() const;
+    uint32_t getTrackCount() const;
+    float getTimeInverseQuant() const;
+    float getRotationInverseQuant() const;
+    const std::vector<Motion>& getMotions() const;
+
+private:
+    QString m_resourceName;
+    uint32_t m_trackCount = 0;
+    float m_timeInverseQuant = 0.0f;
+    float m_rotationInverseQuant = 0.0f;
+    std::vector<Motion> m_motions;
+};
+
 // -------------------------------------------------------------------------------
 //                                  PDF3D_U3D
 // -------------------------------------------------------------------------------
+
+class PDF4QTLIBSHARED_EXPORT PDF3D_U3D_Node
+{
+public:
+    PDF3D_U3D_Node() = default;
+
+    enum NodeType
+    {
+        Unknown,
+        Group,
+        Model,
+        Light,
+        View
+    };
+
+    NodeType getType() const;
+    void setType(NodeType newType);
+
+    const QString& getNodeName() const;
+    void setNodeName(const QString& newNodeName);
+
+    const QString& getResourceName() const;
+    void setResourceName(const QString& newResourceName);
+
+    const QStringList& getChildren() const;
+    void setChildren(const QStringList& newChildren);
+
+    void addChild(const QString& child, QMatrix4x4 childTransform);
+
+    bool isEnabled() const;
+    void setIsEnabled(bool newIsEnabled);
+
+    bool isFrontVisible() const;
+    void setIsFrontVisible(bool newIsFrontVisible);
+
+    bool isBackVisible() const;
+    void setIsBackVisible(bool newIsBackVisible);
+
+private:
+    NodeType m_type = Unknown;
+    QString m_nodeName;
+    QString m_resourceName;
+    QStringList m_children;
+    std::map<QString, QMatrix4x4> m_childTransforms;
+    bool m_isEnabled = true;
+    bool m_isFrontVisible = true;
+    bool m_isBackVisible = true;
+};
 
 class PDF4QTLIBSHARED_EXPORT PDF3D_U3D_Light
 {
@@ -1347,17 +1453,228 @@ private:
     float m_intensity = 0.0;
 };
 
+class PDF4QTLIBSHARED_EXPORT PDF3D_U3D_Shader
+{
+public:
+
+    enum AlphaTestFunction : uint32_t
+    {
+        NEVER       = 0x00000610,
+        LESS        = 0x00000611,
+        GREATER     = 0x00000612,
+        EQUAL       = 0x00000613,
+        NOT_EQUAL   = 0x00000614,
+        LEQUAL      = 0x00000615,
+        GEQUAL      = 0x00000616,
+        ALWAYS      = 0x00000617
+    };
+
+    enum ColorBlendFunction : uint32_t
+    {
+        FB_ADD              = 0x00000604,
+        FB_MULTIPLY         = 0x00000605,
+        FB_ALPHA_BLEND      = 0x00000606,
+        FB_INV_ALPHA_BLEND  = 0x00000607
+    };
+
+    enum TextureBlendFunction : uint8_t
+    {
+        Multiply    = 0,
+        Add         = 1,
+        Replace     = 2,
+        Blend       = 3
+    };
+
+    enum TextureBlendSource : uint8_t
+    {
+        AlphaValueOfEachPixel = 0,
+        BlendingConstant = 1
+    };
+
+    enum TextureMode : uint8_t
+    {
+        TM_NONE         = 0,
+        TM_PLANAR       = 1,
+        TM_CYLINDRICAL  = 2,
+        TM_SPHERICAL    = 3,
+        TM_REFLECTION   = 4
+    };
+
+    struct PDF_U3D_TextureInfo
+    {
+        QString textureName;
+        float textureIntensity = 0.0;
+        TextureBlendFunction blendFunction = Blend;
+        TextureBlendSource blendSource = AlphaValueOfEachPixel;
+        float blendConstant = 0.0;
+        TextureMode textureMode = TM_NONE;
+        QMatrix4x4 textureTransform;
+        QMatrix4x4 textureMap;
+        bool repeatU = false;
+        bool repeatV = false;
+    };
+
+    using PDF_U3D_TextureInfos = std::vector<PDF_U3D_TextureInfo>;
+
+    bool isLightingEnabled() const;
+    void setIsLightingEnabled(bool newIsLightingEnabled);
+
+    bool isAlphaTestEnabled() const;
+    void setIsAlphaTestEnabled(bool newIsAlphaTestEnabled);
+
+    bool isUseVertexColor() const;
+    void setIsUseVertexColor(bool newIsUseVertexColor);
+
+    float getAlphaTestReference() const;
+    void setAlphaTestReference(float newAlphaTestReference);
+
+    AlphaTestFunction getAlphaTestFunction() const;
+    void setAlphaTestFunction(AlphaTestFunction newAlphaTestFunction);
+
+    ColorBlendFunction getColorBlendFunction() const;
+    void setColorBlendFunction(ColorBlendFunction newColorBlendFunction);
+
+    uint32_t getRenderPassEnabledFlags() const;
+    void setRenderPassEnabledFlags(uint32_t newRenderPassEnabledFlags);
+
+    uint32_t getShaderChannels() const;
+    void setShaderChannels(uint32_t newShaderChannels);
+
+    uint32_t getAlphaTextureChannels() const;
+    void setAlphaTextureChannels(uint32_t newAlphaTextureChannels);
+
+    const QString& getMaterialName() const;
+    void setMaterialName(const QString& newMaterialName);
+
+    const PDF_U3D_TextureInfos& getTextureInfos() const;
+    void setTextureInfos(const PDF_U3D_TextureInfos& newTextureInfos);
+
+private:
+    bool m_isLightingEnabled = false;
+    bool m_isAlphaTestEnabled = false;
+    bool m_isUseVertexColor = false;
+    float m_alphaTestReference = 0.0;
+    AlphaTestFunction m_alphaTestFunction = ALWAYS;
+    ColorBlendFunction m_colorBlendFunction = FB_ALPHA_BLEND;
+    uint32_t m_renderPassEnabledFlags = 0;
+    uint32_t m_shaderChannels = 0;
+    uint32_t m_alphaTextureChannels = 0;
+    QString m_materialName;
+    PDF_U3D_TextureInfos m_textureInfos;
+};
+
+class PDF4QTLIBSHARED_EXPORT PDF3D_U3D_Fog
+{
+public:
+    constexpr PDF3D_U3D_Fog() = default;
+
+    enum FogMode : uint32_t
+    {
+        Linear = 0,
+        Exponential = 1,
+        Exponential2 = 2
+    };
+
+    bool isEnabled() const;
+    void setEnabled(bool newEnabled);
+
+    const QColor& getColor() const;
+    void setColor(const QColor& newColor);
+
+    float getNear() const;
+    void setNear(float newNear);
+
+    float getFar() const;
+    void setFar(float newFar);
+
+    FogMode getMode() const;
+    void setMode(FogMode newMode);
+
+private:
+    bool m_enabled = false;
+    FogMode m_mode = Linear;
+    QColor m_color;
+    float m_near = 0.0;
+    float m_far = 0.0;
+};
+
+class PDF4QTLIBSHARED_EXPORT PDF3D_U3D_RenderPass
+{
+public:
+    constexpr PDF3D_U3D_RenderPass() = default;
+
+    const QString& getRootNodeName() const;
+    const PDF3D_U3D_Fog& getFog() const;
+
+    void setRootNodeName(const QString& newRootNodeName);
+    void setFog(const PDF3D_U3D_Fog& newFog);
+
+private:
+    QString m_rootNodeName;
+    PDF3D_U3D_Fog m_fog;
+};
+
+class PDF4QTLIBSHARED_EXPORT PDF3D_U3D_View
+{
+public:
+    constexpr PDF3D_U3D_View() = default;
+
+    const std::vector<PDF3D_U3D_RenderPass>& renderPasses() const;
+    void setRenderPasses(const std::vector<PDF3D_U3D_RenderPass>& newRenderPasses);
+
+private:
+    std::vector<PDF3D_U3D_RenderPass> m_renderPasses;
+};
+
+class PDF4QTLIBSHARED_EXPORT PDF3D_U3D_Material
+{
+public:
+    constexpr PDF3D_U3D_Material() = default;
+
+    const QColor& getAmbientColor() const;
+    void setAmbientColor(const QColor& newAmbientColor);
+
+    const QColor& getDiffuseColor() const;
+    void setDiffuseColor(const QColor& newDiffuseColor);
+
+    const QColor& getSpecularColor() const;
+    void setSpecularColor(const QColor& newSpecularColor);
+
+    const QColor& getEmmisiveColor() const;
+    void setEmmisiveColor(const QColor& newEmmisiveColor);
+
+    float getReflectivity() const;
+    void setReflectivity(float newReflectivity);
+
+private:
+    QColor m_ambientColor;
+    QColor m_diffuseColor;
+    QColor m_specularColor;
+    QColor m_emmisiveColor;
+    float m_reflectivity = 0.0;
+};
+
 class PDF4QTLIBSHARED_EXPORT PDF3D_U3D
 {
 public:
     PDF3D_U3D();
 
+    const PDF3D_U3D_Node& getNode(const QString& nodeName) const;
+    PDF3D_U3D_Node& getOrCreateNode(const QString& nodeName);
+
+    void setViewResource(const QString& viewName, PDF3D_U3D_View view);
     void setLightResource(const QString& lightName, PDF3D_U3D_Light light);
     void setTextureResource(const QString& textureName, QImage texture);
+    void setShaderResource(const QString& shaderName, PDF3D_U3D_Shader shader);
+    void setMaterialResource(const QString& materialName, PDF3D_U3D_Material material);
 
 private:
+    std::map<QString, PDF3D_U3D_Node> m_sceneGraph;
+    std::map<QString, PDF3D_U3D_View> m_viewResoures;
     std::map<QString, PDF3D_U3D_Light> m_lightResources;
     std::map<QString, QImage> m_textureResources;
+    std::map<QString, PDF3D_U3D_Shader> m_shaderResources;
+    std::map<QString, PDF3D_U3D_Material> m_materialResources;
 };
 
 // -------------------------------------------------------------------------------
@@ -1565,6 +1882,9 @@ public:
     QStringList readStringList(uint32_t count, QTextCodec* textCodec);
 
     QMatrix4x4 readMatrix4x4();
+
+    PDF3D_U3D_QuantizedVec1 readQuantizedVec1(uint32_t contextSign,
+                                              uint32_t context1);
 
     PDF3D_U3D_QuantizedVec4 readQuantizedVec4(uint32_t contextSign,
                                               uint32_t context1,
