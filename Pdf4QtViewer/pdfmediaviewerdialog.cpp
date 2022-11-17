@@ -207,8 +207,8 @@ void PDFMediaViewerDialog::initFrom3DAnnotation(const pdf::PDFDocument* document
                     f.close();
                 }*/
 
-                pdf::u3d::PDF3D_U3D_Parser parser;
-                pdf::u3d::PDF3D_U3D u3d = parser.parse(data);
+                QStringList errors;
+                pdf::u3d::PDF3D_U3D u3d = pdf::u3d::PDF3D_U3D::parse(data, &errors);
                 break;
             }
 
