@@ -847,7 +847,7 @@ public:
     };
 
     const QString& getName() const { return m_pointSetName; }
-    const std::vector<UpdateItem>& getUpdateItems() const;
+    const std::vector<UpdateItem>& getUpdateItems() const { return m_updateItems; }
 
 private:
     QString m_pointSetName;
@@ -1489,6 +1489,14 @@ public:
     void processPointSet(const PDF3D_U3D_Decoder& decoder);
     void processLineSet(const PDF3D_U3D_Decoder& decoder);
     void processTexture(const PDF3D_U3D_Decoder& decoder);
+
+    void addBaseMeshGeometry(PDF3D_U3D_MeshGeometry* geometry,
+                             const PDF3D_U3D_CLODMeshDeclarationBlock* declarationBlock,
+                             const PDF3D_U3D_CLODBaseMeshContinuationBlock* geometryBlock);
+
+    void addPointSetGeometry(PDF3D_U3D_PointSetGeometry* geometry,
+                             const PDF3D_U3D_PointSetDeclarationBlock* declarationBlock,
+                             const PDF3D_U3D_PointSetContinuationBlock* geometryBlock);
 
     void addLineSetGeometry(PDF3D_U3D_LineSetGeometry* geometry,
                             const PDF3D_U3D_LineSetDeclarationBlock* declarationBlock,
@@ -2342,6 +2350,8 @@ void PDF3D_U3D_Parser::processCLODMesh(const PDF3D_U3D_Decoder& decoder)
     auto block = parseBlock(decoder.front());
     const PDF3D_U3D_CLODMeshDeclarationBlock* declarationBlock = dynamic_cast<const PDF3D_U3D_CLODMeshDeclarationBlock*>(block.data());
 
+    QSharedPointer<PDF3D_U3D_MeshGeometry> geometry(new PDF3D_U3D_MeshGeometry());
+
     for (auto it = std::next(decoder.begin()); it != decoder.end(); ++it)
     {
         auto blockData = *it;
@@ -2349,8 +2359,10 @@ void PDF3D_U3D_Parser::processCLODMesh(const PDF3D_U3D_Decoder& decoder)
         {
             case PDF3D_U3D_Block_Info::BT_GeneratorCLODBaseMesh:
             {
-                // TODO: process block data
                 auto currentBlock = PDF3D_U3D_CLODBaseMeshContinuationBlock::parse(blockData.blockData, blockData.metaData, this, declarationBlock);
+                const PDF3D_U3D_CLODBaseMeshContinuationBlock* typedBlock = dynamic_cast<const PDF3D_U3D_CLODBaseMeshContinuationBlock*>(currentBlock.data());
+
+                addBaseMeshGeometry(geometry.data(), declarationBlock, typedBlock);
                 break;
             }
 
@@ -2363,7 +2375,13 @@ void PDF3D_U3D_Parser::processCLODMesh(const PDF3D_U3D_Decoder& decoder)
 
             default:
                 m_errors << PDFTranslationContext::tr("Invalid block type '%1' for CLOD mesh!").arg(blockData.blockType, 8, 16);
+                break;
         }
+    }
+
+    if (!geometry->isEmpty())
+    {
+        m_object.setGeometry(declarationBlock->getName(), std::move(geometry));
     }
 }
 
@@ -2372,6 +2390,8 @@ void PDF3D_U3D_Parser::processPointSet(const PDF3D_U3D_Decoder& decoder)
     auto block = parseBlock(decoder.front());
     const PDF3D_U3D_PointSetDeclarationBlock* declarationBlock = dynamic_cast<const PDF3D_U3D_PointSetDeclarationBlock*>(block.data());
 
+    QSharedPointer<PDF3D_U3D_PointSetGeometry> geometry(new PDF3D_U3D_PointSetGeometry());
+
     for (auto it = std::next(decoder.begin()); it != decoder.end(); ++it)
     {
         auto blockData = *it;
@@ -2379,14 +2399,22 @@ void PDF3D_U3D_Parser::processPointSet(const PDF3D_U3D_Decoder& decoder)
         {
             case PDF3D_U3D_Block_Info::BT_GeneratorPointSetCont:
             {
-                // TODO: process block data
                 auto currentBlock = PDF3D_U3D_PointSetContinuationBlock::parse(blockData.blockData, blockData.metaData, this, declarationBlock);
+                const PDF3D_U3D_PointSetContinuationBlock* typedBlock = dynamic_cast<const PDF3D_U3D_PointSetContinuationBlock*>(currentBlock.data());
+
+                addPointSetGeometry(geometry.data(), declarationBlock, typedBlock);
                 break;
             }
 
             default:
                 m_errors << PDFTranslationContext::tr("Invalid block type '%1' for Point set!").arg(blockData.blockType, 8, 16);
+                break;
         }
+    }
+
+    if (!geometry->isEmpty())
+    {
+        m_object.setGeometry(declarationBlock->getName(), std::move(geometry));
     }
 }
 
@@ -2413,6 +2441,7 @@ void PDF3D_U3D_Parser::processLineSet(const PDF3D_U3D_Decoder& decoder)
 
             default:
                 m_errors << PDFTranslationContext::tr("Invalid block type '%1' for line set!").arg(blockData.blockType, 8, 16);
+                break;
         }
     }
 
@@ -2548,6 +2577,217 @@ void PDF3D_U3D_Parser::processTexture(const PDF3D_U3D_Decoder& decoder)
     }
 
     m_object.setTextureResource(declarationBlock->getResourceName(), std::move(texture));
+}
+
+void PDF3D_U3D_Parser::addBaseMeshGeometry(PDF3D_U3D_MeshGeometry* geometry,
+                                           const PDF3D_U3D_CLODMeshDeclarationBlock* declarationBlock,
+                                           const PDF3D_U3D_CLODBaseMeshContinuationBlock* geometryBlock)
+{
+    const std::vector<PDF3D_U3D_Vec3>& basePositions = geometryBlock->getBasePositions();
+    const std::vector<PDF3D_U3D_Vec3>& baseNormals = geometryBlock->getBaseNormals();
+    const std::vector<PDF3D_U3D_Vec4>& baseDiffuseColors = geometryBlock->getBaseDiffuseColors();
+    const std::vector<PDF3D_U3D_Vec4>& baseSpecularColors = geometryBlock->getBaseSpecularColors();
+    const std::vector<PDF3D_U3D_Vec4>& baseTextureCoords = geometryBlock->getBaseTextureCoords();
+    const std::vector<PDF3D_U3D_CLODBaseMeshContinuationBlock::BaseFace>& baseFaces = geometryBlock->getBaseFaces();
+
+    for (const PDF3D_U3D_Vec3& value : basePositions)
+    {
+        geometry->addPosition(QVector3D(value[0], value[1], value[2]));
+    }
+
+    for (const PDF3D_U3D_Vec3& value : baseNormals)
+    {
+        geometry->addNormal(QVector3D(value[0], value[1], value[2]));
+    }
+
+    for (const PDF3D_U3D_Vec4& value : baseDiffuseColors)
+    {
+        geometry->addDiffuseColor(QVector4D(value[0], value[1], value[2], value[3]));
+    }
+
+    for (const PDF3D_U3D_Vec4& value : baseSpecularColors)
+    {
+        geometry->addSpecularColor(QVector4D(value[0], value[1], value[2], value[3]));
+    }
+
+    for (const PDF3D_U3D_Vec4& value : baseTextureCoords)
+    {
+        geometry->addTextureCoordinate(QVector4D(value[0], value[1], value[2], value[3]));
+    }
+
+    size_t maxTextureLayers = 0;
+
+    for (const PDF3D_U3D_CLODBaseMeshContinuationBlock::BaseFace& face : baseFaces)
+    {
+        PDF3D_U3D_MeshGeometry::Triangle triangle;
+
+        const PDF3D_U3D_ShadingDescription* shading = declarationBlock->getShadingDescriptionItem(face.m_shadingId);
+
+        if (shading)
+        {
+            triangle.hasDiffuse = shading->hasDiffuseColors();
+            triangle.hasSpecular = shading->hasSpecularColors();
+            triangle.hasTexture = shading->hasTextures();
+        }
+
+        Q_ASSERT(triangle.vertices.size() == face.m_corners.size());
+        for (size_t i = 0; i < triangle.vertices.size(); ++i)
+        {
+            PDF3D_U3D_MeshGeometry::Vertex& vertex = triangle.vertices[i];
+            const PDF3D_U3D_CLODBaseMeshContinuationBlock::BaseCornerInfo& vertexInfo = face.m_corners[i];
+
+            vertex.positionIndex = vertexInfo.basePositionIndex;
+            vertex.normalIndex = vertexInfo.baseNormalIndex;
+            vertex.diffuseColorIndex = vertexInfo.baseDiffuseColorIndex;
+            vertex.specularColorIndex = vertexInfo.baseSpecularColorIndex;
+            vertex.textureCoordIndex = !vertexInfo.baseTextureCoordIndex.empty() ? vertexInfo.baseTextureCoordIndex.front() : 0;
+
+            maxTextureLayers = qMax(maxTextureLayers, vertexInfo.baseTextureCoordIndex.size());
+        }
+
+        geometry->addTriangle(std::move(triangle));
+    }
+
+    if (maxTextureLayers > 1)
+    {
+        m_errors << PDFTranslationContext::tr("More than one texture not supported.");
+    }
+}
+
+void PDF3D_U3D_Parser::addPointSetGeometry(PDF3D_U3D_PointSetGeometry* geometry,
+                                           const PDF3D_U3D_PointSetDeclarationBlock* declarationBlock,
+                                           const PDF3D_U3D_PointSetContinuationBlock* geometryBlock)
+{
+    const auto& updateItems = geometryBlock->getUpdateItems();
+
+    if (geometry->isEmpty())
+    {
+        geometry->addNormal(QVector3D());
+        geometry->addDiffuseColor(QVector4D());
+        geometry->addSpecularColor(QVector4D());
+    }
+
+    bool hasTextures = false;
+
+    for (const PDF3D_U3D_PointSetContinuationBlock::UpdateItem& item : updateItems)
+    {
+        // 1. Determine position
+        const size_t splitPositionIndex = item.splitPositionIndex;
+
+        QVector3D splitPosition = geometry->getPosition(splitPositionIndex);
+        QVector3D currentPosition = getDequantizedVec3(item.newPositionInfo, splitPosition, declarationBlock->getPositionInverseQuant());
+
+        geometry->addPosition(currentPosition);
+        auto points = geometry->queryPointsByVertexIndex(splitPositionIndex);
+
+        size_t predictedNormalCount = 0;
+        size_t predictedDiffuseCount = 0;
+        size_t predictedSpecularCount = 0;
+        QVector3D predictedNormal(0, 0, 0);
+        QVector4D predictedDiffuseColor(0, 0, 0, 0);
+        QVector4D predictedSpecularColor(0, 0, 0, 0);
+
+        // 2. Prepare predicted values
+        for (const PDF3D_U3D_PointSetGeometry::Point & point : points)
+        {
+            auto description = declarationBlock->getShadingDescriptionItem(point.shadingId);
+            const bool hasDiffuse = description && description->hasDiffuseColors();
+            const bool hasSpecular = description && description->hasSpecularColors();
+
+            if (point.position == splitPositionIndex)
+            {
+                predictedNormal += geometry->getNormal(point.normal);
+                ++predictedNormalCount;
+
+                if (hasDiffuse)
+                {
+                    predictedDiffuseColor += geometry->getDiffuseColor(point.diffuseColor);
+                    ++predictedDiffuseCount;
+                }
+
+                if (hasSpecular)
+                {
+                    predictedSpecularColor += geometry->getSpecularColor(point.specularColor);
+                    ++predictedSpecularCount;
+                }
+
+            }
+        }
+
+        if (predictedNormalCount > 0)
+        {
+            predictedNormal /= qreal(predictedNormalCount);
+        }
+
+        if (predictedDiffuseCount > 0)
+        {
+            predictedDiffuseColor /= qreal(predictedDiffuseCount);
+        }
+
+        if (predictedSpecularCount > 0)
+        {
+            predictedSpecularColor /= qreal(predictedSpecularCount);
+        }
+
+        const size_t normalCount = geometry->getNormalCount();
+        for (const auto& normal : item.newNormals)
+        {
+            QVector3D normalVector = getDequantizedVec3(normal, predictedNormal, declarationBlock->getNormalInverseQuant());
+            geometry->addNormal(normalVector);
+        }
+
+        for (const PDF3D_U3D_PointSetContinuationBlock::NewPointInfo& point : item.newPoints)
+        {
+            PDF3D_U3D_PointSetGeometry::Point processedPoint;
+
+            processedPoint.shadingId = static_cast<uint32_t>(point.shadingId);
+            processedPoint.position = static_cast<uint32_t>(geometry->getPositionCount() - 1);
+            processedPoint.normal = static_cast<uint32_t>(point.normalLocalIndex + normalCount);
+
+            if (auto description = declarationBlock->getShadingDescriptionItem(point.shadingId))
+            {
+                if (description->hasDiffuseColors())
+                {
+                    if (point.duplicateDiffuse)
+                    {
+                        processedPoint.diffuseColor = static_cast<uint32_t>(geometry->getDiffuseColorCount() - 1);
+                    }
+                    else
+                    {
+                        processedPoint.diffuseColor = static_cast<uint32_t>(geometry->getDiffuseColorCount());
+                        QVector4D diffuseColor = getDequantizedVec4(point.diffuseColor, predictedDiffuseColor, declarationBlock->getDiffuseColorInverseQuant());
+                        geometry->addDiffuseColor(diffuseColor);
+                    }
+                }
+
+                if (description->hasSpecularColors())
+                {
+                    if (point.duplicateSpecular)
+                    {
+                        processedPoint.specularColor = static_cast<uint32_t>(geometry->getSpecularColorCount() - 1);
+                    }
+                    else
+                    {
+                        processedPoint.specularColor = static_cast<uint32_t>(geometry->getSpecularColorCount());
+                        QVector4D specularColor = getDequantizedVec4(point.specularColor, predictedSpecularColor, declarationBlock->getSpecularColorInverseQuant());
+                        geometry->addSpecularColor(specularColor);
+                    }
+                }
+
+                if (description->hasTextures())
+                {
+                    hasTextures = true;
+                }
+            }
+
+            geometry->addPoint(std::move(processedPoint));
+        }
+    }
+
+    if (hasTextures)
+    {
+        m_errors << PDFTranslationContext::tr("Textures for points are not supported.");
+    }
 }
 
 void PDF3D_U3D_Parser::addLineSetGeometry(PDF3D_U3D_LineSetGeometry* geometry,
@@ -6222,6 +6462,32 @@ std::vector<PDF3D_U3D_LineSetGeometry::Line> PDF3D_U3D_LineSetGeometry::queryLin
     }
 
     return result;
+}
+
+void PDF3D_U3D_PointSetGeometry::addPoint(Point point)
+{
+    const size_t pointIndex = m_points.size();
+    m_points.emplace_back(std::move(point));
+    m_mapPosIndexToPoint.insert(std::make_pair(m_points.back().position, pointIndex));
+}
+
+std::vector<PDF3D_U3D_PointSetGeometry::Point> PDF3D_U3D_PointSetGeometry::queryPointsByVertexIndex(size_t vertexIndex) const
+{
+    std::vector<PDF3D_U3D_PointSetGeometry::Point> result;
+    auto iterators = m_mapPosIndexToPoint.equal_range(vertexIndex);
+    result.reserve(std::distance(iterators.first, iterators.second));
+
+    for (auto it = iterators.first; it != iterators.second; ++it)
+    {
+        result.push_back(m_points[it->second]);
+    }
+
+    return result;
+}
+
+void PDF3D_U3D_MeshGeometry::addTriangle(Triangle triangle)
+{
+    m_triangles.emplace_back(std::move(triangle));
 }
 
 }   // namespace u3d

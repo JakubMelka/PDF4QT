@@ -90,7 +90,9 @@ private:
     bool m_isBackVisible = true;
 };
 
+class PDF3D_U3D_MeshGeometry;
 class PDF3D_U3D_LineSetGeometry;
+class PDF3D_U3D_PointSetGeometry;
 
 class PDF4QTLIBSHARED_EXPORT PDF3D_U3D_Geometry
 {
@@ -98,8 +100,114 @@ public:
     PDF3D_U3D_Geometry() = default;
     virtual ~PDF3D_U3D_Geometry() = default;
 
+    virtual PDF3D_U3D_MeshGeometry* asMeshGeometry() { return nullptr; }
+    virtual const PDF3D_U3D_MeshGeometry* asMeshGeometry() const { return nullptr; }
+
+    virtual PDF3D_U3D_PointSetGeometry* asPointSetGeometry() { return nullptr; }
+    virtual const PDF3D_U3D_PointSetGeometry* asPointSetGeometry() const { return nullptr; }
+
     virtual PDF3D_U3D_LineSetGeometry* asLineSetGeometry() { return nullptr; }
     virtual const PDF3D_U3D_LineSetGeometry* asLineSetGeometry() const { return nullptr; }
+};
+
+class PDF4QTLIBSHARED_EXPORT PDF3D_U3D_MeshGeometry : public PDF3D_U3D_Geometry
+{
+public:
+    virtual PDF3D_U3D_MeshGeometry* asMeshGeometry() override { return this; }
+    virtual const PDF3D_U3D_MeshGeometry* asMeshGeometry() const override { return this; }
+
+    struct Vertex
+    {
+        uint32_t positionIndex = 0;
+        uint32_t normalIndex = 0;
+        uint32_t diffuseColorIndex = 0;
+        uint32_t specularColorIndex = 0;
+        uint32_t textureCoordIndex = 0;
+    };
+
+    struct Triangle
+    {
+        bool hasDiffuse = false;
+        bool hasSpecular = false;
+        bool hasTexture = false;
+
+        std::array<Vertex, 3> vertices;
+    };
+
+    bool isEmpty() const { return m_triangles.empty(); }
+
+    QVector3D getPosition(size_t index) const { return index < m_positions.size() ? m_positions[index] : QVector3D(0, 0, 0); }
+    QVector3D getNormal(size_t index) const { return index < m_normals.size() ? m_normals[index] : QVector3D(0, 0, 0); }
+    QVector4D getDiffuseColor(size_t index) const { return index < m_diffuseColors.size() ? m_diffuseColors[index] : QVector4D(0, 0, 0, 0); }
+    QVector4D getSpecularColor(size_t index) const { return index < m_specularColors.size() ? m_specularColors[index] : QVector4D(0, 0, 0, 0); }
+    QVector4D getTextureCoordinate(size_t index) const { return index < m_textureCoordinates.size() ? m_textureCoordinates[index] : QVector4D(0, 0, 0, 0); }
+
+    void addPosition(const QVector3D& position) { m_positions.emplace_back(position); }
+    void addNormal(const QVector3D& normal) { m_normals.emplace_back(normal); }
+    void addDiffuseColor(const QVector4D& color) { m_diffuseColors.emplace_back(color); }
+    void addSpecularColor(const QVector4D& color) { m_specularColors.emplace_back(color); }
+    void addTextureCoordinate(const QVector4D& coordinate) { m_textureCoordinates.emplace_back(coordinate); }
+    void addTriangle(Triangle triangle);
+
+    size_t getPositionCount() const { return m_positions.size(); }
+    size_t getNormalCount() const { return m_normals.size(); }
+    size_t getDiffuseColorCount() const { return m_diffuseColors.size(); }
+    size_t getSpecularColorCount() const { return m_specularColors.size(); }
+    size_t getTextureCoordinateCount() const { return m_textureCoordinates.size(); }
+
+private:
+    std::vector<QVector3D> m_positions;
+    std::vector<QVector3D> m_normals;
+    std::vector<QVector4D> m_diffuseColors;
+    std::vector<QVector4D> m_specularColors;
+    std::vector<QVector4D> m_textureCoordinates;
+    std::vector<Triangle> m_triangles;
+    std::unordered_multimap<size_t, size_t> m_mapPosIndexToTriangle;
+};
+
+class PDF4QTLIBSHARED_EXPORT PDF3D_U3D_PointSetGeometry : public PDF3D_U3D_Geometry
+{
+public:
+    virtual PDF3D_U3D_PointSetGeometry* asPointSetGeometry() override { return this; }
+    virtual const PDF3D_U3D_PointSetGeometry* asPointSetGeometry() const override { return this; }
+
+    struct Point
+    {
+        uint32_t shadingId = 0;
+        uint32_t position = 0;
+        uint32_t normal = 0;
+        uint32_t diffuseColor = 0;
+        uint32_t specularColor = 0;
+    };
+
+    bool isEmpty() const { return m_positions.empty(); }
+
+    QVector3D getPosition(size_t index) const { return index < m_positions.size() ? m_positions[index] : QVector3D(0, 0, 0); }
+    QVector3D getNormal(size_t index) const { return index < m_normals.size() ? m_normals[index] : QVector3D(0, 0, 0); }
+    QVector4D getDiffuseColor(size_t index) const { return index < m_diffuseColors.size() ? m_diffuseColors[index] : QVector4D(0, 0, 0, 0); }
+    QVector4D getSpecularColor(size_t index) const { return index < m_specularColors.size() ? m_specularColors[index] : QVector4D(0, 0, 0, 0); }
+
+    void addPosition(const QVector3D& position) { m_positions.emplace_back(position); }
+    void addNormal(const QVector3D& normal) { m_normals.emplace_back(normal); }
+    void addDiffuseColor(const QVector4D& color) { m_diffuseColors.emplace_back(color); }
+    void addSpecularColor(const QVector4D& color) { m_specularColors.emplace_back(color); }
+    void addPoint(Point point);
+
+    /// Returns all points containing given vertex index
+    std::vector<Point> queryPointsByVertexIndex(size_t vertexIndex) const;
+
+    size_t getPositionCount() const { return m_positions.size(); }
+    size_t getNormalCount() const { return m_normals.size(); }
+    size_t getDiffuseColorCount() const { return m_diffuseColors.size(); }
+    size_t getSpecularColorCount() const { return m_specularColors.size(); }
+
+private:
+    std::vector<QVector3D> m_positions;
+    std::vector<QVector3D> m_normals;
+    std::vector<QVector4D> m_diffuseColors;
+    std::vector<QVector4D> m_specularColors;
+    std::vector<Point> m_points;
+    std::unordered_multimap<size_t, size_t> m_mapPosIndexToPoint;
 };
 
 class PDF4QTLIBSHARED_EXPORT PDF3D_U3D_LineSetGeometry : public PDF3D_U3D_Geometry
