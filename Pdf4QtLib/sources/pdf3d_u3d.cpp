@@ -2276,9 +2276,75 @@ PDF3D_U3D_Node& PDF3D_U3D::getOrCreateNode(const QString& nodeName)
     return m_sceneGraph[nodeName];
 }
 
+const PDF3D_U3D_View* PDF3D_U3D::getView(const QString& viewName) const
+{
+    auto it = m_viewResources.find(viewName);
+    if (it != m_viewResources.cend())
+    {
+        return &it->second;
+    }
+
+    return nullptr;
+}
+
+const PDF3D_U3D_Light* PDF3D_U3D::getLight(const QString& lightName) const
+{
+    auto it = m_lightResources.find(lightName);
+    if (it != m_lightResources.cend())
+    {
+        return &it->second;
+    }
+
+    return nullptr;
+}
+
+QImage PDF3D_U3D::getTexture(const QString& textureName) const
+{
+    auto it = m_textureResources.find(textureName);
+    if (it != m_textureResources.cend())
+    {
+        return it->second;
+    }
+
+    return QImage();
+}
+
+const PDF3D_U3D_Shader* PDF3D_U3D::getShader(const QString& shaderName) const
+{
+    auto it = m_shaderResources.find(shaderName);
+    if (it != m_shaderResources.cend())
+    {
+        return &it->second;
+    }
+
+    return nullptr;
+}
+
+const PDF3D_U3D_Material* PDF3D_U3D::getMaterial(const QString& materialName) const
+{
+    auto it = m_materialResources.find(materialName);
+    if (it != m_materialResources.cend())
+    {
+        return &it->second;
+    }
+
+    return nullptr;
+}
+
+const PDF3D_U3D_Geometry* PDF3D_U3D::getGeometry(const QString& geometryName) const
+{
+    auto it = m_geometries.find(geometryName);
+    if (it != m_geometries.cend())
+    {
+        return it->second.data();
+    }
+
+    return nullptr;
+}
+
 void PDF3D_U3D::setViewResource(const QString& viewName, PDF3D_U3D_View view)
 {
-    m_viewResoures[viewName] = std::move(view);
+    m_viewResources[viewName] = std::move(view);
 }
 
 void PDF3D_U3D::setLightResource(const QString& lightName, PDF3D_U3D_Light light)
@@ -6410,6 +6476,43 @@ void PDF3D_U3D_Node::addChild(const QString& child, QMatrix4x4 childTransform)
     {
         m_childTransforms[child] = childTransform;
     }
+}
+
+QMatrix4x4 PDF3D_U3D_Node::getChildTransform(const QString& nodeName) const
+{
+    auto it = m_childTransforms.find(nodeName);
+    if (it != m_childTransforms.cend())
+    {
+        return it->second;
+    }
+
+    return QMatrix4x4();
+}
+
+QMatrix4x4 PDF3D_U3D_Node::getConstantChildTransform() const
+{
+    if (!m_childTransforms.empty())
+    {
+        auto it = m_childTransforms.begin();
+        return it->second;
+    }
+
+    return QMatrix4x4();
+}
+
+bool PDF3D_U3D_Node::hasChildTransform() const
+{
+    return !m_childTransforms.empty();
+}
+
+bool PDF3D_U3D_Node::hasConstantChildTransform() const
+{
+    if (m_childTransforms.size() < 2)
+    {
+        return true;
+    }
+
+    return false;
 }
 
 bool PDF3D_U3D_Node::isEnabled() const

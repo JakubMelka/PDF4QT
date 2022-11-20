@@ -19,6 +19,7 @@
 #define PDFMEDIAVIEWERDIALOG_H
 
 #include "pdfglobal.h"
+#include "pdf3d_u3d.h"
 
 #include <QDialog>
 
@@ -59,12 +60,14 @@ public:
     void initFromAnnotation(const pdf::PDFDocument* document, const pdf::PDFAnnotation* annotation);
 
 private:
+    void regenerateScene();
     void initFrom3DAnnotation(const pdf::PDFDocument* document, const pdf::PDF3DAnnotation* annotation);
 
     Ui::PDFMediaViewerDialog* ui;
     Qt3DExtras::Qt3DWindow* m_3dWindow = nullptr;
     Qt3DCore::QEntity* m_rootEntity = nullptr;
     Qt3DCore::QEntity* m_sceneEntity = nullptr;
+    std::optional<pdf::u3d::PDF3D_U3D> m_sceneU3d;
 };
 
 }   // namespace pdfviewer

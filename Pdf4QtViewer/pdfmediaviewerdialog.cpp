@@ -21,6 +21,7 @@
 #include "pdfdocument.h"
 #include "pdfannotation.h"
 #include "pdf3d_u3d.h"
+#include "pdf3dsceneprocessor.h"
 #include "pdfdbgheap.h"
 
 #include <QColor>
@@ -184,10 +185,34 @@ void PDFMediaViewerDialog::initFromAnnotation(const pdf::PDFDocument* document,
     }
 }
 
+void PDFMediaViewerDialog::regenerateScene()
+{
+    for (Qt3DCore::QNode* node : m_sceneEntity->childNodes())
+    {
+        Qt3DCore::QNode* nullNode = nullptr;
+        node->setParent(nullNode);
+        delete node;
+    }
+
+    if (m_sceneU3d.has_value())
+    {
+        PDF3DSceneProcessor processor;
+        processor.setMode(PDF3DSceneProcessor::Wireframe);
+        processor.setSceneRoot("PDF3D Scene");
+        auto scene = processor.createScene(&m_sceneU3d.value());
+        if (scene.sceneRoot)
+        {
+            scene.sceneRoot->setParent(m_sceneEntity);
+        }
+    }
+}
+
 void PDFMediaViewerDialog::initFrom3DAnnotation(const pdf::PDFDocument* document,
                                                 const pdf::PDF3DAnnotation* annotation)
 {
     const pdf::PDF3DStream& stream = annotation->getStream();
+
+    m_sceneU3d = std::nullopt;
 
     pdf::PDFObject object = document->getObject(stream.getStream());
     if (object.isStream())
@@ -198,17 +223,8 @@ void PDFMediaViewerDialog::initFrom3DAnnotation(const pdf::PDFDocument* document
         {
             case pdf::PDF3DStream::Type::U3D:
             {
-                // TODO: Smazat
-                /*QString file = "K:\\Programming\\PDF\\PDF_For_Qt\\U3D_parser\\u3d-tools\\src\\test.u3d";
-                QFile f(file);
-                if (f.open(QFile::WriteOnly | QFile::Truncate))
-                {
-                    f.write(data);
-                    f.close();
-                }*/
-
                 QStringList errors;
-                pdf::u3d::PDF3D_U3D u3d = pdf::u3d::PDF3D_U3D::parse(data, &errors);
+                m_sceneU3d = pdf::u3d::PDF3D_U3D::parse(data, &errors);
                 break;
             }
 
@@ -219,6 +235,8 @@ void PDFMediaViewerDialog::initFrom3DAnnotation(const pdf::PDFDocument* document
                 break;
         }
     }
+
+    regenerateScene();
 }
 
 }   // namespace pdfviewer

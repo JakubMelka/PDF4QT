@@ -70,7 +70,7 @@ MainWindow::MainWindow(QWidget* parent) :
 #endif
 
     m_settingsDockWidget = new SettingsDockWidget(&m_settings, this);
-    addDockWidget(Qt::LeftDockWidgetArea, m_settingsDockWidget);;
+    addDockWidget(Qt::LeftDockWidgetArea, m_settingsDockWidget);
     connect(m_settingsDockWidget, &SettingsDockWidget::colorsChanged, this, &MainWindow::onColorsChanged);
     connect(m_settingsDockWidget, &SettingsDockWidget::transparencySliderChanged, this, &MainWindow::updateOverlayTransparency);
 

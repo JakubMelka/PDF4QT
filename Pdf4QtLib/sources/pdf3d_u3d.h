@@ -70,6 +70,16 @@ public:
 
     void addChild(const QString& child, QMatrix4x4 childTransform);
 
+    /// Returns transform of the child node
+    QMatrix4x4 getChildTransform(const QString& nodeName) const;
+
+    /// Returns constant child transform (if all children have the same transform),
+    /// otherwise identity matrix is returned.
+    QMatrix4x4 getConstantChildTransform() const;
+
+    bool hasChildTransform() const;
+    bool hasConstantChildTransform() const;
+
     bool isEnabled() const;
     void setIsEnabled(bool newIsEnabled);
 
@@ -235,6 +245,7 @@ public:
     QVector3D getNormal(size_t index) const { return index < m_normals.size() ? m_normals[index] : QVector3D(0, 0, 0); }
     QVector4D getDiffuseColor(size_t index) const { return index < m_diffuseColors.size() ? m_diffuseColors[index] : QVector4D(0, 0, 0, 0); }
     QVector4D getSpecularColor(size_t index) const { return index < m_specularColors.size() ? m_specularColors[index] : QVector4D(0, 0, 0, 0); }
+    const Line& getLine(size_t index) const { return m_lines[index]; }
 
     void addPosition(const QVector3D& position) { m_positions.emplace_back(position); }
     void addNormal(const QVector3D& normal) { m_normals.emplace_back(normal); }
@@ -249,6 +260,7 @@ public:
     size_t getNormalCount() const { return m_normals.size(); }
     size_t getDiffuseColorCount() const { return m_diffuseColors.size(); }
     size_t getSpecularColorCount() const { return m_specularColors.size(); }
+    size_t getLineCount() const { return m_lines.size(); }
 
 private:
     std::vector<QVector3D> m_positions;
@@ -516,6 +528,13 @@ public:
     const PDF3D_U3D_Node& getNode(const QString& nodeName) const;
     PDF3D_U3D_Node& getOrCreateNode(const QString& nodeName);
 
+    const PDF3D_U3D_View* getView(const QString& viewName) const;
+    const PDF3D_U3D_Light* getLight(const QString& lightName) const;
+    QImage getTexture(const QString& textureName) const;
+    const PDF3D_U3D_Shader* getShader(const QString& shaderName) const;
+    const PDF3D_U3D_Material* getMaterial(const QString& materialName) const;
+    const PDF3D_U3D_Geometry* getGeometry(const QString& geometryName) const;
+
     void setViewResource(const QString& viewName, PDF3D_U3D_View view);
     void setLightResource(const QString& lightName, PDF3D_U3D_Light light);
     void setTextureResource(const QString& textureName, QImage texture);
@@ -527,7 +546,7 @@ public:
 
 private:
     std::map<QString, PDF3D_U3D_Node> m_sceneGraph;
-    std::map<QString, PDF3D_U3D_View> m_viewResoures;
+    std::map<QString, PDF3D_U3D_View> m_viewResources;
     std::map<QString, PDF3D_U3D_Light> m_lightResources;
     std::map<QString, QImage> m_textureResources;
     std::map<QString, PDF3D_U3D_Shader> m_shaderResources;
