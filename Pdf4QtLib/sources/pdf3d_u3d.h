@@ -262,6 +262,8 @@ public:
     size_t getSpecularColorCount() const { return m_specularColors.size(); }
     size_t getLineCount() const { return m_lines.size(); }
 
+    const std::vector<QVector3D>& getPositions() const { return m_positions; }
+
 private:
     std::vector<QVector3D> m_positions;
     std::vector<QVector3D> m_normals;

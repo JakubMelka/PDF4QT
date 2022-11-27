@@ -28,7 +28,14 @@
 #include <Qt3DRender/QGeometry>
 #include <Qt3DRender/QGeometryRenderer>
 #include <Qt3DRender/QBuffer>
+#include <Qt3DRender/QPointSize>
+#include <Qt3DRender/QEffect>
+#include <Qt3DRender/QTechnique>
+#include <Qt3DRender/QCullFace>
+#include <Qt3DRender/QSortPolicy>
 #include <Qt3DExtras/QDiffuseSpecularMaterial>
+#include <Qt3DExtras/QPhongAlphaMaterial>
+#include <Qt3DExtras/QPerVertexColorMaterial>
 
 namespace pdfviewer
 {
@@ -321,7 +328,13 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createLineSetGeometry(const pdf::u3d::PDF3
         {
             // We will display bounding box only, bounding
             // box has only edges colored with auxiliary color and faces are missing.
-            // TODO: implement this
+
+            PDF3DBoundingBox boundingBox = PDF3DBoundingBox::getBoundingBox(lineSetGeometry->getPositions());
+            if (!boundingBox.isEmpty())
+            {
+                return createBoundingBoxWireGeometry(boundingBox);
+            }
+
             break;
         }
 
@@ -329,7 +342,13 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createLineSetGeometry(const pdf::u3d::PDF3
         {
             // We will display bounding box only, bounding
             // box has no edges missing and faces are transparent.
-            // TODO: implement this
+
+            PDF3DBoundingBox boundingBox = PDF3DBoundingBox::getBoundingBox(lineSetGeometry->getPositions());
+            if (!boundingBox.isEmpty())
+            {
+                return createBoundingBoxTransparentGeometry(boundingBox);
+            }
+
             break;
         }
 
@@ -338,7 +357,22 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createLineSetGeometry(const pdf::u3d::PDF3
             // We will display bounding box only, bounding
             // box has edges colored with auxiliary color and faces are
             // transparent.
-            // TODO: implement this
+
+            PDF3DBoundingBox boundingBox = PDF3DBoundingBox::getBoundingBox(lineSetGeometry->getPositions());
+            if (!boundingBox.isEmpty())
+            {
+                Qt3DCore::QNode* wireGeometry = createBoundingBoxWireGeometry(boundingBox);
+                Qt3DCore::QNode* transparentGeometry = createBoundingBoxTransparentGeometry(boundingBox);
+
+                Q_ASSERT(wireGeometry);
+                Q_ASSERT(transparentGeometry);
+
+                Qt3DCore::QNode* node = new Qt3DCore::QNode();
+                wireGeometry->setParent(node);
+                transparentGeometry->setParent(node);
+                return node;
+            }
+
             break;
         }
 
@@ -352,7 +386,7 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createLineSetGeometry(const pdf::u3d::PDF3
             Qt3DRender::QBuffer* vertexBuffer = new Qt3DRender::QBuffer();
             vertexBuffer->setType(Qt3DRender::QBuffer::VertexBuffer);
 
-            uint positionCount = lineSetGeometry->getPositionCount();
+            uint positionCount = static_cast<uint>(lineSetGeometry->getPositionCount());
             QByteArray vertexBufferData;
             vertexBufferData.resize(positionCount * 3 * sizeof(float));
             float* vertexBufferDataPtr = reinterpret_cast<float*>(vertexBufferData.data());
@@ -380,7 +414,7 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createLineSetGeometry(const pdf::u3d::PDF3
             positionAttribute->setCount(positionCount);
 
             // Index buffer
-            uint lineCount = lineSetGeometry->getLineCount();
+            uint lineCount = static_cast<uint>(lineSetGeometry->getLineCount());
             QByteArray indexBufferData;
             indexBufferData.resize(lineCount * 2 * sizeof(unsigned int));
             unsigned int* indexBufferDataPtr = reinterpret_cast<unsigned int*>(indexBufferData.data());
@@ -439,15 +473,177 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createLineSetGeometry(const pdf::u3d::PDF3
         case Vertices:
         {
             // We will display only vertices, with auxiliary color
-            // TODO: implement this
-            break;
+
+            // Vertex buffer
+            Qt3DRender::QBuffer* vertexBuffer = new Qt3DRender::QBuffer();
+            vertexBuffer->setType(Qt3DRender::QBuffer::VertexBuffer);
+
+            uint positionCount = static_cast<uint>(lineSetGeometry->getPositionCount());
+            QByteArray vertexBufferData;
+            vertexBufferData.resize(positionCount * 3 * sizeof(float));
+            float* vertexBufferDataPtr = reinterpret_cast<float*>(vertexBufferData.data());
+
+            for (size_t i = 0; i < positionCount; ++i)
+            {
+                QVector3D position = lineSetGeometry->getPosition(i);
+                *vertexBufferDataPtr++ = position.x();
+                *vertexBufferDataPtr++ = position.y();
+                *vertexBufferDataPtr++ = position.z();
+            }
+            vertexBuffer->setData(vertexBufferData);
+
+            constexpr uint elementSize = 3;
+            constexpr uint byteStride = elementSize * sizeof(float);
+
+            Qt3DRender::QAttribute* positionAttribute = new Qt3DRender::QAttribute();
+            positionAttribute->setName(Qt3DRender::QAttribute::defaultPositionAttributeName());
+            positionAttribute->setVertexBaseType(Qt3DRender::QAttribute::Float);
+            positionAttribute->setVertexSize(3);
+            positionAttribute->setAttributeType(Qt3DRender::QAttribute::VertexAttribute);
+            positionAttribute->setBuffer(vertexBuffer);
+            positionAttribute->setByteOffset(0);
+            positionAttribute->setByteStride(byteStride);
+            positionAttribute->setCount(positionCount);
+
+            // Geometry
+            Qt3DRender::QGeometry* geometry = new Qt3DRender::QGeometry();
+            geometry->addAttribute(positionAttribute);
+
+            Qt3DRender::QGeometryRenderer* geometryRenderer = new Qt3DRender::QGeometryRenderer();
+            geometryRenderer->setGeometry(geometry);
+            geometryRenderer->setPrimitiveRestartEnabled(false);
+            geometryRenderer->setPrimitiveType(Qt3DRender::QGeometryRenderer::Points);
+
+            Qt3DExtras::QDiffuseSpecularMaterial* material = new Qt3DExtras::QDiffuseSpecularMaterial();
+            material->setAmbient(getAuxiliaryColor());
+            material->setDiffuse(QColor(Qt::transparent));
+            material->setSpecular(QColor(Qt::transparent));
+
+            Qt3DRender::QEffect* effect = material->effect();
+            for (Qt3DRender::QTechnique* technique : effect->techniques())
+            {
+                for (Qt3DRender::QRenderPass* renderPass : technique->renderPasses())
+                {
+                    Qt3DRender::QPointSize* pointSize = new Qt3DRender::QPointSize();
+                    pointSize->setSizeMode(Qt3DRender::QPointSize::Fixed);
+                    pointSize->setValue(m_pointSize);
+                    renderPass->addRenderState(pointSize);
+                }
+            }
+
+            Qt3DCore::QEntity* entity = new Qt3DCore::QEntity();
+            entity->addComponent(geometryRenderer);
+            entity->addComponent(material);
+            return entity;
         }
 
         case ShadedVertices:
         {
             // We will display vertices with line color
-            // TODO: implement this
-            break;
+
+            constexpr uint elementSize = 3 + 3;
+            constexpr uint byteStride = elementSize * sizeof(float);
+
+            // Vertex buffer
+            Qt3DRender::QBuffer* vertexBuffer = new Qt3DRender::QBuffer();
+            vertexBuffer->setType(Qt3DRender::QBuffer::VertexBuffer);
+
+            uint positionCount = static_cast<uint>(lineSetGeometry->getPositionCount());
+            QByteArray vertexBufferData;
+            vertexBufferData.resize(positionCount * 3 * sizeof(float));
+            float* vertexBufferDataPtr = reinterpret_cast<float*>(vertexBufferData.data());
+
+            for (size_t i = 0; i < positionCount; ++i)
+            {
+                QVector3D position = lineSetGeometry->getPosition(i);
+                *vertexBufferDataPtr++ = position.x();
+                *vertexBufferDataPtr++ = position.y();
+                *vertexBufferDataPtr++ = position.z();
+            }
+            vertexBuffer->setData(vertexBufferData);
+
+            Qt3DRender::QAttribute* positionAttribute = new Qt3DRender::QAttribute();
+            positionAttribute->setName(Qt3DRender::QAttribute::defaultPositionAttributeName());
+            positionAttribute->setVertexBaseType(Qt3DRender::QAttribute::Float);
+            positionAttribute->setVertexSize(3);
+            positionAttribute->setAttributeType(Qt3DRender::QAttribute::VertexAttribute);
+            positionAttribute->setBuffer(vertexBuffer);
+            positionAttribute->setByteOffset(0);
+            positionAttribute->setByteStride(byteStride);
+            positionAttribute->setCount(positionCount);
+
+            // Color buffer
+            Qt3DRender::QBuffer* colorBuffer = new Qt3DRender::QBuffer();
+            colorBuffer->setType(Qt3DRender::QBuffer::VertexBuffer);
+
+            QByteArray colorBufferData;
+            colorBufferData.resize(positionCount * 3 * sizeof(float));
+            float* colorBufferDataPtr = reinterpret_cast<float*>(colorBufferData.data());
+
+            for (size_t i = 0; i < positionCount; ++i)
+            {
+                QVector3D color(0.0, 0.0, 0.0);
+                std::vector<pdf::u3d::PDF3D_U3D_LineSetGeometry::Line> lines = lineSetGeometry->queryLinesByVertexIndex(i);
+
+                if (!lines.empty())
+                {
+                    pdf::u3d::PDF3D_U3D_LineSetGeometry::Line line = lines.front();
+
+                    if (line.position1 == i)
+                    {
+                        color = lineSetGeometry->getDiffuseColor(line.diffuseColor1).toVector3D();
+                    }
+
+                    if (line.position2 == i)
+                    {
+                        color = lineSetGeometry->getDiffuseColor(line.diffuseColor2).toVector3D();
+                    }
+                }
+
+                *colorBufferDataPtr++ = color.x();
+                *colorBufferDataPtr++ = color.y();
+                *colorBufferDataPtr++ = color.z();
+            }
+            colorBuffer->setData(colorBufferData);
+
+            Qt3DRender::QAttribute* colorAttribute = new Qt3DRender::QAttribute();
+            colorAttribute->setName(Qt3DRender::QAttribute::defaultColorAttributeName());
+            colorAttribute->setVertexBaseType(Qt3DRender::QAttribute::Float);
+            colorAttribute->setVertexSize(3);
+            colorAttribute->setAttributeType(Qt3DRender::QAttribute::VertexAttribute);
+            colorAttribute->setBuffer(colorBuffer);
+            colorAttribute->setByteOffset(3 * sizeof(float));
+            colorAttribute->setByteStride(byteStride);
+            colorAttribute->setCount(positionCount);
+
+            // Geometry
+            Qt3DRender::QGeometry* geometry = new Qt3DRender::QGeometry();
+            geometry->addAttribute(positionAttribute);
+            geometry->addAttribute(colorAttribute);
+
+            Qt3DRender::QGeometryRenderer* geometryRenderer = new Qt3DRender::QGeometryRenderer();
+            geometryRenderer->setGeometry(geometry);
+            geometryRenderer->setPrimitiveRestartEnabled(false);
+            geometryRenderer->setPrimitiveType(Qt3DRender::QGeometryRenderer::Points);
+
+            Qt3DExtras::QPerVertexColorMaterial* material = new Qt3DExtras::QPerVertexColorMaterial();
+
+            Qt3DRender::QEffect* effect = material->effect();
+            for (Qt3DRender::QTechnique* technique : effect->techniques())
+            {
+                for (Qt3DRender::QRenderPass* renderPass : technique->renderPasses())
+                {
+                    Qt3DRender::QPointSize* pointSize = new Qt3DRender::QPointSize();
+                    pointSize->setSizeMode(Qt3DRender::QPointSize::Fixed);
+                    pointSize->setValue(m_pointSize);
+                    renderPass->addRenderState(pointSize);
+                }
+            }
+
+            Qt3DCore::QEntity* entity = new Qt3DCore::QEntity();
+            entity->addComponent(geometryRenderer);
+            entity->addComponent(material);
+            return entity;
         }
 
         default:
@@ -456,6 +652,270 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createLineSetGeometry(const pdf::u3d::PDF3
     }
 
     return nullptr;
+}
+
+Qt3DCore::QNode* PDF3DSceneProcessor::createBoundingBoxWireGeometry(const PDF3DBoundingBox& boundingBox)
+{
+    std::array<QVector3D, 8> positions;
+
+    QVector3D min = boundingBox.getMin();
+    QVector3D max = boundingBox.getMax();
+
+    positions[0] = QVector3D(min.x(), min.y(), min.z());
+    positions[1] = QVector3D(max.x(), min.y(), min.z());
+    positions[2] = QVector3D(max.x(), max.y(), min.z());
+    positions[3] = QVector3D(min.x(), max.y(), min.z());
+    positions[4] = QVector3D(min.x(), min.y(), max.z());
+    positions[5] = QVector3D(max.x(), min.y(), max.z());
+    positions[6] = QVector3D(max.x(), max.y(), max.z());
+    positions[7] = QVector3D(min.x(), max.y(), max.z());
+
+    std::array<uint, 24> indices = {
+        0, 1,
+        1, 2,
+        2, 3,
+        3, 0,
+        4, 5,
+        5, 6,
+        6, 7,
+        7, 4,
+        0, 4,
+        1, 5,
+        2, 6,
+        3, 7
+    };
+
+    // Vertex buffer
+    Qt3DRender::QBuffer* vertexBuffer = new Qt3DRender::QBuffer();
+    vertexBuffer->setType(Qt3DRender::QBuffer::VertexBuffer);
+
+    uint positionCount = static_cast<uint>(positions.size());
+    QByteArray vertexBufferData;
+    vertexBufferData.resize(positionCount * 3 * sizeof(float));
+    float* vertexBufferDataPtr = reinterpret_cast<float*>(vertexBufferData.data());
+
+    for (size_t i = 0; i < positionCount; ++i)
+    {
+        QVector3D position = positions[i];
+        *vertexBufferDataPtr++ = position.x();
+        *vertexBufferDataPtr++ = position.y();
+        *vertexBufferDataPtr++ = position.z();
+    }
+    vertexBuffer->setData(vertexBufferData);
+
+    constexpr uint elementSize = 3;
+    constexpr uint byteStride = elementSize * sizeof(float);
+
+    Qt3DRender::QAttribute* positionAttribute = new Qt3DRender::QAttribute();
+    positionAttribute->setName(Qt3DRender::QAttribute::defaultPositionAttributeName());
+    positionAttribute->setVertexBaseType(Qt3DRender::QAttribute::Float);
+    positionAttribute->setVertexSize(3);
+    positionAttribute->setAttributeType(Qt3DRender::QAttribute::VertexAttribute);
+    positionAttribute->setBuffer(vertexBuffer);
+    positionAttribute->setByteOffset(0);
+    positionAttribute->setByteStride(byteStride);
+    positionAttribute->setCount(positionCount);
+
+    // Index buffer
+    uint lineCount = static_cast<uint>(indices.size()) / 2;
+    QByteArray indexBufferData;
+    indexBufferData.resize(lineCount * 2 * sizeof(unsigned int));
+    unsigned int* indexBufferDataPtr = reinterpret_cast<unsigned int*>(indexBufferData.data());
+
+    Qt3DRender::QBuffer* indexBuffer = new Qt3DRender::QBuffer();
+    indexBuffer->setType(Qt3DRender::QBuffer::IndexBuffer);
+
+    for (size_t i = 0; i < indices.size(); ++i)
+    {
+        *indexBufferDataPtr++ = indices[i];
+    }
+    indexBuffer->setData(indexBufferData);
+
+    Qt3DRender::QAttribute* indexAttribute = new Qt3DRender::QAttribute();
+    indexAttribute->setAttributeType(Qt3DRender::QAttribute::IndexAttribute);
+    indexAttribute->setVertexBaseType(Qt3DRender::QAttribute::UnsignedInt);
+    indexAttribute->setBuffer(indexBuffer);
+    indexAttribute->setCount(2 * lineCount);
+
+    // Geometry
+    Qt3DRender::QGeometry* geometry = new Qt3DRender::QGeometry();
+    geometry->addAttribute(positionAttribute);
+    geometry->addAttribute(indexAttribute);
+
+    Qt3DRender::QGeometryRenderer* geometryRenderer = new Qt3DRender::QGeometryRenderer();
+    geometryRenderer->setGeometry(geometry);
+    geometryRenderer->setPrimitiveRestartEnabled(false);
+    geometryRenderer->setPrimitiveType(Qt3DRender::QGeometryRenderer::Lines);
+
+    Qt3DExtras::QDiffuseSpecularMaterial* material = new Qt3DExtras::QDiffuseSpecularMaterial();
+    material->setAmbient(getAuxiliaryColor());
+    material->setDiffuse(QColor(Qt::transparent));
+    material->setSpecular(QColor(Qt::transparent));
+
+    Qt3DCore::QEntity* entity = new Qt3DCore::QEntity();
+    entity->addComponent(geometryRenderer);
+    entity->addComponent(material);
+    return entity;
+}
+
+Qt3DCore::QNode* PDF3DSceneProcessor::createBoundingBoxTransparentGeometry(const PDF3DBoundingBox& boundingBox)
+{
+    std::array<QVector3D, 8> positions;
+
+    QVector3D min = boundingBox.getMin();
+    QVector3D max = boundingBox.getMax();
+
+    positions[0] = QVector3D(min.x(), min.y(), min.z());
+    positions[1] = QVector3D(max.x(), min.y(), min.z());
+    positions[2] = QVector3D(max.x(), max.y(), min.z());
+    positions[3] = QVector3D(min.x(), max.y(), min.z());
+    positions[4] = QVector3D(min.x(), min.y(), max.z());
+    positions[5] = QVector3D(max.x(), min.y(), max.z());
+    positions[6] = QVector3D(max.x(), max.y(), max.z());
+    positions[7] = QVector3D(min.x(), max.y(), max.z());
+
+    std::array<uint, 36> indices = {
+        0, 1, 2, // Bottom
+        2, 3, 0,
+        4, 5, 6, // Top
+        6, 7, 4,
+        0, 1, 5, // Side 1
+        0, 4, 5,
+        1, 2, 6, // Side 2
+        1, 5, 6,
+        2, 3, 7, // Side 3
+        2, 6, 7,
+        3, 0, 4, // Side 4
+        3, 7, 4
+    };
+
+    // Vertex buffer
+    Qt3DRender::QBuffer* vertexBuffer = new Qt3DRender::QBuffer();
+    vertexBuffer->setType(Qt3DRender::QBuffer::VertexBuffer);
+
+    uint positionCount = static_cast<uint>(positions.size());
+    QByteArray vertexBufferData;
+    vertexBufferData.resize(positionCount * 3 * sizeof(float));
+    float* vertexBufferDataPtr = reinterpret_cast<float*>(vertexBufferData.data());
+
+    for (size_t i = 0; i < positionCount; ++i)
+    {
+        QVector3D position = positions[i];
+        *vertexBufferDataPtr++ = position.x();
+        *vertexBufferDataPtr++ = position.y();
+        *vertexBufferDataPtr++ = position.z();
+    }
+    vertexBuffer->setData(vertexBufferData);
+
+    constexpr uint elementSize = 3;
+    constexpr uint byteStride = elementSize * sizeof(float);
+
+    Qt3DRender::QAttribute* positionAttribute = new Qt3DRender::QAttribute();
+    positionAttribute->setName(Qt3DRender::QAttribute::defaultPositionAttributeName());
+    positionAttribute->setVertexBaseType(Qt3DRender::QAttribute::Float);
+    positionAttribute->setVertexSize(3);
+    positionAttribute->setAttributeType(Qt3DRender::QAttribute::VertexAttribute);
+    positionAttribute->setBuffer(vertexBuffer);
+    positionAttribute->setByteOffset(0);
+    positionAttribute->setByteStride(byteStride);
+    positionAttribute->setCount(positionCount);
+
+    // Index buffer
+    uint triangleCount = static_cast<uint>(indices.size()) / 3;
+    QByteArray indexBufferData;
+    indexBufferData.resize(triangleCount * 3 * sizeof(unsigned int));
+    unsigned int* indexBufferDataPtr = reinterpret_cast<unsigned int*>(indexBufferData.data());
+
+    Qt3DRender::QBuffer* indexBuffer = new Qt3DRender::QBuffer();
+    indexBuffer->setType(Qt3DRender::QBuffer::IndexBuffer);
+
+    for (size_t i = 0; i < indices.size(); ++i)
+    {
+        *indexBufferDataPtr++ = indices[i];
+    }
+    indexBuffer->setData(indexBufferData);
+
+    Qt3DRender::QAttribute* indexAttribute = new Qt3DRender::QAttribute();
+    indexAttribute->setAttributeType(Qt3DRender::QAttribute::IndexAttribute);
+    indexAttribute->setVertexBaseType(Qt3DRender::QAttribute::UnsignedInt);
+    indexAttribute->setBuffer(indexBuffer);
+    indexAttribute->setCount(3 * triangleCount);
+
+    // Geometry
+    Qt3DRender::QGeometry* geometry = new Qt3DRender::QGeometry();
+    geometry->addAttribute(positionAttribute);
+    geometry->addAttribute(indexAttribute);
+
+    Qt3DRender::QGeometryRenderer* geometryRenderer = new Qt3DRender::QGeometryRenderer();
+    geometryRenderer->setGeometry(geometry);
+    geometryRenderer->setPrimitiveRestartEnabled(false);
+    geometryRenderer->setPrimitiveType(Qt3DRender::QGeometryRenderer::Triangles);
+
+    QColor color = getAuxiliaryColor();
+    color.setAlphaF(getOpacity());
+
+    Qt3DExtras::QDiffuseSpecularMaterial* material = new Qt3DExtras::QDiffuseSpecularMaterial();
+    material->setAmbient(QColor(Qt::transparent));
+    material->setDiffuse(color);
+    material->setSpecular(QColor(Qt::transparent));
+    material->setAlphaBlendingEnabled(true);
+
+    Qt3DRender::QEffect* effect = material->effect();
+    for (Qt3DRender::QTechnique* technique : effect->techniques())
+    {
+        for (Qt3DRender::QRenderPass* renderPass : technique->renderPasses())
+        {
+            Qt3DRender::QCullFace* cullFace = new Qt3DRender::QCullFace();
+            cullFace->setMode(Qt3DRender::QCullFace::NoCulling);
+            renderPass->addRenderState(cullFace);
+        }
+    }
+
+    Qt3DCore::QEntity* entity = new Qt3DCore::QEntity();
+    entity->addComponent(geometryRenderer);
+    entity->addComponent(material);
+    return entity;
+}
+
+pdf::PDFReal PDF3DSceneProcessor::getPointSize() const
+{
+    return m_pointSize;
+}
+
+void PDF3DSceneProcessor::setPointSize(pdf::PDFReal newPointSize)
+{
+    m_pointSize = newPointSize;
+}
+
+PDF3DBoundingBox PDF3DBoundingBox::getBoundingBox(const std::vector<QVector3D>& points)
+{
+    if (points.empty())
+    {
+        return PDF3DBoundingBox();
+    }
+
+    QVector3D min = points.front();
+    QVector3D max = points.front();
+
+    for (const QVector3D& point : points)
+    {
+        min.setX(qMin(min.x(), point.x()));
+        min.setY(qMin(min.y(), point.y()));
+        min.setZ(qMin(min.z(), point.z()));
+
+        max.setX(qMax(max.x(), point.x()));
+        max.setY(qMax(max.y(), point.y()));
+        max.setZ(qMax(max.z(), point.z()));
+    }
+
+    return PDF3DBoundingBox(min, max);
+}
+
+PDF3DBoundingBox::PDF3DBoundingBox(QVector3D min, QVector3D max) :
+    m_min(min),
+    m_max(max)
+{
+
 }
 
 } // namespace pdfviewer

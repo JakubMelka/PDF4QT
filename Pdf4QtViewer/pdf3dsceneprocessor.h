@@ -21,6 +21,7 @@
 #include "pdfglobal.h"
 
 #include <QColor>
+#include <QVector3D>
 
 #include <set>
 
@@ -46,6 +47,25 @@ class PDF3D_U3D_PointSetGeometry;
 
 namespace pdfviewer
 {
+
+class PDF3DBoundingBox
+{
+public:
+    constexpr inline PDF3DBoundingBox() = default;
+
+    bool isEmpty() const { return m_min == m_max; }
+
+    const QVector3D& getMin() const { return m_min; }
+    const QVector3D& getMax() const { return m_max; }
+
+    static PDF3DBoundingBox getBoundingBox(const std::vector<QVector3D>& points);
+
+private:
+    PDF3DBoundingBox(QVector3D min, QVector3D max);
+
+    QVector3D m_min;
+    QVector3D m_max;
+};
 
 class PDF3DSceneProcessor
 {
@@ -95,6 +115,9 @@ public:
     const QString& getSceneRoot() const;
     void setSceneRoot(const QString& newSceneRoot);
 
+    pdf::PDFReal getPointSize() const;
+    void setPointSize(pdf::PDFReal newPointSize);
+
 private:
     Qt3DCore::QNode* createNode(const pdf::u3d::PDF3D_U3D_Node& node);
     Qt3DCore::QNode* createModelNode(const pdf::u3d::PDF3D_U3D_Node& node);
@@ -103,11 +126,15 @@ private:
     Qt3DCore::QNode* createPointSetGeometry(const pdf::u3d::PDF3D_U3D_PointSetGeometry* pointSetGeometry);
     Qt3DCore::QNode* createLineSetGeometry(const pdf::u3d::PDF3D_U3D_LineSetGeometry* lineSetGeometry);
 
+    Qt3DCore::QNode* createBoundingBoxWireGeometry(const PDF3DBoundingBox& boundingBox);
+    Qt3DCore::QNode* createBoundingBoxTransparentGeometry(const PDF3DBoundingBox& boundingBox);
+
     SceneMode m_mode = Solid;
     QColor m_auxiliaryColor = Qt::black;
     QColor m_faceColor = Qt::black;
     pdf::PDFReal m_opacity = 0.5;
     pdf::PDFReal m_creaseAngle = 45.0;
+    pdf::PDFReal m_pointSize = 3.0f;
     QString m_sceneRoot;
 
     std::set<QString> m_processedNodes;

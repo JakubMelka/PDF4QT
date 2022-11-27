@@ -197,8 +197,9 @@ void PDFMediaViewerDialog::regenerateScene()
     if (m_sceneU3d.has_value())
     {
         PDF3DSceneProcessor processor;
-        processor.setMode(PDF3DSceneProcessor::Wireframe);
+        processor.setMode(PDF3DSceneProcessor::ShadedVertices);
         processor.setSceneRoot("PDF3D Scene");
+        processor.setPointSize(6.0f);
         auto scene = processor.createScene(&m_sceneU3d.value());
         if (scene.sceneRoot)
         {
