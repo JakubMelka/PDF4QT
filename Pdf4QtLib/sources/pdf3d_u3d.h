@@ -246,6 +246,7 @@ public:
     QVector4D getDiffuseColor(size_t index) const { return index < m_diffuseColors.size() ? m_diffuseColors[index] : QVector4D(0, 0, 0, 0); }
     QVector4D getSpecularColor(size_t index) const { return index < m_specularColors.size() ? m_specularColors[index] : QVector4D(0, 0, 0, 0); }
     const Line& getLine(size_t index) const { return m_lines[index]; }
+    const std::vector<Line>& getLines() const { return m_lines; }
 
     void addPosition(const QVector3D& position) { m_positions.emplace_back(position); }
     void addNormal(const QVector3D& normal) { m_normals.emplace_back(normal); }

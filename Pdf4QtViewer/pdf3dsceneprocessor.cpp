@@ -383,35 +383,7 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createLineSetGeometry(const pdf::u3d::PDF3
             // We will display lines colored by auxiliary color
 
             // Vertex buffer
-            Qt3DRender::QBuffer* vertexBuffer = new Qt3DRender::QBuffer();
-            vertexBuffer->setType(Qt3DRender::QBuffer::VertexBuffer);
-
-            uint positionCount = static_cast<uint>(lineSetGeometry->getPositionCount());
-            QByteArray vertexBufferData;
-            vertexBufferData.resize(positionCount * 3 * sizeof(float));
-            float* vertexBufferDataPtr = reinterpret_cast<float*>(vertexBufferData.data());
-
-            for (size_t i = 0; i < positionCount; ++i)
-            {
-                QVector3D position = lineSetGeometry->getPosition(i);
-                *vertexBufferDataPtr++ = position.x();
-                *vertexBufferDataPtr++ = position.y();
-                *vertexBufferDataPtr++ = position.z();
-            }
-            vertexBuffer->setData(vertexBufferData);
-
-            constexpr uint elementSize = 3;
-            constexpr uint byteStride = elementSize * sizeof(float);
-
-            Qt3DRender::QAttribute* positionAttribute = new Qt3DRender::QAttribute();
-            positionAttribute->setName(Qt3DRender::QAttribute::defaultPositionAttributeName());
-            positionAttribute->setVertexBaseType(Qt3DRender::QAttribute::Float);
-            positionAttribute->setVertexSize(3);
-            positionAttribute->setAttributeType(Qt3DRender::QAttribute::VertexAttribute);
-            positionAttribute->setBuffer(vertexBuffer);
-            positionAttribute->setByteOffset(0);
-            positionAttribute->setByteStride(byteStride);
-            positionAttribute->setCount(positionCount);
+            Qt3DRender::QAttribute* positionAttribute = createPositionAttribute(lineSetGeometry->getPositions());
 
             // Index buffer
             uint lineCount = static_cast<uint>(lineSetGeometry->getLineCount());
@@ -466,8 +438,40 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createLineSetGeometry(const pdf::u3d::PDF3
         case SolidWireframe:
         {
             // We will display classic colored lines
-            // TODO: implement this
-            break;
+
+            std::vector<QVector3D> positions;
+            std::vector<QVector3D> colors;
+
+            positions.reserve(lineSetGeometry->getLineCount() * 2);
+            colors.reserve(lineSetGeometry->getLineCount() * 2);
+
+            using Line = pdf::u3d::PDF3D_U3D_LineSetGeometry::Line;
+            for (const Line& line : lineSetGeometry->getLines())
+            {
+                positions.push_back(lineSetGeometry->getPosition(line.position1));
+                positions.push_back(lineSetGeometry->getPosition(line.position2));
+                colors.push_back(lineSetGeometry->getDiffuseColor(line.diffuseColor1).toVector3D());
+                colors.push_back(lineSetGeometry->getDiffuseColor(line.diffuseColor2).toVector3D());
+            }
+
+            Qt3DRender::QAttribute* positionAttribute = createPositionAttribute(positions);
+            Qt3DRender::QAttribute* colorAttribute = createColorAttribute(colors);
+
+            // Geometry
+            Qt3DRender::QGeometry* geometry = new Qt3DRender::QGeometry();
+            geometry->addAttribute(positionAttribute);
+            geometry->addAttribute(colorAttribute);
+
+            Qt3DRender::QGeometryRenderer* geometryRenderer = new Qt3DRender::QGeometryRenderer();
+            geometryRenderer->setGeometry(geometry);
+            geometryRenderer->setPrimitiveRestartEnabled(false);
+            geometryRenderer->setPrimitiveType(Qt3DRender::QGeometryRenderer::Lines);
+
+            Qt3DExtras::QPerVertexColorMaterial* material = new Qt3DExtras::QPerVertexColorMaterial();
+            Qt3DCore::QEntity* entity = new Qt3DCore::QEntity();
+            entity->addComponent(geometryRenderer);
+            entity->addComponent(material);
+            return entity;
         }
 
         case Vertices:
@@ -475,35 +479,7 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createLineSetGeometry(const pdf::u3d::PDF3
             // We will display only vertices, with auxiliary color
 
             // Vertex buffer
-            Qt3DRender::QBuffer* vertexBuffer = new Qt3DRender::QBuffer();
-            vertexBuffer->setType(Qt3DRender::QBuffer::VertexBuffer);
-
-            uint positionCount = static_cast<uint>(lineSetGeometry->getPositionCount());
-            QByteArray vertexBufferData;
-            vertexBufferData.resize(positionCount * 3 * sizeof(float));
-            float* vertexBufferDataPtr = reinterpret_cast<float*>(vertexBufferData.data());
-
-            for (size_t i = 0; i < positionCount; ++i)
-            {
-                QVector3D position = lineSetGeometry->getPosition(i);
-                *vertexBufferDataPtr++ = position.x();
-                *vertexBufferDataPtr++ = position.y();
-                *vertexBufferDataPtr++ = position.z();
-            }
-            vertexBuffer->setData(vertexBufferData);
-
-            constexpr uint elementSize = 3;
-            constexpr uint byteStride = elementSize * sizeof(float);
-
-            Qt3DRender::QAttribute* positionAttribute = new Qt3DRender::QAttribute();
-            positionAttribute->setName(Qt3DRender::QAttribute::defaultPositionAttributeName());
-            positionAttribute->setVertexBaseType(Qt3DRender::QAttribute::Float);
-            positionAttribute->setVertexSize(3);
-            positionAttribute->setAttributeType(Qt3DRender::QAttribute::VertexAttribute);
-            positionAttribute->setBuffer(vertexBuffer);
-            positionAttribute->setByteOffset(0);
-            positionAttribute->setByteStride(byteStride);
-            positionAttribute->setCount(positionCount);
+            Qt3DRender::QAttribute* positionAttribute = createPositionAttribute(lineSetGeometry->getPositions());
 
             // Geometry
             Qt3DRender::QGeometry* geometry = new Qt3DRender::QGeometry();
@@ -541,40 +517,13 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createLineSetGeometry(const pdf::u3d::PDF3
         {
             // We will display vertices with line color
 
-            constexpr uint elementSize = 3 + 3;
-            constexpr uint byteStride = elementSize * sizeof(float);
-
             // Vertex buffer
-            Qt3DRender::QBuffer* vertexBuffer = new Qt3DRender::QBuffer();
-            vertexBuffer->setType(Qt3DRender::QBuffer::VertexBuffer);
-
-            uint positionCount = static_cast<uint>(lineSetGeometry->getPositionCount());
-            QByteArray vertexBufferData;
-            vertexBufferData.resize(positionCount * 3 * sizeof(float));
-            float* vertexBufferDataPtr = reinterpret_cast<float*>(vertexBufferData.data());
-
-            for (size_t i = 0; i < positionCount; ++i)
-            {
-                QVector3D position = lineSetGeometry->getPosition(i);
-                *vertexBufferDataPtr++ = position.x();
-                *vertexBufferDataPtr++ = position.y();
-                *vertexBufferDataPtr++ = position.z();
-            }
-            vertexBuffer->setData(vertexBufferData);
-
-            Qt3DRender::QAttribute* positionAttribute = new Qt3DRender::QAttribute();
-            positionAttribute->setName(Qt3DRender::QAttribute::defaultPositionAttributeName());
-            positionAttribute->setVertexBaseType(Qt3DRender::QAttribute::Float);
-            positionAttribute->setVertexSize(3);
-            positionAttribute->setAttributeType(Qt3DRender::QAttribute::VertexAttribute);
-            positionAttribute->setBuffer(vertexBuffer);
-            positionAttribute->setByteOffset(0);
-            positionAttribute->setByteStride(byteStride);
-            positionAttribute->setCount(positionCount);
+            Qt3DRender::QAttribute* positionAttribute = createPositionAttribute(lineSetGeometry->getPositions());
 
             // Color buffer
             Qt3DRender::QBuffer* colorBuffer = new Qt3DRender::QBuffer();
             colorBuffer->setType(Qt3DRender::QBuffer::VertexBuffer);
+            const uint positionCount = positionAttribute->count();
 
             QByteArray colorBufferData;
             colorBufferData.resize(positionCount * 3 * sizeof(float));
@@ -612,8 +561,8 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createLineSetGeometry(const pdf::u3d::PDF3
             colorAttribute->setVertexSize(3);
             colorAttribute->setAttributeType(Qt3DRender::QAttribute::VertexAttribute);
             colorAttribute->setBuffer(colorBuffer);
-            colorAttribute->setByteOffset(3 * sizeof(float));
-            colorAttribute->setByteStride(byteStride);
+            colorAttribute->setByteOffset(0);
+            colorAttribute->setByteStride(3 * sizeof(float));
             colorAttribute->setCount(positionCount);
 
             // Geometry
@@ -703,9 +652,6 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createBoundingBoxWireGeometry(const PDF3DB
     }
     vertexBuffer->setData(vertexBufferData);
 
-    constexpr uint elementSize = 3;
-    constexpr uint byteStride = elementSize * sizeof(float);
-
     Qt3DRender::QAttribute* positionAttribute = new Qt3DRender::QAttribute();
     positionAttribute->setName(Qt3DRender::QAttribute::defaultPositionAttributeName());
     positionAttribute->setVertexBaseType(Qt3DRender::QAttribute::Float);
@@ -713,7 +659,7 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createBoundingBoxWireGeometry(const PDF3DB
     positionAttribute->setAttributeType(Qt3DRender::QAttribute::VertexAttribute);
     positionAttribute->setBuffer(vertexBuffer);
     positionAttribute->setByteOffset(0);
-    positionAttribute->setByteStride(byteStride);
+    positionAttribute->setByteStride(3 * sizeof(float));
     positionAttribute->setCount(positionCount);
 
     // Index buffer
@@ -807,9 +753,6 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createBoundingBoxTransparentGeometry(const
     }
     vertexBuffer->setData(vertexBufferData);
 
-    constexpr uint elementSize = 3;
-    constexpr uint byteStride = elementSize * sizeof(float);
-
     Qt3DRender::QAttribute* positionAttribute = new Qt3DRender::QAttribute();
     positionAttribute->setName(Qt3DRender::QAttribute::defaultPositionAttributeName());
     positionAttribute->setVertexBaseType(Qt3DRender::QAttribute::Float);
@@ -817,7 +760,7 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createBoundingBoxTransparentGeometry(const
     positionAttribute->setAttributeType(Qt3DRender::QAttribute::VertexAttribute);
     positionAttribute->setBuffer(vertexBuffer);
     positionAttribute->setByteOffset(0);
-    positionAttribute->setByteStride(byteStride);
+    positionAttribute->setByteStride(3 * sizeof(float));
     positionAttribute->setCount(positionCount);
 
     // Index buffer
@@ -875,6 +818,51 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createBoundingBoxTransparentGeometry(const
     entity->addComponent(geometryRenderer);
     entity->addComponent(material);
     return entity;
+}
+
+Qt3DRender::QAttribute* PDF3DSceneProcessor::createGenericAttribute(const std::vector<QVector3D>& values) const
+{
+    Qt3DRender::QBuffer* vertexBuffer = new Qt3DRender::QBuffer();
+    vertexBuffer->setType(Qt3DRender::QBuffer::VertexBuffer);
+
+    uint positionCount = static_cast<uint>(values.size());
+    QByteArray vertexBufferData;
+    vertexBufferData.resize(positionCount * 3 * sizeof(float));
+    float* vertexBufferDataPtr = reinterpret_cast<float*>(vertexBufferData.data());
+
+    for (size_t i = 0; i < positionCount; ++i)
+    {
+        QVector3D position = values[i];
+        *vertexBufferDataPtr++ = position.x();
+        *vertexBufferDataPtr++ = position.y();
+        *vertexBufferDataPtr++ = position.z();
+    }
+    vertexBuffer->setData(vertexBufferData);
+
+    Qt3DRender::QAttribute* positionAttribute = new Qt3DRender::QAttribute();
+    positionAttribute->setVertexBaseType(Qt3DRender::QAttribute::Float);
+    positionAttribute->setVertexSize(3);
+    positionAttribute->setAttributeType(Qt3DRender::QAttribute::VertexAttribute);
+    positionAttribute->setBuffer(vertexBuffer);
+    positionAttribute->setByteOffset(0);
+    positionAttribute->setByteStride(3 * sizeof(float));
+    positionAttribute->setCount(positionCount);
+
+    return positionAttribute;
+}
+
+Qt3DRender::QAttribute* PDF3DSceneProcessor::createPositionAttribute(const std::vector<QVector3D>& positions) const
+{
+    Qt3DRender::QAttribute* attribute = createGenericAttribute(positions);
+    attribute->setName(Qt3DRender::QAttribute::defaultPositionAttributeName());
+    return attribute;
+}
+
+Qt3DRender::QAttribute* PDF3DSceneProcessor::createColorAttribute(const std::vector<QVector3D>& colors) const
+{
+    Qt3DRender::QAttribute* attribute = createGenericAttribute(colors);
+    attribute->setName(Qt3DRender::QAttribute::defaultColorAttributeName());
+    return attribute;
 }
 
 pdf::PDFReal PDF3DSceneProcessor::getPointSize() const

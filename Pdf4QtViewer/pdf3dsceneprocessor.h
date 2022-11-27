@@ -33,6 +33,11 @@ class QNode;
 class QEntity;
 }
 
+namespace Qt3DRender
+{
+class QAttribute;
+}
+
 namespace pdf
 {
 namespace u3d
@@ -128,6 +133,10 @@ private:
 
     Qt3DCore::QNode* createBoundingBoxWireGeometry(const PDF3DBoundingBox& boundingBox);
     Qt3DCore::QNode* createBoundingBoxTransparentGeometry(const PDF3DBoundingBox& boundingBox);
+
+    Qt3DRender::QAttribute* createGenericAttribute(const std::vector<QVector3D>& values) const;
+    Qt3DRender::QAttribute* createPositionAttribute(const std::vector<QVector3D>& positions) const;
+    Qt3DRender::QAttribute* createColorAttribute(const std::vector<QVector3D>& colors) const;
 
     SceneMode m_mode = Solid;
     QColor m_auxiliaryColor = Qt::black;
