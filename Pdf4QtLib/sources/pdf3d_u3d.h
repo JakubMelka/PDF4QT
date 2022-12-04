@@ -164,6 +164,10 @@ public:
     size_t getDiffuseColorCount() const { return m_diffuseColors.size(); }
     size_t getSpecularColorCount() const { return m_specularColors.size(); }
     size_t getTextureCoordinateCount() const { return m_textureCoordinates.size(); }
+    size_t getTriangleCount() const { return m_triangles.size(); }
+
+    const std::vector<QVector3D>& getPositions() const { return m_positions; }
+    const std::vector<Triangle>& getTriangles() const { return m_triangles; }
 
 private:
     std::vector<QVector3D> m_positions;
@@ -210,6 +214,8 @@ public:
     size_t getNormalCount() const { return m_normals.size(); }
     size_t getDiffuseColorCount() const { return m_diffuseColors.size(); }
     size_t getSpecularColorCount() const { return m_specularColors.size(); }
+
+    const std::vector<QVector3D>& getPositions() const { return m_positions; }
 
 private:
     std::vector<QVector3D> m_positions;

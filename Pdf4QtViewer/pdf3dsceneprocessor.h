@@ -131,11 +131,13 @@ private:
     Qt3DCore::QNode* createPointSetGeometry(const pdf::u3d::PDF3D_U3D_PointSetGeometry* pointSetGeometry);
     Qt3DCore::QNode* createLineSetGeometry(const pdf::u3d::PDF3D_U3D_LineSetGeometry* lineSetGeometry);
 
+    Qt3DCore::QNode* createVertexGeometry(const std::vector<QVector3D>& positions);
     Qt3DCore::QNode* createBoundingBoxWireGeometry(const PDF3DBoundingBox& boundingBox);
     Qt3DCore::QNode* createBoundingBoxTransparentGeometry(const PDF3DBoundingBox& boundingBox);
 
     Qt3DRender::QAttribute* createGenericAttribute(const std::vector<QVector3D>& values) const;
     Qt3DRender::QAttribute* createPositionAttribute(const std::vector<QVector3D>& positions) const;
+    Qt3DRender::QAttribute* createNormalAttribute(const std::vector<QVector3D>& normals) const;
     Qt3DRender::QAttribute* createColorAttribute(const std::vector<QVector3D>& colors) const;
 
     SceneMode m_mode = Solid;
