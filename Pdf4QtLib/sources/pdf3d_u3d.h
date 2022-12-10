@@ -118,6 +118,12 @@ public:
 
     virtual PDF3D_U3D_LineSetGeometry* asLineSetGeometry() { return nullptr; }
     virtual const PDF3D_U3D_LineSetGeometry* asLineSetGeometry() const { return nullptr; }
+
+    std::vector<QStringList> shaders() const;
+    void setShaders(const std::vector<QStringList>& newShaders);
+
+protected:
+    std::vector<QStringList> m_shaders;
 };
 
 class PDF4QTLIBSHARED_EXPORT PDF3D_U3D_MeshGeometry : public PDF3D_U3D_Geometry
@@ -425,7 +431,7 @@ public:
     void setTextureInfos(const PDF_U3D_TextureInfos& newTextureInfos);
 
 private:
-    bool m_isLightingEnabled = false;
+    bool m_isLightingEnabled = true;
     bool m_isAlphaTestEnabled = false;
     bool m_isUseVertexColor = false;
     float m_alphaTestReference = 0.0;
@@ -551,6 +557,8 @@ public:
     void setMaterialResource(const QString& materialName, PDF3D_U3D_Material material);
     void setGeometry(const QString& geometryName, QSharedPointer<PDF3D_U3D_Geometry> geometry);
 
+    void setShadersToGeometry(const QString& geometryName, const std::vector<QStringList>& shaderLists);
+
     static PDF3D_U3D parse(const QByteArray& data, QStringList* errors);
 
 private:
@@ -561,6 +569,11 @@ private:
     std::map<QString, PDF3D_U3D_Shader> m_shaderResources;
     std::map<QString, PDF3D_U3D_Material> m_materialResources;
     std::map<QString, QSharedPointer<PDF3D_U3D_Geometry>> m_geometries;
+
+    PDF3D_U3D_Light m_defaultLight;
+    QImage m_defaultTexture;
+    PDF3D_U3D_Material m_defaultMaterial;
+    PDF3D_U3D_Shader m_defaultShader;
 };
 
 }   // namespace u3d

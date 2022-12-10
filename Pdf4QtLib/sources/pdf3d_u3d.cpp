@@ -1413,6 +1413,7 @@ public:
     auto back() const { return m_blocks.back(); }
 
     auto size() const { return m_blocks.size(); }
+    auto get(size_t index) const { return m_blocks[index]; }
 
 private:
     std::vector<PDF3D_U3D_Block_Data> m_blocks;
@@ -2256,7 +2257,32 @@ const PDF3D_U3D_ContextManager::ContextData* PDF3D_U3D_ContextManager::getContex
 
 PDF3D_U3D::PDF3D_U3D()
 {
+    // Default light
+    m_defaultLight.setType(PDF3D_U3D_Light::Ambient);
+    m_defaultLight.setIsSpecular(false);
+    m_defaultLight.setIsSpotDecay(false);
+    m_defaultLight.setIsEnabled(true);
+    m_defaultLight.setIntensity(1.0);
+    m_defaultLight.setColor(QColor::fromRgbF(0.75, 0.75, 0.75, 1.0));
 
+    // Default texture
+    m_defaultTexture = QImage(8, 8, QImage::Format_RGBA8888);
+    m_defaultTexture.fill(Qt::black);
+
+    for (int i = 0; i < 4; ++i)
+    {
+        for (int j = 0; j < 4; ++j)
+        {
+            m_defaultTexture.setPixelColor(4 + i, j, QColor::fromRgbF(1.0, 0.4, 0.2, 1.0));
+            m_defaultTexture.setPixelColor(i, 4 + j, QColor::fromRgbF(1.0, 0.4, 0.2, 1.0));
+        }
+    }
+
+    // Default material
+    m_defaultMaterial.setAmbientColor(QColor::fromRgbF(0.75, 0.75, 0.75, 1.0));
+
+    // Default shader - initialized in the constructor
+    m_defaultShader = PDF3D_U3D_Shader();
 }
 
 const PDF3D_U3D_Node& PDF3D_U3D::getNode(const QString& nodeName) const
@@ -2295,7 +2321,7 @@ const PDF3D_U3D_Light* PDF3D_U3D::getLight(const QString& lightName) const
         return &it->second;
     }
 
-    return nullptr;
+    return &m_defaultLight;
 }
 
 QImage PDF3D_U3D::getTexture(const QString& textureName) const
@@ -2306,7 +2332,7 @@ QImage PDF3D_U3D::getTexture(const QString& textureName) const
         return it->second;
     }
 
-    return QImage();
+    return m_defaultTexture;
 }
 
 const PDF3D_U3D_Shader* PDF3D_U3D::getShader(const QString& shaderName) const
@@ -2317,7 +2343,7 @@ const PDF3D_U3D_Shader* PDF3D_U3D::getShader(const QString& shaderName) const
         return &it->second;
     }
 
-    return nullptr;
+    return &m_defaultShader;
 }
 
 const PDF3D_U3D_Material* PDF3D_U3D::getMaterial(const QString& materialName) const
@@ -2328,7 +2354,7 @@ const PDF3D_U3D_Material* PDF3D_U3D::getMaterial(const QString& materialName) co
         return &it->second;
     }
 
-    return nullptr;
+    return &m_defaultMaterial;
 }
 
 const PDF3D_U3D_Geometry* PDF3D_U3D::getGeometry(const QString& geometryName) const
@@ -2370,6 +2396,15 @@ void PDF3D_U3D::setMaterialResource(const QString& materialName, PDF3D_U3D_Mater
 void PDF3D_U3D::setGeometry(const QString& geometryName, QSharedPointer<PDF3D_U3D_Geometry> geometry)
 {
     m_geometries[geometryName] = std::move(geometry);
+}
+
+void PDF3D_U3D::setShadersToGeometry(const QString& geometryName, const std::vector<QStringList>& shaderLists)
+{
+    auto it = m_geometries.find(geometryName);
+    if (it != m_geometries.cend())
+    {
+        it->second->setShaders(shaderLists);
+    }
 }
 
 PDF3D_U3D PDF3D_U3D::parse(const QByteArray& data, QStringList* errors)
@@ -3134,7 +3169,6 @@ void PDF3D_U3D_Parser::addBlockToU3D(PDF3D_U3D_AbstractBlockPtr block)
             light.setIntensity(lightResourceBlock->getIntensity());
             light.setAttenuation(QVector3D(attenuation[0], attenuation[1], attenuation[2]));
 
-
             PDF3D_U3D_Light::Type type = PDF3D_U3D_Light::Ambient;
             switch (lightResourceBlock->getType())
             {
@@ -3350,6 +3384,24 @@ void PDF3D_U3D_Parser::addBlockToU3D(PDF3D_U3D_AbstractBlockPtr block)
         case PDF3D_U3D_Block_Info::BT_ResourceMotion:
         {
             m_errors << PDFTranslationContext::tr("Motion block (%1) is not supported.").arg(block->getBlockType(), 8, 16);
+            break;
+        }
+
+        case PDF3D_U3D_Block_Info::BT_Modifier2DGlyph:
+        case PDF3D_U3D_Block_Info::BT_ModifierSubdivision:
+        case PDF3D_U3D_Block_Info::BT_ModifierAnimation:
+        case PDF3D_U3D_Block_Info::BT_ModifierBoneWeights:
+        case PDF3D_U3D_Block_Info::BT_ModifierCLOD:
+            m_errors << PDFTranslationContext::tr("Block type (%1) not supported in scene decoder.").arg(block->getBlockType(), 8, 16);
+            break;
+
+        case PDF3D_U3D_Block_Info::BT_ModifierShading:
+        {
+            const PDF3D_U3D_ShadingModifierBlock* modelNodeBlock = dynamic_cast<const PDF3D_U3D_ShadingModifierBlock*>(block.data());
+
+            const PDF3D_U3D_ShadingModifierBlock::ShaderLists& shaderLists = modelNodeBlock->getShaderLists();
+            const auto& node = m_object.getNode(modelNodeBlock->getModifierName());
+            m_object.setShadersToGeometry(node.getResourceName(), shaderLists);
             break;
         }
 
@@ -5651,6 +5703,21 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_ShadingModifierBlock::parse(QByteArray data
     return pointer;
 }
 
+const QString& PDF3D_U3D_ShadingModifierBlock::getModifierName() const
+{
+    return m_modifierName;
+}
+
+uint32_t PDF3D_U3D_ShadingModifierBlock::getChainIndex() const
+{
+    return m_chainIndex;
+}
+
+uint32_t PDF3D_U3D_ShadingModifierBlock::getAttributes() const
+{
+    return m_attributes;
+}
+
 const PDF3D_U3D_ShadingModifierBlock::ShaderLists& PDF3D_U3D_ShadingModifierBlock::getShaderLists() const
 {
     return m_shaderLists;
@@ -6591,6 +6658,16 @@ std::vector<PDF3D_U3D_PointSetGeometry::Point> PDF3D_U3D_PointSetGeometry::query
 void PDF3D_U3D_MeshGeometry::addTriangle(Triangle triangle)
 {
     m_triangles.emplace_back(std::move(triangle));
+}
+
+std::vector<QStringList> PDF3D_U3D_Geometry::shaders() const
+{
+    return m_shaders;
+}
+
+void PDF3D_U3D_Geometry::setShaders(const std::vector<QStringList>& newShaders)
+{
+    m_shaders = newShaders;
 }
 
 }   // namespace u3d

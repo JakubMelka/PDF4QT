@@ -793,9 +793,6 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createLineSetGeometry(const pdf::u3d::PDF3
         return nullptr;
     }
 
-    // TODO: Odstranit
-    return nullptr;
-
     switch (m_mode)
     {
         case BoundingBox:
