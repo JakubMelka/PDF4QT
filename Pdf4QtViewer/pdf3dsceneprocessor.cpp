@@ -38,6 +38,7 @@
 #include <Qt3DRender/QTexture>
 #include <Qt3DRender/QTextureImage>
 #include <Qt3DRender/QPaintedTextureImage>
+#include <Qt3DRender/QAlphaTest>
 #include <Qt3DExtras/QDiffuseSpecularMaterial>
 #include <Qt3DExtras/QPhongAlphaMaterial>
 #include <Qt3DExtras/QPerVertexColorMaterial>
@@ -585,26 +586,9 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createMeshGeometry(const pdf::u3d::PDF3D_U
             Qt3DCore::QEntity* entity = new Qt3DCore::QEntity();
             entity->addComponent(geometryRenderer);
 
-            if (hasTextures)
-            {
-                Qt3DExtras::QTextureMaterial* material = new Qt3DExtras::QTextureMaterial();
-                material->setAlphaBlendingEnabled(true);
-
-                QImage image(512, 512, QImage::Format_RGBA8888);
-                image.fill(QColor::fromRgbF(0.0, 0.5, 0.0, 0.5));
-
-                PDF3DTextureImage* textureImage = new PDF3DTextureImage(image, material);
-                textureImage->setSize(image.size());
-                material->texture()->setSize(image.width(), image.height());
-                material->texture()->addTextureImage(textureImage);
-
-                entity->addComponent(material);
-            }
-            else
-            {
-                Qt3DExtras::QPerVertexColorMaterial* material = new Qt3DExtras::QPerVertexColorMaterial();
-                entity->addComponent(material);
-            }
+            QString shaderName = meshGeometry->getShaderName(0);
+            Qt3DRender::QMaterial* material = createMaterialFromShader(shaderName, false);
+            entity->addComponent(material);
 
             return entity;
         }
@@ -910,39 +894,72 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createLineSetGeometry(const pdf::u3d::PDF3
         {
             // We will display classic colored lines
 
-            std::vector<QVector3D> positions;
-            std::vector<QVector3D> colors;
-
-            positions.reserve(lineSetGeometry->getLineCount() * 2);
-            colors.reserve(lineSetGeometry->getLineCount() * 2);
-
             using Line = pdf::u3d::PDF3D_U3D_LineSetGeometry::Line;
+            std::map<uint32_t, std::vector<Line>> shadingIdToLines;
+
             for (const Line& line : lineSetGeometry->getLines())
             {
-                positions.push_back(lineSetGeometry->getPosition(line.position1));
-                positions.push_back(lineSetGeometry->getPosition(line.position2));
-                colors.push_back(lineSetGeometry->getDiffuseColor(line.diffuseColor1).toVector3D());
-                colors.push_back(lineSetGeometry->getDiffuseColor(line.diffuseColor2).toVector3D());
+                shadingIdToLines[line.shadingId].push_back(line);
             }
 
-            Qt3DRender::QAttribute* positionAttribute = createPositionAttribute(positions);
-            Qt3DRender::QAttribute* colorAttribute = createColorAttribute(colors);
+            std::vector<Qt3DCore::QEntity*> entities;
 
-            // Geometry
-            Qt3DRender::QGeometry* geometry = new Qt3DRender::QGeometry();
-            geometry->addAttribute(positionAttribute);
-            geometry->addAttribute(colorAttribute);
+            for (const auto& item : shadingIdToLines)
+            {
+                const uint32_t shadingId = item.first;
+                const std::vector<Line>& lines = item.second;
 
-            Qt3DRender::QGeometryRenderer* geometryRenderer = new Qt3DRender::QGeometryRenderer();
-            geometryRenderer->setGeometry(geometry);
-            geometryRenderer->setPrimitiveRestartEnabled(false);
-            geometryRenderer->setPrimitiveType(Qt3DRender::QGeometryRenderer::Lines);
+                std::vector<QVector3D> positions;
+                std::vector<QVector3D> colors;
 
-            Qt3DExtras::QPerVertexColorMaterial* material = new Qt3DExtras::QPerVertexColorMaterial();
-            Qt3DCore::QEntity* entity = new Qt3DCore::QEntity();
-            entity->addComponent(geometryRenderer);
-            entity->addComponent(material);
-            return entity;
+                positions.reserve(lines.size() * 2);
+                colors.reserve(lines.size() * 2);
+
+                for (const Line& line : lines)
+                {
+                    positions.push_back(lineSetGeometry->getPosition(line.position1));
+                    positions.push_back(lineSetGeometry->getPosition(line.position2));
+                    colors.push_back(lineSetGeometry->getDiffuseColor(line.diffuseColor1).toVector3D());
+                    colors.push_back(lineSetGeometry->getDiffuseColor(line.diffuseColor2).toVector3D());
+                }
+
+                Qt3DRender::QAttribute* positionAttribute = createPositionAttribute(positions);
+                Qt3DRender::QAttribute* colorAttribute = createColorAttribute(colors);
+
+                // Geometry
+                Qt3DRender::QGeometry* geometry = new Qt3DRender::QGeometry();
+                geometry->addAttribute(positionAttribute);
+                geometry->addAttribute(colorAttribute);
+
+                Qt3DRender::QGeometryRenderer* geometryRenderer = new Qt3DRender::QGeometryRenderer();
+                geometryRenderer->setGeometry(geometry);
+                geometryRenderer->setPrimitiveRestartEnabled(false);
+                geometryRenderer->setPrimitiveType(Qt3DRender::QGeometryRenderer::Lines);
+
+                QString shaderName = lineSetGeometry->getShaderName(shadingId);
+                Qt3DRender::QMaterial* material = createMaterialFromShader(shaderName, true);
+
+                Qt3DCore::QEntity* entity = new Qt3DCore::QEntity();
+                entity->addComponent(geometryRenderer);
+                entity->addComponent(material);
+                entities.emplace_back(entity);
+            }
+
+            if (entities.size() == 1)
+            {
+                return entities.front();
+            }
+            else
+            {
+                Qt3DCore::QEntity* entity = new Qt3DCore::QEntity();
+
+                for (Qt3DCore::QEntity* currentEntity : entities)
+                {
+                    currentEntity->setParent(entity);
+                }
+
+                return entity;
+            }
         }
 
         case Vertices:
@@ -1346,6 +1363,104 @@ Qt3DRender::QAttribute* PDF3DSceneProcessor::createColorAttribute(const std::vec
     Qt3DRender::QAttribute* attribute = createGenericAttribute(colors);
     attribute->setName(Qt3DRender::QAttribute::defaultColorAttributeName());
     return attribute;
+}
+
+Qt3DRender::QMaterial* PDF3DSceneProcessor::createMaterialFromShader(const QString& shaderName, bool forceUseVertexColors) const
+{
+    Qt3DRender::QMaterial* material = nullptr;
+    const pdf::u3d::PDF3D_U3D_Shader* shader = m_sceneData->getShader(shaderName);
+    const pdf::u3d::PDF3D_U3D_Shader::PDF_U3D_TextureInfos& textures = shader->getTextureInfos();
+
+    if (textures.empty())
+    {
+        if (shader->isUseVertexColor() || forceUseVertexColors)
+        {
+            material = new Qt3DExtras::QPerVertexColorMaterial();
+        }
+        else
+        {
+            const pdf::u3d::PDF3D_U3D_Material* u3dMaterial = m_sceneData->getMaterial(shader->getMaterialName());
+            Qt3DExtras::QDiffuseSpecularMaterial* currentMaterial = new Qt3DExtras::QDiffuseSpecularMaterial();
+            currentMaterial->setAmbient(u3dMaterial->getAmbientColor());
+            currentMaterial->setDiffuse(u3dMaterial->getDiffuseColor());
+            currentMaterial->setSpecular(u3dMaterial->getSpecularColor());
+            currentMaterial->setAlphaBlendingEnabled(shader->isAlphaTestEnabled());
+            material = currentMaterial;
+        }
+    }
+    else
+    {
+        // Use texture material
+
+        Qt3DExtras::QDiffuseSpecularMaterial* textureMaterial = new Qt3DExtras::QDiffuseSpecularMaterial();
+        textureMaterial->setAlphaBlendingEnabled(shader->isAlphaTestEnabled());
+        const pdf::u3d::PDF3D_U3D_Shader::PDF_U3D_TextureInfo& textureInfo = shader->getTextureInfos().front();
+        QString textureName = textureInfo.textureName;
+        QImage image = m_sceneData->getTexture(textureName);
+
+        PDF3DTextureImage* textureImage = new PDF3DTextureImage(image, textureMaterial);
+        textureImage->setSize(image.size());
+        textureImage->update();
+
+        Qt3DRender::QTexture2D* texture = new Qt3DRender::QTexture2D(textureMaterial);
+        texture->setSize(image.width(), image.height());
+        texture->addTextureImage(textureImage);
+
+        textureMaterial->setAmbient(Qt::transparent);
+        textureMaterial->setDiffuse(QVariant::fromValue<Qt3DRender::QAbstractTexture*>(texture));
+        textureMaterial->setSpecular(QColor(Qt::transparent));
+
+        material = textureMaterial;
+    }
+
+    if (shader->isAlphaTestEnabled())
+    {
+        Qt3DRender::QEffect* effect = material->effect();
+        Qt3DRender::QAlphaTest* alphaTest = new Qt3DRender::QAlphaTest(material);
+        alphaTest->setReferenceValue(shader->getAlphaTestReference());
+
+        switch (shader->getAlphaTestFunction())
+        {
+            case pdf::u3d::PDF3D_U3D_Shader::NEVER:
+                alphaTest->setAlphaFunction(Qt3DRender::QAlphaTest::Never);
+                break;
+            case pdf::u3d::PDF3D_U3D_Shader::LESS:
+                alphaTest->setAlphaFunction(Qt3DRender::QAlphaTest::Less);
+                break;
+            case pdf::u3d::PDF3D_U3D_Shader::GREATER:
+                alphaTest->setAlphaFunction(Qt3DRender::QAlphaTest::Greater);
+                break;
+            case pdf::u3d::PDF3D_U3D_Shader::EQUAL:
+                alphaTest->setAlphaFunction(Qt3DRender::QAlphaTest::Equal);
+                break;
+            case pdf::u3d::PDF3D_U3D_Shader::NOT_EQUAL:
+                alphaTest->setAlphaFunction(Qt3DRender::QAlphaTest::NotEqual);
+                break;
+            case pdf::u3d::PDF3D_U3D_Shader::LEQUAL:
+                alphaTest->setAlphaFunction(Qt3DRender::QAlphaTest::LessOrEqual);
+                break;
+            case pdf::u3d::PDF3D_U3D_Shader::GEQUAL:
+                alphaTest->setAlphaFunction(Qt3DRender::QAlphaTest::GreaterOrEqual);
+                break;
+            case pdf::u3d::PDF3D_U3D_Shader::ALWAYS:
+                alphaTest->setAlphaFunction(Qt3DRender::QAlphaTest::Always);
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+
+        for (Qt3DRender::QTechnique* technique : effect->techniques())
+        {
+            for (Qt3DRender::QRenderPass* renderPass : technique->renderPasses())
+            {
+                renderPass->addRenderState(alphaTest);
+            }
+        }
+    }
+
+    return material;
 }
 
 pdf::PDFReal PDF3DSceneProcessor::getPointSize() const

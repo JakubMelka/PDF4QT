@@ -35,6 +35,7 @@ class QEntity;
 
 namespace Qt3DRender
 {
+class QMaterial;
 class QAttribute;
 }
 
@@ -139,6 +140,8 @@ private:
     Qt3DRender::QAttribute* createPositionAttribute(const std::vector<QVector3D>& positions) const;
     Qt3DRender::QAttribute* createNormalAttribute(const std::vector<QVector3D>& normals) const;
     Qt3DRender::QAttribute* createColorAttribute(const std::vector<QVector3D>& colors) const;
+
+    Qt3DRender::QMaterial* createMaterialFromShader(const QString& shaderName, bool forceUseVertexColors) const;
 
     SceneMode m_mode = Solid;
     QColor m_auxiliaryColor = Qt::black;

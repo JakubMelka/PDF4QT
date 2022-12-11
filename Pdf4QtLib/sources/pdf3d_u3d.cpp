@@ -6660,7 +6660,21 @@ void PDF3D_U3D_MeshGeometry::addTriangle(Triangle triangle)
     m_triangles.emplace_back(std::move(triangle));
 }
 
-std::vector<QStringList> PDF3D_U3D_Geometry::shaders() const
+QString PDF3D_U3D_Geometry::getShaderName(uint32_t shadingId) const
+{
+    if (shadingId < m_shaders.size())
+    {
+        const QStringList& shaderNames = m_shaders[shadingId];
+        if (!shaderNames.isEmpty())
+        {
+            return shaderNames.front();
+        }
+    }
+
+    return QString();
+}
+
+std::vector<QStringList> PDF3D_U3D_Geometry::getShaders() const
 {
     return m_shaders;
 }

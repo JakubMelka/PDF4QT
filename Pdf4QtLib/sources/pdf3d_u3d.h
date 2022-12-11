@@ -119,7 +119,9 @@ public:
     virtual PDF3D_U3D_LineSetGeometry* asLineSetGeometry() { return nullptr; }
     virtual const PDF3D_U3D_LineSetGeometry* asLineSetGeometry() const { return nullptr; }
 
-    std::vector<QStringList> shaders() const;
+    QString getShaderName(uint32_t shadingId) const;
+
+    std::vector<QStringList> getShaders() const;
     void setShaders(const std::vector<QStringList>& newShaders);
 
 protected:
