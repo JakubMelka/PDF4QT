@@ -537,6 +537,8 @@ private:
     float m_reflectivity = 0.0;
 };
 
+// TODO: apply material to default color
+
 class PDF4QTLIBSHARED_EXPORT PDF3D_U3D
 {
 public:

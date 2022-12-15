@@ -713,7 +713,19 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createPointSetGeometry(const pdf::u3d::PDF
                 if (!points.empty())
                 {
                     pdf::u3d::PDF3D_U3D_PointSetGeometry::Point point = points.front();
-                    color = pointSetGeometry->getDiffuseColor(point.diffuseColor).toVector3D();
+                    if (point.diffuseColor != 0)
+                    {
+                        color = pointSetGeometry->getDiffuseColor(point.diffuseColor).toVector3D();
+                    }
+                    else
+                    {
+                        QString shaderName = pointSetGeometry->getShaderName(point.shadingId);
+                        const pdf::u3d::PDF3D_U3D_Shader* shader = m_sceneData->getShader(shaderName);
+                        const pdf::u3d::PDF3D_U3D_Material* shaderMaterial = m_sceneData->getMaterial(shader->getMaterialName());
+                        const QColor diffuseColor = shaderMaterial->getDiffuseColor();
+                        const QVector3D defaultColor(diffuseColor.redF(), diffuseColor.greenF(), diffuseColor.blueF());
+                        color = defaultColor;
+                    }
                 }
 
                 *colorBufferDataPtr++ = color.x();
@@ -915,12 +927,31 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createLineSetGeometry(const pdf::u3d::PDF3
                 positions.reserve(lines.size() * 2);
                 colors.reserve(lines.size() * 2);
 
+                QString shaderName = lineSetGeometry->getShaderName(shadingId);
+                const pdf::u3d::PDF3D_U3D_Shader* shader = m_sceneData->getShader(shaderName);
+                const pdf::u3d::PDF3D_U3D_Material* shaderMaterial = m_sceneData->getMaterial(shader->getMaterialName());
+                const QColor diffuseColor = shaderMaterial->getDiffuseColor();
+                const QVector3D defaultColor(diffuseColor.redF(), diffuseColor.greenF(), diffuseColor.blueF());
+
                 for (const Line& line : lines)
                 {
+                    QVector3D color1 = defaultColor;
+                    QVector3D color2 = defaultColor;
+
+                    if (line.diffuseColor1 != 0)
+                    {
+                        color1 = lineSetGeometry->getDiffuseColor(line.diffuseColor1).toVector3D();
+                    }
+
+                    if (line.diffuseColor2 != 0)
+                    {
+                        color2 = lineSetGeometry->getDiffuseColor(line.diffuseColor2).toVector3D();
+                    }
+
                     positions.push_back(lineSetGeometry->getPosition(line.position1));
                     positions.push_back(lineSetGeometry->getPosition(line.position2));
-                    colors.push_back(lineSetGeometry->getDiffuseColor(line.diffuseColor1).toVector3D());
-                    colors.push_back(lineSetGeometry->getDiffuseColor(line.diffuseColor2).toVector3D());
+                    colors.push_back(color1);
+                    colors.push_back(color2);
                 }
 
                 Qt3DRender::QAttribute* positionAttribute = createPositionAttribute(positions);
@@ -936,7 +967,6 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createLineSetGeometry(const pdf::u3d::PDF3
                 geometryRenderer->setPrimitiveRestartEnabled(false);
                 geometryRenderer->setPrimitiveType(Qt3DRender::QGeometryRenderer::Lines);
 
-                QString shaderName = lineSetGeometry->getShaderName(shadingId);
                 Qt3DRender::QMaterial* material = createMaterialFromShader(shaderName, true);
 
                 Qt3DCore::QEntity* entity = new Qt3DCore::QEntity();
