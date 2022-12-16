@@ -135,6 +135,8 @@ private:
     Qt3DCore::QNode* createVertexGeometry(const std::vector<QVector3D>& positions);
     Qt3DCore::QNode* createBoundingBoxWireGeometry(const PDF3DBoundingBox& boundingBox);
     Qt3DCore::QNode* createBoundingBoxTransparentGeometry(const PDF3DBoundingBox& boundingBox);
+    Qt3DCore::QNode* createWireframeMeshGeometry(const pdf::u3d::PDF3D_U3D_MeshGeometry* meshGeometry);
+    Qt3DCore::QNode* createSolidMeshGeometry(const pdf::u3d::PDF3D_U3D_MeshGeometry* meshGeometry);
 
     Qt3DRender::QAttribute* createGenericAttribute(const std::vector<QVector3D>& values) const;
     Qt3DRender::QAttribute* createPositionAttribute(const std::vector<QVector3D>& positions) const;
@@ -142,6 +144,8 @@ private:
     Qt3DRender::QAttribute* createColorAttribute(const std::vector<QVector3D>& colors) const;
 
     Qt3DRender::QMaterial* createMaterialFromShader(const QString& shaderName, bool forceUseVertexColors) const;
+
+    static void addDepthTestToMaterial(Qt3DRender::QMaterial* material);
 
     SceneMode m_mode = Solid;
     QColor m_auxiliaryColor = Qt::black;

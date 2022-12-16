@@ -145,6 +145,7 @@ public:
 
     struct Triangle
     {
+        uint32_t shadingId = 0;
         bool hasDiffuse = false;
         bool hasSpecular = false;
         bool hasTexture = false;

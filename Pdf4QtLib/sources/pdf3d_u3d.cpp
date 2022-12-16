@@ -2724,6 +2724,8 @@ void PDF3D_U3D_Parser::addBaseMeshGeometry(PDF3D_U3D_MeshGeometry* geometry,
 
         const PDF3D_U3D_ShadingDescription* shading = declarationBlock->getShadingDescriptionItem(face.m_shadingId);
 
+        triangle.shadingId = face.m_shadingId;
+
         if (shading)
         {
             triangle.hasDiffuse = shading->hasDiffuseColors();
