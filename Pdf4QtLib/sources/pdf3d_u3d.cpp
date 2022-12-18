@@ -21,6 +21,7 @@
 #include <QImageReader>
 
 #include <array>
+#include <algorithm>
 
 namespace pdf
 {
@@ -6659,7 +6660,78 @@ std::vector<PDF3D_U3D_PointSetGeometry::Point> PDF3D_U3D_PointSetGeometry::query
 
 void PDF3D_U3D_MeshGeometry::addTriangle(Triangle triangle)
 {
+    const size_t triangleIndex = m_triangles.size();
     m_triangles.emplace_back(std::move(triangle));
+    m_mapPosIndexToTriangle.insert(std::make_pair(m_triangles.back().vertices[0].positionIndex, triangleIndex));
+    m_mapPosIndexToTriangle.insert(std::make_pair(m_triangles.back().vertices[1].positionIndex, triangleIndex));
+    m_mapPosIndexToTriangle.insert(std::make_pair(m_triangles.back().vertices[2].positionIndex, triangleIndex));
+}
+
+QVector3D PDF3D_U3D_MeshGeometry::getNormal(const Triangle& triangle) const
+{
+    QVector3D p1 = getPosition(triangle.vertices[0].positionIndex);
+    QVector3D p2 = getPosition(triangle.vertices[1].positionIndex);
+    QVector3D p3 = getPosition(triangle.vertices[2].positionIndex);
+
+    QVector3D v1 = p2 - p1;
+    QVector3D v2 = p3 - p1;
+
+    QVector3D normal = QVector3D::crossProduct(v1, v2);
+    normal.normalize();
+    return normal;
+}
+
+std::vector<PDF3D_U3D_MeshGeometry::Triangle> PDF3D_U3D_MeshGeometry::queryTrianglesByVertexIndex(size_t vertexIndex) const
+{
+    std::vector<PDF3D_U3D_MeshGeometry::Triangle> result;
+    auto iterators = m_mapPosIndexToTriangle.equal_range(vertexIndex);
+    result.reserve(std::distance(iterators.first, iterators.second));
+
+    for (auto it = iterators.first; it != iterators.second; ++it)
+    {
+        result.push_back(m_triangles[it->second]);
+    }
+
+    return result;
+}
+
+std::vector<PDF3D_U3D_MeshGeometry::Triangle> PDF3D_U3D_MeshGeometry::queryTrianglesOnLine(size_t vertexIndex1, size_t vertexIndex2) const
+{
+    std::vector<PDF3D_U3D_MeshGeometry::Triangle> result;
+
+    auto iterators1 = m_mapPosIndexToTriangle.equal_range(vertexIndex1);
+    auto iterators2 = m_mapPosIndexToTriangle.equal_range(vertexIndex2);
+
+    std::vector<size_t> triangleIndices1;
+    std::vector<size_t> triangleIndices2;
+
+    triangleIndices1.reserve(std::distance(iterators1.first, iterators1.second));
+    for (auto it = iterators1.first; it != iterators1.second; ++it)
+    {
+        triangleIndices1.push_back(it->second);
+    }
+
+    triangleIndices2.reserve(std::distance(iterators2.first, iterators2.second));
+    for (auto it = iterators2.first; it != iterators2.second; ++it)
+    {
+        triangleIndices2.push_back(it->second);
+    }
+
+    std::sort(triangleIndices1.begin(), triangleIndices1.end());
+    std::sort(triangleIndices2.begin(), triangleIndices2.end());
+
+    triangleIndices1.erase(std::unique(triangleIndices1.begin(), triangleIndices1.end()), triangleIndices1.end());
+    triangleIndices2.erase(std::unique(triangleIndices2.begin(), triangleIndices2.end()), triangleIndices2.end());
+
+    std::vector<size_t> triangleIndices;
+    std::set_intersection(triangleIndices1.cbegin(), triangleIndices1.cend(), triangleIndices2.cbegin(), triangleIndices2.cend(), std::back_inserter(triangleIndices));
+
+    for (const size_t triangleIndex : triangleIndices)
+    {
+        result.push_back(m_triangles[triangleIndex]);
+    }
+
+    return result;
 }
 
 QString PDF3D_U3D_Geometry::getShaderName(uint32_t shadingId) const

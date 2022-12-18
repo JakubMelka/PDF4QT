@@ -43,6 +43,7 @@
 #include <Qt3DRender/QNoDepthMask>
 #include <Qt3DExtras/QDiffuseSpecularMaterial>
 #include <Qt3DExtras/QPerVertexColorMaterial>
+#include <Qt3DExtras/QTextureMaterial>
 
 namespace pdfviewer
 {
@@ -67,13 +68,43 @@ namespace pdfviewer
         ShadedIllustration              Stinovana ilustrace
 */
 
+class PDF3DTextureSingleColorImage : public Qt3DRender::QPaintedTextureImage
+{
+    using BaseClass = Qt3DRender::QPaintedTextureImage;
+public:
+    explicit PDF3DTextureSingleColorImage(QColor color, Qt3DCore::QNode* parent) :
+        BaseClass(parent),
+        m_color(color)
+    {
+
+    }
+
+    virtual ~PDF3DTextureSingleColorImage() override
+    {
+
+    }
+
+protected:
+    virtual void paint(QPainter* painter) override;
+
+private:
+    QColor m_color;
+};
+
+void PDF3DTextureSingleColorImage::paint(QPainter* painter)
+{
+    painter->setViewport(0, height(), width(), -height());
+    painter->fillRect(QRectF(QPointF(0, 0), size()), m_color);
+}
+
 class PDF3DTextureImage : public Qt3DRender::QPaintedTextureImage
 {
     using BaseClass = Qt3DRender::QPaintedTextureImage;
 public:
-    explicit PDF3DTextureImage(QImage image, Qt3DCore::QNode* parent) :
+    explicit PDF3DTextureImage(QImage image, Qt3DCore::QNode* parent, qreal alpha) :
         BaseClass(parent),
-        m_image(std::move(image))
+        m_image(std::move(image)),
+        m_alpha(alpha)
     {
 
     }
@@ -88,11 +119,14 @@ protected:
 
 private:
     QImage m_image;
+    qreal m_alpha = 0.0;
 };
 
 void PDF3DTextureImage::paint(QPainter* painter)
 {
     painter->setViewport(0, height(), width(), -height());
+    painter->setOpacity(m_alpha);
+    painter->setCompositionMode(QPainter::CompositionMode_Source);
     painter->drawImage(QRectF(QPointF(0, 0), size()), m_image);
 }
 
@@ -418,14 +452,34 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createMeshGeometry(const pdf::u3d::PDF3D_U
         {
             // We will display solid color
 
-            return createSolidMeshGeometry(meshGeometry);
+            return createSolidMeshGeometry(meshGeometry, 1.0);
         }
 
         case SolidWireframe:
         {
             Qt3DCore::QNode* node = new Qt3DCore::QNode();
 
-            Qt3DCore::QNode* solidGeometry = createSolidMeshGeometry(meshGeometry);
+            Qt3DCore::QNode* solidGeometry = createSolidMeshGeometry(meshGeometry, 1.0);
+            Qt3DCore::QNode* wireframeGeometry = createWireframeMeshGeometry(meshGeometry);
+
+            solidGeometry->setParent(node);
+            wireframeGeometry->setParent(node);
+
+            return node;
+        }
+
+        case Transparent:
+        {
+            // We will display solid color
+
+            return createSolidMeshGeometry(meshGeometry, m_opacity);
+        }
+
+        case TransparentWireframe:
+        {
+            Qt3DCore::QNode* node = new Qt3DCore::QNode();
+
+            Qt3DCore::QNode* solidGeometry = createSolidMeshGeometry(meshGeometry, m_opacity);
             Qt3DCore::QNode* wireframeGeometry = createWireframeMeshGeometry(meshGeometry);
 
             solidGeometry->setParent(node);
@@ -435,12 +489,34 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createMeshGeometry(const pdf::u3d::PDF3D_U
         }
 
         case Illustration:
+        {
+            Qt3DCore::QNode* node = new Qt3DCore::QNode();
+
+            Qt3DCore::QNode* solidGeometry = createSolidSingleColoredFaceGeometry(meshGeometry);
+            Qt3DCore::QNode* wireframeGeometry = createWireframeWithoutObscuredEdgesMeshGeometry(meshGeometry);
+
+            solidGeometry->setParent(node);
+            wireframeGeometry->setParent(node);
+
+            return node;
+        }
+
         case ShadedIllustration:
+        {
+            Qt3DCore::QNode* node = new Qt3DCore::QNode();
+
+            Qt3DCore::QNode* solidGeometry = createSolidMeshGeometry(meshGeometry, 1.0);
+            Qt3DCore::QNode* wireframeGeometry = createWireframeWithoutObscuredEdgesMeshGeometry(meshGeometry);
+
+            solidGeometry->setParent(node);
+            wireframeGeometry->setParent(node);
+
+            return node;
+        }
+
         case ShadedWireframe:
         case HiddenWireframe:
         case SolidOutline:
-        case Transparent:
-        case TransparentWireframe:
         case ShadedVertices:
 
         default:
@@ -811,7 +887,7 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createLineSetGeometry(const pdf::u3d::PDF3
                 geometryRenderer->setPrimitiveRestartEnabled(false);
                 geometryRenderer->setPrimitiveType(Qt3DRender::QGeometryRenderer::Lines);
 
-                Qt3DRender::QMaterial* material = createMaterialFromShader(shaderName, true);
+                Qt3DRender::QMaterial* material = createMaterialFromShader(shaderName, true, 1.0);
 
                 Qt3DCore::QEntity* entity = new Qt3DCore::QEntity();
                 entity->addComponent(geometryRenderer);
@@ -1249,7 +1325,7 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createWireframeMeshGeometry(const pdf::u3d
     return entity;
 }
 
-Qt3DCore::QNode* PDF3DSceneProcessor::createSolidMeshGeometry(const pdf::u3d::PDF3D_U3D_MeshGeometry* meshGeometry)
+Qt3DCore::QNode* PDF3DSceneProcessor::createSolidMeshGeometry(const pdf::u3d::PDF3D_U3D_MeshGeometry* meshGeometry, qreal opacity)
 {
     // Vertex buffer - we create vertex buffer with position(3), normal(3), color(4), texture coordinate (2)
     constexpr int positionVertexSize = 3;
@@ -1300,6 +1376,8 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createSolidMeshGeometry(const pdf::u3d::PD
                 QVector3D normal = meshGeometry->getNormal(vertex.normalIndex);
                 QVector4D diffuseColor = meshGeometry->getDiffuseColor(vertex.diffuseColorIndex);
                 QVector4D textureCoordinate = meshGeometry->getTextureCoordinate(vertex.textureCoordIndex);
+
+                diffuseColor.setW(diffuseColor.w() * opacity);
 
                 if (vertex.diffuseColorIndex == 0)
                 {
@@ -1390,7 +1468,7 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createSolidMeshGeometry(const pdf::u3d::PD
         Qt3DCore::QEntity* entity = new Qt3DCore::QEntity();
         entity->addComponent(geometryRenderer);
 
-        Qt3DRender::QMaterial* material = createMaterialFromShader(shaderName, false);
+        Qt3DRender::QMaterial* material = createMaterialFromShader(shaderName, false, opacity);
         entity->addComponent(material);
         entities.emplace_back(entity);
     }
@@ -1410,6 +1488,160 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createSolidMeshGeometry(const pdf::u3d::PD
 
         return entity;
     }
+}
+
+Qt3DCore::QNode* PDF3DSceneProcessor::createSolidSingleColoredFaceGeometry(const pdf::u3d::PDF3D_U3D_MeshGeometry* meshGeometry)
+{
+    using Triangle = pdf::u3d::PDF3D_U3D_MeshGeometry::Triangle;
+    const std::vector<Triangle>& triangles = meshGeometry->getTriangles();
+
+    constexpr int positionVertexSize = 3;
+
+    const uint triangleCount = static_cast<uint>(triangles.size());
+    constexpr uint32_t stride = positionVertexSize * sizeof(float);
+    constexpr uint32_t positionVertexByteOffset = 0;
+
+    QByteArray vertexBufferData;
+    vertexBufferData.resize(triangleCount * 3 * stride);
+    float* vertexBufferDataPtr = reinterpret_cast<float*>(vertexBufferData.data());
+
+    Qt3DRender::QBuffer* vertexBuffer = new Qt3DRender::QBuffer();
+    vertexBuffer->setType(Qt3DRender::QBuffer::VertexBuffer);
+
+    for (const pdf::u3d::PDF3D_U3D_MeshGeometry::Triangle& triangle : triangles)
+    {
+        for (const pdf::u3d::PDF3D_U3D_MeshGeometry::Vertex& vertex : triangle.vertices)
+        {
+            QVector3D position = meshGeometry->getPosition(vertex.positionIndex);
+
+            // Vertex
+            *vertexBufferDataPtr++ = position[0];
+            *vertexBufferDataPtr++ = position[1];
+            *vertexBufferDataPtr++ = position[2];
+
+            Q_ASSERT(vertexBufferDataPtr <= reinterpret_cast<float*>(vertexBufferData.data() + vertexBufferData.size()));
+        }
+    }
+    vertexBuffer->setData(vertexBufferData);
+
+    // Position attribute
+    Qt3DRender::QAttribute* positionAttribute = new Qt3DRender::QAttribute();
+    positionAttribute->setName(Qt3DRender::QAttribute::defaultPositionAttributeName());
+    positionAttribute->setAttributeType(Qt3DRender::QAttribute::VertexAttribute);
+    positionAttribute->setDataType(Qt3DRender::QAttribute::Float);
+    positionAttribute->setDataSize(positionVertexSize);
+    positionAttribute->setBuffer(vertexBuffer);
+    positionAttribute->setByteOffset(positionVertexByteOffset);
+    positionAttribute->setByteStride(stride);
+    positionAttribute->setCount(triangleCount * 3);
+
+    // Geometry
+    Qt3DRender::QGeometry* geometry = new Qt3DRender::QGeometry();
+    geometry->addAttribute(positionAttribute);
+
+    Qt3DRender::QGeometryRenderer* geometryRenderer = new Qt3DRender::QGeometryRenderer();
+    geometryRenderer->setGeometry(geometry);
+    geometryRenderer->setPrimitiveRestartEnabled(false);
+    geometryRenderer->setPrimitiveType(Qt3DRender::QGeometryRenderer::Triangles);
+
+    Qt3DCore::QEntity* entity = new Qt3DCore::QEntity();
+    entity->addComponent(geometryRenderer);
+
+    Qt3DExtras::QTextureMaterial* textureMaterial = new Qt3DExtras::QTextureMaterial();
+    textureMaterial->setAlphaBlendingEnabled(false);
+
+    PDF3DTextureSingleColorImage* textureImage = new PDF3DTextureSingleColorImage(m_faceColor, textureMaterial);
+    textureImage->setSize(QSize(1, 1));
+    textureImage->update();
+
+    Qt3DRender::QTexture2D* texture = new Qt3DRender::QTexture2D(textureMaterial);
+    texture->setSize(1, 1);
+    texture->addTextureImage(textureImage);
+
+    textureMaterial->setTexture(texture);
+    entity->addComponent(textureMaterial);
+
+    return entity;
+}
+
+Qt3DCore::QNode* PDF3DSceneProcessor::createWireframeWithoutObscuredEdgesMeshGeometry(const pdf::u3d::PDF3D_U3D_MeshGeometry* meshGeometry)
+{
+    using Triangle = pdf::u3d::PDF3D_U3D_MeshGeometry::Triangle;
+    const std::vector<Triangle>& triangles = meshGeometry->getTriangles();
+
+    std::vector<std::pair<uint32_t, uint32_t>> lines;
+    lines.reserve(triangles.size() * 3);
+
+    // Insert all lines of triangles
+    for (const Triangle& triangle : triangles)
+    {
+        lines.emplace_back(triangle.vertices[0].positionIndex, triangle.vertices[1].positionIndex);
+        lines.emplace_back(triangle.vertices[1].positionIndex, triangle.vertices[2].positionIndex);
+        lines.emplace_back(triangle.vertices[2].positionIndex, triangle.vertices[0].positionIndex);
+    }
+
+    // Line will start with smaller index
+    for (std::pair<uint32_t, uint32_t>& line : lines)
+    {
+        if (line.first > line.second)
+        {
+            std::swap(line.first, line.second);
+        }
+    }
+
+    // Make lines unique
+    std::sort(lines.begin(), lines.end());
+    lines.erase(std::unique(lines.begin(), lines.end()), lines.end());
+
+    // Remove obscured edges
+    lines.erase(std::remove_if(lines.begin(), lines.end(), std::bind(&PDF3DSceneProcessor::isLineObscured, this, meshGeometry, std::placeholders::_1)), lines.end());
+
+    // Vertex buffer
+    Qt3DRender::QAttribute* positionAttribute = createPositionAttribute(meshGeometry->getPositions());
+
+    // Index buffer
+    const uint32_t lineCount = static_cast<uint32_t>(lines.size());
+    QByteArray indexBufferData;
+    indexBufferData.resize(lineCount * 2 * sizeof(unsigned int));
+    unsigned int* indexBufferDataPtr = reinterpret_cast<unsigned int*>(indexBufferData.data());
+
+    Qt3DRender::QBuffer* indexBuffer = new Qt3DRender::QBuffer();
+    indexBuffer->setType(Qt3DRender::QBuffer::IndexBuffer);
+
+    for (const auto& line : lines)
+    {
+        *indexBufferDataPtr++ = line.first;
+        *indexBufferDataPtr++ = line.second;
+    }
+    indexBuffer->setData(indexBufferData);
+
+    Qt3DRender::QAttribute* indexAttribute = new Qt3DRender::QAttribute();
+    indexAttribute->setAttributeType(Qt3DRender::QAttribute::IndexAttribute);
+    indexAttribute->setVertexBaseType(Qt3DRender::QAttribute::UnsignedInt);
+    indexAttribute->setBuffer(indexBuffer);
+    indexAttribute->setCount(2 * lineCount);
+
+    // Geometry
+    Qt3DRender::QGeometry* geometry = new Qt3DRender::QGeometry();
+    geometry->addAttribute(positionAttribute);
+    geometry->addAttribute(indexAttribute);
+
+    Qt3DRender::QGeometryRenderer* geometryRenderer = new Qt3DRender::QGeometryRenderer();
+    geometryRenderer->setGeometry(geometry);
+    geometryRenderer->setPrimitiveRestartEnabled(false);
+    geometryRenderer->setPrimitiveType(Qt3DRender::QGeometryRenderer::Lines);
+
+    Qt3DExtras::QDiffuseSpecularMaterial* material = new Qt3DExtras::QDiffuseSpecularMaterial();
+    material->setAmbient(getAuxiliaryColor());
+    material->setDiffuse(QColor(Qt::transparent));
+    material->setSpecular(QColor(Qt::transparent));
+
+    addDepthTestToMaterial(material);
+
+    Qt3DCore::QEntity* entity = new Qt3DCore::QEntity();
+    entity->addComponent(geometryRenderer);
+    entity->addComponent(material);
+    return entity;
 }
 
 Qt3DRender::QAttribute* PDF3DSceneProcessor::createGenericAttribute(const std::vector<QVector3D>& values) const
@@ -1464,7 +1696,7 @@ Qt3DRender::QAttribute* PDF3DSceneProcessor::createColorAttribute(const std::vec
     return attribute;
 }
 
-Qt3DRender::QMaterial* PDF3DSceneProcessor::createMaterialFromShader(const QString& shaderName, bool forceUseVertexColors) const
+Qt3DRender::QMaterial* PDF3DSceneProcessor::createMaterialFromShader(const QString& shaderName, bool forceUseVertexColors, qreal opacity) const
 {
     Qt3DRender::QMaterial* material = nullptr;
     const pdf::u3d::PDF3D_U3D_Shader* shader = m_sceneData->getShader(shaderName);
@@ -1478,12 +1710,18 @@ Qt3DRender::QMaterial* PDF3DSceneProcessor::createMaterialFromShader(const QStri
         }
         else
         {
+            auto adjustColor = [opacity](QColor color)
+            {
+                color.setAlphaF(color.alphaF() * opacity);
+                return color;
+            };
+
             const pdf::u3d::PDF3D_U3D_Material* u3dMaterial = m_sceneData->getMaterial(shader->getMaterialName());
             Qt3DExtras::QDiffuseSpecularMaterial* currentMaterial = new Qt3DExtras::QDiffuseSpecularMaterial();
-            currentMaterial->setAmbient(u3dMaterial->getAmbientColor());
-            currentMaterial->setDiffuse(u3dMaterial->getDiffuseColor());
-            currentMaterial->setSpecular(u3dMaterial->getSpecularColor());
-            currentMaterial->setAlphaBlendingEnabled(shader->isAlphaTestEnabled());
+            currentMaterial->setAmbient(adjustColor(u3dMaterial->getAmbientColor()));
+            currentMaterial->setDiffuse(adjustColor(u3dMaterial->getDiffuseColor()));
+            currentMaterial->setSpecular(adjustColor(u3dMaterial->getSpecularColor()));
+            currentMaterial->setAlphaBlendingEnabled(shader->isAlphaTestEnabled() || !qFuzzyCompare(opacity, 1.0));
             material = currentMaterial;
         }
     }
@@ -1492,12 +1730,12 @@ Qt3DRender::QMaterial* PDF3DSceneProcessor::createMaterialFromShader(const QStri
         // Use texture material
 
         Qt3DExtras::QDiffuseSpecularMaterial* textureMaterial = new Qt3DExtras::QDiffuseSpecularMaterial();
-        textureMaterial->setAlphaBlendingEnabled(shader->isAlphaTestEnabled());
+        textureMaterial->setAlphaBlendingEnabled(shader->isAlphaTestEnabled() || !qFuzzyCompare(opacity, 1.0));
         const pdf::u3d::PDF3D_U3D_Shader::PDF_U3D_TextureInfo& textureInfo = shader->getTextureInfos().front();
         QString textureName = textureInfo.textureName;
         QImage image = m_sceneData->getTexture(textureName);
 
-        PDF3DTextureImage* textureImage = new PDF3DTextureImage(image, textureMaterial);
+        PDF3DTextureImage* textureImage = new PDF3DTextureImage(image, textureMaterial, opacity);
         textureImage->setSize(image.size());
         textureImage->update();
 
@@ -1565,6 +1803,29 @@ Qt3DRender::QMaterial* PDF3DSceneProcessor::createMaterialFromShader(const QStri
     return material;
 }
 
+bool PDF3DSceneProcessor::isLineObscured(const pdf::u3d::PDF3D_U3D_MeshGeometry* meshGeometry, const std::pair<uint32_t, uint32_t>& line) const
+{
+    using Triangle = pdf::u3d::PDF3D_U3D_MeshGeometry::Triangle;
+    std::vector<Triangle> triangles = meshGeometry->queryTrianglesOnLine(line.first, line.second);
+
+    if (triangles.size() == 2)
+    {
+        const Triangle& triangle1 = triangles.front();
+        const Triangle& triangle2 = triangles.back();
+
+        QVector3D normal1 = meshGeometry->getNormal(triangle1);
+        QVector3D normal2 = meshGeometry->getNormal(triangle2);
+
+        const float cosPhi = QVector3D::dotProduct(normal1, normal2);
+        const float phi = std::acosf(cosPhi);
+        const float phiDegrees = qRadiansToDegrees(phi);
+
+        return phiDegrees < m_creaseAngle;
+    }
+
+    return false;
+}
+
 void PDF3DSceneProcessor::addDepthTestToMaterial(Qt3DRender::QMaterial* material)
 {
     if (Qt3DRender::QEffect* effect = material->effect())
@@ -1629,5 +1890,6 @@ PDF3DBoundingBox::PDF3DBoundingBox(QVector3D min, QVector3D max) :
 {
 
 }
+
 
 } // namespace pdfviewer

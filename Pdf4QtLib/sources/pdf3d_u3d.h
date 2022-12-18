@@ -168,6 +168,14 @@ public:
     void addTextureCoordinate(const QVector4D& coordinate) { m_textureCoordinates.emplace_back(coordinate); }
     void addTriangle(Triangle triangle);
 
+    QVector3D getNormal(const Triangle& triangle) const;
+
+    /// Returns all triangles containing given vertex index
+    std::vector<Triangle> queryTrianglesByVertexIndex(size_t vertexIndex) const;
+
+    /// Returns all triangles containing given line
+    std::vector<Triangle> queryTrianglesOnLine(size_t vertexIndex1, size_t vertexIndex2) const;
+
     size_t getPositionCount() const { return m_positions.size(); }
     size_t getNormalCount() const { return m_normals.size(); }
     size_t getDiffuseColorCount() const { return m_diffuseColors.size(); }
