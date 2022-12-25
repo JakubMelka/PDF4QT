@@ -1259,6 +1259,36 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
                     throw PDFException(PDFTranslationContext::tr("Invalid encoding entry of the font."));
                 }
             }
+            else if (fontDictionary->hasKey("ToUnicode"))
+            {
+                PDFFontCMap toUnicodeCMap;
+                const PDFObject& toUnicode = document->getObject(fontDictionary->get("ToUnicode"));
+                if (toUnicode.isName())
+                {
+                    toUnicodeCMap = PDFFontCMap::createFromName(toUnicode.getString());
+                }
+                else if (toUnicode.isStream())
+                {
+                    const PDFStream* stream = toUnicode.getStream();
+                    QByteArray decodedStream = document->getDecodedStream(stream);
+                    toUnicodeCMap = PDFFontCMap::createFromData(decodedStream);
+                }
+
+                const bool hasToUnicode = toUnicodeCMap.isValid();
+                if (hasToUnicode)
+                {
+                    for (size_t i = 0; i < differences.size(); ++i)
+                    {
+                        QChar character = toUnicodeCMap.getToUnicode(static_cast<CID>(i));
+
+                        if (!character.isNull())
+                        {
+                            differences[i] = character;
+                            hasDifferences = true;
+                        }
+                    }
+                }
+            }
 
             if (encoding == PDFEncoding::Encoding::Invalid)
             {
@@ -1296,7 +1326,7 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
                 for (size_t i = 0; i < standardEncoding.size(); ++i)
                 {
                     if ((simpleFontEncodingTable[i].isNull() || simpleFontEncodingTable[i] == QChar(QChar::SpecialCharacter::ReplacementCharacter)) &&
-                        (!standardEncoding[i].isNull() && standardEncoding[i] != QChar(QChar::SpecialCharacter::ReplacementCharacter)))
+                            (!standardEncoding[i].isNull() && standardEncoding[i] != QChar(QChar::SpecialCharacter::ReplacementCharacter)))
                     {
                         simpleFontEncodingTable[i] = standardEncoding[i];
                     }
