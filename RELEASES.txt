@@ -1,9 +1,13 @@
 CURRENT:
+
+V: 1.3.0 25.12.2022
  - Issue #21: Table selection tool
  - Issue #22: Solve compilation warnings
  - Issue #24: Text selection and table selection algorithm improvement
  - Issue #25: Move Qt 6.4, change build system to CMake and VCPKG
  - Issue #28: Add multiple PDF files at once for merging
+ - Issue #33: ToUnicode for simple fonts not used 
+ - Issue #32: I need a new stable release.
 
 V: 1.2.1 30.6.2022
  - Issue #17: Public key security handler
