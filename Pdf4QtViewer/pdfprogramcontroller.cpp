@@ -325,6 +325,7 @@ PDFProgramController::PDFProgramController(QObject* parent) :
     m_annotationManager(nullptr),
     m_formManager(nullptr),
     m_isBusy(false),
+    m_isFactorySettingsBeingRestored(false),
     m_progress(nullptr)
 {
 
@@ -493,6 +494,10 @@ void PDFProgramController::initialize(Features features,
     if (QAction* action = m_actionManager->getAction(PDFActionManager::Options))
     {
         connect(action, &QAction::triggered, this, &PDFProgramController::onActionOptionsTriggered);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::ResetToFactorySettings))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::resetSettings);
     }
     if (QAction* action = m_actionManager->getAction(PDFActionManager::CertificateManager))
     {
@@ -1059,6 +1064,11 @@ void PDFProgramController::saveDocument(const QString& fileName)
     }
 }
 
+bool PDFProgramController::isFactorySettingsBeingRestored() const
+{
+    return m_isFactorySettingsBeingRestored;
+}
+
 bool PDFProgramController::getIsBusy() const
 {
     return m_isBusy;
@@ -1471,6 +1481,7 @@ void PDFProgramController::updateActionsAvailability()
     m_actionManager->setEnabled(PDFActionManager::Close, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::Quit, !isBusy);
     m_actionManager->setEnabled(PDFActionManager::Options, !isBusy);
+    m_actionManager->setEnabled(PDFActionManager::ResetToFactorySettings, !isBusy);
     m_actionManager->setEnabled(PDFActionManager::About, !isBusy);
     m_actionManager->setEnabled(PDFActionManager::FitPage, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::FitWidth, hasValidDocument);
@@ -1882,6 +1893,8 @@ void PDFProgramController::loadPlugins()
 
 void PDFProgramController::writeSettings()
 {
+    Q_ASSERT(!m_isFactorySettingsBeingRestored);
+
     QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
     settings.setValue("geometry", m_mainWindow->saveGeometry());
     settings.setValue("windowState", m_mainWindow->saveState());
@@ -1914,6 +1927,26 @@ void PDFProgramController::writeSettings()
 
     // Save trusted certificates
     m_certificateStore.saveDefaultUserCertificates();
+}
+
+void PDFProgramController::resetSettings()
+{
+    if (!canClose())
+    {
+        return;
+    }
+
+    if (QMessageBox::question(m_mainWindow, tr("Reset Ssettings"), tr("Do you wish to restore the default factory settings of the program? All settings changed by the user will be deleted. Application will be closed."), QMessageBox::Yes, QMessageBox::No) == QMessageBox::Yes)
+    {
+        closeDocument();
+
+        QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
+        settings.clear();
+
+        QMessageBox::information(m_mainWindow, tr("Reset Settings"), tr("Default factory settings were restored. Application will be now closed."));
+        m_isFactorySettingsBeingRestored = true;
+        m_mainWindow->close();
+    }
 }
 
 void PDFProgramController::onActionOptionsTriggered()

@@ -98,6 +98,7 @@ public:
         SaveAs,
         Properties,
         Options,
+        ResetToFactorySettings,
         CertificateManager,
         GetSource,
         About,
@@ -272,6 +273,7 @@ public:
                     pdf::PDFProgress* progress);
     void finishInitialization();
     void writeSettings();
+    void resetSettings();
 
     void performPrint();
     void performSave();
@@ -289,6 +291,8 @@ public:
     virtual pdf::PDFTextSelection getSelectedText() const override;
     virtual QMainWindow* getMainWindow() const override;
     virtual VoiceSettings getVoiceSettings() const override;
+
+    bool isFactorySettingsBeingRestored() const;
 
 signals:
     void queryPasswordRequest(QString* password, bool* ok);
@@ -402,6 +406,7 @@ private:
     std::vector<pdf::PDFSignatureVerificationResult> m_signatures;
 
     bool m_isBusy;
+    bool m_isFactorySettingsBeingRestored;
     pdf::PDFProgress* m_progress;
 
     QStringList m_enabledPlugins;

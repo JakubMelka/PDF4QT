@@ -45,7 +45,6 @@
 #include "pdfwidgetutils.h"
 
 #include <QPainter>
-#include <QSettings>
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QCloseEvent>
@@ -155,6 +154,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_actionManager->setAction(PDFActionManager::RenderOptionShowTextLines, ui->actionShow_Text_Lines);
     m_actionManager->setAction(PDFActionManager::Properties, ui->actionProperties);
     m_actionManager->setAction(PDFActionManager::Options, ui->actionOptions);
+    m_actionManager->setAction(PDFActionManager::ResetToFactorySettings, ui->actionResetToFactorySettings);
     m_actionManager->setAction(PDFActionManager::CertificateManager, ui->actionCertificateManager);
     m_actionManager->setAction(PDFActionManager::GetSource, ui->actionGetSource);
     m_actionManager->setAction(PDFActionManager::About, ui->actionAbout);
@@ -499,7 +499,11 @@ void PDFViewerMainWindow::closeEvent(QCloseEvent* event)
     }
     else
     {
-        m_programController->writeSettings();
+        if (!m_programController->isFactorySettingsBeingRestored())
+        {
+            m_programController->writeSettings();
+        }
+
         m_programController->closeDocument();
         event->accept();
     }
