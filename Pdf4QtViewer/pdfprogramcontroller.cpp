@@ -1937,7 +1937,7 @@ void PDFProgramController::resetSettings()
         return;
     }
 
-    if (QMessageBox::question(m_mainWindow, tr("Reset Ssettings"), tr("Do you wish to restore the default factory settings of the program? All settings changed by the user will be deleted. Application will be closed."), QMessageBox::Yes, QMessageBox::No) == QMessageBox::Yes)
+    if (QMessageBox::question(m_mainWindow, tr("Reset Settings"), tr("Do you wish to restore the default factory settings of the program? All settings changed by the user will be deleted. Application will be closed."), QMessageBox::Yes, QMessageBox::No) == QMessageBox::Yes)
     {
         closeDocument();
 
