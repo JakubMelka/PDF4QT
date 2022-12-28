@@ -188,7 +188,9 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     connect(ui->actionQuit, &QAction::triggered, this, &PDFViewerMainWindow::onActionQuitTriggered);
 
     m_pageNumberSpinBox = new QSpinBox(this);
+    m_pageNumberSpinBox->setObjectName("pageNumberSpinBox");
     m_pageNumberLabel = new QLabel(this);
+    m_pageNumberLabel->setObjectName("pageNumberLabel");
     m_pageNumberSpinBox->setFixedWidth(pdf::PDFWidgetUtils::scaleDPI_x(m_pageNumberSpinBox, 80));
     m_pageNumberSpinBox->setAlignment(Qt::AlignCenter);
     connect(m_pageNumberSpinBox, &QSpinBox::editingFinished, this, &PDFViewerMainWindow::onPageNumberSpinboxEditingFinished);
@@ -213,6 +215,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     ui->mainToolBar->addAction(ui->actionZoom_Out);
 
     m_pageZoomSpinBox = new QDoubleSpinBox(this);
+    m_pageZoomSpinBox->setObjectName("pageZoomSpinBox");
     m_pageZoomSpinBox->setMinimum(pdf::PDFDrawWidgetProxy::getMinZoom() * 100);
     m_pageZoomSpinBox->setMaximum(pdf::PDFDrawWidgetProxy::getMaxZoom() * 100);
     m_pageZoomSpinBox->setDecimals(2);
@@ -511,7 +514,7 @@ void PDFViewerMainWindow::closeEvent(QCloseEvent* event)
 
 void PDFViewerMainWindow::showEvent(QShowEvent* event)
 {
-    Q_UNUSED(event);
+    QMainWindow::showEvent(event);
     m_progressTaskbarIndicator->setWindow(windowHandle());
 }
 
