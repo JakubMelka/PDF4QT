@@ -1373,7 +1373,8 @@ PDFSelectTableTool::PDFSelectTableTool(PDFDrawWidgetProxy* proxy, QAction* actio
     BaseClass(proxy, action, parent),
     m_pickTool(nullptr),
     m_pageIndex(-1),
-    m_isTransposed(false)
+    m_isTransposed(false),
+    m_rotation(PageRotation::None)
 {
     m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Rectangles, this);
     connect(m_pickTool, &PDFPickTool::rectanglePicked, this, &PDFSelectTableTool::onRectanglePicked);
@@ -1568,7 +1569,7 @@ void PDFSelectTableTool::keyPressEvent(QWidget* widget, QKeyEvent* event)
                 cell.column = columnIndex;
                 cell.rectangle = QRectF(left, top, width, height);
 
-                PDFTextSelection textSelection = m_textLayout.createTextSelection(m_pageIndex, cell.rectangle.topLeft(), cell.rectangle.bottomRight(), Qt::yellow, true);
+                PDFTextSelection textSelection = m_textLayout.createTextSelection(m_pageIndex, cell.rectangle.bottomLeft(), cell.rectangle.topRight(), Qt::yellow, true);
                 cell.text = m_textLayout.getTextFromSelection(textSelection, m_pageIndex).trimmed();
                 cell.text = cell.text.remove(QChar('\n'));
 
@@ -1576,11 +1577,34 @@ void PDFSelectTableTool::keyPressEvent(QWidget* widget, QKeyEvent* event)
             }
         }
 
+        switch (m_rotation)
+        {
+            case PageRotation::None:
+            {
+                for (TableCell& cell : tableCells)
+                {
+                    cell.row = verticalBreaks.size() - cell.row;
+                }
+                break;
+            }
+
+            default:
+                break;
+        }
+
         if (m_isTransposed)
         {
             auto comparator = [](const TableCell& left, const TableCell right)
             {
                 return std::make_pair(left.column, left.row) < std::make_pair(right.column, right.row);
+            };
+            std::sort(tableCells.begin(), tableCells.end(), comparator);
+        }
+        else
+        {
+            auto comparator = [](const TableCell& left, const TableCell right)
+            {
+                return std::make_pair(left.row, left.column) < std::make_pair(right.row, right.column);
             };
             std::sort(tableCells.begin(), tableCells.end(), comparator);
         }
@@ -1634,6 +1658,7 @@ void PDFSelectTableTool::setActiveImpl(bool active)
         m_isTransposed = false;
         m_horizontalBreaks.clear();
         m_verticalBreaks.clear();
+        m_rotation = PageRotation::None;
 
         if (getTopToolstackTool())
         {
@@ -1669,6 +1694,7 @@ void PDFSelectTableTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRect
             break;
     }
 
+    m_rotation = rotation;
     autodetectTableGeometry();
 
     Q_EMIT messageDisplayRequest(tr("Table region was selected. Use left/right mouse buttons to add/remove rows/columns, then use Enter key to copy the table."), 5000);

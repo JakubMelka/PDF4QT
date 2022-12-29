@@ -421,6 +421,7 @@ private:
     bool m_isTransposed;
     std::vector<PDFReal> m_horizontalBreaks;
     std::vector<PDFReal> m_verticalBreaks;
+    PageRotation m_rotation;
 };
 
 /// Tool that makes screenshot of page area and copies it to the clipboard,
