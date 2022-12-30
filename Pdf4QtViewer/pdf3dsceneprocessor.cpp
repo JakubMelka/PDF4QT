@@ -514,10 +514,111 @@ Qt3DCore::QNode* PDF3DSceneProcessor::createMeshGeometry(const pdf::u3d::PDF3D_U
             return node;
         }
 
-        case ShadedWireframe:
         case HiddenWireframe:
+        {
+            return createWireframeWithoutObscuredEdgesMeshGeometry(meshGeometry);
+        }
+
         case SolidOutline:
+        {
+            Qt3DCore::QNode* node = new Qt3DCore::QNode();
+
+            Qt3DCore::QNode* solidGeometry = createSolidMeshGeometry(meshGeometry, 1.0);
+            Qt3DCore::QNode* wireframeGeometry = createWireframeWithoutObscuredEdgesMeshGeometry(meshGeometry);
+
+            solidGeometry->setParent(node);
+            wireframeGeometry->setParent(node);
+
+            return node;
+        }
+
         case ShadedVertices:
+        {
+            // We will display vertices with triangle color
+
+            // Vertex buffer
+            Qt3DRender::QAttribute* positionAttribute = createPositionAttribute(meshGeometry->getPositions());
+
+            // Color buffer
+            Qt3DRender::QBuffer* colorBuffer = new Qt3DRender::QBuffer();
+            colorBuffer->setType(Qt3DRender::QBuffer::VertexBuffer);
+            const uint positionCount = positionAttribute->count();
+
+            QByteArray colorBufferData;
+            colorBufferData.resize(positionCount * 3 * sizeof(float));
+            float* colorBufferDataPtr = reinterpret_cast<float*>(colorBufferData.data());
+
+            for (size_t i = 0; i < positionCount; ++i)
+            {
+                QVector3D color(0.0, 0.0, 0.0);
+                std::vector<pdf::u3d::PDF3D_U3D_MeshGeometry::Triangle> triangles = meshGeometry->queryTrianglesByVertexIndex(i);
+
+                if (!triangles.empty())
+                {
+                    pdf::u3d::PDF3D_U3D_MeshGeometry::Triangle triangle = triangles.front();
+
+                    for (const auto& vertex : triangle.vertices)
+                    {
+                        if (vertex.positionIndex == i)
+                        {
+                            color = meshGeometry->getDiffuseColor(vertex.diffuseColorIndex).toVector3D();
+                        }
+                    }
+                }
+
+                *colorBufferDataPtr++ = color.x();
+                *colorBufferDataPtr++ = color.y();
+                *colorBufferDataPtr++ = color.z();
+            }
+            colorBuffer->setData(colorBufferData);
+
+            Qt3DRender::QAttribute* colorAttribute = new Qt3DRender::QAttribute();
+            colorAttribute->setName(Qt3DRender::QAttribute::defaultColorAttributeName());
+            colorAttribute->setVertexBaseType(Qt3DRender::QAttribute::Float);
+            colorAttribute->setVertexSize(3);
+            colorAttribute->setAttributeType(Qt3DRender::QAttribute::VertexAttribute);
+            colorAttribute->setBuffer(colorBuffer);
+            colorAttribute->setByteOffset(0);
+            colorAttribute->setByteStride(3 * sizeof(float));
+            colorAttribute->setCount(positionCount);
+
+            // Geometry
+            Qt3DRender::QGeometry* geometry = new Qt3DRender::QGeometry();
+            geometry->addAttribute(positionAttribute);
+            geometry->addAttribute(colorAttribute);
+
+            Qt3DRender::QGeometryRenderer* geometryRenderer = new Qt3DRender::QGeometryRenderer();
+            geometryRenderer->setGeometry(geometry);
+            geometryRenderer->setPrimitiveRestartEnabled(false);
+            geometryRenderer->setPrimitiveType(Qt3DRender::QGeometryRenderer::Points);
+
+            Qt3DExtras::QPerVertexColorMaterial* material = new Qt3DExtras::QPerVertexColorMaterial();
+
+            Qt3DRender::QEffect* effect = material->effect();
+            for (Qt3DRender::QTechnique* technique : effect->techniques())
+            {
+                for (Qt3DRender::QRenderPass* renderPass : technique->renderPasses())
+                {
+                    Qt3DRender::QPointSize* pointSize = new Qt3DRender::QPointSize();
+                    pointSize->setSizeMode(Qt3DRender::QPointSize::Fixed);
+                    pointSize->setValue(m_pointSize);
+                    renderPass->addRenderState(pointSize);
+                }
+            }
+
+            addDepthTestToMaterial(material);
+
+            Qt3DCore::QEntity* entity = new Qt3DCore::QEntity();
+            entity->addComponent(geometryRenderer);
+            entity->addComponent(material);
+            return entity;
+        }
+
+        case ShadedWireframe:
+        {
+            // Just display wireframe geometry
+            return createWireframeMeshGeometry(meshGeometry);
+        }
 
         default:
             Q_ASSERT(false);

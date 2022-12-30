@@ -2470,8 +2470,8 @@ void PDF3D_U3D_Parser::processCLODMesh(const PDF3D_U3D_Decoder& decoder)
 
             case PDF3D_U3D_Block_Info::BT_GeneratorCLODProgMesh:
             {
-                // TODO: process block data
-                auto currentBlock = PDF3D_U3D_CLODProgressiveMeshContinuationBlock::parse(blockData.blockData, blockData.metaData, this/*, declarationBlock*/);
+                auto currentBlock = PDF3D_U3D_CLODProgressiveMeshContinuationBlock::parse(blockData.blockData, blockData.metaData, this);
+                Q_UNUSED(currentBlock);
                 break;
             }
 
@@ -3410,7 +3410,6 @@ void PDF3D_U3D_Parser::addBlockToU3D(PDF3D_U3D_AbstractBlockPtr block)
 
         default:
         {
-            // TODO: add block to U3D
             m_errors << PDFTranslationContext::tr("Block type (%1) not supported in scene decoder.").arg(block->getBlockType(), 8, 16);
             break;
         }
@@ -3560,6 +3559,12 @@ void PDF3D_U3D_Parser::processGenericBlock(const PDF3D_U3D_Block_Data& blockData
     uint32_t chainIndex = 0;
     PDF3D_U3D_Block_Info::EPalette effectivePalette = PDF3D_U3D_Block_Info::isChain(blockData.blockType) ? palette
                                                                                                          : PDF3D_U3D_Block_Info::getPalette(blockData.blockType);
+
+    if (effectivePalette == PDF3D_U3D_Block_Info::PL_LastPalette)
+    {
+        m_errors << PDFTranslationContext::tr("Failed to add block '%1' - decoder chain does not exist!").arg(blockName);
+        return;
+    }
 
     PDF3D_U3D_DecoderPalette* decoderPalette = m_decoderPalettes.getDecoderPalette(effectivePalette);
 
@@ -4698,6 +4703,8 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_CLODProgressiveMeshContinuationBlock::parse
 
     block->m_resolutionUpdateCount = block->m_endResolution - block->m_startResolution;
 
+    // We do not implement this block
+#if 0
     for (uint32_t i = block->m_startResolution; i < block->m_endResolution; ++i)
     {
         ResolutionUpdate updateItem;
@@ -4768,10 +4775,10 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_CLODProgressiveMeshContinuationBlock::parse
             updateItem.newFaces.emplace_back(std::move(facePositionInfo));
         }
 
-        // TODO: Fixme
-
         block->m_resolutionUpdates.emplace_back(std::move(updateItem));
     }
+
+#endif
 
     block->parseMetadata(metaData, object);
     return pointer;

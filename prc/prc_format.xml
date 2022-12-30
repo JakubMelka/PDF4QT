@@ -1,0 +1,444 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<prc>
+  
+  <!-- 
+  attribute flat: class is used as structure by value, not a shared pointer on structure
+  attribute value: value type instead of class (for example int)
+  attribute constant: constant value (i.e. this constant value should be read from the file)
+  -->
+
+  <enums>
+    <enum name="EntityType">
+      <item name="PRC_TYPE_ASM" value="PRC_TYPE_ROOT + 300" />
+      <item name="PRC_TYPE_ASM_ModelFile" value="PRC_TYPE_ASM + 1" />
+      <item name="PRC_TYPE_ASM_FileStructure" value="PRC_TYPE_ASM + 2" />
+      <item name="PRC_TYPE_ASM_FileStructureGlobals" value="PRC_TYPE_ASM + 3" />
+      <item name="PRC_TYPE_ASM_FileStructureTree" value="PRC_TYPE_ASM + 4" />
+      <item name="PRC_TYPE_ASM_FileStructureTessellation" value="PRC_TYPE_ASM + 5" />
+      <item name="PRC_TYPE_ASM_FileStructureGeometry" value="PRC_TYPE_ASM + 6" />
+      <item name="PRC_TYPE_ASM_FileStructureExtraGeometry" value="PRC_TYPE_ASM + 7" />
+      <item name="PRC_TYPE_ASM_ProductOccurrence" value="PRC_TYPE_ASM + 8" />
+      <item name="PRC_TYPE_ASM_PartDefinition" value="PRC_TYPE_ASM + 9" />
+      <item name="PRC_TYPE_ASM_Filter" value="PRC_TYPE_ASM + 10" />
+    </enum>
+
+    <enum name="CharSet">
+      <item name="Roman" value="0" />
+      <item name="Japanese" value="1" />
+      <item name="Traditional Chinese" value="2" />
+      <item name="Korean" value="3" />
+      <item name="Arabic" value="4" />
+      <item name="Hebrew" value="5" />
+      <item name="Greek" value="6" />
+      <item name="Cyrillic" value="7" />
+      <item name="RightLeft" value="8" />
+      <item name="Devanagari" value="9" />
+      <item name="Gurmukhi" value="10" />
+      <item name="Gujarati" value="11" />
+      <item name="Oriya" value="12" />
+      <item name="Bengali" value="13" />
+      <item name="Tamil" value="14" />
+      <item name="Telugu" value="15" />
+      <item name="Kannada" value="16" />
+      <item name="Malayalam" value="17" />
+      <item name="Sinhalese" value="18" />
+      <item name="Burmese" value="19" />
+      <item name="Khmer" value="20" />
+      <item name="Thai" value="21" />
+      <item name="Laotian" value="22" />
+      <item name="Georgian" value="23" />
+      <item name="Armenian" value="24" />
+      <item name="Simplified Chinese" value="25" />
+      <item name="Tibetan" value="26" />
+      <item name="Mongolian" value="27" />
+      <item name="Geez" value="28" />
+      <item name="EastEuropeanRoman" value="29" />
+      <item name="Vietnamese" value="30" />
+      <item name="ExtendedArabic" value="31" />
+    </enum>
+
+    <enum name="FontAttributes">
+      <item name="Bold" value="2" />
+      <item name="Italic" value="4" />
+      <item name="Underlined" value="8" />
+      <item name="StrikeOut" value="16" />
+      <item name="Overlined" value="32" />
+      <item name="Stretch" value="64" />
+      <item name="Wire" value="128" />
+    </enum>
+  </enums>
+  
+  <objects>
+    <object name="Fileheader">
+      <field name="" type="byte" constant="P"/>
+      <field name="" type="byte" constant="R"/>
+      <field name="" type="byte" constant="C"/>
+      <field name="minimal_version_for_read" type="UncompressedUnsignedInteger" />
+      <field name="authoring_version" type="UncompressedUnsignedInteger" />
+      <field name="unique_id_file" type="UncompressedUniqueId" />
+      <field name="unique_id_application" type="UncompressedUniqueId" />
+      <field name="filestructure_count" type="UncompressedUnsignedInteger" />
+      <array name="file_info" dim="filestructure_count" type="FileStructureDescription"/>
+      <field name="start_offset" type="UncompressedUnsignedInteger" />
+      <field name="end_offset" type="UncompressedUnsignedInteger" />
+      <field name="file_count" type="UncompressedUnsignedInteger" />
+      <array name="files" dim="file_count" type="UncompressedFiles" condition="file_count > 0"/>
+    </object>
+
+    <object name="FileStructureDescription">
+      <field name="unique_id" type="UncompressedUniqueId" />
+      <field name="" type="UncompressedUnsignedInteger" />
+      <field name="section_count" type="UncompressedUnsignedInteger" />
+      <array name="section_offsets" dim="section_count" type="UncompressedUnsignedInteger>" />
+    </object>
+    
+    <object name="UncompressedFiles">
+      <field name="count" type="UncompressedUnsignedInteger" />
+      <array name="array_of_files" dim="count" type="UncompressedBlock" />
+    </object>
+
+    <object name="Filestructure">
+      <field name="header" type="FileStructureHeader" />
+      <field name="schema" type="FileStructureSchema" />
+      <field name="globals" type="PRC_TYPE_ASM_FileStructureGlobals" />
+      <field name="tree" type="PRC_TYPE_ASM_FileStructureTree" />
+      <field name="tessellation" type="PRC_TYPE_ASM_FileStructureTessellation" />
+      <field name="Geometry" type="PRC_TYPE_ASM_FileStructureGeometry" />
+      <field name="extra_geometry" type="PRC_TYPE_ASM_FileStructureExtraGeometry" />
+    </object>
+
+    <object name="FileStructureHeader">
+      <field name="" type="byte" constant="P"/>
+      <field name="" type="byte" constant="R"/>
+      <field name="" type="byte" constant="C"/>
+      <field name="minimal_version_for_read" type="UncompressedUnsignedInteger" />
+      <field name="authoring_version" type="UncompressedUnsignedInteger" />
+      <field name="unique_id_file" type="UncompressedUniqueId" />
+      <field name="unique_id_application" type="UncompressedUniqueId" />
+      <field name="file_count" type="UncompressedUnsignedInteger" />
+      <array name="files" dim="file_count" type="UncompressedFile" />
+    </object>
+
+    <object name="FileStructureSchema" >
+      <field name="schema_count" type="UnsignedInteger" />
+      <array name="schemas" dim="schema_count" type="Entity_schema_definition" />
+    </object>
+
+    <object name="Entity_schema_definition">
+      <field name="entity_type" type="UnsignedInteger" />
+      <field name="token_count" type="UnsignedInteger" />
+      <array name="schema_tokens" dim="token_count" type="UnsignedInteger" />
+    </object>
+    
+    <object name="UncompressedUnsignedInteger" flat="true">
+      <field name="" type="uint32_t" bytes="4" value="true"/>
+    </object>
+
+    <object name="UncompressedBlock">
+      <field name="block_size" type="UncompressedUnsignedInteger"/>
+      <field name="block" type="QByteArray" bytes="block_size" value="true"/>
+    </object>
+
+    <object name="UncompressedFiles">
+      <field name="file_count" type="UncompressedUnsignedInteger" />
+      <array name="files" dim="file_count" type="UncompressedBlock" />
+    </object>
+
+    <object name="UncompressedUniqueId">
+      <field name="unique_id0" type="UncompressedUnsignedInteger" />
+      <field name="unique_id1" type="UncompressedUnsignedInteger" />
+      <field name="unique_id2" type="UncompressedUnsignedInteger" />
+      <field name="unique_id3" type="UncompressedUnsignedInteger" />
+    </object>
+
+    <object name="Boolean" flat="true" compressed="true">
+      <field name="" bits="1" type="bool" value="true"/>
+    </object>
+
+    <object name="Character" flat="true" compressed="true">
+      <field name="" bits="8" type="uint8_t" value="true"/>
+    </object>
+
+    <object name="Integer" flat="true" compressed="true">
+      <field name="" bits="32" type="int32_t" value="true"/>
+    </object>
+
+    <object name="IntegerWithVariableBitNumber" flat="true" compressed="true">
+      <field name="" bits="32" type="int32_t" value="true"/>
+    </object>
+
+    <object name="UnsignedInteger" flat="true" compressed="true">
+      <field name="" bits="32" type="uint32_t" value="true"/>
+    </object>
+
+    <object name="UnsignedIntegerWithVariableBitNumber" flat="true" compressed="true">
+      <field name="" bits="32" type="uint32_t" value="true"/>
+    </object>
+    
+    <object name="NumberOfBitsThenUnsignedInteger" flat="true" compressed="true">
+      <field name="" bits="32" type="uint32_t" value="true"/>
+    </object>
+    
+    <object name="Float" flat="true" compressed="true">
+      <field name="" bits="32" type="float" value="true"/>
+    </object>
+
+    <object name="Double" flat="true" compressed="true">
+      <field name="" bits="64" type="double" value="true"/>
+    </object>
+
+    <object name="DoubleWithVariableBitNumber" flat="true" compressed="true">
+      <field name="" bits="64" type="double" value="true"/>
+    </object>
+
+    <object name="CompressedEntityType" flat="true" compressed="true">
+      <field name="" bits="32" type="uint32_t" value="true"/>
+    </object>
+
+    <object name="CompressedUniqueId">
+      <field name="unique_id0" type="UnsignedInteger" />
+      <field name="unique_id1" type="UnsignedInteger" />
+      <field name="unique_id2" type="UnsignedInteger" />
+      <field name="unique_id3" type="UnsignedInteger" />
+    </object>
+
+    <object name="String">
+      <field name="null_flag" type="Boolean" />
+      <field name="size" type="UnsignedInteger" condition="null_flag == TRUE" />
+      <array name="string" dim="size" type="Character" condition="null_flag == TRUE" />
+    </object>
+
+    <object name="CharacterArray" flat="true" compressed="true">
+      <field name="" type="std::vector&lt;Character&gt;" value ="true"/>
+    </object>
+
+    <object name="ShortArray" flat="true" compressed="true">
+      <field name="" type="std::vector&lt;short&gt;" value ="true"/>
+    </object>
+
+    <object name="ShortArray" flat="true" compressed="true">
+      <field name="" type="std::vector&lt;short&gt;" value ="true"/>
+    </object>
+
+    <object name="CompressedIntegerArray" flat="true" compressed="true">
+      <field name="" type="std::vector&lt;int&gt;" value ="true"/>
+    </object>
+
+    <object name="CompressedIndiceArray" flat="true" compressed="true">
+      <field name="" type="std::vector&lt;int&gt;" value ="true"/>
+    </object>
+
+    <object name="UserData">
+      <field name="stream_size" type="UnsignedInteger" />
+      <field name="stream" type="UserDataStream" condition="stream_size > 0"/>
+    </object>
+
+    <object name="UserDataStream">
+      <field name="section_count" type="UnsignedInteger" />
+      <array name="sub_sections" dim="section_count" type="UserDataSubSection"/>
+    </object>
+
+    <object name="UserDataStream">
+      <field name="section_count" type="UnsignedInteger" />
+      <array name="sub_sections" dim="section_count" type="UserDataSubSection"/>
+    </object>
+
+    <object name="UserDataSubSection">
+      <field name="same_flag"	type="Boolean" />
+      <field name="unique_id_application"	type="CompressedUniqueId" condition="same_flag == FALSE"/>
+      <field name="stream_size"	type="UnsignedInteger" />
+      <field name="stream" dim="stream_size" type="Bits(n)" condition="stream_size > 0" />
+    </object>
+
+    <object name="Interval" flat="true">
+      <field name="min_value" type="Double" />
+      <field name="max_value" type="Double" />
+    </object>
+
+    <object name="Parameterization" flat="true">
+      <field name="trim_interval" type="Interval" />
+      <field name="coeff_a" type="Double" />
+      <field name="coeff_b" type="Double" />
+    </object>
+
+    <object name="Domain" flat="true">
+      <field name="trim_interval" type="Interval" />
+      <field name="coeff_a" type="Double" />
+      <field name="coeff_b" type="Double" />
+    </object>
+
+    <object name="UVParameterization" flat="true">
+      <field name="swap_uv" type="Boolean" />
+      <field name="suface_domain" type="Domain" />
+      <field name="u_param_coeff_a" type="Double" />
+      <field name="v_param_coeff_a" type="Double" />
+      <field name="u_param_coeff_b" type="Double" />
+      <field name="v_param_coeff_b" type="Double" />
+    </object>
+
+    <object name="Vector2d" flat="true">
+      <field name="x_value" type="Double" />
+      <field name="y_value" type="Double" />
+    </object>
+
+    <object name="Vector3d" flat="true">
+      <field name="x_value" type="Double" />
+      <field name="y_value" type="Double" />
+      <field name="z_value" type="Double" />
+    </object>
+
+    <object name="BoundingBox" flat="true">
+      <field name="minimum_corner" type="Vector3d" />
+      <field name="maximum_corner" type="Vector3d" />
+    </object>
+
+    <object name="ContentPRCBase">
+      <field name="attribute_data" type="AttributeData" />
+      <field name="entity_name" type="Name" />
+    </object>
+
+    <object name="ContentPRCRefBase">
+      <field name="attribute_data" type="AttributeData" />
+      <field name="entity_name" type="Name" />
+      <field name="unique_id_cad" type="UnsignedInteger" />
+      <field name="unique_id" type="UnsignedInteger" />
+    </object>
+
+    <object name="AttributeData">
+      <field name="attribute_count" type="UnsignedInteger" />
+      <array name="attribute" dim="attribute_count" type="PRC_TYPE_MISC_Attribute" />
+    </object>
+
+    <object name="Name">
+      <field name="same_name" type="Boolean" />
+      <field name="name" type="String" condition="same_name == FALSE" />
+    </object>
+
+    <object name="PRC_TYPE_ROOT_PRCBaseWithGraphics">
+      <field name="base" type="ContentPRCRefBase" />
+      <field name="same_graphics" type="Boolean" />
+      <field name="graphic_content" type="GraphicsContent" condition="same_graphics == TRUE" />
+    </object>
+
+    <object name="GraphicsContent">
+      <field name="biased_layer_index" type="UnsignedInteger" />
+      <field name="biased_index_of_line_style" type="UnsignedInteger" />
+      <field name="behavior_bit_field1" type="UnsignedCharacter" />
+      <field name="behavior_bit_field2" type="UnsignedCharacter" />
+    </object>
+
+    <object name="PRC_TYPE_ASM_ModelFile">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_ASM_ModelFile" />
+      <field name="Base" type="ContentPRCBase" />
+      <field name="units_from_CAD_file" type="Boolean" />
+      <field name="units_mm" type="Double" condition="units_from_CAD_file == TRUE" />
+      <field name="number_of_root_product_occurrences" type="UnsignedInteger" />
+      <array name="product_occurences" type="ProductOccurrenceReference" dim="number_of_root_product_occurrences" />
+      <array name="file_structure_index_in_model_file" type="UnsignedInteger" dim="number_of_root_product_occurrences" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="ProductOccurrenceReference">
+      <field name="unique_id" type="CompressedUniqueId" />
+      <field name="root_index" type="UnsignedInteger" />
+      <field name="product_occurence_is_active" type="Boolean" />
+    </object>
+
+    <object name="PRC_TYPE_ASM_FileStructure" >
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_ASM_FileStructure" />
+      <field name="Base" type="ContentPRCBase" />
+      <field name="next_available_index" type="UnsignedInteger" />
+      <field name="index_product_occurrence" type="UnsignedInteger" />
+    </object>
+
+    <object name="PRC_TYPE_ASM_FileStructureGlobals" >
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_ASM_FileStructureGlobals" />
+      <field name="Base" type="ContentPRCBase" />
+      <field name="file_count" type="UnsignedInteger" />
+      <array name="unique_ids" dim="file_count" type="CompressedUniqueId" />
+      <field name="global_data" type="FileStructureInternalGlobalData" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="FileStructureInternalGlobalData">
+      <field name="tess_chord" type="Double" />
+      <field name="tess_angle" type="Double" />
+      <field name="serialize_help" type="MarkupSerializationHelper" />
+      <field name="color_count" type="UnsignedInteger" />
+      <array name="Colors" dim="color_count" type="RgbColor" />
+      <field name="picture_count" type="UnsignedInteger" />
+      <array name="Pictures" dim="picture_count" type="PRC_TYPE_GRAPH_Picture" />
+      <field name="texture_count" type="UnsignedInteger" />
+      <array name="Textures" dim="texture_count" type="PRC_TYPE_GRAPH_TextureDefinition" />
+      <field name="material_count" type="UnsignedInteger" />
+      <array name="Materials" dim="material_count" type="PRC_TYPE_GRAPH_Material" />
+      <field name="line_pattern_count" type="UnsignedInteger" />
+      <array name="line_patterns" dim="line_pattern_count" type="PRC_TYPE_GRAPH_LinePattern" />
+      <field name="style_count" type="UnsignedInteger" />
+      <array name="Styles" dim="style_count" type="PRC_TYPE_GRAPH_Style" />
+      <field name="fill_count" type="UnsignedInteger" />
+      <array name="Fills" dim="fill_count" type="PRC_TYPE_GRAPH_FillPattern" />
+      <field name="ref_coord_count" type="UnsignedInteger" />
+      <array name="ref_coords" dim="ref_coord_count" type="PRC_TYPE_RI_CoordinateSystem" />
+    </object>
+
+    <object name="MarkupSerializationHelper">
+      <field name="default_font_family_name" type="String" />
+      <field name="font_keys_count" type="UnsignedInteger" />
+      <array name="font_keys_of_font" dim="font_keys_count" type="FontKeysSameFont" />
+    </object>
+
+    <object name="FontKeySameFont">
+      <field name="font_name" type="String" />
+      <field name="character_set" type="UnsignedInteger" />
+      <field name="key_count" type="UnsignedInteger" />
+      <array name="font_key_list" dim="key_count" type="FontKey" />
+    </object>
+
+    <object name="FontKey">
+      <field name="font_size" type="UnsignedInteger" />
+      <field name="font_attributes" type="Character" />
+    </object>
+
+    <object name="RgbColor">
+      <field name="Red" type="Double" />
+      <field name="Green" type="Double" />
+      <field name="Blue" type="Double" />
+    </object>
+
+    <object name="PRC_TYPE_ASM_FileStructureTree" >
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_ASM_FileStructureTree" />
+      <field name="Base" type="ContentPRCBase" />
+      <field name="part_count" type="UnsignedInteger" />
+      <array name="Parts" dim="part_count" type="PRC_TYPE_ASM_PartDefinition" />
+      <field name="product_count" type="UnsignedInteger" />
+      <array name="Products" dim="product_count" type="PRC_TYPE_ASM_ProductOccurrence" />
+      <field name="internal_data" type="PRC_TYPE_ASM_FileStructure" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="PRC_TYPE_ASM_FileStructureTessellation">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_ASM_FileStructureTessellation" />
+      <field name="Base" type="ContentPRCBase" />
+      <field name="tess_count" type="UnsignedInteger" />
+      <array name="tess" dim="tess_count" type="PRC_TYPE_TESS" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="PRC_TYPE_ASM_FileStructureGeometry">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_ASM_FileStructureGeometry" />
+      <field name="Base" type="ContentPRCBase" />
+      <field name="exact_geometry" type="FileStructureExactGeometry" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="FileStructureExactGeometry">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_ASM_FileStructureGeometry" />
+      <field name="Base" type="ContentPRCBase" />
+      <field name="topo_context_count" type="UnsignedInteger" />
+      <array name="topo_contexts" dim="topo_context_count" type="TopologicalContext" />
+    </object>
+    
+  </objects>
+</prc>
+		
