@@ -9,6 +9,27 @@
 
   <enums>
     <enum name="EntityType">
+      <item name="PRC_TYPE_MISC" value="PRC_TYPE_ROOT + 200" />
+      <item name="PRC_TYPE_MISC_Attribute" value="PRC_TYPE_ MISC + 1" />
+      <item name="PRC_TYPE_MISC_CartesianTransformation" value="PRC_TYPE_ MISC + 2" />
+      <item name="PRC_TYPE_MISC_EntityReference" value="PRC_TYPE_ MISC + 3" />
+      <item name="PRC_TYPE_MISC_MarkupLinkedItem" value="PRC_TYPE_ MISC + 4" />
+      <item name="PRC_TYPE_MISC_ReferenceOnPRCBase" value="PRC_TYPE_ MISC + 5" />
+      <item name="PRC_TYPE_MISC_ReferenceOnTopology" value="PRC_TYPE_ MISC + 6" />
+      <item name="PRC_TYPE_MISC_GeneralTransformation" value="PRC_TYPE_ MISC + 7" />
+
+      <item name="PRC_TYPE_RI" value="PRC_TYPE_ROOT + 230" />
+      <item name="PRC_TYPE_RI_RepresentationalItem" value="PRC_TYPE_RI + 1" />
+      <item name="PRC_TYPE_RI_BrepModel" value="PRC_TYPE_RI + 2" />
+      <item name="PRC_TYPE_RI_Curve" value="PRC_TYPE_RI + 3" />
+      <item name="PRC_TYPE_RI_Directioni" value="PRC_TYPE_RI + 4" />
+      <item name="PRC_TYPE_RI_Plane" value="PRC_TYPE_RI + 5" />
+      <item name="PRC_TYPE_RI_PointSet" value="PRC_TYPE_RI + 6" />
+      <item name="PRC_TYPE_RI_PolyBrepModel" value="PRC_TYPE_RI + 7" />
+      <item name="PRC_TYPE_RI_PolyWire" value="PRC_TYPE_RI + 8" />
+      <item name="PRC_TYPE_RI_Set" value="PRC_TYPE_RI + 9" />
+      <item name="PRC_TYPE_RI_CoordinateSystem" value="PRC_TYPE_RI + 10" />
+                  
       <item name="PRC_TYPE_ASM" value="PRC_TYPE_ROOT + 300" />
       <item name="PRC_TYPE_ASM_ModelFile" value="PRC_TYPE_ASM + 1" />
       <item name="PRC_TYPE_ASM_FileStructure" value="PRC_TYPE_ASM + 2" />
@@ -20,6 +41,26 @@
       <item name="PRC_TYPE_ASM_ProductOccurrence" value="PRC_TYPE_ASM + 8" />
       <item name="PRC_TYPE_ASM_PartDefinition" value="PRC_TYPE_ASM + 9" />
       <item name="PRC_TYPE_ASM_Filter" value="PRC_TYPE_ASM + 10" />
+
+      <item name="PRC_TYPE_GRAP" value="PRC_TYPE_ROOT + 700" />
+      <item name="PRC_TYPE_GRAPH_Styl" value="PRC_TYPE_GRAPH + 1" />
+      <item name="PRC_TYPE_GRAPH_Material" value="PRC_TYPE_GRAPH + 2" />
+      <item name="PRC_TYPE_GRAPH_Picture" value="PRC_TYPE_GRAPH + 3" />
+      <item name="PRC_TYPE_GRAPH_TextureApplication" value="PRC_TYPE_GRAPH + 11" />
+      <item name="PRC_TYPE_GRAPH_TextureDefinition" value="PRC_TYPE_GRAPH + 12" />
+      <item name="PRC_TYPE_GRAPH_TextureTransformation" value="PRC_TYPE_GRAPH + 13" />
+      <item name="PRC_TYPE_GRAPH_LinePattern" value="PRC_TYPE_GRAPH + 21" />
+      <item name="PRC_TYPE_GRAPH_FillPattern" value="PRC_TYPE_GRAPH + 22" />
+      <item name="PRC_TYPE_GRAPH_DottingPattern" value="PRC_TYPE_GRAPH + 23" />
+      <item name="PRC_TYPE_GRAPH_HatchingPattern" value="PRC_TYPE_GRAPH + 24" />
+      <item name="PRC_TYPE_GRAPH_SolidPattern" value="PRC_TYPE_GRAPH + 25" />
+      <item name="PRC_TYPE_GRAPH_VpicturePattern" value="PRC_TYPE_GRAPH +26" />
+      <item name="PRC_TYPE_GRAPH_AmbientLight" value="PRC_TYPE_GRAPH + 31" />
+      <item name="PRC_TYPE_GRAPH_PointLight" value="PRC_TYPE_GRAPH + 32" />
+      <item name="PRC_TYPE_GRAPH_DirectionalLight" value="PRC_TYPE_GRAPH + 33" />
+      <item name="PRC_TYPE_GRAPH_SpotLight" value="PRC_TYPE_GRAPH + 34" />
+      <item name="PRC_TYPE_GRAPH_SceneDisplayParameters" value="PRC_TYPE_GRAPH + 41" />
+      <item name="PRC_TYPE_GRAPH_Camera" value="PRC_TYPE_GRAPH + 42" />
     </enum>
 
     <enum name="CharSet">
@@ -57,7 +98,7 @@
       <item name="ExtendedArabic" value="31" />
     </enum>
 
-    <enum name="FontAttributes">
+    <enum name="FontAttributes" flags="true">
       <item name="Bold" value="2" />
       <item name="Italic" value="4" />
       <item name="Underlined" value="8" />
@@ -66,6 +107,64 @@
       <item name="Stretch" value="64" />
       <item name="Wire" value="128" />
     </enum>
+
+    <enum name="PRCTypeFlag" flags="true">
+      <item name="PRC_PRODUCT_FLAG_REGULAR" value="0x00" />
+      <item name="PRC_PRODUCT_FLAG_DEFAULT" value="0x01" />
+      <item name="PRC_PRODUCT_FLAG_INTERNAL" value="0x02" />
+      <item name="PRC_PRODUCT_FLAG_CONTAINER" value="0x04" />
+      <item name="PRC_PRODUCT_FLAG_CONFIG" value="0x08" />
+      <item name="PRC_PRODUCT_FLAG_VIEW" value="0x10" />
+    </enum>
+
+    <enum name="EPRCProductLoadStatus">
+      <item name="KEPRCProductLoadStatus_Error" value="0" />
+      <item name="KEPRCProductLoadStatus_NotLoaded" value="1" />
+      <item name="KEPRCProductLoadStatus_NotLoadable" value="2" />
+      <item name="KEPRCProductLoadStatus_Loaded" value="3" />
+    </enum>
+
+    <enum name="AttributeEntry">
+      <item name="Title" value="2" />
+      <item name="Subject" value="3" />
+      <item name="Author" value="4" />
+      <item name="Keywords" value="5" />
+      <item name="Comments" value="6" />
+      <item name="Template" value="7" />
+      <item name="LastSavedBy" value="8" />
+      <item name="RevisionNumber" value="9" />
+      <item name="TotalEditingTime" value="10" />
+      <item name="LastPrinted" value="11" />
+      <item name="CreateTimeDate" value="12" />
+      <item name="LastSavedTimeDate" value="13" />
+      <item name="NumberOfPages" value="14" />
+      <item name="NumberOfWords" value="15" />
+      <item name="NumberOfCharacters" value="16" />
+      <item name="Thumbnail" value="17" />
+      <item name="NameOfCreatingApplication" value="18" />
+      <item name="Security" value="19" />
+    </enum>
+
+    <enum name="Transformation">
+      <item name="PRC_TRANSFORMATION_Identity" value="0x00" />
+      <item name="PRC_TRANSFORMATION_Translate" value="0x01" />
+      <item name="PRC_TRANSFORMATION_Rotate" value="0x02" />
+      <item name="PRC_TRANSFORMATION_Mirror" value="0x04" />
+      <item name="PRC_TRANSFORMATION_Scale" value="0x08" />
+      <item name="PRC_TRANSFORMATION_NonUniformScale" value="0x10" />
+      <item name="PRC_TRANSFORMATION_NonOrtho" value="0x20" />
+      <item name="PRC_TRANSFORMATION_Homogenous" value="0x40" />
+    </enum>
+
+    <enum name="EPRCPictureDataFormat">
+      <item name="KEPRCPicture_PNG" value="0" />
+      <item name="KEPRCPicture_JPG" value="1" />
+      <item name="KEPRCPicture_BITMAP_RGB_BYTE" value="2" />
+      <item name="KEPRCPicture_BITMAP_RGBA_BYTE" value="3" />
+      <item name="KEPRCPicture_BITMAP_GREY_BYTE" value="4" />
+      <item name="KEPRCPicture_BITMAP_GREYA_BYTE" value="5" />
+    </enum>
+    
   </enums>
   
   <objects>
@@ -395,12 +494,12 @@
       <array name="font_key_list" dim="key_count" type="FontKey" />
     </object>
 
-    <object name="FontKey">
+    <object name="FontKey" flat="true">
       <field name="font_size" type="UnsignedInteger" />
       <field name="font_attributes" type="Character" />
     </object>
 
-    <object name="RgbColor">
+    <object name="RgbColor" flat="true">
       <field name="Red" type="Double" />
       <field name="Green" type="Double" />
       <field name="Blue" type="Double" />
@@ -433,12 +532,472 @@
     </object>
 
     <object name="FileStructureExactGeometry">
-      <field name="" type="UnsignedInteger" constant="PRC_TYPE_ASM_FileStructureGeometry" />
-      <field name="Base" type="ContentPRCBase" />
       <field name="topo_context_count" type="UnsignedInteger" />
       <array name="topo_contexts" dim="topo_context_count" type="TopologicalContext" />
     </object>
-    
+
+    <object name="PRC_TYPE_ASM_FileStructureExtraGeometry">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_ASM_FileStructureExtraGeometry" />
+      <field name="Base" type="ContentPRCBase" />
+      <field name="extra_geom_count" type="UnsignedInteger" />
+      <array name="extra_geom" dim="extra_geom_count" type="ExtraGeometry" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="ExactGeometry">
+      <field name="Summary" type="GeometrySummary" />
+      <field name="context_data" type="ContextGraphics" />
+    </object>
+
+    <object name="GeometrySummary">
+      <field name="number_of_bodies" type="UnsignedInteger" />
+      <array name="Bodies" dim="number_of_bodies" type="BodyInformation" />
+    </object>
+
+    <object name="BodyInformation" flat="true">
+      <field name="body_serial_type" type="UnsignedInteger" />
+      <field name="tolerance" type="Double" condition="body_serial_type == PRC_TYPE_TOPO_BrepDataCompress || body_serial_type == PRC_TYPE_TOPO_SingleWireBodyCompress || body_serial_type == PRC_TYPE_TESS_3D_Compress"/>
+    </object>
+
+    <object name="ContextGraphics">
+      <field name="number_of_treat_type" type="UnsignedInteger" />
+      <array name="treat_types" dim="number_of_treat_type" type="GraphicsInformation" />
+    </object>
+
+    <object name="GraphicsInformation">
+      <field name="element_type" type="UnsignedInteger" />
+      <field name="number_of_element" type="UnsignedInteger" />
+      <array name="element_information" dim="number_of_element" type="ElementInformation" />
+    </object>
+
+    <object name="ElementInformation">
+      <field name="has_graphics" type="Boolean" />
+      <field name="graphic_behavior" typ="ElementGraphicsBehavior" condition="has_graphics == TRUE" />
+    </object>
+
+    <object name="ElementGraphicsBehavior">
+      <field name="use_context" type="Boolean" />
+      <field name="biased_layer_index" type="UnsignedInteger" condition="use_context == FALSE" />
+      <field name="biased_index_of_line_style" type="UnsignedInteger" condition="use_context == FALSE" />
+      <array name="behavior_bit_field" dim="2" type="UnsignedCharacter" condition="use_context == FALSE" />
+    </object>
+
+    <object name="PRC_TYPE_ASM_ProductOccurrence">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_ASM_ProductOccurrence" />
+      <field name="Base" type="PRCBaseWithGraphics" />
+      <field name="references_product_occurence" type="ReferencesOfProductOccurrence" />
+      <field name="product_behavior" type="Character" />
+      <field name="product_information" type="ProductInformation" />
+      <field name="has_transform" type="Boolean" />
+      <field name="Location" type="Transformation" condition="has_transform == TRUE" />
+      <field name="entity_ref_count" type="UnsignedInteger" />
+      <array name="entity_reference" dim="entity_ref_count" type="PRC_TYPE_MISC_EntityReference" />
+      <field name="Markups" type="MarkupData" />
+      <field name="number_of_views" type="UnsignedInteger" />
+      <array name="Views" dim="number_of_views" type="PRC_TYPE_MKP_View" />
+      <field name="has_filter" type="Boolean" />
+      <field name="entity_filter" type="PRC_TYPE_ASM_Filter" condition="has_filter == TRUE" />
+      <field name="number_of_display_filters" type="UnsignedInteger" />
+      <array name="display_filters" dim="number_of_display_filters" type="PRC_TYPE_ASM_Filter" />
+      <field name="number_of_scene_parameters" type="UnsignedInteger" />
+      <array name="scene_display_parameters" dim="number_of_scene_parameters" type="RC_TYPE_GRAPH_SceneDisplayParameter" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="ReferencesOfProductOccurrence">
+      <field name="biased_index_part" type="UnsignedInteger" />
+      <field name="biased_index_prototype" type="UnsignedInteger" />
+      <field name="prototype_in_same_file_structure" type="FileIdentifier" condition="index_prototype != -1" />
+      <field name="biased_index_external_data" type="UnsignedInteger" />
+      <field name="external_data_in_same_file_structure" type="FileIdentifier" condition="index_external_data != -1" />
+      <field name="number_of_child_product_occurrences" type="UnsignedInteger" />
+      <array name="index_child_occurrence" dim="number_of_child_product_occurrences" type="UnsignedInteger" />
+    </object>
+
+    <object name="FileIdentifier">
+      <field name="Flag" type="Boolean" />
+      <field name="unique_id" type="CompressedUniqueId" condition="Flag == FALSE" />
+    </object>
+
+    <object name="ProductInformation">
+      <field name="unit_from_CAD_file" type="Boolean" />
+      <field name="Unit" type="Double" />
+      <field name="product_information_flags" type="Character" />
+      <field name="product_load_status" type="Integer" />
+    </object>
+
+    <object name="MarkupData">
+      <field name="number_of_linked_items" type="UnsignedInteger" />
+      <array name="linked_items" dim="number_of_linked_items" type="PRC_TYPE_MISC_MarkupLinkedItem" />
+      <field name="number_of_leaders" type="UnsignedInteger" />
+      <array name="Leaders" dim="number_of_leaders" type="PRC_TYPE_MKP_Leader" />
+      <field name="number_of_markups" type="UnsignedInteger" />
+      <array name="Markups" dim="number_of_markups" type="PRC_TYPE_MKP_Markup" />
+      <field name="number_of_annotation_entities" type="UnsignedInteger" />
+      <array name="annotation_entities" dim="number_of_annotation_entities" type="AnnotationEntities" />
+    </object>
+
+    <object name="PRC_TYPE_ASM_PartDefinition">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_ASM_PartDefinition" />
+      <field name="Base" type="PRC_TYPE_ROOT_PRCBaseWithGraphics" />
+      <field name="bounding_box" type="BoundingBox" />
+      <field name="number_of_representation_items" type="UnsignedInteger" />
+      <array name="representation_items" dim="number_of_representation_items" type="PRC_TYPE_RI" />
+      <field name="Markups" type="MarkupData" />
+      <field name="number_of_views" type="UnsignedInteger" />
+      <array name="Views" dim="number_of_views" type="PRC_TYPE_MKP_View" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="PRC_TYPE_ASM_Filter">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_ASM_Filter" />
+      <field name="Base" type="ContentPRCBase" />
+      <field name="is_active" type="Boolean" />
+      <field name="layer_filter" type="ContentLayerFilterItems" />
+      <field name="entity_filter" type="ContentEntityFilterItems" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="ContentLayerFilterItems">
+      <field name="b_is_inclusive" type="Boolean" />
+      <field name="number_of_layers" type="UnsignedInteger" />
+      <array name="Layers" dim="number_of_layers" type="UnsignedInteger" />
+    </object>
+
+    <object name="ContentEntityFilterItems">
+      <field name="b_is_inclusive" type="Boolean" />
+      <field name="number_of_entities" type="UnsignedInteger" />
+      <array name="Entities" dim="number_of_entities" type="PRC_TYPE_MISC_EntityReference" />
+    </object>
+
+    <object name="PRC_TYPE_MISC_Attribute">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_MISC_Attribute" />
+      <field name="attribute_title" type="AttributeEntry" />
+      <field name="number_of_attributes" type="UnsignedInteger" />
+      <array name="attributes" dim="number_of_attributes" type="AttributeKeyValue" />
+    </object>
+
+    <object name="AttributeEntry">
+      <field name="flag" type="Boolean" />
+      <field name="integer_title" type="UnsignedInteger" condition="flag == TRUE" />
+      <field name="string_title" type="String" condition="flag == FALSE" />
+    </object>
+
+    <object name="AttributeKeyValue">
+      <field name="title" type="AttributeEntry" />
+      <field name="type" type="UnsignedInteger" />
+      <field name="value1" type="Integer" condition="type == 1" />
+      <field name="value2" type="Double" condition="type == 2" />
+      <field name="value3" type="Integer" condition="type == 3" />
+      <field name="value4" type="String" condition="type == 4" />
+      <field name="value_msp" type="Integer" condition="type == 5" />
+      <field name="value_lsp" type="UnsignedInteger" condition="type == 5" />
+    </object>
+
+    <object name="PRC_TYPE_MISC_CartesianTransformation">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_MISC_CartesianTransformation" />
+      <field name="transform" type="Transformation" />
+    </object>
+
+    <object name="PRC_TYPE_MISC_EntityReference">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_MISC_EntityReference" />
+      <field name="content_entity_reference" type="ContentEntityReference" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="PRC_TYPE_MISC_MarkupLinkedItem">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_MISC_MarkupLinkedItem" />
+      <field name="content_entity_reference" type="ContentExtendedEntityReference" />
+      <field name="show_markup" type="Boolean" />
+      <field name="delete_markup" type="Boolean" />
+      <field name="show_leader" type="Boolean" />
+      <field name="delete_leader" type="Boolean" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="ContentExtendedEntityReference">
+      <field name="content_entity_reference" type="ContentEntityReference" />
+      <field name="reference_data" type="ReferenceData" />
+    </object>
+
+    <object name="PRC_TYPE_MISC_ReferenceOnPRCBase">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_MISC_ReferenceOnPRCBase" />
+      <field name="type_of_entity" type="UnsignedInteger" />
+      <field name="flag" type="Boolean" />
+      <field name="different_unique_id" type="CompressedUniqueID" condition="flag == FALSE" />
+      <field name="unique_id" type="UnsignedInteger" />
+    </object>
+
+    <object name="PRC_TYPE_MISC_ReferenceOnTopology">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_MISC_ReferenceOnTopology" />
+      <field name="type" type="UnsignedInteger" />
+      <field name="flag" type="Boolean" />
+      <field name="data" type="AdditionalTargetData" condition="flag == TRUE" />
+    </object>
+
+    <object name="AdditionalTargetData">
+      <field name="flag" type="Boolean" />
+      <field name="unique_id" type="CompressedUniqueId" condition="flag == FALSE" />
+      <field name="index_of_topological_index" type="UnsignedInteger" />
+      <field name="index_of_body" type="UnsignedInteger" />
+      <field name="number_of_indices" type="UnsignedInteger" />
+      <array name="indices" dim="number_of_indices" type="UnsignedInteger" />
+    </object>
+
+    <object name="PRC_TYPE_MISC_GeneralTransformation">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_MISC_GeneralTransformation" />
+      <array name="general_transform" dim="16" type="Double" />
+    </object>
+
+    <object name="ContentEntityReference">
+      <field name="base" type="PRCBaseWithGraphics" />
+      <field name="index_of_local_coordinate" type="UnsignedInteger" />
+      <field name="flag" type="Boolean" />
+      <field name="reference_data" type="ReferenceData" condition="flag == TRUE" />
+    </object>
+
+    <object name="ReferenceData">
+      <field name="topo_or_nontopo_reference" type="PRC_TYPE_MISC" />
+    </object>
+
+    <object name="Transformation">
+      <field name="behavior" type="Character" />
+      <field name="translation" type="Vector3D" condition="behavior &amp; PRC_TRANSFORMATION_Translate == TRUE" />
+      <array name="non_ortho_matrix" dim="3" type="Vector3D" condition="behavior &amp; PRC_TRANSFORMATION_NonOrtho == TRUE" />
+      <array name="rotation" dim="2" type="Vector3D" condition="(behavior &amp; PRC_TRANSFORMATION_Rotate == TRUE) &amp;&amp; (behavior &amp; PRC_TRANSFORMATION_NonOrtho == FALSE)" />
+      <field name="non_uniform_scale" type="Vector3D" condition="behavior &amp; PRC_TRANSFORMATION_NonUniformScale == TRUE" />
+      <field name="scale" type="Double" condition="(behavior &amp; PRC_TRANSFORMATION_Scale == TRUE) &amp;&amp; (behaviour &amp; TRANSFORMATION_NonUniformScale == FALSE)" />
+      <array name="homogenous" dim="4" type="Double" condition="behavior &amp; PRC_TRANSFORMATION_Homogenous == TRUE" />
+    </object>
+
+    <object name="2DTransformation">
+      <field name="behavior" type="Character" />
+      <field name="translation" type="Vector3D" condition="behavior &amp; PRC_TRANSFORMATION_Translate == TRUE" />
+      <array name="non_ortho_matrix" dim="3" type="Vector3D" condition="behavior &amp; PRC_TRANSFORMATION_NonOrtho == TRUE" />
+      <array name="rotation" dim="2" type="Vector3D" condition="(behavior &amp; PRC_TRANSFORMATION_Rotate == TRUE) &amp;&amp; (behavior &amp; PRC_TRANSFORMATION_NonOrtho == FALSE)" />
+      <field name="non_uniform_scale" type="Vector3D" condition="behavior &amp; PRC_TRANSFORMATION_NonUniformScale == TRUE" />
+      <field name="scale" type="Double" condition="(behavior &amp; PRC_TRANSFORMATION_Scale == TRUE) &amp;&amp; (behaviour &amp; TRANSFORMATION_NonUniformScale == FALSE)" />
+      <array name="homogenous" dim="4" type="Double" condition="behavior &amp; PRC_TRANSFORMATION_Homogenous == TRUE" />
+    </object>
+
+    <object name="PRC_TYPE_GRAPH_Style">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_GRAPH_Style" />
+      <field name="base" type="ContentPRCRefBase" />
+      <field name="line_width" type="Double" />
+      <field name="is_vpicture" type="Boolean" />
+      <field name="biased_patern_index" type="UnsignedInteger" />
+      <field name="is_material" type="Boolean" />
+      <field name="biased_color_index" type="UnsignedInteger" />
+      <field name="is_transparency" type="Boolean" />
+      <field name="transparency" type="Character" condition="is_transparency == TRUE" />
+      <field name="is_rendering_parameters" type="Boolean" />
+      <field name="rendering_parameters" type="Character" condition="is_rendering_parameters == TRUE" />
+      <field name="flag1" type="Boolean" />
+      <field name="flag2" type="Boolean" />
+    </object>
+
+    <object name="PRC_TYPE_GRAPH_Material">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_GRAPH_Material" />
+      <field name="base" type="ContentPRCRefBase" />
+      <field name="biased_ambient_index" type="UnsignedInteger" />
+      <field name="biased_difuse_index" type="UnsignedInteger" />
+      <field name="biased_emissive_index" type="UnsignedInteger" />
+      <field name="biased_specular_index" type="UnsignedInteger" />
+      <field name="shininess" type="Double" />
+      <field name="ambient_alpha" type="Double" />
+      <field name="difuse_alpha" type="Double" />
+      <field name="emissive_alpha" type="Double" />
+      <field name="specular_alpha" type="Double" />
+    </object>
+
+    <object name="PRC_TYPE_GRAPH_Picture">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_GRAPH_Picture" />
+      <field name="base" type="ContentPRCBase" />
+      <field name="format" type="Integer" />
+      <field name="biased_uncompressed_file_index" type="UnsignedInteger" />
+      <field name="pixel_width" type="UnsignedInteger" />
+      <field name="pixel_height" type="UnsignedInteger" />
+    </object>
+
+    <object name="PRC_TYPE_GRAPH_TextureApplication">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_GRAPH_TextureApplication" />
+      <field name="base" type="ContentPRCRefBase" />
+      <field name="biased_material_generic_index" type="UnsignedInteger" />
+      <field name="biased_texture_definition_index" type="UnsignedInteger" />
+      <field name="biased_next_texture_index" type="UnsignedInteger" />
+      <field name="biased_uv_coordinates_index" type="UnsignedInteger" />
+    </object>
+
+    <object name="PRC_TYPE_GRAPH_TextureDefinition">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_GRAPH_TextureDefinition" />
+      <field name="base" type="ContentPRCRefBase" />
+      <field name="biased_picture_index" type="UnsignedInteger" />
+      <field name="texture_dimension" type="Character" />
+      <field name="texture_mapping_type" type="Integer" />
+      <field name="texture_mapping_operator" type="Integer" condition="texture_mapping_type == 4" />
+      <field name="has_transformation" type="Boolean" />
+      <field name="transformation" type="CartesianTransformation" condition="has_transformation" />
+      <field name="texture_mapping_attributes" type="UnsignedInteger" />
+      <field name="number_of_texture_mapping_attributes_intensities" type="UnsignedInteger" />
+      <array name="texture_mapping_attributes_intensities" dim="number_of_texture_mapping_attributes_intensities" type="Double" condition="number_of_texture_mapping_attributes_intensities != 0" />
+      <field name="number_of_texture_mapping_attributes_components" type="UnsignedInteger" />
+      <array name="texture_mapping_attributes_components" dim="number_of_texture_mapping_attributes_components" type="Character" condition="number_of_texture_mapping_attributes_components != 0" />
+      <field name="texture_function" type="Integer" />
+      <array name="blend_src" dim="4" type="Double" condition="texture_function == KEPRCTextureFunctionBlend" />
+      <field name="blend_src_rgb" type="Integer" />
+      <field name="blend_src_alpha" type="Integer" />
+      <field name="texture_application_mode" type="Character" />
+      <field name="alpha_test" type="Integer" condition="texture_application_mode &amp; PRC_TEXTURE_APPLYING_MODE_ALPHATEST == TRUE" />
+      <field name="alpha_test_reference" type="Double" condition="texture_application_mode &amp; PRC_TEXTURE_APPLYING_MODE_ALPHATEST == TRUE" />
+      <field name="texture_wrapping_mode" type="Character" />
+      <field name="texture_wrapping_mode_s" type="Integer" />
+      <field name="texture_wrapping_mode_t" type="Integer" condition="texture_dimension > 1" />
+      <field name="texture_wrapping_mode_r" type="Integer" condition="texture_dimension > 2" />
+      <field name="texture_transformation" type="Boolean" />
+      <field name="transformation" type="PRC_TYPE_GRAPH_TextureTransformation" condition="texture_transformation == TRUE" />
+    </object>
+
+    <object name="PRC_TYPE_GRAPH_TextureTransformation">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_GRAPH_TextureTransformation" />
+      <field name="invert_s" type="Boolean" />
+      <field name="invert_t" type="Boolean" />
+      <field name="transform_2d" type="Boolean" />
+      <field name="transform" type="Transformation" />
+    </object>
+
+    <object name="PRC_TYPE_GRAPH_LinePattern">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_GRAPH_LinePattern" />
+      <field name="base" type="ContentPRCRefBase" />
+      <field name="number_of_elements" type="UnsignedInteger" />
+      <array name="lengths" dim="number_of_elements" type="Double" />
+      <field name="start_offset" type="Double" />
+      <field name="scale" type="Boolean" />
+    </object>
+
+    <object name="PRC_TYPE_GRAPH_DottingPattern">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_GRAPH_DottingPattern" />
+      <field name="base" type="ContentPRCRefBase" />
+      <field name="biased_next_pattern_index" type="UnsignedInteger" />
+      <field name="pitch" type="Double" />
+      <field name="is_offset" type="Boolean" />
+      <field name="biased_color_index" type="Integer" />
+    </object>
+
+    <object name="PRC_TYPE_GRAPH_HatchingPattern">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_GRAPH_HatchingPattern" />
+      <field name="base" type="ContentPRCRefBase" />
+      <field name="biased_next_pattern_index" type="UnsignedInteger" />
+      <field name="number_of_hatching_lines" type="UnsignedInteger" />
+      <array name="hatch" dim="number_of_hatching_lines" type="unnamed_hatch" />
+    </object>
+
+    <object name="unnamed_hatch" flat="true">
+      <field name="v1" type="Vector2D" />
+      <field name="v2" type="Vector2D" />
+      <field name="angle" type="Double" />
+      <field name="biased_index_of_line_style" type="Integer" />
+    </object>
+
+    <object name="PRC_TYPE_GRAPH_SolidPattern">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_GRAPH_SolidPattern" />
+      <field name="base" type="ContentPRCRefBase" />
+      <field name="biased_next_pattern_index" type="UnsignedInteger" />
+      <field name="is_material" type="Boolean" />
+      <field name="biased_material_index" type="UnsignedInteger" condition="is_material == TRUE" />
+      <field name="biased_color_index" type="UnsignedInteger" condition="is_material == FALSE" />
+    </object>
+
+    <object name="PRC_TYPE_GRAPH_VpicturePattern">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_GRAPH_VpicturePattern" />
+      <field name="base" type="ContentPRCRefBase" />
+      <field name="biased_next_pattern_index" type="UnsignedInteger" />
+      <array name="patern_dimensions" dim="2" type="Double" />
+      <field name="markup" type="PRC_TYPE_TESS_Markup" />
+    </object>
+
+    <object name="PRC_TYPE_GRAPH_AmbientLight">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_GRAPH_AmbientLight" />
+      <field name="base" type="ContentPRCRefBase" />
+      <field name="biased_ambient_index" type="UnsignedInteger" />
+      <field name="biased_diffuse_index" type="UnsignedInteger" />
+      <field name="biased_emissive_index" type="UnsignedInteger" />
+      <field name="biased_specular_index" type="UnsignedInteger" />
+    </object>
+
+    <object name="PRC_TYPE_GRAPH_PointLight">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_GRAPH_PointLight" />
+      <field name="base" type="ContentPRCRefBase" />
+      <field name="biased_ambient_index" type="UnsignedInteger" />
+      <field name="biased_diffuse_index" type="UnsignedInteger" />
+      <field name="biased_emissive_index" type="UnsignedInteger" />
+      <field name="biased_specular_index" type="UnsignedInteger" />
+      <field name="location" type="Vector3D" />
+      <field name="constant_attenuation_factor" type="Double" />
+      <field name="linear_attenuation_factor" type="Double" />
+      <field name="quadratic_attenuation_factor" type="Double" />
+    </object>
+
+    <object name="PRC_TYPE_GRAPH_DirectionalLight">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_GRAPH_DirectionalLight" />
+      <field name="base" type="ContentPRCRefBase" />
+      <field name="biased_ambient_index" type="UnsignedInteger" />
+      <field name="biased_diffuse_index" type="UnsignedInteger" />
+      <field name="biased_emissive_index" type="UnsignedInteger" />
+      <field name="biased_specular_index" type="UnsignedInteger" />
+      <field name="direction" type="Vector3D" />
+      <field name="intensity" type="Double" />
+    </object>
+
+    <object name="PRC_TYPE_GRAPH_SpotLight">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_GRAPH_SpotLight" />
+      <field name="base" type="ContentPRCRefBase" />
+      <field name="biased_ambient_index" type="UnsignedInteger" />
+      <field name="biased_diffuse_index" type="UnsignedInteger" />
+      <field name="biased_emissive_index" type="UnsignedInteger" />
+      <field name="biased_specular_index" type="UnsignedInteger" />
+      <field name="location" type="Vector3D" />
+      <field name="constant_attenuation_factor" type="Double" />
+      <field name="linear_attenuation_factor" type="Double" />
+      <field name="quadratic_attenuation_factor" type="Double" />
+      <field name="direction" type="Vector3D" />
+      <field name="fall_off_angle" type="Double" />
+      <field name="fall_off_exponent" type="Double" />
+    </object>
+
+    <object name="PRC_TYPE_GRAPH_SceneDisplayParameters">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_GRAPH_SceneDisplayParameters" />
+      <field name="base" type="ContentPRCRefBase" />
+      <field name="is_active" type="Boolean" />
+      <field name="number_of_lights" type="UnsignedInteger" />
+      <array name="lights" dim="number_of_lights" type="PRC_TYPE_GRAPH" />
+      <field name="camera_defined" type="Boolean" />
+      <field name="camera" type="PRC_TYPE_GRAPH_Camera" condition="camera_defined == TRUE" />
+      <field name="rotation_center_defined" type="Boolean" />
+      <field name="rotation_center" type="Vector3D" condition="rotation_center_defined" />
+      <field name="number_of_clipping_planes" type="UnsignedInteger" />
+      <array name="clipping_planes" dim="number_of_clipping_planes" type="PRC_TYPE_SURF_Plane" condition="number_of_clipping_planes > 0" />
+      <field name="index_of_line_style_background" type="UnsignedInteger" />
+      <field name="index_of_line_style_default" type="UnsignedInteger" />
+      <field name="number_default_styles" type="UnsignedInteger" />
+      <array name="styles" dim="2 * number_default_styles" type="" />
+      <field name="is_absolute" type="Boolean" />
+    </object>
+
+    <object name="PRC_TYPE_GRAPH_Camera">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_GRAPH_Camera" />
+      <field name="base" type="ContentPRCRefBase" />
+      <field name="is_orthographic" type="Boolean" />
+      <field name="position" type="Vector3D" />
+      <field name="look" type="Vector3D" />
+      <field name="up" type="Vector3D" />
+      <field name="x" type="Double" />
+      <field name="y" type="Double" />
+      <field name="ratio" type="Double" />
+      <field name="clip_near" type="Double" />
+      <field name="clip_far" type="Double" />
+      <field name="zoom" type="Double" />
+    </object>
+
   </objects>
 </prc>
 		
