@@ -9,6 +9,14 @@
 
   <enums>
     <enum name="EntityType">
+      <item name="PRC_TYPE_TESS" value="PRC_TYPE_ROOT + 170" />
+      <item name="PRC_TYPE_TESS_Base" value="PRC_TYPE_TESS + 1" />
+      <item name="PRC_TYPE_TESS_3D" value="PRC_TYPE_TESS + 2" />
+      <item name="PRC_TYPE_TESS_3D_Compressed" value="PRC_TYPE_TESS + 3" />
+      <item name="PRC_TYPE_TESS_Face" value="PRC_TYPE_TESS + 4" />
+      <item name="PRC_TYPE_TESS_3D_Wire" value="PRC_TYPE_TESS + 5" />
+      <item name="PRC_TYPE_TESS_Markup" value="PRC_TYPE_TESS + 6" />
+
       <item name="PRC_TYPE_MISC" value="PRC_TYPE_ROOT + 200" />
       <item name="PRC_TYPE_MISC_Attribute" value="PRC_TYPE_ MISC + 1" />
       <item name="PRC_TYPE_MISC_CartesianTransformation" value="PRC_TYPE_ MISC + 2" />
@@ -41,6 +49,14 @@
       <item name="PRC_TYPE_ASM_ProductOccurrence" value="PRC_TYPE_ASM + 8" />
       <item name="PRC_TYPE_ASM_PartDefinition" value="PRC_TYPE_ASM + 9" />
       <item name="PRC_TYPE_ASM_Filter" value="PRC_TYPE_ASM + 10" />
+
+      <item name="PRC_TYPE_MKP" value="PRC_TYPE_ROOT + 500" />
+      <item name="PRC_TYPE_MKP_View" value="PRC_TYPE_MKP + 1" />
+      <item name="PRC_TYPE_MKP_Markup" value="PRC_TYPE_MKP + 2" />
+      <item name="PRC_TYPE_MKP_Leader" value="PRC_TYPE_MKP + 3" />
+      <item name="PRC_TYPE_MKP_AnnotationItem" value="PRC_TYPE_MKP + 4" />
+      <item name="PRC_TYPE_MKP_AnnotationSet" value="PRC_TYPE_MKP + 5" />
+      <item name="PRC_TYPE_MKP_AnnotationReference" value="PRC_TYPE_MKP + 6" />
 
       <item name="PRC_TYPE_GRAP" value="PRC_TYPE_ROOT + 700" />
       <item name="PRC_TYPE_GRAPH_Styl" value="PRC_TYPE_GRAPH + 1" />
@@ -166,7 +182,7 @@
     </enum>
     
   </enums>
-  
+
   <objects>
     <object name="Fileheader">
       <field name="" type="byte" constant="P"/>
@@ -190,7 +206,7 @@
       <field name="section_count" type="UncompressedUnsignedInteger" />
       <array name="section_offsets" dim="section_count" type="UncompressedUnsignedInteger>" />
     </object>
-    
+
     <object name="UncompressedFiles">
       <field name="count" type="UncompressedUnsignedInteger" />
       <array name="array_of_files" dim="count" type="UncompressedBlock" />
@@ -228,7 +244,7 @@
       <field name="token_count" type="UnsignedInteger" />
       <array name="schema_tokens" dim="token_count" type="UnsignedInteger" />
     </object>
-    
+
     <object name="UncompressedUnsignedInteger" flat="true">
       <field name="" type="uint32_t" bytes="4" value="true"/>
     </object>
@@ -273,11 +289,11 @@
     <object name="UnsignedIntegerWithVariableBitNumber" flat="true" compressed="true">
       <field name="" bits="32" type="uint32_t" value="true"/>
     </object>
-    
+
     <object name="NumberOfBitsThenUnsignedInteger" flat="true" compressed="true">
       <field name="" bits="32" type="uint32_t" value="true"/>
     </object>
-    
+
     <object name="Float" flat="true" compressed="true">
       <field name="" bits="32" type="float" value="true"/>
     </object>
@@ -998,6 +1014,298 @@
       <field name="zoom" type="Double" />
     </object>
 
+    <object name="RepresentationItemContent">
+      <field name="base" type="PRC_TYPE_ROOT_PRCBaseWithGraphics" />
+      <field name="biased_index_local_coordinate_system" type="UnsignedInteger" />
+      <field name="biased_index_tessellation" type="UnsignedInteger" />
+    </object>
+
+    <object name="PRC_TYPE_RI_BrepModel">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_RI_BrepModel" />
+      <field name="item_content" type="RepresentationItemContent" />
+      <field name="exact_geometry" type="Boolean" />
+      <field name="index_topological_context" type="UnsignedInteger" condition="exact_geometry == TRUE" />
+      <field name="index_body" type="UnsignedInteger" condition="exact_geometry == TRUE" />
+      <field name="is_closed" type="Boolean" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="PRC_TYPE_RI_Curve">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_RI_Curve" />
+      <field name="item_content" type="RepresentationItemContent" />
+      <field name="exact_geometry" type="Boolean" />
+      <field name="index_topological_context" type="UnsignedInteger" condition="exact_geometry == TRUE" />
+      <field name="index_body" type="UnsignedInteger" condition="exact_geometry == TRUE" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="PRC_TYPE_RI_Direction">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_RI_Direction" />
+      <field name="item_content" type="RepresentationItemContent" />
+      <field name="has_origin" type="Boolean" />
+      <field name="origin" type="Vector3D" condition="has_origin == TRUE" />
+      <field name="direction" type="Vector3D" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="PRC_TYPE_RI_Plane">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_RI_Plane" />
+      <field name="item_content" type="RepresentationItemContent" />
+      <field name="exact_geometry" type="Boolean" />
+      <field name="index_topological_context" type="UnsignedInteger" condition="exact_geometry == TRUE" />
+      <field name="index_body" type="UnsignedInteger" condition="exact_geometry == TRUE" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="PRC_TYPE_RI_PointSet">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_RI_PointSet" />
+      <field name="item_content" type="RepresentationItemContent" />
+      <field name="number_of_points" type="UnsignedInteger" />
+      <array name="points" dim="number_of_points" type="Vector3D" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="PRC_TYPE_RI_PolyBrepModel">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_RI_PolyBrepModel" />
+      <field name="item_content" type="RepresentationItemContent" />
+      <field name="is_closed" type="Boolean" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="PRC_TYPE_RI_PolyWire">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_RI_PolyWire" />
+      <field name="item_content" type="RepresentationItemContent" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="PRC_TYPE_RI_Set">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_RI_Set" />
+      <field name="item_content" type="RepresentationItemContent" />
+      <field name="number_of_items" type="UnsignedInteger" />
+      <array name="representation_items" dim="number_of_items" type="PRC_TYPE_RI_RepresentationItem" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="PRC_TYPE_RI_CoordinateSystem">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_RI_CoordinateSystem" />
+      <field name="item_content" type="RepresentationItemContent" />
+      <field name="transform" type="Transformation" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="PRC_TYPE_MKP_View">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_MKP_View" />
+      <field name="base" type="PRC_TYPE_ROOT_PRCBaseWithGraphics" />
+      <field name="number_of_annotations" type="UnsignedInteger" />
+      <array name="annotations" dim="number_of_annotations" type="ReferenceUniqueIdentifiers" />
+      <field name="annotation_plane" type="PRC_TYPE_SURF_Plane" />
+      <field name="has_parameters" type="Boolean" />
+      <field name="scene_display_parameters" type="SceneDisplayParameters" condition="has_parameters == TRUE" />
+      <field name="is_annotation_view" type="Boolean" />
+      <field name="is_default_view" type="Boolean" />
+      <field name="is_direction" type="Boolean" />
+      <field name="number_of_linked_items" type="UnsignedInteger" />
+      <array name="linked_items" dim="number_of_linked_items" type="ReferenceUniqueIdentifiers" />
+      <field name="number_of_filters" type="UnsignedInteger" />
+      <array name="filters" dim="number_of_filters" type="PRC_TYPE_ASM_Filter" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="ReferenceUniqueIdentifier">
+      <field name="" type="UnsignedInteger" constant="ReferenceUniqueIdentifier" />
+      <field name="type" type="UnsignedInteger" />
+      <field name="reference_in_same_file_structure" type="Boolean" />
+      <!-- This is different than the specification (condition) -->
+      <field name="target_file_structure" type="CompressedUniqueID" condition="reference_in_same_file_structure == FALSE" />
+      <field name="unique_id" type="UnsignedInteger" />
+    </object>
+
+    <object name="PRC_TYPE_MKP_Markup">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_MKP_Markup" />
+      <field name="base" type="PRC_TYPE_ROOT_PRCBaseWithGraphics" />
+      <field name="markup_type" type="UnsignedInteger" />
+      <field name="markup_subtype" type="UnsignedInteger" />
+      <field name="number_of_linked_items" type="UnsignedInteger" />
+      <array name="linked_items" dim="number_of_linked_items" type="ReferenceUniqueIdentifiers" />
+      <field name="number_of_leaders" type="UnsignedInteger" />
+      <array name="leaders" dim="number_of_leaders" type="ReferenceUniqueIdentifiers" condition="number_of_leaders > 0" />
+      <field name="biased_index_tessellation" type="UnsignedInteger" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="PRC_TYPE_MKP_Leader">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_MKP_Leader" />
+      <field name="base" type="PRC_TYPE_ROOT_PRCBaseWithGraphics" />
+      <field name="first_linked_item" type="ReferenceUniqueIdentifiers" />
+      <field name="is_second_linked_item" type="Boolean" />
+      <field name="second_linked_item" type="ReferenceUniqueIdentifiers" condition="is_second_linked_item == TRUE" />
+      <field name="biased_index_tessellation" type="UnsignedInteger" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="PRC_TYPE_MKP_AnnotationItem">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_MKP_AnnotationItem" />
+      <field name="base" type="PRC_TYPE_ROOT_PRCBaseWithGraphics" />
+      <field name="unique_id" type="ReferenceUniqueIdentifier" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="PRC_TYPE_MKP_AnnotationSet">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_MKP_AnnotationSet" />
+      <field name="base" type="PRC_TYPE_ROOT_PRCBaseWithGraphics" />
+      <field name="number_of_annotations" type="UnsignedInteger" />
+      <array name="annotations" dim="number_of_annotations" type="AnnotationEntity" condition="number_of_annotations > 0" />
+      <field name="user_data" type="UserData" />
+    </object>
+
+    <object name="PRC_TYPE_MKP_AnnotationReference">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_MKP_AnnotationReference" />
+      <field name="base" type="PRC_TYPE_ROOT_PRCBaseWithGraphics" />
+      <field name="number_of_linked_items" type="UnsignedInteger" />
+      <array name="linked_items" dim="number_of_linked_items" type="ReferenceUniqueIdentifiers" condition="number_of_linked_items > 0" />
+    </object>
+
+    <object name="ContentBaseTessData">
+      <field name="is_calculated" type="Boolean" />
+      <field name="number_of_coordinates" type="UnsignedInteger" />
+      <array name="coordinates" dim="number_of_coordinates" type="Double" />
+    </object>
+
+    <object name="PRC_TYPE_TESS_3D">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_TESS_3D" />
+      <field name="tessellation_coordinates" type="ContentBaseTessData" />
+      <field name="has_faces" type="Boolean" />
+      <field name="has_loops" type="Boolean" />
+      <field name="must_calculate_normals" type="Boolean" />
+      <field name="normal_recalculation_flags" type="Character" />
+      <field name="crease_angle" type="Double" condition="must_calculate_normals == TRUE" />
+      <field name="number_of_normal_coordinates" type="UnsignedInteger" />
+      <array name="normal_coordinates" dim="number_of_normal_coordinates" type="Double" />
+      <field name="number_of_wire_indices" type="UnsignedInteger" />
+      <array name="wire_indices" dim="number_of_wire_indices" type="UnsignedInteger" />
+      <field name="number_of_triangulated_indicies" type="UnsignedInteger" />
+      <array name="triangulated_index_array" dim="number_of_triangulated_indicies" type="UnsignedInteger" />
+      <field name="number_of_face_tessellation" type="UnsignedInteger" />
+      <array name="face _tessellation_data" dim="number_of_face_tessellation" type="PRC_TYPE_TESS_Face" />
+      <field name="number_of_texture_coordinates" type="UnsignedInteger" />
+      <array name="texture_coordinates" dim="number_of_texture_coordinates" type="Double" />
+    </object>
+
+    <object name="PRC_TYPE_TESS_Face">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_TESS_Face" />
+      <field name="size_of_line_attributes"	type="UnsignedInteger" />
+      <array name="line_attributes" dim="size_of_line_attributes"	type="UnsignedInteger" />
+      <field name="start_of_wire_data" type="UnsignedInteger" />
+      <field name="size_of_sizes_wire" type="UnsignedInteger" />
+      <array name="sizes_wire" dim="size_of_sizes_wire" type="UnsignedInteger" />
+      <field name="used_entities_flag" type="UnsignedInteger" />
+      <field name="start_triangulated" type="UnsignedInteger" />
+      <field name="size_of_triangulated_data" type="UnsignedInteger" />
+      <array name="triangulated_data" dim="size_of_triangulated_data"	type="UnsignedInteger" />
+      <field name="number_of_textured_coordinate_index" type="UnsignedInteger" />
+      <field name="has_vertex_colors"	type="Boolean" />
+      <field name="vertex color data"	type="VertexColors" />
+      <field name="behavior" type="UnsignedInteger" condition="size_of_line_attributes &gt; 0" />
+    </object>
+
+    <object name="PRC_TYPE_TESS_3D_Wire">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_TESS_3D_Wire" />
+      <field name="tessellation_coordinates" type="ContentBaseTessData" />
+      <field name="number_of_wire_indexes" type="UnsignedInteger" />
+      <array name="wire_indexes" dim="number_of_wire_indexes"	type="Integer" />
+      <field name="has_vertex_colors" type="Boolean" />
+      <field name="vertex_color_data" type="VertexColors" condition="has_vertex_colors == TRUE" />
+    </object>
+
+    <object name="VertexColors">
+      <field name="is_rgba" type="Boolean" />
+      <field name="is_segment_color" type="Boolean" />
+      <field name="b_optimized" type="Boolean" />
+      <field name="color_data" type="ColorData" condition="b_optimized == FALSE" />
+    </object>
+
+    <object name="ColorData">
+      <field name="first_vertex" type="Color" />
+      <array name="remaining_vertices" dim="number_of_colors" type="ColorDataRemainder" />
+    </object>
+
+    <object name="ColorDataRemainder">
+      <field name="is_same" type="Boolean" />
+      <field name="color" type="Color" />
+    </object>
+
+    <object name="Color">
+      <array name="color3" dim="3" type="Character" condition="is_alpha == FALSE "/>
+      <array name="color4" dim="4" type="Character" condition="is_alpha == TRUE" />
+    </object>
+
+    <object name="PRC_TYPE_TESS_Markup">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_TESS_Markup" />
+      <field name="tessellation_coordinates" type="ContentBaseTessData" />
+      <field name="number_of_codes" type="UnsignedInteger" />
+      <array name="code_numbers" dim="number_of_codes" type="UnsignedInteger" />
+      <field name="number_of_text_strings" type="UnsignedInteger" />
+      <array name="text_strings" dim="number_of_text_strings" type="String" />
+      <field name="tessellation_label" type="String" />
+      <field name="behavior" type="Character" />
+    </object>
+
+    <!--
+    <object name="MeshPointsAndTriangles">
+      <field name="tolerance" type="Double" />
+      <field name="point_array" type="CompressedIntegerArray" />
+      <field name="edge_status_array" type="CharacterArray" />
+      <field name="point_reference_array" type="CompressedIndiceArray" />
+      <field name="reference_array_size" type="UnsignedInteger" />
+      <array name="point_is_a_reference" dim="reference_array_size" type="Boolean" />
+    </object>
+
+    <object name="MeshNormalDescription">
+      <field name="normal_binary_data_size" type="UnsignedInteger" />
+      <array name="normal_binary_data" dim="normal_binary_data_size" type="Boolean" />
+      <field name="normal_angle_array" type="ShortArray" />
+      <array name="is_face_planar" dim="face_count" type="Boolean" />
+    </object>
+    
+    - Table 172 and 173 omitted
+    
+    -->
+
+    <object name="PRC_TYPE_TESS_3D_COMPRESSED">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_TESS_3D_COMPRESSED" />
+      <field name="is_calculated" type="Boolean" />
+      <field name="has_faces" type="Boolean" />
+      <field name="tolerance" type="Double" />
+      <array name="origin_array" dim="3" type="FloatAsBytes" />
+      <field name="point_array" type="CompressedIntegerArray" />
+      <field name="edge_status_array" type="CharacterArray" />
+      <field name="triangle_face_array" type="CompressedIndiceArray" />
+      <field name="reference_array_size" type="UnsignedInteger" />
+      <array name="points_is_reference_array" dim="reference_array_size" type="Boolean" />
+      <field name="point_reference_array" type="CompressedIndiceArraySpec1" /> <!-- see table 174 -->
+      <field name="must_recalculate_normals" type="Boolean" />
+      <array name="normal_is_reversed" dim="normal_count" type="Boolean" condition="must_recalculate_normals == TRUE" />
+      <field name="crease_angle" type="Double" condition="must_recalculate_normals == TRUE" />
+      <field name="normal_recalculation_flags" type="Character" condition="must_recalculate_normals == TRUE" />
+      <field name="normal_angle_number_of_bits" type="Character" condition="must_recalculate_normals == FALSE" />
+      <field name="normal_binary_data_size" type="UnsignedInteger" condition="must_recalculate_normals == FALSE" />
+      <array name="normal_binary_data" dim="normal_binary_data_size" type="Boolean" condition="must_recalculate_normals == FALSE" />
+      <field name="normal_angle_array" type="ShortArray" condition="must_recalculate_normals == FALSE" />
+      <array name="is_face_planar" dim="face_count" type="Boolean" condition="must_recalculate_normals == FALSE" />
+      <field name="is_point_color" type="Boolean" />
+      <array name="is_point_color_on_face" dim="is_point_color_on_face_count" type="Boolean" condition="is_point_color == TRUE" />
+      <field name="point_color_array" type="CharacterArray" condition="is_point_color == TRUE" />
+      <field name="is_multiple_line_attribute" type="Boolean" />
+      <array name="is_multiple_line_attribute_on_face" dim="is_multiple_line_attribute_on_face_count" type="Boolean" condition="is_multiple_line_attribute == TRUE" />
+      <field name="line_attribute_array" type="ShortArray" />
+      <field name="no_texture" type="Boolean" />
+      <field name="texture_data" type="CompressedTextureParameter" condition="no_texture == FALSE" />
+      <field name="all_faces_have_texture" type="Boolean" condition="no_texture == FALSE" />
+      <array name="face_has_texture" dim="face_has_texture_count" type="Boolean" condition="no_texture == FALSE" />
+      <field name="has_behaviors" type="Boolean" />
+      <field name="behaviors_array" type="CharacterArray" condition="has_behaviors == TRUE" />
+    </object>
+str. 119
   </objects>
 </prc>
 		
