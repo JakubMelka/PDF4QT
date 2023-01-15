@@ -109,6 +109,26 @@ Following important variables should be set or checked before any attempt to com
 | ------------------------------------   | ---------|--------------------------------------------------------- |
 | `PDF4QT_QT_ROOT`                       | Any      |Qt installation directory                                 |
 | `QT_CREATOR_SKIP_VCPKG_SETUP`          | Any      |Enable or disable automatic vcpkg setup                   |
+| `CMAKE_PROJECT_INCLUDE_BEFORE`         | Any      |Should be set to package manager auto setup               |
+| `CMAKE_TOOLCHAIN_FILE`                 | Any      |Should be set to toolchain                                |
+
+#### Sample setup on Windows
+
+Following set of variables gives sample setup for MS Windows. It is minimal initial configuration
+to be able to built Debug build on MS Windows.
+
+| Key                             | Value                                                        |
+| ------------------------------- | -------------------------------------------------------------|
+| `CMAKE_BUILD_TYPE`              | Debug                                                        |
+| `CMAKE_CXX_COMPILER`            | %{Compiler:Executable:Cxx}                                   |
+| `CMAKE_C_COMPILER`              | %{Compiler:Executable:C}                                     |
+| `CMAKE_GENERATOR`               | Ninja                                                        |
+| `CMAKE_PREFIX_PATH`             | %{Qt:QT_INSTALL_PREFIX}                                      |
+| `CMAKE_PROJECT_INCLUDE_BEFORE`  | %{IDE:ResourcePath}/package-manager/auto-setup.cmake         |
+| `CMAKE_TOOLCHAIN_FILE`          | %{Qt:QT_INSTALL_PREFIX}/lib/cmake/Qt6/qt.toolchain.cmake     |
+| `PDF4QT_QT_ROOT`                | C:/Programming/Qt/6.4.0/msvc2019_64                          |
+| `QT_QMAKE_EXECUTABLE`           | %{Qt:qmakeExecutable}                                        |
+
 
 ### Tested Compilers - Windows
  - Visual Studio 2022 (Microsoft Visual C++ Compiler 17.1)
