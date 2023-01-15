@@ -9,6 +9,25 @@
 
   <enums>
     <enum name="EntityType">
+      <item name="PRC_TYPE_TOPO" value="PRC_TYPE_ROOT + 140" />
+      <item name="PRC_TYPE_TOPO_Context" value="PRC_TYPE_TOPO + 1" />
+      <item name="PRC_TYPE_TOPO_Item" value="PRC_TYPE_TOPO + 2" />
+      <item name="PRC_TYPE_TOPO_MultipleVertex" value="PRC_TYPE_TOPO + 3" />
+      <item name="PRC_TYPE_TOPO_UniqueVertex" value="PRC_TYPE_TOPO + 4" />
+      <item name="PRC_TYPE_TOPO_WireEdge" value="PRC_TYPE_TOPO + 5" />
+      <item name="PRC_TYPE_TOPO_Edge" value="PRC_TYPE_TOPO + 6" />
+      <item name="PRC_TYPE_TOPO_CoEdge" value="PRC_TYPE_TOPO + 7" />
+      <item name="PRC_TYPE_TOPO_Loop" value="PRC_TYPE_TOPO + 8" />
+      <item name="PRC_TYPE_TOPO_Face" value="PRC_TYPE_TOPO + 9" />
+      <item name="PRC_TYPE_TOPO_Shell" value="PRC_TYPE_TOPO + 10" />
+      <item name="PRC_TYPE_TOPO_Connex" value="PRC_TYPE_TOPO + 11" />
+      <item name="PRC_TYPE_TOPO_Body" value="PRC_TYPE_TOPO + 12" />
+      <item name="PRC_TYPE_TOPO_SingelWireBody" value="PRC_TYPE_TOPO + 13" />
+      <item name="PRC_TYPE_TOPO_BrepData" value="PRC_TYPE_TOPO + 14" />
+      <item name="PRC_TYPE_TOPO_SingleWireBodyCompress" value="PRC_TYPE_TOPO + 15" />
+      <item name="PRC_TYPE_TOPO_BrepDataCompress" value="PRC_TYPE_TOPO + 16" />
+      <item name="PRC_TYPE_TOPO_WIreBody" value="PRC_TYPE_TOPO + 17" />
+
       <item name="PRC_TYPE_TESS" value="PRC_TYPE_ROOT + 170" />
       <item name="PRC_TYPE_TESS_Base" value="PRC_TYPE_TESS + 1" />
       <item name="PRC_TYPE_TESS_3D" value="PRC_TYPE_TESS + 2" />
@@ -1305,7 +1324,350 @@
       <field name="has_behaviors" type="Boolean" />
       <field name="behaviors_array" type="CharacterArray" condition="has_behaviors == TRUE" />
     </object>
-str. 119
+
+    <object name="CompressedTextureParameter">
+      <field name="binary_texture_data" type="BinaryTextureData" />
+      <field name="reference_array_size" type="UnsignedInteger" />
+      <array name="reference_array" dim="reference_array_size" type="UnsignedIntegerWithVariableBitNumber" />
+      <field name="texture_parameters_tolerance" type="Double" />
+      <field name="texture_parameters_size" type="UnsignedInteger" />
+      <array name="texture_parameters" dim="texture_parameters_size" type="FloatAsBytes" />
+    </object>
+
+    <object name="BinaryTextureData">
+      <field name="texture_binary_data_size" type="UnsignedInteger" />
+      <array name="texture_binary_data" dim="texture_binary_data_size / 8" type="Character" />
+      <field name="last_integer_used_bit_number" type="UnsignedInteger" />
+    </object>
+
+    <object name="BaseTopology">
+      <field name="has_base" type="Boolean" />
+      <field name="attribute_data" type="AttributeData" condition="has_base == TRUE" />
+      <field name="name" type="Name" condition="has_base == TRUE" />
+      <field name="id" type="UnsignedInteger" condition="has_base == TRUE" />
+    </object>
+
+    <object name="PRC_TYPE_TYPO_Context">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_TYPO_Context" />
+      <field name="base" type="ContentPRCBase" />
+      <field name="behavior" type="Character" />
+      <field name="grandularity" type="Double" />
+      <field name="tolerance" type="Double" />
+      <field name="has_face_thickness" type="Boolean" />
+      <field name="smallest_face_thickness" type="Double" condition="has_face_thickness == TRUE" />
+      <field name="has_scale" type="Boolean" />
+      <field name="scale" type="Boolean" condition="has_scale == TRUE" />
+      <field name="number_of_bodies" type="UnsignedInteger" />
+      <array name="bodies" dim="number_of_bodies" type="PRC_TYPE_TOPO_Body" />
+    </object>
+
+    <object name="PRC_TYPE_TOPO_MultipleVertex">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_MultipleVertex" />
+      <field name="base" type="BaseTopology" />
+      <field name="number_of_points" type="UnsignedInteger" />
+      <array name="points" dim="number_of_points" type="Vector3D" />
+    </object>
+
+    <object name="PRC_TYPE_TOPO_UniqueVertex">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_UniqueVertex" />
+      <field name="base" type="BaseTopology" />
+      <field name="vertex" type="Vector3D" />
+      <field name="has_tolerance" type="Boolean" />
+      <field name="tolerance" type="Double" condition="has_tolerance == TRUE" />
+    </object>
+
+    <object name="PRC_TYPE_TOPO_WireEdge">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_WireEdge" />
+      <field name="curve" type="ContentWireEdge" />
+    </object>
+
+    <object name="PRC_TYPE_TOPO_Edge">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_Edge" />
+      <field name="wire_edge" type="ContentWireEdge" />
+      <field name="start_vertex" type="PtrTopology" />
+      <field name="end_vertex" type="PtrTopology" />
+      <field name="has_tolerance" type="Boolean" />
+      <field name="tolerance" type="Double" condition="has_tolerance == TRUE" />
+    </object>
+
+    <object name="PRC_TYPE_TOPO_CoEdge">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_CoEdge" />
+      <field name="base_tolopogy" type="BaseTopology" />
+      <field name="ptr_topology" type="PtrTopology" />
+      <field name="ptr_curves" type="PtrCurve" />
+      <field name="coedge_orientation" type="Character" />
+      <field name="orientation" type="Character" />
+    </object>
+
+    <object name="PRC_TYPE_TOPO_Loop">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_Loop" />
+      <field name="base_tolopogy" type="BaseTopology" />
+      <field name="loop_orientation" type="Character" />
+      <field name="number_of_coedges" type="UnsignedInteger" />
+      <array name="coedge" dim="number_of_coedges" type="CoedgeInLoop" />
+    </object>
+
+    <object name="CoedgeInLoop">
+      <field name="next_coedge" type="PtrTopology" />
+      <field name="neighbor_index" type="UnsignedInteger" />
+    </object>
+
+    <object name="PRC_TYPE_TOPO_Face">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_Face" />
+      <field name="base" type="BaseTopology" />
+      <field name="surface_geometry" type="PtrSurface" />
+      <field name="is_trimmed" type="Boolean" />
+      <field name="trimmed_surface" type="Domain" condition="is_trimmed == TRUE" />
+      <field name="has_tolerance" type="Boolean" />
+      <field name="tolerance" type="Double" condition="has_tolerance == TRUE" />
+      <field name="number_of_loops" type="UnsignedInteger" />
+      <field name="index_of_outer_loop" type="Integer" />
+      <array name="loops" dim="index_of_outer_loop" type="PtrTopology" />
+    </object>
+
+    <object name="PRC_TYPE_TOPO_Shell">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_Shell" />
+      <field name="base" type="BaseTopology" />
+      <field name="is_closed" type="Boolean" />
+      <field name="number_of_faces" type="UnsignedInteger" />
+      <array name="aces" dim="number_of_faces" type="FacesInShell" />
+    </object>
+
+    <object name="FacesInShell">
+      <field name="face" type="PtrTopology" />
+      <field name="orientation" type="Character" />
+    </object>
+
+    <object name="PRC_TYPE_TOPO_Connex">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_Connex" />
+      <field name="base" type="BaseTopology" />
+      <field name="number_of_shells" type="UnsignedInteger" />
+      <array name="shells" dim="number_of_shells" type="PtrTopology" />
+    </object>
+
+    <object name="ContentBody">
+      <field name="base" type="BaseTopology" />
+      <field name="bounding_box_behavior" type="Character" />
+    </object>
+
+    <object name="ContentWireEdge">
+      <field name="base" type="BaseTopology" />
+      <field name="ptr_curve" type="PtrCurve" />
+      <field name="is_trimmed" type="Boolean" />
+      <field name="trim_interval" type="Interval" condition="is_trimmed == TRUE" />
+    </object>
+
+    <object name="PRC_TYPE_TOPO_SingleWireBody">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_SingleWireBody" />
+      <field name="base" type="ContentBody" />
+      <field name="wire_body" type="PtrTopology" />
+    </object>
+
+    <object name="PRC_TYPE_TOPO_BrepData">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_BrepData" />
+      <field name="base" type="ContentBody" />
+      <field name="number_of_connex" type="UnsignedInteger" />
+      <array name="connex" dim="number_of_connex" type="PtrTopology" />
+      <field name="bounding_box" type="BoundingBox" condition="base->bounding_box_behavior == PRC_BODY_BBOX_CADData" />
+    </object>
+
+    <object name="PRC_TYPE_TPO_SingleWireBodyCompress">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_TPO_SingleWireBodyCompress" />
+      <field name="base" type="ContentBody" />
+      <field name="curve_tolerance" type="Double" />
+      <field name="compressed_curve" type="CompressedCurve" />
+    </object>
+
+    <object name="PRC_TYPE_TOPO_BrepDataCompress">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_BrepDataCompress" />
+      <field name="base" type="ContentBody" />
+      <field name="brep_data_compressed_tolerance" type="Double" />
+      <field name="number_of_bits_to_store_reference" type="NumberOfBitsThenUnsignedInteger" />
+      <field name="number_vertex_references" type="UnsignedIntegerWithVariableBitNumber" />
+      <field name="number_edge_references" type="UnsignedIntegerWithVariableBitNumber" />
+      <field name="single_connex" type="Boolean" />
+      <field name="single_connex_obj" type="CompressedShell" condition="single_connex == TRUE" />
+      <field name="multi_connex" type="MultipleCompressedConnex" condition="single_connex == FALSE" />
+      <array name="base_topology_data" dim="base_topology_data_count" type="BaseTopology" />
+    </object>
+
+    <object name="MultipleCompressedConnex">
+      <field name="number_of_connex" type="UnsignedInteger" />
+      <array name="connex" dim="number_of_connex" type="CompressedConnex" />
+    </object>
+
+    <object name="CompressedConnex">
+      <field name="number_of_shells" type="UnsignedInteger" />
+      <array name="shells" dim="number_of_shells" type="CompressedShell" />
+    </object>
+
+    <object name="CompressedShell">
+      <field name="single_face" type="Boolean" />
+      <field name="number_of_faces" type="NumberOfBitsThenUnsignedInteger" condition="single_face == FALSE" />
+      <array name="faces" dim="qMax(number_of_faces, 1)" type="CompressedFace" />
+      <array name="iso_face" dim="qMax(number_of_faces, 1)" type="Boolean" />
+    </object>
+
+    <object name="PRC_HCG_IsoPlane">
+      <field name="" type="CompressedEntityType" constant="PRC_HCG_IsoPlane" />
+      <field name="x" type="Double" />
+      <field name="y" type="Double" />
+      <field name="positive_z" type="Boolean" />
+      <field name="face" type="ContentCompressedFace" />
+    </object>
+
+    <object name="PRC_HCG_IsoCylinder">
+      <field name="" type="CompressedEntityType" constant="PRC_HCG_IsoCylinder" />
+      <field name="face" type="ContentCompressedFace" />
+    </object>
+
+    <object name="PRC_HCG_IsoTorus">
+      <field name="" type="CompressedEntityType" constant="PRC_HCG_IsoTorus" />
+      <field name="is_major_radius" type="Boolean" />
+      <field name="face" type="ContentCompressedFace" />
+    </object>
+
+    <object name="PRC_HCG_IsoSphere">
+      <field name="" type="CompressedEntityType" constant="PRC_HCG_IsoSphere" />
+      <field name="face" type="ContentCompressedFace" />
+    </object>
+
+    <object name="PRC_HCG_IsoCone">
+      <field name="" type="CompressedEntityType" constant="PRC_HCG_IsoCone" />
+      <field name="face" type="ContentCompressedFace" />
+    </object>
+
+    <object name="PRC_HCG_AnaPlane">
+      <field name="" type="CompressedEntityType" constant="PRC_HCG_AnaPlane" />
+      <field name="x" type="Double" />
+      <field name="y" type="Double" />
+      <field name="positive_z" type="Boolean" />
+      <field name="face" type="ContentCompressedFace" />
+    </object>
+
+    <object name="PRC_HCG_AnaCylinder">
+      <field name="" type="CompressedEntityType" constant="PRC_HCG_AnaCylinder" />
+      <field name="face" type="ContentCompressedFace" />
+      <field name="point" type="CompressedPoint" />
+      <field name="direction" type="CompressedPoint" />
+    </object>
+
+    <object name="PRC_HCG_AnaTorus">
+      <field name="" type="CompressedEntityType" constant="PRC_HCG_AnaTorus" />
+      <field name="face" type="ContentCompressedFace" />
+      <field name="center" type="CompressedPoint" />
+      <field name="x_axis" type="CompressedPoint" />
+      <field name="y_axis" type="Vector3D" />
+    </object>
+
+    <object name="PRC_HCG_AnaSphere">
+      <field name="" type="CompressedEntityType" constant="PRC_HCG_AnaSphere" />
+      <field name="face" type="ContentCompressedFace" />
+      <field name="sphere_center" type="CompressedPoint" />
+    </object>
+
+    <object name="PRC_HCG_AnaCone">
+      <field name="" type="CompressedEntityType" constant="PRC_HCG_AnaCone" />
+      <field name="face" type="ContentCompressedFace" />
+      <field name="axis_point" type="CompressedPoint" />
+      <field name="apex_point" type="CompressedPoint" />
+    </object>
+
+    <object name="PRC_HCG_AnaGenericFace">
+      <field name="" type="CompressedEntityType" constant="PRC_HCG_AnaGenericFace" />
+      <field name="face" type="ContentCompressedFace" />
+      <field name="surface_definition" type="PRC_TYPE_ROOT" />
+    </object>
+
+    <object name="PRC_HCG_IsoNurbs">
+      <field name="" type="CompressedEntityType" constant="PRC_HCG_IsoNurbs" />
+      <field name="orientation_surface_with_shell" type="Boolean" />
+      <field name="orientation_loop_with_surface" type="Boolean" />
+      <array name="sense_array" dim="3" type="Boolean" />
+      <field name="surface" type="CompressedNurbs" />
+      <array name="curves" dim="4" type="IsoNurbsTrimCurve" />
+      <field name="LoopVertex0" type="CompressedVertex" condition="curves[0]->is_referenced &amp;&amp; curves[1]->is_referenced" />
+      <field name="LoopVertex1" type="CompressedVertex" condition="curves[1]->is_referenced &amp;&amp; curves[2]->is_referenced" />
+      <field name="LoopVertex2" type="CompressedVertex" condition="curves[2]->is_referenced &amp;&amp; curves[3]->is_referenced" />
+      <field name="LoopVertex3" type="CompressedVertex" condition="curves[3]->is_referenced &amp;&amp; curves[0]->is_referenced" />
+    </object>
+
+    <object name="IsoNurbsTrimCurve">
+      <field name="is_referenced" type="Boolean" />
+      <field name="trim_curve_index" type="UnsignedIntegerWithVariableBitNumber" condition="is_referenced == TRUE" />
+      <field name="trim_curve" type="IsoNurbsTrimCrv" condition="is_referenced == FALSE" />
+    </object>
+
+    <object name="IsoNurbsTrimCrv">
+      <field name="iso_boundary" type="Boolean" />
+      <field name="is_a_circle" type="Boolean" condition="iso_boundary == FALSE" />
+      <field name="compressed_circle" type="CompressedCircle" condition="is_a_circle == TRUE" />
+    </object>
+
+    <object name="PRC_HCG_AnaNurbs">
+      <field name="" type="CompressedEntityType" constant="PRC_HCG_AnaNurbs" />
+      <field name="compressed_face" type="ContentCompressedFace" />
+      <field name="compressed_surface" type="CompressedNurbs" />
+    </object>
+
+    <object name="CompressedNurbs">
+      <field name="degree_in_u" type="UnsignedIntegerWithVariableBitNumber" />
+      <field name="degree_in_v" type="UnsignedIntegerWithVariableBitNumber" />
+      <field name="number_stored_knots_in_u" type="UnsignedIntegerWithVariableBitNumber" />
+      <array name="mult_u" dim="number_stored_knots_in_u" type="CompressedMultiplicities" />
+      <field name="number_stored_knots_in_v" type="UnsignedIntegerWithVariableBitNumber" />
+      <array name="mult_v" dim="number_stored_knots_in_v" type="CompressedMultiplicities" />
+      <field name="is_closed_in_u" type="Boolean" />
+      <field name="is_closed_in_v" type="Boolean" />
+      <field name="number_of_bits_for_isomin" type="UnsignedIntegerWithVariableBitNumber" />
+      <field name="number_of_bits_for_rest" type="UnsignedIntegerWithVariableBitNumber" />
+      <field name="compressed_control_points" type="CompressedControlPoints" />
+      <field name="knot_vector_u" type="CompressedKnotVector" />
+      <field name="knot_vector_v" type="CompressedKnotVector" />
+      <field name="is_rational" type="Boolean" />
+      <field name="weights" type="CompressedWeights" condition="is_rational == TRUE" />
+    </object>
+
+    <object name="CompressedMultiplicities">
+      <field name="multiplicity_is_stored" type="Boolean" />
+      <field name="multiplicity" type="UnsignedIntegerWithVariableBitNumber" condition="multiplicity_is_stored == TRUE" />
+    </object>
+
+    <object name="CompressedControlPoints">
+      <field name="p00" type="Vector3D" />
+      <array name="ccpt_in_v" dim="number_ccpt_in_v - 1" type="Point3DwithVariableBitNumber" />
+      <array name="ccpt_in_u" dim="number_ccpt_in_u - 1" type="Point3DwithVariableBitNumber" />
+      <array name="ccpt_interior" dim="(number_ccpt_in_v - 1) * (number_ccpt_in_u - 1)" type="InteriorCompressedControlPoints" />
+    </object>
+
+    <object name="InteriorCompressedControlPoints">
+      <field name="type" type="UnsignedIntegerWithVariableBitNumber" />
+      <field name="p1_z" type="DoubleWithVariableBitNumber" condition="type == 1" />
+      <field name="p2_x" type="DoubleWithVariableBitNumber" condition="type == 2" />
+      <field name="p2_y" type="DoubleWithVariableBitNumber" condition="type == 2" />
+      <field name="p3_x" type="DoubleWithVariableBitNumber" condition="type == 3" />
+      <field name="p3_y" type="DoubleWithVariableBitNumber" condition="type == 3" />
+      <field name="p3_z" type="DoubleWithVariableBitNumber" condition="type == 3" />
+    </object>
+
+    <object name="CompressedKnotVector">
+      <field name="number_bit_parameter" type="UnsignedIntegerWithVariableBitNumber" />
+      <field name="is_uniform" type="Boolean" />
+      <field name="knots" type="CompressedKnots" condition="is_uniform == FALSE" />
+    </object>
+
+    <object name="CompressedKnots">
+      <field name="unnamed" type="Boolean" />
+      <field name="unnamed2" type="Boolean" condition="unnamed == FALSE" />
+      <array name="compressed_knots" dim="knot_count" type="CompressedKnot" />
+    </object>
+
+    <object name="CompressedKnot">
+      <field name="knot1" type="Double" condition="number_bit_parameter &gt; 30" />
+      <field name="knot2" type="DoubleWithVariableBitNumber" condition="number_bit_parameter &lt;= 30" />
+    </object>
+
+    str. 146
   </objects>
 </prc>
 		
