@@ -17,8 +17,8 @@
 
 #include "pdf3d_u3d.h"
 
-#include <QTextCodec>
 #include <QImageReader>
+#include <QStringConverter>
 
 #include <array>
 #include <algorithm>
@@ -1478,7 +1478,7 @@ public:
     void processGenericBlock(const PDF3D_U3D_Block_Data& blockData, PDF3D_U3D_Block_Info::EPalette palette);
 
     bool isCompressed() const { return m_isCompressed; }
-    QTextCodec* getTextCodec() const { return m_textCodec; }
+    QStringDecoder* getStringDecoder() { return &m_stringDecoder; }
 
     PDF3D_U3D_AbstractBlockPtr parseBlock(uint32_t blockType, const QByteArray& data, const QByteArray& metaData);
     PDF3D_U3D_AbstractBlockPtr parseBlock(const PDF3D_U3D_Block_Data& data);
@@ -1529,9 +1529,9 @@ private:
     PDF3D_U3D_DecoderPalettes m_decoderPalettes;
     PDF3D_U3D m_object;
     PDF3D_U3D_AbstractBlockPtr m_fileBlock;
-    QTextCodec* m_textCodec = nullptr;
     bool m_isCompressed = true;
     uint32_t m_priority = 0;
+    QStringDecoder m_stringDecoder;
 };
 
 class PDF3D_U3D_DataReader
@@ -1564,8 +1564,8 @@ public:
     void padTo32Bits();
 
     QUuid readUuid();
-    QString readString(QTextCodec* textCodec);
-    QStringList readStringList(uint32_t count, QTextCodec* textCodec);
+    QString readString(QStringDecoder* textCodec);
+    QStringList readStringList(uint32_t count, QStringDecoder* stringDecoder);
 
     QMatrix4x4 readMatrix4x4();
 
@@ -1584,7 +1584,7 @@ public:
                                               uint32_t context3);
 
     std::vector<PDF3D_U3D_ShadingDescription> readShadingDescriptions(uint32_t count);
-    std::vector<PDF3D_U3D_BoneDescription> readBoneDescriptions(QTextCodec* textCodec, uint32_t count);
+    std::vector<PDF3D_U3D_BoneDescription> readBoneDescriptions(QStringDecoder* stringDecoder, uint32_t count);
 
     bool isAtEnd() const;
 
@@ -1822,7 +1822,7 @@ QUuid PDF3D_U3D_DataReader::readUuid()
     return QUuid(A, B, C, D[0], D[1], D[2], D[3], D[4], D[5], D[6], D[7]);
 }
 
-QString PDF3D_U3D_DataReader::readString(QTextCodec* textCodec)
+QString PDF3D_U3D_DataReader::readString(QStringDecoder* stringDecoder)
 {
     int size = readU16();
 
@@ -1833,17 +1833,17 @@ QString PDF3D_U3D_DataReader::readString(QTextCodec* textCodec)
         encodedString[i] = readU8();
     }
 
-    Q_ASSERT(textCodec);
-    return textCodec->toUnicode(encodedString);
+    Q_ASSERT(stringDecoder);
+    return stringDecoder->decode(encodedString);
 }
 
-QStringList PDF3D_U3D_DataReader::readStringList(uint32_t count, QTextCodec* textCodec)
+QStringList PDF3D_U3D_DataReader::readStringList(uint32_t count, QStringDecoder* stringDecoder)
 {
     QStringList stringList;
 
     for (uint32_t i = 0; i < count; ++i)
     {
-        stringList << readString(textCodec);
+        stringList << readString(stringDecoder);
     }
 
     return stringList;
@@ -1923,7 +1923,7 @@ std::vector<PDF3D_U3D_ShadingDescription> PDF3D_U3D_DataReader::readShadingDescr
     return result;
 }
 
-std::vector<PDF3D_U3D_BoneDescription> PDF3D_U3D_DataReader::readBoneDescriptions(QTextCodec* textCodec, uint32_t count)
+std::vector<PDF3D_U3D_BoneDescription> PDF3D_U3D_DataReader::readBoneDescriptions(QStringDecoder* stringDecoder, uint32_t count)
 {
     std::vector<PDF3D_U3D_BoneDescription> result;
 
@@ -1931,8 +1931,8 @@ std::vector<PDF3D_U3D_BoneDescription> PDF3D_U3D_DataReader::readBoneDescription
     {
         PDF3D_U3D_BoneDescription item;
 
-        item.boneName = readString(textCodec);
-        item.parentBoneName = readString(textCodec);
+        item.boneName = readString(stringDecoder);
+        item.parentBoneName = readString(stringDecoder);
         item.boneAttributes = readU32();
         item.boneLength = readF32();
         readFloats32(item.boneDisplacement);
@@ -2274,8 +2274,8 @@ PDF3D_U3D::PDF3D_U3D()
     {
         for (int j = 0; j < 4; ++j)
         {
-            m_defaultTexture.setPixelColor(4 + i, j, QColor::fromRgbF(1.0, 0.4, 0.2, 1.0));
-            m_defaultTexture.setPixelColor(i, 4 + j, QColor::fromRgbF(1.0, 0.4, 0.2, 1.0));
+            m_defaultTexture.setPixelColor(4 + i, j, QColor::fromRgbF(1.0f, 0.4f, 0.2f, 1.0f));
+            m_defaultTexture.setPixelColor(i, 4 + j, QColor::fromRgbF(1.0f, 0.4f, 0.2f, 1.0f));
         }
     }
 
@@ -2621,9 +2621,9 @@ void PDF3D_U3D_Parser::processTexture(const PDF3D_U3D_Decoder& decoder)
     const std::vector<PDF3D_U3D_TextureResourceBlock::ContinuationImageFormat>& formats = declarationBlock->getFormats();
     for (size_t i = 0; i < formats.size(); ++i)
     {
-        const PDF3D_U3D_TextureResourceBlock::ContinuationImageFormat& format = formats[i];
+        const PDF3D_U3D_TextureResourceBlock::ContinuationImageFormat& continuationFormat = formats[i];
 
-        if (format.isExternal())
+        if (continuationFormat.isExternal())
         {
             m_errors << PDFTranslationContext::tr("Textures with external images not supported.");
             continue;
@@ -2653,7 +2653,7 @@ void PDF3D_U3D_Parser::processTexture(const PDF3D_U3D_Decoder& decoder)
             {
                 if (image.hasAlphaChannel())
                 {
-                    texture = image.alphaChannel();
+                    texture = image.createAlphaMask();
                 }
                 else
                 {
@@ -3418,8 +3418,8 @@ void PDF3D_U3D_Parser::addBlockToU3D(PDF3D_U3D_AbstractBlockPtr block)
 
 PDF3D_U3D_Parser::PDF3D_U3D_Parser()
 {
-    // Jakub Melka: 106 is default value for U3D strings
-    m_textCodec = QTextCodec::codecForMib(106);
+    // Jakub Melka: Utf-8 (MIB 106) is default value for U3D strings
+    m_stringDecoder = QStringDecoder(QStringDecoder::Encoding::Utf8, QStringDecoder::Flag::Stateless);
 }
 
 PDF3D_U3D PDF3D_U3D_Parser::parse(QByteArray data)
@@ -3544,9 +3544,9 @@ void PDF3D_U3D_Parser::processModifierBlock(const PDF3D_U3D_Block_Data& blockDat
             return;
     }
 
-    for (const auto& block : chainBlock->getModifierDeclarationBlocks())
+    for (const auto& modifierDeclarationBlock : chainBlock->getModifierDeclarationBlocks())
     {
-        processBlock(block, palette);
+        processBlock(modifierDeclarationBlock, palette);
     }
 }
 
@@ -3554,7 +3554,7 @@ void PDF3D_U3D_Parser::processGenericBlock(const PDF3D_U3D_Block_Data& blockData
                                            PDF3D_U3D_Block_Info::EPalette palette)
 {
     PDF3D_U3D_DataReader blockReader(blockData.blockData, isCompressed());
-    QString blockName = blockReader.readString(getTextCodec());
+    QString blockName = blockReader.readString(getStringDecoder());
 
     uint32_t chainIndex = 0;
     PDF3D_U3D_Block_Info::EPalette effectivePalette = PDF3D_U3D_Block_Info::isChain(blockData.blockType) ? palette
@@ -3623,7 +3623,8 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_Parser::parseBlock(uint32_t blockType,
                 if (const PDF3D_U3D_FileBlock* fileBlock = dynamic_cast<const PDF3D_U3D_FileBlock*>(fileBlockPtr.get()))
                 {
                     m_fileBlock = fileBlockPtr;
-                    m_textCodec = QTextCodec::codecForMib(fileBlock->getCharacterEncoding());
+                    QStringDecoder::Encoding encoding = fileBlock->getCharacterEncoding() == 106 ? QStringDecoder::Utf8 : QStringDecoder::System;
+                    m_stringDecoder = QStringDecoder(encoding, QStringDecoder::Flag::Stateless | QStringDecoder::Flag::UsesIcu);
                     m_isCompressed = !fileBlock->isNoCompressionMode();
                 }
 
@@ -3802,7 +3803,7 @@ void PDF3D_U3D_AbstractBlock::parseMetadata(QByteArray metaData, PDF3D_U3D_Parse
     {
         MetaDataItem item;
         item.attributes = reader.readU32();
-        item.key = reader.readString(object->getTextCodec());
+        item.key = reader.readString(object->getStringDecoder());
 
         if (item.attributes & 0x00000001)
         {
@@ -3811,7 +3812,7 @@ void PDF3D_U3D_AbstractBlock::parseMetadata(QByteArray metaData, PDF3D_U3D_Parse
         }
         else
         {
-            item.value = reader.readString(object->getTextCodec());
+            item.value = reader.readString(object->getStringDecoder());
         }
 
         m_metaData.emplace_back(std::move(item));
@@ -3828,7 +3829,7 @@ PDF3D_U3D_AbstractBlock::ParentNodesData PDF3D_U3D_AbstractBlock::parseParentNod
     for (uint32_t i = 0; i < parentNodeCount; ++i)
     {
         ParentNodeData data;
-        data.parentNodeName = reader.readString(object->getTextCodec());
+        data.parentNodeName = reader.readString(object->getStringDecoder());
         data.transformMatrix = reader.readMatrix4x4();
         result.emplace_back(std::move(data));
     }
@@ -3844,7 +3845,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_FileReferenceBlock::parse(QByteArray data, 
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_scopeName = reader.readString(object->getTextCodec());
+    block->m_scopeName = reader.readString(object->getStringDecoder());
     block->m_fileReferenceAttributes = reader.readU32();
     if (block->isBoundingSpherePresent())
     {
@@ -3855,7 +3856,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_FileReferenceBlock::parse(QByteArray data, 
         reader.readFloats32(block->m_boundingBox);
     }
     block->m_urlCount = reader.readU32();
-    block->m_urls = reader.readStringList(block->m_urlCount, object->getTextCodec());
+    block->m_urls = reader.readStringList(block->m_urlCount, object->getStringDecoder());
     block->m_filterCount = reader.readU32();
 
     for (uint32_t i = 0; i < block->m_filterCount; ++i)
@@ -3866,7 +3867,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_FileReferenceBlock::parse(QByteArray data, 
         switch (filter.filterType)
         {
             case 0x00:
-                filter.objectNameFilter = reader.readString(object->getTextCodec());
+                filter.objectNameFilter = reader.readString(object->getStringDecoder());
                 break;
 
             case 0x01:
@@ -3881,7 +3882,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_FileReferenceBlock::parse(QByteArray data, 
     }
 
     block->m_nameCollisionPolicy = reader.readU8();
-    block->m_worldAliasName = reader.readString(object->getTextCodec());
+    block->m_worldAliasName = reader.readString(object->getStringDecoder());
 
     block->parseMetadata(metaData, object);
 
@@ -3946,7 +3947,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_ModifierChainBlock::parse(QByteArray data, 
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_modifierChainName = reader.readString(object->getTextCodec());
+    block->m_modifierChainName = reader.readString(object->getStringDecoder());
     block->m_modifierChainType = reader.readU32();
     block->m_modifierChainAttributes = reader.readU32();
     if (block->isBoundingSpherePresent())
@@ -4032,7 +4033,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_NewObjectTypeBlock::parse(QByteArray data, 
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_newObjectTypeName = reader.readString(object->getTextCodec());
+    block->m_newObjectTypeName = reader.readString(object->getStringDecoder());
     block->m_modifierType = reader.readU32();
     block->m_extensionId = reader.readUuid();
     block->m_newDeclarationBlockType = reader.readU32();
@@ -4043,10 +4044,10 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_NewObjectTypeBlock::parse(QByteArray data, 
         block->m_continuationBlockTypes.push_back(reader.readU32());
     }
 
-    block->m_extensionVendorName = reader.readString(object->getTextCodec());
+    block->m_extensionVendorName = reader.readString(object->getStringDecoder());
     block->m_urlCount = reader.readU32();
-    block->m_urls = reader.readStringList(block->m_urlCount, object->getTextCodec());
-    block->m_extensionInformationString = reader.readString(object->getTextCodec());
+    block->m_urls = reader.readStringList(block->m_urlCount, object->getStringDecoder());
+    block->m_extensionInformationString = reader.readString(object->getStringDecoder());
 
     block->parseMetadata(metaData, object);
     return pointer;
@@ -4110,7 +4111,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_NewObjectBlock::parse(QByteArray data, QByt
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_objectName = reader.readString(object->getTextCodec());
+    block->m_objectName = reader.readString(object->getStringDecoder());
     block->m_chainIndex = reader.readU32();
     block->m_data = reader.readRemainingData();
 
@@ -4141,7 +4142,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_GroupNodeBlock::parse(QByteArray data, QByt
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_groupNodeName = reader.readString(object->getTextCodec());
+    block->m_groupNodeName = reader.readString(object->getStringDecoder());
     block->m_parentNodesData = parseParentNodeData(reader, object);
 
     block->parseMetadata(metaData, object);
@@ -4166,9 +4167,9 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_ModelNodeBlock::parse(QByteArray data, QByt
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_modelNodeName = reader.readString(object->getTextCodec());
+    block->m_modelNodeName = reader.readString(object->getStringDecoder());
     block->m_parentNodesData = parseParentNodeData(reader, object);
-    block->m_modelResourceName = reader.readString(object->getTextCodec());
+    block->m_modelResourceName = reader.readString(object->getStringDecoder());
     block->m_modelVisibility = reader.readU32();
 
     block->parseMetadata(metaData, object);
@@ -4203,9 +4204,9 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_LightNodeBlock::parse(QByteArray data, QByt
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_lightNodeName = reader.readString(object->getTextCodec());
+    block->m_lightNodeName = reader.readString(object->getStringDecoder());
     block->m_parentNodesData = parseParentNodeData(reader, object);
-    block->m_lightResourceName = reader.readString(object->getTextCodec());
+    block->m_lightResourceName = reader.readString(object->getStringDecoder());
 
     block->parseMetadata(metaData, object);
     return pointer;
@@ -4234,9 +4235,9 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_ViewNodeBlock::parse(QByteArray data, QByte
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_viewNodeName = reader.readString(object->getTextCodec());
+    block->m_viewNodeName = reader.readString(object->getStringDecoder());
     block->m_parentNodesData = parseParentNodeData(reader, object);
-    block->m_viewResourceName = reader.readString(object->getTextCodec());
+    block->m_viewResourceName = reader.readString(object->getStringDecoder());
     block->m_viewNodeAttributes = reader.readU32();
     block->m_viewNearFlipping = reader.readF32();
     block->m_viewFarFlipping = reader.readF32();
@@ -4271,7 +4272,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_ViewNodeBlock::parse(QByteArray data, QByte
         {
             BackdropOrOverlay item;
 
-            item.m_textureName = reader.readString(object->getTextCodec());
+            item.m_textureName = reader.readString(object->getStringDecoder());
             item.m_textureBlend = reader.readF32();
             item.m_rotation = reader.readF32();
             item.m_locationX = reader.readF32();
@@ -4380,7 +4381,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_CLODMeshDeclarationBlock::parse(QByteArray 
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_meshName = reader.readString(object->getTextCodec());
+    block->m_meshName = reader.readString(object->getStringDecoder());
     block->m_chainIndex = reader.readU32();
 
     /* max mesh  description */
@@ -4412,7 +4413,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_CLODMeshDeclarationBlock::parse(QByteArray 
 
     /* bone description */
     block->m_boneCount = reader.readU32();
-    block->m_boneDescription = reader.readBoneDescriptions(object->getTextCodec(), block->m_boneCount);
+    block->m_boneDescription = reader.readBoneDescriptions(object->getStringDecoder(), block->m_boneCount);
 
     block->parseMetadata(metaData, object);
     return pointer;
@@ -4554,7 +4555,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_CLODBaseMeshContinuationBlock::parse(QByteA
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_meshName = reader.readString(object->getTextCodec());
+    block->m_meshName = reader.readString(object->getStringDecoder());
     block->m_chainIndex = reader.readU32();
 
     /* max mesh description */
@@ -4689,7 +4690,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_CLODProgressiveMeshContinuationBlock::parse
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_meshName = reader.readString(object->getTextCodec());
+    block->m_meshName = reader.readString(object->getStringDecoder());
     block->m_chainIndex = reader.readU32();
 
     block->m_startResolution = reader.readU32();
@@ -4792,7 +4793,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_LineSetDeclarationBlock::parse(QByteArray d
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_lineSetName = reader.readString(object->getTextCodec());
+    block->m_lineSetName = reader.readString(object->getStringDecoder());
     block->m_chainIndex = reader.readU32();
 
     // line set description
@@ -4908,7 +4909,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_LineSetContinuationBlock::parse(QByteArray 
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_lineSetName = reader.readString(object->getTextCodec());
+    block->m_lineSetName = reader.readString(object->getStringDecoder());
     block->m_chainIndex = reader.readU32();
 
     block->m_startResolution = reader.readU32();
@@ -5171,7 +5172,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_PointSetDeclarationBlock::parse(QByteArray 
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_pointSetName = reader.readString(object->getTextCodec());
+    block->m_pointSetName = reader.readString(object->getStringDecoder());
     block->m_chainIndex = reader.readU32();
 
     // point set description
@@ -5199,7 +5200,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_PointSetDeclarationBlock::parse(QByteArray 
 
     /* bone description */
     block->m_boneCount = reader.readU32();
-    block->m_boneDescription = reader.readBoneDescriptions(object->getTextCodec(), block->m_boneCount);
+    block->m_boneDescription = reader.readBoneDescriptions(object->getStringDecoder(), block->m_boneCount);
 
     block->parseMetadata(metaData, object);
     return pointer;
@@ -5301,7 +5302,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_PointSetContinuationBlock::parse(QByteArray
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_pointSetName = reader.readString(object->getTextCodec());
+    block->m_pointSetName = reader.readString(object->getStringDecoder());
     block->m_chainIndex = reader.readU32();
 
     block->m_startResolution = reader.readU32();
@@ -5413,7 +5414,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_2DGlyphModifierBlock::parse(QByteArray data
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_modifierName = reader.readString(object->getTextCodec());
+    block->m_modifierName = reader.readString(object->getStringDecoder());
     block->m_chainIndex = reader.readU32();
     block->m_glyphAttributes = reader.readU32();
 
@@ -5535,7 +5536,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_SubdivisionModifierBlock::parse(QByteArray 
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_modifierName = reader.readString(object->getTextCodec());
+    block->m_modifierName = reader.readString(object->getStringDecoder());
     block->m_chainIndex = reader.readU32();
     block->m_attributes = reader.readU32();
     block->m_depth = reader.readU32();
@@ -5586,7 +5587,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_AnimationModifierBlock::parse(QByteArray da
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_modifierName = reader.readString(object->getTextCodec());
+    block->m_modifierName = reader.readString(object->getStringDecoder());
     block->m_chainIndex = reader.readU32();
     block->m_attributes = reader.readU32();
     block->m_timescale = reader.readF32();
@@ -5595,7 +5596,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_AnimationModifierBlock::parse(QByteArray da
     for (uint32_t i = 0; i < motionCount; ++i)
     {
         MotionInformation item;
-        item.motionName = reader.readString(object->getTextCodec());
+        item.motionName = reader.readString(object->getStringDecoder());
         item.motionAttributes = reader.readU32();
         item.timeOffset = reader.readF32();
         item.timeScale = reader.readF32();
@@ -5643,7 +5644,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_BoneWeightModifierBlock::parse(QByteArray d
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_modifierName = reader.readString(object->getTextCodec());
+    block->m_modifierName = reader.readString(object->getStringDecoder());
     block->m_chainIndex = reader.readU32();
     block->m_attributes = reader.readU32();
     block->m_inverseQuant = reader.readF32();
@@ -5691,7 +5692,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_ShadingModifierBlock::parse(QByteArray data
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_modifierName = reader.readString(object->getTextCodec());
+    block->m_modifierName = reader.readString(object->getStringDecoder());
     block->m_chainIndex = reader.readU32();
     block->m_attributes = reader.readU32();
 
@@ -5701,9 +5702,9 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_ShadingModifierBlock::parse(QByteArray data
         QStringList shaderNames;
 
         uint32_t shaderCount = reader.readU32();
-        for (uint32_t i = 0; i < shaderCount; ++i)
+        for (uint32_t j = 0; j < shaderCount; ++j)
         {
-            shaderNames << reader.readString(object->getTextCodec());
+            shaderNames << reader.readString(object->getStringDecoder());
         }
 
         block->m_shaderLists.emplace_back(std::move(shaderNames));
@@ -5743,7 +5744,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_CLODModifierBlock::parse(QByteArray data,
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_modifierName = reader.readString(object->getTextCodec());
+    block->m_modifierName = reader.readString(object->getStringDecoder());
     block->m_chainIndex = reader.readU32();
     block->m_attributes = reader.readU32();
     block->m_CLODAutomaticLevelOfDetails = reader.readF32();
@@ -5773,7 +5774,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_LightResourceBlock::parse(QByteArray data,
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_resourceName = reader.readString(object->getTextCodec());
+    block->m_resourceName = reader.readString(object->getStringDecoder());
     block->m_attributes = reader.readU32();
     block->m_type = reader.readU8();
     reader.readFloats32(block->m_color);
@@ -5830,14 +5831,14 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_ViewResourceBlock::parse(QByteArray data,
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_resourceName = reader.readString(object->getTextCodec());
+    block->m_resourceName = reader.readString(object->getStringDecoder());
 
     const uint32_t passCount = reader.readU32();
     for (uint32_t i = 0; i < passCount; ++i)
     {
         Pass pass;
 
-        pass.rootNodeName = reader.readString(object->getTextCodec());
+        pass.rootNodeName = reader.readString(object->getStringDecoder());
         pass.renderAttributes = reader.readU32();
         pass.fogMode = reader.readU32();
         reader.readFloats32(pass.fogColor);
@@ -5871,7 +5872,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_LitTextureShaderResourceBlock::parse(QByteA
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_resourceName = reader.readString(object->getTextCodec());
+    block->m_resourceName = reader.readString(object->getStringDecoder());
     block->m_attributes = reader.readU32();
     block->m_alphaTestReference = reader.readF32();
     block->m_alphaTestFunction = reader.readU32();
@@ -5879,7 +5880,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_LitTextureShaderResourceBlock::parse(QByteA
     block->m_renderPassEnabled = reader.readU32();
     block->m_shaderChannels = reader.readU32();
     block->m_alphaTextureChannels = reader.readU32();
-    block->m_materialName = reader.readString(object->getTextCodec());
+    block->m_materialName = reader.readString(object->getStringDecoder());
 
     uint32_t value = block->m_shaderChannels & 0xFF;
     uint32_t activeChannelCount = 0;
@@ -5892,7 +5893,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_LitTextureShaderResourceBlock::parse(QByteA
     {
         TextureInfo info;
 
-        info.textureName = reader.readString(object->getTextCodec());
+        info.textureName = reader.readString(object->getStringDecoder());
         info.textureIntensity = reader.readF32();
         info.blendFunction = reader.readU8();
         info.blendSource = reader.readU8();
@@ -5969,7 +5970,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_MaterialResourceBlock::parse(QByteArray dat
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_resourceName = reader.readString(object->getTextCodec());
+    block->m_resourceName = reader.readString(object->getStringDecoder());
     block->m_materialAttributes = reader.readU32();
     reader.readFloats32(block->m_ambientColor);
     reader.readFloats32(block->m_diffuseColor);
@@ -6032,7 +6033,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_TextureResourceBlock::parse(QByteArray data
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_resourceName = reader.readString(object->getTextCodec());
+    block->m_resourceName = reader.readString(object->getStringDecoder());
     block->m_textureHeight = reader.readU32();
     block->m_textureWidth = reader.readU32();
     block->m_type = reader.readU8();
@@ -6053,7 +6054,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_TextureResourceBlock::parse(QByteArray data
         else
         {
             format.imageURLCount = reader.readU32();
-            format.imageURLs = reader.readStringList(format.imageURLCount, object->getTextCodec());
+            format.imageURLs = reader.readStringList(format.imageURLCount, object->getStringDecoder());
         }
 
         block->m_formats.emplace_back(std::move(format));
@@ -6096,7 +6097,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_TextureContinuationResourceBlock::parse(QBy
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_resourceName = reader.readString(object->getTextCodec());
+    block->m_resourceName = reader.readString(object->getStringDecoder());
     block->m_imageIndex = reader.readU32();
     block->m_imageData = reader.readRemainingData();
 
@@ -6202,7 +6203,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_MotionResourceBlock::parse(QByteArray data,
     PDF3D_U3D_DataReader reader(data, object->isCompressed());
 
     // Read the data
-    block->m_resourceName = reader.readString(object->getTextCodec());
+    block->m_resourceName = reader.readString(object->getStringDecoder());
     block->m_trackCount = reader.readU32();
     block->m_timeInverseQuant = reader.readF32();
     block->m_rotationInverseQuant = reader.readF32();
@@ -6211,7 +6212,7 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_MotionResourceBlock::parse(QByteArray data,
     {
         Motion motion;
 
-        motion.trackName = reader.readString(object->getTextCodec());
+        motion.trackName = reader.readString(object->getStringDecoder());
         motion.timeCount = reader.readU32();
         motion.displacementInverseQuant = reader.readF32();
         motion.rotationInverseQuant = reader.readF32();

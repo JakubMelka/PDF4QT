@@ -1992,7 +1992,7 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
                     const PDFAnnotation* annotation = pageAnnotation.annotation.get();
                     if (PDFAnnotation::isTypeMultimedia(annotation->getType()))
                     {
-                        emit multimediaTriggered(annotation);
+                        Q_EMIT multimediaTriggered(annotation);
                     }
                 }
             }

@@ -218,14 +218,14 @@ void PDFMediaViewerDialog::initFrom3DAnnotation(const pdf::PDFDocument* document
     pdf::PDFObject object = document->getObject(stream.getStream());
     if (object.isStream())
     {
-        QByteArray data = document->getDecodedStream(object.getStream());
+        QByteArray annotationData = document->getDecodedStream(object.getStream());
 
         switch (stream.getType())
         {
             case pdf::PDF3DStream::Type::U3D:
             {
                 QStringList errors;
-                m_sceneU3d = pdf::u3d::PDF3D_U3D::parse(data, &errors);
+                m_sceneU3d = pdf::u3d::PDF3D_U3D::parse(annotationData, &errors);
                 break;
             }
 

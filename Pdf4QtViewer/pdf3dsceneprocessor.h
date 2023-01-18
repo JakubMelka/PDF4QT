@@ -31,12 +31,12 @@ namespace Qt3DCore
 {
 class QNode;
 class QEntity;
+class QAttribute;
 }
 
 namespace Qt3DRender
 {
 class QMaterial;
-class QAttribute;
 }
 
 namespace pdf
@@ -140,10 +140,10 @@ private:
     Qt3DCore::QNode* createSolidSingleColoredFaceGeometry(const pdf::u3d::PDF3D_U3D_MeshGeometry* meshGeometry);
     Qt3DCore::QNode* createWireframeWithoutObscuredEdgesMeshGeometry(const pdf::u3d::PDF3D_U3D_MeshGeometry* meshGeometry);
 
-    Qt3DRender::QAttribute* createGenericAttribute(const std::vector<QVector3D>& values) const;
-    Qt3DRender::QAttribute* createPositionAttribute(const std::vector<QVector3D>& positions) const;
-    Qt3DRender::QAttribute* createNormalAttribute(const std::vector<QVector3D>& normals) const;
-    Qt3DRender::QAttribute* createColorAttribute(const std::vector<QVector3D>& colors) const;
+    Qt3DCore::QAttribute* createGenericAttribute(const std::vector<QVector3D>& values) const;
+    Qt3DCore::QAttribute* createPositionAttribute(const std::vector<QVector3D>& positions) const;
+    Qt3DCore::QAttribute* createNormalAttribute(const std::vector<QVector3D>& normals) const;
+    Qt3DCore::QAttribute* createColorAttribute(const std::vector<QVector3D>& colors) const;
 
     Qt3DRender::QMaterial* createMaterialFromShader(const QString& shaderName, bool forceUseVertexColors, qreal opacity) const;
 

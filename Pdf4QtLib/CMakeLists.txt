@@ -91,6 +91,7 @@ add_library(Pdf4QtLib SHARED
     sources/pdfnametounicode.cpp
     sources/pdffont.cpp
     sources/pdfimage.cpp
+    sources/pdf3d_u3d.cpp
     sources/pdfcertificatemanagerdialog.ui
     sources/pdfcreatecertificatedialog.ui
     sources/pdfpagecontenteditorstylesettings.ui
