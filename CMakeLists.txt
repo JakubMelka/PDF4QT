@@ -43,7 +43,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(GNUInstallDirs)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg Xml PrintSupport TextToSpeech OpenGL OpenGLWidgets Multimedia Network Test 3dcore 3drender 3dinput 3dlogic 3dextras)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg Xml PrintSupport TextToSpeech OpenGL OpenGLWidgets Multimedia Network Test 3dcore 3drender 3dinput 3dlogic 3dextras ShaderTools)
 qt_standard_project_setup()
 
 find_package(OpenSSL REQUIRED)

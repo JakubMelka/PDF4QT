@@ -9,6 +9,45 @@
 
   <enums>
     <enum name="EntityType">
+      <item name="PRC_TYPE_CRV" value="PRC_TYPE_ROOT + 10" />
+      <item name="PRC_TYPE_CRV_Base" value="PRC_TYPE_CRV + 1" />
+      <item name="PRC_TYPE_CRV_Blend02Boundary" value="PRC_TYPE_CRV + 2" />
+      <item name="PRC_TYPE_CRV_NURBS" value="PRC_TYPE_CRV + 3" />
+      <item name="PRC_TYPE_CRV_Circle" value="PRC_TYPE_CRV + 4" />
+      <item name="PRC_TYPE_CRV_Composite" value="PRC_TYPE_CRV + 5" />
+      <item name="PRC_TYPE_CRV_OnSurf" value="PRC_TYPE_CRV + 6" />
+      <item name="PRC_TYPE_CRV_Ellipse" value="PRC_TYPE_CRV + 7" />
+      <item name="PRC_TYPE_CRV_Equation" value="PRC_TYPE_CRV + 8" />
+      <item name="PRC_TYPE_CRV_Helix01" value="PRC_TYPE_CRV + 9" />
+      <item name="PRC_TYPE_CRV_Hyperbola" value="PRC_TYPE_CRV + 10" />
+      <item name="PRC_TYPE_CRV_Intersection" value="PRC_TYPE_CRV + 11" />
+      <item name="PRC_TYPE_CRV_Line" value="PRC_TYPE_CRV + 12" />
+      <item name="PRC_TYPE_CRV_Offset" value="PRC_TYPE_CRV + 13" />
+      <item name="PRC_TYPE_CRV_Parabola" value="PRC_TYPE_CRV + 14" />
+      <item name="PRC_TYPE_CRV_PolyLine" value="PRC_TYPE_CRV + 15" />
+      <item name="PRC_TYPE_CRV_Transform" value="PRC_TYPE_CRV + 16" />
+
+      <item name="PRC_TYPE_SURF" value="PRC_TYPE_ROOT + 75" />
+      <item name="PRC_TYPE_SURF_Base" value="PRC_TYPE_SURF + 1" />
+      <item name="PRC_TYPE_SURF_Blend01" value="PRC_TYPE_SURF + 2" />
+      <item name="PRC_TYPE_SURF_Blend02" value="PRC_TYPE_SURF + 3" />
+      <item name="PRC_TYPE_SURF_Blend03" value="PRC_TYPE_SURF + 4" />
+      <item name="PRC_TYPE_SURF_NURBS" value="PRC_TYPE_SURF + 5" />
+      <item name="PRC_TYPE_SURF_Cone" value="PRC_TYPE_SURF + 6" />
+      <item name="PRC_TYPE_SURF_Cylinder" value="PRC_TYPE_SURF + 7" />
+      <item name="PRC_TYPE_SURF_Cyldrical" value="PRC_TYPE_SURF + 8" />
+      <item name="PRC_TYPE_SURF_Offset" value="PRC_TYPE_SURF + 9" />
+      <item name="PRC_TYPE_SURF_Pipe" value="PRC_TYPE_SURF + 10" />
+      <item name="PRC_TYPE_SURF_Plane" value="PRC_TYPE_SURF + 11" />
+      <item name="PRC_TYPE_SURF_Ruled" value="PRC_TYPE_SURF + 12" />
+      <item name="PRC_TYPE_SURF_Sphere" value="PRC_TYPE_SURF + 13" />
+      <item name="PRC_TYPE_SURF_Revolution" value="PRC_TYPE_SURF +14" />
+      <item name="PRC_TYPE_SURF_Extrusion" value="PRC_TYPE_SURF + 15" />
+      <item name="PRC_TYPE_SURF_FromCurves" value="PRC_TYPE_SURF + 16" />
+      <item name="PRC_TYPE_SURF_Torus" value="PRC_TYPE_SURF + 17" />
+      <item name="PRC_TYPE_SURF_Transform" value="PRC_TYPE_SURF + 18" />
+      <item name="PRC_TYPE_SURF_Blend04" value="PRC_TYPE_SURF + 19" />
+
       <item name="PRC_TYPE_TOPO" value="PRC_TYPE_ROOT + 140" />
       <item name="PRC_TYPE_TOPO_Context" value="PRC_TYPE_TOPO + 1" />
       <item name="PRC_TYPE_TOPO_Item" value="PRC_TYPE_TOPO + 2" />
@@ -607,7 +646,7 @@
 
     <object name="ElementInformation">
       <field name="has_graphics" type="Boolean" />
-      <field name="graphic_behavior" typ="ElementGraphicsBehavior" condition="has_graphics == TRUE" />
+      <field name="graphic_behavior" type="ElementGraphicsBehavior" condition="has_graphics == TRUE" />
     </object>
 
     <object name="ElementGraphicsBehavior">
@@ -1667,7 +1706,436 @@
       <field name="knot2" type="DoubleWithVariableBitNumber" condition="number_bit_parameter &lt;= 30" />
     </object>
 
-    str. 146
+    <object name="CompressedWeights">
+      <field name="number_bit_weight" type="UnsignedIntegerWithVariableBitNumber" bits="6" />
+      <array name="weights" dim="number_ccpt_in_u * number_ccpt_in_v" type="Double" condition="number_bit_weight > 30" />
+      <field name="tolerance" type="Double" condition="number_bit_weight &lt;= 30" />
+      <array name="compressed_weights" dim="number_ccpt_in_u * number_ccpt_in_v" type="DoubleWithVariableBitNumber" condition="number_bit_weight &lt;= 30" />
+    </object>
+
+    <object name="ContentCompressedFace">
+      <field name="orientation_surface_with_shell" type="Boolean" />
+      <field name="iso_face" type="ContentCompressedIsoFace" condition="is_an_iso_face == TRUE"/>
+      <field name="ana_face" type="ContentCompressedAnaFace" condition="is_an_iso_face == FALSE" />
+    </object>
+    
+    <object name="ContentCompressedIsoFace">
+      <field name="orientation_loop_with_surface" type="Boolean" />
+      <field name="first_trim_curve" type="RefOrCompressedCurve" />
+      <field name="second_trim_curve" type="RefOrCompressedCurve" />+
+      <field name="third_trim_curve_is_not_yet_saved" type="Boolean" />
+      <field name="third_trim_curve" type="UnsignedIntegerWithVariableBitNumber" condition="third_trim_curve_is_not_yet_saved == FALSE" />
+      <field name="fourth_trim_curve_is_not_yet_saved" type="Boolean" />
+      <field name="fourth_trim_curve" type="UnsignedIntegerWithVariableBitNumber" condition="fourth_trim_curve_is_not_yet_saved == FALSE" />
+      <field name="common_third_fourth_vertex" type="CompressedVertex" condition="third_trim_curve_is_not_yet_saved &amp;&amp; fourth_trim_curve_is_not_yet_saved" />
+    </object>
+
+    <object name="ContentCompressedAnaFace">
+      <field name="is_trimmed" type="Boolean" />
+      <array name="trim_loop" dim="" type="AnaFaceTrimLoop" condition="is_trimmed == TRUE" />
+      <field name="point_on_torus" type="CompressedPoint" condition="all_loops_are_vertex_loops == TRUE &amp;&amp; surface_type == PRC_HCG_AnaTorus &amp;&amp; is_trimmed == TRUE" />
+    </object>
+
+    <object name="AnaFaceTrimLoop">
+      <field name="loop_surface_orientation" type="Boolean" />
+      <array name="curves" dim="" type="RefOrCompressedCurve" />
+      <field name="curve_is_not_already_stored" type="Boolean" />
+      <field name="type" type="CompressedEntityType" />
+    </object>
+
+    <object name="RefOrCompressedCurve">
+      <field name="curve_is_not_already_stored" type="Boolean" />
+      <field name="index_compressed_curve" type="UnsignedIntegerWithVariableBitNumber" bits="number_of_bits_to_store_reference" condition="curve_is_not_already_stored == FALSE" />
+      <field name="compressed_curve" type="CompressedCurve" condition="curve_is_not_already_stored == TRUE" />
+    </object>
+
+    <object name="PRC_HCG_Line">
+      <field name="" type="CompressedEntityType" constant="PRC_HCG_Line" />
+      <field name="start_end_data" type="StartEndData" />
+    </object>
+
+    <object name="PRC_HCG_Circle">
+      <field name="" type="CompressedEntityType" constant="PRC_HCG_Circle" condition="compressed_iso_spline == FALSE" />
+      <field name="is_particular_circle" type="Boolean" />
+      <field name="particular_circle" type="ParticularCircle" condition="is_particular_circle == TRUE" />
+      <field name="general_circle" type="GeneralCircle" condition="is_particular_circle == FALSE" />
+    </object>
+
+    <object name="ParticularCircle">
+      <field name="full_circle" type="Boolean" />
+      <field name="start_end_data" type="StartEndData" condition="compressed_iso_spline == FALSE" />
+      <field name="center" type="CompressedPoint" condition="full_circle == TRUE" />
+      <field name="normal_plane" type="CompressedPoint" condition="full_circle == TRUE" />
+      <field name="middle_of_arc" type="CompressedPoint" condition="full_circle == FALSE" />
+    </object>
+
+    <object name="GeneralCircle">
+      <field name="start_end_data" type="StartEndData" />
+      <field name="center" type="CompressedPoint" />
+      <field name="circle_angle" type="Boolean" />
+    </object>
+
+    <object name="PRC_HCG_BsplineHermiteCurve">
+      <field name="" type="CompressedEntityType" constant="PRC_HCG_BsplineHermiteCurve" />
+      <field name="start_end_data" type="StartEndData" />
+      <field name="number_bits" type="UnsignedIntegerWithVariableBitNumber" bits="4" />
+      <field name="number_points" type="UnsignedIntegerWithVariableBitNumber" bits="number_bits" />
+      <field name="point_number_bits" type="UnsignedIntegerWithVariableBitNumber" bits="6" />
+      <array name="points" dim="number_points - 2" type="Vector3d" condition="point_number_bits &gt; 30" />
+      <array name="compressed_points" dim="number_points - 2" type="Point3DWithVariableBitNumber" bits="point_number_bits" condition="point_number_bits &lt;= 30" />
+      <field name="tangent_number_bits" type="UnsignedIntegerWithVariableBitNumber" bits="6" />
+      <array name="tangents" dim="number_points" type="Vector3d" condition="tangent_number_bits &gt; 30" />
+      <array name="compressed_tangents" dim="number_points" type="Point3DWithVariableBitNumber" bits="tangent_number_bits" condition="tangent_number_bits &lt;= 30" />
+    </object>
+
+    <object name="PRC_HCG_CompositeCurve">
+      <field name="" type="CompressedEntityType" constant="PRC_HCG_CompositeCurve" condition="compressed_iso_spline == FALSE" />
+      <field name="start_end_data" type="StartEndData" />
+      <field name="dimension" type="UnsignedInteger" />
+      <field name="is_closed" type="Boolean" />
+      <field name="number_of_curves" type="UnsignedInteger" />
+      <array name="curves" dim="number_of_curves" type="CompressedCurve" />
+    </object>
+
+    <object name="StartEndData">
+      <field name="start_vertex" type="CompressedVertex" condition="curve_trimming_face == TRUE" />
+      <field name="end_vertex" type="CompressedVertex" condition="curve_trimming_face == TRUE" />
+      <field name="start_point" type="CompressedPoint" condition="curve_trimming_face == FALSE" />
+      <field name="end_point" type="CompressedPoint" condition="curve_trimming_face == FALSE" />
+    </object>
+
+    <object name="CompressedVertex">
+      <field name="already_stored" type="Boolean" />
+      <field name="point_index" type="UnsignedIntegerWithVariableBitNumber" bits="number_of_bits_to_store_reference" condition="already_stored == FALSE" />
+      <field name="point_data" type="CompressedPoint" condition="already_stored == TRUE" />
+    </object>
+
+    <object name="CompressedPoint">
+      <field name="uNbBits" type="UnsignedIntegerWithVariableBitNumber" bits="6" />
+      <field name="pointA" type="Point3DWithVariableBitNumber" condition="uNbBits &lt;= 30" />
+      <field name="pointB" type="Vector3d" condition="uNbBits &gt; 30" />
+    </object>
+
+    <object name="PtrCurve">
+      <field name="is_referenced" type="Boolean" />
+      <field name="curve" type="PRC_TYPE_CRV" condition="is_referenced == FALSE" />
+      <field name="curve_identifier" type="UnsignedInteger" condition="is_referenced == TRUE" />
+    </object>
+
+    <object name="PtrSurface">
+      <field name="is_referenced" type="Boolean" />
+      <field name="surface" type="PRC_TYPE_SURF" condition="is_referenced == FALSE" />
+      <field name="surface_identifier" type="UnsignedInteger" condition="is_referenced == TRUE" />
+    </object>
+
+    <object name="PtrTopology">
+      <field name="is_referenced" type="Boolean" />
+      <field name="topo" type="PRC_TYPE_TOPO" condition="is_referenced == FALSE" />
+      <field name="topo_identifier" type="UnsignedInteger" condition="is_referenced == TRUE" />
+    </object>
+
+    <object name="ContentCurve">
+      <field name="has_base_geometry" type="Boolean" />
+      <field name="attribute_data" type="AttributeData" condition="has_base_geometry == TRUE" />
+      <field name="name" type="Name" condition="has_base_geometry == TRUE" />
+      <field name="id" type="UnsignedInteger" condition="has_base_geometry == TRUE" />
+      <field name="extend_type" type="UnsignedInteger" />
+      <field name="is_3d_flag" type="Boolean" />
+    </object>
+
+    <object name="PRC_TYPE_CRV_Blend02Boundary">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_CRV_Blend02Boundary" />
+      <field name="curve_data" type="ContentCurve" />
+      <field name="transform" type="Transformation" />
+      <field name="paramaterization" type="Parameterization" />
+      <field name="surface" type="PtrSurface" />
+      <field name="bound" type="Integer" />
+      <field name="number_of_crossing_points" type="UnsignedInteger" />
+      <array name="crossing_points" dim="number_of_crossing_points" type="Vector3d" />
+      <field name="chord_error" type="Double" />
+      <field name="angle_error" type="Double" />
+      <field name="bound_surface" type="PtrSurface" />
+      <field name="sense_bound_surface" type="Boolean" />
+      <field name="intersection_order" type="Boolean" />
+      <field name="sense_intersection_order" type="Boolean" />
+      <field name="base_parameter" type="Double" />
+      <field name="base_scale" type="Double" />
+      <field name="start_limit_point" type="Vector3D" />
+      <field name="start_limit_type" type="UnsignedInteger" />
+      <field name="end_limit_point" type="Vector3D" />
+      <field name="end_limit_type" type="UnsignedInteger" />
+    </object>
+
+    <object name="PRC_TYPE_CRV_NURBS">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_CRV_NURBS" />
+      <field name="curve_data" type="ContentCurve" />
+      <field name="is_rational" type="Boolean" />
+      <field name="d" type="UnsignedInteger" />
+      <field name="highest_index_of_control_points" type="UnsignedInteger" />
+      <field name="highest_index_of_knots" type="UnsignedInteger" />
+      <array name="p" dim="np" type="ControlPointsNurbsCrv" />
+      <array name="u" dim="nu" type="Double" />
+      <field name="knot_type" type="UnsignedInteger" />
+      <field name="curve_form" type="UnsignedInteger" />
+    </object>
+
+    <object name="ControlPointsNurbsCrv">
+      <field name="x" type="Double" />
+      <field name="y" type="Double" />
+      <field name="z" type="Double" condition="is_3d_flag == TRUE" />
+      <field name="w" type="Double" condition="is_rational == TRUE" />
+    </object>
+
+    <object name="PRC_TYPE_CRV_Circle">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_CRV_Circle" />
+      <field name="curve_data" type="ContentCurve" />
+      <field name="has_transform" type="Boolean" />
+      <field name="transform" type="Transformation" condition="has_transform == TRUE" />
+      <field name="paramaterization" type="Parameterization" />
+      <field name="radius" type="Double" />
+    </object>
+
+    <object name="PRC_TYPE_CRV_Composite">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_CRV_Composite" />
+      <field name="curve_data" type="ContentCurve" />
+      <field name="transform" type="Transformation" />
+      <field name="paramaterization" type="Parameterization" />
+      <field name="number_of_subcurves" type="UnsignedInteger" />
+      <array name="subcurves" dim="number_of_subcurves" type="CompositeSubCurve" />
+      <field name="is_closed" type="Boolean" />
+    </object>
+
+    <object name="CompositeSubCurve">
+      <field name="subcurve" type="PtrCurve" />
+      <field name="sense" type="Boolean" />
+    </object>
+
+    <object name="PRC_TYPE_CRV_OnSurf">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_CRV_OnSurf" />
+      <field name="curve_data" type="ContentCurve" />
+      <field name="transform" type="Transformation" />
+      <field name="paramaterization" type="Parameterization" />
+      <field name="tolerance" type="Double" />
+      <field name="uv_curve" type="PtrCurve" />
+      <field name="surface" type="PtrSurface" />
+      <field name="uv_domain" type="Domain" />
+    </object>
+
+    <object name="PRC_TYPE_CRV_Ellipse">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_CRV_Ellipse" />
+      <field name="curve_data" type="ContentCurve" />
+      <field name="transform" type="Transformation" />
+      <field name="paramaterization" type="Parameterization" />
+      <field name="rx" type="Double" />
+      <field name="ry" type="Double" />
+    </object>
+
+    <object name="PRC_TYPE_CRV_Equation">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_CRV_Equation" />
+      <field name="curve_data" type="ContentCurve" />
+      <field name="transform" type="Transformation" />
+      <field name="paramaterization" type="Parameterization" />
+      <field name="interval" type="Interval" />
+      <field name="x_function" type="PRC_TYPE_MATH_FCT_1D" />
+      <field name="y_function" type="PRC_TYPE_MATH_FCT_1D" />
+      <field name="z_function" type="PRC_TYPE_MATH_FCT_1D" condition="is_3d_flag == TRUE" />
+    </object>
+
+    <object name="PRC_TYPE_CRV_Helix01">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_CRV_Helix01" />
+      <field name="curve_data" type="ContentCurve" />
+      <field name="transform" type="Transformation" />
+      <field name="paramaterization" type="Parameterization" />
+      <field name="type" type="Character" />
+      <field name="orientation" type="Boolean" />
+      <field name="start" type="Vector3d" />
+      <field name="type0_helix" type="Type0HelixData" condition="type == 0" />
+      <field name="type1_helix" type="Type1HelixData" condition="type == 1" />
+    </object>
+
+    <object name="Type0HelixData">
+      <field name="origin_0" type="Double" />
+      <field name="direction_0" type="Double" />
+      <field name="origin_1" type="Double" />
+      <field name="direction_1" type="Double" />
+      <field name="origin_2" type="Double" />
+      <field name="direction_2" type="Double" />
+      <field name="pitch" type="Double" />
+      <field name="radius" type="Double" />
+    </object>
+
+    <object name="Type1HelixData">
+      <field name="unit_z0" type="Double" />
+      <field name="unit_u0" type="Double" />
+      <field name="unit_z1" type="Double" />
+      <field name="unit_u1" type="Double" />
+      <field name="unit_z2" type="Double" />
+      <field name="unit_u2" type="Double" />
+      <field name="reserved_double_0" type="Double" />
+      <field name="reserved_double_1" type="Double" />
+      <field name="reserved_double_2" type="Double" />
+      <field name="reserved_double_3" type="Double" />
+      <field name="radius_law" type="PRC_TYPE_MATH_FCT_1D" />
+      <field name="z_law" type="PRC_TYPE_MATH_FCT_1D" />
+      <field name="theta_law" type="PRC_TYPE_MATH_FCT_1D" />
+    </object>
+
+    <object name="PRC_TYPE_CRV_Hyperbola">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_CRV_Hyperbola" />
+      <field name="curve_data" type="ContentCurve" />
+      <field name="transform" type="Transformation" />
+      <field name="paramaterization" type="Parameterization" />
+      <field name="semi_axis" type="Double" />
+      <field name="semi_image_axis" type="Double" />
+      <field name="type" type="Character" />
+    </object>
+
+    <object name="PRC_TYPE_CRV_Intersection">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_CRV_Intersection" />
+      <field name="curve_data" type="ContentCurve" />
+      <field name="has_transform" type="Boolean" />
+      <field name="transform" type="Transformation" condition="has_transform == TRUE" />
+      <field name="parameterization" type="Parameterization" />
+      <field name="surface_1" type="PtrSurface" />
+      <field name="surface_2" type="PtrSurface" />
+      <field name="sense_1" type="Boolean" />
+      <field name="sense_2" type="Boolean" />
+      <field name="sense_cross" type="Boolean" />
+      <field name="number_of_crossings" type="UnsignedInteger" />
+      <array name="crossings" dim="number_of_crossings" type="CrossingPointsCrvIntersection" />
+      <field name="start_limit_point" type="Vector3D" />
+      <field name="start_limit_type" type="UnsignedInteger" />
+      <field name="end_limit_point" type="Vector3D" />
+      <field name="end_limit_type" type="UnsignedInteger" />
+      <field name="chord_error" type="Double" />
+      <field name="angle_error" type="Double" />
+      <field name="param_respected" type="Boolean" />
+    </object>
+
+    <object name="CrossingPointsCrvIntersection">
+      <field name="position" type="Vector3D" />
+      <field name="uv_surface_1" type="Vector2D" />
+      <field name="uv_surface_2" type="Vector2D" />
+      <field name="tangent" type="Vector3D" />
+      <field name="parameter" type="Double" />
+      <field name="scale" type="Double" />
+      <field name="flags" type="Character" />
+    </object>
+
+    <object name="PRC_TYPE_CRV_Line">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_CRV_Line" />
+      <field name="curve_data" type="ContentCurve" />
+      <field name="has_transform" type="Boolean" />
+      <field name="transform" type="Transformation" condition="has_transform == TRUE" />
+      <field name="parameterization" type="Parameterization" />
+    </object>
+
+    <object name="PRC_TYPE_CRV_Offset">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_CRV_Offset" />
+      <field name="curve_data" type="ContentCurve" />
+      <field name="transform" type="Transformation" />
+      <field name="parameterization" type="Parameterization" />
+      <field name="base_curve" type="PtrCurve" />
+      <field name="offset_plane_normal" type="Vector3D" />
+      <field name="offset" type="Double" />
+    </object>
+
+    <object name="PRC_TYPE_CRV_Parabola">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_CRV_Parabola" />
+      <field name="curve_data" type="ContentCurve" />
+      <field name="transform" type="Transformation" />
+      <field name="parameterization" type="Parameterization" />
+      <field name="focal_length" type="Double" />
+      <field name="type" type="Character" />
+    </object>
+
+    <object name="PRC_TYPE_CRV_PolyLine">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_CRV_PolyLine" />
+      <field name="curve_data" type="ContentCurve" />
+      <field name="has_transform" type="Boolean" />
+      <field name="transform" type="Transformation" condition="has_transform == TRUE" />
+      <field name="parameterization" type="Parameterization" />
+      <field name="number_of_points" type="UnsignedInteger" />
+      <array name="points" dim="number_of_points" type="PolyLinePoint" />
+    </object>
+
+    <object name="PolyLinePoint">
+      <field name="point_3d" type="Vector3D" conditions="is_3d_flag == TRUE" />
+      <field name="point_2d" type="Vector2D" conditions="is_3d_flag == FALSE" />
+    </object>
+
+    <object name="PRC_TYPE_CRV_Transform">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_CRV_Transform" />
+      <field name="curve_data" type="ContentCurve" />
+      <field name="transform" type="Transformation" />
+      <field name="parameterization" type="Parameterization" />
+      <field name="base_curve" type="PtrCurve" />
+      <field name="math_transformation" type="PRC_TYPE_MATH_FCT_3D" />
+    </object>
+
+    <object name="ContentSurface">
+      <field name="has_base_geometry" type="Boolean" />
+      <field name="attribute_data" type="AttributeData" condition="has_base_geometry == TRUE" />
+      <field name="name" type="Name" condition="has_base_geometry == TRUE" />
+      <field name="id" type="UnsignedInteger" condition="has_base_geometry == TRUE" />
+      <field name="extend_type" type="UnsignedInteger" />
+    </object>
+
+    <object name="PRC_TYPE_SURF_Blend01">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_SURF_Blend01" />
+      <field name="curve_data" type="ContentSurface" />
+      <field name="transform" type="Transformation" />
+      <field name="parameterization" type="UVParameterization" />
+      <field name="center_curve" type="PtrCurve" />
+      <field name="origin_curve" type="PtrCurve" />
+      <field name="tangent_curve" type="PtrCurve" />
+    </object>
+
+    <object name="PRC_TYPE_SURF_Blend02">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_SURF_Blend02" />
+      <field name="curve_data" type="ContentSurface" />
+      <field name="transform" type="Transformation" />
+      <field name="parameterization" type="UVParameterization" />
+      <field name="bound_surface_0" type="PtrSurface" />
+      <field name="bound_curve_0" type="PtrCurve" />
+      <field name="bound_surface_1" type="PtrSurface" />
+      <field name="bound_curve_1" type="PtrCurve" />
+      <field name="center_curve" type="PtrCurve" />
+      <field name="center_curve_sense" type="Boolean" />
+      <field name="bound_surface_0_sense" type="Boolean" />
+      <field name="bound_surface_1_sense" type="Boolean" />
+      <field name="radius_0" type="Double" />
+      <field name="radius_1" type="Double" />
+      <field name="cliff_surface_0" type="PtrSurface" />
+      <field name="cliff_surface_1" type="PtrSurface" />
+      <field name="parameterization_type" type="Character" />
+    </object>
+
+    <object name="PRC_TYPE_SURF_Blend03">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_SURF_Blend03" />
+      <field name="curve_data" type="ContentSurface" />
+      <field name="transform" type="Transformation" />
+      <field name="parameterization" type="UVParameterization" />
+      <field name="number_of_elements" type="Integer" />
+      <array name="parameters" dim="number_of_elements" type="Double" />
+      <array name="multiplicities" dim="number_of_elements" type="Integer" />
+      <array name="points" dim="number_of_elements" type="Vector3D" />
+      <array name="rail_2_angles_v" dim="number_of_elements" type="Double" />
+      <array name="tangents" dim="number_of_elements" type="Vector3D" />
+      <array name="rail_2_derivatives_v" dim="number_of_elements" type="Double" />
+      <array name="second_derivatives" dim="number_of_elements" type="Vector3D" />
+      <array name="rail_2_second_derivatives" dim="number_of_elements" type="Double" />
+      <field name="rail_2_parameter_v" type="Double" />
+      <field name="trim_v_min" type="Double" />
+      <field name="trim_v_max" type="Double" />
+      <array name="reserved_int" dim="6" type="Integer" />
+      <field name="reserved_char_0" type="Character" />
+      <field name="reserved_char_1" type="Character" />
+      <field name="reserved_char_2" type="Character" />
+      <field name="number_of_supplimental_doubles" type="Integer" />
+      <array name="supplimental_doubles" dim="number_of_supplimental_doubles" type="Double" />
+    </object>
+    
   </objects>
 </prc>
 		

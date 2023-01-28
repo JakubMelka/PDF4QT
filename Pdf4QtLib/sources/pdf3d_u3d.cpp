@@ -16,6 +16,7 @@
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdf3d_u3d.h"
+#include "pdfstreamfilters.h"
 
 #include <QImageReader>
 #include <QStringConverter>
@@ -915,6 +916,16 @@ private:
     float m_reserved3 = 0.0;
 };
 
+class PDF3D_U3D_RHAdobeMeshResourceBlock : public PDF3D_U3D_AbstractBlock
+{
+public:
+    virtual EBlockType getBlockType() const override { return PDF3D_U3D_Block_Info::BT_Unknown; }
+
+    static PDF3D_U3D_AbstractBlockPtr parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object);
+
+private:
+};
+
 class PDF3D_U3D_LineSetContinuationBlock : public PDF3D_U3D_AbstractBlock
 {
 public:
@@ -1509,6 +1520,8 @@ public:
 
     void addBlockToU3D(PDF3D_U3D_AbstractBlockPtr block);
 
+    PDF3D_U3D_Block_Info::EPalette getPaletteByBlockType(uint32_t blockType) const;
+
     QStringList getErrors() const { return m_errors; }
 
 private:
@@ -1532,6 +1545,7 @@ private:
     bool m_isCompressed = true;
     uint32_t m_priority = 0;
     QStringDecoder m_stringDecoder;
+    uint32_t m_RHAdobeMeshResourceId = 0;
 };
 
 class PDF3D_U3D_DataReader
@@ -1547,6 +1561,7 @@ public:
 
     uint8_t readU8();
     uint16_t readU16();
+    uint32_t readU24();
     uint32_t readU32();
     uint64_t readU64();
     int16_t readI16();
@@ -1670,6 +1685,14 @@ uint16_t PDF3D_U3D_DataReader::readU16()
     const uint16_t low = readU8();
     const uint16_t high = readU8();
     return low + (high << 8);
+}
+
+uint32_t PDF3D_U3D_DataReader::readU24()
+{
+    const uint32_t low = readU8();
+    const uint32_t high = readU8();
+    const uint32_t highest = readU8();
+    return low + (high << 8) + (highest << 16);
 }
 
 uint32_t PDF3D_U3D_DataReader::readU32()
@@ -3416,6 +3439,16 @@ void PDF3D_U3D_Parser::addBlockToU3D(PDF3D_U3D_AbstractBlockPtr block)
     }
 }
 
+PDF3D_U3D_Block_Info::EPalette PDF3D_U3D_Parser::getPaletteByBlockType(uint32_t blockType) const
+{
+    if (blockType == m_RHAdobeMeshResourceId)
+    {
+        return PDF3D_U3D_Block_Info::PL_Generator;
+    }
+
+    return PDF3D_U3D_Block_Info::getPalette(static_cast<PDF3D_U3D_Block_Info::EBlockType>(blockType));
+}
+
 PDF3D_U3D_Parser::PDF3D_U3D_Parser()
 {
     // Jakub Melka: Utf-8 (MIB 106) is default value for U3D strings
@@ -3503,6 +3536,19 @@ void PDF3D_U3D_Parser::processBlock(const PDF3D_U3D_Block_Data& blockData,
         }
 
         case PDF3D_U3D_NewObjectTypeBlock::ID:
+        {
+            auto block = parseBlock(blockData);
+            const PDF3D_U3D_NewObjectTypeBlock* newObjectTypeBlock = dynamic_cast<const PDF3D_U3D_NewObjectTypeBlock*>(block.get());
+
+            // Right Hemisphere Adobe Mesh (RHAdobeMeshResource)
+            //                                                             {00000000-0000-0000-0000-000000000000}
+            if (newObjectTypeBlock->getExtensionId() == QUuid::fromString("{96a804a6-3fb9-43c5-b2df-2a31b5569340}"))
+            {
+                m_RHAdobeMeshResourceId = newObjectTypeBlock->getNewDeclarationBlockType();
+            }
+            break;
+        }
+
         case PDF3D_U3D_FileReferenceBlock::ID:
             // Skip this block, we do not handle these type of blocks,
             // just read it... to check errors.
@@ -3558,7 +3604,7 @@ void PDF3D_U3D_Parser::processGenericBlock(const PDF3D_U3D_Block_Data& blockData
 
     uint32_t chainIndex = 0;
     PDF3D_U3D_Block_Info::EPalette effectivePalette = PDF3D_U3D_Block_Info::isChain(blockData.blockType) ? palette
-                                                                                                         : PDF3D_U3D_Block_Info::getPalette(blockData.blockType);
+                                                                                                         : getPaletteByBlockType(blockData.blockType);
 
     if (effectivePalette == PDF3D_U3D_Block_Info::PL_LastPalette)
     {
@@ -3700,6 +3746,11 @@ PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_Parser::parseBlock(uint32_t blockType,
             return PDF3D_U3D_MotionResourceBlock::parse(data, metaData, this);
 
         default:
+            if (blockType == m_RHAdobeMeshResourceId)
+            {
+                return PDF3D_U3D_RHAdobeMeshResourceBlock::parse(data, metaData, this);
+            }
+
             m_errors << PDFTranslationContext::tr("Unable to parse block of type '%1'.").arg(blockType, 8, 16);
             break;
     }
@@ -6764,6 +6815,154 @@ std::vector<QStringList> PDF3D_U3D_Geometry::getShaders() const
 void PDF3D_U3D_Geometry::setShaders(const std::vector<QStringList>& newShaders)
 {
     m_shaders = newShaders;
+}
+
+PDF3D_U3D_AbstractBlockPtr PDF3D_U3D_RHAdobeMeshResourceBlock::parse(QByteArray data, QByteArray metaData, PDF3D_U3D_Parser* object)
+{
+    PDF3D_U3D_RHAdobeMeshResourceBlock* block = new PDF3D_U3D_RHAdobeMeshResourceBlock();
+    PDF3D_U3D_AbstractBlockPtr pointer(block);
+
+    PDF3D_U3D_DataReader reader(data, object->isCompressed());
+
+    QString objectName = reader.readString(object->getStringDecoder());
+    uint32_t chainIndex = reader.readU32();
+/*
+    QByteArray remainingData = reader.readRemainingData();
+    QByteArray uncompressedData = PDFFlateDecodeFilter::uncompress(remainingData);
+    return pointer;
+*/
+    // Read the data
+    while (!reader.isAtEnd())
+    {
+        // Read the header
+        QString encoding = reader.readString(object->getStringDecoder());
+        uint8_t flags = reader.readU8();
+
+        const bool hasExtensionData = flags & 0x10;
+        const bool hasSkeletonData = flags & 0x20;
+        const uint8_t materialTypeCount = flags >> 6;
+
+        if (hasExtensionData)
+        {
+            uint32_t sizeOfTheMeshDescriptionBlock = reader.readU32();
+            uint16_t numberOfSubChunks = reader.readU16();
+
+            Q_UNUSED(sizeOfTheMeshDescriptionBlock);
+
+            for (uint16_t i = 0; i < numberOfSubChunks; ++i)
+            {
+                uint32_t subChunkSize = reader.readU32();
+                uint16_t subChunkTypeInfo = reader.readU16();
+
+                Q_UNUSED(subChunkSize);
+                Q_UNUSED(subChunkTypeInfo);
+            }
+        }
+
+        uint32_t materialCount = 0;
+        switch (materialTypeCount)
+        {
+            case 0x00:
+                materialCount = 1;
+                break;
+
+            case 0x01:
+                materialCount = reader.readU8();
+                break;
+
+            case 0x02:
+                materialCount = reader.readU16();
+                break;
+
+            case 0x03:
+                materialCount = reader.readU32();
+                break;
+        }
+
+        struct MaterialInfo
+        {
+            uint8_t textureDimensions = 0;
+            uint32_t numberOfTextureLayers = 0;
+            uint32_t originalShadingId = 0;
+            bool hasDiffuseColors = false;
+            bool hasSpecularColors = false;
+            QByteArray additionalTextDimensions;
+        };
+        std::vector<MaterialInfo> materialInfos;
+
+        // We will read material info from the data
+        if (materialTypeCount != 0)
+        {
+            for (uint32_t i = 0; i < materialTypeCount; ++i)
+            {
+                MaterialInfo materialInfo;
+
+                uint8_t materialFlags = reader.readU8();
+                materialInfo.textureDimensions = materialFlags & 0x03;
+                uint8_t originalShadingIdBytes = (materialFlags >> 2) & 0x03;
+                uint8_t numberOfTextureLayersBytes = (materialFlags >> 4) & 0x03;
+                materialInfo.hasDiffuseColors = (materialFlags & 0x40);
+                materialInfo.hasSpecularColors = (materialFlags & 0x80);
+
+                switch (numberOfTextureLayersBytes)
+                {
+                    case 0:
+                        materialInfo.numberOfTextureLayers = reader.readU8();
+                        break;
+                    case 1:
+                        materialInfo.numberOfTextureLayers = reader.readU16();
+                        break;
+                    case 2:
+                        materialInfo.numberOfTextureLayers = reader.readU24();
+                        break;
+                    case 3:
+                        materialInfo.numberOfTextureLayers = reader.readU32();
+                        break;
+                }
+
+                switch (originalShadingIdBytes)
+                {
+                    case 0:
+                        materialInfo.originalShadingId = reader.readU8();
+                        break;
+                    case 1:
+                        materialInfo.originalShadingId = reader.readU16();
+                        break;
+                    case 2:
+                        materialInfo.originalShadingId = reader.readU24();
+                        break;
+                    case 3:
+                        materialInfo.originalShadingId = reader.readU32();
+                        break;
+                }
+
+                uint32_t numberOfAdditionalTextureLayers = materialInfo.numberOfTextureLayers > 0 ? materialInfo.numberOfTextureLayers - 1 : 0;
+                uint32_t numberOfAdditionalTextureLayersBytes = 0;
+
+                if (numberOfAdditionalTextureLayers % 4 > 0)
+                {
+                    numberOfAdditionalTextureLayersBytes = numberOfAdditionalTextureLayers / 4 + 1;
+                }
+                else
+                {
+                    numberOfAdditionalTextureLayersBytes = numberOfAdditionalTextureLayers / 4;
+                }
+
+                if (numberOfAdditionalTextureLayersBytes > 0)
+                {
+                    materialInfo.additionalTextDimensions = reader.readByteArray(numberOfAdditionalTextureLayersBytes);
+                }
+
+                materialInfos.emplace_back(std::move(materialInfo));
+            }
+        }
+
+        break;
+    }
+
+
+    block->parseMetadata(metaData, object);
+    return pointer;
 }
 
 }   // namespace u3d
