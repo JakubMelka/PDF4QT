@@ -1,3 +1,23 @@
+<!-- 
+//    Copyright (C) 2022-2023 Jakub Melka
+//
+//    This file is part of PDF4QT.
+//
+//    PDF4QT is free software: you can redistribute it and/or modify
+//    it under the terms of the GNU Lesser General Public License as published by
+//    the Free Software Foundation, either version 3 of the License, or
+//    with the written consent of the copyright owner, any later version.
+//
+//    PDF4QT is distributed in the hope that it will be useful,
+//    but WITHOUT ANY WARRANTY; without even the implied warranty of
+//    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//    GNU Lesser General Public License for more details.
+//
+//    You should have received a copy of the GNU Lesser General Public License
+//    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
+
+  -->
+
 <?xml version="1.0" encoding="UTF-8" standalone="no" ?>
 <prc>
   
@@ -135,6 +155,17 @@
       <item name="PRC_TYPE_GRAPH_SpotLight" value="PRC_TYPE_GRAPH + 34" />
       <item name="PRC_TYPE_GRAPH_SceneDisplayParameters" value="PRC_TYPE_GRAPH + 41" />
       <item name="PRC_TYPE_GRAPH_Camera" value="PRC_TYPE_GRAPH + 42" />
+
+      <item name="PRC_TYPE_MATH" value="PRC_TYPE_ROOT + 900" />
+      <item name="PRC_TYPE_MATH_FCT_1D" value="PRC_TYPE_MATH + 1" />
+      <item name="PRC_TYPE_MATH_FCT_1D_Polynom" value="PRC_TYPE_MATH_FCT_1D + 1" />
+      <item name="PRC_TYPE_MATH_FCT_1D_Trigonometric" value="PRC_TYPE_MATH_FCT_1D + 2" />
+      <item name="PRC_TYPE_MATH_FCT_1D_Fraction" value="PRC_TYPE_MATH_FCT_1D + 3" />
+      <item name="PRC_TYPE_MATH_FCT_1D_ArctanCos" value="PRC_TYPE_MATH_FCT_1D + 4" />
+      <item name="PRC_TYPE_MATH_FCT_1D_Combination" value="PRC_TYPE_MATH_FCT_1D + 5" />
+      <item name="PRC_TYPE_MATH_FCT_3D" value="PRC_TYPE_MATH + 10" />
+      <item name="PRC_TYPE_MATH_FCT_3D_Linear" value="PRC_TYPE_MATH_FCT_3D + 1" />
+      <item name="PRC_TYPE_MATH_FCT_3D_NonLinear" value="PRC_TYPE_MATH_FCT_3D + 2" />
     </enum>
 
     <enum name="CharSet">
@@ -2135,7 +2166,210 @@
       <field name="number_of_supplimental_doubles" type="Integer" />
       <array name="supplimental_doubles" dim="number_of_supplimental_doubles" type="Double" />
     </object>
+
+    <object name="PRC_TYPE_SURF_NURBS">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_SURF_NURBS" />
+      <field name="curve_data" type="ContentSurface" />
+      <field name="is_rational" type="Boolean" />
+      <field name="du" type="UnsignedInteger" />
+      <field name="dv" type="UnsignedInteger" />
+      <field name="highest_index_of_control_points_in_u" type="UnsignedInteger" />
+      <field name="highest_index_of_control_points_in_v" type="UnsignedInteger" />
+      <field name="highest_index_of_knots_in_u" type="UnsignedInteger" />
+      <field name="highest_index_of_knots_in_v" type="UnsignedInteger" />
+      <array name="p" dim="highest_index_of_control_points_in_u * highest_index_of_control_points_in_v" type="ControlPointsNurbsSurf" />
+      <array name="ku" dim="highest_index_of_knots_in_u" type="Double" />
+      <array name="kv" dim="highest_index_of_knots_in_v" type="Double" />
+      <field name="knot_type" type="UnsignedInteger" />
+      <field name="surface_form" type="UnsignedInteger" />
+    </object>
+
+    <object name="ControlPointsNurbsSurf">
+      <field name="x" type="Double" />
+      <field name="y" type="Double" />
+      <field name="z" type="Double" />
+      <field name="w" type="Double" condition="is_rational == TRUE" />
+    </object>
+
+    <object name="PRC_TYPE_SURF_Cone">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_SURF_Cone" />
+      <field name="curve_data" type="ContentSurface" />
+      <field name="transform" type="Transformation" />
+      <field name="parameterization" type="UVParameterization" />
+      <field name="radius" type="Double" />
+      <field name="semi_angle" type="Double" />
+    </object>
+
+    <object name="PRC_TYPE_SURF_Cylinder">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_SURF_Cylinder" />
+      <field name="curve_data" type="ContentSurface" />
+      <field name="transform" type="Transformation" />
+      <field name="parameterization" type="UVParameterization" />
+      <field name="radius" type="Double" />
+    </object>
+
+    <object name="PRC_TYPE_SURF_Cylindrical">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_SURF_Cylindrical" />
+      <field name="curve_data" type="ContentSurface" />
+      <field name="transform" type="Transformation" />
+      <field name="parameterization" type="UVParameterization" />
+      <field name="base_surface" type="PtrSurface" />
+      <field name="tolerance" type="Double" />
+    </object>
+
+    <object name="PRC_TYPE_SURF_Offset">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_SURF_Offset" />
+      <field name="curve_data" type="ContentSurface" />
+      <field name="transform" type="Transformation" />
+      <field name="parameterization" type="UVParameterization" />
+      <field name="base_surface" type="PtrSurface" />
+      <field name="offset_distance" type="Double" />
+    </object>
+
+    <object name="PRC_TYPE_SURF_Pipe">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_SURF_Pipe" />
+      <field name="curve_data" type="ContentSurface" />
+      <field name="transform" type="Transformation" />
+      <field name="parameterization" type="UVParameterization" />
+      <field name="center_curve" type="PtrCurve" />
+      <field name="origin_curve" type="PtrCurve" />
+      <field name="radius" type="Double" />
+    </object>
     
+    <object name="PRC_TYPE_SURF_Plane">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_SURF_Plane" />
+      <field name="curve_data" type="ContentSurface" />
+      <field name="transform" type="Transformation" />
+      <field name="parameterization" type="Domain" />
+      <field name="u_parameter_coeff_a" type="Double" />
+      <field name="v_parameter_coeff_a" type="Double" />
+      <field name="u_parameter_coeff_b" type="Double" />
+      <field name="v_parameter_coeff_b" type="Double" />
+    </object>
+
+    <object name="PRC_TYPE_SURF_Ruled">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_SURF_Ruled" />
+      <field name="curve_data" type="ContentSurface" />
+      <field name="transform" type="Transformation" />
+      <field name="parameterization" type="UVParameterization" />
+      <field name="first_curve" type="PtrCurve" />
+      <field name="second_curve" type="PtrCurve" />
+    </object>
+
+    <object name="PRC_TYPE_SURF_Sphere">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_SURF_Sphere" />
+      <field name="curve_data" type="ContentSurface" />
+      <field name="transform" type="Transformation" />
+      <field name="parameterization" type="UVParameterization" />
+      <field name="radius" type="Double" />
+    </object>
+
+    <object name="PRC_TYPE_SURF_Revolution">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_SURF_Revolution" />
+      <field name="curve_data" type="ContentSurface" />
+      <field name="transform" type="Transformation" />
+      <field name="parameterization" type="UVParameterization" />
+      <field name="tolerance" type="Double" />
+      <field name="origin" type="Vector3D" />
+      <field name="x_axis" type="Vector3D" />
+      <field name="y_axis" type="Vector3D" />
+      <field name="base_curve" type="PtrCurve" />
+    </object>
+
+    <object name="PRC_TYPE_SURF_Extrusion">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_SURF_Extrusion" />
+      <field name="curve_data" type="ContentSurface" />
+      <field name="transform" type="Transformation" />
+      <field name="parameterization" type="UVParameterization" />
+      <field name="sweep_vector" type="Vector3D" />
+      <field name="base_curve" type="PtrCurve" />
+    </object>
+
+    <object name="PRC_TYPE_SURF_FromCurves">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_SURF_FromCurves" />
+      <field name="curve_data" type="ContentSurface" />
+      <field name="transform" type="Transformation" />
+      <field name="parameterization" type="UVParameterization" />
+      <field name="origin" type="Vector3D" />
+      <field name="first_curve" type="PtrCurve" />
+      <field name="second_curve" type="PtrCurve" />
+    </object>
+
+    <object name="PRC_TYPE_SURF_Torus">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_SURF_Torus" />
+      <field name="curve_data" type="ContentSurface" />
+      <field name="transform" type="Transformation" />
+      <field name="parameterization" type="UVParameterization" />
+      <field name="major_radius" type="Double" />
+      <field name="minor_radius" type="Double" />
+    </object>
+
+    <object name="PRC_TYPE_SURF_Transform">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_SURF_Transform" />
+      <field name="curve_data" type="ContentSurface" />
+      <field name="transform" type="Transformation" />
+      <field name="parameterization" type="UVParameterization" />
+      <field name="base_surface" type="PtrSurface" />
+      <field name="math_transformation" type="PRC_TYPE_MATH_FCT_3D" />
+    </object>
+
+    <object name="PRC_TYPE_MATH_FCT_1D_Polynom">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_MATH_FCT_1D_Polynom" />
+      <field name="number_of_coefficients" type="UnsignedInteger" />
+      <array name="coefficient" dim="number_of_coefficients" type="Double" />
+    </object>
+
+    <object name="PRC_TYPE_MATH_FCT_1D_Trigonometric">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_MATH_FCT_1D_Trigonometric" />
+      <field name="amplitude" type="Double" />
+      <field name="phase" type="Double" />
+      <field name="freq" type="Double" />
+      <field name="dc_offset" type="Double" />
+    </object>
+
+    <object name="PRC_TYPE_MATH_FCT_1D_Fraction">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_MATH_FCT_1D_Fraction" />
+      <field name="numerator" type="PRC_TYPE_MTH_FCT_1D" />
+      <field name="denominator" type="PRC_TYPE_MTH_FCT_1D" />
+    </object>
+
+    <object name="PRC_TYPE_MATH_FCT_1D_ArctanCos">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_MATH_FCT_1D_ArctanCos" />
+      <field name="a" type="Double" />
+      <field name="amplitude" type="Double" />
+      <field name="frequency" type="Double" />
+      <field name="phase" type="Double" />
+      <field name="e" type="Double" />
+    </object>
+
+    <object name="PRC_TYPE_MATH_FCT_1D_Combination">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_MATH_FCT_1D_Combination" />
+      <field name="number_of_coefficients" type="UnsignedInteger" />
+      <array name="coefficient" dim="number_of_coefficients" type="CombinationFunctions" />
+    </object>
+
+    <object name="CombinationFunctions" flat="true">
+      <field name="coefficient" type="Double" />
+      <field name="function" type="PRC_TYPE_MATH_FCT_1D" />
+    </object>
+
+    <object name="PRC_TYPE_MATH_FCT_3D_Linear">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_MATH_FCT_3D_Linear" />
+      <array name="mat" dim="3 * 3" type="Double" />
+      <array name="vec" dim="3" type="Double" />
+    </object>
+
+    <object name="PRC_TYPE_MATH_FCT_3D_NonLinear">
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_MATH_FCT_3D_NonLinear" />
+      <field name="left_transformation" type="PRC_TYPE__MATH_FCT_3D" />
+      <field name="right_transformation" type="PRC_TYPE__MATH_FCT_3D" />
+      <field name="d2" type="Double" />
+      <field name="reserved_double" type="Double" />
+      <field name="reserved_int_1" type="Integer" />
+      <field name="reserved_int_2" type="Integer" />
+      <field name="reserved_int_3" type="Integer" />
+    </object>
+
   </objects>
 </prc>
 		
