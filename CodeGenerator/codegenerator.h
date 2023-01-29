@@ -498,6 +498,62 @@ private:
     std::set<QString> m_usedTypes;
 };
 
+class PRCCodeGenerator
+{
+public:
+    PRCCodeGenerator() = default;
+
+    void generateCode(const QDomDocument& document, QString headerName, QString sourceName);
+
+private:
+
+    enum LoadItemType
+    {
+        Field,
+        Array
+    };
+
+    struct LoadItem
+    {
+        bool isField() const { return loadItemType == Field; }
+        bool isArray() const { return loadItemType == Array; }
+        bool isFieldOrArray() const { return isField() || loadItemType == Array; }
+
+        LoadItemType loadItemType = Field;
+        QString name;
+        QString type;
+        QString constant;
+        QString bits;
+    };
+
+    struct Class
+    {
+        QString classType;
+        QString valueType;
+
+        /// Use class by value, not by shared pointer?
+        bool isFlat = false;
+
+        /// Use value type instead of the class?
+        bool isValue = false;
+
+        std::vector<LoadItem> items;
+    };
+
+    void loadClasses(const QDomDocument& document);
+
+    QString generateHeader() const;
+    QString generateSource() const;
+
+    QString getCamelCase(QString string) const;
+    QString getValueTypeForLoadItem(const LoadItem& item) const;
+    QString getClassFieldNameForValueItem(const LoadItem& item) const;
+    QString getGetterFunctionNameForLoadItem(const LoadItem& item) const;
+    QString getSetterFunctionNameForLoadItem(const LoadItem& item) const;
+
+    std::map<QString, Class> m_classes;
+};
+
 }   // namespace codegen
 
 Q_DECLARE_METATYPE(codegen::GeneratedCodeStorage*)

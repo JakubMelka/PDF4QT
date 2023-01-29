@@ -1,3 +1,5 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+
 <!-- 
 //    Copyright (C) 2022-2023 Jakub Melka
 //
@@ -18,7 +20,6 @@
 
   -->
 
-<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
 <prc>
   
   <!-- 
@@ -480,12 +481,12 @@
       <field name="v_param_coeff_b" type="Double" />
     </object>
 
-    <object name="Vector2d" flat="true">
+    <object name="Vector2D" flat="true">
       <field name="x_value" type="Double" />
       <field name="y_value" type="Double" />
     </object>
 
-    <object name="Vector3d" flat="true">
+    <object name="Vector3D" flat="true">
       <field name="x_value" type="Double" />
       <field name="y_value" type="Double" />
       <field name="z_value" type="Double" />
@@ -875,7 +876,7 @@
       <array name="homogenous" dim="4" type="Double" condition="behavior &amp; PRC_TRANSFORMATION_Homogenous == TRUE" />
     </object>
 
-    <object name="2DTransformation">
+    <object name="_2DTransformation">
       <field name="behavior" type="Character" />
       <field name="translation" type="Vector3D" condition="behavior &amp; PRC_TRANSFORMATION_Translate == TRUE" />
       <array name="non_ortho_matrix" dim="3" type="Vector3D" condition="behavior &amp; PRC_TRANSFORMATION_NonOrtho == TRUE" />

@@ -250,9 +250,19 @@
     <addaction name="actionSet_code_source_XFA"/>
     <addaction name="actionGenerate_XFA_code"/>
    </widget>
+   <widget class="QMenu" name="menuPRC">
+    <property name="title">
+     <string>PRC</string>
+    </property>
+    <addaction name="actionSet_PRC_description"/>
+    <addaction name="actionSet_code_header_PRC"/>
+    <addaction name="actionSet_code_source_PRC"/>
+    <addaction name="actionGenerate_PRC_code"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuCode"/>
    <addaction name="menuXFA"/>
+   <addaction name="menuPRC"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <action name="actionLoad">
@@ -312,6 +322,26 @@
   <action name="actionSet_XFA_description">
    <property name="text">
     <string>Set XFA description</string>
+   </property>
+  </action>
+  <action name="actionSet_code_header_PRC">
+   <property name="text">
+    <string>Set code header PRC</string>
+   </property>
+  </action>
+  <action name="actionSet_code_source_PRC">
+   <property name="text">
+    <string>Set code source PRC</string>
+   </property>
+  </action>
+  <action name="actionGenerate_PRC_code">
+   <property name="text">
+    <string>Generate PRC code</string>
+   </property>
+  </action>
+  <action name="actionSet_PRC_description">
+   <property name="text">
+    <string>Set PRC description</string>
    </property>
   </action>
  </widget>

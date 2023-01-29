@@ -84,6 +84,10 @@ private slots:
     void on_actionSet_code_source_XFA_triggered();
     void on_actionGenerate_XFA_code_triggered();
     void on_actionSet_XFA_description_triggered();
+    void on_actionSet_code_header_PRC_triggered();
+    void on_actionSet_code_source_PRC_triggered();
+    void on_actionGenerate_PRC_code_triggered();
+    void on_actionSet_PRC_description_triggered();
 
 private:
     void loadSettings();
@@ -112,6 +116,10 @@ private:
     QString m_XFAdefinitionFileName;
     QString m_XFAheaderFileName;
     QString m_XFAsourceFileName;
+
+    QString m_PRCdefinitionFileName;
+    QString m_PRCheaderFileName;
+    QString m_PRCsourceFileName;
 };
 
 #endif // GENERATORMAINWINDOW_H

@@ -91,6 +91,9 @@ void GeneratorMainWindow::saveSettings()
     settings.setValue("XFAdefinitionFileName", m_XFAdefinitionFileName);
     settings.setValue("XFAheaderFileName", m_XFAheaderFileName);
     settings.setValue("XFAsourceFileName", m_XFAsourceFileName);
+    settings.setValue("PRCdefinitionFileName", m_PRCdefinitionFileName);
+    settings.setValue("PRCheaderFileName", m_PRCheaderFileName);
+    settings.setValue("PRCsourceFileName", m_PRCsourceFileName);
 }
 
 void GeneratorMainWindow::loadGeneratedSettings()
@@ -362,6 +365,9 @@ void GeneratorMainWindow::loadSettings()
     m_XFAdefinitionFileName = settings.value("XFAdefinitionFileName", QVariant()).toString();
     m_XFAheaderFileName = settings.value("XFAheaderFileName", QVariant()).toString();
     m_XFAsourceFileName = settings.value("XFAsourceFileName", QVariant()).toString();
+    m_PRCdefinitionFileName = settings.value("PRCdefinitionFileName", QVariant()).toString();
+    m_PRCheaderFileName = settings.value("PRCheaderFileName", QVariant()).toString();
+    m_PRCsourceFileName = settings.value("PRCsourceFileName", QVariant()).toString();
 }
 
 void GeneratorMainWindow::save(const QString& fileName)
@@ -570,5 +576,50 @@ void GeneratorMainWindow::on_actionGenerate_XFA_code_triggered()
         file.close();
 
         generator.generateCode(document, m_XFAheaderFileName, m_XFAsourceFileName);
+    }
+}
+
+void GeneratorMainWindow::on_actionSet_code_header_PRC_triggered()
+{
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Select cpp header"), QString(), "cpp header (*.h)");
+    if (!fileName.isEmpty())
+    {
+        m_PRCheaderFileName = fileName;
+        saveSettings();
+    }
+}
+
+void GeneratorMainWindow::on_actionSet_code_source_PRC_triggered()
+{
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Select cpp source"), QString(), "cpp source (*.cpp)");
+    if (!fileName.isEmpty())
+    {
+        m_PRCsourceFileName = fileName;
+        saveSettings();
+    }
+}
+
+void GeneratorMainWindow::on_actionSet_PRC_description_triggered()
+{
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Select xml definition"), QString(), "XML file (*.xml)");
+    if (!fileName.isEmpty())
+    {
+        m_PRCdefinitionFileName = fileName;
+        saveSettings();
+    }
+}
+
+void GeneratorMainWindow::on_actionGenerate_PRC_code_triggered()
+{
+    codegen::PRCCodeGenerator generator;
+
+    QFile file(m_PRCdefinitionFileName);
+    if (file.open(QFile::ReadOnly))
+    {
+        QDomDocument document;
+        document.setContent(&file);
+        file.close();
+
+        generator.generateCode(document, m_PRCheaderFileName, m_PRCsourceFileName);
     }
 }

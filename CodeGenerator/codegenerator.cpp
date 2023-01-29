@@ -1913,4 +1913,252 @@ QString XFACodeGenerator::generateHeader() const
     return QString::fromUtf8(ba);
 }
 
+void PRCCodeGenerator::generateCode(const QDomDocument& document, QString headerName, QString sourceName)
+{
+    QString startMark = "/* START GENERATED CODE */";
+    QString endMark = "/* END GENERATED CODE */";
+
+    loadClasses(document);
+
+    QFile headerFile(headerName);
+    if (headerFile.exists())
+    {
+        if (headerFile.open(QFile::ReadOnly | QFile::Text))
+        {
+            QString utfCode = QString::fromUtf8(headerFile.readAll());
+            headerFile.close();
+
+            int startIndex = utfCode.indexOf(startMark, Qt::CaseSensitive) + startMark.length();
+            int endIndex = utfCode.indexOf(endMark, Qt::CaseSensitive);
+
+            QString frontPart = utfCode.left(startIndex);
+            QString backPart = utfCode.mid(endIndex);
+            QString headerGeneratedCode = generateHeader();
+            QString allCode = frontPart + headerGeneratedCode + backPart;
+
+            headerFile.open(QFile::WriteOnly | QFile::Truncate);
+            headerFile.write(allCode.toUtf8());
+            headerFile.close();
+        }
+    }
+
+    QFile sourceFile(sourceName);
+    if (sourceFile.exists())
+    {
+        if (sourceFile.open(QFile::ReadOnly | QFile::Text))
+        {
+            QString utfCode = QString::fromUtf8(sourceFile.readAll());
+            sourceFile.close();
+
+            int startIndex = utfCode.indexOf(startMark, Qt::CaseSensitive) + startMark.length();
+            int endIndex = utfCode.indexOf(endMark, Qt::CaseSensitive);
+
+            QString frontPart = utfCode.left(startIndex);
+            QString backPart = utfCode.mid(endIndex);
+            QString sourceGeneratedCode = generateSource();
+            QString allCode = frontPart + sourceGeneratedCode + backPart;
+
+            sourceFile.open(QFile::WriteOnly | QFile::Truncate);
+            sourceFile.write(allCode.toUtf8());
+            sourceFile.close();
+        }
+    }
+}
+
+void PRCCodeGenerator::loadClasses(const QDomDocument& document)
+{
+    QDomElement prcElement = document.firstChildElement("prc");
+
+    if (prcElement.isNull())
+    {
+        return;
+    }
+
+    QDomElement element = prcElement.firstChildElement("objects");
+
+    if (element.isNull())
+    {
+        return;
+    }
+
+    QDomNodeList childNodes = element.elementsByTagName("object");
+
+    for (int i = 0; i < childNodes.length(); ++i)
+    {
+        QDomNode node = childNodes.item(i);
+        QDomElement classElement = node.toElement();
+        QString className = classElement.attribute("name");
+
+        Class myClass;
+        myClass.classType = className;
+        myClass.isFlat = classElement.attribute("flat") == "true";
+        myClass.valueType = myClass.isFlat ? className : QString("std::shared_ptr<%1>").arg(myClass.classType);
+
+        QDomNodeList loadItems = classElement.childNodes();
+        for (int j = 0; j < loadItems.length(); ++j)
+        {
+            QDomElement loadElement = loadItems.item(j).toElement();
+
+            LoadItem loadItem;
+            loadItem.name = loadElement.attribute("name");
+            loadItem.type = loadElement.attribute("type");
+            loadItem.constant = loadElement.attribute("constant");
+            loadItem.bits = loadElement.attribute("bits");
+
+            if (loadElement.tagName() == "field")
+            {
+                loadItem.loadItemType = Field;
+            }
+            if (loadElement.tagName() == "array")
+            {
+                loadItem.loadItemType = Array;
+            }
+
+            if (loadElement.attribute("value") == "true")
+            {
+                myClass.isValue = true;
+                myClass.valueType = loadElement.attribute("type");
+            }
+
+            myClass.items.emplace_back(std::move(loadItem));
+        }
+
+        m_classes[className] = (std::move(myClass));
+    }
+}
+
+QString PRCCodeGenerator::generateHeader() const
+{
+    QByteArray ba;
+    {
+        QTextStream stream(&ba, QIODevice::WriteOnly);
+        stream.setEncoding(QStringConverter::Utf8);
+        stream.setRealNumberPrecision(3);
+        stream.setRealNumberNotation(QTextStream::FixedNotation);
+
+        stream << Qt::endl << Qt::endl;
+
+        for (const auto& item : m_classes)
+        {
+            const Class& myClass = item.second;
+
+            if (myClass.isValue)
+            {
+                continue;
+            }
+
+            stream << "class " << myClass.classType << Qt::endl;
+            stream << "{" << Qt::endl;
+            stream << "public:" << Qt::endl;
+            stream << QString("    explicit %1() = default;").arg(myClass.classType) << Qt::endl;
+            stream << QString("    ~%1() = default;").arg(myClass.classType) << Qt::endl << Qt::endl;
+
+            // Generate getters/setters
+            for (const LoadItem& loadItem : myClass.items)
+            {
+                if (!loadItem.isFieldOrArray())
+                {
+                    continue;
+                }
+
+                stream << QString("    const %1& %2() const { return %3; }").arg(getValueTypeForLoadItem(loadItem), getGetterFunctionNameForLoadItem(loadItem), getClassFieldNameForValueItem(loadItem)) << Qt::endl;
+                stream << QString("    void %2(%1 value) { return %3 = std::move(value); }").arg(getValueTypeForLoadItem(loadItem), getSetterFunctionNameForLoadItem(loadItem), getClassFieldNameForValueItem(loadItem)) << Qt::endl;
+
+                stream << Qt::endl;
+            }
+
+            stream << Qt::endl;
+            stream << "private:" << Qt::endl;
+
+            // Generate fields
+            for (const LoadItem& loadItem : myClass.items)
+            {
+                if (!loadItem.isFieldOrArray())
+                {
+                    continue;
+                }
+
+                stream << QString("    %1 %2 = %1();").arg(getValueTypeForLoadItem(loadItem), getClassFieldNameForValueItem(loadItem)) << Qt::endl;
+            }
+
+            stream << "};" << Qt::endl << Qt::endl;
+        }
+
+        stream << Qt::endl << Qt::endl;
+    }
+
+    return QString::fromUtf8(ba);
+}
+
+QString PRCCodeGenerator::generateSource() const
+{
+    return QString();
+}
+
+QString PRCCodeGenerator::getCamelCase(QString string) const
+{
+    QString str;
+
+    bool upperCase = false;
+    for (QChar ch : string)
+    {
+        if (ch == '_')
+        {
+            upperCase = true;
+            continue;
+        }
+
+        if (upperCase)
+        {
+            upperCase = false;
+            ch = ch.toUpper();
+        }
+
+        str += ch;
+    }
+
+    return str;
+}
+
+QString PRCCodeGenerator::getValueTypeForLoadItem(const LoadItem& item) const
+{
+    auto it = m_classes.find(item.type);
+    if (it != m_classes.cend())
+    {
+        const Class& myClass = (*it).second;
+        QString valueType = myClass.valueType;
+
+        if (item.isField())
+        {
+            return valueType;
+        }
+
+        if (item.isArray())
+        {
+            return QString("std::vector<%1>").arg(valueType);
+        }
+    }
+    else
+    {
+        qWarning() << "Class " << item.type << " not found!";
+    }
+
+    return QString();
+}
+
+QString PRCCodeGenerator::getClassFieldNameForValueItem(const LoadItem& item) const
+{
+    return QString("m_") + getCamelCase(item.name);
+}
+
+QString PRCCodeGenerator::getGetterFunctionNameForLoadItem(const LoadItem& item) const
+{
+    return getCamelCase(QString("is_") + item.name);
+}
+
+QString PRCCodeGenerator::getSetterFunctionNameForLoadItem(const LoadItem& item) const
+{
+    return getCamelCase(QString("set_") + item.name);
+}
+
 }
