@@ -1,0 +1,11 @@
+Release process steps:
+ 1) Increment program version
+ 2) Build release version of the program
+ 3) Adjust RELEASES.txt for the new version
+ 4) Commit changes
+ 5) Sign all exe and dll files (including using timestamp http://timestamp.digicert.com )
+ 6) Create MSI installation from signed files
+ 7) Sign MSI installation
+
+signtool sign /f certificate.pfx /p ???????????? /fd SHA256 /t http://timestamp.digicert.com *.exe
+signtool sign /f certificate.pfx /p ???????????? /fd SHA256 /t http://timestamp.digicert.com *.msi

@@ -1,5 +1,8 @@
 CURRENT:
 
+V: 1.3.2   1.2.2023
+ - Issue #39: Code signed installation
+
 V: 1.3.1 28.12.2022
  - Issue #34: Reset option
  - Issue #35: Window state is not remembered for viewers
