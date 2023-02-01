@@ -375,6 +375,16 @@ public:
                                          QColor selectionColor = Qt::yellow,
                                          bool strictSelection = false);
 
+    /// Creates text selection. This function needs to modify the layout contents,
+    /// so do not use this function from multiple threads (it is not thread-safe).
+    /// Text selection is created from selection rectangle. When strict selection
+    /// is false, all characters intersecting rectangle are selected, otherwise
+    /// all characters contained in the rectangle are selected.
+    PDFTextSelection createTextSelection(PDFInteger pageIndex,
+                                         const QRectF& selectionRectangle,
+                                         QColor selectionColor = Qt::yellow,
+                                         bool strictSelection = false);
+
     /// Returns string from text selection
     /// \param itBegin Iterator (begin range)
     /// \param itEnd Iterator (end range)

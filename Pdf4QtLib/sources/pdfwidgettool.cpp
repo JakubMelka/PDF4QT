@@ -1569,7 +1569,7 @@ void PDFSelectTableTool::keyPressEvent(QWidget* widget, QKeyEvent* event)
                 cell.column = columnIndex;
                 cell.rectangle = QRectF(left, top, width, height);
 
-                PDFTextSelection textSelection = m_textLayout.createTextSelection(m_pageIndex, cell.rectangle.bottomLeft(), cell.rectangle.topRight(), Qt::yellow, true);
+                PDFTextSelection textSelection = m_textLayout.createTextSelection(m_pageIndex, cell.rectangle, Qt::yellow, false);
                 cell.text = m_textLayout.getTextFromSelection(textSelection, m_pageIndex).trimmed();
                 cell.text = cell.text.remove(QChar('\n'));
 

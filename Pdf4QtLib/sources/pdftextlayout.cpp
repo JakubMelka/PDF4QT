@@ -479,6 +479,101 @@ PDFTextSelection PDFTextLayout::createTextSelection(PDFInteger pageIndex, const 
     return selection;
 }
 
+PDFTextSelection PDFTextLayout::createTextSelection(PDFInteger pageIndex,
+                                                    const QRectF& selectionRectangle,
+                                                    QColor selectionColor,
+                                                    bool strictSelection)
+{
+    PDFTextSelection selection;
+
+    size_t blockId = 0;
+    for (const PDFTextBlock& block : m_blocks)
+    {
+        QPainterPath rectPath;
+        rectPath.addRect(selectionRectangle);
+
+        const QPainterPath& boundingBoxPath = block.getBoundingBox();
+        QPainterPath intersectionPath = boundingBoxPath.intersected(rectPath);
+        if (!intersectionPath.isEmpty())
+        {
+            PDFCharacterPointer ptrA;
+            PDFCharacterPointer ptrB;
+
+            const PDFTextLines& lines = block.getLines();
+            for (size_t lineId = 0, linesCount = lines.size(); lineId < linesCount; ++lineId)
+            {
+                const PDFTextLine& line = lines[lineId];
+
+                const TextCharacters& characters = line.getCharacters();
+                for (size_t characterId = 0, characterCount = characters.size(); characterId < characterCount; ++characterId)
+                {
+                    const TextCharacter& character = characters[characterId];
+
+                    const bool isSelectedStrict = strictSelection && rectPath.contains(character.boundingBox);
+                    const bool isSelectedNonStrict = !strictSelection && rectPath.intersects(character.boundingBox);
+                    if (isSelectedStrict || isSelectedNonStrict)
+                    {
+                        ptrB.pageIndex = pageIndex;
+                        ptrB.blockIndex = blockId;
+                        ptrB.lineIndex = lineId;
+                        ptrB.characterIndex = characterId;
+
+                        // Character belongs to the selection
+                        if (!ptrA.isValid())
+                        {
+                            ptrA = ptrB;
+                        }
+                    }
+                    else if (ptrA.isValid())
+                    {
+                        Q_ASSERT(ptrB.isValid());
+
+                        // Add character range to the selection
+                        if (ptrA < ptrB)
+                        {
+                            selection.addItems({ PDFTextSelectionItem(ptrA, ptrB) }, selectionColor);
+                        }
+                        else
+                        {
+                            selection.addItems({ PDFTextSelectionItem(ptrB, ptrA) }, selectionColor);
+                        }
+
+                        // Reset the selection
+                        ptrA = PDFCharacterPointer();
+                        ptrB = PDFCharacterPointer();
+                    }
+                }
+            }
+
+            // Flush the selection, if it is valid
+            if (ptrA.isValid())
+            {
+                Q_ASSERT(ptrB.isValid());
+
+                // Add character range to the selection
+                if (ptrA < ptrB)
+                {
+                    selection.addItems({ PDFTextSelectionItem(ptrA, ptrB) }, selectionColor);
+                }
+                else
+                {
+                    selection.addItems({ PDFTextSelectionItem(ptrB, ptrA) }, selectionColor);
+                }
+
+                // Reset the selection
+                ptrA = PDFCharacterPointer();
+                ptrB = PDFCharacterPointer();
+            }
+        }
+
+        // Increment block index
+        ++blockId;
+    }
+
+    selection.build();
+    return selection;
+}
+
 PDFTextSelection PDFTextLayout::selectBlock(const size_t blockIndex, PDFInteger pageIndex, QColor color) const
 {
     PDFTextSelection selection;
