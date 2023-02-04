@@ -1993,6 +1993,7 @@ void PRCCodeGenerator::loadClasses(const QDomDocument& document)
         myClass.classType = className;
         myClass.isFlat = classElement.attribute("flat") == "true";
         myClass.valueType = myClass.isFlat ? className : QString("std::shared_ptr<%1>").arg(myClass.classType);
+        myClass.parentType = classElement.attribute("parent");
 
         QDomNodeList loadItems = classElement.childNodes();
         for (int j = 0; j < loadItems.length(); ++j)
@@ -2038,6 +2039,30 @@ QString PRCCodeGenerator::generateHeader() const
 
         stream << Qt::endl << Qt::endl;
 
+        stream << "class PDF_PRC_Object" << Qt::endl;
+        stream << "{" << Qt::endl;
+        stream << "public:" << Qt::endl;
+        stream << "    constexpr PDF_PRC_Object() = default;" << Qt::endl;
+        stream << "    virtual ~PDF_PRC_Object() = default;" << Qt::endl << Qt::endl;
+
+        for (const auto& item : m_classes)
+        {
+            const Class& myClass = item.second;
+
+            if (myClass.isValue || myClass.isFlat)
+            {
+                continue;
+            }
+
+            stream << QString("    virtual %1* as%1() { return nullptr; }").arg(myClass.classType) << Qt::endl;
+            stream << QString("    virtual const %1* as%1() const { return nullptr; }").arg(myClass.classType) << Qt::endl;
+        }
+
+        stream << Qt::endl;
+        stream << "};" << Qt::endl;
+
+        stream << Qt::endl << Qt::endl;
+
         for (const auto& item : m_classes)
         {
             const Class& myClass = item.second;
@@ -2047,11 +2072,32 @@ QString PRCCodeGenerator::generateHeader() const
                 continue;
             }
 
-            stream << "class " << myClass.classType << Qt::endl;
+            if (myClass.isFlat)
+            {
+                stream << "class " << myClass.classType << Qt::endl;
+            }
+            else
+            {
+                QString parentClass = myClass.parentType;
+                if (parentClass.isEmpty())
+                {
+                    parentClass = "PDF_PRC_Object";
+                }
+
+                stream << "class " << myClass.classType << QString(" : public %1").arg(parentClass) << Qt::endl;
+            }
+
             stream << "{" << Qt::endl;
             stream << "public:" << Qt::endl;
             stream << QString("    explicit %1() = default;").arg(myClass.classType) << Qt::endl;
             stream << QString("    ~%1() = default;").arg(myClass.classType) << Qt::endl << Qt::endl;
+
+            if (!myClass.isFlat)
+            {
+                stream << QString("    virtual %1* as%1() override { return this; }").arg(myClass.classType) << Qt::endl;
+                stream << QString("    virtual const %1* as%1() const override { return this; }").arg(myClass.classType) << Qt::endl;
+                stream << Qt::endl;
+            }
 
             // Generate getters/setters
             for (const LoadItem& loadItem : myClass.items)
@@ -2153,7 +2199,7 @@ QString PRCCodeGenerator::getClassFieldNameForValueItem(const LoadItem& item) co
 
 QString PRCCodeGenerator::getGetterFunctionNameForLoadItem(const LoadItem& item) const
 {
-    return getCamelCase(QString("is_") + item.name);
+    return getCamelCase(QString("get_") + item.name);
 }
 
 QString PRCCodeGenerator::getSetterFunctionNameForLoadItem(const LoadItem& item) const

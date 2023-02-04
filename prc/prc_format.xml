@@ -294,7 +294,11 @@
       <field name="unique_id" type="UncompressedUniqueId" />
       <field name="" type="UncompressedUnsignedInteger" />
       <field name="section_count" type="UncompressedUnsignedInteger" />
-      <array name="section_offsets" dim="section_count" type="UncompressedUnsignedInteger>" />
+      <array name="section_offsets" dim="section_count" type="UncompressedUnsignedInteger" />
+    </object>
+
+    <object name="UncompressedUnsignedInteger" flat="true" compressed="false">
+      <field name="" bits="32" type="uint32_t" value="true"/>
     </object>
 
     <object name="UncompressedFiles">
@@ -321,7 +325,7 @@
       <field name="unique_id_file" type="UncompressedUniqueId" />
       <field name="unique_id_application" type="UncompressedUniqueId" />
       <field name="file_count" type="UncompressedUnsignedInteger" />
-      <array name="files" dim="file_count" type="UncompressedFile" />
+      <array name="files" dim="file_count" type="UncompressedFiles" />
     </object>
 
     <object name="FileStructureSchema" >
@@ -361,6 +365,14 @@
     </object>
 
     <object name="Character" flat="true" compressed="true">
+      <field name="" bits="8" type="uint8_t" value="true"/>
+    </object>
+
+    <object name="UnsignedCharacter" flat="true" compressed="true">
+      <field name="" bits="8" type="uint8_t" value="true"/>
+    </object>
+
+    <object name="byte" flat="true" compressed="true">
       <field name="" bits="8" type="uint8_t" value="true"/>
     </object>
 
@@ -492,9 +504,15 @@
       <field name="z_value" type="Double" />
     </object>
 
+    <object name="Point3DWithVariableBitNumber" flat="true">
+      <field name="x_value" type="DoubleWithVariableBitNumber" />
+      <field name="y_value" type="DoubleWithVariableBitNumber" />
+      <field name="z_value" type="DoubleWithVariableBitNumber" />
+    </object>
+
     <object name="BoundingBox" flat="true">
-      <field name="minimum_corner" type="Vector3d" />
-      <field name="maximum_corner" type="Vector3d" />
+      <field name="minimum_corner" type="Vector3D" />
+      <field name="maximum_corner" type="Vector3D" />
     </object>
 
     <object name="ContentPRCBase">
@@ -593,7 +611,7 @@
       <array name="font_keys_of_font" dim="font_keys_count" type="FontKeysSameFont" />
     </object>
 
-    <object name="FontKeySameFont">
+    <object name="FontKeysSameFont">
       <field name="font_name" type="String" />
       <field name="character_set" type="UnsignedInteger" />
       <field name="key_count" type="UnsignedInteger" />
@@ -706,7 +724,7 @@
       <field name="number_of_display_filters" type="UnsignedInteger" />
       <array name="display_filters" dim="number_of_display_filters" type="PRC_TYPE_ASM_Filter" />
       <field name="number_of_scene_parameters" type="UnsignedInteger" />
-      <array name="scene_display_parameters" dim="number_of_scene_parameters" type="RC_TYPE_GRAPH_SceneDisplayParameter" />
+      <array name="scene_display_parameters" dim="number_of_scene_parameters" type="PRC_TYPE_GRAPH_SceneDisplayParameter" />
       <field name="user_data" type="UserData" />
     </object>
 
@@ -776,7 +794,10 @@
       <array name="Entities" dim="number_of_entities" type="PRC_TYPE_MISC_EntityReference" />
     </object>
 
-    <object name="PRC_TYPE_MISC_Attribute">
+    <object name="PRC_TYPE_MISC" skip="true" >
+    </object>
+
+    <object name="PRC_TYPE_MISC_Attribute" parent="PRC_TYPE_MISC" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_MISC_Attribute" />
       <field name="attribute_title" type="AttributeEntry" />
       <field name="number_of_attributes" type="UnsignedInteger" />
@@ -800,18 +821,18 @@
       <field name="value_lsp" type="UnsignedInteger" condition="type == 5" />
     </object>
 
-    <object name="PRC_TYPE_MISC_CartesianTransformation">
+    <object name="PRC_TYPE_MISC_CartesianTransformation" parent="PRC_TYPE_MISC" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_MISC_CartesianTransformation" />
       <field name="transform" type="Transformation" />
     </object>
 
-    <object name="PRC_TYPE_MISC_EntityReference">
+    <object name="PRC_TYPE_MISC_EntityReference" parent="PRC_TYPE_MISC" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_MISC_EntityReference" />
       <field name="content_entity_reference" type="ContentEntityReference" />
       <field name="user_data" type="UserData" />
     </object>
 
-    <object name="PRC_TYPE_MISC_MarkupLinkedItem">
+    <object name="PRC_TYPE_MISC_MarkupLinkedItem" parent="PRC_TYPE_MISC" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_MISC_MarkupLinkedItem" />
       <field name="content_entity_reference" type="ContentExtendedEntityReference" />
       <field name="show_markup" type="Boolean" />
@@ -826,15 +847,15 @@
       <field name="reference_data" type="ReferenceData" />
     </object>
 
-    <object name="PRC_TYPE_MISC_ReferenceOnPRCBase">
+    <object name="PRC_TYPE_MISC_ReferenceOnPRCBase" parent="PRC_TYPE_MISC" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_MISC_ReferenceOnPRCBase" />
       <field name="type_of_entity" type="UnsignedInteger" />
       <field name="flag" type="Boolean" />
-      <field name="different_unique_id" type="CompressedUniqueID" condition="flag == FALSE" />
+      <field name="different_unique_id" type="CompressedUniqueId" condition="flag == FALSE" />
       <field name="unique_id" type="UnsignedInteger" />
     </object>
 
-    <object name="PRC_TYPE_MISC_ReferenceOnTopology">
+    <object name="PRC_TYPE_MISC_ReferenceOnTopology" parent="PRC_TYPE_MISC" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_MISC_ReferenceOnTopology" />
       <field name="type" type="UnsignedInteger" />
       <field name="flag" type="Boolean" />
@@ -850,7 +871,7 @@
       <array name="indices" dim="number_of_indices" type="UnsignedInteger" />
     </object>
 
-    <object name="PRC_TYPE_MISC_GeneralTransformation">
+    <object name="PRC_TYPE_MISC_GeneralTransformation" parent="PRC_TYPE_MISC" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_MISC_GeneralTransformation" />
       <array name="general_transform" dim="16" type="Double" />
     </object>
@@ -1187,26 +1208,26 @@
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_MKP_View" />
       <field name="base" type="PRC_TYPE_ROOT_PRCBaseWithGraphics" />
       <field name="number_of_annotations" type="UnsignedInteger" />
-      <array name="annotations" dim="number_of_annotations" type="ReferenceUniqueIdentifiers" />
+      <array name="annotations" dim="number_of_annotations" type="ReferenceUniqueIdentifier" />
       <field name="annotation_plane" type="PRC_TYPE_SURF_Plane" />
       <field name="has_parameters" type="Boolean" />
-      <field name="scene_display_parameters" type="SceneDisplayParameters" condition="has_parameters == TRUE" />
+      <field name="scene_display_parameters" type="PRC_TYPE_GRAPH_SceneDisplayParameters" condition="has_parameters == TRUE" /> <!-- Different from specification, in spec type is SceneDisplayParameters  -->
       <field name="is_annotation_view" type="Boolean" />
       <field name="is_default_view" type="Boolean" />
       <field name="is_direction" type="Boolean" />
       <field name="number_of_linked_items" type="UnsignedInteger" />
-      <array name="linked_items" dim="number_of_linked_items" type="ReferenceUniqueIdentifiers" />
+      <array name="linked_items" dim="number_of_linked_items" type="ReferenceUniqueIdentifier" />
       <field name="number_of_filters" type="UnsignedInteger" />
       <array name="filters" dim="number_of_filters" type="PRC_TYPE_ASM_Filter" />
       <field name="user_data" type="UserData" />
     </object>
 
     <object name="ReferenceUniqueIdentifier">
-      <field name="" type="UnsignedInteger" constant="ReferenceUniqueIdentifier" />
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_MISC_ReferenceOnPRCBase" />
       <field name="type" type="UnsignedInteger" />
       <field name="reference_in_same_file_structure" type="Boolean" />
       <!-- This is different than the specification (condition) -->
-      <field name="target_file_structure" type="CompressedUniqueID" condition="reference_in_same_file_structure == FALSE" />
+      <field name="target_file_structure" type="CompressedUniqueId" condition="reference_in_same_file_structure == FALSE" />
       <field name="unique_id" type="UnsignedInteger" />
     </object>
 
@@ -1216,9 +1237,9 @@
       <field name="markup_type" type="UnsignedInteger" />
       <field name="markup_subtype" type="UnsignedInteger" />
       <field name="number_of_linked_items" type="UnsignedInteger" />
-      <array name="linked_items" dim="number_of_linked_items" type="ReferenceUniqueIdentifiers" />
+      <array name="linked_items" dim="number_of_linked_items" type="ReferenceUniqueIdentifier" />
       <field name="number_of_leaders" type="UnsignedInteger" />
-      <array name="leaders" dim="number_of_leaders" type="ReferenceUniqueIdentifiers" condition="number_of_leaders > 0" />
+      <array name="leaders" dim="number_of_leaders" type="ReferenceUniqueIdentifier" condition="number_of_leaders > 0" />
       <field name="biased_index_tessellation" type="UnsignedInteger" />
       <field name="user_data" type="UserData" />
     </object>
@@ -1226,9 +1247,9 @@
     <object name="PRC_TYPE_MKP_Leader">
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_MKP_Leader" />
       <field name="base" type="PRC_TYPE_ROOT_PRCBaseWithGraphics" />
-      <field name="first_linked_item" type="ReferenceUniqueIdentifiers" />
+      <field name="first_linked_item" type="ReferenceUniqueIdentifier" />
       <field name="is_second_linked_item" type="Boolean" />
-      <field name="second_linked_item" type="ReferenceUniqueIdentifiers" condition="is_second_linked_item == TRUE" />
+      <field name="second_linked_item" type="ReferenceUniqueIdentifier" condition="is_second_linked_item == TRUE" />
       <field name="biased_index_tessellation" type="UnsignedInteger" />
       <field name="user_data" type="UserData" />
     </object>
@@ -1252,7 +1273,7 @@
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_MKP_AnnotationReference" />
       <field name="base" type="PRC_TYPE_ROOT_PRCBaseWithGraphics" />
       <field name="number_of_linked_items" type="UnsignedInteger" />
-      <array name="linked_items" dim="number_of_linked_items" type="ReferenceUniqueIdentifiers" condition="number_of_linked_items > 0" />
+      <array name="linked_items" dim="number_of_linked_items" type="ReferenceUniqueIdentifier" condition="number_of_linked_items > 0" />
     </object>
 
     <object name="ContentBaseTessData">
@@ -1418,7 +1439,15 @@
       <field name="id" type="UnsignedInteger" condition="has_base == TRUE" />
     </object>
 
-    <object name="PRC_TYPE_TYPO_Context">
+    <object name="PRC_TYPE_TOPO" skip="true" >
+      
+    </object>
+
+    <object name="PRC_TYPE_TOPO_Body" skip="true">
+      
+    </object>
+
+    <object name="PRC_TYPE_TOPO_Context" parent="PRC_TYPE_TOPO" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_TYPO_Context" />
       <field name="base" type="ContentPRCBase" />
       <field name="behavior" type="Character" />
@@ -1432,14 +1461,14 @@
       <array name="bodies" dim="number_of_bodies" type="PRC_TYPE_TOPO_Body" />
     </object>
 
-    <object name="PRC_TYPE_TOPO_MultipleVertex">
+    <object name="PRC_TYPE_TOPO_MultipleVertex" parent="PRC_TYPE_TOPO" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_MultipleVertex" />
       <field name="base" type="BaseTopology" />
       <field name="number_of_points" type="UnsignedInteger" />
       <array name="points" dim="number_of_points" type="Vector3D" />
     </object>
 
-    <object name="PRC_TYPE_TOPO_UniqueVertex">
+    <object name="PRC_TYPE_TOPO_UniqueVertex" parent="PRC_TYPE_TOPO" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_UniqueVertex" />
       <field name="base" type="BaseTopology" />
       <field name="vertex" type="Vector3D" />
@@ -1447,12 +1476,12 @@
       <field name="tolerance" type="Double" condition="has_tolerance == TRUE" />
     </object>
 
-    <object name="PRC_TYPE_TOPO_WireEdge">
+    <object name="PRC_TYPE_TOPO_WireEdge" parent="PRC_TYPE_TOPO" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_WireEdge" />
       <field name="curve" type="ContentWireEdge" />
     </object>
 
-    <object name="PRC_TYPE_TOPO_Edge">
+    <object name="PRC_TYPE_TOPO_Edge" parent="PRC_TYPE_TOPO" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_Edge" />
       <field name="wire_edge" type="ContentWireEdge" />
       <field name="start_vertex" type="PtrTopology" />
@@ -1461,7 +1490,7 @@
       <field name="tolerance" type="Double" condition="has_tolerance == TRUE" />
     </object>
 
-    <object name="PRC_TYPE_TOPO_CoEdge">
+    <object name="PRC_TYPE_TOPO_CoEdge" parent="PRC_TYPE_TOPO" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_CoEdge" />
       <field name="base_tolopogy" type="BaseTopology" />
       <field name="ptr_topology" type="PtrTopology" />
@@ -1470,7 +1499,7 @@
       <field name="orientation" type="Character" />
     </object>
 
-    <object name="PRC_TYPE_TOPO_Loop">
+    <object name="PRC_TYPE_TOPO_Loop" parent="PRC_TYPE_TOPO" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_Loop" />
       <field name="base_tolopogy" type="BaseTopology" />
       <field name="loop_orientation" type="Character" />
@@ -1483,7 +1512,7 @@
       <field name="neighbor_index" type="UnsignedInteger" />
     </object>
 
-    <object name="PRC_TYPE_TOPO_Face">
+    <object name="PRC_TYPE_TOPO_Face" parent="PRC_TYPE_TOPO" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_Face" />
       <field name="base" type="BaseTopology" />
       <field name="surface_geometry" type="PtrSurface" />
@@ -1496,7 +1525,7 @@
       <array name="loops" dim="index_of_outer_loop" type="PtrTopology" />
     </object>
 
-    <object name="PRC_TYPE_TOPO_Shell">
+    <object name="PRC_TYPE_TOPO_Shell" parent="PRC_TYPE_TOPO" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_Shell" />
       <field name="base" type="BaseTopology" />
       <field name="is_closed" type="Boolean" />
@@ -1509,7 +1538,7 @@
       <field name="orientation" type="Character" />
     </object>
 
-    <object name="PRC_TYPE_TOPO_Connex">
+    <object name="PRC_TYPE_TOPO_Connex" parent="PRC_TYPE_TOPO" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_Connex" />
       <field name="base" type="BaseTopology" />
       <field name="number_of_shells" type="UnsignedInteger" />
@@ -1528,13 +1557,13 @@
       <field name="trim_interval" type="Interval" condition="is_trimmed == TRUE" />
     </object>
 
-    <object name="PRC_TYPE_TOPO_SingleWireBody">
+    <object name="PRC_TYPE_TOPO_SingleWireBody" parent="PRC_TYPE_TOPO" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_SingleWireBody" />
       <field name="base" type="ContentBody" />
       <field name="wire_body" type="PtrTopology" />
     </object>
 
-    <object name="PRC_TYPE_TOPO_BrepData">
+    <object name="PRC_TYPE_TOPO_BrepData" parent="PRC_TYPE_TOPO" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_BrepData" />
       <field name="base" type="ContentBody" />
       <field name="number_of_connex" type="UnsignedInteger" />
@@ -1542,14 +1571,14 @@
       <field name="bounding_box" type="BoundingBox" condition="base->bounding_box_behavior == PRC_BODY_BBOX_CADData" />
     </object>
 
-    <object name="PRC_TYPE_TPO_SingleWireBodyCompress">
-      <field name="" type="UnsignedInteger" constant="PRC_TYPE_TPO_SingleWireBodyCompress" />
+    <object name="PRC_TYPE_TOPO_SingleWireBodyCompress" parent="PRC_TYPE_TOPO" >
+      <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_SingleWireBodyCompress" />
       <field name="base" type="ContentBody" />
       <field name="curve_tolerance" type="Double" />
       <field name="compressed_curve" type="CompressedCurve" />
     </object>
 
-    <object name="PRC_TYPE_TOPO_BrepDataCompress">
+    <object name="PRC_TYPE_TOPO_BrepDataCompress" parent="PRC_TYPE_TOPO" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_TOPO_BrepDataCompress" />
       <field name="base" type="ContentBody" />
       <field name="brep_data_compressed_tolerance" type="Double" />
@@ -1681,6 +1710,12 @@
       <field name="compressed_surface" type="CompressedNurbs" />
     </object>
 
+    <object name="CompressedCircle">
+      <field name="is_particular_circle" type="Boolean" />
+      <field name="particular_circle" type="ParticularCircle" condition="is_particular_circle == TRUE" />
+      <field name="general_circle" type="GeneralCircle" condition="is_particular_circle == FALSE" />
+    </object>
+
     <object name="CompressedNurbs">
       <field name="degree_in_u" type="UnsignedIntegerWithVariableBitNumber" />
       <field name="degree_in_v" type="UnsignedIntegerWithVariableBitNumber" />
@@ -1706,8 +1741,8 @@
 
     <object name="CompressedControlPoints">
       <field name="p00" type="Vector3D" />
-      <array name="ccpt_in_v" dim="number_ccpt_in_v - 1" type="Point3DwithVariableBitNumber" />
-      <array name="ccpt_in_u" dim="number_ccpt_in_u - 1" type="Point3DwithVariableBitNumber" />
+      <array name="ccpt_in_v" dim="number_ccpt_in_v - 1" type="Point3DWithVariableBitNumber" />
+      <array name="ccpt_in_u" dim="number_ccpt_in_u - 1" type="Point3DWithVariableBitNumber" />
       <array name="ccpt_interior" dim="(number_ccpt_in_v - 1) * (number_ccpt_in_u - 1)" type="InteriorCompressedControlPoints" />
     </object>
 
@@ -1813,10 +1848,10 @@
       <field name="number_bits" type="UnsignedIntegerWithVariableBitNumber" bits="4" />
       <field name="number_points" type="UnsignedIntegerWithVariableBitNumber" bits="number_bits" />
       <field name="point_number_bits" type="UnsignedIntegerWithVariableBitNumber" bits="6" />
-      <array name="points" dim="number_points - 2" type="Vector3d" condition="point_number_bits &gt; 30" />
+      <array name="points" dim="number_points - 2" type="Vector3D" condition="point_number_bits &gt; 30" />
       <array name="compressed_points" dim="number_points - 2" type="Point3DWithVariableBitNumber" bits="point_number_bits" condition="point_number_bits &lt;= 30" />
       <field name="tangent_number_bits" type="UnsignedIntegerWithVariableBitNumber" bits="6" />
-      <array name="tangents" dim="number_points" type="Vector3d" condition="tangent_number_bits &gt; 30" />
+      <array name="tangents" dim="number_points" type="Vector3D" condition="tangent_number_bits &gt; 30" />
       <array name="compressed_tangents" dim="number_points" type="Point3DWithVariableBitNumber" bits="tangent_number_bits" condition="tangent_number_bits &lt;= 30" />
     </object>
 
@@ -1845,7 +1880,7 @@
     <object name="CompressedPoint">
       <field name="uNbBits" type="UnsignedIntegerWithVariableBitNumber" bits="6" />
       <field name="pointA" type="Point3DWithVariableBitNumber" condition="uNbBits &lt;= 30" />
-      <field name="pointB" type="Vector3d" condition="uNbBits &gt; 30" />
+      <field name="pointB" type="Vector3D" condition="uNbBits &gt; 30" />
     </object>
 
     <object name="PtrCurve">
@@ -1883,7 +1918,7 @@
       <field name="surface" type="PtrSurface" />
       <field name="bound" type="Integer" />
       <field name="number_of_crossing_points" type="UnsignedInteger" />
-      <array name="crossing_points" dim="number_of_crossing_points" type="Vector3d" />
+      <array name="crossing_points" dim="number_of_crossing_points" type="Vector3D" />
       <field name="chord_error" type="Double" />
       <field name="angle_error" type="Double" />
       <field name="bound_surface" type="PtrSurface" />
@@ -1980,7 +2015,7 @@
       <field name="paramaterization" type="Parameterization" />
       <field name="type" type="Character" />
       <field name="orientation" type="Boolean" />
-      <field name="start" type="Vector3d" />
+      <field name="start" type="Vector3D" />
       <field name="type0_helix" type="Type0HelixData" condition="type == 0" />
       <field name="type1_helix" type="Type1HelixData" condition="type == 1" />
     </object>
@@ -2313,14 +2348,17 @@
       <field name="base_surface" type="PtrSurface" />
       <field name="math_transformation" type="PRC_TYPE_MATH_FCT_3D" />
     </object>
+    
+    <object name="PRC_TYPE_MATH_FCT_1D" skip="true">
+    </object>
 
-    <object name="PRC_TYPE_MATH_FCT_1D_Polynom">
+    <object name="PRC_TYPE_MATH_FCT_1D_Polynom" parent="PRC_TYPE_MATH_FCT_1D" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_MATH_FCT_1D_Polynom" />
       <field name="number_of_coefficients" type="UnsignedInteger" />
       <array name="coefficient" dim="number_of_coefficients" type="Double" />
     </object>
 
-    <object name="PRC_TYPE_MATH_FCT_1D_Trigonometric">
+    <object name="PRC_TYPE_MATH_FCT_1D_Trigonometric" parent="PRC_TYPE_MATH_FCT_1D" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_MATH_FCT_1D_Trigonometric" />
       <field name="amplitude" type="Double" />
       <field name="phase" type="Double" />
@@ -2328,13 +2366,13 @@
       <field name="dc_offset" type="Double" />
     </object>
 
-    <object name="PRC_TYPE_MATH_FCT_1D_Fraction">
+    <object name="PRC_TYPE_MATH_FCT_1D_Fraction" parent="PRC_TYPE_MATH_FCT_1D" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_MATH_FCT_1D_Fraction" />
-      <field name="numerator" type="PRC_TYPE_MTH_FCT_1D" />
-      <field name="denominator" type="PRC_TYPE_MTH_FCT_1D" />
+      <field name="numerator" type="PRC_TYPE_MATH_FCT_1D" />
+      <field name="denominator" type="PRC_TYPE_MATH_FCT_1D" />
     </object>
 
-    <object name="PRC_TYPE_MATH_FCT_1D_ArctanCos">
+    <object name="PRC_TYPE_MATH_FCT_1D_ArctanCos" parent="PRC_TYPE_MATH_FCT_1D" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_MATH_FCT_1D_ArctanCos" />
       <field name="a" type="Double" />
       <field name="amplitude" type="Double" />
@@ -2343,7 +2381,7 @@
       <field name="e" type="Double" />
     </object>
 
-    <object name="PRC_TYPE_MATH_FCT_1D_Combination">
+    <object name="PRC_TYPE_MATH_FCT_1D_Combination" parent="PRC_TYPE_MATH_FCT_1D" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_MATH_FCT_1D_Combination" />
       <field name="number_of_coefficients" type="UnsignedInteger" />
       <array name="coefficient" dim="number_of_coefficients" type="CombinationFunctions" />
@@ -2354,21 +2392,32 @@
       <field name="function" type="PRC_TYPE_MATH_FCT_1D" />
     </object>
 
-    <object name="PRC_TYPE_MATH_FCT_3D_Linear">
+    <object name="PRC_TYPE_MATH_FCT_3D" skip="true">
+    </object>
+
+    <object name="PRC_TYPE_MATH_FCT_3D_Linear" parent="PRC_TYPE_MATH_FCT_3D" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_MATH_FCT_3D_Linear" />
       <array name="mat" dim="3 * 3" type="Double" />
       <array name="vec" dim="3" type="Double" />
     </object>
 
-    <object name="PRC_TYPE_MATH_FCT_3D_NonLinear">
+    <object name="PRC_TYPE_MATH_FCT_3D_NonLinear" parent="PRC_TYPE_MATH_FCT_3D" >
       <field name="" type="UnsignedInteger" constant="PRC_TYPE_MATH_FCT_3D_NonLinear" />
-      <field name="left_transformation" type="PRC_TYPE__MATH_FCT_3D" />
-      <field name="right_transformation" type="PRC_TYPE__MATH_FCT_3D" />
+      <field name="left_transformation" type="PRC_TYPE_MATH_FCT_3D" />
+      <field name="right_transformation" type="PRC_TYPE_MATH_FCT_3D" />
       <field name="d2" type="Double" />
       <field name="reserved_double" type="Double" />
       <field name="reserved_int_1" type="Integer" />
       <field name="reserved_int_2" type="Integer" />
       <field name="reserved_int_3" type="Integer" />
+    </object>
+
+    <object name="CompressedCurve" skip="true" >
+      
+    </object>
+
+    <object name="CompressedFace" skip="true" >
+
     </object>
 
   </objects>

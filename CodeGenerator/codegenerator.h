@@ -530,6 +530,7 @@ private:
     {
         QString classType;
         QString valueType;
+        QString parentType;
 
         /// Use class by value, not by shared pointer?
         bool isFlat = false;
