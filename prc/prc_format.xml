@@ -376,6 +376,10 @@
       <field name="" bits="8" type="uint8_t" value="true"/>
     </object>
 
+    <object name="FloatAsBytes" flat="true" compressed="true">
+      <field name="" bits="32" type="float" value="true"/>
+    </object>
+
     <object name="Integer" flat="true" compressed="true">
       <field name="" bits="32" type="int32_t" value="true"/>
     </object>
@@ -668,7 +672,7 @@
       <field name="user_data" type="UserData" />
     </object>
 
-    <object name="ExactGeometry">
+    <object name="ExtraGeometry">
       <field name="Summary" type="GeometrySummary" />
       <field name="context_data" type="ContextGraphics" />
     </object>
@@ -724,7 +728,7 @@
       <field name="number_of_display_filters" type="UnsignedInteger" />
       <array name="display_filters" dim="number_of_display_filters" type="PRC_TYPE_ASM_Filter" />
       <field name="number_of_scene_parameters" type="UnsignedInteger" />
-      <array name="scene_display_parameters" dim="number_of_scene_parameters" type="PRC_TYPE_GRAPH_SceneDisplayParameter" />
+      <array name="scene_display_parameters" dim="number_of_scene_parameters" type="PRC_TYPE_GRAPH_SceneDisplayParameters" />
       <field name="user_data" type="UserData" />
     </object>
 
@@ -963,7 +967,7 @@
       <field name="texture_mapping_type" type="Integer" />
       <field name="texture_mapping_operator" type="Integer" condition="texture_mapping_type == 4" />
       <field name="has_transformation" type="Boolean" />
-      <field name="transformation" type="CartesianTransformation" condition="has_transformation" />
+      <field name="transformation" type="Transformation" condition="has_transformation" />
       <field name="texture_mapping_attributes" type="UnsignedInteger" />
       <field name="number_of_texture_mapping_attributes_intensities" type="UnsignedInteger" />
       <array name="texture_mapping_attributes_intensities" dim="number_of_texture_mapping_attributes_intensities" type="Double" condition="number_of_texture_mapping_attributes_intensities != 0" />
@@ -1106,7 +1110,7 @@
       <field name="index_of_line_style_background" type="UnsignedInteger" />
       <field name="index_of_line_style_default" type="UnsignedInteger" />
       <field name="number_default_styles" type="UnsignedInteger" />
-      <array name="styles" dim="2 * number_default_styles" type="" />
+      <array name="styles" dim="2 * number_default_styles" type="UnsignedInteger" />
       <field name="is_absolute" type="Boolean" />
     </object>
 
@@ -1211,7 +1215,7 @@
       <array name="annotations" dim="number_of_annotations" type="ReferenceUniqueIdentifier" />
       <field name="annotation_plane" type="PRC_TYPE_SURF_Plane" />
       <field name="has_parameters" type="Boolean" />
-      <field name="scene_display_parameters" type="PRC_TYPE_GRAPH_SceneDisplayParameters" condition="has_parameters == TRUE" /> <!-- Different from specification, in spec type is SceneDisplayParameters  -->
+      <field name="scene_display_parameters" type="PRC_TYPE_GRAPH_SceneDisplayParameters" condition="has_parameters == TRUE" /><!-- Different from specification, in spec type is SceneDisplayParameters  -->
       <field name="is_annotation_view" type="Boolean" />
       <field name="is_default_view" type="Boolean" />
       <field name="is_direction" type="Boolean" />
@@ -1789,7 +1793,7 @@
     <object name="ContentCompressedIsoFace">
       <field name="orientation_loop_with_surface" type="Boolean" />
       <field name="first_trim_curve" type="RefOrCompressedCurve" />
-      <field name="second_trim_curve" type="RefOrCompressedCurve" />+
+      <field name="second_trim_curve" type="RefOrCompressedCurve" />
       <field name="third_trim_curve_is_not_yet_saved" type="Boolean" />
       <field name="third_trim_curve" type="UnsignedIntegerWithVariableBitNumber" condition="third_trim_curve_is_not_yet_saved == FALSE" />
       <field name="fourth_trim_curve_is_not_yet_saved" type="Boolean" />
@@ -2418,6 +2422,63 @@
 
     <object name="CompressedFace" skip="true" >
 
+    </object>
+
+    <object name="PRCBaseWithGraphics" skip="true">
+      
+    </object>
+
+    <object name="CompressedIndiceArraySpec1" skip="true">
+      
+    </object>
+
+    <object name="TopologicalContext">
+      <field name="context" type="PRC_TYPE_TOPO_Context" />
+      <field name="num_bodies" type="UnsignedInteger" />
+      <array name="bodies" dim="num_bodies" type="PRC_TYPE_TOPO" />
+    </object>
+
+    <object name="PRC_TYPE_GRAPH_FillPattern" skip="true">
+    </object>
+
+    <object name="PRC_TYPE_ROOT" skip="true">
+      
+    </object>
+
+    <object name="PRC_TYPE_TESS" skip="true">
+      
+    </object>
+
+    <object name="PRC_TYPE_GRAPH" skip="true">
+      
+    </object>
+
+    <object name="PRC_TYPE_CRV" skip="true">
+      
+    </object>
+
+    <object name="PRC_TYPE_SURF" skip="true">
+      
+    </object>
+
+    <object name="PRC_TYPE_RI_RepresentationItem" skip="true">
+      
+    </object>
+
+    <object name="PRC_TYPE_RI" skip="true">
+      
+    </object>
+
+    <object name="Bits(n)" flat="true" compressed="false">
+      <field name="" type="QByteArray" value="true"/>
+    </object>
+
+    <object name="AnnotationEntities" skip="true">
+      
+    </object>
+
+    <object name="AnnotationEntity" skip="true">
+      
     </object>
 
   </objects>

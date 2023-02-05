@@ -1998,6 +1998,11 @@ void PRCCodeGenerator::loadClasses(const QDomDocument& document)
         QDomNodeList loadItems = classElement.childNodes();
         for (int j = 0; j < loadItems.length(); ++j)
         {
+            if (loadItems.item(j).isComment())
+            {
+                continue;
+            }
+
             QDomElement loadElement = loadItems.item(j).toElement();
 
             LoadItem loadItem;
@@ -2032,7 +2037,7 @@ QString PRCCodeGenerator::generateHeader() const
 {
     QByteArray ba;
     {
-        QTextStream stream(&ba, QIODevice::WriteOnly);
+        QTextStream stream(&ba, QIODevice::WriteOnly | QIODevice::Text);
         stream.setEncoding(QStringConverter::Utf8);
         stream.setRealNumberPrecision(3);
         stream.setRealNumberNotation(QTextStream::FixedNotation);
