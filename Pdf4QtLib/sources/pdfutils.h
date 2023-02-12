@@ -200,6 +200,9 @@ public:
     /// Writes value to the output stream
     void write(Value value);
 
+    /// Writes bits of value to the output stream
+    void write(Value value, Value bits);
+
     /// Finish line - align to byte boundary
     void finishLine() { flush(true); }
 

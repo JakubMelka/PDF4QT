@@ -211,6 +211,18 @@ void PDFBitWriter::write(Value value)
     flush(false);
 }
 
+void PDFBitWriter::write(Value value, Value bits)
+{
+    m_buffer = m_buffer << bits;
+
+    Value mask = ((static_cast<Value>(1) << bits) - static_cast<Value>(1));
+    Value maskedValue = value & mask;
+    m_buffer = m_buffer | maskedValue;
+    m_bitsInBuffer += bits;
+
+    flush(false);
+}
+
 void PDFBitWriter::flush(bool alignToByteBoundary)
 {
     if (m_bitsInBuffer >= 8)

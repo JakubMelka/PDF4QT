@@ -21,12 +21,19 @@
 #include "pdfglobal.h"
 
 #include <memory>
+#include <vector>
 
 namespace pdf
 {
 
 namespace prc
 {
+
+using UnsignedInteger = uint32_t;
+using Integer = int32_t;
+using Character = uint8_t;
+using Characters = std::vector<Character>;
+using Boolean = bool;
 
 /* START GENERATED CODE */
 
