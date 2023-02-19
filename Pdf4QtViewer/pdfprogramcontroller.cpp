@@ -32,6 +32,7 @@
 #include "pdfundoredomanager.h"
 #include "pdfrendertoimagesdialog.h"
 #include "pdfoptimizedocumentdialog.h"
+#include "pdfsanitizedocumentdialog.h"
 #include "pdfviewersettingsdialog.h"
 #include "pdfaboutdialog.h"
 #include "pdfrenderingerrorswidget.h"
@@ -446,6 +447,10 @@ void PDFProgramController::initialize(Features features,
     if (QAction* action = m_actionManager->getAction(PDFActionManager::Optimize))
     {
         connect(action, &QAction::triggered, this, &PDFProgramController::onActionOptimizeTriggered);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::Sanitize))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionSanitizeTriggered);
     }
     if (QAction* action = m_actionManager->getAction(PDFActionManager::Encryption))
     {
@@ -1173,6 +1178,18 @@ void PDFProgramController::onActionOptimizeTriggered()
     }
 }
 
+void PDFProgramController::onActionSanitizeTriggered()
+{
+    PDFSanitizeDocumentDialog dialog(m_pdfDocument.data(), m_mainWindow);
+
+    if (dialog.exec() == QDialog::Accepted)
+    {
+        pdf::PDFDocumentPointer pointer(new pdf::PDFDocument(dialog.takeSanitizedDocument()));
+        pdf::PDFModifiedDocument document(qMove(pointer), m_optionalContentActivity, pdf::PDFModifiedDocument::Reset);
+        onDocumentModified(qMove(document));
+    }
+}
+
 void PDFProgramController::onActionEncryptionTriggered()
 {
     auto queryPassword = [this](bool* ok)
@@ -1492,6 +1509,7 @@ void PDFProgramController::updateActionsAvailability()
     m_actionManager->setEnabled(PDFActionManager::Print, hasValidDocument && canPrint);
     m_actionManager->setEnabled(PDFActionManager::RenderToImages, hasValidDocument && canPrint);
     m_actionManager->setEnabled(PDFActionManager::Optimize, hasValidDocument);
+    m_actionManager->setEnabled(PDFActionManager::Sanitize, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::Encryption, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::Save, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::SaveAs, hasValidDocument);

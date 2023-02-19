@@ -12163,5 +12163,62 @@ updateDocumentInfo(qMove(updatedInfoDictionary));</property>
       <property name="functionDescription">This function is used to update trailer dictionary. Must be called each time the final document is being built.</property>
       <property name="returnType">_void</property>
     </QObject>
+    <QObject class="codegen::GeneratedFunction">
+      <property name="objectName"></property>
+      <property name="items">
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">pageReference</property>
+              <property name="parameterType">_PDFObjectReference</property>
+              <property name="parameterDescription">Removes page thumbnail.</property>
+            </QObject>
+          </property>
+          <property name="actionType">Parameters</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items">
+            <QObject class="codegen::GeneratedPDFObject">
+              <property name="objectName"></property>
+              <property name="items">
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
+                  <property name="dictionaryItemName">Thumb</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">PDFObject()</property>
+                </QObject>
+              </property>
+              <property name="dictionaryItemName"></property>
+              <property name="objectType">Dictionary</property>
+              <property name="value"></property>
+            </QObject>
+          </property>
+          <property name="actionType">CreateObject</property>
+          <property name="variableName">updatedPageObject</property>
+          <property name="variableType">_PDFObject</property>
+          <property name="code"></property>
+        </QObject>
+        <QObject class="codegen::GeneratedAction">
+          <property name="objectName"></property>
+          <property name="items"/>
+          <property name="actionType">Code</property>
+          <property name="variableName"></property>
+          <property name="variableType">_void</property>
+          <property name="code">mergeTo(pageReference, updatedPageObject);</property>
+        </QObject>
+      </property>
+      <property name="functionType">Structure</property>
+      <property name="functionName">removePageThumbnail</property>
+      <property name="functionDescription"></property>
+      <property name="returnType">_void</property>
+    </QObject>
   </property>
 </root>

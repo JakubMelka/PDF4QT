@@ -669,6 +669,13 @@ PDFDocumentBuilder::PDFDocumentBuilder(const PDFDocument* document) :
 
 }
 
+PDFDocumentBuilder::PDFDocumentBuilder(const PDFObjectStorage& storage, PDFVersion version) :
+    m_storage(storage),
+    m_version(version)
+{
+
+}
+
 void PDFDocumentBuilder::reset()
 {
     *this = PDFDocumentBuilder();
@@ -5411,6 +5418,20 @@ void PDFDocumentBuilder::updateTrailerDictionary(PDFInteger objectCount)
     PDFObject updatedInfoDictionary = objectBuilder.takeObject();
     m_storage.updateTrailerDictionary(qMove(trailerDictionary));
     updateDocumentInfo(qMove(updatedInfoDictionary));
+}
+
+
+void PDFDocumentBuilder::removePageThumbnail(PDFObjectReference pageReference)
+{
+    PDFObjectFactory objectBuilder;
+
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Thumb");
+    objectBuilder << PDFObject();
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    PDFObject updatedPageObject = objectBuilder.takeObject();
+    mergeTo(pageReference, updatedPageObject);
 }
 
 

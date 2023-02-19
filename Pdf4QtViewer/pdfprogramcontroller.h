@@ -105,6 +105,7 @@ public:
         SendByMail,
         RenderToImages,
         Optimize,
+        Sanitize,
         Encryption,
         FitPage,
         FitWidth,
@@ -327,6 +328,7 @@ private:
     void onActionSendByEMailTriggered();
     void onActionRenderToImagesTriggered();
     void onActionOptimizeTriggered();
+    void onActionSanitizeTriggered();
     void onActionEncryptionTriggered();
     void onActionFitPageTriggered();
     void onActionFitWidthTriggered();

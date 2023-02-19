@@ -20,7 +20,7 @@
      <x>0</x>
      <y>0</y>
      <width>770</width>
-     <height>37</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -142,6 +142,7 @@
     <addaction name="separator"/>
     <addaction name="actionEncryption"/>
     <addaction name="actionOptimize"/>
+    <addaction name="actionSanitize"/>
     <addaction name="separator"/>
    </widget>
    <widget class="QMenu" name="menuInsert">
@@ -635,6 +636,9 @@
    <property name="text">
     <string>Optimize...</string>
    </property>
+   <property name="statusTip">
+    <string>Optimizes document to reduce file size.</string>
+   </property>
   </action>
   <action name="actionSave_As">
    <property name="icon">
@@ -922,6 +926,14 @@
    </property>
    <property name="text">
     <string>Certificates...</string>
+   </property>
+  </action>
+  <action name="actionSanitize">
+   <property name="text">
+    <string>Sanitize...</string>
+   </property>
+   <property name="toolTip">
+    <string>Sanitize document to remove sensitive information.</string>
    </property>
   </action>
  </widget>

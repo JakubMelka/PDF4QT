@@ -98,6 +98,8 @@ add_library(Pdf4QtLib SHARED
     sources/pdfrenderingerrorswidget.ui
     sources/pdfselectpagesdialog.ui
     sources/pdfobjecteditorwidget_impl.h
+    sources/pdfdocumentsanitizer.h
+    sources/pdfdocumentsanitizer.cpp
     cmaps.qrc
 )
 

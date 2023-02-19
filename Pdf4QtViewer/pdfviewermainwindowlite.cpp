@@ -24,7 +24,6 @@
 #include "pdfviewersettingsdialog.h"
 #include "pdfdocumentpropertiesdialog.h"
 #include "pdfrendertoimagesdialog.h"
-#include "pdfoptimizedocumentdialog.h"
 #include "pdfdbgheap.h"
 
 #include "pdfdocumentreader.h"

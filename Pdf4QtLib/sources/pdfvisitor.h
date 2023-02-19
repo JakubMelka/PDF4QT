@@ -206,6 +206,33 @@ struct PDFApplyVisitorImpl<Visitor, PDFAbstractVisitor::Strategy::Sequential>
     }
 };
 
+class PDFUpdateObjectVisitor : public PDFAbstractVisitor
+{
+public:
+    explicit inline PDFUpdateObjectVisitor(const PDFObjectStorage* storage) :
+        m_storage(storage)
+    {
+        m_objectStack.reserve(32);
+    }
+
+    virtual void visitNull() override;
+    virtual void visitBool(bool value) override;
+    virtual void visitInt(PDFInteger value) override;
+    virtual void visitReal(PDFReal value) override;
+    virtual void visitString(PDFStringRef string) override;
+    virtual void visitName(PDFStringRef name) override;
+    virtual void visitArray(const PDFArray* array) override;
+    virtual void visitDictionary(const PDFDictionary* dictionary) override;
+    virtual void visitStream(const PDFStream* stream) override;
+    virtual void visitReference(const PDFObjectReference reference) override;
+
+    PDFObject getObject();
+
+protected:
+    const PDFObjectStorage* m_storage;
+    std::vector<PDFObject> m_objectStack;
+};
+
 }   // namespace pdf
 
 #endif // PDFVISITOR_H

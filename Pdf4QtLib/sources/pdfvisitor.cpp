@@ -192,4 +192,91 @@ void PDFStatisticsCollector::collectStatisticsOfSimpleObject(PDFObject::Type typ
     statistics.memoryConsumptionEstimate += sizeof(PDFObject);
 }
 
+void PDFUpdateObjectVisitor::visitNull()
+{
+    m_objectStack.push_back(PDFObject::createNull());
+}
+
+void PDFUpdateObjectVisitor::visitBool(bool value)
+{
+    m_objectStack.push_back(PDFObject::createBool(value));
+}
+
+void PDFUpdateObjectVisitor::visitInt(PDFInteger value)
+{
+    m_objectStack.push_back(PDFObject::createInteger(value));
+}
+
+void PDFUpdateObjectVisitor::visitReal(PDFReal value)
+{
+    m_objectStack.push_back(PDFObject::createReal(value));
+}
+
+void PDFUpdateObjectVisitor::visitString(PDFStringRef string)
+{
+    m_objectStack.push_back(PDFObject::createString(string));
+}
+
+void PDFUpdateObjectVisitor::visitName(PDFStringRef name)
+{
+    m_objectStack.push_back(PDFObject::createName(name));
+}
+
+void PDFUpdateObjectVisitor::visitArray(const PDFArray* array)
+{
+    acceptArray(array);
+
+    // We have all objects on the stack
+    Q_ASSERT(array->getCount() <= m_objectStack.size());
+
+    auto it = std::next(m_objectStack.cbegin(), m_objectStack.size() - array->getCount());
+    std::vector<PDFObject> objects(it, m_objectStack.cend());
+    PDFObject object = PDFObject::createArray(std::make_shared<PDFArray>(qMove(objects)));
+    m_objectStack.erase(it, m_objectStack.cend());
+    m_objectStack.push_back(object);
+}
+
+void PDFUpdateObjectVisitor::visitDictionary(const PDFDictionary* dictionary)
+{
+    Q_ASSERT(dictionary);
+
+    std::vector<PDFDictionary::DictionaryEntry> entries;
+    entries.reserve(dictionary->getCount());
+
+    for (size_t i = 0, count = dictionary->getCount(); i < count; ++i)
+    {
+        dictionary->getValue(i).accept(this);
+        Q_ASSERT(!m_objectStack.empty());
+        entries.emplace_back(dictionary->getKey(i), m_objectStack.back());
+        m_objectStack.pop_back();
+    }
+
+    m_objectStack.push_back(PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(entries))));
+}
+
+void PDFUpdateObjectVisitor::visitStream(const PDFStream* stream)
+{
+    const PDFDictionary* dictionary = stream->getDictionary();
+
+    visitDictionary(dictionary);
+
+    Q_ASSERT(!m_objectStack.empty());
+    PDFObject dictionaryObject = m_objectStack.back();
+    m_objectStack.pop_back();
+
+    PDFDictionary newDictionary(*dictionaryObject.getDictionary());
+    m_objectStack.push_back(PDFObject::createStream(std::make_shared<PDFStream>(qMove(newDictionary), QByteArray(*stream->getContent()))));
+}
+
+void PDFUpdateObjectVisitor::visitReference(const PDFObjectReference reference)
+{
+    m_objectStack.push_back(PDFObject::createReference(reference));
+}
+
+PDFObject PDFUpdateObjectVisitor::getObject()
+{
+    Q_ASSERT(m_objectStack.size() == 1);
+    return qMove(m_objectStack.back());
+}
+
 }   // namespace pdf
