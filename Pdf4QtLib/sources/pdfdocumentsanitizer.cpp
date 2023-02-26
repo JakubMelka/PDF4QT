@@ -186,6 +186,36 @@ void PDFDocumentSanitizer::performSanitizeFileAttachments()
         return annotation->getType() == AnnotationType::FileAttachment;
     };
     removeAnnotations(filter, tr("File attachments removed: %1."));
+
+    // Remove files in name tree
+    PDFDocumentBuilder builder(m_storage, PDFVersion(2, 0));
+    PDFObject catalogObject = builder.getObjectByReference(builder.getCatalogReference());
+    const PDFDictionary* catalogDictionary = builder.getDictionaryFromObject(catalogObject);
+    const bool hasNames = catalogDictionary && catalogDictionary->hasKey("Names");
+
+    if (hasNames)
+    {
+        PDFObject namesObject = builder.getObject(catalogDictionary->get("Names"));
+        const PDFDictionary* namesDictionary = builder.getDictionaryFromObject(namesObject);
+        if (namesDictionary->hasKey("EmbeddedFiles"))
+        {
+            PDFDictionary dictionaryCopy = *namesDictionary;
+            dictionaryCopy.setEntry(PDFInplaceOrMemoryString("EmbeddedFiles"), PDFObject());
+            namesObject = PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(dictionaryCopy)));
+
+            PDFObjectFactory factory;
+            factory.beginDictionary();
+            factory.beginDictionaryItem("Names");
+            factory << namesObject;
+            factory.endDictionaryItem();
+            factory.endDictionary();
+            PDFObject newCatalog = factory.takeObject();
+            builder.mergeTo(builder.getCatalogReference(), std::move(newCatalog));
+            PDFDocument document = builder.build();
+            m_storage = document.getStorage();
+            Q_EMIT sanitizationProgress(tr("Embedded files were removed."));
+        }
+    }
 }
 
 void PDFDocumentSanitizer::performSanitizeEmbeddedSearchIndex()

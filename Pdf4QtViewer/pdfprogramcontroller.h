@@ -394,6 +394,7 @@ private:
     pdf::PDFOptionalContentActivity* m_optionalContentActivity;
     pdf::PDFDocumentPointer m_pdfDocument;
     PDFTextToSpeech* m_textToSpeech;
+    bool m_isDocumentSetInProgress;
 
     QFuture<AsyncReadingResult> m_future;
     QFutureWatcher<AsyncReadingResult>* m_futureWatcher;

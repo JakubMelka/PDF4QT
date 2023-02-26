@@ -320,6 +320,7 @@ PDFProgramController::PDFProgramController(QObject* parent) :
     m_recentFileManager(new PDFRecentFileManager(this)),
     m_optionalContentActivity(nullptr),
     m_textToSpeech(nullptr),
+    m_isDocumentSetInProgress(false),
     m_futureWatcher(nullptr),
     m_CMSManager(new pdf::PDFCMSManager(this)),
     m_toolManager(nullptr),
@@ -1670,12 +1671,19 @@ void PDFProgramController::onDocumentModified(pdf::PDFModifiedDocument document)
     // We will create undo/redo step from old document, with flags from the new,
     // because new document is modification of old document with flags.
 
+    pdf::PDFBoolGuard guard(m_isDocumentSetInProgress);
     Q_ASSERT(m_pdfDocument);
 
     if (m_undoRedoManager)
     {
         m_undoRedoManager->createUndo(document, m_pdfDocument);
     }
+
+    // Retain pointer on old document, because during the update,
+    // old pointer must be valid, because some widgets holds raw
+    // pointer.
+    pdf::PDFDocumentPointer oldDocument = std::move(m_pdfDocument);
+    Q_UNUSED(oldDocument);
 
     m_pdfDocument = document;
     document.setOptionalContentActivity(m_optionalContentActivity);
@@ -2015,7 +2023,10 @@ void PDFProgramController::onActionCertificateManagerTriggered()
 
 void PDFProgramController::onDrawSpaceChanged()
 {
-    m_mainWindowInterface->updateUI(false);
+    if (!m_isDocumentSetInProgress)
+    {
+        m_mainWindowInterface->updateUI(false);
+    }
 }
 
 void PDFProgramController::onPageLayoutChanged()
