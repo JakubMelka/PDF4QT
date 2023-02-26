@@ -1,4 +1,4 @@
-//    Copyright (C) 2020-2021 Jakub Melka
+//    Copyright (C) 2020-2023 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -62,6 +62,12 @@ public:
     /// \param redoLimit Maximum redo steps
     void setMaximumSteps(size_t undoLimit, size_t redoLimit);
 
+    /// Returns true, if document was saved
+    bool isCurrentSaved() const;
+
+    /// Sets flag, if document was saved
+    void setIsCurrentSaved(bool newIsCurrentSaved = true);
+
 signals:
     /// This signals are emitted, when undo/redo action availability has
     /// been changed (for example, user pressed undo/redo action)
@@ -97,6 +103,7 @@ private:
     size_t m_redoLimit = 0;
     std::vector<UndoRedoItem> m_undoSteps;
     std::vector<UndoRedoItem> m_redoSteps;
+    bool m_isCurrentSaved = true;
 };
 
 }   // namespace pdfviewer

@@ -1,4 +1,4 @@
-//    Copyright (C) 2020-2022 Jakub Melka
+//    Copyright (C) 2020-2023 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -42,6 +42,7 @@ void PDFUndoRedoManager::doUndo()
 
     UndoRedoItem item = m_undoSteps.back();
     m_undoSteps.pop_back();
+    m_isCurrentSaved = false;
     m_redoSteps.insert(m_redoSteps.begin(), item);
     clampUndoRedoSteps();
 
@@ -59,6 +60,7 @@ void PDFUndoRedoManager::doRedo()
 
     UndoRedoItem item = m_redoSteps.front();
     m_redoSteps.erase(m_redoSteps.begin());
+    m_isCurrentSaved = false;
     m_undoSteps.push_back(item);
     clampUndoRedoSteps();
 
@@ -80,6 +82,7 @@ void PDFUndoRedoManager::createUndo(pdf::PDFModifiedDocument document, pdf::PDFD
 {
     m_undoSteps.emplace_back(oldDocument, document, document.getFlags());
     m_redoSteps.clear();
+    m_isCurrentSaved = false;
     clampUndoRedoSteps();
     Q_EMIT undoRedoStateChanged();
 }
@@ -107,6 +110,16 @@ void PDFUndoRedoManager::clampUndoRedoSteps()
         // Newest steps are erased
         m_redoSteps.resize(m_redoLimit);
     }
+}
+
+bool PDFUndoRedoManager::isCurrentSaved() const
+{
+    return m_isCurrentSaved;
+}
+
+void PDFUndoRedoManager::setIsCurrentSaved(bool newIsCurrentSaved)
+{
+    m_isCurrentSaved = newIsCurrentSaved;
 }
 
 }   // namespace pdfviewer

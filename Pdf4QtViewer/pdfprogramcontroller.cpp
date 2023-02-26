@@ -1057,6 +1057,11 @@ void PDFProgramController::saveDocument(const QString& fileName)
     pdf::PDFOperationResult result = writer.write(fileName, m_pdfDocument.data(), true);
     if (result)
     {
+        if (m_undoRedoManager)
+        {
+            m_undoRedoManager->setIsCurrentSaved(true);
+        }
+
         updateFileInfo(fileName);
         updateTitle();
 
@@ -1089,6 +1094,41 @@ void PDFProgramController::setIsBusy(bool isBusy)
 bool PDFProgramController::canClose() const
 {
     return !(m_futureWatcher && m_futureWatcher->isRunning()) || !m_isBusy;
+}
+
+bool PDFProgramController::askForSaveDocumentBeforeClose()
+{
+    if (!m_pdfDocument)
+    {
+        // Nothing to be done
+        return true;
+    }
+
+    if (m_undoRedoManager && !m_undoRedoManager->isCurrentSaved())
+    {
+        QString title = tr("Save Document");
+        QString message = tr("Do you wish to save modified document before it is closed?");
+        switch (QMessageBox::question(m_mainWindow, title, message, QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel, QMessageBox::Cancel))
+        {
+            case QMessageBox::Yes:
+            {
+                performSave();
+                return m_undoRedoManager->isCurrentSaved();
+            }
+
+            case QMessageBox::No:
+                return true;
+
+            case QMessageBox::Cancel:
+                return false;
+
+            default:
+                Q_ASSERT(false);
+                return true;
+        }
+    }
+
+    return true;
 }
 
 QString PDFProgramController::getOriginalFileName() const
@@ -1174,7 +1214,7 @@ void PDFProgramController::onActionOptimizeTriggered()
     if (dialog.exec() == QDialog::Accepted)
     {
         pdf::PDFDocumentPointer pointer(new pdf::PDFDocument(dialog.takeOptimizedDocument()));
-        pdf::PDFModifiedDocument document(qMove(pointer), m_optionalContentActivity, pdf::PDFModifiedDocument::Reset);
+        pdf::PDFModifiedDocument document(qMove(pointer), m_optionalContentActivity, pdf::PDFModifiedDocument::ModificationFlags(pdf::PDFModifiedDocument::Reset | pdf::PDFModifiedDocument::PreserveUndoRedo));
         onDocumentModified(qMove(document));
     }
 }
@@ -1186,7 +1226,7 @@ void PDFProgramController::onActionSanitizeTriggered()
     if (dialog.exec() == QDialog::Accepted)
     {
         pdf::PDFDocumentPointer pointer(new pdf::PDFDocument(dialog.takeSanitizedDocument()));
-        pdf::PDFModifiedDocument document(qMove(pointer), m_optionalContentActivity, pdf::PDFModifiedDocument::Reset);
+        pdf::PDFModifiedDocument document(qMove(pointer), m_optionalContentActivity, pdf::PDFModifiedDocument::ModificationFlags(pdf::PDFModifiedDocument::Reset | pdf::PDFModifiedDocument::PreserveUndoRedo));
         onDocumentModified(qMove(document));
     }
 }
@@ -1626,7 +1666,7 @@ void PDFProgramController::onDocumentReadingFinished()
             m_pdfDocument = qMove(result.document);
             m_signatures = qMove(result.signatures);
             pdf::PDFModifiedDocument document(m_pdfDocument.data(), m_optionalContentActivity);
-            setDocument(document);
+            setDocument(document, true);
 
             if (m_formManager)
             {
@@ -1687,17 +1727,17 @@ void PDFProgramController::onDocumentModified(pdf::PDFModifiedDocument document)
 
     m_pdfDocument = document;
     document.setOptionalContentActivity(m_optionalContentActivity);
-    setDocument(document);
+    setDocument(document, false);
 }
 
 void PDFProgramController::onDocumentUndoRedo(pdf::PDFModifiedDocument document)
 {
     m_pdfDocument = document;
     document.setOptionalContentActivity(m_optionalContentActivity);
-    setDocument(document);
+    setDocument(document, false);
 }
 
-void PDFProgramController::setDocument(pdf::PDFModifiedDocument document)
+void PDFProgramController::setDocument(pdf::PDFModifiedDocument document, bool isCurrentSaved)
 {
     if (document.hasReset())
     {
@@ -1714,7 +1754,7 @@ void PDFProgramController::setDocument(pdf::PDFModifiedDocument document)
             m_optionalContentActivity = new pdf::PDFOptionalContentActivity(document, pdf::OCUsage::View, this);
         }
 
-        if (m_undoRedoManager)
+        if (m_undoRedoManager && !document.hasFlag(pdf::PDFModifiedDocument::PreserveUndoRedo))
         {
             m_undoRedoManager->clear();
         }
@@ -1747,6 +1787,11 @@ void PDFProgramController::setDocument(pdf::PDFModifiedDocument document)
         m_textToSpeech->setDocument(document);
     }
 
+    if (m_undoRedoManager)
+    {
+        m_undoRedoManager->setIsCurrentSaved(isCurrentSaved);
+    }
+
     m_pdfWidget->setDocument(document);
     m_mainWindowInterface->setDocument(document);
     m_CMSManager->setDocument(document);
@@ -1777,7 +1822,7 @@ void PDFProgramController::setDocument(pdf::PDFModifiedDocument document)
 void PDFProgramController::closeDocument()
 {
     m_signatures.clear();
-    setDocument(pdf::PDFModifiedDocument());
+    setDocument(pdf::PDFModifiedDocument(), true);
     m_pdfDocument.reset();
     updateActionsAvailability();
     updateTitle();
@@ -1797,10 +1842,17 @@ void PDFProgramController::updateTitle()
     if (m_pdfDocument)
     {
         QString title = m_pdfDocument->getInfo()->title;
+
         if (title.isEmpty())
         {
             title = m_fileInfo.fileName;
         }
+
+        if (m_undoRedoManager && !m_undoRedoManager->isCurrentSaved())
+        {
+            title += "*";
+        }
+
         m_mainWindow->setWindowTitle(tr("%1 - %2").arg(title, QApplication::applicationDisplayName()));
     }
     else
@@ -2046,7 +2098,10 @@ void PDFProgramController::onActionOpenTriggered()
 
 void PDFProgramController::onActionCloseTriggered()
 {
-    closeDocument();
+    if (askForSaveDocumentBeforeClose())
+    {
+        closeDocument();
+    }
 }
 
 void PDFProgramController::onActionDeveloperCreateInstaller()

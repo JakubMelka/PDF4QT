@@ -502,6 +502,13 @@ void PDFViewerMainWindow::closeEvent(QCloseEvent* event)
     }
     else
     {
+        if (!m_programController->askForSaveDocumentBeforeClose())
+        {
+            // User cancelled close operation
+            event->ignore();
+            return;
+        }
+
         if (!m_programController->isFactorySettingsBeingRestored())
         {
             m_programController->writeSettings();

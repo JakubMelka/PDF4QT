@@ -499,13 +499,14 @@ public:
 
     enum ModificationFlag
     {
-        None            = 0x0000,   ///< No flag
-        Reset           = 0x0001,   ///< Whole document content is changed (for example, new document is being set)
-        PageContents    = 0x0002,   ///< Page contents changed (page graphics, not annotations)
-        Annotation      = 0x0004,   ///< Annotations changed
-        FormField       = 0x0008,   ///< Form field content changed
-        Authorization   = 0x0010,   ///< Authorization has changed (for example, old document is granted user access, but for new, owner access)
-        XFA_Pagination  = 0x0020,   ///< XFA pagination has been performed (this flag can be set only when Reset flag has been set and not any other flag)
+        None                = 0x0000,   ///< No flag
+        Reset               = 0x0001,   ///< Whole document content is changed (for example, new document is being set)
+        PageContents        = 0x0002,   ///< Page contents changed (page graphics, not annotations)
+        Annotation          = 0x0004,   ///< Annotations changed
+        FormField           = 0x0008,   ///< Form field content changed
+        Authorization       = 0x0010,   ///< Authorization has changed (for example, old document is granted user access, but for new, owner access)
+        XFA_Pagination      = 0x0020,   ///< XFA pagination has been performed (this flag can be set only when Reset flag has been set and not any other flag)
+        PreserveUndoRedo    = 0x0040,   ///< Preserve undo/red even when Reset flag is being set
     };
 
     Q_DECLARE_FLAGS(ModificationFlags, ModificationFlag)

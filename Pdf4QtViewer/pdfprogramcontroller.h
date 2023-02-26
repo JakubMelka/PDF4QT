@@ -255,7 +255,7 @@ public:
     Q_DECLARE_FLAGS(Features, Feature)
 
     void openDocument(const QString& fileName);
-    void setDocument(pdf::PDFModifiedDocument document);
+    void setDocument(pdf::PDFModifiedDocument document, bool isCurrentSaved);
     void closeDocument();
 
     pdf::PDFWidget* getPdfWidget() const { return m_pdfWidget; }
@@ -287,6 +287,7 @@ public:
     void setIsBusy(bool isBusy);
 
     bool canClose() const;
+    bool askForSaveDocumentBeforeClose();
 
     virtual QString getOriginalFileName() const override;
     virtual pdf::PDFTextSelection getSelectedText() const override;
