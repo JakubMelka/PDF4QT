@@ -2615,8 +2615,10 @@ void PDFTransparencyRenderer::performTextEnd(ProcessOrder order)
     }
 }
 
-bool PDFTransparencyRenderer::performOriginalImagePainting(const PDFImage& image)
+bool PDFTransparencyRenderer::performOriginalImagePainting(const PDFImage& image, const PDFStream* stream)
 {
+    Q_UNUSED(stream);
+
     PDFFloatBitmap texture = getImage(image);
 
     if (m_settings.flags.testFlag(PDFTransparencyRendererSettings::SmoothImageTransformation) && image.isInterpolated())

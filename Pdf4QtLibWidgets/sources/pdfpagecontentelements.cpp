@@ -21,6 +21,7 @@
 #include "pdfdrawspacecontroller.h"
 #include "pdfwidgetutils.h"
 #include "pdfutils.h"
+#include "pdfpagecontenteditorprocessor.h"
 
 #include <QBuffer>
 #include <QPainter>
@@ -61,6 +62,7 @@ Qt::CursorShape PDFPageContentElement::getCursorShapeForManipulationMode(uint mo
         case Pt1:
         case Pt2:
         case Translate:
+        case Select:
             return Qt::ArrowCursor;
 
         case Top:
@@ -154,6 +156,7 @@ void PDFPageContentElement::performRectangleManipulation(QRectF& rectangle,
     switch (mode)
     {
         case None:
+        case Select:
             break;
 
         case Translate:
@@ -2533,4 +2536,52 @@ void PDFPageContentElementTextBox::setAlignment(const Qt::Alignment& newAlignmen
     m_alignment = newAlignment;
 }
 
+PDFPageContentElementEdited::PDFPageContentElementEdited(const PDFEditedPageContentElement* element) :
+    m_element(element->clone())
+{
+
+}
+
+PDFPageContentElementEdited::~PDFPageContentElementEdited()
+{
+
+}
+
+PDFPageContentElementEdited* PDFPageContentElementEdited::clone() const
+{
+    return new PDFPageContentElementEdited(m_element.get());
+}
+
+void PDFPageContentElementEdited::drawPage(QPainter* painter, PDFInteger pageIndex, const PDFPrecompiledPage* compiledPage, PDFTextLayoutGetter& layoutGetter, const QTransform& pagePointToDevicePointMatrix, QList<PDFRenderError>& errors) const
+{
+}
+
+uint PDFPageContentElementEdited::getManipulationMode(const QPointF& point, PDFReal snapPointDistanceThreshold) const
+{
+    Q_UNUSED(point);
+    Q_UNUSED(snapPointDistanceThreshold);
+
+    return None;
+}
+
+void PDFPageContentElementEdited::performManipulation(uint mode, const QPointF& offset)
+{
+    Q_UNUSED(mode);
+    Q_UNUSED(offset);
+}
+
+QRectF PDFPageContentElementEdited::getBoundingBox() const
+{
+    return m_element->getState()
+}
+
+void PDFPageContentElementEdited::setSize(QSizeF size)
+{
+}
+
+QString PDFPageContentElementEdited::getDescription() const
+{
+}
+
 }   // namespace pdf
+

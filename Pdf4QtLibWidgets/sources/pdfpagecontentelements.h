@@ -37,6 +37,7 @@ namespace pdf
 class PDFWidget;
 class PDFDocument;
 class PDFPageContentScene;
+class PDFEditedPageContentElement;
 
 class PDF4QTLIBWIDGETSSHARED_EXPORT PDFPageContentElement
 { 
@@ -89,6 +90,7 @@ public:
     enum ManipulationModes : uint
     {
         None = 0,
+        Select,
         Translate,
         Top,
         Left,
@@ -351,6 +353,24 @@ private:
     QFont m_font;
     PDFReal m_angle = 0.0;
     Qt::Alignment m_alignment = Qt::AlignCenter;
+};
+
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFPageContentElementEdited : public PDFPageContentElement
+{
+public:
+    PDFPageContentElementEdited(const PDFEditedPageContentElement* element);
+    virtual ~PDFPageContentElementEdited();
+
+    virtual PDFPageContentElementEdited* clone() const override;
+    virtual void drawPage(QPainter* painter, PDFInteger pageIndex, const PDFPrecompiledPage* compiledPage, PDFTextLayoutGetter& layoutGetter, const QTransform& pagePointToDevicePointMatrix, QList<PDFRenderError>& errors) const override;
+    virtual uint getManipulationMode(const QPointF& point, PDFReal snapPointDistanceThreshold) const override;
+    virtual void performManipulation(uint mode, const QPointF& offset) override;
+    virtual QRectF getBoundingBox() const override;
+    virtual void setSize(QSizeF size) override;
+    virtual QString getDescription() const override;
+
+private:
+    std::unique_ptr<PDFEditedPageContentElement> m_element;
 };
 
 class PDF4QTLIBWIDGETSSHARED_EXPORT PDFPageContentElementManipulator : public QObject
