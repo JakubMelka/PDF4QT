@@ -55,6 +55,7 @@ private:
     PageItemModel* m_model;
     QSize m_pageImageSize;
     pdf::PDFRasterizer* m_rasterizer;
+    mutable double m_dpiScaleRatio = 1.0;
 };
 
 }   // namespace pdfdocpage

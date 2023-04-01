@@ -37,7 +37,7 @@ PageItemDelegate::PageItemDelegate(PageItemModel* model, QObject* parent) :
     m_rasterizer = new pdf::PDFRasterizer(this);
     QSurfaceFormat format;
     format.setSamples(16);
-    m_rasterizer->reset(true, format);
+    m_rasterizer->reset(false, format);
 }
 
 PageItemDelegate::~PageItemDelegate()
@@ -56,6 +56,7 @@ void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& opti
 
     QRect rect = option.rect;
 
+    m_dpiScaleRatio = option.widget->devicePixelRatioF();
     QSize scaledSize = pdf::PDFWidgetUtils::scaleDPI(option.widget, m_pageImageSize);
     int verticalSpacing = pdf::PDFWidgetUtils::scaleDPI_y(option.widget, getVerticalSpacing());
     int horizontalSpacing = pdf::PDFWidgetUtils::scaleDPI_x(option.widget, getHorizontalSpacing());
@@ -191,7 +192,7 @@ QPixmap PageItemDelegate::getPageImagePixmap(const PageGroupItem* item, QRect re
                         pdf::PDFRenderer renderer(&document, &fontCache, cms.data(), &optionalContentActivity, pdf::PDFRenderer::getDefaultFeatures(), pdf::PDFMeshQualitySettings());
                         renderer.compile(&compiledPage, pageIndex);
 
-                        QSize imageSize = rect.size();
+                        QSize imageSize = rect.size() * m_dpiScaleRatio;
                         QImage pageImage = m_rasterizer->render(pageIndex, page, &compiledPage, imageSize, pdf::PDFRenderer::getDefaultFeatures(), nullptr, groupItem.pageAdditionalRotation);
                         pixmap = QPixmap::fromImage(qMove(pageImage));
                     }
