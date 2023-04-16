@@ -61,8 +61,8 @@ QTransform PDFRenderer::createPagePointToDevicePointMatrix(const PDFPage* page,
 }
 
 QTransform PDFRenderer::createMediaBoxToDevicePointMatrix(const QRectF& mediaBox,
-                                                       const QRectF& rectangle,
-                                                       PageRotation rotation)
+                                                          const QRectF& rectangle,
+                                                          PageRotation rotation)
 {
     QTransform matrix;
     switch (rotation)
@@ -104,6 +104,8 @@ QTransform PDFRenderer::createMediaBoxToDevicePointMatrix(const QRectF& mediaBox
             break;
         }
     }
+
+    matrix.translate(-mediaBox.left(), -mediaBox.top());
 
     return matrix;
 }
