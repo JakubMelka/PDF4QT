@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #45: Blank page in DocPage Organizer
  - Issue #43: Save question
  - Issue #40: Sanitization of documents
 
