@@ -44,7 +44,7 @@ PDFWidget::PDFWidget(const PDFCMSManager* cmsManager, RendererEngine engine, int
     m_verticalScrollBar(nullptr),
     m_proxy(nullptr)
 {
-    m_drawWidget = createDrawWidget(engine, samplesCount);
+    m_drawWidget = createDrawWidget(getEffectiveRenderer(engine), samplesCount);
     m_horizontalScrollBar = new QScrollBar(Qt::Horizontal, this);
     m_verticalScrollBar = new QScrollBar(Qt::Vertical, this);
 
@@ -90,6 +90,8 @@ void PDFWidget::setDocument(const PDFModifiedDocument& document)
 
 void PDFWidget::updateRenderer(RendererEngine engine, int samplesCount)
 {
+    engine = getEffectiveRenderer(engine);
+
     PDFOpenGLDrawWidget* openglDrawWidget = qobject_cast<PDFOpenGLDrawWidget*>(m_drawWidget->getWidget());
     PDFDrawWidget* softwareDrawWidget = qobject_cast<PDFDrawWidget*>(m_drawWidget->getWidget());
 
@@ -205,6 +207,16 @@ void PDFWidget::addInputInterface(IDrawWidgetInputInterface* inputInterface)
         m_inputInterfaces.push_back(inputInterface);
         std::sort(m_inputInterfaces.begin(), m_inputInterfaces.end(), IDrawWidgetInputInterface::Comparator());
     }
+}
+
+RendererEngine PDFWidget::getEffectiveRenderer(RendererEngine rendererEngine)
+{
+    if (rendererEngine == RendererEngine::OpenGL && !pdf::PDFRendererInfo::isHardwareAccelerationSupported())
+    {
+        return RendererEngine::Software;
+    }
+
+    return rendererEngine;
 }
 
 PDFFormManager* PDFWidget::getFormManager() const
@@ -591,8 +603,11 @@ void PDFOpenGLDrawWidget::initializeGL()
 
 void PDFOpenGLDrawWidget::paintGL()
 {
-    QPainter painter(this);
-    getPDFWidget()->getDrawWidgetProxy()->draw(&painter, this->rect());
+    if (this->isValid())
+    {
+        QPainter painter(this);
+        getPDFWidget()->getDrawWidgetProxy()->draw(&painter, this->rect());
+    }
 }
 
 PDFDrawWidget::PDFDrawWidget(PDFWidget* widget, QWidget* parent) :

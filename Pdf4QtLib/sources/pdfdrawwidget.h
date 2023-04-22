@@ -106,6 +106,8 @@ signals:
     void pageRenderingErrorsChanged(pdf::PDFInteger pageIndex, int errorsCount);
 
 private:
+    RendererEngine getEffectiveRenderer(RendererEngine rendererEngine);
+
     void updateRendererImpl();
     void onRenderingError(PDFInteger pageIndex, const QList<PDFRenderError>& errors);
     void onPageImageChanged(bool all, const std::vector<PDFInteger>& pages);

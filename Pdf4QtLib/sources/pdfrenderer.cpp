@@ -29,6 +29,7 @@
 #include <QOffscreenSurface>
 #include <QOpenGLPaintDevice>
 #include <QOpenGLFramebufferObject>
+#include <QOpenGLFunctions>
 
 namespace pdf
 {
@@ -204,6 +205,12 @@ PDFRasterizer::~PDFRasterizer()
 
 void PDFRasterizer::reset(bool useOpenGL, const QSurfaceFormat& surfaceFormat)
 {
+    if (!PDFRendererInfo::isHardwareAccelerationSupported())
+    {
+        m_features.setFlag(FailedOpenGL, true);
+        m_features.setFlag(ValidOpenGL, false);
+    }
+
     if (useOpenGL != m_features.testFlag(UseOpenGL) || surfaceFormat != m_surfaceFormat)
     {
         // In either case, we must reset OpenGL
@@ -925,6 +932,80 @@ PDFRasterizerPool::PDFRasterizerPool(const PDFDocument* document,
         m_rasterizers.push_back(new PDFRasterizer(this));
         m_rasterizers.back()->reset(useOpenGL, surfaceFormat);
     }
+}
+
+PDFCachedItem<PDFRendererInfo::Info> PDFRendererInfo::s_info;
+
+const PDFRendererInfo::Info& PDFRendererInfo::getHardwareAccelerationSupportedInfo()
+{
+    auto getInfo = []()
+    {
+        Info info;
+
+        QOffscreenSurface surface;
+        surface.create();
+
+        if (!surface.isValid())
+        {
+            info.renderer = PDFTranslationContext::tr("Unknown Device");
+            info.version = PDFTranslationContext::tr("?.?");
+            info.vendor = PDFTranslationContext::tr("Generic");
+            return info;
+        }
+
+        QOpenGLContext context;
+
+        if (!context.create())
+        {
+            info.renderer = PDFTranslationContext::tr("Unknown Device");
+            info.version = PDFTranslationContext::tr("?.?");
+            info.vendor = PDFTranslationContext::tr("Generic");
+            surface.destroy();
+            return info;
+        }
+
+        if (!context.makeCurrent(&surface))
+        {
+            info.renderer = PDFTranslationContext::tr("Unknown Device");
+            info.version = PDFTranslationContext::tr("?.?");
+            info.vendor = PDFTranslationContext::tr("Generic");
+            surface.destroy();
+            return info;
+        }
+
+        const char* versionStr = reinterpret_cast<const char*>(context.functions()->glGetString(GL_VERSION));
+        const char* vendorStr = reinterpret_cast<const char*>(context.functions()->glGetString(GL_VENDOR));
+        const char* rendererStr = reinterpret_cast<const char*>(context.functions()->glGetString(GL_RENDERER));
+
+        QString versionString = QString::fromLocal8Bit(versionStr, std::strlen(versionStr));
+        QString vendorString = QString::fromLocal8Bit(vendorStr, std::strlen(vendorStr));
+        QString rendererString = QString::fromLocal8Bit(rendererStr, std::strlen(rendererStr));
+
+        context.doneCurrent();
+        surface.destroy();
+
+        info.vendor = vendorString;
+        info.renderer = rendererString;
+        info.version = versionString;
+
+        QStringList versionStrSplitted = versionString.split('.', Qt::KeepEmptyParts);
+
+        if (versionStrSplitted.size() >= 2)
+        {
+            info.majorOpenGLVersion = versionStrSplitted[0].toInt();
+            info.minorOpenGLVersion = versionStrSplitted[1].toInt();
+        }
+
+        return info;
+    };
+
+    return s_info.get(getInfo);
+}
+
+bool PDFRendererInfo::isHardwareAccelerationSupported()
+{
+    const Info& info = getHardwareAccelerationSupportedInfo();
+    return std::make_pair(info.majorOpenGLVersion, info.minorOpenGLVersion) >= std::make_pair(REQUIRED_OPENGL_MAJOR_VERSION, REQUIRED_OPENGL_MINOR_VERSION);
 }
 
 }   // namespace pdf

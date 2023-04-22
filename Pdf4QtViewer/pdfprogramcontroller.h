@@ -276,6 +276,8 @@ public:
     void writeSettings();
     void resetSettings();
 
+    void checkHardwareOpenGLAvailability();
+
     void performPrint();
     void performSave();
     void performSaveAs();

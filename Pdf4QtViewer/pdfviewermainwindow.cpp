@@ -523,6 +523,7 @@ void PDFViewerMainWindow::showEvent(QShowEvent* event)
 {
     QMainWindow::showEvent(event);
     m_progressTaskbarIndicator->setWindow(windowHandle());
+    QTimer::singleShot(0, this, [this] { m_programController->checkHardwareOpenGLAvailability(); });
 }
 
 void PDFViewerMainWindow::dragEnterEvent(QDragEnterEvent* event)

@@ -22,6 +22,7 @@
 #include "pdfexception.h"
 #include "pdfoperationcontrol.h"
 #include "pdfmeshqualitysettings.h"
+#include "pdfutils.h"
 
 #include <QMutex>
 #include <QSemaphore>
@@ -43,6 +44,30 @@ class PDFCMSManager;
 class PDFPrecompiledPage;
 class PDFAnnotationManager;
 class PDFOptionalContentActivity;
+
+class PDF4QTLIBSHARED_EXPORT PDFRendererInfo
+{
+public:
+    PDFRendererInfo() = delete;
+
+    struct Info
+    {
+        QString vendor;
+        QString renderer;
+        QString version;
+        int majorOpenGLVersion = 0;
+        int minorOpenGLVersion = 0;
+    };
+
+    static const Info& getHardwareAccelerationSupportedInfo();
+    static bool isHardwareAccelerationSupported();
+
+    static constexpr int REQUIRED_OPENGL_MAJOR_VERSION = 3;
+    static constexpr int REQUIRED_OPENGL_MINOR_VERSION = 2;
+
+private:
+    static PDFCachedItem<Info> s_info;
+};
 
 /// Renders the PDF page on the painter, or onto an image.
 class PDF4QTLIBSHARED_EXPORT PDFRenderer
@@ -144,8 +169,9 @@ public:
 
     /// Resets the renderer. This function must be called from main GUI thread,
     /// it cannot be called from deferred threads, because it can create hidden
-    /// window (offscreen surface).
-    /// \param useOpenGL Use OpenGL for rendering
+    /// window (offscreen surface). If hardware renderer is required, and
+    /// none is available, then software renderer is used.
+    /// \param useOpenGL Use OpenGL for rendering (ignored if not available)
     /// \param surfaceFormat Surface format to render
     void reset(bool useOpenGL, const QSurfaceFormat& surfaceFormat);
 
