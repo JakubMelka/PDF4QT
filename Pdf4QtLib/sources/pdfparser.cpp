@@ -270,10 +270,10 @@ PDFLexicalAnalyzer::Token PDFLexicalAnalyzer::fetch()
                                 {
                                     string += static_cast<char>(octalNumber);
                                 }
-                                else
-                                {
-                                    error(tr("Expected octal number with 1-3 digits."));
-                                }
+
+                                // If it is not an octal number, then we silently ignore it.
+                                // Documentation states that we should ignore the backslash
+                                // character if it has other form than above.
 
                                 break;
                             }
