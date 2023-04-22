@@ -947,9 +947,9 @@ const PDFRendererInfo::Info& PDFRendererInfo::getHardwareAccelerationSupportedIn
 
         if (!surface.isValid())
         {
-            info.renderer = PDFTranslationContext::tr("Unknown Device");
-            info.version = PDFTranslationContext::tr("?.?");
-            info.vendor = PDFTranslationContext::tr("Generic");
+            info.renderer = PDFTranslationContext::tr("GDI Generic");
+            info.version = PDFTranslationContext::tr("1.1");
+            info.vendor = PDFTranslationContext::tr("System");
             return info;
         }
 
@@ -957,18 +957,18 @@ const PDFRendererInfo::Info& PDFRendererInfo::getHardwareAccelerationSupportedIn
 
         if (!context.create())
         {
-            info.renderer = PDFTranslationContext::tr("Unknown Device");
-            info.version = PDFTranslationContext::tr("?.?");
-            info.vendor = PDFTranslationContext::tr("Generic");
+            info.renderer = PDFTranslationContext::tr("GDI Generic");
+            info.version = PDFTranslationContext::tr("1.1");
+            info.vendor = PDFTranslationContext::tr("System");
             surface.destroy();
             return info;
         }
 
         if (!context.makeCurrent(&surface))
         {
-            info.renderer = PDFTranslationContext::tr("Unknown Device");
-            info.version = PDFTranslationContext::tr("?.?");
-            info.vendor = PDFTranslationContext::tr("Generic");
+            info.renderer = PDFTranslationContext::tr("GDI Generic");
+            info.version = PDFTranslationContext::tr("1.1");
+            info.vendor = PDFTranslationContext::tr("System");
             surface.destroy();
             return info;
         }
