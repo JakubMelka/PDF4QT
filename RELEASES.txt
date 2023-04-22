@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #46: Program does not launch/freezes on Windows 10/Windows Server 2022 (x64)
  - Issue #48: Page not displayed correctly
  - Issue #45: Blank page in DocPage Organizer
  - Issue #43: Save question
