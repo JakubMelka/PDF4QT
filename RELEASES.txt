@@ -1,4 +1,7 @@
 CURRENT:
+
+V: 1.3.3 22.4.2023
+ - Issue #49: Document read error
  - Issue #46: Program does not launch/freezes on Windows 10/Windows Server 2022 (x64)
  - Issue #48: Page not displayed correctly
  - Issue #45: Blank page in DocPage Organizer
