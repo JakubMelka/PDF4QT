@@ -1505,7 +1505,7 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
             fontDescriptor = readFontDescriptor(fontDescriptorObjectForCompositeFont, document);
 
             QByteArray cidToGidMapping;
-            const PDFObject& cidToGidMappingObject = document->getObject(descendantFontDictionary->get("CIDtoGIDMap"));
+            const PDFObject& cidToGidMappingObject = document->getObject(descendantFontDictionary->get("CIDToGIDMap"));
             if (cidToGidMappingObject.isStream())
             {
                 const PDFStream* cidToGidMappingStream = cidToGidMappingObject.getStream();
