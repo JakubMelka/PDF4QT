@@ -523,12 +523,17 @@ QByteArray PDFFlateDecodeFilter::uncompress(const QByteArray& data)
 
         default:
         {
-            if (errorMessage.isEmpty())
-            {
-                errorMessage = PDFTranslationContext::tr("zlib code: %1").arg(error);
-            }
+            const bool ignoreError = error == Z_DATA_ERROR && errorMessage == "incorrect data check";
 
-            throw PDFException(PDFTranslationContext::tr("Error decompressing by flate method: %1").arg(errorMessage));
+            if (!ignoreError)
+            {
+                if (errorMessage.isEmpty())
+                {
+                    errorMessage = PDFTranslationContext::tr("zlib code: %1").arg(error);
+                }
+
+                throw PDFException(PDFTranslationContext::tr("Error decompressing by flate method: %1").arg(errorMessage));
+            }
         }
     }
 
