@@ -351,10 +351,6 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
                     {
                         result.m_optionFlags.setFlag(flag, flagObject.getBool());
                     }
-                    else
-                    {
-                        throw PDFException(PDFTranslationContext::tr("Expected boolean value."));
-                    }
                 }
             };
             addFlag(PDF_VIEWER_PREFERENCES_HIDE_TOOLBAR, HideToolbar);
@@ -367,13 +363,8 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
 
             // Non-fullscreen page mode
             const PDFObject& nonFullscreenPageMode = document->getObject(viewerPreferencesDictionary->get(PDF_VIEWER_PREFERENCES_NON_FULLSCREEN_PAGE_MODE));
-            if (!nonFullscreenPageMode.isNull())
+            if (nonFullscreenPageMode.isName())
             {
-                if (!nonFullscreenPageMode.isName())
-                {
-                    throw PDFException(PDFTranslationContext::tr("Expected name."));
-                }
-
                 QByteArray enumName = nonFullscreenPageMode.getString();
                 if (enumName == "UseNone")
                 {
@@ -391,21 +382,12 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
                 {
                     result.m_nonFullScreenPageMode = NonFullScreenPageMode::UseOptionalContent;
                 }
-                else
-                {
-                    throw PDFException(PDFTranslationContext::tr("Unknown viewer preferences settings."));
-                }
             }
 
             // Direction
             const PDFObject& direction = document->getObject(viewerPreferencesDictionary->get(PDF_VIEWER_PREFERENCES_DIRECTION));
-            if (!direction.isNull())
+            if (direction.isName())
             {
-                if (!direction.isName())
-                {
-                    throw PDFException(PDFTranslationContext::tr("Expected name."));
-                }
-
                 QByteArray enumName = direction.getString();
                 if (enumName == "L2R")
                 {
@@ -414,10 +396,6 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
                 else if (enumName == "R2L")
                 {
                     result.m_direction = Direction::RightToLeft;
-                }
-                else
-                {
-                    throw PDFException(PDFTranslationContext::tr("Unknown viewer preferences settings."));
                 }
             }
 
@@ -430,10 +408,6 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
                     {
                         result.m_properties[property] = propertyObject.getString();
                     }
-                    else
-                    {
-                        throw PDFException(PDFTranslationContext::tr("Expected name."));
-                    }
                 }
             };
             addProperty(PDF_VIEWER_PREFERENCES_VIEW_AREA, ViewArea);
@@ -443,13 +417,8 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
 
             // Print scaling
             const PDFObject& printScaling = document->getObject(viewerPreferencesDictionary->get(PDF_VIEWER_PREFERENCES_PRINT_SCALING));
-            if (!printScaling.isNull())
+            if (printScaling.isName())
             {
-                if (!printScaling.isName())
-                {
-                    throw PDFException(PDFTranslationContext::tr("Expected name."));
-                }
-
                 QByteArray enumName = printScaling.getString();
                 if (enumName == "None")
                 {
@@ -459,21 +428,12 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
                 {
                     result.m_printScaling = PrintScaling::AppDefault;
                 }
-                else
-                {
-                    throw PDFException(PDFTranslationContext::tr("Unknown viewer preferences settings."));
-                }
             }
 
             // Duplex
             const PDFObject& duplex = document->getObject(viewerPreferencesDictionary->get(PDF_VIEWER_PREFERENCES_DUPLEX));
-            if (!duplex.isNull())
+            if (duplex.isName())
             {
-                if (!duplex.isName())
-                {
-                    throw PDFException(PDFTranslationContext::tr("Expected name."));
-                }
-
                 QByteArray enumName = duplex.getString();
                 if (enumName == "Simplex")
                 {
@@ -487,21 +447,12 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
                 {
                     result.m_duplex = Duplex::DuplexFlipLongEdge;
                 }
-                else
-                {
-                    throw PDFException(PDFTranslationContext::tr("Unknown viewer preferences settings."));
-                }
             }
 
             // Print page range
             const PDFObject& printPageRange = document->getObject(viewerPreferencesDictionary->get(PDF_VIEWER_PREFERENCES_PRINT_PAGE_RANGE));
-            if (!printPageRange.isNull())
+            if (printPageRange.isArray())
             {
-                if (!duplex.isArray())
-                {
-                    throw PDFException(PDFTranslationContext::tr("Expected array of integers."));
-                }
-
                 // According to PDF Reference 1.7, this entry is ignored in following cases:
                 //  1) Array size is odd
                 //  2) Array contains negative numbers
@@ -549,10 +500,6 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
                                     Q_ASSERT(false);
                             }
                         }
-                        else
-                        {
-                            throw PDFException(PDFTranslationContext::tr("Expected integer."));
-                        }
                     }
 
                     // Did we get negative or zero value? If yes, clear the range.
@@ -571,20 +518,12 @@ PDFViewerPreferences PDFViewerPreferences::parse(const PDFObject& catalogDiction
                 {
                     result.m_numberOfCopies = numberOfCopies.getInteger();
                 }
-                else
-                {
-                    throw PDFException(PDFTranslationContext::tr("Expected integer."));
-                }
             }
 
             // Enforce
             PDFDocumentDataLoaderDecorator loader(document);
             std::vector<QByteArray> enforce = loader.readNameArrayFromDictionary(viewerPreferencesDictionary, "Enforce");
             result.m_optionFlags.setFlag(EnforcePrintScaling, std::find(enforce.cbegin(), enforce.cend(), "PrintScaling") != enforce.cend());
-        }
-        else if (!viewerPreferencesObject.isNull())
-        {
-            throw PDFException(PDFTranslationContext::tr("Viewer preferences must be a dictionary."));
         }
     }
 
@@ -609,10 +548,8 @@ PDFPageLabel PDFPageLabel::parse(PDFInteger pageIndex, const PDFObjectStorage* s
         const PDFInteger startNumber = loader.readInteger(dictionary->get("St"), 1);
         return PDFPageLabel(numberingStyle, prefix, pageIndex, startNumber);
     }
-    else
-    {
-        throw PDFException(PDFTranslationContext::tr("Expected page label dictionary."));
-    }
+
+    return PDFPageLabel();
 }
 
 const PDFDocumentSecurityStore::SecurityStoreItem* PDFDocumentSecurityStore::getItem(const QByteArray& hash) const
@@ -740,10 +677,6 @@ PDFDocumentInfo PDFDocumentInfo::parse(const PDFObject& object, const PDFObjectS
                     // We have succesfully read the string, convert it according to encoding
                     fillEntry = PDFEncoding::convertTextString(stringObject.getString());
                 }
-                else if (!stringObject.isNull())
-                {
-                    throw PDFException(PDFTranslationContext::tr("Bad format of document info entry in trailer dictionary. String expected."));
-                }
             }
         };
         readTextString(PDF_DOCUMENT_INFO_ENTRY_TITLE, info.title);
@@ -762,15 +695,6 @@ PDFDocumentInfo PDFDocumentInfo::parse(const PDFObject& object, const PDFObjectS
                 {
                     // We have succesfully read the string, convert it to date time
                     fillEntry = PDFEncoding::convertToDateTime(stringObject.getString());
-
-                    if (!fillEntry.isValid())
-                    {
-                        throw PDFException(PDFTranslationContext::tr("Bad format of document info entry in trailer dictionary. String with date time format expected."));
-                    }
-                }
-                else if (!stringObject.isNull())
-                {
-                    throw PDFException(PDFTranslationContext::tr("Bad format of document info entry in trailer dictionary. String with date time format expected."));
                 }
             }
         };
@@ -795,18 +719,10 @@ PDFDocumentInfo PDFDocumentInfo::parse(const PDFObject& object, const PDFObjectS
                 {
                     info.trapped = Trapped::Unknown;
                 }
-                else
-                {
-                    throw PDFException(PDFTranslationContext::tr("Bad format of document info entry in trailer dictionary. Trapping information expected"));
-                }
             }
             else if (nameObject.isBool())
             {
                 info.trapped = nameObject.getBool() ? Trapped::True : Trapped::False;
-            }
-            else
-            {
-                throw PDFException(PDFTranslationContext::tr("Bad format of document info entry in trailer dictionary. Trapping information expected"));
             }
         }
 

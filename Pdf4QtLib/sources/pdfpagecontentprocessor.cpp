@@ -2691,7 +2691,14 @@ void PDFPageContentProcessor::operatorTextSetWordSpacing(PDFReal wordSpacing)
 void PDFPageContentProcessor::operatorTextSetHorizontalScale(PDFReal horizontalScaling)
 {
     // We disable horizontal scaling to less than 1%
-    horizontalScaling = qMax(horizontalScaling, 1.0);
+    if (horizontalScaling >= 0.0 && horizontalScaling < 1.0)
+    {
+        horizontalScaling = 1.0;
+    }
+    if (horizontalScaling < 0.0 && horizontalScaling > -1.0)
+    {
+        horizontalScaling = -1.0;
+    }
 
     m_graphicState.setTextHorizontalScaling(horizontalScaling);
     updateGraphicState();
@@ -3176,7 +3183,8 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
         const bool isHorizontalWritingSystem = font->isHorizontalWritingSystem();
 
         // Calculate text rendering matrix
-        QTransform adjustMatrix(horizontalScaling, 0.0, 0.0, 1.0, 0.0, textRise);
+        const PDFReal fontFactor = (fontSize < 0.0) ? -1.0 : 1.0;
+        QTransform adjustMatrix(horizontalScaling * fontFactor, 0.0, 0.0, fontFactor, 0.0, textRise);
         QTransform textMatrix = m_graphicState.getTextMatrix();
 
         if (!isType3Font)
@@ -3201,7 +3209,7 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
                     {
                         advance.ry() += additionalAdvance;
                     }
-                    advance.rx() *= horizontalScaling;
+                    advance.rx() *= horizontalScaling * fontFactor;
 
                     // Then get the glyph path and paint it
                     if (item.glyph)

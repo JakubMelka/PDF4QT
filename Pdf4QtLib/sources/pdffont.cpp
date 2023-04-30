@@ -983,6 +983,11 @@ PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, 
 {
     PDFRealizedFontPointer result;
 
+    if (pixelSize < 0.0)
+    {
+        pixelSize = qAbs(pixelSize);
+    }
+
     if (font->getFontType() == FontType::Type3)
     {
         result.reset(new PDFRealizedFont(new PDFRealizedType3FontImpl(font, pixelSize)));
