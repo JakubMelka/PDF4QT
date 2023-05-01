@@ -3250,7 +3250,7 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
                 }
                 else if (item.isAdvance())
                 {
-                    if (horizontalScaling)
+                    if (isHorizontalWritingSystem)
                     {
                         displacementX = -item.advance * 0.001 * fontSize * horizontalScaling;
                     }
@@ -3293,7 +3293,11 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
                 // First, compute horizontal advance
 
                 qreal displacementX = 0.0;
-                if (item.advance != 0.0)
+                if (!item.isContentStream())
+                {
+                    displacementX = -item.advance * 0.001 * fontSize * horizontalScaling;
+                }
+                else if (item.advance != 0.0)
                 {
                     qreal ry = 0.0;
                     fontAdjustedMatrix.map(item.advance, 0.0, &displacementX, &ry);
