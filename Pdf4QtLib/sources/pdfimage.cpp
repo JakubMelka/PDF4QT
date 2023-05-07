@@ -129,7 +129,7 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
         }
         else if (object.isStream())
         {
-            PDFImage softMaskImage = createImage(document, object.getStream(), colorSpace, false, renderingIntent, errorReporter);
+            PDFImage softMaskImage = createImage(document, object.getStream(), PDFColorSpacePointer(new PDFDeviceGrayColorSpace()), false, renderingIntent, errorReporter);
 
             if (softMaskImage.m_imageData.getMaskingType() != PDFImageData::MaskingType::ImageMask ||
                 softMaskImage.m_imageData.getColorChannels() != 1 ||
