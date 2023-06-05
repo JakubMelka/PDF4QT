@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=PDF4QT Viewer Lite
+Comment=PDF Viewer
+Exec=/usr/bin/Pdf4QtViewerLite
+Icon=/usr/bin/Pdf4QtViewerLite.png
+Terminal=false
+Categories=Utility;Office;

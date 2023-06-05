@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=PDF4QT Viewer Profi
+Comment=PDF Editor
+Exec=/usr/bin/Pdf4QtViewerProfi
+Icon=/usr/bin/Pdf4QtViewerProfi.png
+Terminal=false
+Categories=Utility;Office;

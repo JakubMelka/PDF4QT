@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=PDF4QT DocPage Organizer
+Comment=PDF Document Page Organizer
+Exec=/usr/bin/Pdf4QtDocPageOrganizer
+Icon=/usr/bin/Pdf4QtDocPageOrganizer.png
+Terminal=false
+Categories=Utility;Office;
