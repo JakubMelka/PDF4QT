@@ -4,6 +4,6 @@ Type=Application
 Name=PDF4QT DocDiff
 Comment=PDF Diff
 Exec=/usr/bin/Pdf4QtDocDiff
-Icon=/usr/bin/Pdf4QtDocDiff.png
+Icon=/usr/share/icons/Pdf4QtDocDiff.svg
 Terminal=false
 Categories=Utility;Office;

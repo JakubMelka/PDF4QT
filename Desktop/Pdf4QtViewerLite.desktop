@@ -4,6 +4,6 @@ Type=Application
 Name=PDF4QT Viewer Lite
 Comment=PDF Viewer
 Exec=/usr/bin/Pdf4QtViewerLite
-Icon=/usr/bin/Pdf4QtViewerLite.png
+Icon=/usr/share/icons/Pdf4QtViewerLite.svg
 Terminal=false
 Categories=Utility;Office;

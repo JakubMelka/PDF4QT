@@ -4,6 +4,6 @@ Type=Application
 Name=PDF4QT DocPage Organizer
 Comment=PDF Document Page Organizer
 Exec=/usr/bin/Pdf4QtDocPageOrganizer
-Icon=/usr/bin/Pdf4QtDocPageOrganizer.png
+Icon=/usr/share/icons/Pdf4QtDocPageOrganizer.svg
 Terminal=false
 Categories=Utility;Office;

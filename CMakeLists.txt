@@ -98,6 +98,9 @@ if(PDF4QT_INSTALL_DEPENDENCIES)
         PATTERN "*.dylib"
     )
 
+    install(FILES Desktop/Pdf4QtDocDiff.desktop Desktop/Pdf4QtDocPageOrganizer.desktop Desktop/Pdf4QtViewerLite.desktop Desktop/Pdf4QtViewerProfi.desktop DESTINATION usr/share/applications)
+    install(FILES Desktop/Pdf4QtDocDiff.svg Desktop/Pdf4QtDocPageOrganizer.svg Desktop/Pdf4QtViewerLite.svg Desktop/Pdf4QtViewerProfi.svg DESTINATION usr/share/icons)
+
     if("${PDF4QT_QT_ROOT}" STREQUAL "")
         message(WARNING "Set variable PDF4QT_QT_ROOT to Qt6 root directory")
     endif()
