@@ -733,6 +733,8 @@ private:
     std::vector<ClosedInterval> m_intervals;
 };
 
+QDataStream& operator>>(QDataStream& stream, long unsigned int &i);
+
 template<typename T>
 QDataStream& operator>>(QDataStream& stream, std::vector<T>& vector)
 {
@@ -758,8 +760,6 @@ QDataStream& operator<<(QDataStream& stream, const std::vector<T>& vector)
     }
     return stream;
 }
-
-QDataStream& operator>>(QDataStream& stream, long unsigned int &i);
 
 template<typename T, size_t Size>
 QDataStream& operator>>(QDataStream& stream, std::array<T, Size>& array)
