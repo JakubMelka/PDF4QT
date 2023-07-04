@@ -89,6 +89,9 @@ add_subdirectory(WixInstaller)
 message("CMAKE_PREFIX_PATH = " ${CMAKE_PREFIX_PATH})
 message("CMAKE_TOOLCHAIN_FILE = " ${CMAKE_TOOLCHAIN_FILE})
 
+install(FILES Desktop/Pdf4QtDocDiff.desktop Desktop/Pdf4QtDocPageOrganizer.desktop Desktop/Pdf4QtViewerLite.desktop Desktop/Pdf4QtViewerProfi.desktop DESTINATION usr/share/applications)
+install(FILES Desktop/Pdf4QtDocDiff.svg Desktop/Pdf4QtDocPageOrganizer.svg Desktop/Pdf4QtViewerLite.svg Desktop/Pdf4QtViewerProfi.svg DESTINATION usr/share/icons)
+
 if(PDF4QT_INSTALL_DEPENDENCIES)
     install(DIRECTORY ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin/
         TYPE BIN
@@ -97,9 +100,6 @@ if(PDF4QT_INSTALL_DEPENDENCIES)
         PATTERN "*.so"
         PATTERN "*.dylib"
     )
-
-    install(FILES Desktop/Pdf4QtDocDiff.desktop Desktop/Pdf4QtDocPageOrganizer.desktop Desktop/Pdf4QtViewerLite.desktop Desktop/Pdf4QtViewerProfi.desktop DESTINATION usr/share/applications)
-    install(FILES Desktop/Pdf4QtDocDiff.svg Desktop/Pdf4QtDocPageOrganizer.svg Desktop/Pdf4QtViewerLite.svg Desktop/Pdf4QtViewerProfi.svg DESTINATION usr/share/icons)
 
     if("${PDF4QT_QT_ROOT}" STREQUAL "")
         message(WARNING "Set variable PDF4QT_QT_ROOT to Qt6 root directory")
