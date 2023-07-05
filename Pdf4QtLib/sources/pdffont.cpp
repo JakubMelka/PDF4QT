@@ -1412,6 +1412,12 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
                                 }
                             }
                         }
+                        else if (!FT_Select_Charmap(face, FT_ENCODING_UNICODE))
+                        {
+                            // if we have unicode mapping (3, 1), then we want to skip
+                            // Mac Roman Encoding, according to PDF Specification 2.0.
+                            // We will load encoding using unicode character map below.
+                        }
                         else if (!FT_Select_Charmap(face, FT_ENCODING_APPLE_ROMAN))
                         {
                             // We have (1, 0) Mac Roman Encoding, which is slightly different, than Mac Roman Encoding defined
