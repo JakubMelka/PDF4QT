@@ -7,3 +7,4 @@ Exec=/usr/bin/Pdf4QtDocPageOrganizer
 Icon=/usr/share/icons/Pdf4QtDocPageOrganizer.svg
 Terminal=false
 Categories=Utility;Office;
+MimeType=application/pdf;
