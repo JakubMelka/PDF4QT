@@ -86,6 +86,33 @@ entirely by myself.
 Compilation on Windows and Linux is available. To compile this project, compiler supporting C++20 is needed.
 On Windows, you can use Visual Studio 2022 or mingw. On linux, only GCC 11.2.0 was tested.
 
+### Compiling from sources
+
+1. Install [vcpkg](https://vcpkg.io/en/getting-started.html)
+
+        git clone https://github.com/Microsoft/vcpkg.git
+        ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
+        VCPKG_PATH=$(pwd)/vcpkg
+
+2. Build PDF4QT
+
+    2.1 Clone repo
+
+        git clone https://github.com/JakubMelka/PDF4QT
+
+    2.2 Configure
+
+        cd PDF4QT
+        cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=$VCPKG_PATH/scripts/buildsystems/vcpkg.cmake -DCMAKE_INSTALL_PREFIX='/'
+
+    2.3 Build
+
+        cmake --build build
+
+    2.4 Install
+
+        sudo cmake --install build
+
 ### Compilation instructions (both Windows/Linux)
 1. Download Qt 6.4 or higher, and VCPKG package manager (https://vcpkg.io/en/index.html)
 2. Open Qt Creator and configure the project
