@@ -7,3 +7,4 @@ Exec=/usr/bin/Pdf4QtViewerLite
 Icon=/usr/share/icons/Pdf4QtViewerLite.svg
 Terminal=false
 Categories=Utility;Office;
+MimeType=application/pdf;
