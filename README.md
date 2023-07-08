@@ -1,5 +1,5 @@
-
 # PDF4QT
+
 **(c) Jakub Melka 2018-2022**
 
 **Mgr.Jakub.Melka@gmail.com**
@@ -81,10 +81,23 @@ to someone else. But I would strongly prefer, if you want to contribute, to cont
 in a form of testing, consultation, giving advices etc. I would like to write this library
 entirely by myself.
 
-## 6. COMPILING
+## 6. INSTALLING
 
-Compilation on Windows and Linux is available. To compile this project, compiler supporting C++20 is needed.
-On Windows, you can use Visual Studio 2022 or mingw. On linux, only GCC 11.2.0 was tested.
+### Windows
+
+The [Release page](https://github.com/JakubMelka/PDF4QT/releases) lists binaries for Windows, both with and without an installer.
+
+### Arch Linux
+
+A [pdf4qt-git](https://aur.archlinux.org/packages/pdf4qt-git) package is available in the AUR.
+
+## 7. COMPILING
+
+This software can be compiled on both Windows and Linux. A compiler supporting the C++20 standard is needed.
+
+On Windows, you can use Visual Studio 2022 or MinGW.
+
+On Linux, a GCC version >= 8 should work, altough we tested it with GCC 11.
 
 ### Compiling from sources
 
@@ -99,11 +112,13 @@ On Windows, you can use Visual Studio 2022 or mingw. On linux, only GCC 11.2.0 w
     2.1 Clone repo
 
         git clone https://github.com/JakubMelka/PDF4QT
+        cd PDF4QT
 
     2.2 Configure
 
-        cd PDF4QT
         cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=$VCPKG_PATH/scripts/buildsystems/vcpkg.cmake -DCMAKE_INSTALL_PREFIX='/'
+
+    For a debug build, append `-DCMAKE_BUILD_TYPE=Debug`.
 
     2.3 Build
 
@@ -113,15 +128,15 @@ On Windows, you can use Visual Studio 2022 or mingw. On linux, only GCC 11.2.0 w
 
         sudo cmake --install build
 
-### Compilation instructions (both Windows/Linux)
+### Using Qt Creator (both Windows/Linux)
 1. Download Qt 6.4 or higher, and VCPKG package manager (https://vcpkg.io/en/index.html)
 2. Open Qt Creator and configure the project
 3. Build
  
 ### CMAKE Compilation Options
 
-Several important compilation options is available and should be set before building. On Windows,
-CMake can prepare Wix project to create *.msi installer package.
+Several important compilation options are available and should be set before building. On Windows,
+CMake can prepare a Wix project to create a *.msi installer package.
 
 |                  Option                | Platform |     Description                                          |
 | ------------------------------------   | ---------|--------------------------------------------------------- |
@@ -138,6 +153,7 @@ Following important variables should be set or checked before any attempt to com
 | `QT_CREATOR_SKIP_VCPKG_SETUP`          | Any      |Enable or disable automatic vcpkg setup                   |
 | `CMAKE_PROJECT_INCLUDE_BEFORE`         | Any      |Should be set to package manager auto setup               |
 | `CMAKE_TOOLCHAIN_FILE`                 | Any      |Should be set to toolchain                                |
+| `CMAKE_BUILD_TYPE`                     | Any      |Can be Release (default) or Debug                         |
 
 #### Sample setup on Windows
 
@@ -162,8 +178,8 @@ to be able to built Debug build on MS Windows.
  - MinGW 11.2.0
  
 ### Tested Compilers - Linux
- - GCC 11.2.0
+ - GCC 13.1.1
 
-## 7. DISCLAIMER
+## 8. DISCLAIMER
 
 I wrote this project in my free time. I hope you will find it useful!
