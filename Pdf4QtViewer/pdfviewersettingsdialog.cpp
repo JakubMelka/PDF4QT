@@ -329,6 +329,7 @@ void PDFViewerSettingsDialog::loadData()
     ui->maximumUndoStepsEdit->setValue(m_settings.m_maximumUndoSteps);
     ui->maximumRedoStepsEdit->setValue(m_settings.m_maximumRedoSteps);
     ui->developerModeCheckBox->setChecked(m_settings.m_allowDeveloperMode);
+    ui->logicalPixelZoomCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::LogicalSizeZooming));
 
     // CMS
     ui->cmsTypeComboBox->setCurrentIndex(ui->cmsTypeComboBox->findData(int(m_cmsSettings.system)));
@@ -601,6 +602,10 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->maximumRedoStepsEdit)
     {
         m_settings.m_maximumRedoSteps = ui->maximumRedoStepsEdit->value();
+    }
+    else if (sender == ui->logicalPixelZoomCheckBox)
+    {
+        m_settings.m_features.setFlag(pdf::PDFRenderer::LogicalSizeZooming, ui->logicalPixelZoomCheckBox->isChecked());
     }
     else if (sender == ui->signatureVerificationEnableCheckBox)
     {

@@ -35,7 +35,7 @@
      <item>
       <widget class="QStackedWidget" name="stackedWidget">
        <property name="currentIndex">
-        <number>10</number>
+        <number>7</number>
        </property>
        <widget class="QWidget" name="enginePage">
         <layout class="QVBoxLayout" name="enginePageLayout">
@@ -901,10 +901,44 @@
                 </property>
                </widget>
               </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="magnifierSizeLabel">
+                <property name="text">
+                 <string>Magnifier size</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QSpinBox" name="maximumRecentFileCountEdit"/>
+              </item>
+              <item row="3" column="1">
+               <widget class="QSpinBox" name="maximumUndoStepsEdit">
+                <property name="maximum">
+                 <number>20</number>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
+               <widget class="QLabel" name="maximumUndoStepsLabel">
+                <property name="text">
+                 <string>Maximum undo steps</string>
+                </property>
+               </widget>
+              </item>
               <item row="4" column="1">
                <widget class="QSpinBox" name="maximumRedoStepsEdit">
                 <property name="maximum">
                  <number>20</number>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <widget class="QDoubleSpinBox" name="magnifierZoomEdit">
+                <property name="minimum">
+                 <double>1.000000000000000</double>
+                </property>
+                <property name="maximum">
+                 <double>10.000000000000000</double>
                 </property>
                </widget>
               </item>
@@ -915,17 +949,17 @@
                 </property>
                </widget>
               </item>
-              <item row="1" column="0">
-               <widget class="QLabel" name="magnifierSizeLabel">
+              <item row="6" column="1">
+               <widget class="QCheckBox" name="developerModeCheckBox">
                 <property name="text">
-                 <string>Magnifier size</string>
+                 <string>Enable</string>
                 </property>
                </widget>
               </item>
-              <item row="3" column="1">
-               <widget class="QSpinBox" name="maximumUndoStepsEdit">
-                <property name="maximum">
-                 <number>20</number>
+              <item row="6" column="0">
+               <widget class="QLabel" name="developerModeLabel">
+                <property name="text">
+                 <string>Developer mode</string>
                 </property>
                </widget>
               </item>
@@ -949,37 +983,17 @@
                 </property>
                </widget>
               </item>
-              <item row="0" column="1">
-               <widget class="QSpinBox" name="maximumRecentFileCountEdit"/>
-              </item>
-              <item row="3" column="0">
-               <widget class="QLabel" name="maximumUndoStepsLabel">
-                <property name="text">
-                 <string>Maximum undo steps</string>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="1">
-               <widget class="QDoubleSpinBox" name="magnifierZoomEdit">
-                <property name="minimum">
-                 <double>1.000000000000000</double>
-                </property>
-                <property name="maximum">
-                 <double>10.000000000000000</double>
-                </property>
-               </widget>
-              </item>
               <item row="5" column="1">
-               <widget class="QCheckBox" name="developerModeCheckBox">
+               <widget class="QCheckBox" name="logicalPixelZoomCheckBox">
                 <property name="text">
                  <string>Enable</string>
                 </property>
                </widget>
               </item>
               <item row="5" column="0">
-               <widget class="QLabel" name="developerModeLabel">
+               <widget class="QLabel" name="logicalPixelZoomLabel">
                 <property name="text">
-                 <string>Developer mode</string>
+                 <string>Use logical pixels when zooming</string>
                 </property>
                </widget>
               </item>

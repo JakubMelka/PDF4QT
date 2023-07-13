@@ -29,6 +29,8 @@
 #include <QTimer>
 #include <QPainter>
 #include <QFontMetrics>
+#include <QScreen>
+#include <QGuiApplication>
 
 namespace pdf
 {
@@ -535,10 +537,23 @@ void PDFDrawWidgetProxy::update()
     Q_ASSERT(m_verticalScrollbar);
 
     QWidget* widget = m_widget->getDrawWidget()->getWidget();
+    QScreen* primaryScreen = QGuiApplication::primaryScreen();
 
     // First, we must calculate pixel per mm ratio to obtain DPMM (device pixel per mm),
     // we also assume, that zoom is correctly set.
-    m_pixelPerMM = static_cast<PDFReal>(widget->width()) / static_cast<PDFReal>(widget->widthMM());
+    QSizeF physicalSize = primaryScreen->physicalSize();
+    QSizeF pixelSize = primaryScreen->size();
+
+    m_pixelPerMM = pixelSize.width() / physicalSize.width();
+
+    // Are we using logical pixels instead of physical ones?
+    if (m_features.testFlag(PDFRenderer::LogicalSizeZooming))
+    {
+        qreal ldpi = primaryScreen->logicalDotsPerInch();
+        qreal pdpi = primaryScreen->physicalDotsPerInch();
+        qreal ratioLogicalToPhysical = ldpi / pdpi;
+        m_pixelPerMM *= ratioLogicalToPhysical;
+    }
 
     Q_ASSERT(m_zoom > 0.0);
     Q_ASSERT(m_pixelPerMM > 0.0);

@@ -88,6 +88,7 @@ public:
         InvertColors            = 0x0100,   ///< Invert colors
         DenyExtraGraphics       = 0x0200,   ///< Do not display additional graphics, for example from tools
         DisplayAnnotations      = 0x0400,   ///< Display annotations
+        LogicalSizeZooming      = 0x0800,   ///< Use logical pixel resolution instead of physical one when zooming
     };
 
     Q_DECLARE_FLAGS(Features, Feature)
