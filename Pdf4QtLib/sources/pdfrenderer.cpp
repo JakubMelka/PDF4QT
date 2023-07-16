@@ -317,6 +317,14 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
         image.convertTo(QImage::Format_ARGB32_Premultiplied);
     }
 
+    // Calculate image DPI
+    QSizeF rotatedSizeInMeters = page->getRotatedMediaBoxMM().size() / 1000.0;
+    QSizeF rotatedSizeInPixels = image.size();
+    qreal dpiX = rotatedSizeInPixels.width() / rotatedSizeInMeters.width();
+    qreal dpiY = rotatedSizeInPixels.height() / rotatedSizeInMeters.height();
+    image.setDotsPerMeterX(qCeil(dpiX));
+    image.setDotsPerMeterY(qCeil(dpiY));
+
     return image;
 }
 
