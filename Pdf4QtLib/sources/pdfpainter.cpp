@@ -136,9 +136,7 @@ QPen PDFPainterBase::getCurrentPenImpl() const
         else
         {
             pen.setStyle(Qt::CustomDashLine);
-
-            const auto& dashArray = lineDashPattern.getDashArray();
-            pen.setDashPattern(QVector<PDFReal>(dashArray.begin(), dashArray.end()));
+            pen.setDashPattern(lineDashPattern.createForQPen(pen.widthF()));
             pen.setDashOffset(lineDashPattern.getDashOffset());
         }
 

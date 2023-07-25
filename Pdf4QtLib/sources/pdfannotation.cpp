@@ -1057,7 +1057,7 @@ QPen PDFAnnotation::getPen() const
     {
         PDFLineDashPattern lineDashPattern(border.getDashPattern(), 0.0);
         pen.setStyle(Qt::CustomDashLine);
-        pen.setDashPattern(QVector<qreal>(lineDashPattern.getDashArray().begin(), lineDashPattern.getDashArray().end()));
+        pen.setDashPattern(lineDashPattern.createForQPen(pen.widthF()));
         pen.setDashOffset(lineDashPattern.getDashOffset());
     }
 

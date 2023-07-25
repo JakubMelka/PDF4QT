@@ -2187,8 +2187,7 @@ void PDFTransparencyRenderer::performPathPainting(const QPainterPath& path, bool
         const PDFLineDashPattern& lineDashPattern = getGraphicState()->getLineDashPattern();
         if (!lineDashPattern.isSolid())
         {
-            const auto& dashArray = lineDashPattern.getDashArray();
-            stroker.setDashPattern(QVector<PDFReal>(dashArray.begin(), dashArray.end()));
+            stroker.setDashPattern(lineDashPattern.createForQPen(getGraphicState()->getLineWidth()));
             stroker.setDashOffset(lineDashPattern.getDashOffset());
         }
         QPainterPath strokedPath = stroker.createStroke(path);

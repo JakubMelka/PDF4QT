@@ -911,8 +911,7 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
                         const PDFLineDashPattern& lineDashPattern = m_graphicState.getLineDashPattern();
                         if (!lineDashPattern.isSolid())
                         {
-                            const auto& dashArray = lineDashPattern.getDashArray();
-                            stroker.setDashPattern(QVector<PDFReal>(dashArray.begin(), dashArray.end()));
+                            stroker.setDashPattern(lineDashPattern.createForQPen(m_graphicState.getLineWidth()));
                             stroker.setDashOffset(lineDashPattern.getDashOffset());
                         }
                         QPainterPath strokedPath = stroker.createStroke(path);
@@ -959,8 +958,7 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
                         const PDFLineDashPattern& lineDashPattern = m_graphicState.getLineDashPattern();
                         if (!lineDashPattern.isSolid())
                         {
-                            const auto& dashArray = lineDashPattern.getDashArray();
-                            stroker.setDashPattern(QVector<PDFReal>(dashArray.begin(), dashArray.end()));
+                            stroker.setDashPattern(lineDashPattern.createForQPen(m_graphicState.getLineWidth()));
                             stroker.setDashOffset(lineDashPattern.getDashOffset());
                         }
                         QPainterPath strokedPath = stroker.createStroke(path);
@@ -3976,6 +3974,18 @@ void PDFLineDashPattern::fix()
             *this = PDFLineDashPattern();
         }
     }
+}
+
+QVector<qreal> PDFLineDashPattern::createForQPen(qreal penWidthF) const
+{
+    QVector<qreal> lineDashPattern(m_dashArray.begin(), m_dashArray.end());
+
+    for (qreal& value : lineDashPattern)
+    {
+        value /= penWidthF;
+    }
+
+    return lineDashPattern;
 }
 
 PDFPageContentProcessor::PDFSoftMaskDefinition PDFPageContentProcessor::PDFSoftMaskDefinition::parse(const PDFDictionary* softMask, PDFPageContentProcessor* processor)

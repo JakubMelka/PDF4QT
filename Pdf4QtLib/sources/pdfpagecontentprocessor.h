@@ -28,6 +28,7 @@
 #include "pdftextlayout.h"
 #include "pdfoperationcontrol.h"
 
+#include <QVector>
 #include <QTransform>
 #include <QPainterPath>
 #include <QSharedPointer>
@@ -67,6 +68,11 @@ public:
 
     /// Fix line dash pattern according to the specification
     void fix();
+
+    /// Create dash pattern for QPen.
+    /// \param penWidthF Width of the pen.
+    /// \note Dash pattern in QPen is in pen width units
+    QVector<qreal> createForQPen(qreal penWidthF) const;
 
 private:
     std::vector<PDFReal> m_dashArray;
