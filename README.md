@@ -105,7 +105,9 @@ On Linux, a GCC version >= 8 should work, altough we tested it with GCC 11.
 
         git clone https://github.com/Microsoft/vcpkg.git
         ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
-        VCPKG_PATH=$(pwd)/vcpkg
+        VCPKG_ROOT=$(pwd)/vcpkg
+
+    Check that vcpkg path is correct: `$VCPKG_ROOT/vcpkg --version`.
 
 2. Build PDF4QT
 
@@ -116,7 +118,7 @@ On Linux, a GCC version >= 8 should work, altough we tested it with GCC 11.
 
     2.2 Configure
 
-        cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=$VCPKG_PATH/scripts/buildsystems/vcpkg.cmake -DCMAKE_INSTALL_PREFIX='/'
+        cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake -DCMAKE_INSTALL_PREFIX='/'
 
     For a debug build, append `-DCMAKE_BUILD_TYPE=Debug`.
 
@@ -124,9 +126,13 @@ On Linux, a GCC version >= 8 should work, altough we tested it with GCC 11.
 
         cmake --build build
 
+    Use the [`-j` switch](https://cmake.org/cmake/help/latest/manual/cmake.1.html#cmdoption-cmake-build-j) to build multiple files in parallel.
+
     2.4 Install
 
         sudo cmake --install build
+
+    To uninstall, run `sudo xargs rm < ./build/install_manifest.txt`.
 
 ### Using Qt Creator (both Windows/Linux)
 1. Download Qt 6.4 or higher, and VCPKG package manager (https://vcpkg.io/en/index.html)
