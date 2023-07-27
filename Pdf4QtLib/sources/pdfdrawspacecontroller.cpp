@@ -709,10 +709,15 @@ QTransform PDFDrawWidgetProxy::createPagePointToDevicePointMatrix(const PDFPage*
 
         case PageRotation::Rotate180:
         {
-            matrix.translate(0, rectangle.top() + rectangle.bottom());
+            matrix.translate(rectangle.left(), rectangle.top() + rectangle.bottom());
             matrix.scale(1.0, -1.0);
+            matrix.translate(rectangle.width(), 0);
+            matrix.scale(-1.0, 1.0);
+            matrix.translate(-rectangle.left(), 0);
             Q_ASSERT(qFuzzyCompare(matrix.map(rectangle.topLeft()).y(), rectangle.bottom()));
             Q_ASSERT(qFuzzyCompare(matrix.map(rectangle.bottomLeft()).y(), rectangle.top()));
+            Q_ASSERT(qFuzzyCompare(matrix.map(rectangle.topLeft()).x(), rectangle.right()));
+            Q_ASSERT(qFuzzyCompare(matrix.map(rectangle.bottomRight()).x(), rectangle.left()));
             break;
         }
 

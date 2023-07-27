@@ -1205,10 +1205,10 @@ PDFAnnotationManager::~PDFAnnotationManager()
 }
 
 QTransform PDFAnnotationManager::prepareTransformations(const QTransform& pagePointToDevicePointMatrix,
-                                                     QPaintDevice* device,
-                                                     const PDFAnnotation::Flags annotationFlags,
-                                                     const PDFPage* page,
-                                                     QRectF& annotationRectangle) const
+                                                        QPaintDevice* device,
+                                                        const PDFAnnotation::Flags annotationFlags,
+                                                        const PDFPage* page,
+                                                        QRectF& annotationRectangle) const
 {
     // "Unrotate" user coordinate space, if NoRotate flag is set
     QTransform userSpaceToDeviceSpace = pagePointToDevicePointMatrix;

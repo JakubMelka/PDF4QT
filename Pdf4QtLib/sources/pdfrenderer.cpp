@@ -52,8 +52,8 @@ PDFRenderer::PDFRenderer(const PDFDocument* document,
 }
 
 QTransform PDFRenderer::createPagePointToDevicePointMatrix(const PDFPage* page,
-                                                        const QRectF& rectangle,
-                                                        PageRotation extraRotation)
+                                                           const QRectF& rectangle,
+                                                           PageRotation extraRotation)
 {
     PageRotation pageRotation = getPageRotationCombined(page->getPageRotation(), extraRotation);
     QRectF mediaBox = page->getRotatedBox(page->getMediaBox(), pageRotation);
@@ -72,6 +72,7 @@ QTransform PDFRenderer::createMediaBoxToDevicePointMatrix(const QRectF& mediaBox
         {
             matrix.translate(rectangle.left(), rectangle.bottom());
             matrix.scale(rectangle.width() / mediaBox.width(), -rectangle.height() / mediaBox.height());
+            matrix.translate(-mediaBox.left(), -mediaBox.top());
             break;
         }
 
@@ -80,6 +81,7 @@ QTransform PDFRenderer::createMediaBoxToDevicePointMatrix(const QRectF& mediaBox
             matrix.translate(rectangle.left(), rectangle.top());
             matrix.rotate(90);
             matrix.scale(rectangle.width() / mediaBox.width(), -rectangle.height() / mediaBox.height());
+            matrix.translate(-mediaBox.left(), -mediaBox.top());
             break;
         }
 
@@ -89,6 +91,7 @@ QTransform PDFRenderer::createMediaBoxToDevicePointMatrix(const QRectF& mediaBox
             matrix.rotate(-90);
             matrix.translate(-rectangle.height(), 0);
             matrix.scale(rectangle.width() / mediaBox.width(), -rectangle.height() / mediaBox.height());
+            matrix.translate(-mediaBox.left(), -mediaBox.top());
             break;
         }
 
@@ -96,6 +99,9 @@ QTransform PDFRenderer::createMediaBoxToDevicePointMatrix(const QRectF& mediaBox
         {
             matrix.translate(rectangle.left(), rectangle.top());
             matrix.scale(rectangle.width() / mediaBox.width(), rectangle.height() / mediaBox.height());
+            matrix.translate(mediaBox.width(), 0);
+            matrix.translate(-mediaBox.left(), -mediaBox.top());
+            matrix.scale(-1.0, 1.0);
             break;
         }
 
@@ -105,8 +111,6 @@ QTransform PDFRenderer::createMediaBoxToDevicePointMatrix(const QRectF& mediaBox
             break;
         }
     }
-
-    matrix.translate(-mediaBox.left(), -mediaBox.top());
 
     return matrix;
 }
