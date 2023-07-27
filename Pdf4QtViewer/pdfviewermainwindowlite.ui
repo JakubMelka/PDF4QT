@@ -20,7 +20,7 @@
      <x>0</x>
      <y>0</y>
      <width>770</width>
-     <height>37</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -130,7 +130,7 @@
      <normaloff>:/resources/open.svg</normaloff>:/resources/open.svg</iconset>
    </property>
    <property name="text">
-    <string>Open</string>
+    <string>Open...</string>
    </property>
   </action>
   <action name="actionClose">
@@ -215,7 +215,7 @@
      <normaloff>:/resources/rendering-errors.svg</normaloff>:/resources/rendering-errors.svg</iconset>
    </property>
    <property name="text">
-    <string>Rendering Errors</string>
+    <string>Rendering Errors...</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+E</string>
@@ -290,7 +290,7 @@
   </action>
   <action name="actionAbout">
    <property name="text">
-    <string>About</string>
+    <string>About...</string>
    </property>
   </action>
   <action name="actionFitPage">
@@ -332,7 +332,7 @@
      <normaloff>:/resources/info.svg</normaloff>:/resources/info.svg</iconset>
    </property>
    <property name="text">
-    <string>Properties</string>
+    <string>Properties...</string>
    </property>
   </action>
   <action name="actionSend_by_E_Mail">
@@ -341,7 +341,7 @@
      <normaloff>:/resources/send-mail.svg</normaloff>:/resources/send-mail.svg</iconset>
    </property>
    <property name="text">
-    <string>Send by E-Mail</string>
+    <string>Send by E-Mail...</string>
    </property>
   </action>
   <action name="actionInvertColors">
@@ -380,7 +380,7 @@
      <normaloff>:/resources/print.svg</normaloff>:/resources/print.svg</iconset>
    </property>
    <property name="text">
-    <string>Print</string>
+    <string>Print...</string>
    </property>
   </action>
   <action name="actionRenderOptionDisplayAnnotations">

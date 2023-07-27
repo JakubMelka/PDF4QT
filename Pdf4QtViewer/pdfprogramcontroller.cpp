@@ -170,8 +170,13 @@ void PDFActionManager::addAdditionalAction(QAction* action)
 void PDFActionManager::initActions(QSize iconSize, bool initializeStampActions)
 {
     setShortcut(Open, QKeySequence::Open);
+#ifdef Q_OS_WIN
+    setShortcut(Close, QKeyCombination(Qt::CTRL, Qt::Key_W));
+    setShortcut(Quit, QKeyCombination(Qt::CTRL, Qt::Key_F4));
+#else
     setShortcut(Close, QKeySequence::Close);
     setShortcut(Quit, QKeySequence::Quit);
+#endif
     setShortcut(ZoomIn, QKeySequence::ZoomIn);
     setShortcut(ZoomOut, QKeySequence::ZoomOut);
     setShortcut(Find, QKeySequence::Find);

@@ -430,7 +430,7 @@
      <normaloff>:/pdfdocpage/resources/about.svg</normaloff>:/pdfdocpage/resources/about.svg</iconset>
    </property>
    <property name="text">
-    <string>About</string>
+    <string>About...</string>
    </property>
    <property name="shortcut">
     <string>F1</string>
@@ -442,7 +442,7 @@
      <normaloff>:/pdfdocpage/resources/make-united-document.svg</normaloff>:/pdfdocpage/resources/make-united-document.svg</iconset>
    </property>
    <property name="text">
-    <string>United Document</string>
+    <string>United Document...</string>
    </property>
    <property name="shortcut">
     <string>F5</string>
@@ -454,7 +454,7 @@
      <normaloff>:/pdfdocpage/resources/make-separated-document.svg</normaloff>:/pdfdocpage/resources/make-separated-document.svg</iconset>
    </property>
    <property name="text">
-    <string>Separate to Multiple Documents</string>
+    <string>Separate to Multiple Documents...</string>
    </property>
    <property name="shortcut">
     <string>F6</string>
@@ -466,7 +466,7 @@
      <normaloff>:/pdfdocpage/resources/make-separated-document-from-groups.svg</normaloff>:/pdfdocpage/resources/make-separated-document-from-groups.svg</iconset>
    </property>
    <property name="text">
-    <string>Separate to Multiple Documents (Grouped)</string>
+    <string>Separate to Multiple Documents (Grouped)...</string>
    </property>
    <property name="shortcut">
     <string>F7</string>

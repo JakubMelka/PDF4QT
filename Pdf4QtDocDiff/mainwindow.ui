@@ -113,7 +113,7 @@
      <normaloff>:/pdfdocdiff/resources/about.svg</normaloff>:/pdfdocdiff/resources/about.svg</iconset>
    </property>
    <property name="text">
-    <string>About</string>
+    <string>About...</string>
    </property>
    <property name="shortcut">
     <string>F1</string>
@@ -125,7 +125,7 @@
      <normaloff>:/pdfdocdiff/resources/open-left.svg</normaloff>:/pdfdocdiff/resources/open-left.svg</iconset>
    </property>
    <property name="text">
-    <string>Open Left</string>
+    <string>Open Left...</string>
    </property>
   </action>
   <action name="actionOpen_Right">
@@ -134,7 +134,7 @@
      <normaloff>:/pdfdocdiff/resources/open-right.svg</normaloff>:/pdfdocdiff/resources/open-right.svg</iconset>
    </property>
    <property name="text">
-    <string>Open Right</string>
+    <string>Open Right...</string>
    </property>
   </action>
   <action name="actionCompare">
@@ -191,7 +191,7 @@
      <normaloff>:/pdfdocdiff/resources/create-compare-report.svg</normaloff>:/pdfdocdiff/resources/create-compare-report.svg</iconset>
    </property>
    <property name="text">
-    <string>Create Compare Report</string>
+    <string>Create Compare Report...</string>
    </property>
   </action>
   <action name="actionFilter_Text">
@@ -323,7 +323,7 @@
      <normaloff>:/pdfdocdiff/resources/save-diff-to-xml.svg</normaloff>:/pdfdocdiff/resources/save-diff-to-xml.svg</iconset>
    </property>
    <property name="text">
-    <string>Save Differences to XML</string>
+    <string>Save Differences to XML...</string>
    </property>
   </action>
   <action name="actionSynchronize_View_with_Differences">

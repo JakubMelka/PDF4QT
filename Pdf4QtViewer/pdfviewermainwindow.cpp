@@ -270,7 +270,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_advancedFindDockWidget->hide();
     QAction* toggleAdvancedFindAction = m_advancedFindDockWidget->toggleViewAction();
     toggleAdvancedFindAction->setObjectName("actionAdvancedFind");
-    toggleAdvancedFindAction->setText(tr("Advanced Find"));
+    toggleAdvancedFindAction->setText(tr("Advanced Find..."));
     toggleAdvancedFindAction->setShortcut(QKeySequence("Ctrl+Shift+F"));
     toggleAdvancedFindAction->setIcon(QIcon(":/resources/find-advanced.svg"));
     ui->menuEdit->insertAction(nullptr, toggleAdvancedFindAction);
