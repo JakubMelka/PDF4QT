@@ -464,7 +464,7 @@ void PDFViewerMainWindow::setDocument(const pdf::PDFModifiedDocument& document)
         {
             m_sidebarDockWidget->hide();
         }
-        else
+        else if (document.hasReset() && !document.hasPreserveUndoRedo())
         {
             m_sidebarDockWidget->show();
         }

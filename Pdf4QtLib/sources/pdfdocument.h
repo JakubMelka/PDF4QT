@@ -553,6 +553,7 @@ public:
 
     bool hasReset() const { return m_flags.testFlag(Reset); }
     bool hasPageContentsChanged() const { return m_flags.testFlag(PageContents); }
+    bool hasPreserveUndoRedo() const { return m_flags.testFlag(PreserveUndoRedo); }
     bool hasFlag(ModificationFlag flag) const { return m_flags.testFlag(flag); }
 
     operator PDFDocument*() const { return m_document; }
