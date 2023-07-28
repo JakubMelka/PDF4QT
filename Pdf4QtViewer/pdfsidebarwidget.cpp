@@ -1,4 +1,4 @@
-//    Copyright (C) 2019-2022 Jakub Melka
+//    Copyright (C) 2019-2023 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -113,7 +113,7 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
     {
         if (pageInfo.second.button)
         {
-            connect(pageInfo.second.button, &QPushButton::clicked, this, &PDFSidebarWidget::onPageButtonClicked);
+            connect(pageInfo.second.button, &QToolButton::clicked, this, &PDFSidebarWidget::onPageButtonClicked);
         }
     }
 

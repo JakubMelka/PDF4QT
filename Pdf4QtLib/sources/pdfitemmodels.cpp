@@ -713,7 +713,6 @@ QVariant PDFThumbnailsItemModel::data(const QModelIndex& index, int role) const
             QSizeF pageSize = page->getRotatedMediaBox().size();
             pageSize.scale(m_thumbnailSize, m_thumbnailSize, Qt::KeepAspectRatio);
             return pageSize.toSize() + QSize(m_extraItemWidthHint, m_extraItemHeighHint);
-            break;
         }
 
         default:

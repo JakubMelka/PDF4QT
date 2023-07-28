@@ -29,79 +29,193 @@
    <item>
     <layout class="QVBoxLayout" name="verticalLayout">
      <item>
-      <widget class="QPushButton" name="bookmarksButton">
+      <widget class="QToolButton" name="bookmarksButton">
+       <property name="minimumSize">
+        <size>
+         <width>96</width>
+         <height>0</height>
+        </size>
+       </property>
        <property name="text">
         <string>Bookmarks</string>
        </property>
+       <property name="icon">
+        <iconset resource="pdf4qtviewer.qrc">
+         <normaloff>:/resources/sidebar-outline.png</normaloff>:/resources/sidebar-outline.png</iconset>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>64</width>
+         <height>64</height>
+        </size>
+       </property>
        <property name="checkable">
         <bool>true</bool>
        </property>
-       <property name="flat">
+       <property name="toolButtonStyle">
+        <enum>Qt::ToolButtonTextUnderIcon</enum>
+       </property>
+       <property name="flat" stdset="0">
         <bool>true</bool>
        </property>
       </widget>
      </item>
      <item>
-      <widget class="QPushButton" name="thumbnailsButton">
+      <widget class="QToolButton" name="thumbnailsButton">
+       <property name="minimumSize">
+        <size>
+         <width>96</width>
+         <height>0</height>
+        </size>
+       </property>
        <property name="text">
         <string>Thumbnails</string>
        </property>
+       <property name="icon">
+        <iconset resource="pdf4qtviewer.qrc">
+         <normaloff>:/resources/sidebar-thumbnails.png</normaloff>:/resources/sidebar-thumbnails.png</iconset>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>64</width>
+         <height>64</height>
+        </size>
+       </property>
        <property name="checkable">
         <bool>true</bool>
        </property>
-       <property name="flat">
+       <property name="toolButtonStyle">
+        <enum>Qt::ToolButtonTextUnderIcon</enum>
+       </property>
+       <property name="flat" stdset="0">
         <bool>true</bool>
        </property>
       </widget>
      </item>
      <item>
-      <widget class="QPushButton" name="optionalContentButton">
+      <widget class="QToolButton" name="optionalContentButton">
+       <property name="minimumSize">
+        <size>
+         <width>96</width>
+         <height>0</height>
+        </size>
+       </property>
        <property name="text">
         <string>Visibility</string>
        </property>
+       <property name="icon">
+        <iconset resource="pdf4qtviewer.qrc">
+         <normaloff>:/resources/sidebar-visibility.png</normaloff>:/resources/sidebar-visibility.png</iconset>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>64</width>
+         <height>64</height>
+        </size>
+       </property>
        <property name="checkable">
         <bool>true</bool>
        </property>
-       <property name="flat">
+       <property name="toolButtonStyle">
+        <enum>Qt::ToolButtonTextUnderIcon</enum>
+       </property>
+       <property name="flat" stdset="0">
         <bool>true</bool>
        </property>
       </widget>
      </item>
      <item>
-      <widget class="QPushButton" name="attachmentsButton">
+      <widget class="QToolButton" name="attachmentsButton">
+       <property name="minimumSize">
+        <size>
+         <width>96</width>
+         <height>0</height>
+        </size>
+       </property>
        <property name="text">
         <string>Attachments</string>
        </property>
+       <property name="icon">
+        <iconset resource="pdf4qtviewer.qrc">
+         <normaloff>:/resources/sidebar-attachment.png</normaloff>:/resources/sidebar-attachment.png</iconset>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>64</width>
+         <height>64</height>
+        </size>
+       </property>
        <property name="checkable">
         <bool>true</bool>
        </property>
-       <property name="flat">
+       <property name="toolButtonStyle">
+        <enum>Qt::ToolButtonTextUnderIcon</enum>
+       </property>
+       <property name="flat" stdset="0">
         <bool>true</bool>
        </property>
       </widget>
      </item>
      <item>
-      <widget class="QPushButton" name="speechButton">
+      <widget class="QToolButton" name="speechButton">
+       <property name="minimumSize">
+        <size>
+         <width>96</width>
+         <height>0</height>
+        </size>
+       </property>
        <property name="text">
         <string>Speech</string>
        </property>
+       <property name="icon">
+        <iconset resource="pdf4qtviewer.qrc">
+         <normaloff>:/resources/sidebar-speech.png</normaloff>:/resources/sidebar-speech.png</iconset>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>64</width>
+         <height>64</height>
+        </size>
+       </property>
        <property name="checkable">
         <bool>true</bool>
        </property>
-       <property name="flat">
+       <property name="toolButtonStyle">
+        <enum>Qt::ToolButtonTextUnderIcon</enum>
+       </property>
+       <property name="flat" stdset="0">
         <bool>true</bool>
        </property>
       </widget>
      </item>
      <item>
-      <widget class="QPushButton" name="signaturesButton">
+      <widget class="QToolButton" name="signaturesButton">
+       <property name="minimumSize">
+        <size>
+         <width>96</width>
+         <height>0</height>
+        </size>
+       </property>
        <property name="text">
         <string>Signatures</string>
+       </property>
+       <property name="icon">
+        <iconset resource="pdf4qtviewer.qrc">
+         <normaloff>:/resources/sidebar-signature.png</normaloff>:/resources/sidebar-signature.png</iconset>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>64</width>
+         <height>64</height>
+        </size>
        </property>
        <property name="checkable">
         <bool>true</bool>
        </property>
-       <property name="flat">
+       <property name="toolButtonStyle">
+        <enum>Qt::ToolButtonTextUnderIcon</enum>
+       </property>
+       <property name="flat" stdset="0">
         <bool>true</bool>
        </property>
       </widget>
@@ -124,7 +238,7 @@
    <item>
     <widget class="QStackedWidget" name="stackedWidget">
      <property name="currentIndex">
-      <number>6</number>
+      <number>2</number>
      </property>
      <widget class="QWidget" name="emptyPage"/>
      <widget class="QWidget" name="bookmarksPage">
@@ -175,7 +289,7 @@
              <string>Synchronize thumbnails with current page</string>
             </property>
             <property name="icon">
-             <iconset resource="pdfforqtviewer.qrc">
+             <iconset resource="pdf4qtviewer.qrc">
               <normaloff>:/resources/synchronize.svg</normaloff>:/resources/synchronize.svg</iconset>
             </property>
             <property name="checkable">
@@ -350,7 +464,7 @@
          <item>
           <widget class="QToolButton" name="speechPlayButton">
            <property name="icon">
-            <iconset resource="pdfforqtviewer.qrc">
+            <iconset resource="pdf4qtviewer.qrc">
              <normaloff>:/resources/play.svg</normaloff>:/resources/play.svg</iconset>
            </property>
           </widget>
@@ -358,7 +472,7 @@
          <item>
           <widget class="QToolButton" name="speechPauseButton">
            <property name="icon">
-            <iconset resource="pdfforqtviewer.qrc">
+            <iconset resource="pdf4qtviewer.qrc">
              <normaloff>:/resources/pause.svg</normaloff>:/resources/pause.svg</iconset>
            </property>
           </widget>
@@ -366,7 +480,7 @@
          <item>
           <widget class="QToolButton" name="speechStopButton">
            <property name="icon">
-            <iconset resource="pdfforqtviewer.qrc">
+            <iconset resource="pdf4qtviewer.qrc">
              <normaloff>:/resources/stop.svg</normaloff>:/resources/stop.svg</iconset>
            </property>
           </widget>
@@ -387,7 +501,7 @@
          <item>
           <widget class="QToolButton" name="speechSynchronizeButton">
            <property name="icon">
-            <iconset resource="pdfforqtviewer.qrc">
+            <iconset resource="pdf4qtviewer.qrc">
              <normaloff>:/resources/synchronize.svg</normaloff>:/resources/synchronize.svg</iconset>
            </property>
            <property name="checkable">
@@ -441,7 +555,7 @@
   </layout>
  </widget>
  <resources>
-  <include location="pdfforqtviewer.qrc"/>
+  <include location="pdf4qtviewer.qrc"/>
  </resources>
  <connections/>
 </ui>

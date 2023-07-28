@@ -1,4 +1,4 @@
-//    Copyright (C) 2019-2021 Jakub Melka
+//    Copyright (C) 2019-2023 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -24,6 +24,7 @@
 #include <QWidget>
 
 class QPushButton;
+class QToolButton;
 class QWidget;
 
 namespace Ui
@@ -113,7 +114,7 @@ private:
 
     struct PageInfo
     {
-        QPushButton* button = nullptr;
+        QToolButton* button = nullptr;
         QWidget* page = nullptr;
     };
 

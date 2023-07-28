@@ -92,5 +92,11 @@
         <file>resources/pce-same-width.svg</file>
         <file>resources/certificate-manager.svg</file>
         <file>resources/select-table.svg</file>
+        <file>resources/sidebar-signature.png</file>
+        <file>resources/sidebar-speech.png</file>
+        <file>resources/sidebar-outline.png</file>
+        <file>resources/sidebar-thumbnails.png</file>
+        <file>resources/sidebar-visibility.png</file>
+        <file>resources/sidebar-attachment.png</file>
     </qresource>
 </RCC>
