@@ -1,4 +1,4 @@
-//    Copyright (C) 2019-2022 Jakub Melka
+﻿//    Copyright (C) 2019-2022 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -19,6 +19,7 @@
 #include "pdfdocument.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfdbgheap.h"
+#include "pdfdrawwidget.h"
 
 #include <QFont>
 #include <QStyle>
@@ -691,9 +692,11 @@ QVariant PDFThumbnailsItemModel::data(const QModelIndex& index, int role) const
             QPixmap pixmap;
             if (!m_thumbnailCache.find(key, &pixmap))
             {
-                QImage thumbnail = m_proxy->drawThumbnailImage(index.row(), m_thumbnailSize);
+                const qreal devicePixelRatio = m_proxy->getWidget()->devicePixelRatioF();
+                QImage thumbnail = m_proxy->drawThumbnailImage(index.row(), m_thumbnailSize * devicePixelRatio);
                 if (!thumbnail.isNull())
                 {
+                    thumbnail.setDevicePixelRatio(devicePixelRatio);
                     pixmap = QPixmap::fromImage(qMove(thumbnail));
                     m_thumbnailCache.insert(key, pixmap);
                 }
