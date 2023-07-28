@@ -1,4 +1,4 @@
-//    Copyright (C) 2018-2022 Jakub Melka
+//    Copyright (C) 2018-2023 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
