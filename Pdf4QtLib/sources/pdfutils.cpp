@@ -45,7 +45,9 @@
 
 #pragma warning(push)
 #pragma warning(disable:5033)
+#ifndef CMS_NO_REGISTER_KEYWORD
 #define CMS_NO_REGISTER_KEYWORD
+#endif
 #include <lcms2.h>
 #pragma warning(pop)
 

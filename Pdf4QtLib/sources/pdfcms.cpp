@@ -32,7 +32,9 @@
 #pragma warning(push)
 #pragma warning(disable:5033)
 #endif
+#ifndef CMS_NO_REGISTER_KEYWORD
 #define CMS_NO_REGISTER_KEYWORD
+#endif
 #include <lcms2.h>
 #include <lcms2_plugin.h>
 #ifdef PDF4QT_COMPILER_MSVC
