@@ -1,5 +1,15 @@
 CURRENT:
 
+V: 1.3.4 3.8.2023
+ - Issue #75: Redesign of sidebar widget
+ - Issue #74: Highlighting text opens the sidebar every time
+ - Issue #73: Minor GUI issues
+ - Issue #71: Pages are "mirrored"
+ - Issue #69: Dashed Line not rendered as expected
+ - Issue #68: Add alternative VCPKG file with dependency on Qt
+ - Issue #59: Fix character font encoding - do not use (1, 0) Mac Roman table if (3, 1) unicode table is present (according to spec)
+ - Issue #50: Some types of pdf don't open as expected and some doesnt open. 
+
 V: 1.3.3 22.4.2023
  - Issue #49: Document read error
  - Issue #46: Program does not launch/freezes on Windows 10/Windows Server 2022 (x64)
