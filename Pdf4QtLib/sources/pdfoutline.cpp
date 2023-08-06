@@ -65,12 +65,17 @@ void PDFOutlineItem::parseImpl(const PDFObjectStorage* storage,
     {
         if (visitedOutlineItems.count(reference))
         {
-            throw PDFException(PDFTranslationContext::tr("Outline items have cyclic dependence."));
+            return false;
         }
 
         visitedOutlineItems.insert(reference);
+        return true;
     };
-    checkCyclicDependence(currentItem);
+
+    if (!checkCyclicDependence(currentItem))
+    {
+        return;
+    }
 
     PDFObject dereferencedItem = storage->getObjectByReference(currentItem);
     while (dereferencedItem.isDictionary())
@@ -106,7 +111,8 @@ void PDFOutlineItem::parseImpl(const PDFObjectStorage* storage,
         const PDFObject& firstItem = dictionary->get("First");
         if (firstItem.isReference())
         {
-            parseImpl(storage, currentOutlineItem.get(), firstItem.getReference(), visitedOutlineItems);
+            std::set<PDFObjectReference> currentVisitedOutlineItems = visitedOutlineItems;
+            parseImpl(storage, currentOutlineItem.get(), firstItem.getReference(), currentVisitedOutlineItems);
         }
 
         // Add new child to the parent
@@ -116,7 +122,10 @@ void PDFOutlineItem::parseImpl(const PDFObjectStorage* storage,
         const PDFObject& nextItem = dictionary->get("Next");
         if (nextItem.isReference())
         {
-            checkCyclicDependence(nextItem.getReference());
+            if (!checkCyclicDependence(nextItem.getReference()))
+            {
+                break;
+            }
             dereferencedItem = storage->getObject(nextItem);
         }
         else
