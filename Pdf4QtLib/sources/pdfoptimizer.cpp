@@ -428,7 +428,7 @@ bool PDFOptimizer::performRecompressFlateStreams()
                 return;
             }
 
-            const PDFStreamFilter* streamFilter = streamFilters.filterObjects.front();
+            const PDFStreamFilter* streamFilter = streamFilters.filterObjects.back();
             if (dynamic_cast<const PDFFlateDecodeFilter*>(streamFilter))
             {
                 // Try to recompress. If we end with less data, then we use recompressed stream

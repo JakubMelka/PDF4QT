@@ -669,9 +669,6 @@ PDFStreamFilterStorage::StreamFilters PDFStreamFilterStorage::getStreamFilters(c
     }
 
     result.filterParameterObjects.resize(result.filterObjects.size());
-    std::reverse(result.filterObjects.begin(), result.filterObjects.end());
-    std::reverse(result.filterParameterObjects.begin(), result.filterParameterObjects.end());
-
     return result;
 }
 
