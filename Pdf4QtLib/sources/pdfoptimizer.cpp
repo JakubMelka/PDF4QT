@@ -24,6 +24,7 @@
 #include "pdfdocumentbuilder.h"
 #include "pdfstreamfilters.h"
 #include "pdfdbgheap.h"
+#include "pdfdocumentwriter.h"
 
 namespace pdf
 {
@@ -246,48 +247,57 @@ bool PDFOptimizer::performMergeIdenticalObjects()
 {
     std::atomic<PDFInteger> counter = 0;
     std::map<PDFObjectReference, PDFObjectReference> replacementMap;
+    std::map<QByteArray, PDFObjectReference> serializedObjectToReference;
     PDFObjectStorage::PDFObjects objects =  m_storage.getObjects();
+    std::vector<QByteArray> serializedObjects(objects.size());
 
-    // Find same objects
-    QMutex mutex;
     PDFIntegerRange<size_t> range(0, objects.size());
-    auto processEntry = [this, &counter, &objects, &mutex, &replacementMap](size_t index)
+    auto serializeEntry = [&, this](size_t index)
     {
         const PDFObjectStorage::Entry& entry = objects[index];
 
-        // We do not merge special objects, such as pages
-        if (const PDFDictionary* dictionary = m_storage.getDictionaryFromObject(entry.object))
+        if (!entry.object.isNull())
         {
-            PDFObject nameObject = m_storage.getObject(dictionary->get("Type"));
-            if (nameObject.isName())
-            {
-                if (nameObject.getString() == "Page")
-                {
-                    return;
-                }
-            }
-        }
-
-        for (size_t i = 0; i < index; ++i)
-        {
-            if (objects[i].object.isNull())
-            {
-                // Jakub Melka: we do not merge null objects, they are just removed
-                continue;
-            }
-
-            if (objects[i].object == entry.object)
-            {
-                QMutexLocker lock(&mutex);
-                PDFObjectReference oldReference = PDFObjectReference(PDFInteger(index), objects[index].generation);
-                PDFObjectReference newReference = PDFObjectReference(PDFInteger(i), objects[i].generation);
-                replacementMap[oldReference] = newReference;
-                ++counter;
-                break;
-            }
+            serializedObjects[index] = PDFDocumentWriter::getSerializedObject(entry.object);
         }
     };
-    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, range.begin(), range.end(), processEntry);
+    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, range.begin(), range.end(), serializeEntry);
+
+    // Find same object
+    for (PDFInteger index : range)
+    {
+        const PDFObjectStorage::Entry& entry = objects[index];
+
+        if (!entry.object.isNull())
+        {
+            // We do not merge special objects, such as pages
+            if (const PDFDictionary* dictionary = m_storage.getDictionaryFromObject(entry.object))
+            {
+                PDFObject nameObject = m_storage.getObject(dictionary->get("Type"));
+                if (nameObject.isName())
+                {
+                    if (nameObject.getString() == "Page")
+                    {
+                        continue;
+                    }
+                }
+            }
+
+            PDFObjectReference currentReference(PDFInteger(index), objects[index].generation);
+            const QByteArray& serializedObject = serializedObjects[index];
+            if (!serializedObjectToReference.count(serializedObject))
+            {
+                serializedObjectToReference[serializedObject] = currentReference;
+            }
+            else
+            {
+                PDFObjectReference oldReference = currentReference;
+                PDFObjectReference newReference = serializedObjectToReference.at(serializedObject);
+                replacementMap[oldReference] = newReference;
+                ++counter;
+            }
+        }
+    }
 
     // Replace objects
     if (!replacementMap.empty())
