@@ -452,13 +452,24 @@ public:
     /// header.
     QByteArray getVersion() const;
 
-    explicit PDFDocument(PDFObjectStorage&& storage, PDFVersion version) :
-        m_pdfObjectStorage(std::move(storage))
+    explicit PDFDocument(PDFObjectStorage&& storage, PDFVersion version, QByteArray sourceDataHash) :
+        m_pdfObjectStorage(std::move(storage)),
+        m_sourceDataHash(std::move(sourceDataHash))
     {
         init();
 
         m_info.version = version;
     }
+
+    /**
+     * @brief Retrieves the hash of the source data.
+     *
+     * This function returns the hash derived from the source data
+     * from which the document was originally read.
+     *
+     * @return Hash value of the source data.
+     */
+    const QByteArray& getSourceDataHash() const { return m_sourceDataHash; }
 
 private:
     friend class PDFDocumentReader;
@@ -482,6 +493,10 @@ private:
 
     /// Catalog object
     PDFCatalog m_catalog;
+
+    /// Hash of the source byte array's data,
+    /// from which the document was created.
+    QByteArray m_sourceDataHash;
 };
 
 using PDFDocumentPointer = QSharedPointer<PDFDocument>;
@@ -507,6 +522,7 @@ public:
         Authorization       = 0x0010,   ///< Authorization has changed (for example, old document is granted user access, but for new, owner access)
         XFA_Pagination      = 0x0020,   ///< XFA pagination has been performed (this flag can be set only when Reset flag has been set and not any other flag)
         PreserveUndoRedo    = 0x0040,   ///< Preserve undo/red even when Reset flag is being set
+        PreserveView        = 0x0080,   ///< Try to preserve view
     };
 
     Q_DECLARE_FLAGS(ModificationFlags, ModificationFlag)
@@ -555,6 +571,7 @@ public:
     bool hasPageContentsChanged() const { return m_flags.testFlag(PageContents); }
     bool hasPreserveUndoRedo() const { return m_flags.testFlag(PreserveUndoRedo); }
     bool hasFlag(ModificationFlag flag) const { return m_flags.testFlag(flag); }
+    bool hasPreserveView() const { return m_flags.testFlag(PreserveView); }
 
     operator PDFDocument*() const { return m_document; }
     operator PDFDocumentPointer() const { return m_documentPointer; }

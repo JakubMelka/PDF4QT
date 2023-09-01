@@ -26,6 +26,7 @@
 #include "pdfdbgheap.h"
 
 #include <QFile>
+#include <QCryptographicHash>
 
 #include <regex>
 #include <cctype>
@@ -582,7 +583,7 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
         processObjectStreams(&xrefTable, objects);
 
         PDFObjectStorage storage(std::move(objects), PDFObject(xrefTable.getTrailerDictionary()), qMove(m_securityHandler));
-        return PDFDocument(std::move(storage), m_version);
+        return PDFDocument(std::move(storage), m_version, hash(buffer));
     }
     catch (const PDFException &parserException)
     {
@@ -597,6 +598,11 @@ PDFDocument PDFDocumentReader::readFromBuffer(const QByteArray& buffer)
     }
 
     return PDFDocument();
+}
+
+QByteArray PDFDocumentReader::hash(const QByteArray& sourceData)
+{
+    return QCryptographicHash::hash(sourceData, QCryptographicHash::Sha256);
 }
 
 std::vector<std::pair<int, int>> PDFDocumentReader::findObjectByteOffsets(const QByteArray& buffer) const
@@ -767,7 +773,7 @@ PDFDocument PDFDocumentReader::readDamagedDocumentFromBuffer(const QByteArray& b
         }
 
         PDFObjectStorage storage(std::move(objects), PDFObject(trailerDictionaryObject), qMove(m_securityHandler));
-        return PDFDocument(std::move(storage), m_version);
+        return PDFDocument(std::move(storage), m_version, QByteArray());
     }
     catch (const PDFException &parserException)
     {

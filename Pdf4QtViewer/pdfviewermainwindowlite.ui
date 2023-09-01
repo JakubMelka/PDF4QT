@@ -29,7 +29,7 @@
     </property>
     <addaction name="actionOpen"/>
     <addaction name="actionClose"/>
-    <addaction name="separator"/>
+	<addaction name="actionAutomaticDocumentRefresh"/>
     <addaction name="separator"/>
     <addaction name="actionSend_by_E_Mail"/>
     <addaction name="actionPrint"/>
@@ -457,6 +457,17 @@
    </property>
    <property name="text">
     <string>Certificates...</string>
+   </property>
+  </action>
+    <action name="actionAutomaticDocumentRefresh">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Automatic Document Refresh</string>
+   </property>
+   <property name="statusTip">
+    <string>Automatically reloads the document if a change made by an external program is detected.</string>
    </property>
   </action>
  </widget>

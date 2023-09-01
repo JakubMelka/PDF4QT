@@ -70,7 +70,7 @@ public:
 
     /// Returns optimized document. Object storage is cleared after
     /// this function call.
-    PDFDocument takeOptimizedDocument() { return PDFDocument(qMove(m_storage), PDFVersion(2, 0)); }
+    PDFDocument takeOptimizedDocument() { return PDFDocument(qMove(m_storage), PDFVersion(2, 0), QByteArray()); }
 
     OptimizationFlags getFlags() const;
     void setFlags(OptimizationFlags flags);

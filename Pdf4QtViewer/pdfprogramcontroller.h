@@ -29,6 +29,7 @@
 #include <QAction>
 #include <QToolButton>
 #include <QActionGroup>
+#include <QFileSystemWatcher>
 
 #include <array>
 
@@ -81,6 +82,7 @@ public:
         Open,
         Close,
         Quit,
+        AutomaticDocumentRefresh,
         ZoomIn,
         ZoomOut,
         Find,
@@ -349,6 +351,7 @@ private:
     void onActionCloseTriggered();
     void onActionDeveloperCreateInstaller();
     void onActionGetSource();
+    void onActionAutomaticDocumentRefresh();
 
     void onDrawSpaceChanged();
     void onPageLayoutChanged();
@@ -359,6 +362,7 @@ private:
     void onPageRenderingErrorsChanged(pdf::PDFInteger pageIndex, int errorsCount);
     void onViewerSettingsChanged();
     void onColorManagementSystemChanged();
+    void onFileChanged(const QString& fileName);
 
     void updateMagnifierToolSettings();
     void updateUndoRedoSettings();
@@ -369,6 +373,7 @@ private:
 
     void setPageLayout(pdf::PageLayout pageLayout);
     void updateFileInfo(const QString& fileName);
+    void updateFileWatcher(bool forceDisable = false);
 
     enum SettingFlag
     {
@@ -408,6 +413,7 @@ private:
     pdf::PDFFormManager* m_formManager;
 
     PDFFileInfo m_fileInfo;
+    QFileSystemWatcher m_fileWatcher;
     pdf::PDFCertificateStore m_certificateStore;
     std::vector<pdf::PDFSignatureVerificationResult> m_signatures;
 

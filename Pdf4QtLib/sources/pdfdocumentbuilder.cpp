@@ -704,7 +704,7 @@ void PDFDocumentBuilder::setDocument(const PDFDocument* document)
 PDFDocument PDFDocumentBuilder::build()
 {
     updateTrailerDictionary(m_storage.getObjects().size());
-    return PDFDocument(PDFObjectStorage(m_storage), m_version);
+    return PDFDocument(PDFObjectStorage(m_storage), m_version, QByteArray());
 }
 
 QByteArray PDFDocumentBuilder::getDecodedStream(const PDFStream* stream) const

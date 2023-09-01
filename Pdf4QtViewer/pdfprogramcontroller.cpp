@@ -335,7 +335,7 @@ PDFProgramController::PDFProgramController(QObject* parent) :
     m_isFactorySettingsBeingRestored(false),
     m_progress(nullptr)
 {
-
+    connect(&m_fileWatcher, &QFileSystemWatcher::fileChanged, this, &PDFProgramController::onFileChanged);
 }
 
 PDFProgramController::~PDFProgramController()
@@ -529,6 +529,10 @@ void PDFProgramController::initialize(Features features,
     if (QAction* action = m_actionManager->getAction(PDFActionManager::GetSource))
     {
         connect(action, &QAction::triggered, this, &PDFProgramController::onActionGetSource);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::AutomaticDocumentRefresh))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionAutomaticDocumentRefresh);
     }
 
     if (m_recentFileManager)
@@ -1042,7 +1046,6 @@ void PDFProgramController::onActionRenderingOptionTriggered(bool checked)
 
 void PDFProgramController::performSaveAs()
 {
-
     QFileInfo fileInfo(m_fileInfo.originalFileName);
     QString saveFileName = QFileDialog::getSaveFileName(m_mainWindow, tr("Save As"), fileInfo.dir().absoluteFilePath(m_fileInfo.originalFileName), tr("Portable Document (*.pdf);;All files (*.*)"));
     if (!saveFileName.isEmpty())
@@ -1058,6 +1061,8 @@ void PDFProgramController::performSave()
 
 void PDFProgramController::saveDocument(const QString& fileName)
 {
+    updateFileWatcher(true);
+
     pdf::PDFDocumentWriter writer(nullptr);
     pdf::PDFOperationResult result = writer.write(fileName, m_pdfDocument.data(), true);
     if (result)
@@ -1079,6 +1084,8 @@ void PDFProgramController::saveDocument(const QString& fileName)
     {
         QMessageBox::critical(m_mainWindow, tr("Error"), result.getErrorMessage());
     }
+
+    updateFileWatcher();
 }
 
 bool PDFProgramController::isFactorySettingsBeingRestored() const
@@ -1266,7 +1273,7 @@ void PDFProgramController::onActionEncryptionTriggered()
         pdf::PDFObjectStorage storage = m_pdfDocument->getStorage();
         storage.setSecurityHandler(qMove(clonedSecurityHandler));
 
-        pdf::PDFDocumentPointer pointer(new pdf::PDFDocument(qMove(storage), m_pdfDocument->getInfo()->version));
+        pdf::PDFDocumentPointer pointer(new pdf::PDFDocument(qMove(storage), m_pdfDocument->getInfo()->version, QByteArray()));
         pdf::PDFModifiedDocument document(qMove(pointer), m_optionalContentActivity, pdf::PDFModifiedDocument::Authorization);
         onDocumentModified(qMove(document));
     }
@@ -1585,6 +1592,53 @@ void PDFProgramController::onColorManagementSystemChanged()
     m_settings->setColorManagementSystemSettings(m_CMSManager->getSettings());
 }
 
+void PDFProgramController::onFileChanged(const QString& fileName)
+{
+    QAction* autoRefreshDocumentAction = m_actionManager->getAction(PDFActionManager::AutomaticDocumentRefresh);
+
+    if (!autoRefreshDocumentAction || // We do not have action
+        !autoRefreshDocumentAction->isChecked() || // Auto refresh is not enabled
+        m_fileInfo.originalFileName != fileName) // File is different
+    {
+        return;
+    }
+
+    if (m_undoRedoManager && !m_undoRedoManager->isCurrentSaved())
+    {
+        // If document is modified, we do not reload it
+        return;
+    }
+
+    QFile file(fileName);
+    if (file.open(QFile::ReadOnly))
+    {
+        QByteArray data = file.readAll();
+        file.close();
+
+        QByteArray hash = pdf::PDFDocumentReader::hash(data);
+        if (m_pdfDocument && m_pdfDocument->getSourceDataHash() != hash)
+        {
+            auto queryPassword = [this](bool* ok)
+            {
+                *ok = false;
+                return QString();
+            };
+
+            // Try to open a new document
+            pdf::PDFDocumentReader reader(m_progress, qMove(queryPassword), true, false);
+            pdf::PDFDocument document = reader.readFromFile(fileName);
+
+            if (reader.getReadingResult() == pdf::PDFDocumentReader::Result::OK)
+            {
+                pdf::PDFDocumentPointer pointer(new pdf::PDFDocument(std::move(document)));
+                pdf::PDFModifiedDocument modifiedDocument(std::move(pointer), m_optionalContentActivity, pdf::PDFModifiedDocument::ModificationFlags(pdf::PDFModifiedDocument::Reset | pdf::PDFModifiedDocument::PreserveView));
+                onDocumentModified(std::move(modifiedDocument));
+                m_undoRedoManager->setIsCurrentSaved();
+            }
+        }
+    }
+}
+
 void PDFProgramController::updateFileInfo(const QString& fileName)
 {
     QFileInfo fileInfo(fileName);
@@ -1596,6 +1650,27 @@ void PDFProgramController::updateFileInfo(const QString& fileName)
     m_fileInfo.creationTime = fileInfo.birthTime();
     m_fileInfo.lastModifiedTime = fileInfo.lastModified();
     m_fileInfo.lastReadTime = fileInfo.lastRead();
+    m_fileInfo.absoluteFilePath = fileInfo.absoluteFilePath();
+
+    updateFileWatcher(false);
+}
+
+void PDFProgramController::updateFileWatcher(bool forceDisable)
+{
+    QStringList oldFiles = m_fileWatcher.files();
+    QStringList newFiles;
+
+    QAction* action = m_actionManager->getAction(PDFActionManager::AutomaticDocumentRefresh);
+    if (!forceDisable && !m_fileInfo.absoluteFilePath.isEmpty() && action && action->isChecked())
+    {
+        newFiles << m_fileInfo.absoluteFilePath;
+    }
+
+    if (oldFiles != newFiles)
+    {
+        m_fileWatcher.removePaths(oldFiles);
+        m_fileWatcher.addPaths(newFiles);
+    }
 }
 
 void PDFProgramController::openDocument(const QString& fileName)
@@ -1809,7 +1884,7 @@ void PDFProgramController::setDocument(pdf::PDFModifiedDocument document, bool i
         plugin.second->setDocument(document);
     }
 
-    if (m_pdfDocument && document.hasReset())
+    if (m_pdfDocument && document.hasReset() && !document.hasPreserveView())
     {
         const pdf::PDFCatalog* catalog = m_pdfDocument->getCatalog();
         setPageLayout(catalog->getPageLayout());
@@ -1831,6 +1906,7 @@ void PDFProgramController::closeDocument()
     m_pdfDocument.reset();
     updateActionsAvailability();
     updateTitle();
+    updateFileInfo(QString());
 }
 
 void PDFProgramController::updateRenderingOptionActions()
@@ -2380,6 +2456,11 @@ void PDFProgramController::onActionDeveloperCreateInstaller()
 void PDFProgramController::onActionGetSource()
 {
     QDesktopServices::openUrl(QUrl("https://github.com/JakubMelka/PDF4QT"));
+}
+
+void PDFProgramController::onActionAutomaticDocumentRefresh()
+{
+    updateFileWatcher();
 }
 
 void PDFProgramController::onPageRenderingErrorsChanged(pdf::PDFInteger pageIndex, int errorsCount)

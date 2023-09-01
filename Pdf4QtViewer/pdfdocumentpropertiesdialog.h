@@ -42,6 +42,7 @@ namespace pdfviewer
 struct PDFFileInfo
 {
     QString originalFileName;
+    QString absoluteFilePath;
     QString fileName;
     QString path;
     pdf::PDFInteger fileSize = 0;

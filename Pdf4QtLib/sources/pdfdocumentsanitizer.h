@@ -69,7 +69,7 @@ public:
 
     /// Returns sanitized document. Object storage is cleared after
     /// this function call.
-    PDFDocument takeSanitizedDocument() { return PDFDocument(qMove(m_storage), PDFVersion(2, 0)); }
+    PDFDocument takeSanitizedDocument() { return PDFDocument(qMove(m_storage), PDFVersion(2, 0), QByteArray()); }
 
     SanitizationFlags getFlags() const;
     void setFlags(SanitizationFlags flags);

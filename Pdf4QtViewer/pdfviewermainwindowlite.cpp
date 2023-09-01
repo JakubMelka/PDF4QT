@@ -102,6 +102,7 @@ PDFViewerMainWindowLite::PDFViewerMainWindowLite(QWidget* parent) :
     // Initialize actions
     m_actionManager->setAction(PDFActionManager::Open, ui->actionOpen);
     m_actionManager->setAction(PDFActionManager::Close, ui->actionClose);
+    m_actionManager->setAction(PDFActionManager::AutomaticDocumentRefresh, ui->actionAutomaticDocumentRefresh);
     m_actionManager->setAction(PDFActionManager::Quit, ui->actionQuit);
     m_actionManager->setAction(PDFActionManager::ZoomIn, ui->actionZoom_In);
     m_actionManager->setAction(PDFActionManager::ZoomOut, ui->actionZoom_Out);

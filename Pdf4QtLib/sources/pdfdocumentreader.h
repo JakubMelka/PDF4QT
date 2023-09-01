@@ -81,6 +81,8 @@ public:
     /// Returns warning messages
     const QStringList& getWarnings() const { return m_warnings; }
 
+    static QByteArray hash(const QByteArray& sourceData);
+
 private:
     static constexpr const int FIND_NOT_FOUND_RESULT = -1;
 
