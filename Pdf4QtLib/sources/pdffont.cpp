@@ -2102,22 +2102,25 @@ PDFFontCMap PDFFontCMap::createFromData(const QByteArray& data)
             }
             else if (command == "beginbfrange")
             {
-                PDFLexicalAnalyzer::Token token1 = parser.fetch();
-
-                if (token1.type == PDFLexicalAnalyzer::TokenType::Command &&
-                    token1.data.toByteArray() == "endbfrange")
+                while (true)
                 {
-                    break;
+                    PDFLexicalAnalyzer::Token token1 = parser.fetch();
+
+                    if (token1.type == PDFLexicalAnalyzer::TokenType::Command &&
+                            token1.data.toByteArray() == "endbfrange")
+                    {
+                        break;
+                    }
+
+                    PDFLexicalAnalyzer::Token token2 = parser.fetch();
+                    PDFLexicalAnalyzer::Token token3 = parser.fetch();
+
+                    std::pair<unsigned int, unsigned int> from = fetchCode(token1);
+                    std::pair<unsigned int, unsigned int> to = fetchCode(token2);
+                    CID cid = fetchUnicode(token3);
+
+                    entries.emplace_back(from.first, to.first, qMax(from.second, to.second), cid);
                 }
-
-                PDFLexicalAnalyzer::Token token2 = parser.fetch();
-                PDFLexicalAnalyzer::Token token3 = parser.fetch();
-
-                std::pair<unsigned int, unsigned int> from = fetchCode(token1);
-                std::pair<unsigned int, unsigned int> to = fetchCode(token2);
-                CID cid = fetchUnicode(token3);
-
-                entries.emplace_back(from.first, to.first, qMax(from.second, to.second), cid);
             }
             else if (command == "begincidrange")
             {
