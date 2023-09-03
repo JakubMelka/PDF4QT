@@ -36,6 +36,7 @@
 #include <QStandardPaths>
 #include <QMessageBox>
 #include <QPainter>
+#include <QTextToSpeech>
 
 namespace pdfviewer
 {
@@ -273,6 +274,20 @@ void PDFSidebarWidget::selectPage(Page page)
         if (pageInfo.first == page)
         {
             ui->stackedWidget->setCurrentWidget(pageInfo.second.page);
+        }
+    }
+
+    if (page == Speech && ui->speechVoiceComboBox->count() == 0)
+    {
+        // Check, if speech engine is properly set
+        QStringList speechEngines = QTextToSpeech::availableEngines();
+        if (speechEngines.isEmpty())
+        {
+            QMessageBox::critical(this, tr("Error"), tr("Speech feature is unavailable. No speech engines detected. If you're using Linux, please install speech libraries like 'flite' or 'speechd'."));
+        }
+        else
+        {
+            QMessageBox::critical(this, tr("Error"), tr("The speech feature is available, but its options are not properly set. Please check the speech settings in the options dialog."));
         }
     }
 }
