@@ -182,7 +182,7 @@ struct PDF4QTLIBSHARED_EXPORT FontDescriptor
     QByteArray fontFamily;
     QFont::Stretch fontStretch = QFont::AnyStretch;
     PDFReal fontWeight = 400.0;
-    PDFInteger flags;
+    PDFInteger flags = 0;
     QRectF boundingBox;
     PDFReal italicAngle = 0.0;
     PDFReal ascent = 0.0;
