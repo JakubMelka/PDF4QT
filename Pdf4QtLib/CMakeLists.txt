@@ -119,7 +119,7 @@ target_link_libraries(Pdf4QtLib PRIVATE openjp2)
 target_link_libraries(Pdf4QtLib PRIVATE JPEG::JPEG)
 
 if(LINUX_GCC)
-    target_link_libraries(Pdf4QtLib PRIVATE tbb)
+    target_link_libraries(Pdf4QtLib PUBLIC TBB::tbb)
 endif()
 
 if(MINGW)

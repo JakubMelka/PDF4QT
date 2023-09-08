@@ -72,6 +72,10 @@ if (UNIX AND NOT APPLE AND CMAKE_COMPILER_IS_GNUCXX)
     set(LINUX_GCC ON)
 endif()
 
+if (LINUX_GCC)
+    find_package(TBB REQUIRED)
+endif()
+
 add_subdirectory(Pdf4QtLib)
 add_subdirectory(CodeGenerator)
 add_subdirectory(JBIG2_Viewer)

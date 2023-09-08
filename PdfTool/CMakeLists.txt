@@ -52,8 +52,4 @@ if(MINGW)
     target_link_libraries(PdfTool PRIVATE ole32 sapi)
 endif()
 
-if(LINUX_GCC)
-    target_link_libraries(PdfTool PRIVATE tbb)
-endif()
-
 install(TARGETS PdfTool)
