@@ -1,6 +1,6 @@
 # PDF4QT
 
-**(c) Jakub Melka 2018-2022**
+**(c) Jakub Melka 2018-2023**
 
 **Mgr.Jakub.Melka@gmail.com**
 
