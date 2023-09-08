@@ -17,7 +17,7 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-set(PDF4QT_VERSION 1.3.4)
+set(PDF4QT_VERSION 1.3.5)
 
 project(PDF4QT VERSION ${PDF4QT_VERSION} LANGUAGES CXX)
 
