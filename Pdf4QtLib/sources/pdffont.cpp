@@ -2117,9 +2117,31 @@ PDFFontCMap PDFFontCMap::createFromData(const QByteArray& data)
 
                     std::pair<unsigned int, unsigned int> from = fetchCode(token1);
                     std::pair<unsigned int, unsigned int> to = fetchCode(token2);
-                    CID cid = fetchUnicode(token3);
 
-                    entries.emplace_back(from.first, to.first, qMax(from.second, to.second), cid);
+                    if (token3.type == PDFLexicalAnalyzer::TokenType::ArrayStart)
+                    {
+                        unsigned int current = from.first;
+
+                        while (true)
+                        {
+                            PDFLexicalAnalyzer::Token arrayToken = parser.fetch();
+
+                            // Do we have end of array?
+                            if (arrayToken.type == PDFLexicalAnalyzer::TokenType::ArrayEnd)
+                            {
+                                break;
+                            }
+
+                            CID cid = fetchUnicode(arrayToken);
+                            entries.emplace_back(current, current, qMax(from.second, to.second), cid);
+                            ++current;
+                        }
+                    }
+                    else
+                    {
+                        CID cid = fetchUnicode(token3);
+                        entries.emplace_back(from.first, to.first, qMax(from.second, to.second), cid);
+                    }
                 }
             }
             else if (command == "begincidrange")
