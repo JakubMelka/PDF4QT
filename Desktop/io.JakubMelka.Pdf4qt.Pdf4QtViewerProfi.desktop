@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=PDF4QT Viewer Profi
+Comment=Edit and modify PDF files
+Exec=Pdf4QtViewerProfi
+Icon=io.JakubMelka.Pdf4qt.Pdf4QtViewerProfi.svg
+Terminal=false
+Categories=Office
+MimeType=application/pdf

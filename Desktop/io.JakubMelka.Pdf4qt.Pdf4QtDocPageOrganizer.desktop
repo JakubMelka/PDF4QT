@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=PDF4QT DocPage Organizer
+Comment=Organize, merge, split, and duplicate pages in PDF files
+Exec=Pdf4QtDocPageOrganizer
+Icon=io.JakubMelka.Pdf4qt.Pdf4QtDocPageOrganizer.svg
+Terminal=false
+Categories=Office
+MimeType=application/pdf

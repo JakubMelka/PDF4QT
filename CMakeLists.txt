@@ -93,8 +93,9 @@ add_subdirectory(WixInstaller)
 message("CMAKE_PREFIX_PATH = " ${CMAKE_PREFIX_PATH})
 message("CMAKE_TOOLCHAIN_FILE = " ${CMAKE_TOOLCHAIN_FILE})
 
-install(FILES Desktop/Pdf4QtDocDiff.desktop Desktop/Pdf4QtDocPageOrganizer.desktop Desktop/Pdf4QtViewerLite.desktop Desktop/Pdf4QtViewerProfi.desktop DESTINATION usr/share/applications)
-install(FILES Desktop/Pdf4QtDocDiff.svg Desktop/Pdf4QtDocPageOrganizer.svg Desktop/Pdf4QtViewerLite.svg Desktop/Pdf4QtViewerProfi.svg DESTINATION usr/share/icons)
+install(FILES Desktop/io.JakubMelka.Pdf4qt.Pdf4QtDocDiff.desktop Desktop/io.JakubMelka.Pdf4qt.Pdf4QtDocPageOrganizer.desktop Desktop/io.JakubMelka.Pdf4qt.Pdf4QtViewerLite.desktop Desktop/io.JakubMelka.Pdf4qt.Pdf4QtViewerProfi.desktop DESTINATION share/applications)
+install(FILES Desktop/io.JakubMelka.Pdf4qt.Pdf4QtDocDiff.svg Desktop/io.JakubMelka.Pdf4qt.Pdf4QtDocPageOrganizer.svg Desktop/io.JakubMelka.Pdf4qt.Pdf4QtViewerLite.svg Desktop/io.JakubMelka.Pdf4qt.Pdf4QtViewerProfi.svg DESTINATION share/icons)
+install(FILES Desktop/io.JakubMelka.Pdf4qt.appdata.xml DESTINATION share/metainfo)
 
 configure_file(make-package.sh.in make-package.sh)
 
