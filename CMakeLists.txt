@@ -93,9 +93,9 @@ add_subdirectory(WixInstaller)
 message("CMAKE_PREFIX_PATH = " ${CMAKE_PREFIX_PATH})
 message("CMAKE_TOOLCHAIN_FILE = " ${CMAKE_TOOLCHAIN_FILE})
 
-install(FILES Desktop/io.JakubMelka.Pdf4qt.Pdf4QtDocDiff.desktop Desktop/io.JakubMelka.Pdf4qt.Pdf4QtDocPageOrganizer.desktop Desktop/io.JakubMelka.Pdf4qt.Pdf4QtViewerLite.desktop Desktop/io.JakubMelka.Pdf4qt.Pdf4QtViewerProfi.desktop DESTINATION share/applications)
-install(FILES Desktop/io.JakubMelka.Pdf4qt.Pdf4QtDocDiff.svg Desktop/io.JakubMelka.Pdf4qt.Pdf4QtDocPageOrganizer.svg Desktop/io.JakubMelka.Pdf4qt.Pdf4QtViewerLite.svg Desktop/io.JakubMelka.Pdf4qt.Pdf4QtViewerProfi.svg DESTINATION share/icons)
-install(FILES Desktop/io.JakubMelka.Pdf4qt.appdata.xml DESTINATION share/metainfo)
+install(FILES Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDocDiff.desktop Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDocPageOrganizer.desktop Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtViewerLite.desktop Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtViewerProfi.desktop DESTINATION share/applications)
+install(FILES Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDocDiff.svg Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDocPageOrganizer.svg Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtViewerLite.svg Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtViewerProfi.svg DESTINATION share/icons)
+install(FILES Desktop/io.github.JakubMelka.Pdf4qt.appdata.xml DESTINATION share/metainfo)
 
 configure_file(make-package.sh.in make-package.sh)
 
