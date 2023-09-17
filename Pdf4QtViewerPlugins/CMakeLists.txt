@@ -16,7 +16,7 @@
 #    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 if(PDF4QT_LINUX)
-    set(PDF4QT_PLUGINS_DIR lib/pdfplugins)
+    set(PDF4QT_PLUGINS_DIR lib/pdf4qt)
 else()
     set(PDF4QT_PLUGINS_DIR bin/pdfplugins)
 endif()
