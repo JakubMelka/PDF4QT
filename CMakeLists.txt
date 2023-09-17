@@ -72,6 +72,10 @@ if (UNIX AND NOT APPLE AND CMAKE_COMPILER_IS_GNUCXX)
     set(LINUX_GCC ON)
 endif()
 
+if (UNIX AND NOT APPLE)
+    set(PDF4QT_LINUX ON)
+endif()
+
 if (LINUX_GCC)
     find_package(TBB REQUIRED)
 endif()

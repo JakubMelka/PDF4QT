@@ -28,7 +28,7 @@ target_link_libraries(SignaturePlugin PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 set_target_properties(SignaturePlugin PROPERTIES
                       VERSION ${PDF4QT_VERSION}
                       SOVERSION ${PDF4QT_VERSION}
-                      LIBRARY_OUTPUT_DIRECTORY ${PDF4QT_PLUGINS_DIR}
-                      RUNTIME_OUTPUT_DIRECTORY ${PDF4QT_PLUGINS_DIR})
+                      LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_PLUGINS_DIR}
+                      RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_PLUGINS_DIR})
 
-install(TARGETS SignaturePlugin RUNTIME DESTINATION bin/pdfplugins/)
+install(TARGETS SignaturePlugin RUNTIME DESTINATION ${PDF4QT_PLUGINS_DIR} LIBRARY DESTINATION ${PDF4QT_PLUGINS_DIR})

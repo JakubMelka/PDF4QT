@@ -30,7 +30,7 @@ target_link_libraries(OutputPreviewPlugin PRIVATE Pdf4QtLib Qt6::Core Qt6::Gui Q
 set_target_properties(OutputPreviewPlugin PROPERTIES
                       VERSION ${PDF4QT_VERSION}
                       SOVERSION ${PDF4QT_VERSION}
-                      LIBRARY_OUTPUT_DIRECTORY ${PDF4QT_PLUGINS_DIR}
-                      RUNTIME_OUTPUT_DIRECTORY ${PDF4QT_PLUGINS_DIR})
+                      LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_PLUGINS_DIR}
+                      RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_PLUGINS_DIR})
 
-install(TARGETS OutputPreviewPlugin RUNTIME DESTINATION bin/pdfplugins/)
+install(TARGETS OutputPreviewPlugin RUNTIME DESTINATION ${PDF4QT_PLUGINS_DIR} LIBRARY DESTINATION ${PDF4QT_PLUGINS_DIR})
