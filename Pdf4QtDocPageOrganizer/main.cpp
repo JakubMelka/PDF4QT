@@ -25,6 +25,11 @@ int main(int argc, char *argv[])
 {
     QApplication::setAttribute(Qt::AA_CompressHighFrequencyEvents, true);
     QApplication::setAttribute(Qt::AA_DontCheckOpenGLContextThreadAffinity, true);
+
+#if !defined(Q_OS_WIN)
+    QApplication::setAttribute(Qt::AA_DontUseNativeDialogs, true);
+#endif
+
     QApplication application(argc, argv);
 
     QCoreApplication::setOrganizationName("MelkaJ");
