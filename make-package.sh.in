@@ -1,11 +1,5 @@
 #!/bin/bash
 
-mkdir -p install/lib/pdf4qt
-mv -f install/lib/*Plugin.so*  install/lib/pdf4qt/
-
-#mkdir -p install/usr/bin/
-#mv -f install/bin/* install/usr/bin/
-
 mkdir -p install/DEBIAN/
 file="install/DEBIAN/control"
 
@@ -17,7 +11,7 @@ echo "Priority: optional" >>$file
 echo "Architecture: amd64" >>$file
 echo "Depends: libqt6gui6, libqt6xml6, libqt6svg6, libqt6openglwidgets6, libtbb12,  libqt6printsupport6, libqt6texttospeech6, qt6-speech-speechd-plugin, qt6-speech-flite-plugin">>$file
 echo "Maintainer: Jakub Melka" >>$file
-echo "Description: This software is consisting of PDF rendering library, and several applications, such as advanced document viewer, command line tool, and document page manipulator application. Software is implementing PDF functionality based on PDF Reference 2.0. It is written and maintained by Jakub Melka." >>$file
+echo "Description: Unleash the power of PDF4QT: Your go-to open source PDF editor powered by the Qt framework. With a robust C++ library, intuitive PDF viewing/editing applications, and a handy command-line tool, PDF4QT streamlines your PDF interactions. Try it today." >>$file
 echo "Homepage: https://jakubmelka.github.io/" >>$file
 echo "Vcs-Browser: https://github.com/JakubMelka/PDF4QT" >>$file
 
