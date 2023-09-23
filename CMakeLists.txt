@@ -80,6 +80,26 @@ if (LINUX_GCC)
     find_package(TBB REQUIRED)
 endif()
 
+option(PDF4QT_INSTALL_TO_USR "Install to usr directory" OFF)
+
+if(PDF4QT_LINUX)
+    set(PDF4QT_INSTALL_LIB_DIR_IMPL lib)
+    set(PDF4QT_INSTALL_BIN_DIR_IMPL bin)
+else()
+    set(PDF4QT_INSTALL_LIB_DIR_IMPL bin)
+    set(PDF4QT_INSTALL_BIN_DIR_IMPL bin)
+endif()
+
+if(PDF4QT_INSTALL_TO_USR)
+    set(PDF4QT_INSTALL_LIB_DIR usr/${PDF4QT_INSTALL_LIB_DIR_IMPL})
+    set(PDF4QT_INSTALL_BIN_DIR usr/${PDF4QT_INSTALL_BIN_DIR_IMPL})
+    set(PDF4QT_INSTALL_SHARE_DIR usr/share)
+else()
+    set(PDF4QT_INSTALL_LIB_DIR ${PDF4QT_INSTALL_LIB_DIR_IMPL})
+    set(PDF4QT_INSTALL_BIN_DIR ${PDF4QT_INSTALL_BIN_DIR_IMPL})
+    set(PDF4QT_INSTALL_SHARE_DIR share)
+endif()
+
 add_subdirectory(Pdf4QtLib)
 add_subdirectory(CodeGenerator)
 add_subdirectory(JBIG2_Viewer)
@@ -97,16 +117,16 @@ add_subdirectory(WixInstaller)
 message("CMAKE_PREFIX_PATH = " ${CMAKE_PREFIX_PATH})
 message("CMAKE_TOOLCHAIN_FILE = " ${CMAKE_TOOLCHAIN_FILE})
 
-install(FILES Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDocDiff.desktop Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDocPageOrganizer.desktop Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtViewerLite.desktop Desktop/io.github.JakubMelka.Pdf4qt.desktop DESTINATION share/applications)
-install(FILES Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDocDiff.svg Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDocPageOrganizer.svg Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtViewerLite.svg Desktop/io.github.JakubMelka.Pdf4qt.svg DESTINATION share/icons/hicolor/scalable/apps)
-install(FILES Desktop/io.github.JakubMelka.Pdf4qt.appdata.xml DESTINATION share/metainfo)
-install(FILES Desktop/128x128/io.github.JakubMelka.Pdf4qt.Pdf4QtDocDiff.png Desktop/128x128/io.github.JakubMelka.Pdf4qt.Pdf4QtDocPageOrganizer.png Desktop/128x128/io.github.JakubMelka.Pdf4qt.Pdf4QtViewerLite.png Desktop/128x128/io.github.JakubMelka.Pdf4qt.png DESTINATION share/icons/hicolor/128x128/apps)
+install(FILES Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDocDiff.desktop Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDocPageOrganizer.desktop Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtViewerLite.desktop Desktop/io.github.JakubMelka.Pdf4qt.desktop DESTINATION ${PDF4QT_INSTALL_SHARE_DIR}/applications)
+install(FILES Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDocDiff.svg Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDocPageOrganizer.svg Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtViewerLite.svg Desktop/io.github.JakubMelka.Pdf4qt.svg DESTINATION ${PDF4QT_INSTALL_SHARE_DIR}/icons/hicolor/scalable/apps)
+install(FILES Desktop/io.github.JakubMelka.Pdf4qt.appdata.xml DESTINATION ${PDF4QT_INSTALL_SHARE_DIR}/metainfo)
+install(FILES Desktop/128x128/io.github.JakubMelka.Pdf4qt.Pdf4QtDocDiff.png Desktop/128x128/io.github.JakubMelka.Pdf4qt.Pdf4QtDocPageOrganizer.png Desktop/128x128/io.github.JakubMelka.Pdf4qt.Pdf4QtViewerLite.png Desktop/128x128/io.github.JakubMelka.Pdf4qt.png DESTINATION ${PDF4QT_INSTALL_SHARE_DIR}/icons/hicolor/128x128/apps)
 
 configure_file(make-package.sh.in make-package.sh)
 
 if(PDF4QT_INSTALL_DEPENDENCIES)
     install(DIRECTORY ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin/
-        TYPE BIN
+        RUNTIME DESTINATION ${PDF4QT_INSTALL_LIB_DIR}/
         FILES_MATCHING
         PATTERN "*.dll"
         PATTERN "*.so"
@@ -119,14 +139,14 @@ if(PDF4QT_INSTALL_DEPENDENCIES)
 
     if(PDF4QT_INSTALL_QT_DEPENDENCIES)
         install(DIRECTORY ${PDF4QT_QT_ROOT}/bin/
-            RUNTIME DESTINATION bin/
+            RUNTIME DESTINATION ${PDF4QT_INSTALL_LIB_DIR}/
             FILES_MATCHING
             REGEX "(Qt6Core|Qt6Gui|Qt6PrintSupport|Qt6Svg|Qt6TextToSpeech|Qt6Widgets|Qt6Xml|Qt6OpenGL|Qt6OpenGLWidgets|Qt6Multimedia|Qt6Network)\\..*"
             PATTERN "Debug" EXCLUDE
         )
 
         install(DIRECTORY ${PDF4QT_QT_ROOT}/plugins/platforms/
-            RUNTIME DESTINATION bin/platforms/
+            RUNTIME DESTINATION ${PDF4QT_INSTALL_LIB_DIR}/platforms/
             FILES_MATCHING
             PATTERN "qwindows.dll"
             PATTERN "*.so"
@@ -134,13 +154,13 @@ if(PDF4QT_INSTALL_DEPENDENCIES)
         )
 
         install(DIRECTORY ${PDF4QT_QT_ROOT}/plugins/iconengines/
-            RUNTIME DESTINATION bin/iconengines/
+            RUNTIME DESTINATION ${PDF4QT_INSTALL_LIB_DIR}/iconengines/
             FILES_MATCHING
             REGEX "qsvgicon\\..*"
         )
 
         install(DIRECTORY ${PDF4QT_QT_ROOT}/plugins/imageformats/
-            RUNTIME DESTINATION bin/imageformats/
+            RUNTIME DESTINATION ${PDF4QT_INSTALL_LIB_DIR}/imageformats/
             FILES_MATCHING
             PATTERN "*.dll"
             PATTERN "*.so"
@@ -149,7 +169,7 @@ if(PDF4QT_INSTALL_DEPENDENCIES)
         )
 
         install(DIRECTORY ${PDF4QT_QT_ROOT}/plugins/styles/
-            RUNTIME DESTINATION bin/styles/
+            RUNTIME DESTINATION ${PDF4QT_INSTALL_LIB_DIR}/styles/
             FILES_MATCHING
             PATTERN "*.dll"
             PATTERN "*.so"
@@ -158,7 +178,7 @@ if(PDF4QT_INSTALL_DEPENDENCIES)
         )
 
         install(DIRECTORY ${PDF4QT_QT_ROOT}/plugins/texttospeech/
-            RUNTIME DESTINATION bin/texttospeech/
+            RUNTIME DESTINATION ${PDF4QT_INSTALL_LIB_DIR}/texttospeech/
             FILES_MATCHING
             PATTERN "*.dll"
             PATTERN "*.so"
@@ -172,7 +192,7 @@ if(PDF4QT_INSTALL_DEPENDENCIES)
         message(STATUS "MSVC Redistributable Package Path = ${MSVC_REDISTRIBUTABLES_PATH}")
 
         install(DIRECTORY ${MSVC_REDISTRIBUTABLES_PATH}/
-            RUNTIME DESTINATION bin/
+            RUNTIME DESTINATION ${PDF4QT_INSTALL_LIB_DIR}/
             FILES_MATCHING
             PATTERN "*.dll"
         )

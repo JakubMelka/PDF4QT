@@ -19,7 +19,7 @@ add_executable(CodeGenerator
     codegenerator.cpp
     main.cpp
     generatormainwindow.cpp
-	generatormainwindow.ui
+    generatormainwindow.ui
 )
 
 target_link_libraries(CodeGenerator PRIVATE Pdf4QtLib Qt6::Core Qt6::Widgets Qt6::Gui Qt6::Xml)
@@ -27,4 +27,6 @@ target_link_libraries(CodeGenerator PRIVATE Pdf4QtLib Qt6::Core Qt6::Widgets Qt6
 set_target_properties(CodeGenerator PROPERTIES
     WIN32_EXECUTABLE ON
     MACOSX_BUNDLE ON
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_LIB_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
 )
