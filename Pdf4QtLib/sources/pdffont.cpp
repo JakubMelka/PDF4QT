@@ -49,6 +49,49 @@
 
 namespace pdf
 {
+
+enum class ECjkDefaultFontType
+{
+    Invalid,
+    AdobeGB,
+    AdobeCNS,
+    AdobeJapan,
+    AdobeKorea
+};
+
+struct PDF_Default_CJK_Font
+{
+    ECjkDefaultFontType type = ECjkDefaultFontType::Invalid;
+    bool isSerif = false;
+    const char* name = nullptr;
+};
+
+static constexpr std::array S_DEFAULT_CJK_FONTS =
+{
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "KaiTi_GB2312" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "Song" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, false, "Heiti" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "SimFang" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "FangSong" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, false, "SimHei" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "SimSun" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "SimKai" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "KaiTi" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "SimLi" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "SimLiU" },
+
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeCNS, true, "Ming" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeCNS, false, "Fangti" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeCNS, true, "MingLiU" },
+
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, false, "Gothic" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, true, "Mincho" },
+
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeKorea, false, "Gulim" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeKorea, false, "Dotum" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeKorea, true, "Batang" },
+};
+
 /// Storage class for system fonts
 class PDFSystemFontInfoStorage
 {
@@ -59,10 +102,20 @@ public:
 
     /// Loads font from descriptor
     /// \param descriptor Descriptor describing the font
-    QByteArray loadFont(const FontDescriptor* descriptor, StandardFontType standardFontType, PDFRenderErrorReporter* reporter) const;
+    QByteArray loadFont(const CIDSystemInfo* cidSystemInfo,
+                        const FontDescriptor* descriptor,
+                        StandardFontType standardFontType,
+                        PDFRenderErrorReporter* reporter) const;
 
 private:
     explicit PDFSystemFontInfoStorage();
+
+    /// Loads font from descriptor
+    /// \param descriptor Descriptor describing the font
+    QByteArray loadFontImpl(const FontDescriptor* descriptor,
+                            QString fontName,
+                            StandardFontType standardFontType,
+                            PDFRenderErrorReporter* reporter) const;
 
 #ifdef Q_OS_UNIX
     static void checkFontConfigError(FcBool result);
@@ -90,6 +143,7 @@ private:
     {
         PDFSystemFontInfoStorage* storage = nullptr;
         HDC hdc = nullptr;
+        std::set<QString> usedFonts;
     };
 
     std::vector<FontInfo> m_fontInfos;
@@ -102,9 +156,11 @@ const PDFSystemFontInfoStorage* PDFSystemFontInfoStorage::getInstance()
     return &instance;
 }
 
-QByteArray PDFSystemFontInfoStorage::loadFont(const FontDescriptor* descriptor, StandardFontType standardFontType, PDFRenderErrorReporter* reporter) const
+QByteArray PDFSystemFontInfoStorage::loadFont(const CIDSystemInfo* cidSystemInfo,
+                                              const FontDescriptor* descriptor,
+                                              StandardFontType standardFontType,
+                                              PDFRenderErrorReporter* reporter) const
 {
-    QByteArray result;
     QString fontName;
 
     // Exact match font face name
@@ -151,7 +207,61 @@ QByteArray PDFSystemFontInfoStorage::loadFont(const FontDescriptor* descriptor, 
         }
     }
 
+    QByteArray fontData = loadFontImpl(descriptor, fontName, standardFontType, reporter);
+
+    if (fontData.isEmpty() && cidSystemInfo->registry == "Adobe")
+    {
+        // Try to load CJK font
+        ECjkDefaultFontType cjkDefaultFontType = ECjkDefaultFontType::Invalid;
+
+        if (cidSystemInfo->ordering == "GB1")
+        {
+            cjkDefaultFontType = ECjkDefaultFontType::AdobeGB;
+        }
+        else if (cidSystemInfo->ordering == "CNS1")
+        {
+            cjkDefaultFontType = ECjkDefaultFontType::AdobeCNS;
+        }
+        else if (cidSystemInfo->ordering == "Japan1")
+        {
+            cjkDefaultFontType = ECjkDefaultFontType::AdobeJapan;
+        }
+        else if (cidSystemInfo->ordering == "Korea1")
+        {
+            cjkDefaultFontType = ECjkDefaultFontType::AdobeKorea;
+        }
+
+        if (cjkDefaultFontType != ECjkDefaultFontType::Invalid)
+        {
+            for (const PDF_Default_CJK_Font& defaultCjkFont : S_DEFAULT_CJK_FONTS)
+            {
+                if (defaultCjkFont.type == cjkDefaultFontType &&
+                    defaultCjkFont.isSerif == descriptor->isSerif())
+                {
+                    fontData = loadFontImpl(descriptor, defaultCjkFont.name, StandardFontType::Invalid, reporter);
+
+                    if (!fontData.isEmpty())
+                    {
+                        return fontData;
+                    }
+                }
+            }
+        }
+    }
+
+    return fontData;
+}
+
+QByteArray PDFSystemFontInfoStorage::loadFontImpl(const FontDescriptor* descriptor,
+                                                  QString fontName,
+                                                  StandardFontType standardFontType,
+                                                  PDFRenderErrorReporter* reporter) const
+{
+    QByteArray result;
+
 #if defined(Q_OS_WIN)
+
+    Q_UNUSED(standardFontType);
     HDC hdc = GetDC(NULL);
     const BYTE lfItalic = (descriptor->italicAngle != 0.0 ? TRUE : FALSE);
     if (!fontName.isEmpty())
@@ -318,7 +428,7 @@ QByteArray PDFSystemFontInfoStorage::loadFont(const FontDescriptor* descriptor, 
     if (result.isEmpty() && standardFontType == StandardFontType::Invalid)
     {
         reporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Inexact font substitution: font %1 replaced by standard font Times New Roman.").arg(fontName));
-        result = loadFont(descriptor, StandardFontType::TimesRoman, reporter);
+        result = loadFontImpl(descriptor, StandardFontType::TimesRoman, reporter);
     }
 
     return result;
@@ -346,7 +456,7 @@ PDFSystemFontInfoStorage::PDFSystemFontInfoStorage()
 #ifdef Q_OS_WIN
 int PDFSystemFontInfoStorage::enumerateFontProc(const LOGFONT* font, const TEXTMETRIC* textMetrics, DWORD fontType, LPARAM lParam)
 {
-    if ((fontType & TRUETYPE_FONTTYPE) && (font->lfCharSet == ANSI_CHARSET))
+    if ((fontType & TRUETYPE_FONTTYPE))
     {
         CallbackInfo* callbackInfo = reinterpret_cast<CallbackInfo*>(lParam);
 
@@ -355,6 +465,16 @@ int PDFSystemFontInfoStorage::enumerateFontProc(const LOGFONT* font, const TEXTM
         fontInfo.textMetric = *textMetrics;
         fontInfo.faceName = QString::fromWCharArray(font->lfFaceName);
         fontInfo.faceNameAdjusted = getFontPostscriptName(fontInfo.faceName);
+
+        if (callbackInfo->usedFonts.count(fontInfo.faceName))
+        {
+            return TRUE;
+        }
+        else
+        {
+            callbackInfo->usedFonts.insert(fontInfo.faceName);
+        }
+
         callbackInfo->storage->m_fontInfos.push_back(qMove(fontInfo));
 
         // For debug purposes only!
@@ -410,7 +530,8 @@ QString PDFSystemFontInfoStorage::getFontPostscriptName(QString fontName)
     return fontName.remove(QChar(' ')).remove(QChar('-')).remove(QChar(',')).trimmed();
 }
 
-PDFFont::PDFFont(FontDescriptor fontDescriptor) :
+PDFFont::PDFFont(CIDSystemInfo CIDSystemInfo, FontDescriptor fontDescriptor) :
+    m_CIDSystemInfo(qMove(CIDSystemInfo)),
     m_fontDescriptor(qMove(fontDescriptor))
 {
 
@@ -1030,7 +1151,7 @@ PDFRealizedFontPointer PDFRealizedFont::createRealizedFont(PDFFontPointer font, 
             }
 
             const PDFSystemFontInfoStorage* fontStorage = PDFSystemFontInfoStorage::getInstance();
-            impl->m_systemFontData = fontStorage->loadFont(descriptor, standardFontType, reporter);
+            impl->m_systemFontData = fontStorage->loadFont(font->getCIDSystemInfo(), descriptor, standardFontType, reporter);
 
             if (impl->m_systemFontData.isEmpty())
             {
@@ -1111,6 +1232,21 @@ FontDescriptor PDFFont::readFontDescriptor(const PDFObject& fontDescriptorObject
     return fontDescriptor;
 }
 
+CIDSystemInfo PDFFont::readCIDSystemInfo(const PDFObject& cidSystemInfoObject, const PDFDocument* document)
+{
+    CIDSystemInfo cidSystemInfo;
+
+    if (const PDFDictionary* cidSystemInfoDictionary = document->getDictionaryFromObject(cidSystemInfoObject))
+    {
+        PDFDocumentDataLoaderDecorator cidSystemInfoLoader(document);
+        cidSystemInfo.registry = cidSystemInfoLoader.readStringFromDictionary(cidSystemInfoDictionary, "Registry");
+        cidSystemInfo.ordering = cidSystemInfoLoader.readStringFromDictionary(cidSystemInfoDictionary, "Ordering");
+        cidSystemInfo.supplement = cidSystemInfoLoader.readIntegerFromDictionary(cidSystemInfoDictionary, "Supplement", 0);
+    }
+
+    return cidSystemInfo;
+}
+
 PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* document)
 {
     const PDFObject& dereferencedFontDictionary = document->getObject(object);
@@ -1165,6 +1301,10 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
     // Read Font Descriptor
     const PDFObject& fontDescriptorObject = document->getObject(fontDictionary->get("FontDescriptor"));
     FontDescriptor fontDescriptor = readFontDescriptor(fontDescriptorObject, document);
+
+    // Read CID System Info
+    const PDFObject& cidSystemInfoObject = document->getObject(fontDictionary->get("CIDSystemInfo"));
+    CIDSystemInfo cidSystemInfo = readCIDSystemInfo(cidSystemInfoObject, document);
 
     // Read Font Encoding
     // The font encoding for the simple font is determined by this algorithm:
@@ -1515,6 +1655,9 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
             const PDFObject& fontDescriptorObjectForCompositeFont = document->getObject(descendantFontDictionary->get("FontDescriptor"));
             fontDescriptor = readFontDescriptor(fontDescriptorObjectForCompositeFont, document);
 
+            const PDFObject& cidSystemInfoObjectForCompositeFont = document->getObject(descendantFontDictionary->get("CIDSystemInfo"));
+            cidSystemInfo = readCIDSystemInfo(cidSystemInfoObjectForCompositeFont, document);
+
             QByteArray cidToGidMapping;
             const PDFObject& cidToGidMappingObject = document->getObject(descendantFontDictionary->get("CIDToGIDMap"));
             if (cidToGidMappingObject.isStream())
@@ -1583,7 +1726,7 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
                 toUnicodeCMap = PDFFontCMap::createFromData(decodedStream);
             }
 
-            return PDFFontPointer(new PDFType0Font(qMove(fontDescriptor), qMove(cmap), qMove(toUnicodeCMap), qMove(cidToGidMapper), defaultWidth, qMove(advances)));
+            return PDFFontPointer(new PDFType0Font(qMove(cidSystemInfo), qMove(fontDescriptor), qMove(cmap), qMove(toUnicodeCMap), qMove(cidToGidMapper), defaultWidth, qMove(advances)));
         }
 
         case FontType::Type3:
@@ -1687,10 +1830,10 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
     {
         case FontType::Type1:
         case FontType::MMType1:
-            return PDFFontPointer(new PDFType1Font(fontType, qMove(fontDescriptor), qMove(name), qMove(baseFont), firstChar, lastChar, qMove(widths), encoding, simpleFontEncodingTable, standardFont, glyphIndexArray));
+            return PDFFontPointer(new PDFType1Font(fontType, qMove(cidSystemInfo), qMove(fontDescriptor), qMove(name), qMove(baseFont), firstChar, lastChar, qMove(widths), encoding, simpleFontEncodingTable, standardFont, glyphIndexArray));
 
         case FontType::TrueType:
-            return PDFFontPointer(new PDFTrueTypeFont(qMove(fontDescriptor), qMove(name), qMove(baseFont), firstChar, lastChar, qMove(widths), encoding, simpleFontEncodingTable, glyphIndexArray));
+            return PDFFontPointer(new PDFTrueTypeFont(qMove(cidSystemInfo), qMove(fontDescriptor), qMove(name), qMove(baseFont), firstChar, lastChar, qMove(widths), encoding, simpleFontEncodingTable, glyphIndexArray));
 
         default:
         {
@@ -1702,7 +1845,8 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, const PDFDocument* d
     return PDFFontPointer();
 }
 
-PDFSimpleFont::PDFSimpleFont(FontDescriptor fontDescriptor,
+PDFSimpleFont::PDFSimpleFont(CIDSystemInfo cidSystemInfo,
+                             FontDescriptor fontDescriptor,
                              QByteArray name,
                              QByteArray baseFont,
                              PDFInteger firstChar,
@@ -1711,7 +1855,7 @@ PDFSimpleFont::PDFSimpleFont(FontDescriptor fontDescriptor,
                              PDFEncoding::Encoding encodingType,
                              encoding::EncodingTable encoding,
                              GlyphIndices glyphIndices) :
-    PDFFont(qMove(fontDescriptor)),
+    PDFFont(qMove(cidSystemInfo), qMove(fontDescriptor)),
     m_name(qMove(name)),
     m_baseFont(qMove(baseFont)),
     m_firstChar(firstChar),
@@ -1795,6 +1939,7 @@ void PDFSimpleFont::dumpFontToTreeItem(QTreeWidgetItem* item) const
 }
 
 PDFType1Font::PDFType1Font(FontType fontType,
+                           CIDSystemInfo cidSystemInfo,
                            FontDescriptor fontDescriptor,
                            QByteArray name,
                            QByteArray baseFont,
@@ -1805,7 +1950,7 @@ PDFType1Font::PDFType1Font(FontType fontType,
                            encoding::EncodingTable encoding,
                            StandardFontType standardFontType,
                            GlyphIndices glyphIndices) :
-    PDFSimpleFont(qMove(fontDescriptor), qMove(name), qMove(baseFont), firstChar, lastChar, qMove(widths), encodingType, encoding, glyphIndices),
+    PDFSimpleFont(qMove(cidSystemInfo), qMove(fontDescriptor), qMove(name), qMove(baseFont), firstChar, lastChar, qMove(widths), encodingType, encoding, glyphIndices),
     m_fontType(fontType),
     m_standardFontType(standardFontType)
 {
@@ -2436,7 +2581,7 @@ PDFType3Font::PDFType3Font(FontDescriptor fontDescriptor,
                            std::vector<double>&& widths,
                            const PDFObject& resources,
                            PDFFontCMap toUnicode) :
-    PDFFont(qMove(fontDescriptor)),
+    PDFFont(CIDSystemInfo(), qMove(fontDescriptor)),
     m_firstCharacterIndex(firstCharacterIndex),
     m_lastCharacterIndex(lastCharacterIndex),
     m_fontMatrix(fontMatrix),

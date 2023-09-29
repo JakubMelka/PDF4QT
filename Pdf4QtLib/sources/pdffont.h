@@ -171,12 +171,29 @@ static constexpr PDFEncoding::Encoding getEncodingForStandardFont(StandardFontTy
     }
 }
 
+struct PDF4QTLIBSHARED_EXPORT CIDSystemInfo
+{
+    QByteArray registry;
+    QByteArray ordering;
+    int supplement = 0;
+};
+
 struct PDF4QTLIBSHARED_EXPORT FontDescriptor
 {
     bool isEmbedded() const { return !fontFile.isEmpty() || !fontFile2.isEmpty() || !fontFile3.isEmpty(); }
 
     /// Returns embedded font data, or nullptr, if font is not embedded
     const QByteArray* getEmbeddedFontData() const;
+
+    bool isFixedPitch() const { return flags & 1 << 0; }
+    bool isSerif() const { return flags & 1 << 1; }
+    bool isSymbolic() const { return flags & 1 << 2; }
+    bool isScript() const { return flags & 1 << 3; }
+    bool isNonSymbolic() const { return flags & 1 << 5; }
+    bool isItalic() const { return flags & 1 << 6; }
+    bool isAllCap() const { return flags & 1 << 16; }
+    bool isSmallCap() const { return flags & 1 << 17; }
+    bool isForceBold() const { return flags & 1 << 18; }
 
     QByteArray fontName;
     QByteArray fontFamily;
@@ -267,7 +284,7 @@ private:
 class PDF4QTLIBSHARED_EXPORT PDFFont
 {
 public:
-    explicit PDFFont(FontDescriptor fontDescriptor);
+    explicit PDFFont(CIDSystemInfo CIDSystemInfo, FontDescriptor fontDescriptor);
     virtual ~PDFFont() = default;
 
     /// Returns the font type
@@ -282,6 +299,9 @@ public:
     /// Returns font descriptor
     const FontDescriptor* getFontDescriptor() const { return &m_fontDescriptor; }
 
+    /// Returns CID system info
+    const CIDSystemInfo* getCIDSystemInfo() const { return &m_CIDSystemInfo; }
+
     /// Adds information about the font into tree item
     virtual void dumpFontToTreeItem(QTreeWidgetItem* item) const { Q_UNUSED(item); }
 
@@ -295,7 +315,13 @@ public:
     /// \param document Document
     static FontDescriptor readFontDescriptor(const PDFObject& fontDescriptorObject, const PDFDocument* document);
 
+    /// Tries to read CID SystemInfo from the object
+    /// \param cidSystemInfoObject CID System Info dictionary
+    /// \param document Document
+    static CIDSystemInfo readCIDSystemInfo(const PDFObject& cidSystemInfoObject, const PDFDocument* document);
+
 protected:
+    CIDSystemInfo m_CIDSystemInfo;
     FontDescriptor m_fontDescriptor;
 };
 
@@ -306,7 +332,8 @@ class PDFSimpleFont : public PDFFont
     using BaseClass = PDFFont;
 
 public:
-    explicit PDFSimpleFont(FontDescriptor fontDescriptor,
+    explicit PDFSimpleFont(CIDSystemInfo cidSystemInfo,
+                           FontDescriptor fontDescriptor,
                            QByteArray name,
                            QByteArray baseFont,
                            PDFInteger firstChar,
@@ -343,6 +370,7 @@ class PDFType1Font : public PDFSimpleFont
 
 public:
     explicit PDFType1Font(FontType fontType,
+                          CIDSystemInfo cidSystemInfo,
                           FontDescriptor fontDescriptor,
                           QByteArray name,
                           QByteArray baseFont,
@@ -602,8 +630,8 @@ private:
 class PDFType0Font : public PDFFont
 {
 public:
-    explicit inline PDFType0Font(FontDescriptor fontDescriptor, PDFFontCMap cmap, PDFFontCMap toUnicode, PDFCIDtoGIDMapper mapper, PDFReal defaultAdvance, std::unordered_map<CID, PDFReal> advances) :
-        PDFFont(qMove(fontDescriptor)),
+    explicit inline PDFType0Font(CIDSystemInfo cidSystemInfo, FontDescriptor fontDescriptor, PDFFontCMap cmap, PDFFontCMap toUnicode, PDFCIDtoGIDMapper mapper, PDFReal defaultAdvance, std::unordered_map<CID, PDFReal> advances) :
+        PDFFont(qMove(cidSystemInfo), qMove(fontDescriptor)),
         m_cmap(qMove(cmap)),
         m_toUnicode(qMove(toUnicode)),
         m_mapper(qMove(mapper)),
