@@ -23,6 +23,8 @@
 #include "pdfwidgetutils.h"
 #include "pdftexttospeech.h"
 #include "pdfdbgheap.h"
+#include "pdfdrawwidget.h"
+#include "pdfwidgettool.h"
 
 #include "pdfdocument.h"
 #include "pdfitemmodels.h"
@@ -53,6 +55,7 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
                                    PDFTextToSpeech* textToSpeech,
                                    pdf::PDFCertificateStore* certificateStore,
                                    PDFViewerSettings* settings,
+                                   bool editableOutline,
                                    QWidget* parent) :
     QWidget(parent),
     ui(new Ui::PDFSidebarWidget),
@@ -73,9 +76,20 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
 
     // Outline
     QIcon bookmarkIcon(":/resources/bookmark.svg");
-    m_outlineTreeModel = new pdf::PDFOutlineTreeItemModel(qMove(bookmarkIcon), this);
+    m_outlineTreeModel = new pdf::PDFOutlineTreeItemModel(qMove(bookmarkIcon), editableOutline, this);
     ui->bookmarksTreeView->setModel(m_outlineTreeModel);
     ui->bookmarksTreeView->header()->hide();
+
+    if (editableOutline)
+    {
+        ui->bookmarksTreeView->setDragEnabled(true);
+        ui->bookmarksTreeView->setAcceptDrops(true);
+        ui->bookmarksTreeView->setDropIndicatorShown(true);
+        ui->bookmarksTreeView->setDragDropMode(QAbstractItemView::InternalMove);
+        ui->bookmarksTreeView->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(ui->bookmarksTreeView, &QTreeView::customContextMenuRequested, this, &PDFSidebarWidget::onBookmarksTreeViewContextMenuRequested);
+    }
+
     connect(ui->bookmarksTreeView, &QTreeView::clicked, this, &PDFSidebarWidget::onOutlineItemClicked);
 
     // Thumbnails
@@ -733,6 +747,119 @@ void PDFSidebarWidget::onSignatureCustomContextMenuRequested(const QPoint& pos)
             }
         }
     }
+}
+
+void PDFSidebarWidget::onBookmarksTreeViewContextMenuRequested(const QPoint& pos)
+{
+    QMenu contextMenu;
+
+    QModelIndex index = ui->bookmarksTreeView->indexAt(pos);
+
+    auto onFollow = [this, index]()
+    {
+        onOutlineItemClicked(index);
+    };
+
+    auto onInsert = [this, index]()
+    {
+        if (index.isValid())
+        {
+            ui->bookmarksTreeView->model()->insertRow(index.row() + 1, index.parent());
+        }
+        else
+        {
+            ui->bookmarksTreeView->model()->insertRow(ui->bookmarksTreeView->model()->rowCount());
+        }
+    };
+
+    auto onDelete = [this, index]()
+    {
+        ui->bookmarksTreeView->model()->removeRow(index.row(), index.parent());
+    };
+
+    auto onRename = [this, index]()
+    {
+        ui->bookmarksTreeView->edit(index);
+    };
+
+    QAction* followAction = contextMenu.addAction(tr("Follow"), onFollow);
+    followAction->setEnabled(index.isValid());
+    contextMenu.addSeparator();
+
+    QAction* deleteAction = contextMenu.addAction(tr("Delete"), onDelete);
+    QAction* insertAction = contextMenu.addAction(tr("Insert"), this, onInsert);
+    QAction* renameAction = contextMenu.addAction(tr("Rename"), this, onRename);
+
+    deleteAction->setEnabled(index.isValid());
+    insertAction->setEnabled(true);
+    renameAction->setEnabled(index.isValid());
+
+    contextMenu.addSeparator();
+
+    const pdf::PDFOutlineItem* outlineItem = m_outlineTreeModel->getOutlineItem(index);
+    const bool isFontBold = outlineItem && outlineItem->isFontBold();
+    const bool isFontItalics = outlineItem && outlineItem->isFontItalics();
+
+    auto onFontBold = [this, index, isFontBold]()
+    {
+        m_outlineTreeModel->setFontBold(index, !isFontBold);
+    };
+
+    auto onFontItalic = [this, index, isFontItalics]()
+    {
+        m_outlineTreeModel->setFontItalics(index, !isFontItalics);
+    };
+
+    QAction* fontBoldAction = contextMenu.addAction(tr("Font Bold"), onFontBold);
+    QAction* fontItalicAction = contextMenu.addAction(tr("Font Italic"), onFontItalic);
+    fontBoldAction->setCheckable(true);
+    fontItalicAction->setCheckable(true);
+    fontBoldAction->setChecked(isFontBold);
+    fontItalicAction->setChecked(isFontItalics);
+    fontBoldAction->setEnabled(index.isValid());
+    fontItalicAction->setEnabled(index.isValid());
+
+    QMenu* submenu = new QMenu(tr("Set Target"), &contextMenu);
+    QAction* targetAction = contextMenu.addMenu(submenu);
+    targetAction->setEnabled(index.isValid());
+
+    auto createOnSetTarget = [this, index](pdf::DestinationType destinationType)
+    {
+        auto onSetTarget = [this, index, destinationType]()
+        {
+            pdf::PDFToolManager* toolManager = m_proxy->getWidget()->getToolManager();
+
+            auto pickRectangle = [this, index, destinationType](pdf::PDFInteger pageIndex, QRectF rect)
+            {
+                pdf::PDFDestination destination;
+                destination.setDestinationType(destinationType);
+                destination.setPageIndex(pageIndex);
+                destination.setPageReference(m_document->getCatalog()->getPage(pageIndex)->getPageReference());
+                destination.setLeft(rect.left());
+                destination.setRight(rect.right());
+                destination.setTop(rect.bottom());
+                destination.setBottom(rect.top());
+                destination.setZoom(m_proxy->getZoom());
+                m_outlineTreeModel->setDestination(index, destination);
+            };
+
+            toolManager->pickRectangle(pickRectangle);
+        };
+
+        return onSetTarget;
+    };
+
+    submenu->addAction(tr("Named Destination"));
+    submenu->addAction(tr("Fit Page"), createOnSetTarget(pdf::DestinationType::Fit));
+    submenu->addAction(tr("Fit Page Horizontally"), createOnSetTarget(pdf::DestinationType::FitH));
+    submenu->addAction(tr("Fit Page Vertically"), createOnSetTarget(pdf::DestinationType::FitV));
+    submenu->addAction(tr("Fit Rectangle"), createOnSetTarget(pdf::DestinationType::FitR));
+    submenu->addAction(tr("Fit Bounding Box"), createOnSetTarget(pdf::DestinationType::FitB));
+    submenu->addAction(tr("Fit Bounding Box Horizontally"), createOnSetTarget(pdf::DestinationType::FitBH));
+    submenu->addAction(tr("Fit Bounding Box Vertically"), createOnSetTarget(pdf::DestinationType::FitBV));
+    submenu->addAction(tr("XYZ"), createOnSetTarget(pdf::DestinationType::XYZ));
+
+    contextMenu.exec(ui->bookmarksTreeView->mapToGlobal(pos));
 }
 
 void PDFSidebarWidget::paintEvent(QPaintEvent* event)

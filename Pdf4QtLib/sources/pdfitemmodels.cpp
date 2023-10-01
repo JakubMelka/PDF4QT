@@ -35,6 +35,13 @@ PDFTreeItem::~PDFTreeItem()
     qDeleteAll(m_children);
 }
 
+PDFTreeItem* PDFTreeItem::takeChild(int index)
+{
+    PDFTreeItem* item = m_children.at(index);
+    m_children.erase(m_children.begin() + index);
+    return item;
+}
+
 PDFTreeItemModel::PDFTreeItemModel(QObject* parent) :
     QAbstractItemModel(parent),
     m_document(nullptr)
@@ -368,6 +375,7 @@ QVariant PDFOutlineTreeItemModel::data(const QModelIndex& index, int role) const
     switch (role)
     {
         case Qt::DisplayRole:
+        case Qt::EditRole:
             return outlineItem->getTitle();
 
         case Qt::ForegroundRole:
@@ -409,6 +417,11 @@ void PDFOutlineTreeItemModel::update()
     }
     if (outlineRoot)
     {
+        if (m_editable)
+        {
+            outlineRoot = outlineRoot->clone();
+        }
+
         m_rootItem.reset(new PDFOutlineTreeItem(nullptr, qMove(outlineRoot)));
     }
     else
@@ -425,13 +438,16 @@ Qt::ItemFlags PDFOutlineTreeItemModel::flags(const QModelIndex& index) const
 
     if (!index.isValid())
     {
+        if (m_editable)
+        {
+            flags = flags | Qt::ItemIsDropEnabled;
+        }
         return flags;
     }
 
-    const PDFOutlineTreeItem* item = static_cast<const PDFOutlineTreeItem*>(index.internalPointer());
-    if (item->getChildCount() == 0)
+    if (m_editable)
     {
-        flags = flags | Qt::ItemNeverHasChildren;
+        flags = flags | Qt::ItemIsEditable | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled;
     }
 
     return flags;
@@ -447,6 +463,259 @@ const PDFAction* PDFOutlineTreeItemModel::getAction(const QModelIndex& index) co
     }
 
     return nullptr;
+}
+
+const PDFOutlineItem* PDFOutlineTreeItemModel::getOutlineItem(const QModelIndex& index) const
+{
+    if (index.isValid())
+    {
+        const PDFOutlineTreeItem* item = static_cast<const PDFOutlineTreeItem*>(index.internalPointer());
+        const PDFOutlineItem* outlineItem = item->getOutlineItem();
+        return outlineItem;
+    }
+
+    return nullptr;
+}
+
+PDFOutlineItem* PDFOutlineTreeItemModel::getOutlineItem(const QModelIndex& index)
+{
+    if (index.isValid())
+    {
+        PDFOutlineTreeItem* item = static_cast<PDFOutlineTreeItem*>(index.internalPointer());
+        PDFOutlineItem* outlineItem = item->getOutlineItem();
+        return outlineItem;
+    }
+
+    return nullptr;
+}
+
+void PDFOutlineTreeItemModel::setFontBold(const QModelIndex& index, bool value)
+{
+    if (PDFOutlineItem* outlineItem = getOutlineItem(index))
+    {
+        if (outlineItem->isFontBold() != value)
+        {
+            outlineItem->setFontBold(value);
+            Q_EMIT dataChanged(index, index);
+        }
+    }
+}
+
+void PDFOutlineTreeItemModel::setFontItalics(const QModelIndex& index, bool value)
+{
+    if (PDFOutlineItem* outlineItem = getOutlineItem(index))
+    {
+        if (outlineItem->isFontItalics() != value)
+        {
+            outlineItem->setFontItalics(value);
+            Q_EMIT dataChanged(index, index);
+        }
+    }
+}
+
+void PDFOutlineTreeItemModel::setDestination(const QModelIndex& index, const PDFDestination& destination)
+{
+    if (PDFOutlineItem* outlineItem = getOutlineItem(index))
+    {
+        outlineItem->setAction(PDFActionPtr(new PDFActionGoTo(destination, PDFDestination())));
+        Q_EMIT dataChanged(index, index);
+    }
+}
+
+bool PDFOutlineTreeItemModel::setData(const QModelIndex& index, const QVariant& value, int role)
+{
+    if (!m_editable || !index.isValid() || role != Qt::EditRole)
+    {
+        return false;
+    }
+
+    PDFOutlineTreeItem* item = static_cast<PDFOutlineTreeItem*>(index.internalPointer());
+    PDFOutlineItem* outlineItem = item->getOutlineItem();
+    if (outlineItem->getTitle() != value.toString())
+    {
+        outlineItem->setTitle(value.toString());
+        Q_EMIT dataChanged(index, index);
+    }
+
+    return true;
+}
+
+Qt::DropActions PDFOutlineTreeItemModel::supportedDropActions() const
+{
+    if (!m_editable)
+    {
+        return Qt::IgnoreAction;
+    }
+
+    return Qt::CopyAction | Qt::MoveAction;
+}
+
+Qt::DropActions PDFOutlineTreeItemModel::supportedDragActions() const
+{
+    if (!m_editable)
+    {
+        return Qt::IgnoreAction;
+    }
+
+    return Qt::CopyAction | Qt::MoveAction;
+}
+
+QStringList PDFOutlineTreeItemModel::mimeTypes() const
+{
+    return QStringList() << "application/PDF4QT_PDFOutlineTreeItemModel";
+}
+
+QMimeData* PDFOutlineTreeItemModel::mimeData(const QModelIndexList& indexes) const
+{
+    QMimeData* mimeData = new QMimeData();
+
+    if (indexes.size() == 1)
+    {
+        QByteArray ba;
+
+        {
+            QDataStream stream(&ba, QDataStream::WriteOnly);
+            stream << indexes.front().internalId();
+        }
+
+        mimeData->setData(mimeTypes().front(), ba);
+    }
+
+    return mimeData;
+}
+
+bool PDFOutlineTreeItemModel::canDropMimeData(const QMimeData* data, Qt::DropAction action, int row, int column, const QModelIndex& parent) const
+{
+    Q_UNUSED(row);
+    Q_UNUSED(column);
+    Q_UNUSED(parent);
+
+    return action == Qt::MoveAction && data->hasFormat(mimeTypes().front());
+}
+
+bool PDFOutlineTreeItemModel::dropMimeData(const QMimeData* data, Qt::DropAction action, int row, int column, const QModelIndex& parent)
+{
+    if (!data || action != Qt::MoveAction)
+    {
+        return false;
+    }
+
+    QByteArray pointerData = data->data(mimeTypes().front());
+    QDataStream stream(pointerData);
+    quintptr pointer = 0;
+    stream >> pointer;
+
+    PDFOutlineTreeItem* item = reinterpret_cast<PDFOutlineTreeItem*>(pointer);
+    QModelIndex sourceIndex = createIndex(item->getRow(), column, item);
+    return moveRow(sourceIndex.parent(), sourceIndex.row(), parent, row);
+}
+
+bool PDFOutlineTreeItemModel::insertRows(int row, int count, const QModelIndex& parent)
+{
+    if (!m_editable || row < 0 || count <= 0 || row > rowCount(parent))
+    {
+        return false;
+    }
+
+    beginInsertRows(parent, row, row + count - 1);
+
+    PDFOutlineTreeItem* item = parent.isValid() ? static_cast<PDFOutlineTreeItem*>(parent.internalPointer()) : static_cast<PDFOutlineTreeItem*>(m_rootItem.get());
+    while (count > 0)
+    {
+        QSharedPointer<PDFOutlineItem> outlineItem(new PDFOutlineItem());
+        outlineItem->setTitle(tr("Item %1").arg(row + 1));
+        PDFOutlineTreeItem* newTreeItem = new PDFOutlineTreeItem(item, qMove(outlineItem));
+        item->insertCreatedChild(row, newTreeItem);
+
+        ++row;
+        --count;
+    }
+
+    endInsertRows();
+
+    return true;
+}
+
+bool PDFOutlineTreeItemModel::removeRows(int row, int count, const QModelIndex& parent)
+{
+    if (!m_editable || count <= 0 || row < 0 || row + count > rowCount(parent))
+    {
+        return false;
+    }
+
+    beginRemoveRows(parent, row, row + count - 1);
+
+    PDFOutlineTreeItem* item = parent.isValid() ? static_cast<PDFOutlineTreeItem*>(parent.internalPointer()) : static_cast<PDFOutlineTreeItem*>(m_rootItem.get());
+    while (count > 0)
+    {
+        delete item->takeChild(row);
+        --count;
+    }
+
+    endRemoveRows();
+
+    return false;
+}
+
+bool PDFOutlineTreeItemModel::moveRows(const QModelIndex& sourceParent, int sourceRow, int count, const QModelIndex& destinationParent, int destinationChild)
+{
+    if (sourceRow < 0 || count <= 0 || (sourceParent == destinationParent && (sourceRow == destinationChild || sourceRow + count <= destinationChild)))
+    {
+        return false;
+    }
+
+    PDFOutlineTreeItem* sourceNode = nullptr;
+    PDFOutlineTreeItem* destNode = nullptr;
+
+    if (sourceParent.isValid())
+    {
+        sourceNode = static_cast<PDFOutlineTreeItem*>(sourceParent.internalPointer());
+    }
+    else
+    {
+        sourceNode = static_cast<PDFOutlineTreeItem*>(m_rootItem.get());
+    }
+
+    if (destinationParent.isValid())
+    {
+        destNode = static_cast<PDFOutlineTreeItem*>(destinationParent.internalPointer());
+    }
+    else
+    {
+        destNode = static_cast<PDFOutlineTreeItem*>(m_rootItem.get());
+    }
+
+    if (sourceRow + count > sourceNode->getChildCount())
+    {
+        return false;
+    }
+
+    if (destinationChild < 0)
+    {
+        destinationChild = 0;
+    }
+
+    // Signalizace začátku přesunu řádků
+    if (!beginMoveRows(sourceParent, sourceRow, sourceRow + count - 1, destinationParent, destinationChild))
+    {
+        return false;
+    }
+
+    QList<PDFOutlineTreeItem*> nodesToMove;
+    for (int i = 0; i < count; ++i)
+    {
+        nodesToMove.append(static_cast<PDFOutlineTreeItem*>(sourceNode->takeChild(sourceRow)));
+    }
+
+    for (PDFOutlineTreeItem* node : nodesToMove)
+    {
+        destNode->insertCreatedChild(destinationChild++, node);
+    }
+
+    // Signalizace konce přesunu řádků
+    endMoveRows();
+
+    return true;
 }
 
 int PDFAttachmentsTreeItemModel::columnCount(const QModelIndex& parent) const

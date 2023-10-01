@@ -65,6 +65,8 @@ public:
 
     void apply(const std::function<void(PDFOutlineItem*)>& functor);
 
+    QSharedPointer<PDFOutlineItem> clone() const;
+
 private:
     static void parseImpl(const PDFObjectStorage* storage,
                           PDFOutlineItem* parent,

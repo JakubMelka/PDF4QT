@@ -370,6 +370,17 @@ void PDFAction::fillActionList(std::vector<const PDFAction*>& actionList) const
     }
 }
 
+void PDFAction::cloneActionList(const PDFAction* sourceAction)
+{
+    if (sourceAction)
+    {
+        for (const auto& action : sourceAction->m_nextActions)
+        {
+            m_nextActions.push_back(action->clone());
+        }
+    }
+}
+
 PDFDestination PDFDestination::parse(const PDFObjectStorage* storage, PDFObject object)
 {
     PDFDestination result;
@@ -711,6 +722,16 @@ QString PDFActionURI::getURIString() const
     return QString::fromUtf8(m_URI);
 }
 
+void PDFActionURI::setURI(const QByteArray& newURI)
+{
+    m_URI = newURI;
+}
+
+void PDFActionURI::setIsMap(bool newIsMap)
+{
+    m_isMap = newIsMap;
+}
+
 void PDFActionGoTo::setDestination(const PDFDestination& destination)
 {
     m_destination = destination;
@@ -719,6 +740,155 @@ void PDFActionGoTo::setDestination(const PDFDestination& destination)
 void PDFActionGoTo::setStructureDestination(const PDFDestination& structureDestination)
 {
     m_structureDestination = structureDestination;
+}
+
+PDFActionPtr PDFActionGoTo::clone() const
+{
+    PDFActionGoTo* clonedAction = new PDFActionGoTo(getDestination(), getStructureDestination());
+    clonedAction->cloneActionList(this);
+    return PDFActionPtr(clonedAction);
+}
+
+PDFActionPtr PDFActionGoToR::clone() const
+{
+    PDFActionGoToR* clonedAction = new PDFActionGoToR(getDestination(),
+                                                      getStructureDestination(),
+                                                      getFileSpecification(),
+                                                      isNewWindow());
+    clonedAction->cloneActionList(this);
+    return PDFActionPtr(clonedAction);
+}
+
+PDFActionPtr PDFActionGoToE::clone() const
+{
+    PDFActionGoToE* clonedAction = new PDFActionGoToE(getDestination(),
+                                                      getFileSpecification(),
+                                                      isNewWindow(),
+                                                      getTarget());
+    clonedAction->cloneActionList(this);
+    return PDFActionPtr(clonedAction);
+}
+
+PDFActionPtr PDFActionGoToDp::clone() const
+{
+    PDFActionGoToDp* clonedAction = new PDFActionGoToDp(getDocumentPart());
+    clonedAction->cloneActionList(this);
+    return PDFActionPtr(clonedAction);
+}
+
+PDFActionPtr PDFActionLaunch::clone() const
+{
+    PDFActionLaunch* clonedAction = new PDFActionLaunch(getFileSpecification(), isNewWindow(), getWinSpecification());
+    clonedAction->cloneActionList(this);
+    return PDFActionPtr(clonedAction);
+}
+
+PDFActionPtr PDFActionThread::clone() const
+{
+    PDFActionThread* clonedAction = new PDFActionThread(getFileSpecification(), getThread(), getBead());
+    clonedAction->cloneActionList(this);
+    return PDFActionPtr(clonedAction);
+}
+
+PDFActionPtr PDFActionURI::clone() const
+{
+    PDFActionURI* clonedAction = new PDFActionURI(getURI(), isMap());
+    clonedAction->cloneActionList(this);
+    return PDFActionPtr(clonedAction);
+}
+
+PDFActionPtr PDFActionSound::clone() const
+{
+    PDFActionSound* clonedAction = new PDFActionSound(*getSound(), getVolume(), isSynchronous(), isRepeat(), isMix());
+    clonedAction->cloneActionList(this);
+    return PDFActionPtr(clonedAction);
+}
+
+PDFActionPtr PDFActionMovie::clone() const
+{
+    PDFActionMovie* clonedAction = new PDFActionMovie(getAnnotation(), getTitle(), getOperation());
+    clonedAction->cloneActionList(this);
+    return PDFActionPtr(clonedAction);
+}
+
+PDFActionPtr PDFActionHide::clone() const
+{
+    PDFActionHide* clonedAction = new PDFActionHide(getAnnotations(), getFieldNames(), isHide());
+    clonedAction->cloneActionList(this);
+    return PDFActionPtr(clonedAction);
+}
+
+PDFActionPtr PDFActionNamed::clone() const
+{
+    PDFActionNamed* clonedAction = new PDFActionNamed(getNamedActionType(), getCustomNamedAction());
+    clonedAction->cloneActionList(this);
+    return PDFActionPtr(clonedAction);
+}
+
+PDFActionPtr PDFActionSetOCGState::clone() const
+{
+    PDFActionSetOCGState* clonedAction = new PDFActionSetOCGState(getStateChangeItems(), isRadioButtonsPreserved());
+    clonedAction->cloneActionList(this);
+    return PDFActionPtr(clonedAction);
+}
+
+PDFActionPtr PDFActionTransition::clone() const
+{
+    PDFActionTransition* clonedAction = new PDFActionTransition(getTransition());
+    clonedAction->cloneActionList(this);
+    return PDFActionPtr(clonedAction);
+}
+
+PDFActionPtr PDFActionGoTo3DView::clone() const
+{
+    PDFActionGoTo3DView* clonedAction = new PDFActionGoTo3DView(getAnnotation(), getView());
+    clonedAction->cloneActionList(this);
+    return PDFActionPtr(clonedAction);
+}
+
+PDFActionPtr PDFActionJavaScript::clone() const
+{
+    PDFActionJavaScript* clonedAction = new PDFActionJavaScript(getJavaScript());
+    clonedAction->cloneActionList(this);
+    return PDFActionPtr(clonedAction);
+}
+
+PDFActionPtr PDFActionRichMediaExecute::clone() const
+{
+    PDFActionRichMediaExecute* clonedAction = new PDFActionRichMediaExecute(getRichMediaAnnotation(),
+                                                                            getRichMediaInstance(),
+                                                                            getCommand(),
+                                                                            getArguments());
+    clonedAction->cloneActionList(this);
+    return PDFActionPtr(clonedAction);
+}
+
+PDFActionPtr PDFActionSubmitForm::clone() const
+{
+    PDFActionSubmitForm* clonedAction = new PDFActionSubmitForm(getFieldScope(), getFieldList(), getUrl(), getCharset(), getFlags());
+    clonedAction->cloneActionList(this);
+    return PDFActionPtr(clonedAction);
+}
+
+PDFActionPtr PDFActionResetForm::clone() const
+{
+    PDFActionResetForm* clonedAction = new PDFActionResetForm(getFieldScope(), getFieldList(), getFlags());
+    clonedAction->cloneActionList(this);
+    return PDFActionPtr(clonedAction);
+}
+
+PDFActionPtr PDFActionImportDataForm::clone() const
+{
+    PDFActionImportDataForm* clonedAction = new PDFActionImportDataForm(getFile());
+    clonedAction->cloneActionList(this);
+    return PDFActionPtr(clonedAction);
+}
+
+PDFActionPtr PDFActionRendition::clone() const
+{
+    PDFActionRendition* clonedAction = new PDFActionRendition(m_rendition, getAnnotation(), getOperation(), getJavaScript());
+    clonedAction->cloneActionList(this);
+    return PDFActionPtr(clonedAction);
 }
 
 }   // namespace pdf
