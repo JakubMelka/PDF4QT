@@ -56,6 +56,8 @@ MainWindow::MainWindow(QWidget* parent) :
 
     ui->documentItemsView->setModel(m_model);
     ui->documentItemsView->setItemDelegate(m_delegate);
+    connect(ui->documentItemsView, &QListView::customContextMenuRequested, this, &MainWindow::onWorkspaceCustomContextMenuRequested);
+
     setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(800, 600)));
 
     ui->actionClear->setData(int(Operation::Clear));
@@ -221,6 +223,13 @@ QSize MainWindow::getMaxPageImageSize() const
     return pdf::PDFWidgetUtils::scaleDPI(this, QSize(250, 250));
 }
 
+void MainWindow::resizeEvent(QResizeEvent* resizeEvent)
+{
+    QMainWindow::resizeEvent(resizeEvent);
+
+    ui->documentItemsView->doItemsLayout();
+}
+
 void MainWindow::on_actionClose_triggered()
 {
     close();
@@ -244,6 +253,35 @@ void MainWindow::on_actionAddDocuments_triggered()
 void MainWindow::onMappedActionTriggered(int actionId)
 {
     performOperation(static_cast<Operation>(actionId));
+}
+
+void MainWindow::onWorkspaceCustomContextMenuRequested(const QPoint& point)
+{
+    QMenu* contextMenu = new QMenu(this);
+    contextMenu->addAction(ui->actionCut);
+    contextMenu->addAction(ui->actionCopy);
+    contextMenu->addAction(ui->actionPaste);
+    contextMenu->addSeparator();
+    contextMenu->addAction(ui->actionRotate_Left);
+    contextMenu->addAction(ui->actionRotate_Right);
+    QMenu* selectMenu = contextMenu->addMenu(tr("Select"));
+    selectMenu->addAction(ui->actionSelect_All);
+    selectMenu->addAction(ui->actionSelect_Even);
+    selectMenu->addAction(ui->actionSelect_Odd);
+    selectMenu->addAction(ui->actionSelect_Landscape);
+    selectMenu->addAction(ui->actionSelect_Portrait);
+    selectMenu->addAction(ui->actionSelect_None);
+    QMenu* regroupMenu = contextMenu->addMenu(tr("Regroup"));
+    regroupMenu->addAction(ui->actionRegroup_Even_Odd);
+    regroupMenu->addAction(ui->actionRegroup_by_Alternating_Pages);
+    regroupMenu->addAction(ui->actionRegroup_by_Alternating_Pages_Reversed_Order);
+    regroupMenu->addAction(ui->actionRegroup_by_Page_Pairs);
+    regroupMenu->addAction(ui->actionRegroup_by_Bookmarks);
+    contextMenu->addSeparator();
+    contextMenu->addAction(ui->actionGroup);
+    contextMenu->addAction(ui->actionUngroup);
+
+    contextMenu->exec(ui->documentItemsView->viewport()->mapToGlobal(point));
 }
 
 void MainWindow::updateActions()

@@ -20,6 +20,9 @@
    <layout class="QVBoxLayout" name="verticalLayout">
     <item>
      <widget class="QListView" name="documentItemsView">
+      <property name="contextMenuPolicy">
+       <enum>Qt::CustomContextMenu</enum>
+      </property>
       <property name="dragEnabled">
        <bool>true</bool>
       </property>

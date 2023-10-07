@@ -83,10 +83,25 @@ QVariant PageItemModel::data(const QModelIndex& index, int role) const
         return QVariant();
     }
 
+    const PageGroupItem* item = getItem(index);
     switch (role)
     {
         case Qt::DisplayRole:
-            return m_pageGroupItems.at(index.row()).groupName;
+            return item->groupName;
+
+        case Qt::ToolTipRole:
+        {
+            QStringList texts;
+            texts << QString("<b>%1</b>").arg(item->groupName);
+
+            if (item->isGrouped())
+            {
+                texts << QString("%1 pages").arg(item->groups.size());
+            }
+
+            return texts.join("<br>");
+        }
+
 
         default:
             break;

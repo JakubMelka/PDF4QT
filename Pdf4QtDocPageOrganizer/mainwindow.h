@@ -100,10 +100,14 @@ public:
         PrepareIconTheme
     };
 
+protected:
+    virtual void resizeEvent(QResizeEvent* resizeEvent) override;
+
 private slots:
     void on_actionClose_triggered();
     void on_actionAddDocuments_triggered();
     void onMappedActionTriggered(int actionId);
+    void onWorkspaceCustomContextMenuRequested(const QPoint& point);
     void updateActions();
 
 private:
