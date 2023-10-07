@@ -32,6 +32,7 @@
 #include "pdfsignaturehandler.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfdocumentbuilder.h"
+#include "pdfwidgetutils.h"
 
 #include <QMenu>
 #include <QAction>
@@ -40,6 +41,10 @@
 #include <QMessageBox>
 #include <QPainter>
 #include <QTextToSpeech>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QDialog>
+#include <QPushButton>
 
 namespace pdfviewer
 {
@@ -854,7 +859,60 @@ void PDFSidebarWidget::onBookmarksTreeViewContextMenuRequested(const QPoint& pos
         return onSetTarget;
     };
 
-    submenu->addAction(tr("Named Destination"));
+    auto onNamedDestinationTriggered = [this, index]()
+    {
+        class SelectNamedDestinationDialog : public QDialog
+        {
+        public:
+            explicit SelectNamedDestinationDialog(const QStringList& items, QWidget* parent)
+                : QDialog(parent)
+            {
+                setWindowTitle(tr("Select Named Destination"));
+                setMinimumWidth(pdf::PDFWidgetUtils::scaleDPI_x(this, 150));
+
+                QVBoxLayout* layout = new QVBoxLayout(this);
+
+                m_comboBox = new QComboBox(this);
+                m_comboBox->addItems(items);
+                m_comboBox->setEditable(false);
+                layout->addWidget(m_comboBox);
+
+                QHBoxLayout* buttonsLayout = new QHBoxLayout();
+                QPushButton* okButton = new QPushButton(tr("OK"), this);
+                QPushButton* cancelButton = new QPushButton(tr("Cancel"), this);
+
+                buttonsLayout->addWidget(okButton);
+                buttonsLayout->addWidget(cancelButton);
+
+                layout->addLayout(buttonsLayout);
+
+                connect(okButton, &QPushButton::clicked, this, &QDialog::accept);
+                connect(cancelButton, &QPushButton::clicked, this, &QDialog::reject);
+            }
+
+            QString selectedText() const
+            {
+                return m_comboBox->currentText();
+            }
+
+        private:
+            QComboBox* m_comboBox;
+        };
+
+        QStringList items;
+        for (const auto& namedDestination : m_document->getCatalog()->getNamedDestinations())
+        {
+            items << QString::fromLatin1(namedDestination.first);
+        }
+
+        SelectNamedDestinationDialog dialog(items, m_proxy->getWidget());
+        if (dialog.exec() == QDialog::Accepted)
+        {
+            m_outlineTreeModel->setDestination(index, pdf::PDFDestination::createNamed(dialog.selectedText().toLatin1()));
+        }
+    };
+
+    submenu->addAction(tr("Named Destination"), onNamedDestinationTriggered);
     submenu->addAction(tr("Fit Page"), createOnSetTarget(pdf::DestinationType::Fit));
     submenu->addAction(tr("Fit Page Horizontally"), createOnSetTarget(pdf::DestinationType::FitH));
     submenu->addAction(tr("Fit Page Vertically"), createOnSetTarget(pdf::DestinationType::FitV));
