@@ -131,6 +131,13 @@ public:
     /// \returns Identifier of the image (internal index)
     int insertImage(QString fileName, const QModelIndex& index);
 
+    /// Adds image to the model, inserts one single page containing
+    /// the image. Returns index of a newly added image.
+    /// \param image Image
+    /// \param index Index, where image is inserted
+    /// \returns Identifier of the image (internal index)
+    int insertImage(QImage image, const QModelIndex& index);
+
     /// Returns item at a given index. If item doesn't exist,
     /// then nullptr is returned.
     /// \param index Index

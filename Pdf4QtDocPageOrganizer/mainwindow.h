@@ -42,6 +42,9 @@ public:
     explicit MainWindow(QWidget* parent);
     virtual ~MainWindow() override;
 
+    virtual void dragEnterEvent(QDragEnterEvent* event) override;
+    virtual void dropEvent(QDropEvent* event) override;
+
     QSize getMinPageImageSize() const;
     QSize getDefaultPageImageSize() const;
     QSize getMaxPageImageSize() const;

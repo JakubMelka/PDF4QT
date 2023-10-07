@@ -37,6 +37,8 @@
 #include <QPixmapCache>
 #include <QScreen>
 #include <QGuiApplication>
+#include <QDragEnterEvent>
+#include <QDropEvent>
 
 namespace pdfdocpage
 {
@@ -950,6 +952,79 @@ void MainWindow::performOperation(Operation operation)
     }
 
     updateActions();
+}
+
+void MainWindow::dragEnterEvent(QDragEnterEvent* event)
+{
+    const QMimeData* mimeData = event->mimeData();
+    if (mimeData->hasImage() || mimeData->hasUrls())
+    {
+        event->acceptProposedAction();
+    }
+}
+
+void MainWindow::dropEvent(QDropEvent* event)
+{
+    event->ignore();
+
+    const QMimeData* mimeData = event->mimeData();
+    if (mimeData->hasImage())
+    {
+        QImage image = mimeData->imageData().value<QImage>();
+        if (!image.isNull())
+        {
+            QModelIndexList indexes = ui->documentItemsView->selectionModel()->selection().indexes();
+            QModelIndex insertIndex = !indexes.isEmpty() ? indexes.front() : QModelIndex();
+            m_model->insertImage(image, insertIndex);
+            event->accept();
+        }
+    }
+    else if (mimeData->hasUrls())
+    {
+        QModelIndexList indexes = ui->documentItemsView->selectionModel()->selection().indexes();
+        QModelIndex insertIndex = !indexes.isEmpty() ? indexes.front() : QModelIndex();
+
+        QList<QUrl> urls = mimeData->urls();
+        std::reverse(urls.begin(), urls.end());
+        QList<QByteArray> supportedImageFormats = QImageReader::supportedImageFormats();
+
+        for (QUrl url : urls)
+        {
+            event->accept();
+
+            if (url.isLocalFile())
+            {
+                QString fileName = url.toLocalFile();
+                QFileInfo fileInfo(fileName);
+                QString suffix = fileInfo.suffix().toLower();
+
+                if (supportedImageFormats.contains(suffix.toUtf8()))
+                {
+                    if (m_model->insertImage(fileName, insertIndex) == -1)
+                    {
+                        // Exit the loop if the image was not inserted.
+                        event->ignore();
+                        break;
+                    }
+                }
+                else if (suffix == "pdf")
+                {
+                    if (!insertDocument(url.toLocalFile(), insertIndex))
+                    {
+                        // Exit the loop if the document was not inserted. This could be because
+                        // the document requires a password and the user might have provided an incorrect one,
+                        // or the file couldn't be opened. We don't want to proceed with the next file.
+                        event->ignore();
+                        break;
+                    }
+                }
+                else
+                {
+                    // We ignore other file extensions.
+                }
+            }
+        }
+    }
 }
 
 }   // namespace pdfdocpage

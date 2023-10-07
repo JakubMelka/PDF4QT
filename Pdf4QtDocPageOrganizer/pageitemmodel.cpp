@@ -167,6 +167,47 @@ int PageItemModel::insertImage(QString fileName, const QModelIndex& index)
     return -1;
 }
 
+int PageItemModel::insertImage(QImage image, const QModelIndex& index)
+{
+    Modifier modifier(this);
+
+    if (!image.isNull())
+    {
+        ImageItem item;
+        item.image = image;
+        int newIndex = 1;
+
+        if (!m_images.empty())
+        {
+            newIndex = (m_images.rbegin()->first) + 1;
+        }
+
+        m_images[newIndex] = qMove(item);
+
+        // Insert image item
+        PageGroupItem newItem;
+
+        newItem.groups.reserve(1);
+
+        PageGroupItem::GroupItem groupItem;
+        groupItem.imageIndex = newIndex;
+        groupItem.rotatedPageDimensionsMM = m_images[newIndex].image.size() * 0.1;
+        groupItem.pageType = PT_Image;
+        newItem.groups.push_back(qMove(groupItem));
+
+        updateItemCaptionAndTags(newItem);
+        int insertRow = index.isValid() ? index.row() + 1 : int(m_pageGroupItems.size());
+
+        beginInsertRows(QModelIndex(), insertRow, insertRow);
+        m_pageGroupItems.insert(std::next(m_pageGroupItems.begin(), insertRow), qMove(newItem));
+        endInsertRows();
+
+        return newIndex;
+    }
+
+    return -1;
+}
+
 const PageGroupItem* PageItemModel::getItem(const QModelIndex& index) const
 {
     if (index.isValid())
