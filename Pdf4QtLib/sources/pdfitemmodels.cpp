@@ -574,8 +574,11 @@ QMimeData* PDFOutlineTreeItemModel::mimeData(const QModelIndexList& indexes) con
         QByteArray ba;
 
         {
+            QModelIndex index = indexes.front();
+            const PDFOutlineTreeItem* item = static_cast<const PDFOutlineTreeItem*>(index.internalPointer());
+            m_dragDropItem = item->getOutlineItem()->clone();
             QDataStream stream(&ba, QDataStream::WriteOnly);
-            stream << indexes.front().internalId();
+            stream << reinterpret_cast<quintptr>(m_dragDropItem.data());
         }
 
         mimeData->setData(mimeTypes().front(), ba);
@@ -605,9 +608,29 @@ bool PDFOutlineTreeItemModel::dropMimeData(const QMimeData* data, Qt::DropAction
     quintptr pointer = 0;
     stream >> pointer;
 
-    PDFOutlineTreeItem* item = reinterpret_cast<PDFOutlineTreeItem*>(pointer);
-    QModelIndex sourceIndex = createIndex(item->getRow(), column, item);
-    return moveRow(sourceIndex.parent(), sourceIndex.row(), parent, row);
+    PDFOutlineItem* item = reinterpret_cast<PDFOutlineItem*>(pointer);
+    if (item == m_dragDropItem.data())
+    {
+        if (row == -1)
+        {
+            row = rowCount(parent);
+        }
+
+        if (column == -1)
+        {
+            column = 0;
+        }
+
+        if (insertRow(row, parent))
+        {
+            QModelIndex targetIndex = this->index(row, column, parent);
+            PDFOutlineTreeItem* targetTreeItem = static_cast<PDFOutlineTreeItem*>(targetIndex.internalPointer());
+            *targetTreeItem->getOutlineItem() = *item;
+            return true;
+        }
+    }
+
+    return false;
 }
 
 bool PDFOutlineTreeItemModel::insertRows(int row, int count, const QModelIndex& parent)
@@ -695,25 +718,20 @@ bool PDFOutlineTreeItemModel::moveRows(const QModelIndex& sourceParent, int sour
         destinationChild = 0;
     }
 
-    // Signalizace začátku přesunu řádků
-    if (!beginMoveRows(sourceParent, sourceRow, sourceRow + count - 1, destinationParent, destinationChild))
-    {
-        return false;
-    }
-
+    beginRemoveRows(sourceParent, sourceRow, sourceRow + count - 1);
     QList<PDFOutlineTreeItem*> nodesToMove;
     for (int i = 0; i < count; ++i)
     {
         nodesToMove.append(static_cast<PDFOutlineTreeItem*>(sourceNode->takeChild(sourceRow)));
     }
+    endRemoveRows();
 
+    beginInsertRows(destinationParent, destinationChild, destinationChild + count - 1);
     for (PDFOutlineTreeItem* node : nodesToMove)
     {
         destNode->insertCreatedChild(destinationChild++, node);
     }
-
-    // Signalizace konce přesunu řádků
-    endMoveRows();
+    endInsertRows();
 
     return true;
 }
