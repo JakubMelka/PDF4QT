@@ -62,6 +62,7 @@ public:
                               PDFTextToSpeech* textToSpeech,
                               pdf::PDFCertificateStore* certificateStore,
                               PDFViewerSettings* settings,
+                              bool editableOutline,
                               QWidget* parent);
     virtual ~PDFSidebarWidget() override;
 
@@ -99,6 +100,7 @@ public:
 
 signals:
     void actionTriggered(const pdf::PDFAction* action);
+    void documentModified(pdf::PDFModifiedDocument document);
 
 private:
     void updateGUI(Page preferredPage);
@@ -111,6 +113,8 @@ private:
     void onAttachmentCustomContextMenuRequested(const QPoint& pos);
     void onThumbnailClicked(const QModelIndex& index);
     void onSignatureCustomContextMenuRequested(const QPoint &pos);
+    void onBookmarksTreeViewContextMenuRequested(const QPoint &pos);
+    void onOutlineItemsChanged();
 
     struct PageInfo
     {

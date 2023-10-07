@@ -36,6 +36,7 @@ class PDFModifiedDocument;
 class PDFFileSpecification;
 class PDFOptionalContentActivity;
 class PDFDrawWidgetProxy;
+class PDFDestination;
 
 /// Represents tree item in the GUI tree
 class PDF4QTLIBSHARED_EXPORT PDFTreeItem
@@ -53,6 +54,20 @@ public:
         return item;
     }
 
+    template<typename T, typename... Arguments>
+    inline T* insertChild(int position, Arguments&&... arguments)
+    {
+        T* item = new T(this, std::forward(arguments)...);
+        m_children.insert(std::next(m_children.begin(), position), item);
+        return item;
+    }
+
+    void insertCreatedChild(int position, PDFTreeItem* item)
+    {
+        item->m_parent = this;
+        m_children.insert(std::next(m_children.begin(), position), item);
+    }
+
     void addCreatedChild(PDFTreeItem* item)
     {
         item->m_parent = this;
@@ -64,6 +79,7 @@ public:
     const PDFTreeItem* getChild(int index) const { return m_children.at(index); }
     PDFTreeItem* getChild(int index) { return m_children.at(index); }
     const PDFTreeItem* getParent() const { return m_parent; }
+    PDFTreeItem* takeChild(int index);
 
 private:
     PDFTreeItem* m_parent = nullptr;
@@ -145,6 +161,7 @@ public:
     explicit PDFOutlineTreeItem(PDFOutlineTreeItem* parent, QSharedPointer<PDFOutlineItem> outlineItem);
 
     const PDFOutlineItem* getOutlineItem() const { return m_outlineItem.data(); }
+    PDFOutlineItem* getOutlineItem() { return m_outlineItem.data(); }
 
 private:
     QSharedPointer<PDFOutlineItem> m_outlineItem;
@@ -154,9 +171,10 @@ class PDF4QTLIBSHARED_EXPORT PDFOutlineTreeItemModel : public PDFTreeItemModel
 {
     Q_OBJECT
 public:
-    PDFOutlineTreeItemModel(QIcon icon, QObject* parent) :
+    PDFOutlineTreeItemModel(QIcon icon, bool editable, QObject* parent) :
         PDFTreeItemModel(parent),
-        m_icon(qMove(icon))
+        m_icon(qMove(icon)),
+        m_editable(editable)
     {
 
     }
@@ -165,14 +183,40 @@ public:
     virtual QVariant data(const QModelIndex& index, int role) const override;
     virtual void update() override;
     virtual Qt::ItemFlags flags(const QModelIndex& index) const override;
+    virtual bool setData(const QModelIndex& index, const QVariant& value, int role) override;
+    virtual Qt::DropActions supportedDropActions() const override;
+    virtual Qt::DropActions supportedDragActions() const override;
+    virtual bool insertRows(int row, int count, const QModelIndex& parent) override;
+    virtual bool removeRows(int row, int count, const QModelIndex& parent) override;
+    virtual bool moveRows(const QModelIndex& sourceParent, int sourceRow, int count, const QModelIndex& destinationParent, int destinationChild) override;
+    virtual QStringList mimeTypes() const override;
+    virtual QMimeData* mimeData(const QModelIndexList& indexes) const override;
+    virtual bool canDropMimeData(const QMimeData* data, Qt::DropAction action, int row, int column, const QModelIndex& parent) const override;
+    virtual bool dropMimeData(const QMimeData* data, Qt::DropAction action, int row, int column, const QModelIndex& parent) override;
 
     /// Returns action assigned to the index. If index is invalid, or
     /// points to the invalid item, nullptr is returned.
     /// \param index Index of the outline item
     const PDFAction* getAction(const QModelIndex& index) const;
 
+    /// Returns the outline item for the given index, or nullptr
+    /// if no outline item is assigned to that index.
+    const PDFOutlineItem* getOutlineItem(const QModelIndex& index) const;
+
+    /// Returns the outline item for the given index, or nullptr
+    /// if no outline item is assigned to that index.
+    PDFOutlineItem* getOutlineItem(const QModelIndex& index);
+
+    void setFontBold(const QModelIndex& index, bool value);
+    void setFontItalics(const QModelIndex& index, bool value);
+    void setDestination(const QModelIndex& index, const PDFDestination& destination);
+
+    const PDFOutlineItem* getRootOutlineItem() const;
+
 private:
     QIcon m_icon;
+    bool m_editable;
+    mutable QSharedPointer<PDFOutlineItem> m_dragDropItem;
 };
 
 class PDF4QTLIBSHARED_EXPORT PDFSelectableOutlineTreeItemModel : public PDFOutlineTreeItemModel
@@ -184,7 +228,7 @@ private:
 
 public:
     PDFSelectableOutlineTreeItemModel(QIcon icon, QObject* parent) :
-        BaseClass(qMove(icon), parent)
+        BaseClass(qMove(icon), false, parent)
     {
 
     }

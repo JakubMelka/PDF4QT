@@ -253,7 +253,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     setCentralWidget(m_programController->getPdfWidget());
     setFocusProxy(m_programController->getPdfWidget());
 
-    m_sidebarWidget = new PDFSidebarWidget(m_programController->getPdfWidget()->getDrawWidgetProxy(), m_programController->getTextToSpeech(), m_programController->getCertificateStore(), m_programController->getSettings(), this);
+    m_sidebarWidget = new PDFSidebarWidget(m_programController->getPdfWidget()->getDrawWidgetProxy(), m_programController->getTextToSpeech(), m_programController->getCertificateStore(), m_programController->getSettings(), true, this);
     m_sidebarDockWidget = new QDockWidget(tr("Sidebar"), this);
     m_sidebarDockWidget->setObjectName("SidebarDockWidget");
     m_sidebarDockWidget->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
@@ -261,6 +261,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     addDockWidget(Qt::LeftDockWidgetArea, m_sidebarDockWidget);
     m_sidebarDockWidget->hide();
     connect(m_sidebarWidget, &PDFSidebarWidget::actionTriggered, m_programController, &PDFProgramController::onActionTriggered);
+    connect(m_sidebarWidget, &PDFSidebarWidget::documentModified, m_programController, &PDFProgramController::onDocumentModified);
 
     m_advancedFindWidget = new PDFAdvancedFindWidget(m_programController->getPdfWidget()->getDrawWidgetProxy(), this);
     m_advancedFindDockWidget = new QDockWidget(tr("Advanced find"), this);

@@ -1,4 +1,4 @@
-//    Copyright (C) 2019-2022 Jakub Melka
+//    Copyright (C) 2019-2023 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -154,6 +154,29 @@ void PDFOutlineItem::apply(const std::function<void (PDFOutlineItem*)>& functor)
     {
         item->apply(functor);
     }
+}
+
+QSharedPointer<PDFOutlineItem> PDFOutlineItem::clone() const
+{
+    QSharedPointer<PDFOutlineItem> result(new PDFOutlineItem());
+
+    result->setTitle(getTitle());
+    result->setTextColor(getTextColor());
+    result->setStructureElement(getStructureElement());
+    result->setFontItalics(isFontItalics());
+    result->setFontBold(isFontBold());
+
+    if (auto action = getAction())
+    {
+        result->setAction(action->clone());
+    }
+
+    for (size_t i = 0; i < getChildCount(); ++i)
+    {
+        result->addChild(getChild(i)->clone());
+    }
+
+    return result;
 }
 
 bool PDFOutlineItem::isFontBold() const

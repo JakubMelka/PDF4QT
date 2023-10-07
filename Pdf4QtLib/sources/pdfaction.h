@@ -169,6 +169,12 @@ public:
     /// Returns list of actions to be executed
     std::vector<const PDFAction*> getActionList() const;
 
+    /// Clone action
+    virtual PDFActionPtr clone() const = 0;
+
+protected:
+    void cloneActionList(const PDFAction* sourceAction);
+
 private:
     static PDFActionPtr parseImpl(const PDFObjectStorage* storage, PDFObject object, std::set<PDFObjectReference>& usedReferences);
 
@@ -180,7 +186,7 @@ private:
 /// Regular go-to action. Can contain also structure destinations, both regular page destination
 /// and structure destination are present, because if structure destination fails, then
 /// page destination can be used as fallback resolution.
-class PDFActionGoTo : public PDFAction
+class PDF4QTLIBSHARED_EXPORT PDFActionGoTo : public PDFAction
 {
 public:
     explicit inline PDFActionGoTo(PDFDestination destination, PDFDestination structureDestination) :
@@ -193,6 +199,8 @@ public:
 
     void setDestination(const PDFDestination& destination);
     void setStructureDestination(const PDFDestination& structureDestination);
+
+    virtual PDFActionPtr clone() const override;
 
 private:
     PDFDestination m_destination;
@@ -217,6 +225,8 @@ public:
     const PDFDestination& getStructureDestination() const { return m_structureDestination; }
     const PDFFileSpecification& getFileSpecification() const { return m_fileSpecification; }
     bool isNewWindow() const { return m_newWindow; }
+
+    virtual PDFActionPtr clone() const override;
 
 private:
     PDFDestination m_destination;
@@ -244,6 +254,8 @@ public:
     bool isNewWindow() const { return m_newWindow; }
     const PDFObject& getTarget() const { return m_target; }
 
+    virtual PDFActionPtr clone() const override;
+
 private:
     PDFDestination m_destination;
     PDFFileSpecification m_fileSpecification;
@@ -261,6 +273,8 @@ public:
     virtual ActionType getType() const override { return ActionType::GoToDp; }
 
     PDFObjectReference getDocumentPart() const { return m_documentPart; }
+
+    virtual PDFActionPtr clone() const override;
 
 private:
     PDFObjectReference m_documentPart;
@@ -293,6 +307,8 @@ public:
     const Win& getWinSpecification() const { return m_win; }
     bool isNewWindow() const { return m_newWindow; }
 
+    virtual PDFActionPtr clone() const override;
+
 private:
     PDFFileSpecification m_fileSpecification;
     bool m_newWindow = false;
@@ -319,6 +335,8 @@ public:
     const Thread& getThread() const { return m_thread; }
     const Bead& getBead() const { return m_bead; }
 
+    virtual PDFActionPtr clone() const override;
+
 private:
     PDFFileSpecification m_fileSpecification;
     Thread m_thread;
@@ -343,6 +361,11 @@ public:
     /// Returns URI as string in unicode. If pdf document conforms
     /// to PDF specification, URI is UTF-8 encoded string.
     QString getURIString() const;
+
+    virtual PDFActionPtr clone() const override;
+
+    void setURI(const QByteArray& newURI);
+    void setIsMap(bool newIsMap);
 
 private:
     QByteArray m_URI;
@@ -369,6 +392,8 @@ public:
     bool isSynchronous() const { return m_isSynchronous; }
     bool isRepeat() const { return m_isRepeat; }
     bool isMix() const { return m_isMix; }
+
+    virtual PDFActionPtr clone() const override;
 
 private:
     PDFSound m_sound;
@@ -403,6 +428,8 @@ public:
     const QString& getTitle() const { return m_title; }
     Operation getOperation() const { return m_operation; }
 
+    virtual PDFActionPtr clone() const override;
+
 private:
     PDFObjectReference m_annotation;
     QString m_title;
@@ -420,11 +447,21 @@ public:
 
     }
 
+    explicit inline PDFActionHide(const std::vector<PDFObjectReference>& annotations, const std::vector<QString>& fieldNames, bool hide) :
+        m_annotations(annotations),
+        m_fieldNames(fieldNames),
+        m_hide(hide)
+    {
+
+    }
+
     virtual ActionType getType() const override { return ActionType::Hide; }
 
     const std::vector<PDFObjectReference>& getAnnotations() const { return m_annotations; }
     const std::vector<QString>& getFieldNames() const { return m_fieldNames; }
     bool isHide() const { return m_hide; }
+
+    virtual PDFActionPtr clone() const override;
 
 private:
     std::vector<PDFObjectReference> m_annotations;
@@ -451,10 +488,19 @@ public:
 
     }
 
+    explicit inline PDFActionNamed(NamedActionType namedActionType, const QByteArray& customNamedAction) :
+        m_namedActionType(namedActionType),
+        m_customNamedAction(customNamedAction)
+    {
+
+    }
+
     virtual ActionType getType() const override { return ActionType::Named; }
 
     NamedActionType getNamedActionType() const { return m_namedActionType; }
     const QByteArray& getCustomNamedAction() const { return m_customNamedAction; }
+
+    virtual PDFActionPtr clone() const override;
 
 private:
     NamedActionType m_namedActionType;
@@ -475,7 +521,7 @@ public:
     using StateChangeItem = std::pair<SwitchType, PDFObjectReference>;
     using StateChangeItems = std::vector<StateChangeItem>;
 
-    explicit inline PDFActionSetOCGState(StateChangeItems&& stateChangeItems, bool isRadioButtonsPreserved) :
+    explicit inline PDFActionSetOCGState(StateChangeItems stateChangeItems, bool isRadioButtonsPreserved) :
         m_items(qMove(stateChangeItems)),
         m_isRadioButtonsPreserved(isRadioButtonsPreserved)
     {
@@ -486,6 +532,8 @@ public:
 
     const StateChangeItems& getStateChangeItems() const { return m_items; }
     bool isRadioButtonsPreserved() const { return m_isRadioButtonsPreserved; }
+
+    virtual PDFActionPtr clone() const override;
 
 private:
     StateChangeItems m_items;
@@ -505,7 +553,7 @@ public:
         Play = 4
     };
 
-    explicit inline PDFActionRendition(std::optional<PDFRendition>&& rendition, PDFObjectReference annotation, Operation operation, QString javascript) :
+    explicit inline PDFActionRendition(std::optional<PDFRendition> rendition, PDFObjectReference annotation, Operation operation, QString javascript) :
         m_rendition(qMove(rendition)),
         m_annotation(annotation),
         m_operation(operation),
@@ -521,6 +569,8 @@ public:
     Operation getOperation() const { return m_operation; }
     const QString& getJavaScript() const { return m_javascript; }
 
+    virtual PDFActionPtr clone() const override;
+
 private:
     std::optional<PDFRendition> m_rendition;
     PDFObjectReference m_annotation;
@@ -531,7 +581,7 @@ private:
 class PDFActionTransition : public PDFAction
 {
 public:
-    explicit inline PDFActionTransition(PDFPageTransition&& transition) :
+    explicit inline PDFActionTransition(PDFPageTransition transition) :
         m_transition(qMove(transition))
     {
 
@@ -540,6 +590,8 @@ public:
     virtual ActionType getType() const override { return ActionType::Transition; }
 
     const PDFPageTransition& getTransition() const { return m_transition; }
+
+    virtual PDFActionPtr clone() const override;
 
 private:
     PDFPageTransition m_transition;
@@ -560,6 +612,8 @@ public:
     const PDFObject& getAnnotation() const { return m_annotation; }
     const PDFObject& getView() const { return m_view; }
 
+    virtual PDFActionPtr clone() const override;
+
 private:
     PDFObject m_annotation;
     PDFObject m_view;
@@ -577,6 +631,8 @@ public:
     virtual ActionType getType() const override { return ActionType::JavaScript; }
 
     const QString& getJavaScript() const { return m_javaScript; }
+
+    virtual PDFActionPtr clone() const override;
 
 private:
     QString m_javaScript;
@@ -603,6 +659,8 @@ public:
     PDFObjectReference getRichMediaInstance() const { return m_richMediaInstance; }
     QString getCommand() const { return m_command; }
     PDFObject getArguments() const { return m_arguments; }
+
+    virtual PDFActionPtr clone() const override;
 
 private:
     PDFObjectReference m_richMediaAnnotation;
@@ -689,6 +747,8 @@ public:
     const QByteArray& getCharset() const { return m_charset; }
     SubmitFlags getFlags() const { return m_flags; }
 
+    virtual PDFActionPtr clone() const override;
+
 private:
     PDFFileSpecification m_url;
     QByteArray m_charset;
@@ -717,6 +777,8 @@ public:
 
     ResetFlags getFlags() const { return m_flags; }
 
+    virtual PDFActionPtr clone() const override;
+
 private:
     ResetFlags m_flags = None;
 };
@@ -734,6 +796,8 @@ public:
     virtual ActionType getType() const override { return ActionType::ImportDataForm; }
 
     const PDFFileSpecification& getFile() const { return m_file; }
+
+    virtual PDFActionPtr clone() const override;
 
 private:
     PDFFileSpecification m_file;
