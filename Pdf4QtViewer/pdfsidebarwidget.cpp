@@ -31,6 +31,7 @@
 #include "pdfexception.h"
 #include "pdfsignaturehandler.h"
 #include "pdfdrawspacecontroller.h"
+#include "pdfdocumentbuilder.h"
 
 #include <QMenu>
 #include <QAction>
@@ -88,6 +89,10 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
         ui->bookmarksTreeView->setDragDropMode(QAbstractItemView::InternalMove);
         ui->bookmarksTreeView->setContextMenuPolicy(Qt::CustomContextMenu);
         connect(ui->bookmarksTreeView, &QTreeView::customContextMenuRequested, this, &PDFSidebarWidget::onBookmarksTreeViewContextMenuRequested);
+        connect(m_outlineTreeModel, &pdf::PDFOutlineTreeItemModel::dataChanged, this, &PDFSidebarWidget::onOutlineItemsChanged);
+        connect(m_outlineTreeModel, &pdf::PDFOutlineTreeItemModel::rowsInserted, this, &PDFSidebarWidget::onOutlineItemsChanged);
+        connect(m_outlineTreeModel, &pdf::PDFOutlineTreeItemModel::rowsRemoved, this, &PDFSidebarWidget::onOutlineItemsChanged);
+        connect(m_outlineTreeModel, &pdf::PDFOutlineTreeItemModel::rowsMoved, this, &PDFSidebarWidget::onOutlineItemsChanged);
     }
 
     connect(ui->bookmarksTreeView, &QTreeView::clicked, this, &PDFSidebarWidget::onOutlineItemClicked);
@@ -860,6 +865,19 @@ void PDFSidebarWidget::onBookmarksTreeViewContextMenuRequested(const QPoint& pos
     submenu->addAction(tr("XYZ"), createOnSetTarget(pdf::DestinationType::XYZ));
 
     contextMenu.exec(ui->bookmarksTreeView->mapToGlobal(pos));
+}
+
+void PDFSidebarWidget::onOutlineItemsChanged()
+{
+    if (m_document)
+    {
+        pdf::PDFDocumentBuilder builder(m_document);
+        builder.setOutline(m_outlineTreeModel->getRootOutlineItem());
+
+        pdf::PDFDocumentPointer pointer(new pdf::PDFDocument(builder.build()));
+        pdf::PDFModifiedDocument document(qMove(pointer), m_optionalContentActivity, pdf::PDFModifiedDocument::None);
+        Q_EMIT documentModified(qMove(document));
+    }
 }
 
 void PDFSidebarWidget::paintEvent(QPaintEvent* event)

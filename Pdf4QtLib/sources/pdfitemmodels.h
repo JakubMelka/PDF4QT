@@ -211,6 +211,8 @@ public:
     void setFontItalics(const QModelIndex& index, bool value);
     void setDestination(const QModelIndex& index, const PDFDestination& destination);
 
+    const PDFOutlineItem* getRootOutlineItem() const;
+
 private:
     QIcon m_icon;
     bool m_editable;

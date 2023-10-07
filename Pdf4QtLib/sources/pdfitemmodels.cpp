@@ -522,6 +522,12 @@ void PDFOutlineTreeItemModel::setDestination(const QModelIndex& index, const PDF
     }
 }
 
+const PDFOutlineItem* PDFOutlineTreeItemModel::getRootOutlineItem() const
+{
+    PDFOutlineTreeItem* item = static_cast<PDFOutlineTreeItem*>(m_rootItem.get());
+    return item->getOutlineItem();
+}
+
 bool PDFOutlineTreeItemModel::setData(const QModelIndex& index, const QVariant& value, int role)
 {
     if (!m_editable || !index.isValid() || role != Qt::EditRole)

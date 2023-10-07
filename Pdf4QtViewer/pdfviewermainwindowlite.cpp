@@ -196,6 +196,7 @@ PDFViewerMainWindowLite::PDFViewerMainWindowLite(QWidget* parent) :
     addDockWidget(Qt::LeftDockWidgetArea, m_sidebarDockWidget);
     m_sidebarDockWidget->hide();
     connect(m_sidebarWidget, &PDFSidebarWidget::actionTriggered, m_programController, &PDFProgramController::onActionTriggered);
+    connect(m_sidebarWidget, &PDFSidebarWidget::documentModified, m_programController, &PDFProgramController::onDocumentModified);
 
     ui->menuView->addSeparator();
     ui->menuView->addAction(m_sidebarDockWidget->toggleViewAction());

@@ -285,6 +285,7 @@ public:
     void performSaveAs();
 
     void onActionTriggered(const pdf::PDFAction* action);
+    void onDocumentModified(pdf::PDFModifiedDocument document);
     void updateActionsAvailability();
 
     bool getIsBusy() const;
@@ -356,7 +357,6 @@ private:
     void onDrawSpaceChanged();
     void onPageLayoutChanged();
     void onDocumentReadingFinished();
-    void onDocumentModified(pdf::PDFModifiedDocument document);
     void onDocumentUndoRedo(pdf::PDFModifiedDocument document);
     void onQueryPasswordRequest(QString* password, bool* ok);
     void onPageRenderingErrorsChanged(pdf::PDFInteger pageIndex, int errorsCount);
