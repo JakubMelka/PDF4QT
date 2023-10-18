@@ -98,5 +98,6 @@
         <file>resources/sidebar-thumbnails.png</file>
         <file>resources/sidebar-visibility.png</file>
         <file>resources/sidebar-attachment.png</file>
+        <file>resources/annot-rectangle.svg</file>
     </qresource>
 </RCC>

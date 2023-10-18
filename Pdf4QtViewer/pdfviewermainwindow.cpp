@@ -141,6 +141,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_actionManager->setAction(PDFActionManager::CreateInlineText, ui->actionInlineText);
     m_actionManager->setAction(PDFActionManager::CreateStraightLine, ui->actionCreateStraightLine);
     m_actionManager->setAction(PDFActionManager::CreatePolyline, ui->actionCreatePolyline);
+    m_actionManager->setAction(PDFActionManager::CreateRectangle, ui->actionCreateRectangle);
     m_actionManager->setAction(PDFActionManager::CreatePolygon, ui->actionCreatePolygon);
     m_actionManager->setAction(PDFActionManager::CreateEllipse, ui->actionCreateEllipse);
     m_actionManager->setAction(PDFActionManager::CreateFreehandCurve, ui->actionCreateFreehandCurve);

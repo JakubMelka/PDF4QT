@@ -982,6 +982,8 @@ void PDFProgramController::initializeToolManager()
     m_toolManager->addTool(createStraightLineTool);
     pdf::PDFCreateLineTypeTool* createPolylineTool = new pdf::PDFCreateLineTypeTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::PDFCreateLineTypeTool::Type::PolyLine, m_actionManager->getAction(PDFActionManager::CreatePolyline), this);
     m_toolManager->addTool(createPolylineTool);
+    pdf::PDFCreateLineTypeTool* createRectangleTool = new pdf::PDFCreateLineTypeTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::PDFCreateLineTypeTool::Type::Rectangle, m_actionManager->getAction(PDFActionManager::CreateRectangle), this);
+    m_toolManager->addTool(createRectangleTool);
     pdf::PDFCreateLineTypeTool* createPolygonTool = new pdf::PDFCreateLineTypeTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::PDFCreateLineTypeTool::Type::Polygon, m_actionManager->getAction(PDFActionManager::CreatePolygon), this);
     m_toolManager->addTool(createPolygonTool);
     pdf::PDFCreateEllipseTool* createEllipseTool = new pdf::PDFCreateEllipseTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, m_actionManager->getAction(PDFActionManager::CreateEllipse), this);

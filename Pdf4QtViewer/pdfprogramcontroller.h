@@ -134,6 +134,7 @@ public:
         CreateInlineText,
         CreateStraightLine,
         CreatePolyline,
+        CreateRectangle,
         CreatePolygon,
         CreateEllipse,
         CreateFreehandCurve,

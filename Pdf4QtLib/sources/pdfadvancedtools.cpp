@@ -202,9 +202,12 @@ PDFCreateLineTypeTool::PDFCreateLineTypeTool(PDFDrawWidgetProxy* proxy, PDFToolM
     m_strokeColor(Qt::red),
     m_fillColor(Qt::yellow)
 {
-    m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Points, this);
+    PDFPickTool::Mode mode = (type != Type::Rectangle) ? PDFPickTool::Mode::Points : PDFPickTool::Mode::Rectangles;
+    m_pickTool = new PDFPickTool(proxy, mode, this);
     addTool(m_pickTool);
     connect(m_pickTool, &PDFPickTool::pointPicked, this, &PDFCreateLineTypeTool::onPointPicked);
+    connect(m_pickTool, &PDFPickTool::rectanglePicked, this, &PDFCreateLineTypeTool::onRectanglePicked);
+    m_pickTool->setDrawSelectionRectangle(false);
 
     m_fillColor.setAlphaF(0.2f);
 
@@ -220,6 +223,14 @@ void PDFCreateLineTypeTool::onPointPicked(PDFInteger pageIndex, QPointF pagePoin
     {
         finishDefinition();
     }
+}
+
+void PDFCreateLineTypeTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
+{
+    m_rectPageIndex = pageIndex;
+    m_rectOnPage = pageRectangle;
+
+    finishDefinition();
 }
 
 void PDFCreateLineTypeTool::finishDefinition()
@@ -291,6 +302,36 @@ void PDFCreateLineTypeTool::finishDefinition()
                 {
                     polygon << pickedPoints.front();
                 }
+
+                QString userName = PDFSysUtils::getUserName();
+                PDFObjectReference page = getDocument()->getCatalog()->getPage(m_pickTool->getPageIndex())->getPageReference();
+                PDFObjectReference annotation = modifier.getBuilder()->createAnnotationPolygon(page, polygon, m_penWidth, m_fillColor, m_strokeColor, userName, QString(), QString());
+                modifier.getBuilder()->setAnnotationFillOpacity(annotation, m_fillColor.alphaF());
+                modifier.getBuilder()->updateAnnotationAppearanceStreams(annotation);
+                modifier.markAnnotationsChanged();
+
+                if (modifier.finalize())
+                {
+                    Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+                }
+
+                setActive(false);
+            }
+            break;
+        }
+
+        case Type::Rectangle:
+        {
+            if (!m_rectOnPage.isEmpty())
+            {
+                PDFDocumentModifier modifier(getDocument());
+
+                QPolygonF polygon;
+                polygon << m_rectOnPage.topLeft();
+                polygon << m_rectOnPage.topRight();
+                polygon << m_rectOnPage.bottomRight();
+                polygon << m_rectOnPage.bottomLeft();
+                polygon << m_rectOnPage.topLeft();
 
                 QString userName = PDFSysUtils::getUserName();
                 PDFObjectReference page = getDocument()->getCatalog()->getPage(m_pickTool->getPageIndex())->getPageReference();
@@ -473,6 +514,19 @@ void PDFCreateLineTypeTool::drawPage(QPainter* painter,
             path.closeSubpath();
 
             painter->drawPath(path);
+            break;
+        }
+
+        case Type::Rectangle:
+        {
+            QPointF startPoint = points.front();
+            qreal x1 = qMin(startPoint.x(), mousePoint.x());
+            qreal y1 = qMin(startPoint.y(), mousePoint.y());
+            qreal x2 = qMax(startPoint.x(), mousePoint.x());
+            qreal y2 = qMax(startPoint.y(), mousePoint.y());
+
+            QRectF rect(x1, y1, x2 - x1, y2 - y1);
+            painter->drawRect(rect);
             break;
         }
 

@@ -181,6 +181,7 @@
     <addaction name="actionInlineText"/>
     <addaction name="actionCreateStraightLine"/>
     <addaction name="actionCreatePolyline"/>
+    <addaction name="actionCreateRectangle"/>
     <addaction name="actionCreatePolygon"/>
     <addaction name="actionCreateEllipse"/>
     <addaction name="actionCreateFreehandCurve"/>
@@ -761,6 +762,18 @@
    </property>
    <property name="text">
     <string>Polyline</string>
+   </property>
+  </action>
+  <action name="actionCreateRectangle">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pdf4qtviewer.qrc">
+     <normaloff>:/resources/annot-rectangle.svg</normaloff>:/resources/annot-rectangle.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Rectangle</string>
    </property>
   </action>
   <action name="actionCreatePolygon">

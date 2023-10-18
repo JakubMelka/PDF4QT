@@ -121,7 +121,8 @@ public:
     {
         Line,
         PolyLine,
-        Polygon
+        Polygon,
+        Rectangle
     };
 
     explicit PDFCreateLineTypeTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, Type type, QAction* action, QObject* parent);
@@ -145,6 +146,7 @@ public:
 
 private:
     void onPointPicked(PDFInteger pageIndex, QPointF pagePoint);
+    void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
     void finishDefinition();
 
     PDFToolManager* m_toolManager;
@@ -153,6 +155,8 @@ private:
     PDFReal m_penWidth;
     QColor m_strokeColor;
     QColor m_fillColor;
+    PDFInteger m_rectPageIndex = 0;
+    QRectF m_rectOnPage;
 };
 
 /// Tool that creates ellipse annotation.
