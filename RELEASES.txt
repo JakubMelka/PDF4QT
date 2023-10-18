@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #100: Highlight rectangle
 
 V: 1.3.5 3.8.2023
  - Issue #65: Text2Speech doesn't work on Linux
