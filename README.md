@@ -16,6 +16,8 @@ by Jakub Melka.
 
 Software is provided without any warranty of any kind.
 
+Should you find this software beneficial, your support would be greatly appreciated [:heart: Sponsor](https://github.com/sponsors/JakubMelka)!
+
 ## 1. ACKNOWLEDGEMENTS
 
 This software is based in part on the work of the Independent JPEG Group.
