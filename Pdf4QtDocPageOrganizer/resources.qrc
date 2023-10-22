@@ -39,5 +39,6 @@
         <file>resources/undo.svg</file>
         <file>resources/redo.svg</file>
         <file>resources/bookmark.svg</file>
+        <file>resources/wallet.svg</file>
     </qresource>
 </RCC>

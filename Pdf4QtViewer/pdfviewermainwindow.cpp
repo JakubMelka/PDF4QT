@@ -158,6 +158,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_actionManager->setAction(PDFActionManager::ResetToFactorySettings, ui->actionResetToFactorySettings);
     m_actionManager->setAction(PDFActionManager::CertificateManager, ui->actionCertificateManager);
     m_actionManager->setAction(PDFActionManager::GetSource, ui->actionGetSource);
+    m_actionManager->setAction(PDFActionManager::BecomeSponsor, ui->actionBecomeASponsor);
     m_actionManager->setAction(PDFActionManager::About, ui->actionAbout);
     m_actionManager->setAction(PDFActionManager::SendByMail, ui->actionSend_by_E_Mail);
     m_actionManager->setAction(PDFActionManager::RenderToImages, ui->actionRender_to_Images);

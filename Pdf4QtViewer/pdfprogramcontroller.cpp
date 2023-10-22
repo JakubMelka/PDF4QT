@@ -530,6 +530,10 @@ void PDFProgramController::initialize(Features features,
     {
         connect(action, &QAction::triggered, this, &PDFProgramController::onActionGetSource);
     }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::BecomeSponsor))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionBecomeSponsor);
+    }
     if (QAction* action = m_actionManager->getAction(PDFActionManager::AutomaticDocumentRefresh))
     {
         connect(action, &QAction::triggered, this, &PDFProgramController::onActionAutomaticDocumentRefresh);
@@ -2458,6 +2462,11 @@ void PDFProgramController::onActionDeveloperCreateInstaller()
 void PDFProgramController::onActionGetSource()
 {
     QDesktopServices::openUrl(QUrl("https://github.com/JakubMelka/PDF4QT"));
+}
+
+void PDFProgramController::onActionBecomeSponsor()
+{
+    QDesktopServices::openUrl(QUrl("https://github.com/sponsors/JakubMelka"));
 }
 
 void PDFProgramController::onActionAutomaticDocumentRefresh()

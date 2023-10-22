@@ -61,6 +61,7 @@ public:
         Compare,
         Close,
         GetSource,
+        BecomeSponsor,
         About,
         PreviousDifference,
         NextDifference,

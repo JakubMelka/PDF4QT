@@ -113,6 +113,7 @@
      <string>Help</string>
     </property>
     <addaction name="actionGetSource"/>
+    <addaction name="actionBecomeASponsor"/>
     <addaction name="actionAbout"/>
    </widget>
    <widget class="QMenu" name="menuDeveloper">
@@ -372,6 +373,10 @@
    </property>
   </action>
   <action name="actionAbout">
+   <property name="icon">
+    <iconset resource="pdf4qtviewer.qrc">
+     <normaloff>:/resources/book.svg</normaloff>:/resources/book.svg</iconset>
+   </property>
    <property name="text">
     <string>About...</string>
    </property>
@@ -920,6 +925,10 @@
    </property>
   </action>
   <action name="actionGetSource">
+   <property name="icon">
+    <iconset resource="pdf4qtviewer.qrc">
+     <normaloff>:/resources/web.svg</normaloff>:/resources/web.svg</iconset>
+   </property>
    <property name="text">
     <string>Get Source</string>
    </property>
@@ -959,6 +968,15 @@
    </property>
    <property name="statusTip">
     <string>Automatically reloads the document if a change made by an external program is detected.</string>
+   </property>
+  </action>
+  <action name="actionBecomeASponsor">
+   <property name="icon">
+    <iconset resource="pdf4qtviewer.qrc">
+     <normaloff>:/resources/wallet.svg</normaloff>:/resources/wallet.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Become a Sponsor</string>
    </property>
   </action>
  </widget>

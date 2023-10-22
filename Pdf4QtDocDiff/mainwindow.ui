@@ -42,6 +42,7 @@
      <string>Help</string>
     </property>
     <addaction name="actionGet_Source"/>
+    <addaction name="actionBecomeASponsor"/>
     <addaction name="actionAbout"/>
    </widget>
    <widget class="QMenu" name="menuToolbars">
@@ -360,6 +361,15 @@
    </property>
    <property name="text">
     <string>Display Markers</string>
+   </property>
+  </action>
+  <action name="actionBecomeASponsor">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfdocdiff/resources/wallet.svg</normaloff>:/pdfdocdiff/resources/wallet.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Become a Sponsor</string>
    </property>
   </action>
  </widget>

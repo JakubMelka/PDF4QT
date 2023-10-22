@@ -89,6 +89,7 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->actionInsert_Empty_Page->setData(int(Operation::InsertEmptyPage));
     ui->actionInsert_PDF->setData(int(Operation::InsertPDF));
     ui->actionGet_Source->setData(int(Operation::GetSource));
+    ui->actionBecomeASponsor->setData(int(Operation::BecomeSponsor));
     ui->actionAbout->setData(int(Operation::About));
     ui->actionInvert_Selection->setData(int(Operation::InvertSelection));
     ui->actionRegroup_Even_Odd->setData(int(Operation::RegroupEvenOdd));
@@ -121,6 +122,7 @@ MainWindow::MainWindow(QWidget* parent) :
     m_iconTheme.registerAction(ui->actionZoom_In, ":/pdfdocpage/resources/zoom-in.svg");
     m_iconTheme.registerAction(ui->actionZoom_Out, ":/pdfdocpage/resources/zoom-out.svg");
     m_iconTheme.registerAction(ui->actionGet_Source, ":/pdfdocpage/resources/get-source.svg");
+    m_iconTheme.registerAction(ui->actionBecomeASponsor, ":/pdfdocpage/resources/wallet.svg");
     m_iconTheme.registerAction(ui->actionAbout, ":/pdfdocpage/resources/about.svg");
     m_iconTheme.registerAction(ui->actionUnited_Document, ":/pdfdocpage/resources/make-united-document.svg");
     m_iconTheme.registerAction(ui->actionSeparate_to_Multiple_Documents, ":/pdfdocpage/resources/make-separated-document.svg");
@@ -458,6 +460,7 @@ bool MainWindow::canPerformOperation(Operation operation) const
         case Operation::InsertEmptyPage:
         case Operation::InsertPDF:
         case Operation::GetSource:
+        case Operation::BecomeSponsor:
         case Operation::About:
         case Operation::PrepareIconTheme:
             return true;
@@ -648,6 +651,10 @@ void MainWindow::performOperation(Operation operation)
 
         case Operation::GetSource:
             QDesktopServices::openUrl(QUrl("https://github.com/JakubMelka/PDF4QT"));
+            break;
+
+        case Operation::BecomeSponsor:
+            QDesktopServices::openUrl(QUrl("https://github.com/sponsors/JakubMelka"));
             break;
 
         case Operation::InsertEmptyPage:

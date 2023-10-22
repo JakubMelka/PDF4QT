@@ -90,6 +90,7 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->menuView->addAction(m_differencesDockWidget->toggleViewAction());
 
     ui->actionGet_Source->setData(int(Operation::GetSource));
+    ui->actionBecomeASponsor->setData(int(Operation::BecomeSponsor));
     ui->actionAbout->setData(int(Operation::About));
     ui->actionOpen_Left->setData(int(Operation::OpenLeft));
     ui->actionOpen_Right->setData(int(Operation::OpenRight));
@@ -383,6 +384,7 @@ bool MainWindow::canPerformOperation(Operation operation) const
         case Operation::Compare:
         case Operation::Close:
         case Operation::GetSource:
+        case Operation::BecomeSponsor:
         case Operation::About:
             return true;
 
@@ -542,6 +544,12 @@ void MainWindow::performOperation(Operation operation)
         case Operation::GetSource:
         {
             QDesktopServices::openUrl(QUrl("https://github.com/JakubMelka/PDF4QT"));
+            break;
+        }
+
+        case Operation::BecomeSponsor:
+        {
+            QDesktopServices::openUrl(QUrl("https://github.com/sponsors/JakubMelka"));
             break;
         }
 

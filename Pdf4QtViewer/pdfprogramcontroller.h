@@ -103,6 +103,7 @@ public:
         ResetToFactorySettings,
         CertificateManager,
         GetSource,
+        BecomeSponsor,
         About,
         SendByMail,
         RenderToImages,
@@ -353,6 +354,7 @@ private:
     void onActionCloseTriggered();
     void onActionDeveloperCreateInstaller();
     void onActionGetSource();
+    void onActionBecomeSponsor();
     void onActionAutomaticDocumentRefresh();
 
     void onDrawSpaceChanged();

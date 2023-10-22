@@ -96,6 +96,7 @@ public:
         RegroupAlternatingPagesReversed,
 
         GetSource,
+        BecomeSponsor,
         About,
         PrepareIconTheme
     };

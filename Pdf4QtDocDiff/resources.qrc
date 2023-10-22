@@ -23,5 +23,6 @@
         <file>resources/view-right.svg</file>
         <file>resources/display-differences.svg</file>
         <file>resources/display-markers.svg</file>
+        <file>resources/wallet.svg</file>
     </qresource>
 </RCC>
