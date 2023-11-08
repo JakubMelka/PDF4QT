@@ -179,6 +179,16 @@ QSharedPointer<PDFOutlineItem> PDFOutlineItem::clone() const
     return result;
 }
 
+void PDFOutlineItem::insertChild(size_t index, QSharedPointer<PDFOutlineItem> item)
+{
+    m_children.insert(std::next(m_children.begin(), index), item);
+}
+
+void PDFOutlineItem::removeChild(size_t index)
+{
+    m_children.erase(std::next(m_children.begin(), index));
+}
+
 bool PDFOutlineItem::isFontBold() const
 {
     return m_fontBold;

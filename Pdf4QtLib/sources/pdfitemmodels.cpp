@@ -415,6 +415,7 @@ void PDFOutlineTreeItemModel::update()
     {
         outlineRoot = m_document->getCatalog()->getOutlineRootPtr();
     }
+
     if (outlineRoot)
     {
         if (m_editable)
@@ -426,7 +427,15 @@ void PDFOutlineTreeItemModel::update()
     }
     else
     {
-        m_rootItem.reset();
+        if (m_editable && m_document)
+        {
+            outlineRoot.reset(new pdf::PDFOutlineItem());
+            m_rootItem.reset(new PDFOutlineTreeItem(nullptr, qMove(outlineRoot)));
+        }
+        else
+        {
+            m_rootItem.reset();
+        }
     }
 
     endResetModel();
@@ -653,8 +662,11 @@ bool PDFOutlineTreeItemModel::insertRows(int row, int count, const QModelIndex& 
     {
         QSharedPointer<PDFOutlineItem> outlineItem(new PDFOutlineItem());
         outlineItem->setTitle(tr("Item %1").arg(row + 1));
-        PDFOutlineTreeItem* newTreeItem = new PDFOutlineTreeItem(item, qMove(outlineItem));
+        PDFOutlineTreeItem* newTreeItem = new PDFOutlineTreeItem(item, outlineItem);
         item->insertCreatedChild(row, newTreeItem);
+
+        PDFOutlineItem* parentItem = item->getOutlineItem();
+        parentItem->insertChild(row, outlineItem);
 
         ++row;
         --count;
@@ -677,6 +689,7 @@ bool PDFOutlineTreeItemModel::removeRows(int row, int count, const QModelIndex& 
     PDFOutlineTreeItem* item = parent.isValid() ? static_cast<PDFOutlineTreeItem*>(parent.internalPointer()) : static_cast<PDFOutlineTreeItem*>(m_rootItem.get());
     while (count > 0)
     {
+        item->getOutlineItem()->removeChild(row);
         delete item->takeChild(row);
         --count;
     }

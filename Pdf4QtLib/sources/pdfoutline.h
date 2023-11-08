@@ -67,6 +67,9 @@ public:
 
     QSharedPointer<PDFOutlineItem> clone() const;
 
+    void insertChild(size_t index, QSharedPointer<PDFOutlineItem> item);
+    void removeChild(size_t index);
+
 private:
     static void parseImpl(const PDFObjectStorage* storage,
                           PDFOutlineItem* parent,

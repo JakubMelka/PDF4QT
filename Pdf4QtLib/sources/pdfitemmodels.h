@@ -213,6 +213,8 @@ public:
 
     const PDFOutlineItem* getRootOutlineItem() const;
 
+    bool isEditable() const { return m_editable; }
+
 private:
     QIcon m_icon;
     bool m_editable;

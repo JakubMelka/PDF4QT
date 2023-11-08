@@ -260,7 +260,7 @@ bool PDFSidebarWidget::isEmpty(Page page) const
             return true;
 
         case Bookmarks:
-            return m_outlineTreeModel->isEmpty();
+            return m_outlineTreeModel->isEmpty() && (!m_document || !m_outlineTreeModel->isEditable());
 
         case Thumbnails:
             return m_thumbnailsModel->isEmpty();
