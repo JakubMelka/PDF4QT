@@ -996,6 +996,14 @@ const PDFRendererInfo::Info& PDFRendererInfo::getHardwareAccelerationSupportedIn
         context.doneCurrent();
         surface.destroy();
 
+        versionString = versionString.trimmed();
+
+        int spaceIndex = versionString.indexOf(QChar(QChar::Space));
+        if (spaceIndex != -1)
+        {
+            versionString = versionString.left(spaceIndex);
+        }
+
         info.vendor = vendorString;
         info.renderer = rendererString;
         info.version = versionString;
