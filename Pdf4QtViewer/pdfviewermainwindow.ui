@@ -144,8 +144,9 @@
     <addaction name="separator"/>
     <addaction name="actionEncryption"/>
     <addaction name="actionOptimize"/>
-    <addaction name="actionSanitize"/>
     <addaction name="separator"/>
+    <addaction name="actionSanitize"/>
+    <addaction name="actionCreateBitonalDocument"/>
    </widget>
    <widget class="QMenu" name="menuInsert">
     <property name="title">
@@ -952,6 +953,10 @@
    </property>
   </action>
   <action name="actionSanitize">
+   <property name="icon">
+    <iconset resource="pdf4qtviewer.qrc">
+     <normaloff>:/resources/sanitize-document.svg</normaloff>:/resources/sanitize-document.svg</iconset>
+   </property>
    <property name="text">
     <string>Sanitize...</string>
    </property>
@@ -977,6 +982,21 @@
    </property>
    <property name="text">
     <string>Become a Sponsor</string>
+   </property>
+  </action>
+  <action name="actionCreateBitonalDocument">
+   <property name="icon">
+    <iconset resource="pdf4qtviewer.qrc">
+     <normaloff>:/resources/create-bitonal-document.svg</normaloff>:/resources/create-bitonal-document.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Create Bitonal Document...</string>
+   </property>
+   <property name="toolTip">
+    <string>Create Bitonal Document</string>
+   </property>
+   <property name="statusTip">
+    <string>Convert the colored images to monochromatic to create a bitonal document.</string>
    </property>
   </action>
  </widget>

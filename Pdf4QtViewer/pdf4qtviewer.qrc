@@ -102,5 +102,7 @@
         <file>resources/book.svg</file>
         <file>resources/wallet.svg</file>
         <file>resources/web.svg</file>
+        <file>resources/create-bitonal-document.svg</file>
+        <file>resources/sanitize-document.svg</file>
     </qresource>
 </RCC>

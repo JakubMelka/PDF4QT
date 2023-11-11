@@ -47,6 +47,9 @@ add_library(Pdf4QtViewer SHARED
     pdfsanitizedocumentdialog.ui
     pdfsanitizedocumentdialog.cpp
     pdfsanitizedocumentdialog.h
+    pdfcreatebitonaldocumentdialog.ui
+    pdfcreatebitonaldocumentdialog.cpp
+    pdfcreatebitonaldocumentdialog.h
     pdf4qtviewer.qrc
 )
 
