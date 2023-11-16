@@ -1256,7 +1256,8 @@ void PDFProgramController::onActionSanitizeTriggered()
 
 void PDFProgramController::onActionCreateBitonalDocumentTriggered()
 {
-    PDFCreateBitonalDocumentDialog dialog(m_pdfDocument.data(), m_mainWindow);
+    auto cms = m_CMSManager->getCurrentCMS();
+    PDFCreateBitonalDocumentDialog dialog(m_pdfDocument.data(), cms.data(), m_mainWindow);
 
     if (dialog.exec() == QDialog::Accepted)
     {

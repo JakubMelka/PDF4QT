@@ -20,25 +20,34 @@
 
 #include "pdfwidgetutils.h"
 #include "pdfdocumentwriter.h"
+#include "pdfimage.h"
 #include "pdfdbgheap.h"
+#include "pdfexception.h"
 
 #include <QCheckBox>
 #include <QPushButton>
 #include <QElapsedTimer>
 #include <QtConcurrent/QtConcurrent>
+#include <QListWidget>
 
 namespace pdfviewer
 {
 
-PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDocument* document, QWidget* parent) :
+PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDocument* document,
+                                                               const pdf::PDFCMS* cms,
+                                                               QWidget* parent) :
     QDialog(parent),
     ui(new Ui::PDFCreateBitonalDocumentDialog),
     m_document(document),
+    m_cms(cms),
     m_createBitonalDocumentButton(nullptr),
     m_conversionInProgress(false),
     m_processed(false)
 {
     ui->setupUi(this);
+
+    m_classifier.classify(document);
+    m_imageReferences = m_classifier.getObjectsByType(pdf::PDFObjectClassifier::Image);
 
     m_createBitonalDocumentButton = ui->buttonBox->addButton(tr("Process"), QDialogButtonBox::ActionRole);
     connect(m_createBitonalDocumentButton, &QPushButton::clicked, this, &PDFCreateBitonalDocumentDialog::onCreateBitonalDocumentButtonClicked);
@@ -48,6 +57,8 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     pdf::PDFWidgetUtils::scaleWidget(this, QSize(640, 380));
     updateUi();
     pdf::PDFWidgetUtils::style(this);
+
+    loadImages();
 }
 
 PDFCreateBitonalDocumentDialog::~PDFCreateBitonalDocumentDialog()
@@ -71,6 +82,72 @@ void PDFCreateBitonalDocumentDialog::onCreateBitonalDocumentButtonClicked()
     m_conversionInProgress = true;
     m_future = QtConcurrent::run([this]() { createBitonalDocument(); });
     updateUi();
+}
+
+void PDFCreateBitonalDocumentDialog::loadImages()
+{
+    QSize iconSize(QSize(256, 256));
+    ui->imageListWidget->setIconSize(iconSize);
+    QSize imageSize = iconSize * ui->imageListWidget->devicePixelRatioF();
+
+    pdf::PDFCMSGeneric genericCms;
+
+    for (pdf::PDFObjectReference reference : m_imageReferences)
+    {
+        std::optional<pdf::PDFImage> pdfImage;
+        pdf::PDFObject imageObject = m_document->getObjectByReference(reference);
+        pdf::PDFRenderErrorReporterDummy errorReporter;
+
+        if (!imageObject.isStream())
+        {
+            // Image is not stream
+            continue;
+        }
+
+        const pdf::PDFStream* stream = imageObject.getStream();
+        try
+        {
+            pdf::PDFColorSpacePointer colorSpace;
+            const pdf::PDFDictionary* streamDictionary = stream->getDictionary();
+            if (streamDictionary->hasKey("ColorSpace"))
+            {
+                const pdf::PDFObject& colorSpaceObject = m_document->getObject(streamDictionary->get("ColorSpace"));
+                if (colorSpaceObject.isName() || colorSpaceObject.isArray())
+                {
+                    pdf::PDFDictionary dummyDictionary;
+                    colorSpace = pdf::PDFAbstractColorSpace::createColorSpace(&dummyDictionary, m_document, colorSpaceObject);
+                }
+            }
+            pdfImage.emplace(pdf::PDFImage::createImage(m_document,
+                                                        stream,
+                                                        colorSpace,
+                                                        false,
+                                                        pdf::RenderingIntent::Perceptual,
+                                                        &errorReporter));
+        }
+        catch (pdf::PDFException)
+        {
+            continue;
+        }
+
+        QImage image = pdfImage->getImage(&genericCms, &errorReporter, nullptr);
+
+        if (image.isNull())
+        {
+            continue;
+        }
+
+        QListWidgetItem* item = new QListWidgetItem(ui->imageListWidget);
+        QWidget* widget = new QWidget;
+        QHBoxLayout* layout = new QHBoxLayout(widget);
+        QCheckBox* checkbox = new QCheckBox(widget);
+        layout->addWidget(checkbox);
+
+        image = image.scaled(imageSize.width(), imageSize.height(), Qt::KeepAspectRatio, Qt::FastTransformation);
+        item->setIcon(QIcon(QPixmap::fromImage(image)));
+
+        ui->imageListWidget->setItemWidget(item, widget);
+    }
 }
 
 void PDFCreateBitonalDocumentDialog::updateUi()

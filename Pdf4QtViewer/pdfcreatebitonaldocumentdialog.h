@@ -18,7 +18,9 @@
 #ifndef PDFCREATEBITONALDOCUMENTDIALOG_H
 #define PDFCREATEBITONALDOCUMENTDIALOG_H
 
+#include "pdfcms.h"
 #include "pdfdocument.h"
+#include "pdfobjectutils.h"
 
 #include <QDialog>
 #include <QFuture>
@@ -36,7 +38,7 @@ class PDFCreateBitonalDocumentDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit PDFCreateBitonalDocumentDialog(const pdf::PDFDocument* document, QWidget* parent);
+    explicit PDFCreateBitonalDocumentDialog(const pdf::PDFDocument* document, const pdf::PDFCMS* cms, QWidget* parent);
     virtual ~PDFCreateBitonalDocumentDialog() override;
 
     pdf::PDFDocument takeBitonaldDocument() { return qMove(m_bitonalDocument); }
@@ -44,16 +46,21 @@ public:
 private:
     void createBitonalDocument();
     void onCreateBitonalDocumentButtonClicked();
+    void loadImages();
 
     void updateUi();
 
     Ui::PDFCreateBitonalDocumentDialog* ui;
     const pdf::PDFDocument* m_document;
+    const pdf::PDFCMS* m_cms;
     QPushButton* m_createBitonalDocumentButton;
     bool m_conversionInProgress;
     bool m_processed;
     QFuture<void> m_future;
     pdf::PDFDocument m_bitonalDocument;
+    pdf::PDFObjectClassifier m_classifier;
+    std::vector<pdf::PDFObjectReference> m_imageReferences;
+    std::vector<pdf::PDFObjectReference> m_imagesToBeConvertedReferences;
 };
 
 }   // namespace pdfviewer
