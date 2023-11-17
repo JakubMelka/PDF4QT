@@ -394,6 +394,11 @@ PDFLexicalAnalyzer::Token PDFLexicalAnalyzer::fetch()
                         QByteArray decodedString = QByteArray::fromHex(hexadecimalString);
                         return Token(TokenType::String, std::move(decodedString));
                     }
+                    else if (isWhitespace(character))
+                    {
+                        // Do nothing, whitespace character should be ignored
+                        // according to the specification.
+                    }
                     else
                     {
                         // This is unexpected. Invalid character in hexadecimal string.
