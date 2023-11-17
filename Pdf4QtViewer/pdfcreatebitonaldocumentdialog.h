@@ -21,6 +21,7 @@
 #include "pdfcms.h"
 #include "pdfdocument.h"
 #include "pdfobjectutils.h"
+#include "pdfimage.h"
 
 #include <QDialog>
 #include <QFuture>
@@ -43,12 +44,20 @@ public:
 
     pdf::PDFDocument takeBitonaldDocument() { return qMove(m_bitonalDocument); }
 
+    struct ImageConversionInfo
+    {
+        pdf::PDFObjectReference imageReference;
+        bool conversionEnabled = true;
+    };
+
 private:
     void createBitonalDocument();
     void onCreateBitonalDocumentButtonClicked();
     void loadImages();
 
     void updateUi();
+
+    std::optional<pdf::PDFImage> getImageFromReference(pdf::PDFObjectReference reference) const;
 
     Ui::PDFCreateBitonalDocumentDialog* ui;
     const pdf::PDFDocument* m_document;
@@ -60,7 +69,7 @@ private:
     pdf::PDFDocument m_bitonalDocument;
     pdf::PDFObjectClassifier m_classifier;
     std::vector<pdf::PDFObjectReference> m_imageReferences;
-    std::vector<pdf::PDFObjectReference> m_imagesToBeConvertedReferences;
+    std::vector<ImageConversionInfo> m_imagesToBeConverted;
 };
 
 }   // namespace pdfviewer

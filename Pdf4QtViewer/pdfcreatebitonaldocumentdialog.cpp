@@ -23,15 +23,121 @@
 #include "pdfimage.h"
 #include "pdfdbgheap.h"
 #include "pdfexception.h"
+#include "pdfwidgetutils.h"
 
 #include <QCheckBox>
 #include <QPushButton>
 #include <QElapsedTimer>
 #include <QtConcurrent/QtConcurrent>
 #include <QListWidget>
+#include <QStyledItemDelegate>
+#include <QPainter>
+#include <QtSvg/QSvgRenderer>
+#include <QMouseEvent>
+#include <QToolTip>
 
 namespace pdfviewer
 {
+
+class ImagePreviewDelegate : public QStyledItemDelegate
+{
+public:
+    ImagePreviewDelegate(std::vector<PDFCreateBitonalDocumentDialog::ImageConversionInfo>* imageConversionInfos, QObject* parent) :
+        QStyledItemDelegate(parent),
+        m_imageConversionInfos(imageConversionInfos)
+    {
+        m_yesRenderer.load(QString(":/resources/result-ok.svg"));
+        m_noRenderer.load(QString(":/resources/result-error.svg"));
+    }
+
+    virtual void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override
+    {
+        QStyledItemDelegate::paint(painter, option, index);
+
+        QRect markRect = getMarkRect(option);
+
+        if (index.isValid())
+        {
+            const PDFCreateBitonalDocumentDialog::ImageConversionInfo& info = m_imageConversionInfos->at(index.row());
+            if (info.conversionEnabled)
+            {
+                m_yesRenderer.render(painter, markRect);
+            }
+            else
+            {
+                m_noRenderer.render(painter, markRect);
+            }
+        }
+    }
+
+    virtual bool editorEvent(QEvent* event,
+                             QAbstractItemModel* model,
+                             const QStyleOptionViewItem& option,
+                             const QModelIndex& index)
+    {
+        Q_UNUSED(model);
+        Q_UNUSED(index);
+
+        if (event->type() == QEvent::MouseButtonPress && index.isValid())
+        {
+            QMouseEvent* mouseEvent = dynamic_cast<QMouseEvent*>(event);
+            if (mouseEvent && mouseEvent->button() == Qt::LeftButton)
+            {
+                // Do we click on yes/no mark?
+                QRectF markRect = getMarkRect(option);
+                if (markRect.contains(mouseEvent->position()))
+                {
+                    PDFCreateBitonalDocumentDialog::ImageConversionInfo& info = m_imageConversionInfos->at(index.row());
+                    info.conversionEnabled = !info.conversionEnabled;
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    virtual bool helpEvent(QHelpEvent* event,
+                           QAbstractItemView* view,
+                           const QStyleOptionViewItem& option,
+                           const QModelIndex& index) override
+    {
+        Q_UNUSED(index);
+
+        if (!event || !view)
+        {
+            return false;
+        }
+
+        if (event->type() == QEvent::ToolTip)
+        {
+            // Are we hovering over yes/no mark?
+            QRectF markRect = getMarkRect(option);
+            if (markRect.contains(event->pos()))
+            {
+                event->accept();
+                QToolTip::showText(event->globalPos(), tr("Toggle this icon to switch image conversion to bitonic format on or off."), view);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+private:
+    static constexpr QSize s_iconSize = QSize(24, 24);
+
+    QRect getMarkRect(const QStyleOptionViewItem& option) const
+    {
+        QSize markSize = pdf::PDFWidgetUtils::scaleDPI(option.widget, s_iconSize);
+        QRect markRect(option.rect.left(), option.rect.top(), markSize.width(), markSize.height());
+        return markRect;
+    }
+
+    std::vector<PDFCreateBitonalDocumentDialog::ImageConversionInfo>* m_imageConversionInfos;
+    mutable QSvgRenderer m_yesRenderer;
+    mutable QSvgRenderer m_noRenderer;
+};
 
 PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDocument* document,
                                                                const pdf::PDFCMS* cms,
@@ -57,6 +163,8 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     pdf::PDFWidgetUtils::scaleWidget(this, QSize(640, 380));
     updateUi();
     pdf::PDFWidgetUtils::style(this);
+
+    ui->imageListWidget->setItemDelegate( new ImagePreviewDelegate(&m_imagesToBeConverted, this));
 
     loadImages();
 }
@@ -90,63 +198,39 @@ void PDFCreateBitonalDocumentDialog::loadImages()
     ui->imageListWidget->setIconSize(iconSize);
     QSize imageSize = iconSize * ui->imageListWidget->devicePixelRatioF();
 
-    pdf::PDFCMSGeneric genericCms;
-
+    int i = 0;
     for (pdf::PDFObjectReference reference : m_imageReferences)
     {
-        std::optional<pdf::PDFImage> pdfImage;
-        pdf::PDFObject imageObject = m_document->getObjectByReference(reference);
+        if (i++>10)
+        {
+            break;
+        }
+
+        std::optional<pdf::PDFImage> pdfImage = getImageFromReference(reference);
+        if (!pdfImage)
+        {
+            continue;
+        }
+
+        pdf::PDFCMSGeneric genericCms;
         pdf::PDFRenderErrorReporterDummy errorReporter;
-
-        if (!imageObject.isStream())
-        {
-            // Image is not stream
-            continue;
-        }
-
-        const pdf::PDFStream* stream = imageObject.getStream();
-        try
-        {
-            pdf::PDFColorSpacePointer colorSpace;
-            const pdf::PDFDictionary* streamDictionary = stream->getDictionary();
-            if (streamDictionary->hasKey("ColorSpace"))
-            {
-                const pdf::PDFObject& colorSpaceObject = m_document->getObject(streamDictionary->get("ColorSpace"));
-                if (colorSpaceObject.isName() || colorSpaceObject.isArray())
-                {
-                    pdf::PDFDictionary dummyDictionary;
-                    colorSpace = pdf::PDFAbstractColorSpace::createColorSpace(&dummyDictionary, m_document, colorSpaceObject);
-                }
-            }
-            pdfImage.emplace(pdf::PDFImage::createImage(m_document,
-                                                        stream,
-                                                        colorSpace,
-                                                        false,
-                                                        pdf::RenderingIntent::Perceptual,
-                                                        &errorReporter));
-        }
-        catch (pdf::PDFException)
-        {
-            continue;
-        }
-
         QImage image = pdfImage->getImage(&genericCms, &errorReporter, nullptr);
-
         if (image.isNull())
         {
             continue;
         }
 
         QListWidgetItem* item = new QListWidgetItem(ui->imageListWidget);
-        QWidget* widget = new QWidget;
-        QHBoxLayout* layout = new QHBoxLayout(widget);
-        QCheckBox* checkbox = new QCheckBox(widget);
-        layout->addWidget(checkbox);
-
         image = image.scaled(imageSize.width(), imageSize.height(), Qt::KeepAspectRatio, Qt::FastTransformation);
         item->setIcon(QIcon(QPixmap::fromImage(image)));
+        Qt::ItemFlags flags = item->flags();
+        flags.setFlag(Qt::ItemIsEditable, true);
+        item->setFlags(flags);
 
-        ui->imageListWidget->setItemWidget(item, widget);
+        ImageConversionInfo imageConversionInfo;
+        imageConversionInfo.imageReference = reference;
+        imageConversionInfo.conversionEnabled = true;
+        m_imagesToBeConverted.push_back(imageConversionInfo);
     }
 }
 
@@ -157,6 +241,47 @@ void PDFCreateBitonalDocumentDialog::updateUi()
     ui->buttonBox->button(QDialogButtonBox::Ok)->setEnabled(m_processed && !m_conversionInProgress);
     ui->buttonBox->button(QDialogButtonBox::Cancel)->setEnabled(!m_conversionInProgress);
     m_createBitonalDocumentButton->setEnabled(!m_conversionInProgress);
+}
+
+std::optional<pdf::PDFImage> PDFCreateBitonalDocumentDialog::getImageFromReference(pdf::PDFObjectReference reference) const
+{
+    std::optional<pdf::PDFImage> pdfImage;
+    pdf::PDFObject imageObject = m_document->getObjectByReference(reference);
+    pdf::PDFRenderErrorReporterDummy errorReporter;
+
+    if (!imageObject.isStream())
+    {
+        // Image is not stream
+        return pdfImage;
+    }
+
+    const pdf::PDFStream* stream = imageObject.getStream();
+    try
+    {
+        pdf::PDFColorSpacePointer colorSpace;
+        const pdf::PDFDictionary* streamDictionary = stream->getDictionary();
+        if (streamDictionary->hasKey("ColorSpace"))
+        {
+            const pdf::PDFObject& colorSpaceObject = m_document->getObject(streamDictionary->get("ColorSpace"));
+            if (colorSpaceObject.isName() || colorSpaceObject.isArray())
+            {
+                pdf::PDFDictionary dummyDictionary;
+                colorSpace = pdf::PDFAbstractColorSpace::createColorSpace(&dummyDictionary, m_document, colorSpaceObject);
+            }
+        }
+        pdfImage.emplace(pdf::PDFImage::createImage(m_document,
+                                                    stream,
+                                                    colorSpace,
+                                                    false,
+                                                    pdf::RenderingIntent::Perceptual,
+                                                    &errorReporter));
+    }
+    catch (pdf::PDFException)
+    {
+        // Do nothing
+    }
+
+    return pdfImage;
 }
 
 }   // namespace pdfviewer
