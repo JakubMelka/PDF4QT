@@ -177,7 +177,7 @@ public:
             if (markRect.contains(event->pos()))
             {
                 event->accept();
-                QToolTip::showText(event->globalPos(), tr("Toggle this icon to switch image conversion to bitonic format on or off."), view);
+                QToolTip::showText(event->globalPos(), tr("Toggle this icon to switch image conversion to bitonal format on or off."), view);
                 return true;
             }
         }
@@ -218,7 +218,7 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     ui->setupUi(this);
 
     m_leftPreviewWidget->setCaption(tr("ORIGINAL"));
-    m_rightPreviewWidget->setCaption(tr("BITONIC"));
+    m_rightPreviewWidget->setCaption(tr("BITONAL"));
 
     ui->mainGridLayout->addWidget(m_leftPreviewWidget, 1, 1);
     ui->mainGridLayout->addWidget(m_rightPreviewWidget, 1, 2);
@@ -312,16 +312,16 @@ void PDFCreateBitonalDocumentDialog::createBitonalDocument()
 
         if (imageConversion.convert())
         {
-            QImage bitonicImage = imageConversion.getConvertedImage();
-            Q_ASSERT(bitonicImage.format() == QImage::Format_Mono);
+            QImage bitonalImage = imageConversion.getConvertedImage();
+            Q_ASSERT(bitonalImage.format() == QImage::Format_Mono);
 
             pdf::PDFBitWriter bitWriter(1);
-            bitWriter.reserve(bitonicImage.sizeInBytes());
-            for (int row = 0; row < bitonicImage.height(); ++row)
+            bitWriter.reserve(bitonalImage.sizeInBytes());
+            for (int row = 0; row < bitonalImage.height(); ++row)
             {
-                for (int col = 0; col < bitonicImage.width(); ++col)
+                for (int col = 0; col < bitonalImage.width(); ++col)
                 {
-                    QRgb pixelValue = bitonicImage.pixel(col, row);
+                    QRgb pixelValue = bitonalImage.pixel(col, row);
                     QRgb withoutAlphaValue = pixelValue & 0xFFFFFF;
                     int value = withoutAlphaValue > 0 ? 1 : 0;
                     bitWriter.write(value);
