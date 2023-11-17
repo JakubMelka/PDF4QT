@@ -26,6 +26,7 @@
 #include "pdfwidgetutils.h"
 #include "pdfimageconversion.h"
 #include "pdfstreamfilters.h"
+#include "pdfutils.h"
 
 #include <QCheckBox>
 #include <QPushButton>
@@ -240,6 +241,8 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
 
     ui->imageListWidget->setItemDelegate( new ImagePreviewDelegate(&m_imagesToBeConverted, this));
 
+    setGeometry(parent->geometry());
+
     loadImages();
     updatePreview();
 }
@@ -312,7 +315,22 @@ void PDFCreateBitonalDocumentDialog::createBitonalDocument()
             QImage bitonicImage = imageConversion.getConvertedImage();
             Q_ASSERT(bitonicImage.format() == QImage::Format_Mono);
 
-            QByteArray imageData((const char*)bitonicImage.constBits(), bitonicImage.sizeInBytes());
+            pdf::PDFBitWriter bitWriter(1);
+            bitWriter.reserve(bitonicImage.sizeInBytes());
+            for (int row = 0; row < bitonicImage.height(); ++row)
+            {
+                for (int col = 0; col < bitonicImage.width(); ++col)
+                {
+                    QRgb pixelValue = bitonicImage.pixel(col, row);
+                    QRgb withoutAlphaValue = pixelValue & 0xFFFFFF;
+                    int value = withoutAlphaValue > 0 ? 1 : 0;
+                    bitWriter.write(value);
+                }
+
+                bitWriter.finishLine();
+            }
+
+            QByteArray imageData = bitWriter.takeByteArray();
             QByteArray compressedData = pdf::PDFFlateDecodeFilter::compress(imageData);
 
             pdf::PDFArray array;
@@ -327,7 +345,7 @@ void PDFCreateBitonalDocumentDialog::createBitonalDocument()
             dictionary.addEntry(pdf::PDFInplaceOrMemoryString("BitsPerComponent"), pdf::PDFObject::createInteger(1));
             dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Predictor"), pdf::PDFObject::createInteger(1));
             dictionary.setEntry(pdf::PDFInplaceOrMemoryString("Length"), pdf::PDFObject::createInteger(compressedData.size()));
-            dictionary.setEntry(pdf::PDFInplaceOrMemoryString("Filters"), pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(qMove(array))));
+            dictionary.setEntry(pdf::PDFInplaceOrMemoryString("Filter"), pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(qMove(array))));
 
             pdf::PDFObject imageObject = pdf::PDFObject::createStream(std::make_shared<pdf::PDFStream>(qMove(dictionary), qMove(compressedData)));
             storage.setObject(reference, std::move(imageObject));
@@ -363,14 +381,8 @@ void PDFCreateBitonalDocumentDialog::loadImages()
     ui->imageListWidget->setIconSize(iconSize);
     QSize imageSize = iconSize * ui->imageListWidget->devicePixelRatioF();
 
-    int i = 0;
     for (pdf::PDFObjectReference reference : m_imageReferences)
     {
-        if (i++>1)
-        {
-            break;
-        }
-
         std::optional<pdf::PDFImage> pdfImage = getImageFromReference(reference);
         if (!pdfImage)
         {
