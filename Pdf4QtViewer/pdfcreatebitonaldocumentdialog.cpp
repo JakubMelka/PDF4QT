@@ -24,6 +24,7 @@
 #include "pdfdbgheap.h"
 #include "pdfexception.h"
 #include "pdfwidgetutils.h"
+#include "pdfimageconversion.h"
 
 #include <QCheckBox>
 #include <QPushButton>
@@ -38,6 +39,64 @@
 
 namespace pdfviewer
 {
+
+PDFCreateBitonalDocumentPreviewWidget::PDFCreateBitonalDocumentPreviewWidget(QWidget* parent) :
+    QWidget(parent)
+{
+
+}
+
+PDFCreateBitonalDocumentPreviewWidget::~PDFCreateBitonalDocumentPreviewWidget()
+{
+
+}
+
+void PDFCreateBitonalDocumentPreviewWidget::paintEvent(QPaintEvent* event)
+{
+    Q_UNUSED(event);
+
+    QPainter painter(this);
+    painter.fillRect(rect(), Qt::white);
+
+    // Caption rect
+    QRect captionRect = rect();
+    captionRect.setHeight(painter.fontMetrics().lineSpacing() * 2);
+
+    painter.fillRect(captionRect, QColor::fromRgb(0, 0, 128, 255));
+
+    if (!m_caption.isEmpty())
+    {
+        painter.setPen(Qt::white);
+        painter.drawText(captionRect, m_caption, QTextOption(Qt::AlignCenter));
+    }
+
+    QRect imageRect = rect();
+    imageRect.setTop(captionRect.bottom());
+    imageRect = imageRect.adjusted(16, 16, -32, -32);
+
+    if (imageRect.isValid() && !m_image.isNull())
+    {
+        QRect imageDrawRect = imageRect;
+        imageDrawRect.setSize(m_image.size().scaled(imageRect.size(), Qt::KeepAspectRatio));
+        imageDrawRect.moveCenter(imageRect.center());
+        painter.drawImage(imageDrawRect, m_image);
+    }
+}
+
+void PDFCreateBitonalDocumentPreviewWidget::setCaption(QString caption)
+{
+    if (m_caption != caption)
+    {
+        m_caption = caption;
+        update();
+    }
+}
+
+void PDFCreateBitonalDocumentPreviewWidget::setImage(QImage image)
+{
+    m_image = std::move(image);
+    update();
+}
 
 class ImagePreviewDelegate : public QStyledItemDelegate
 {
@@ -148,9 +207,17 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     m_cms(cms),
     m_createBitonalDocumentButton(nullptr),
     m_conversionInProgress(false),
-    m_processed(false)
+    m_processed(false),
+    m_leftPreviewWidget(new PDFCreateBitonalDocumentPreviewWidget(this)),
+    m_rightPreviewWidget(new PDFCreateBitonalDocumentPreviewWidget(this))
 {
     ui->setupUi(this);
+
+    m_leftPreviewWidget->setCaption(tr("ORIGINAL"));
+    m_rightPreviewWidget->setCaption(tr("BITONIC"));
+
+    ui->mainGridLayout->addWidget(m_leftPreviewWidget, 1, 1);
+    ui->mainGridLayout->addWidget(m_rightPreviewWidget, 1, 2);
 
     m_classifier.classify(document);
     m_imageReferences = m_classifier.getObjectsByType(pdf::PDFObjectClassifier::Image);
@@ -159,6 +226,10 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     connect(m_createBitonalDocumentButton, &QPushButton::clicked, this, &PDFCreateBitonalDocumentDialog::onCreateBitonalDocumentButtonClicked);
     connect(ui->automaticThresholdRadioButton, &QRadioButton::clicked, this, &PDFCreateBitonalDocumentDialog::updateUi);
     connect(ui->manualThresholdRadioButton, &QRadioButton::clicked, this, &PDFCreateBitonalDocumentDialog::updateUi);
+    connect(ui->automaticThresholdRadioButton, &QRadioButton::clicked, this, &PDFCreateBitonalDocumentDialog::updatePreview);
+    connect(ui->manualThresholdRadioButton, &QRadioButton::clicked, this, &PDFCreateBitonalDocumentDialog::updatePreview);
+    connect(ui->imageListWidget, &QListWidget::currentItemChanged, this, &PDFCreateBitonalDocumentDialog::updatePreview);
+    connect(ui->thresholdEditBox, &QSpinBox::editingFinished, this, &PDFCreateBitonalDocumentDialog::updatePreview);
 
     pdf::PDFWidgetUtils::scaleWidget(this, QSize(640, 380));
     updateUi();
@@ -167,6 +238,7 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     ui->imageListWidget->setItemDelegate( new ImagePreviewDelegate(&m_imagesToBeConverted, this));
 
     loadImages();
+    updatePreview();
 }
 
 PDFCreateBitonalDocumentDialog::~PDFCreateBitonalDocumentDialog()
@@ -243,6 +315,40 @@ void PDFCreateBitonalDocumentDialog::updateUi()
     m_createBitonalDocumentButton->setEnabled(!m_conversionInProgress);
 }
 
+void PDFCreateBitonalDocumentDialog::updatePreview()
+{
+    QModelIndex index = ui->imageListWidget->currentIndex();
+
+    m_previewImageLeft = QImage();
+    m_previewImageRight = QImage();
+
+    if (index.isValid())
+    {
+        const ImageConversionInfo& info = m_imagesToBeConverted.at(index.row());
+
+        std::optional<pdf::PDFImage> pdfImage = getImageFromReference(info.imageReference);
+        Q_ASSERT(pdfImage);
+
+        pdf::PDFCMSGeneric cmsGeneric;
+        pdf::PDFRenderErrorReporterDummy reporter;
+        QImage image = pdfImage->getImage(&cmsGeneric, &reporter, nullptr);
+
+        pdf::PDFImageConversion imageConversion;
+        imageConversion.setConversionMethod(ui->automaticThresholdRadioButton->isChecked() ? pdf::PDFImageConversion::ConversionMethod::Automatic : pdf::PDFImageConversion::ConversionMethod::Manual);
+        imageConversion.setThreshold(ui->thresholdEditBox->value());
+        imageConversion.setImage(image);
+
+        if (imageConversion.convert())
+        {
+            m_previewImageLeft = image;
+            m_previewImageRight = imageConversion.getConvertedImage();
+        }
+    }
+
+    m_leftPreviewWidget->setImage(m_previewImageLeft);
+    m_rightPreviewWidget->setImage(m_previewImageRight);
+}
+
 std::optional<pdf::PDFImage> PDFCreateBitonalDocumentDialog::getImageFromReference(pdf::PDFObjectReference reference) const
 {
     std::optional<pdf::PDFImage> pdfImage;
@@ -285,3 +391,5 @@ std::optional<pdf::PDFImage> PDFCreateBitonalDocumentDialog::getImageFromReferen
 }
 
 }   // namespace pdfviewer
+
+

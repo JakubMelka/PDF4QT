@@ -34,6 +34,24 @@ class PDFCreateBitonalDocumentDialog;
 namespace pdfviewer
 {
 
+class PDFCreateBitonalDocumentPreviewWidget : public QWidget
+{
+    Q_OBJECT
+
+public:
+    PDFCreateBitonalDocumentPreviewWidget(QWidget* parent);
+    virtual ~PDFCreateBitonalDocumentPreviewWidget() override;
+
+    virtual void paintEvent(QPaintEvent* event) override;
+
+    void setCaption(QString caption);
+    void setImage(QImage image);
+
+private:
+    QString m_caption;
+    QImage m_image;
+};
+
 class PDFCreateBitonalDocumentDialog : public QDialog
 {
     Q_OBJECT
@@ -56,6 +74,7 @@ private:
     void loadImages();
 
     void updateUi();
+    void updatePreview();
 
     std::optional<pdf::PDFImage> getImageFromReference(pdf::PDFObjectReference reference) const;
 
@@ -70,6 +89,12 @@ private:
     pdf::PDFObjectClassifier m_classifier;
     std::vector<pdf::PDFObjectReference> m_imageReferences;
     std::vector<ImageConversionInfo> m_imagesToBeConverted;
+
+    QImage m_previewImageLeft;
+    QImage m_previewImageRight;
+
+    PDFCreateBitonalDocumentPreviewWidget* m_leftPreviewWidget;
+    PDFCreateBitonalDocumentPreviewWidget* m_rightPreviewWidget;
 };
 
 }   // namespace pdfviewer
