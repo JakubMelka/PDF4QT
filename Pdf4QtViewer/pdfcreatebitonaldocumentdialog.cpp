@@ -25,6 +25,7 @@
 #include "pdfexception.h"
 #include "pdfwidgetutils.h"
 #include "pdfimageconversion.h"
+#include "pdfstreamfilters.h"
 
 #include <QCheckBox>
 #include <QPushButton>
@@ -200,6 +201,7 @@ private:
 
 PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDocument* document,
                                                                const pdf::PDFCMS* cms,
+                                                               pdf::PDFProgress* progress,
                                                                QWidget* parent) :
     QDialog(parent),
     ui(new Ui::PDFCreateBitonalDocumentDialog),
@@ -209,7 +211,8 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     m_conversionInProgress(false),
     m_processed(false),
     m_leftPreviewWidget(new PDFCreateBitonalDocumentPreviewWidget(this)),
-    m_rightPreviewWidget(new PDFCreateBitonalDocumentPreviewWidget(this))
+    m_rightPreviewWidget(new PDFCreateBitonalDocumentPreviewWidget(this)),
+    m_progress(progress)
 {
     ui->setupUi(this);
 
@@ -222,7 +225,7 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     m_classifier.classify(document);
     m_imageReferences = m_classifier.getObjectsByType(pdf::PDFObjectClassifier::Image);
 
-    m_createBitonalDocumentButton = ui->buttonBox->addButton(tr("Process"), QDialogButtonBox::ActionRole);
+    m_createBitonalDocumentButton = ui->buttonBox->addButton(tr("Perform"), QDialogButtonBox::ActionRole);
     connect(m_createBitonalDocumentButton, &QPushButton::clicked, this, &PDFCreateBitonalDocumentDialog::onCreateBitonalDocumentButtonClicked);
     connect(ui->automaticThresholdRadioButton, &QRadioButton::clicked, this, &PDFCreateBitonalDocumentDialog::updateUi);
     connect(ui->manualThresholdRadioButton, &QRadioButton::clicked, this, &PDFCreateBitonalDocumentDialog::updateUi);
@@ -231,7 +234,7 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     connect(ui->imageListWidget, &QListWidget::currentItemChanged, this, &PDFCreateBitonalDocumentDialog::updatePreview);
     connect(ui->thresholdEditBox, &QSpinBox::editingFinished, this, &PDFCreateBitonalDocumentDialog::updatePreview);
 
-    pdf::PDFWidgetUtils::scaleWidget(this, QSize(640, 380));
+    pdf::PDFWidgetUtils::scaleWidget(this, QSize(1024, 768));
     updateUi();
     pdf::PDFWidgetUtils::style(this);
 
@@ -249,9 +252,93 @@ PDFCreateBitonalDocumentDialog::~PDFCreateBitonalDocumentDialog()
     delete ui;
 }
 
+void PDFCreateBitonalDocumentDialog::onPerformFinished()
+{
+    m_future.waitForFinished();
+    m_conversionInProgress = false;
+    m_processed = true;
+    updateUi();
+}
+
 void PDFCreateBitonalDocumentDialog::createBitonalDocument()
 {
+    std::vector<ImageConversionInfo> imagesToBeConverted;
+    std::copy_if(m_imagesToBeConverted.begin(), m_imagesToBeConverted.end(), std::back_inserter(imagesToBeConverted), [](const auto& item) { return item.conversionEnabled; });
 
+    // Do we have something to be converted?
+    if (imagesToBeConverted.empty())
+    {
+        return;
+    }
+
+    pdf::ProgressStartupInfo info;
+    info.showDialog = true;
+    info.text = tr("Converting images...");
+    m_progress->start(imagesToBeConverted.size(),  std::move(info));
+
+    pdf::PDFObjectStorage storage = m_document->getStorage();
+
+    pdf::PDFCMSGeneric genericCms;
+    pdf::PDFRenderErrorReporterDummy errorReporter;
+
+    for (int i = 0; i < imagesToBeConverted.size(); ++i)
+    {
+        pdf::PDFObjectReference reference = imagesToBeConverted[i].imageReference;
+        std::optional<pdf::PDFImage> pdfImage = getImageFromReference(reference);
+
+        QImage image;
+        try
+        {
+            image = pdfImage->getImage(&genericCms, &errorReporter, nullptr);
+        }
+        catch (pdf::PDFException)
+        {
+            // Do nothing
+        }
+
+        // Just for code safety - this should never occur in here.
+        if (image.isNull())
+        {
+            continue;
+        }
+
+        pdf::PDFImageConversion imageConversion;
+        imageConversion.setConversionMethod(m_conversionMethod);
+        imageConversion.setThreshold(m_manualThreshold);
+        imageConversion.setImage(image);
+
+        if (imageConversion.convert())
+        {
+            QImage bitonicImage = imageConversion.getConvertedImage();
+            Q_ASSERT(bitonicImage.format() == QImage::Format_Mono);
+
+            QByteArray imageData((const char*)bitonicImage.constBits(), bitonicImage.sizeInBytes());
+            QByteArray compressedData = pdf::PDFFlateDecodeFilter::compress(imageData);
+
+            pdf::PDFArray array;
+            array.appendItem(pdf::PDFObject::createName("FlateDecode"));
+
+            pdf::PDFDictionary dictionary;
+            dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("XObject"));
+            dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Subtype"), pdf::PDFObject::createName("Image"));
+            dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Width"), pdf::PDFObject::createInteger(image.width()));
+            dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Height"), pdf::PDFObject::createInteger(image.height()));
+            dictionary.addEntry(pdf::PDFInplaceOrMemoryString("ColorSpace"), pdf::PDFObject::createName("DeviceGray"));
+            dictionary.addEntry(pdf::PDFInplaceOrMemoryString("BitsPerComponent"), pdf::PDFObject::createInteger(1));
+            dictionary.addEntry(pdf::PDFInplaceOrMemoryString("Predictor"), pdf::PDFObject::createInteger(1));
+            dictionary.setEntry(pdf::PDFInplaceOrMemoryString("Length"), pdf::PDFObject::createInteger(compressedData.size()));
+            dictionary.setEntry(pdf::PDFInplaceOrMemoryString("Filters"), pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(qMove(array))));
+
+            pdf::PDFObject imageObject = pdf::PDFObject::createStream(std::make_shared<pdf::PDFStream>(qMove(dictionary), qMove(compressedData)));
+            storage.setObject(reference, std::move(imageObject));
+        }
+
+        m_progress->step();
+    }
+
+    m_bitonalDocument = pdf::PDFDocument(std::move(storage), m_document->getInfo()->version, QByteArray());
+
+    m_progress->finish();
 }
 
 void PDFCreateBitonalDocumentDialog::onCreateBitonalDocumentButtonClicked()
@@ -259,8 +346,14 @@ void PDFCreateBitonalDocumentDialog::onCreateBitonalDocumentButtonClicked()
     Q_ASSERT(!m_conversionInProgress);
     Q_ASSERT(!m_future.isRunning());
 
+    m_conversionMethod = ui->automaticThresholdRadioButton->isChecked() ? pdf::PDFImageConversion::ConversionMethod::Automatic : pdf::PDFImageConversion::ConversionMethod::Manual;
+    m_manualThreshold = ui->thresholdEditBox->value();
+
     m_conversionInProgress = true;
     m_future = QtConcurrent::run([this]() { createBitonalDocument(); });
+    m_futureWatcher.emplace();
+    connect(&m_futureWatcher.value(), &QFutureWatcher<void>::finished, this, &PDFCreateBitonalDocumentDialog::onPerformFinished);
+    m_futureWatcher->setFuture(m_future);
     updateUi();
 }
 
@@ -273,7 +366,7 @@ void PDFCreateBitonalDocumentDialog::loadImages()
     int i = 0;
     for (pdf::PDFObjectReference reference : m_imageReferences)
     {
-        if (i++>10)
+        if (i++>1)
         {
             break;
         }
@@ -286,7 +379,17 @@ void PDFCreateBitonalDocumentDialog::loadImages()
 
         pdf::PDFCMSGeneric genericCms;
         pdf::PDFRenderErrorReporterDummy errorReporter;
-        QImage image = pdfImage->getImage(&genericCms, &errorReporter, nullptr);
+        QImage image;
+
+        try
+        {
+            image = pdfImage->getImage(&genericCms, &errorReporter, nullptr);
+        }
+        catch (pdf::PDFException)
+        {
+            // Do nothing
+        }
+
         if (image.isNull())
         {
             continue;

@@ -22,6 +22,8 @@
 #include "pdfdocument.h"
 #include "pdfobjectutils.h"
 #include "pdfimage.h"
+#include "pdfimageconversion.h"
+#include "pdfprogress.h"
 
 #include <QDialog>
 #include <QFuture>
@@ -57,7 +59,10 @@ class PDFCreateBitonalDocumentDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit PDFCreateBitonalDocumentDialog(const pdf::PDFDocument* document, const pdf::PDFCMS* cms, QWidget* parent);
+    explicit PDFCreateBitonalDocumentDialog(const pdf::PDFDocument* document,
+                                            const pdf::PDFCMS* cms,
+                                            pdf::PDFProgress* progress,
+                                            QWidget* parent);
     virtual ~PDFCreateBitonalDocumentDialog() override;
 
     pdf::PDFDocument takeBitonaldDocument() { return qMove(m_bitonalDocument); }
@@ -71,6 +76,7 @@ public:
 private:
     void createBitonalDocument();
     void onCreateBitonalDocumentButtonClicked();
+    void onPerformFinished();
     void loadImages();
 
     void updateUi();
@@ -85,6 +91,7 @@ private:
     bool m_conversionInProgress;
     bool m_processed;
     QFuture<void> m_future;
+    std::optional<QFutureWatcher<void>> m_futureWatcher;
     pdf::PDFDocument m_bitonalDocument;
     pdf::PDFObjectClassifier m_classifier;
     std::vector<pdf::PDFObjectReference> m_imageReferences;
@@ -95,6 +102,11 @@ private:
 
     PDFCreateBitonalDocumentPreviewWidget* m_leftPreviewWidget;
     PDFCreateBitonalDocumentPreviewWidget* m_rightPreviewWidget;
+
+    pdf::PDFProgress* m_progress;
+
+    pdf::PDFImageConversion::ConversionMethod m_conversionMethod = pdf::PDFImageConversion::ConversionMethod::Automatic;
+    int m_manualThreshold = 128;
 };
 
 }   // namespace pdfviewer
