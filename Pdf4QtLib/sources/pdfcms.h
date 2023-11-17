@@ -250,7 +250,7 @@ public:
 
 using PDFCMSPointer = QSharedPointer<PDFCMS>;
 
-class PDFCMSGeneric : public PDFCMS
+class PDF4QTLIBSHARED_EXPORT PDFCMSGeneric : public PDFCMS
 {
 public:
     explicit inline PDFCMSGeneric() = default;

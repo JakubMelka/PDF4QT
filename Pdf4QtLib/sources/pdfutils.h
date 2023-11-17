@@ -190,7 +190,7 @@ private:
 };
 
 /// Bit writer
-class PDFBitWriter
+class PDF4QTLIBSHARED_EXPORT PDFBitWriter
 {
 public:
     using Value = uint64_t;

@@ -1026,7 +1026,7 @@ void PDFPageContentStreamBuilder::replaceResources(PDFObjectReference contentStr
         QByteArray compressedData = PDFFlateDecodeFilter::compress(decodedStream);
         PDFDictionary updatedDictionary = *contentStreamObject.getStream()->getDictionary();
         updatedDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(compressedData.size()));
-        updatedDictionary.setEntry(PDFInplaceOrMemoryString("Filters"), PDFObject::createArray(std::make_shared<PDFArray>(qMove(array))));
+        updatedDictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(std::make_shared<PDFArray>(qMove(array))));
         PDFObject newContentStream = PDFObject::createStream(std::make_shared<PDFStream>(qMove(updatedDictionary), qMove(compressedData)));
         m_documentBuilder->setObject(contentStreamReference, std::move(newContentStream));
     }

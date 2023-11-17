@@ -58,6 +58,7 @@ private:
 class PDF4QTLIBSHARED_EXPORT PDFImage
 {
 public:
+    PDFImage() = default;
 
     /// Creates image from the content and the dictionary. If image can't be created, then exception is thrown.
     /// \param document Document
@@ -112,8 +113,6 @@ public:
     const PDFImageData& getSoftMaskData() const { return m_softMask; }
 
 private:
-    PDFImage() = default;
-
     PDFImageData m_imageData;
     PDFImageData m_softMask;
     PDFColorSpacePointer m_colorSpace;

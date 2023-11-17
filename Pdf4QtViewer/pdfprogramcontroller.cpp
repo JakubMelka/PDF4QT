@@ -33,6 +33,7 @@
 #include "pdfrendertoimagesdialog.h"
 #include "pdfoptimizedocumentdialog.h"
 #include "pdfsanitizedocumentdialog.h"
+#include "pdfcreatebitonaldocumentdialog.h"
 #include "pdfviewersettingsdialog.h"
 #include "pdfaboutdialog.h"
 #include "pdfrenderingerrorswidget.h"
@@ -457,6 +458,10 @@ void PDFProgramController::initialize(Features features,
     if (QAction* action = m_actionManager->getAction(PDFActionManager::Sanitize))
     {
         connect(action, &QAction::triggered, this, &PDFProgramController::onActionSanitizeTriggered);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::CreateBitonalDocument))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionCreateBitonalDocumentTriggered);
     }
     if (QAction* action = m_actionManager->getAction(PDFActionManager::Encryption))
     {
@@ -1249,6 +1254,19 @@ void PDFProgramController::onActionSanitizeTriggered()
     }
 }
 
+void PDFProgramController::onActionCreateBitonalDocumentTriggered()
+{
+    auto cms = m_CMSManager->getCurrentCMS();
+    PDFCreateBitonalDocumentDialog dialog(m_pdfDocument.data(), cms.data(), m_progress, m_mainWindow);
+
+    if (dialog.exec() == QDialog::Accepted)
+    {
+        pdf::PDFDocumentPointer pointer(new pdf::PDFDocument(dialog.takeBitonaldDocument()));
+        pdf::PDFModifiedDocument document(qMove(pointer), m_optionalContentActivity, pdf::PDFModifiedDocument::ModificationFlags(pdf::PDFModifiedDocument::Reset | pdf::PDFModifiedDocument::PreserveUndoRedo));
+        onDocumentModified(qMove(document));
+    }
+}
+
 void PDFProgramController::onActionEncryptionTriggered()
 {
     auto queryPassword = [this](bool* ok)
@@ -1569,6 +1587,7 @@ void PDFProgramController::updateActionsAvailability()
     m_actionManager->setEnabled(PDFActionManager::RenderToImages, hasValidDocument && canPrint);
     m_actionManager->setEnabled(PDFActionManager::Optimize, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::Sanitize, hasValidDocument);
+    m_actionManager->setEnabled(PDFActionManager::CreateBitonalDocument, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::Encryption, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::Save, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::SaveAs, hasValidDocument);

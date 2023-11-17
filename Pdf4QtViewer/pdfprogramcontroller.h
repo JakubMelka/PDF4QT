@@ -109,6 +109,7 @@ public:
         RenderToImages,
         Optimize,
         Sanitize,
+        CreateBitonalDocument,
         Encryption,
         FitPage,
         FitWidth,
@@ -337,6 +338,7 @@ private:
     void onActionRenderToImagesTriggered();
     void onActionOptimizeTriggered();
     void onActionSanitizeTriggered();
+    void onActionCreateBitonalDocumentTriggered();
     void onActionEncryptionTriggered();
     void onActionFitPageTriggered();
     void onActionFitWidthTriggered();
