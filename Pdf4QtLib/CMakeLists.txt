@@ -102,6 +102,8 @@ add_library(Pdf4QtLib SHARED
     sources/pdfdocumentsanitizer.cpp
     sources/pdfimageconversion.h
     sources/pdfimageconversion.cpp
+    sources/pdfcolorconvertor.h
+    sources/pdfcolorconvertor.cpp
     cmaps.qrc
 )
 

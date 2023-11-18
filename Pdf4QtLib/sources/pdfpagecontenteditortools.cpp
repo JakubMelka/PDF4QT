@@ -706,7 +706,8 @@ void PDFCreatePCElementTextTool::drawPage(QPainter* painter,
         parameters.painter = painter;
         parameters.boundingRectangle = m_element->getRectangle();
         parameters.key.first = PDFAppeareanceStreams::Appearance::Normal;
-        parameters.invertColors = getProxy()->getFeatures().testFlag(PDFRenderer::InvertColors);
+        parameters.colorConvertor = getProxy()->getCMSManager()->getColorConvertor();
+        PDFRenderer::applyFeaturesToColorConvertor(getProxy()->getFeatures(), parameters.colorConvertor);
 
         painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
         m_textEditWidget->draw(parameters, true);

@@ -64,7 +64,9 @@ namespace pdf
 class PDFLittleCMS : public PDFCMS
 {
 public:
-    explicit PDFLittleCMS(const PDFCMSManager* manager, const PDFCMSSettings& settings);
+    explicit PDFLittleCMS(const PDFCMSManager* manager,
+                          const PDFCMSSettings& settings,
+                          const PDFColorConvertor& colorConvertor);
     virtual ~PDFLittleCMS() override;
 
     virtual bool isCompatible(const PDFCMSSettings& settings) const override;
@@ -80,6 +82,7 @@ public:
     virtual bool fillRGBBufferFromXYZ(const PDFColor3& whitePoint, const std::vector<float>& colors, RenderingIntent intent, unsigned char* outputBuffer, PDFRenderErrorReporter* reporter) const override;
     virtual bool fillRGBBufferFromICC(const std::vector<float>& colors, RenderingIntent renderingIntent, unsigned char* outputBuffer, const QByteArray& iccID, const QByteArray& iccData, PDFRenderErrorReporter* reporter) const override;
     virtual bool transformColorSpace(const ColorSpaceTransformParams& params) const override;
+    virtual PDFColorConvertor getColorConvertor() const override;
 
 private:
     void init();
@@ -162,6 +165,7 @@ private:
     PDFCMSSettings m_settings;
     QColor m_paperColor;
     std::array<cmsHPROFILE, ProfileCount> m_profiles;
+    PDFColorConvertor m_colorConvertor;
 
     mutable QReadWriteLock m_transformationCacheLock;
     mutable std::unordered_map<int, cmsHTRANSFORM> m_transformationCache;
@@ -445,11 +449,19 @@ bool PDFLittleCMS::transformColorSpace(const PDFCMS::ColorSpaceTransformParams& 
     return false;
 }
 
-PDFLittleCMS::PDFLittleCMS(const PDFCMSManager* manager, const PDFCMSSettings& settings) :
+PDFColorConvertor PDFLittleCMS::getColorConvertor() const
+{
+    return m_colorConvertor;
+}
+
+PDFLittleCMS::PDFLittleCMS(const PDFCMSManager* manager,
+                           const PDFCMSSettings& settings,
+                           const PDFColorConvertor& colorConvertor) :
     m_manager(manager),
     m_settings(settings),
     m_paperColor(Qt::white),
-    m_profiles()
+    m_profiles(),
+    m_colorConvertor(colorConvertor)
 {
     static const int installed = installCmsPlugins();
     Q_UNUSED(installed);
@@ -1286,6 +1298,12 @@ QString getInfoFromProfile(cmsHPROFILE profile, cmsInfoType infoType)
     return QString();
 }
 
+PDFCMSGeneric::PDFCMSGeneric(const PDFColorConvertor& colorConvertor) :
+    m_colorConvertor(colorConvertor)
+{
+
+}
+
 bool PDFCMSGeneric::isCompatible(const PDFCMSSettings& settings) const
 {
     return settings.system == PDFCMSSettings::System::Generic;
@@ -1397,6 +1415,11 @@ bool PDFCMSGeneric::transformColorSpace(const PDFCMS::ColorSpaceTransformParams&
     return false;
 }
 
+PDFColorConvertor PDFCMSGeneric::getColorConvertor() const
+{
+    return m_colorConvertor;
+}
+
 PDFCMSManager::PDFCMSManager(QObject* parent) :
     BaseClass(parent),
     m_document(nullptr),
@@ -1430,6 +1453,11 @@ void PDFCMSManager::setSettings(const PDFCMSSettings& settings)
 
         Q_EMIT colorManagementSystemChanged();
     }
+}
+
+PDFColorConvertor PDFCMSManager::getColorConvertor() const
+{
+    return PDFColorConvertor();
 }
 
 const PDFColorProfileIdentifiers& PDFCMSManager::getOutputProfiles() const
@@ -1606,10 +1634,10 @@ PDFCMSPointer PDFCMSManager::getCurrentCMSImpl() const
     switch (m_settings.system)
     {
         case PDFCMSSettings::System::Generic:
-            return PDFCMSPointer(new PDFCMSGeneric());
+            return PDFCMSPointer(new PDFCMSGeneric(getColorConvertor()));
 
         case PDFCMSSettings::System::LittleCMS2:
-            return PDFCMSPointer(new PDFLittleCMS(this, m_settings));
+            return PDFCMSPointer(new PDFLittleCMS(this, m_settings, getColorConvertor()));
 
         default:
             Q_ASSERT(false);

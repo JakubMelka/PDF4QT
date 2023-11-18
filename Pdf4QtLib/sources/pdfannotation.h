@@ -29,6 +29,7 @@
 #include "pdfrenderer.h"
 #include "pdfblendfunction.h"
 #include "pdfdocument.h"
+#include "pdfcolorconvertor.h"
 
 #include <QCursor>
 #include <QPainterPath>
@@ -474,8 +475,8 @@ struct AnnotationDrawParameters
     /// Appeareance mode (normal/rollover/down, and appearance state)
     PDFAppeareanceStreams::Key key;
 
-    /// Invert colors?
-    bool invertColors = false;
+    /// Color convertor
+    PDFColorConvertor colorConvertor;
 };
 
 /// Base class for all annotation types. Represents PDF annotation object.

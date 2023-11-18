@@ -2241,7 +2241,7 @@ void PDFFormFieldComboBoxEditor::draw(AnnotationDrawParameters& parameters, bool
             AnnotationDrawParameters listBoxParameters = parameters;
             listBoxParameters.boundingRectangle = m_listBoxPopupRectangle;
 
-            QColor color = parameters.invertColors ? Qt::black : Qt::white;
+            QColor color = parameters.colorConvertor.convert(Qt::white, true, false);
             listBoxParameters.painter->fillRect(listBoxParameters.boundingRectangle, color);
 
             m_listBox.draw(listBoxParameters, true);
@@ -2690,37 +2690,25 @@ void PDFListBoxPseudowidget::draw(AnnotationDrawParameters& parameters, bool edi
     }
 
     QPalette palette = QApplication::palette();
-
-    auto getAdjustedColor = [&parameters](QColor color)
-    {
-        if (parameters.invertColors)
-        {
-            return invertColor(color);
-        }
-
-        return color;
-    };
-
     QTransform matrix = createListBoxTransformMatrix();
-
     QPainter* painter = parameters.painter;
 
     if (edit)
     {
         pdf::PDFPainterStateGuard guard2(painter);
-        painter->setPen(getAdjustedColor(Qt::black));
+        painter->setPen(parameters.colorConvertor.convert(Qt::black, false, true));
         painter->setBrush(Qt::NoBrush);
         painter->drawRect(parameters.boundingRectangle);
     }
 
     painter->setClipRect(parameters.boundingRectangle, Qt::IntersectClip);
     painter->setWorldTransform(QTransform(matrix), true);
-    painter->setPen(getAdjustedColor(m_textColor));
+    painter->setPen(parameters.colorConvertor.convert(m_textColor, false, true));
     painter->setFont(m_font);
 
-    QColor textColor = getAdjustedColor(m_textColor);
-    QColor highlightTextColor = getAdjustedColor(palette.color(QPalette::HighlightedText));
-    QColor highlightColor = getAdjustedColor(palette.color(QPalette::Highlight));
+    QColor textColor = parameters.colorConvertor.convert(m_textColor, false, true);
+    QColor highlightTextColor = parameters.colorConvertor.convert(palette.color(QPalette::HighlightedText), false, true);
+    QColor highlightColor = parameters.colorConvertor.convert(palette.color(QPalette::Highlight), false, false);
 
     QRectF rect(0, 0, m_widgetRect.width(), m_lineSpacing);
     for (int i = m_topIndex; i < int(m_options.size()); ++i)

@@ -767,11 +767,10 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
 QColor PDFDrawWidgetProxy::getPaperColor()
 {
     QColor paperColor = getCMSManager()->getCurrentCMS()->getPaperColor();
-    if (m_features.testFlag(PDFRenderer::InvertColors))
-    {
-        paperColor = invertColor(paperColor);
-    }
+    PDFColorConvertor colorConvertor = getCMSManager()->getColorConvertor();
+    PDFRenderer::applyFeaturesToColorConvertor(getFeatures(), colorConvertor);
 
+    paperColor = colorConvertor.convert(paperColor, true, false);
     return paperColor;
 }
 

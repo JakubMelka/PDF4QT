@@ -851,7 +851,8 @@ void PDFCreateStampTool::drawPage(QPainter* painter,
     parameters.painter = painter;
     parameters.annotation = const_cast<PDFStampAnnotation*>(&m_stampAnnotation);
     parameters.key.first = PDFAppeareanceStreams::Appearance::Normal;
-    parameters.invertColors = getProxy()->getFeatures().testFlag(PDFRenderer::InvertColors);
+    parameters.colorConvertor = getProxy()->getCMSManager()->getColorConvertor();
+    PDFRenderer::applyFeaturesToColorConvertor(getProxy()->getFeatures(), parameters.colorConvertor);
 
     m_stampAnnotation.draw(parameters);
 }

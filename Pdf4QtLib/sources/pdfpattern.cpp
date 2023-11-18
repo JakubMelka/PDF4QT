@@ -1406,14 +1406,16 @@ qint64 PDFMesh::getMemoryConsumptionEstimate() const
     return memoryConsumption;
 }
 
-void PDFMesh::invertColors()
+void PDFMesh::convertColors(const PDFColorConvertor& colorConvertor)
 {
     for (Triangle& triangle : m_triangles)
     {
-        triangle.color = 0x00FFFFFF - triangle.color;
+        QColor color = QColor::fromRgb(triangle.color);
+        QColor adjustedColor = colorConvertor.convert(color, false, false);
+        triangle.color = adjustedColor.rgb();
     }
 
-    m_backgroundColor = invertColor(m_backgroundColor);
+    m_backgroundColor = colorConvertor.convert(m_backgroundColor, true, false);
 }
 
 void PDFMeshQualitySettings::initResolution()

@@ -1474,7 +1474,9 @@ void PDFAnnotationManager::drawAnnotationDirect(const PageAnnotation& annotation
         parameters.annotation = annotation.annotation.data();
         parameters.formManager = m_formManager;
         parameters.key = std::make_pair(annotation.appearance, annotation.annotation->getAppearanceState());
-        parameters.invertColors = m_features.testFlag(PDFRenderer::InvertColors);
+        parameters.colorConvertor = cms->getColorConvertor();
+        PDFRenderer::applyFeaturesToColorConvertor(m_features, parameters.colorConvertor);
+
         annotation.annotation->draw(parameters);
 
         if (parameters.boundingRectangle.isValid())

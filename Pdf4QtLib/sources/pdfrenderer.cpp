@@ -115,6 +115,36 @@ QTransform PDFRenderer::createMediaBoxToDevicePointMatrix(const QRectF& mediaBox
     return matrix;
 }
 
+void PDFRenderer::applyFeaturesToColorConvertor(const Features& features, PDFColorConvertor& convertor)
+{
+    convertor.setMode(PDFColorConvertor::Mode::Normal);
+
+    if (features.testFlag(ColorAdjust_Invert))
+    {
+        convertor.setMode(PDFColorConvertor::Mode::InvertedColors);
+    }
+
+    if (features.testFlag(ColorAdjust_Grayscale))
+    {
+        convertor.setMode(PDFColorConvertor::Mode::Grayscale);
+    }
+
+    if (features.testFlag(ColorAdjust_HighContrast))
+    {
+        convertor.setMode(PDFColorConvertor::Mode::HighContrast);
+    }
+
+    if (features.testFlag(ColorAdjust_Bitonal))
+    {
+        convertor.setMode(PDFColorConvertor::Mode::Bitonal);
+    }
+
+    if (features.testFlag(ColorAdjust_CustomColors))
+    {
+        convertor.setMode(PDFColorConvertor::Mode::CustomColors);
+    }
+}
+
 const PDFOperationControl* PDFRenderer::getOperationControl() const
 {
     return m_operationControl;
@@ -181,10 +211,9 @@ void PDFRenderer::compile(PDFPrecompiledPage* precompiledPage, size_t pageIndex)
     generator.setOperationControl(m_operationControl);
     QList<PDFRenderError> errors = generator.processContents();
 
-    if (m_features.testFlag(InvertColors))
-    {
-        precompiledPage->invertColors();
-    }
+    PDFColorConvertor colorConvertor = m_cms->getColorConvertor();
+    PDFRenderer::applyFeaturesToColorConvertor(m_features, colorConvertor);
+    precompiledPage->convertColors(colorConvertor);
 
     precompiledPage->optimize();
     precompiledPage->finalize(timer.nsecsElapsed(), qMove(errors));

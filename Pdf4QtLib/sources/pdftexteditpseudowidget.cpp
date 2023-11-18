@@ -640,30 +640,19 @@ void PDFTextEditPseudowidget::draw(AnnotationDrawParameters& parameters, bool ed
     }
 
     QPalette palette = QApplication::palette();
-
-    auto getAdjustedColor = [&parameters](QColor color)
-    {
-        if (parameters.invertColors)
-        {
-            return invertColor(color);
-        }
-
-        return color;
-    };
-
     QPainter* painter = parameters.painter;
 
     if (edit)
     {
         pdf::PDFPainterStateGuard guard2(painter);
-        painter->setPen(getAdjustedColor(Qt::black));
+        painter->setPen(parameters.colorConvertor.convert(Qt::black, false, true));
         painter->setBrush(Qt::NoBrush);
         painter->drawRect(parameters.boundingRectangle);
     }
 
     painter->setClipRect(parameters.boundingRectangle, Qt::IntersectClip);
     painter->setWorldTransform(QTransform(createTextBoxTransformMatrix(edit)), true);
-    painter->setPen(getAdjustedColor(Qt::black));
+    painter->setPen(parameters.colorConvertor.convert(Qt::black, false, true));
 
     if (isComb())
     {
@@ -672,9 +661,9 @@ void PDFTextEditPseudowidget::draw(AnnotationDrawParameters& parameters, bool ed
         QRectF combRect(0.0, 0.0, combWidth, m_widgetRect.height());
         painter->setFont(m_textLayout.font());
 
-        QColor textColor = getAdjustedColor(m_textColor);
-        QColor highlightTextColor = getAdjustedColor(palette.color(QPalette::HighlightedText));
-        QColor highlightColor = getAdjustedColor(palette.color(QPalette::Highlight));
+        QColor textColor = parameters.colorConvertor.convert(m_textColor, false, true);
+        QColor highlightTextColor = parameters.colorConvertor.convert(palette.color(QPalette::HighlightedText), false, true);
+        QColor highlightColor = parameters.colorConvertor.convert(palette.color(QPalette::Highlight), false, false);
 
         std::vector<int> positions = getCursorPositions();
         for (size_t i = 1; i < positions.size(); ++i)
@@ -720,7 +709,7 @@ void PDFTextEditPseudowidget::draw(AnnotationDrawParameters& parameters, bool ed
         defaultFormat.start = getPositionStart();
         defaultFormat.length = getTextLength();
         defaultFormat.format.clearBackground();
-        defaultFormat.format.setForeground(QBrush(getAdjustedColor(m_textColor), Qt::SolidPattern));
+        defaultFormat.format.setForeground(QBrush(parameters.colorConvertor.convert(m_textColor, false, true), Qt::SolidPattern));
 
         // If we are editing, draw selections
         if (edit && isTextSelected())
@@ -736,8 +725,8 @@ void PDFTextEditPseudowidget::draw(AnnotationDrawParameters& parameters, bool ed
             QTextLayout::FormatRange selectedFormat = defaultFormat;
             selectedFormat.start = m_selectionStart;
             selectedFormat.length = getSelectionLength();
-            selectedFormat.format.setForeground(QBrush(getAdjustedColor(palette.color(QPalette::HighlightedText)), Qt::SolidPattern));
-            selectedFormat.format.setBackground(QBrush(getAdjustedColor(palette.color(QPalette::Highlight)), Qt::SolidPattern));
+            selectedFormat.format.setForeground(QBrush(parameters.colorConvertor.convert(palette.color(QPalette::HighlightedText), false, true), Qt::SolidPattern));
+            selectedFormat.format.setBackground(QBrush(parameters.colorConvertor.convert(palette.color(QPalette::Highlight), false, false), Qt::SolidPattern));
 
             selections = { before, selectedFormat, after};
         }

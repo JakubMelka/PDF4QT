@@ -23,6 +23,7 @@
 #include "pdfoperationcontrol.h"
 #include "pdfmeshqualitysettings.h"
 #include "pdfutils.h"
+#include "pdfcolorconvertor.h"
 
 #include <QMutex>
 #include <QSemaphore>
@@ -76,19 +77,24 @@ public:
 
     enum Feature
     {
-        None                    = 0x0000,
-        Antialiasing            = 0x0001,   ///< Antialiasing for lines, shapes, etc.
-        TextAntialiasing        = 0x0002,   ///< Antialiasing for drawing text
-        SmoothImages            = 0x0004,   ///< Adjust images to the device space using smooth transformation (slower, but better image quality)
-        IgnoreOptionalContent   = 0x0008,   ///< Ignore optional content (so all is drawn ignoring settings of optional content)
-        ClipToCropBox           = 0x0010,   ///< Clip page content to crop box (items outside crop box will not be visible)
-        DisplayTimes            = 0x0020,   ///< Display page compile/draw time
-        DebugTextBlocks         = 0x0040,   ///< Debug text block layout algorithm
-        DebugTextLines          = 0x0080,   ///< Debug text line layout algorithm
-        InvertColors            = 0x0100,   ///< Invert colors
-        DenyExtraGraphics       = 0x0200,   ///< Do not display additional graphics, for example from tools
-        DisplayAnnotations      = 0x0400,   ///< Display annotations
-        LogicalSizeZooming      = 0x0800,   ///< Use logical pixel resolution instead of physical one when zooming
+        None                        = 0x0000,
+        Antialiasing                = 0x0001,   ///< Antialiasing for lines, shapes, etc.
+        TextAntialiasing            = 0x0002,   ///< Antialiasing for drawing text
+        SmoothImages                = 0x0004,   ///< Adjust images to the device space using smooth transformation (slower, but better image quality)
+        IgnoreOptionalContent       = 0x0008,   ///< Ignore optional content (so all is drawn ignoring settings of optional content)
+        ClipToCropBox               = 0x0010,   ///< Clip page content to crop box (items outside crop box will not be visible)
+        DisplayTimes                = 0x0020,   ///< Display page compile/draw time
+        DebugTextBlocks             = 0x0040,   ///< Debug text block layout algorithm
+        DebugTextLines              = 0x0080,   ///< Debug text line layout algorithm
+        DenyExtraGraphics           = 0x0100,   ///< Do not display additional graphics, for example from tools
+        DisplayAnnotations          = 0x0200,   ///< Display annotations
+        LogicalSizeZooming          = 0x0400,   ///< Use logical pixel resolution instead of physical one when zooming
+
+        ColorAdjust_Invert          = 0x0800,   ///< Invert colors
+        ColorAdjust_Grayscale       = 0x1000,   ///< Convert colors to grayscale
+        ColorAdjust_HighContrast    = 0x2000,   ///< Convert colors to high constrast colors
+        ColorAdjust_Bitonal         = 0x4000,   ///< Convert colors to bitonal (monochromatic)
+        ColorAdjust_CustomColors    = 0x8000,   ///< Convert colors to custom color settings
     };
 
     Q_DECLARE_FLAGS(Features, Feature)
@@ -137,8 +143,14 @@ public:
                                                         const QRectF& rectangle,
                                                         PageRotation rotation);
 
+    /// Applies rendering flags to the color convertor
+    static void applyFeaturesToColorConvertor(const Features& features, PDFColorConvertor& convertor);
+
     /// Returns default renderer features
     static constexpr Features getDefaultFeatures() { return Features(Antialiasing | TextAntialiasing | ClipToCropBox | DisplayAnnotations); }
+
+    /// Returns color transformation features
+    static constexpr Features getColorFeatures() { return Features(ColorAdjust_Invert | ColorAdjust_Grayscale | ColorAdjust_HighContrast | ColorAdjust_Bitonal | ColorAdjust_CustomColors); }
 
     const PDFOperationControl* getOperationControl() const;
     void setOperationControl(const PDFOperationControl* newOperationControl);

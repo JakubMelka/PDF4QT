@@ -22,6 +22,7 @@
 #include "pdffunction.h"
 #include "pdfcolorspaces.h"
 #include "pdfmeshqualitysettings.h"
+#include "pdfcolorconvertor.h"
 
 #include <QTransform>
 #include <QPainterPath>
@@ -144,8 +145,8 @@ public:
     /// Returns estimate of number of bytes, which this mesh occupies in memory
     qint64 getMemoryConsumptionEstimate() const;
 
-    /// Invert colors
-    void invertColors();
+    /// Apply color conversion
+    void convertColors(const PDFColorConvertor& colorConvertor);
 
 private:
     std::vector<QPointF> m_vertices;

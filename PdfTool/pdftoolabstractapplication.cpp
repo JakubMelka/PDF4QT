@@ -1167,7 +1167,11 @@ std::vector<PDFToolOptions::RenderFeatureInfo> PDFToolOptions::getRenderFeatures
         RenderFeatureInfo{ "render-smooth-img", "Smooth image transformation (slower, but better quality images).", pdf::PDFRenderer::SmoothImages },
         RenderFeatureInfo{ "render-ignore-opt-content", "Ignore optional content settings (draw everything).", pdf::PDFRenderer::IgnoreOptionalContent },
         RenderFeatureInfo{ "render-clip-to-crop-box", "Clip page graphics to crop box.", pdf::PDFRenderer::ClipToCropBox },
-        RenderFeatureInfo{ "render-invert-colors", "Invert all colors.", pdf::PDFRenderer::InvertColors },
+        RenderFeatureInfo{ "render-invert-colors", "Color conversion: invert all colors.", pdf::PDFRenderer::ColorAdjust_Invert },
+        RenderFeatureInfo{ "render-grayscale", "Color conversion: convert to grayscale", pdf::PDFRenderer::ColorAdjust_Grayscale },
+        RenderFeatureInfo{ "render-high-contrast", "Color conversion: high contrast colors", pdf::PDFRenderer::ColorAdjust_HighContrast },
+        RenderFeatureInfo{ "render-bitonal", "Color conversion: bitonal page image", pdf::PDFRenderer::ColorAdjust_Bitonal },
+        RenderFeatureInfo{ "render-custom-colors", "Color conversion: custom colors", pdf::PDFRenderer::ColorAdjust_CustomColors },
         RenderFeatureInfo{ "render-display-annot", "Display annotations.", pdf::PDFRenderer::DisplayAnnotations }
     };
 }

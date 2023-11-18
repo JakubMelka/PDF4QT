@@ -764,36 +764,41 @@ void PDFPrecompiledPage::optimize()
     m_compositionModes.shrink_to_fit();
 }
 
-void PDFPrecompiledPage::invertColors()
+void PDFPrecompiledPage::convertColors(const PDFColorConvertor& colorConvertor)
 {
-    // Jakub Melka: we must invert colors in following areas:
+    // Jakub Melka: we must apply color convertor in following areas:
     //     - painter paths
     //     - images
     //     - meshes
+
+    if (!colorConvertor.isActive())
+    {
+        return;
+    }
 
     for (PathPaintData& pathData : m_paths)
     {
         if (pathData.pen.style() != Qt::NoPen)
         {
-            pathData.pen.setColor(invertColor(pathData.pen.color()));
+            pathData.pen.setColor(colorConvertor.convert(pathData.pen.color(), false, pathData.isText));
         }
         if (pathData.brush.style() == Qt::SolidPattern)
         {
-            pathData.brush.setColor(invertColor(pathData.brush.color()));
+            pathData.brush.setColor(colorConvertor.convert(pathData.brush.color(), false, pathData.isText));
         }
     }
 
     for (ImageData& imageData : m_images)
     {
-        imageData.image.invertPixels(QImage::InvertRgb);
+        imageData.image = colorConvertor.convert(imageData.image);
     }
 
     for (MeshPaintData& meshPaintData : m_meshes)
     {
-        meshPaintData.mesh.invertColors();
+        meshPaintData.mesh.convertColors(colorConvertor);
     }
 
-    m_paperColor = invertColor(m_paperColor);
+    m_paperColor = colorConvertor.convert(m_paperColor, true, false);
 }
 
 void PDFPrecompiledPage::finalize(qint64 compilingTimeNS, QList<PDFRenderError> errors)

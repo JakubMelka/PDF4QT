@@ -24,6 +24,7 @@
 #include "pdfpagecontentprocessor.h"
 #include "pdftextlayout.h"
 #include "pdfsnapper.h"
+#include "pdfcolorconvertor.h"
 
 #include <QPen>
 #include <QBrush>
@@ -213,8 +214,8 @@ public:
     /// Optimizes page memory allocation to contain less space
     void optimize();
 
-    /// Inverts all colors
-    void invertColors();
+    /// Converts all colors
+    void convertColors(const PDFColorConvertor& colorConvertor);
 
     /// Finalizes precompiled page
     /// \param compilingTimeNS Compiling time in nanoseconds

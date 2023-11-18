@@ -22,6 +22,7 @@
 #include "pdfcolorspaces.h"
 #include "pdfexception.h"
 #include "pdfutils.h"
+#include "pdfcolorconvertor.h"
 
 #include <QRecursiveMutex>
 #include <QSharedPointer>
@@ -211,6 +212,13 @@ public:
                                       const QByteArray& iccData,
                                       PDFRenderErrorReporter* reporter) const = 0;
 
+    /// Returns color convertor of post-processing colors
+    /// produced by color management system. Color convertor
+    /// does not have set color conversion mode, it must be
+    /// set manually.
+    /// \return Color convertor according to current settings.
+    virtual PDFColorConvertor getColorConvertor() const = 0;
+
     enum ColorSpaceType
     {
         Invalid,
@@ -254,6 +262,7 @@ class PDF4QTLIBSHARED_EXPORT PDFCMSGeneric : public PDFCMS
 {
 public:
     explicit inline PDFCMSGeneric() = default;
+    explicit inline PDFCMSGeneric(const PDFColorConvertor& colorConvertor);
 
     virtual bool isCompatible(const PDFCMSSettings& settings) const override;
     virtual QColor getPaperColor() const override;
@@ -268,6 +277,10 @@ public:
     virtual bool fillRGBBufferFromXYZ(const PDFColor3& whitePoint, const std::vector<float>& colors, RenderingIntent intent, unsigned char* outputBuffer, PDFRenderErrorReporter* reporter) const override;
     virtual bool fillRGBBufferFromICC(const std::vector<float>& colors, RenderingIntent renderingIntent, unsigned char* outputBuffer, const QByteArray& iccID, const QByteArray& iccData, PDFRenderErrorReporter* reporter) const override;
     virtual bool transformColorSpace(const ColorSpaceTransformParams& params) const override;
+    virtual PDFColorConvertor getColorConvertor() const override;
+
+private:
+    PDFColorConvertor m_colorConvertor;
 };
 
 struct PDFColorProfileIdentifier
@@ -358,6 +371,13 @@ public:
 
     const PDFCMSSettings& getSettings() const { return m_settings; }
     void setSettings(const PDFCMSSettings& settings);
+
+    /// Returns color convertor of post-processing colors
+    /// produced by color management system. Color convertor
+    /// does not have set color conversion mode, it must be
+    /// set manually.
+    /// \return Color convertor according to current settings.
+    PDFColorConvertor getColorConvertor() const;
 
     const PDFColorProfileIdentifiers& getOutputProfiles() const;
     const PDFColorProfileIdentifiers& getGrayProfiles() const;

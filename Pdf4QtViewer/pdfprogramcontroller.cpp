@@ -141,6 +141,10 @@ std::vector<QAction*> PDFActionManager::getRenderingOptionActions() const
          RenderOptionIgnoreOptionalContentSettings,
          RenderOptionDisplayAnnotations,
          RenderOptionInvertColors,
+         RenderOptionGrayscale,
+         RenderOptionBitonal,
+         RenderOptionHighContrast,
+         RenderOptionCustomColors,
          RenderOptionShowTextBlocks,
          RenderOptionShowTextLines
                          });
@@ -249,7 +253,11 @@ void PDFActionManager::initActions(QSize iconSize, bool initializeStampActions)
     setUserData(RenderOptionSmoothPictures, pdf::PDFRenderer::SmoothImages);
     setUserData(RenderOptionIgnoreOptionalContentSettings, pdf::PDFRenderer::IgnoreOptionalContent);
     setUserData(RenderOptionDisplayAnnotations, pdf::PDFRenderer::DisplayAnnotations);
-    setUserData(RenderOptionInvertColors, pdf::PDFRenderer::InvertColors);
+    setUserData(RenderOptionInvertColors, pdf::PDFRenderer::ColorAdjust_Invert);
+    setUserData(RenderOptionGrayscale, pdf::PDFRenderer::ColorAdjust_Grayscale);
+    setUserData(RenderOptionBitonal, pdf::PDFRenderer::ColorAdjust_Bitonal);
+    setUserData(RenderOptionHighContrast, pdf::PDFRenderer::ColorAdjust_HighContrast);
+    setUserData(RenderOptionCustomColors, pdf::PDFRenderer::ColorAdjust_CustomColors);
     setUserData(RenderOptionShowTextBlocks, pdf::PDFRenderer::DebugTextBlocks);
     setUserData(RenderOptionShowTextLines, pdf::PDFRenderer::DebugTextLines);
 
@@ -1051,8 +1059,17 @@ void PDFProgramController::onActionRenderingOptionTriggered(bool checked)
     Q_ASSERT(action);
 
     pdf::PDFRenderer::Features features = m_settings->getFeatures();
-    features.setFlag(static_cast<pdf::PDFRenderer::Feature>(action->data().toInt()), checked);
+    pdf::PDFRenderer::Feature affectedFeature = static_cast<pdf::PDFRenderer::Feature>(action->data().toInt());
+    pdf::PDFRenderer::Features colorFeatures = pdf::PDFRenderer::getColorFeatures();
+
+    if (colorFeatures.testFlag(affectedFeature) && checked)
+    {
+        features = features & ~colorFeatures;
+    }
+
+    features.setFlag(affectedFeature, checked);
     m_settings->setFeatures(features);
+    updateRenderingOptionActions();
 }
 
 void PDFProgramController::performSaveAs()
