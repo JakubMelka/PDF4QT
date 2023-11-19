@@ -15,8 +15,8 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "pdfcreateBitonaldocumentdialog.h"
-#include "ui_pdfcreateBitonaldocumentdialog.h"
+#include "pdfcreatebitonaldocumentdialog.h"
+#include "ui_pdfcreatebitonaldocumentdialog.h"
 
 #include "pdfwidgetutils.h"
 #include "pdfdocumentwriter.h"
