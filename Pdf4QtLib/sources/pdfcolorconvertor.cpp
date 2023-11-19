@@ -174,7 +174,7 @@ float PDFColorConvertor::correctLigthnessBySigmoidFunction(float lightness) cons
 
 float PDFColorConvertor::sigmoidFunction(float value) const
 {
-    return 1.0f / (1.0f + std::expf(-m_sigmoidParamC * (value - 0.5f)));
+    return 1.0f / (1.0f + std::exp(-m_sigmoidParamC * (value - 0.5f)));
 }
 
 float PDFColorConvertor::sigmoidParamC_Black() const

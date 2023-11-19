@@ -167,7 +167,7 @@ int PDFImageConversion::calculateOtsu1DThreshold() const
             u1 /= w1;
         }
 
-        const float variance = w0 * w1 * std::powf(u0 - u1, 2);
+        const float variance = w0 * w1 * std::pow(u0 - u1, 2);
         interClassVariance[i] = variance;
     }
 
