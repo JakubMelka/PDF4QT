@@ -256,7 +256,7 @@ int PDFToolAudioBookBase::showVoiceList(const PDFToolOptions& options)
         formatter.writeTableColumn("language", voice.getLanguage(), Qt::AlignLeft);
         formatter.writeTableColumn("locale", locale.name(), Qt::AlignLeft);
         formatter.writeTableColumn("language", locale.nativeLanguageName(), Qt::AlignLeft);
-        formatter.writeTableColumn("country", locale.nativeCountryName(), Qt::AlignLeft);
+        formatter.writeTableColumn("country", locale.nativeTerritoryName(), Qt::AlignLeft);
         formatter.writeTableColumn("vendor", voice.getVendor(), Qt::AlignLeft);
         formatter.writeTableColumn("version", voice.getVersion(), Qt::AlignLeft);
         formatter.endTableRow();

@@ -1261,7 +1261,7 @@ cmsHTRANSFORM PDFLittleCMS::getTransformBetweenColorSpaces(const PDFCMS::ColorSp
 QString getInfoFromProfile(cmsHPROFILE profile, cmsInfoType infoType)
 {
     QLocale locale;
-    QString country = QLocale::countryToString(locale.country());
+    QString country = QLocale::territoryToString(locale.territory());
     QString language = QLocale::languageToString(locale.language());
 
     char countryCode[3] = { };

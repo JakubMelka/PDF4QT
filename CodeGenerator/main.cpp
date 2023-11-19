@@ -22,7 +22,8 @@
 
 int main(int argc, char *argv[])
 {
-    qSetGlobalQHashSeed(0);
+    QHashSeed::globalSeed().setDeterministicGlobalSeed();
+
     QApplication a(argc, argv);
     GeneratorMainWindow w;
     w.show();

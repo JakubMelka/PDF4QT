@@ -43,26 +43,26 @@ PDFCreateCertificateDialog::PDFCreateCertificateDialog(QWidget *parent) :
     ui->keyLengthCombo->setCurrentIndex(ui->keyLengthCombo->findData(2048));
 
     QList<QLocale> locales = QLocale::matchingLocales(QLocale::AnyLanguage, QLocale::AnyScript, QLocale::AnyCountry);
-    std::sort(locales.begin(), locales.end(), [](const QLocale& left, const QLocale& right) { return QString::compare(left.nativeCountryName(), right.nativeCountryName(), Qt::CaseInsensitive) < 0; });
+    std::sort(locales.begin(), locales.end(), [](const QLocale& left, const QLocale& right) { return QString::compare(left.nativeTerritoryName(), right.nativeTerritoryName(), Qt::CaseInsensitive) < 0; });
 
     int currentIndex = 0;
     QLocale currentLocale = QLocale::system();
 
     for (const QLocale& locale : locales)
     {
-        if (locale.country() == QLocale::AnyCountry)
+        if (locale.territory() == QLocale::AnyTerritory)
         {
             continue;
         }
 
-        if (locale.nativeCountryName().isEmpty())
+        if (locale.nativeTerritoryName().isEmpty())
         {
             continue;
         }
 
         QString localeName = locale.name();
         QString countryCode = localeName.split(QChar('_')).back();
-        QString text = QString("%1 | %2").arg(countryCode, locale.nativeCountryName());
+        QString text = QString("%1 | %2").arg(countryCode, locale.nativeTerritoryName());
 
         if (ui->countryCombo->findText(text) >= 0)
         {

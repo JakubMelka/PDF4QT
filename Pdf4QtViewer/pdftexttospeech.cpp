@@ -124,7 +124,7 @@ void PDFTextToSpeech::setSettings(const PDFViewerSettings* viewerSettings)
         m_speechLocaleComboBox->clear();
         for (const QLocale& locale : locales)
         {
-            m_speechLocaleComboBox->addItem(QString("%1 (%2)").arg(locale.nativeLanguageName(), locale.nativeCountryName()), locale.name());
+            m_speechLocaleComboBox->addItem(QString("%1 (%2)").arg(locale.nativeLanguageName(), locale.nativeTerritoryName()), locale.name());
         }
         m_speechLocaleComboBox->setUpdatesEnabled(true);
 

@@ -55,7 +55,7 @@ void SettingsDialog::accept()
 {
     m_settings.proofingIntent = static_cast<pdf::RenderingIntent>(ui->cmsProofingIntentComboBox->currentData().toInt());
     m_settings.softProofingProfile = ui->cmsProofingColorProfileComboBox->currentData().toString();
-    m_settings.outOfGamutColor.setNamedColor(ui->outOfGamutColorEdit->text());
+    m_settings.outOfGamutColor.fromString(ui->outOfGamutColorEdit->text());
     if (!m_settings.outOfGamutColor.isValid())
     {
         m_settings.outOfGamutColor = Qt::red;

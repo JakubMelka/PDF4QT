@@ -57,7 +57,7 @@ QColor CreateRedactedDocumentDialog::getRedactColor() const
 
     if (ui->fillRedactedAreaCheckBox->isChecked())
     {
-        color.setNamedColor(ui->fillRedactedAreaColorEdit->text());
+        color.fromString(ui->fillRedactedAreaColorEdit->text());
     }
 
     return color;
@@ -107,7 +107,7 @@ void CreateRedactedDocumentDialog::accept()
     if (ui->fillRedactedAreaCheckBox->isChecked())
     {
         QColor color;
-        color.setNamedColor(ui->fillRedactedAreaColorEdit->text());
+        color.fromString(ui->fillRedactedAreaColorEdit->text());
         if (!color.isValid())
         {
             QMessageBox::critical(this, tr("Error"), tr("Cannot convert '%1' to color value.").arg(ui->fillRedactedAreaColorEdit->text()));

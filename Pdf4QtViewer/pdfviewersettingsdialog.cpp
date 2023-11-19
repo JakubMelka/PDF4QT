@@ -601,7 +601,7 @@ void PDFViewerSettingsDialog::saveData()
     }
     else if (sender == ui->foregroundColorEdit)
     {
-        m_cmsSettings.foregroundColor.setNamedColor(ui->foregroundColorEdit->text());
+        m_cmsSettings.foregroundColor.fromString(ui->foregroundColorEdit->text());
         if (!m_cmsSettings.foregroundColor.isValid())
         {
             pdf::PDFColorConvertor colorConvertor;
@@ -610,7 +610,7 @@ void PDFViewerSettingsDialog::saveData()
     }
     else if (sender == ui->backgroundColorEdit)
     {
-        m_cmsSettings.backgroundColor.setNamedColor(ui->backgroundColorEdit->text());
+        m_cmsSettings.backgroundColor.fromString(ui->backgroundColorEdit->text());
         if (!m_cmsSettings.backgroundColor.isValid())
         {
             pdf::PDFColorConvertor colorConvertor;
@@ -856,7 +856,7 @@ void PDFViewerSettingsDialog::setSpeechEngine(const QString& engine, const QStri
         ui->speechLocaleComboBox->clear();
         for (const QLocale& currentLocale : locales)
         {
-            ui->speechLocaleComboBox->addItem(QString("%1 (%2)").arg(currentLocale.nativeLanguageName(), currentLocale.nativeCountryName()), currentLocale.name());
+            ui->speechLocaleComboBox->addItem(QString("%1 (%2)").arg(currentLocale.nativeLanguageName(), currentLocale.nativeTerritoryName()), currentLocale.name());
         }
         ui->speechLocaleComboBox->setUpdatesEnabled(true);
     }

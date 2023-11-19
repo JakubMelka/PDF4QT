@@ -110,7 +110,7 @@ void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& opti
         }
 
         QColor color;
-        color.setNamedColor(splitted.front());
+        color.fromString(splitted.front());
         QRect bubbleRect = pdf::PDFPainterHelper::drawBubble(painter, tagPoint, color, splitted.back(), Qt::AlignLeft | Qt::AlignBottom);
         tagPoint.ry() += bubbleRect.height() + verticalSpacing;
     }
