@@ -1,5 +1,7 @@
 #include "pdfimageconversion.h"
 
+#include <cmath>
+
 namespace pdf
 {
 

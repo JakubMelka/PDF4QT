@@ -19,6 +19,8 @@
 #include "pdfimageconversion.h"
 #include "pdfutils.h"
 
+#include <cmath>
+
 namespace pdf
 {
 
