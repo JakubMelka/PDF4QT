@@ -1457,7 +1457,14 @@ void PDFCMSManager::setSettings(const PDFCMSSettings& settings)
 
 PDFColorConvertor PDFCMSManager::getColorConvertor() const
 {
-    return PDFColorConvertor();
+    QMutexLocker lock(&m_mutex);
+
+    PDFColorConvertor colorConvertor;
+    colorConvertor.setBackgroundColor(m_settings.backgroundColor);
+    colorConvertor.setForegroundColor(m_settings.foregroundColor);
+    colorConvertor.setHighContrastBrightnessFactor(m_settings.sigmoidSlopeFactor);
+    colorConvertor.setBitonalThreshold(m_settings.bitonalThreshold);
+    return colorConvertor;
 }
 
 const PDFColorProfileIdentifiers& PDFCMSManager::getOutputProfiles() const

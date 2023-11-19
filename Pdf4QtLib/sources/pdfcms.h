@@ -84,6 +84,12 @@ struct PDFCMSSettings
     QString deviceCMYK;             ///< Identifiers for color space (device CMYK)
     QString softProofingProfile;    ///< Identifiers for soft proofing profile
     QString profileDirectory;       ///< Directory containing color profiles
+
+    // Postprocessing
+    QColor foregroundColor = Qt::green;
+    QColor backgroundColor = Qt::black;
+    int bitonalThreshold = 128;
+    double sigmoidSlopeFactor = 10.0;
 };
 
 /// Color management system base class. It contains functions to transform

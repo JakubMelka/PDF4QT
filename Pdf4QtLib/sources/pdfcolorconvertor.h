@@ -92,6 +92,17 @@ public:
     /// to ensure accurate differentiation between light and dark areas in images.
     void setBitonalThreshold(int newBitonalThreshold);
 
+    /// Set background color
+    /// \param newBackgroundColor Background color
+    void setBackgroundColor(const QColor& newBackgroundColor);
+
+    /// Set foreground color
+    /// \param newForegroundColor Foreground color
+    void setForegroundColor(const QColor& newForegroundColor);
+
+    QColor getBackgroundColor() const;
+    QColor getForegroundColor() const;
+
 private:
     /// Correct lightness using sigmoid function
     /// \return Adjusted lightness normalized in range [0.0, 1.0]

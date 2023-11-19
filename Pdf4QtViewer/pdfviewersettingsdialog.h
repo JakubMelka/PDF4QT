@@ -74,6 +74,7 @@ public:
         CacheSettings,
         ShortcutSettings,
         ColorManagementSystemSettings,
+        ColorPostprocessingSettings,
         SecuritySettings,
         UISettings,
         SpeechSettings,

@@ -87,7 +87,11 @@
     <addaction name="actionFitWidth"/>
     <addaction name="actionFitHeight"/>
     <addaction name="separator"/>
-    <addaction name="actionInvertColors"/>
+    <addaction name="actionColorInvert"/>
+    <addaction name="actionColorGrayscale"/>
+    <addaction name="actionColorHighContrast"/>
+    <addaction name="actionColorBitonal"/>
+    <addaction name="actionColorCustom"/>
    </widget>
    <widget class="QMenu" name="menuTools">
     <property name="title">
@@ -349,18 +353,66 @@
     <string>Send by E-Mail...</string>
    </property>
   </action>
-  <action name="actionInvertColors">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
-     <normaloff>:/resources/invert-colors.svg</normaloff>:/resources/invert-colors.svg</iconset>
-   </property>
-   <property name="text">
-    <string>Invert Colors</string>
-   </property>
-  </action>
+  <action name="actionColorInvert">
+     <property name="checkable">
+      <bool>true</bool>
+     </property>
+     <property name="icon">
+      <iconset resource="pdf4qtviewer.qrc">
+       <normaloff>:/resources/invert-colors.svg</normaloff>:/resources/invert-colors.svg</iconset>
+     </property>
+     <property name="text">
+      <string>Color | Inverted</string>
+     </property>
+    </action>
+    <action name="actionColorGrayscale">
+     <property name="checkable">
+      <bool>true</bool>
+     </property>
+     <property name="icon">
+      <iconset resource="pdf4qtviewer.qrc">
+       <normaloff>:/resources/invert-colors.svg</normaloff>:/resources/invert-colors.svg</iconset>
+     </property>
+     <property name="text">
+      <string>Color | Grayscale</string>
+     </property>
+    </action>
+    <action name="actionColorHighContrast">
+     <property name="checkable">
+      <bool>true</bool>
+     </property>
+     <property name="icon">
+      <iconset resource="pdf4qtviewer.qrc">
+       <normaloff>:/resources/invert-colors.svg</normaloff>:/resources/invert-colors.svg</iconset>
+     </property>
+     <property name="text">
+      <string>Color | High Contrast</string>
+     </property>
+    </action>
+    <action name="actionColorBitonal">
+     <property name="checkable">
+      <bool>true</bool>
+     </property>
+     <property name="icon">
+      <iconset resource="pdf4qtviewer.qrc">
+       <normaloff>:/resources/invert-colors.svg</normaloff>:/resources/invert-colors.svg</iconset>
+     </property>
+     <property name="text">
+      <string>Color | Monochromatic</string>
+     </property>
+    </action>
+    <action name="actionColorCustom">
+     <property name="checkable">
+      <bool>true</bool>
+     </property>
+     <property name="icon">
+      <iconset resource="pdf4qtviewer.qrc">
+       <normaloff>:/resources/invert-colors.svg</normaloff>:/resources/invert-colors.svg</iconset>
+     </property>
+     <property name="text">
+      <string>Color | Custom</string>
+     </property>
+    </action>
   <action name="actionRotateRight">
    <property name="icon">
     <iconset resource="pdf4qtviewer.qrc">

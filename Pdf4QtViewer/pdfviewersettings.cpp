@@ -78,6 +78,10 @@ void PDFViewerSettings::readSettings(QSettings& settings, const pdf::PDFCMSSetti
     m_colorManagementSystemSettings.proofingIntent = static_cast<pdf::RenderingIntent>(settings.value("proofingIntent", int(defaultCMSSettings.proofingIntent)).toInt());
     m_colorManagementSystemSettings.outOfGamutColor = settings.value("outOfGamutColor", defaultCMSSettings.outOfGamutColor).value<QColor>();
     m_colorManagementSystemSettings.profileDirectory = settings.value("profileDirectory", defaultCMSSettings.profileDirectory).toString();
+    m_colorManagementSystemSettings.foregroundColor = settings.value("foregroundColor", defaultCMSSettings.foregroundColor).value<QColor>();
+    m_colorManagementSystemSettings.backgroundColor = settings.value("backgroundColor", defaultCMSSettings.backgroundColor).value<QColor>();
+    m_colorManagementSystemSettings.sigmoidSlopeFactor = settings.value("sigmoidSlopeFactor", defaultCMSSettings.sigmoidSlopeFactor).toDouble();
+    m_colorManagementSystemSettings.bitonalThreshold = settings.value("bitonalThreshold",defaultCMSSettings.bitonalThreshold).toInt();
     settings.endGroup();
 
     settings.beginGroup("SpeechSettings");
@@ -145,6 +149,10 @@ void PDFViewerSettings::writeSettings(QSettings& settings)
     settings.setValue("proofingIntent", int(m_colorManagementSystemSettings.proofingIntent));
     settings.setValue("outOfGamutColor", m_colorManagementSystemSettings.outOfGamutColor);
     settings.setValue("profileDirectory", m_colorManagementSystemSettings.profileDirectory);
+    settings.setValue("foregroundColor", m_colorManagementSystemSettings.foregroundColor);
+    settings.setValue("backgroundColor", m_colorManagementSystemSettings.backgroundColor);
+    settings.setValue("sigmoidSlopeFactor", m_colorManagementSystemSettings.sigmoidSlopeFactor);
+    settings.setValue("bitonalThreshold", m_colorManagementSystemSettings.bitonalThreshold);
     settings.endGroup();
 
     settings.beginGroup("SpeechSettings");

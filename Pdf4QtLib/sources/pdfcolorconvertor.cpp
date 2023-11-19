@@ -197,6 +197,26 @@ void PDFColorConvertor::calculateSigmoidParams()
     m_sigmoidParamC_Range = sigmoidParamC_Range();
 }
 
+QColor PDFColorConvertor::getForegroundColor() const
+{
+    return m_foregroundColor;
+}
+
+QColor PDFColorConvertor::getBackgroundColor() const
+{
+    return m_backgroundColor;
+}
+
+void PDFColorConvertor::setForegroundColor(const QColor& newForegroundColor)
+{
+    m_foregroundColor = newForegroundColor;
+}
+
+void PDFColorConvertor::setBackgroundColor(const QColor& newBackgroundColor)
+{
+    m_backgroundColor = newBackgroundColor;
+}
+
 int PDFColorConvertor::getBitonalThreshold() const
 {
     return m_bitonalThreshold;

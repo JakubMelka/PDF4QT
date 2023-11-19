@@ -22,6 +22,7 @@
 #include "pdfutils.h"
 #include "pdfwidgetutils.h"
 #include "pdfrecentfilemanager.h"
+#include "pdfcolorconvertor.h"
 #include "pdfdbgheap.h"
 
 #include <QAction>
@@ -82,7 +83,8 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     new QListWidgetItem(QIcon(":/resources/shading.svg"), tr("Shading"), ui->optionsPagesWidget, ShadingSettings);
     new QListWidgetItem(QIcon(":/resources/cache.svg"), tr("Cache"), ui->optionsPagesWidget, CacheSettings);
     new QListWidgetItem(QIcon(":/resources/shortcuts.svg"), tr("Shortcuts"), ui->optionsPagesWidget, ShortcutSettings);
-    new QListWidgetItem(QIcon(":/resources/cms.svg"), tr("Colors"), ui->optionsPagesWidget, ColorManagementSystemSettings);
+    new QListWidgetItem(QIcon(":/resources/cms.svg"), tr("Colors | CMS"), ui->optionsPagesWidget, ColorManagementSystemSettings);
+    new QListWidgetItem(QIcon(":/resources/cms.svg"), tr("Colors | Postprocessing"), ui->optionsPagesWidget, ColorPostprocessingSettings);
     new QListWidgetItem(QIcon(":/resources/security.svg"), tr("Security"), ui->optionsPagesWidget, SecuritySettings);
     new QListWidgetItem(QIcon(":/resources/ui.svg"), tr("UI"), ui->optionsPagesWidget, UISettings);
     new QListWidgetItem(QIcon(":/resources/speech.svg"), tr("Speech"), ui->optionsPagesWidget, SpeechSettings);
@@ -146,7 +148,7 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     fillColorProfileList(ui->cmsDeviceRGBColorProfileComboBox, cmsManager->getRGBProfiles());
     fillColorProfileList(ui->cmsDeviceCMYKColorProfileComboBox, cmsManager->getCMYKProfiles());
 
-    for (QWidget* widget : { ui->engineInfoLabel, ui->renderingInfoLabel, ui->securityInfoLabel, ui->cmsInfoLabel })
+    for (QWidget* widget : { ui->engineInfoLabel, ui->renderingInfoLabel, ui->securityInfoLabel, ui->cmsInfoLabel, ui->colorPostProcessingInfoLabel })
     {
         widget->setMinimumWidth(widget->sizeHint().width());
     }
@@ -234,6 +236,10 @@ void PDFViewerSettingsDialog::on_optionsPagesWidget_currentItemChanged(QListWidg
 
         case ColorManagementSystemSettings:
             ui->stackedWidget->setCurrentWidget(ui->cmsPage);
+            break;
+
+        case ColorPostprocessingSettings:
+            ui->stackedWidget->setCurrentWidget(ui->cmsPostprocessingPage);
             break;
 
         case SecuritySettings:
@@ -385,6 +391,12 @@ void PDFViewerSettingsDialog::loadData()
         ui->cmsProfileDirectoryEdit->setEnabled(false);
         ui->cmsProfileDirectoryEdit->setText(QString());
     }
+
+    // Color postprocessing
+    ui->foregroundColorEdit->setText(m_cmsSettings.foregroundColor.name(QColor::HexRgb));
+    ui->backgroundColorEdit->setText(m_cmsSettings.backgroundColor.name(QColor::HexRgb));
+    ui->sigmoidFunctionSlopeEdit->setValue(m_cmsSettings.sigmoidSlopeFactor);
+    ui->bitonalThresholdEdit->setValue(m_cmsSettings.bitonalThreshold);
 
     // Text-to-speech
     ui->speechEnginesComboBox->setCurrentIndex(ui->speechEnginesComboBox->findData(m_settings.m_speechEngine));
@@ -586,6 +598,32 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->magnifierZoomEdit)
     {
         m_settings.m_magnifierZoom = ui->magnifierZoomEdit->value();
+    }
+    else if (sender == ui->foregroundColorEdit)
+    {
+        m_cmsSettings.foregroundColor.setNamedColor(ui->foregroundColorEdit->text());
+        if (!m_cmsSettings.foregroundColor.isValid())
+        {
+            pdf::PDFColorConvertor colorConvertor;
+            m_cmsSettings.foregroundColor = colorConvertor.getForegroundColor();
+        }
+    }
+    else if (sender == ui->backgroundColorEdit)
+    {
+        m_cmsSettings.backgroundColor.setNamedColor(ui->backgroundColorEdit->text());
+        if (!m_cmsSettings.backgroundColor.isValid())
+        {
+            pdf::PDFColorConvertor colorConvertor;
+            m_cmsSettings.backgroundColor = colorConvertor.getBackgroundColor();
+        }
+    }
+    else if (sender == ui->sigmoidFunctionSlopeEdit)
+    {
+        m_cmsSettings.sigmoidSlopeFactor = ui->sigmoidFunctionSlopeEdit->value();
+    }
+    else if (sender == ui->bitonalThresholdEdit)
+    {
+        m_cmsSettings.bitonalThreshold = ui->bitonalThresholdEdit->value();
     }
     else if (sender == ui->formHighlightFieldsCheckBox)
     {

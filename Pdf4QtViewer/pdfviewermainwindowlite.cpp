@@ -120,7 +120,11 @@ PDFViewerMainWindowLite::PDFViewerMainWindowLite(QWidget* parent) :
     m_actionManager->setAction(PDFActionManager::RenderOptionSmoothPictures, ui->actionRenderOptionSmoothPictures);
     m_actionManager->setAction(PDFActionManager::RenderOptionIgnoreOptionalContentSettings, ui->actionRenderOptionIgnoreOptionalContentSettings);
     m_actionManager->setAction(PDFActionManager::RenderOptionDisplayAnnotations, ui->actionRenderOptionDisplayAnnotations);
-    m_actionManager->setAction(PDFActionManager::RenderOptionInvertColors, ui->actionInvertColors);
+    m_actionManager->setAction(PDFActionManager::RenderOptionInvertColors, ui->actionColorInvert);
+    m_actionManager->setAction(PDFActionManager::RenderOptionGrayscale, ui->actionColorGrayscale);
+    m_actionManager->setAction(PDFActionManager::RenderOptionHighContrast, ui->actionColorHighContrast);
+    m_actionManager->setAction(PDFActionManager::RenderOptionBitonal, ui->actionColorBitonal);
+    m_actionManager->setAction(PDFActionManager::RenderOptionCustomColors, ui->actionColorCustom);
     m_actionManager->setAction(PDFActionManager::Properties, ui->actionProperties);
     m_actionManager->setAction(PDFActionManager::Options, ui->actionOptions);
     m_actionManager->setAction(PDFActionManager::ResetToFactorySettings, ui->actionResetToFactorySettings);
