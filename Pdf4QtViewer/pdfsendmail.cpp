@@ -41,8 +41,22 @@ bool PDFSendMail::sendMail(QWidget* parent, QString subject, QString fileName)
     std::wstring fileNameString = fileInfo.fileName().toStdWString();
     std::wstring filePathString = QDir::toNativeSeparators(fileInfo.absoluteFilePath()).toStdWString();
 
+    std::array<wchar_t, MAX_PATH> systemDirectoryBuffer = { };
+    if (!::GetSystemDirectoryW(systemDirectoryBuffer.data(), uint(systemDirectoryBuffer.size())))
+    {
+        return false;
+    }
 
-    HMODULE mapiLib = ::LoadLibrary(L"MAPI32.DLL");
+    QString systemDirectory = QString::fromWCharArray(systemDirectoryBuffer.data());
+    QString mapiDllPath = QString("%1\\MAPI32.dll").arg(systemDirectory);
+    QFileInfo mapiDllPathInfo(mapiDllPath);
+    QString mapiDllPathCorrected = mapiDllPathInfo.absoluteFilePath();
+
+    std::vector<wchar_t> mapiDllPathWchar(mapiDllPathCorrected.size() + 1);
+    qsizetype length = mapiDllPathCorrected.toWCharArray(mapiDllPathWchar.data());
+    mapiDllPathWchar[length] = 0;
+
+    HMODULE mapiLib = ::LoadLibraryW(mapiDllPathWchar.data());
     if (!mapiLib)
     {
         return false;
