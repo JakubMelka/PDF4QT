@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #110: PDF4QT Viewer Lite : Arbitrary Code can execute when using Send by Email
  - Issue #109: No text, font. Parts missing
  - Issue #108: Add accessibility options in pdf reader
  - Issue #107: Create document with converted bitonic images
