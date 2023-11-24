@@ -1,4 +1,4 @@
-#    Copyright (C) 2022 Jakub Melka
+#    Copyright (C) 2023 Jakub Melka
 #
 #    This file is part of PDF4QT.
 #
@@ -17,7 +17,7 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-set(PDF4QT_VERSION 1.3.5)
+set(PDF4QT_VERSION 1.3.6)
 
 project(PDF4QT VERSION ${PDF4QT_VERSION} LANGUAGES CXX)
 
