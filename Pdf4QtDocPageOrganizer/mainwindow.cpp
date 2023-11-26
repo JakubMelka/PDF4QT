@@ -192,6 +192,11 @@ MainWindow::MainWindow(QWidget* parent) :
         }
     }
 
+    if (pdf::PDFWidgetUtils::isDarkTheme())
+    {
+        pdf::PDFWidgetUtils::convertActionsForDarkTheme(actions, iconSize, qGuiApp->devicePixelRatio());
+    }
+
     // Initialize pixmap cache size
     const int depth = 4; // 4 bytes (ARGB)
     const int reserveSize = 2; // Caching of two screens

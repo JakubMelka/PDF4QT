@@ -230,6 +230,7 @@ public:
     void addAdditionalAction(QAction* action);
 
     void initActions(QSize iconSize, bool initializeStampActions);
+    void styleActions();
 
 private:
     bool hasActions(const std::initializer_list<Action>& actionTypes) const;
@@ -238,6 +239,7 @@ private:
     std::array<QAction*, LastAction> m_actions;
     std::array<QActionGroup*, LastActionGroup> m_actionGroups;
     std::vector<QAction*> m_additionalActions;
+    QSize m_iconSize;
 };
 
 class PDF4QTVIEWERLIBSHARED_EXPORT PDFProgramController : public QObject, public pdf::IPluginDataExchange

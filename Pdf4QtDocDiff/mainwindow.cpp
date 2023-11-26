@@ -28,6 +28,7 @@
 #include "pdfdocumentmanipulator.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdocumentwriter.h"
+#include "pdfwidgetutils.h"
 
 #include <QToolBar>
 #include <QDesktopServices>
@@ -162,6 +163,11 @@ MainWindow::MainWindow(QWidget* parent) :
             connect(action, &QAction::triggered, &m_mapper, QOverload<>::of(&QSignalMapper::map));
             m_mapper.setMapping(action, actionData.toInt());
         }
+    }
+
+    if (pdf::PDFWidgetUtils::isDarkTheme())
+    {
+        pdf::PDFWidgetUtils::convertActionsForDarkTheme(actions, iconSize, qGuiApp->devicePixelRatio());
     }
 
     connect(m_progress, &pdf::PDFProgress::progressStarted, this, &MainWindow::onProgressStarted);

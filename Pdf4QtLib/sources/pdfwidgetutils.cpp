@@ -16,11 +16,15 @@
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfwidgetutils.h"
+#include "pdfcolorconvertor.h"
 #include "pdfdbgheap.h"
 
 #include <QDialog>
 #include <QLayout>
+#include <QPainter>
+#include <QPixmap>
 #include <QGroupBox>
+#include <QApplication>
 
 #ifdef Q_OS_MAC
 int qt_default_dpi_x() { return 72; }
@@ -159,6 +163,50 @@ void PDFWidgetUtils::style(QWidget* widget)
             childWidget->layout()->setSpacing(dialogSpacing);
         }
     }
+}
+
+bool PDFWidgetUtils::isDarkTheme()
+{
+    QPalette palette = QApplication::palette();
+    QColor backgroundColor = palette.color(QPalette::Window);
+    QColor textColor = palette.color(QPalette::WindowText);
+
+    return backgroundColor.lightness() < textColor.lightness();
+}
+
+void PDFWidgetUtils::convertActionForDarkTheme(QAction* action, QSize iconSize, qreal devicePixelRatioF)
+{
+    if (!action)
+    {
+        return;
+    }
+
+    QIcon icon = action->icon();
+    if (!icon.isNull())
+    {
+        icon = pdf::PDFWidgetUtils::convertIconForDarkTheme(icon, iconSize, devicePixelRatioF);
+        action->setIcon(icon);
+    }
+}
+
+QIcon PDFWidgetUtils::convertIconForDarkTheme(QIcon icon, QSize iconSize, qreal devicePixelRatioF)
+{
+    QPixmap pixmap(iconSize * devicePixelRatioF);
+    pixmap.setDevicePixelRatio(devicePixelRatioF);
+    pixmap.fill(Qt::transparent);
+
+    QPainter painter(&pixmap);
+    icon.paint(&painter, QRect(0, 0, iconSize.width(), iconSize.height()));
+    painter.end();
+
+    PDFColorConvertor convertor;
+    convertor.setMode(PDFColorConvertor::Mode::InvertedColors);
+
+    QImage image = pixmap.toImage();
+    image = convertor.convert(image);
+    pixmap = QPixmap::fromImage(image);
+
+    return QIcon(pixmap);
 }
 
 } // namespace pdf

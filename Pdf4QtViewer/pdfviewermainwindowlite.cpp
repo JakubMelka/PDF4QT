@@ -218,6 +218,8 @@ PDFViewerMainWindowLite::PDFViewerMainWindowLite(QWidget* parent) :
     {
         connect(toolManager, &pdf::PDFToolManager::messageDisplayRequest, statusBar(), &QStatusBar::showMessage);
     }
+
+    m_actionManager->styleActions();
 }
 
 PDFViewerMainWindowLite::~PDFViewerMainWindowLite()

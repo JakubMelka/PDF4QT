@@ -27,6 +27,7 @@
 #include "pdfdocumentbuilder.h"
 #include "pdfdbgheap.h"
 #include "pdfcertificatemanagerdialog.h"
+#include "pdfwidgetutils.h"
 
 #include "pdfviewersettings.h"
 #include "pdfundoredomanager.h"
@@ -291,6 +292,20 @@ void PDFActionManager::initActions(QSize iconSize, bool initializeStampActions)
         createCreateStampAction(CreateStampNotForPublicRelease, pdf::Stamp::NotForPublicRelease);
         createCreateStampAction(CreateStampSold, pdf::Stamp::Sold);
         createCreateStampAction(CreateStampTopSecret, pdf::Stamp::TopSecret);
+    }
+
+    m_iconSize = iconSize;
+}
+
+void PDFActionManager::styleActions()
+{
+    if (pdf::PDFWidgetUtils::isDarkTheme())
+    {
+        qreal devicePixelRatio = qGuiApp->devicePixelRatio();
+
+        // Convert icons to dark theme icons
+        pdf::PDFWidgetUtils::convertActionsForDarkTheme(m_actions, m_iconSize, devicePixelRatio);
+        pdf::PDFWidgetUtils::convertActionsForDarkTheme(m_additionalActions, m_iconSize, devicePixelRatio);
     }
 }
 
