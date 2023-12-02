@@ -57,10 +57,10 @@ Software have following features (the list is not complete):
 - [x] static XFA support (readonly, simple XFA only)
 - [x] electronically/digitally sign documents
 - [x] public key security encryption
-- [ ] 3D PDF support *(planned in year 2022)*
-- [ ] create fillable forms *(planned in year 2023)*
-- [ ] watermarks / headers / footers *(planned in year 2023)*
-- [ ] presentation application *(planned in year 2023)*
+- [ ] 3D PDF support *(planned in year 2024)*
+- [ ] create fillable forms *(planned in year 2024)*
+- [ ] watermarks / headers / footers *(planned in year 2024)*
+- [ ] presentation application *(planned in year 2024)*
 
 ## 4. THIRD PARTY LIBRARIES
 
@@ -120,7 +120,7 @@ On Linux, a GCC version >= 8 should work, altough we tested it with GCC 11.
 
     2.2 Configure
 
-        cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake -DCMAKE_INSTALL_PREFIX='/'
+        cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake -DCMAKE_INSTALL_PREFIX='/' -DCMAKE_BUILD_TYPE=Release
 
     For a debug build, append `-DCMAKE_BUILD_TYPE=Debug`.
 
