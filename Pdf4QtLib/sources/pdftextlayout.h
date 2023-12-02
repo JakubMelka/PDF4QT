@@ -32,6 +32,7 @@ namespace pdf
 {
 class PDFTextLayout;
 class PDFTextLayoutStorage;
+struct PDFCharacterPointer;
 
 struct PDFTextCharacterInfo
 {
@@ -153,6 +154,18 @@ public:
     PDFReal getAngle() const;
 
     void applyTransform(const QTransform& matrix);
+
+    /// Retrieves the bounding QPainterPath between two specified character positions within this block.
+    /// The provided character pointers must point to characters within the current block.
+    /// \param start A reference to the PDFCharacterPointer indicating the start character.
+    /// \param end A reference to the PDFCharacterPointer indicating the end character.
+    /// \param matrix Transformation applied to the path
+    /// \param heightIncreaseFactor Height increase factor for characters
+    /// \return QPainterPath representing the bounding path between the start and end characters.
+    QPainterPath getCharacterRangeBoundingPath(const PDFCharacterPointer& start,
+                                               const PDFCharacterPointer& end,
+                                               const QTransform& matrix,
+                                               PDFReal heightIncreaseFactor) const;
 
     friend QDataStream& operator<<(QDataStream& stream, const PDFTextBlock& block);
     friend QDataStream& operator>>(QDataStream& stream, PDFTextBlock& block);

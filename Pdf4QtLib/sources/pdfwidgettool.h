@@ -183,6 +183,7 @@ private:
     void updateResultsUI();
     void updateTitle();
     void clearResults();
+    void goToCurrentResult();
 
     QAction* m_prevAction;
     QAction* m_nextAction;
@@ -201,6 +202,7 @@ private:
 
     pdf::PDFTextSelection getTextSelection() const { return m_textSelection.get(this, &PDFFindTextTool::getTextSelectionImpl); }
     pdf::PDFTextSelection getTextSelectionImpl() const;
+    pdf::PDFTextSelection getTextSelectionSelectedResultOnly() const;
 
     struct SearchParameters
     {

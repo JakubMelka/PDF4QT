@@ -315,6 +315,25 @@ void PDFFindTextTool::clearResults()
     getProxy()->repaintNeeded();
 }
 
+void PDFFindTextTool::goToCurrentResult()
+{
+    PDFTextSelection textSelection = getTextSelectionSelectedResultOnly();
+    if (!textSelection.isEmpty())
+    {
+        const PDFTextSelectionColoredItem& firstItem = *textSelection.begin();
+        PDFTextLayoutGetter textLayoutGetter = getProxy()->getTextLayoutCompiler()->getTextLayoutLazy(firstItem.start.pageIndex);
+
+        pdf::PDFTextSelectionPainter textSelectionPainter(&textSelection);
+        QPainterPath painterPath = textSelectionPainter.prepareGeometry(firstItem.start.pageIndex, textLayoutGetter, QTransform(), nullptr);
+
+        if (!painterPath.isEmpty())
+        {
+            getProxy()->goToPageAndEnsureVisible(firstItem.start.pageIndex, painterPath.boundingRect());
+
+        }
+    }
+}
+
 void PDFFindTextTool::setActiveImpl(bool active)
 {
     BaseClass::setActiveImpl(active);
@@ -327,7 +346,7 @@ void PDFFindTextTool::setActiveImpl(bool active)
         getProxy()->getTextLayoutCompiler()->makeTextLayout();
 
         // Create dialog
-        m_dialog = new PDFFindTextToolDialog(getProxy(), m_parentDialog, Qt::Popup | Qt::CustomizeWindowHint | Qt::WindowTitleHint);
+        m_dialog = new PDFFindTextToolDialog(getProxy(), m_parentDialog, Qt::Popup | Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowCloseButtonHint);
         m_dialog->setWindowTitle(tr("Find"));
 
         QGridLayout* layout = new QGridLayout(m_dialog);
@@ -448,7 +467,7 @@ void PDFFindTextTool::onActionPrevious()
         }
         m_textSelection.dirty();
         getProxy()->repaintNeeded();
-        getProxy()->goToPage(m_findResults[m_selectedResultIndex].textSelectionItems.front().first.pageIndex);
+        goToCurrentResult();
         updateTitle();
     }
 }
@@ -460,7 +479,7 @@ void PDFFindTextTool::onActionNext()
         m_selectedResultIndex = (m_selectedResultIndex + 1) % m_findResults.size();
         m_textSelection.dirty();
         getProxy()->repaintNeeded();
-        getProxy()->goToPage(m_findResults[m_selectedResultIndex].textSelectionItems.front().first.pageIndex);
+        goToCurrentResult();
         updateTitle();
     }
 }
@@ -585,6 +604,20 @@ PDFTextSelection PDFFindTextTool::getTextSelectionImpl() const
         }
 
         result.addItems(findResult.textSelectionItems, color);
+    }
+    result.build();
+
+    return result;
+}
+
+PDFTextSelection PDFFindTextTool::getTextSelectionSelectedResultOnly() const
+{
+    pdf::PDFTextSelection result;
+
+    if (m_selectedResultIndex < m_findResults.size())
+    {
+        const pdf::PDFFindResult& findResult = m_findResults[m_selectedResultIndex];
+        result.addItems(findResult.textSelectionItems, Qt::transparent);
     }
     result.build();
 

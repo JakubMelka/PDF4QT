@@ -966,6 +966,82 @@ void PDFTextBlock::applyTransform(const QTransform& matrix)
     }
 }
 
+QPainterPath PDFTextBlock::getCharacterRangeBoundingPath(const PDFCharacterPointer& start,
+                                                         const PDFCharacterPointer& end,
+                                                         const QTransform& matrix,
+                                                         PDFReal heightIncreaseFactor) const
+{
+    QPainterPath path;
+
+    PDFTextBlock block = *this;
+
+    // Fix angle of block, so we will get correct selection rectangles (parallel to lines)
+    QTransform angleMatrix;
+    angleMatrix.rotate(block.getAngle());
+    block.applyTransform(angleMatrix);
+
+    const size_t lineStart = start.lineIndex;
+    const size_t lineEnd = end.lineIndex;
+    Q_ASSERT(lineEnd >= lineStart);
+
+    const PDFTextLines& lines = block.getLines();
+    for (size_t lineIndex = lineStart; lineIndex <= lineEnd; ++lineIndex)
+    {
+        if (lineIndex >= lines.size())
+        {
+            // Selection is invalid, do nothing
+            continue;
+        }
+
+        const PDFTextLine& line = lines[lineIndex];
+        const TextCharacters& characters = line.getCharacters();
+
+        if (characters.empty())
+        {
+            // Selection is invalid, do nothing
+            continue;
+        }
+
+        // First determine, which characters will be selected
+        size_t characterStart = 0;
+        size_t characterEnd = characters.size() - 1;
+
+        if (lineIndex == lineStart)
+        {
+            characterStart = start.characterIndex;
+        }
+        if (lineIndex == lineEnd)
+        {
+            characterEnd = end.characterIndex;
+        }
+
+        // Validate indices, then calculate bounding box
+        if (!(characterStart <= characterEnd && characterEnd < characters.size()))
+        {
+            continue;
+        }
+
+        QRectF boundingBox;
+        for (size_t i = characterStart; i <= characterEnd; ++i)
+        {
+            boundingBox = boundingBox.united(characters[i].boundingBox.boundingRect());
+        }
+
+        if (boundingBox.isValid())
+        {
+            // Enlarge height by some percent
+            PDFReal heightAdvance = boundingBox.height() * heightIncreaseFactor * 0.5;
+            boundingBox.adjust(0, -heightAdvance, 0, heightAdvance);
+            path.addRect(boundingBox);
+        }
+    }
+
+    QTransform transformMatrix = angleMatrix.inverted() * matrix;
+    path = transformMatrix.map(path);
+
+    return path;
+}
+
 QDataStream& operator>>(QDataStream& stream, PDFTextBlock& block)
 {
     stream >> block.m_lines;
@@ -1459,73 +1535,8 @@ void PDFTextSelectionPainter::draw(QPainter* painter, PDFInteger pageIndex, PDFT
             continue;
         }
 
-        PDFTextBlock block = blocks[start.blockIndex];
-
-        // Fix angle of block, so we will get correct selection rectangles (parallel to lines)
-        QTransform angleMatrix;
-        angleMatrix.rotate(block.getAngle());
-        block.applyTransform(angleMatrix);
-
-        QPainterPath path;
-
-        const size_t lineStart = start.lineIndex;
-        const size_t lineEnd = end.lineIndex;
-        Q_ASSERT(lineEnd >= lineStart);
-
-        const PDFTextLines& lines = block.getLines();
-        for (size_t lineIndex = lineStart; lineIndex <= lineEnd; ++lineIndex)
-        {
-            if (lineIndex >= lines.size())
-            {
-                // Selection is invalid, do nothing
-                continue;
-            }
-
-            const PDFTextLine& line = lines[lineIndex];
-            const TextCharacters& characters = line.getCharacters();
-
-            if (characters.empty())
-            {
-                // Selection is invalid, do nothing
-                continue;
-            }
-
-            // First determine, which characters will be selected
-            size_t characterStart = 0;
-            size_t characterEnd = characters.size() - 1;
-
-            if (lineIndex == lineStart)
-            {
-                characterStart = start.characterIndex;
-            }
-            if (lineIndex == lineEnd)
-            {
-                characterEnd = end.characterIndex;
-            }
-
-            // Validate indices, then calculate bounding box
-            if (!(characterStart <= characterEnd && characterEnd < characters.size()))
-            {
-                continue;
-            }
-
-            QRectF boundingBox;
-            for (size_t i = characterStart; i <= characterEnd; ++i)
-            {
-                boundingBox = boundingBox.united(characters[i].boundingBox.boundingRect());
-            }
-
-            if (boundingBox.isValid())
-            {
-                // Enlarge height by some percent
-                PDFReal heightAdvance = boundingBox.height() * HEIGHT_INCREASE_FACTOR * 0.5;
-                boundingBox.adjust(0, -heightAdvance, 0, heightAdvance);
-                path.addRect(boundingBox);
-            }
-        }
-
-        QTransform transformMatrix = angleMatrix.inverted() * matrix;
-        path = transformMatrix.map(path);
+        const PDFTextBlock& block = blocks[start.blockIndex];
+        QPainterPath path = block.getCharacterRangeBoundingPath(start, end, matrix, HEIGHT_INCREASE_FACTOR);
 
         QColor penColor = item.color.darker();
         QColor brushColor = item.color;

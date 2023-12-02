@@ -1282,6 +1282,47 @@ void PDFDrawWidgetProxy::goToPage(PDFInteger pageIndex)
     }
 }
 
+void PDFDrawWidgetProxy::goToPageAndEnsureVisible(PDFInteger pageIndex, QRectF ensureVisibleRect)
+{
+    PDFDrawSpaceController::LayoutItem layoutItem = m_controller->getLayoutItemForPage(pageIndex);
+
+    if (layoutItem.isValid())
+    {
+        // We have found our page, navigate onto it
+        if (isBlockMode())
+        {
+            setBlockIndex(layoutItem.blockIndex);
+        }
+
+        QRectF pageRect = fromDeviceSpace(layoutItem.pageRectMM);
+        QRectF placedRect = pageRect.translated(m_horizontalOffset - m_layout.blockRect.left(), m_verticalOffset - m_layout.blockRect.top());
+
+        const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(layoutItem.pageIndex);
+        QTransform matrix = QTransform(createPagePointToDevicePointMatrix(page, placedRect));
+
+        QRect wishedRect = matrix.mapRect(ensureVisibleRect).toRect();
+        QRect displayedRect = getWidget()->getDrawWidget()->getWidget()->rect();
+        QPoint topRectPoint = wishedRect.topLeft();
+
+        if (!displayedRect.contains(topRectPoint))
+        {
+            QPoint center = displayedRect.center();
+            QPoint p1(center.x(), topRectPoint.y());
+
+            if (!displayedRect.contains(p1))
+            {
+                scrollByPixels(-QPoint(0, p1.y() - displayedRect.top()));
+            }
+
+            QPoint p2(topRectPoint.x(), center.y());
+            if (!displayedRect.contains(p2))
+            {
+                scrollByPixels(-QPoint(p2.x() - displayedRect.x(), 0));
+            }
+        }
+    }
+}
+
 void PDFDrawWidgetProxy::setPageLayout(PageLayout pageLayout)
 {
     if (getPageLayout() != pageLayout)
