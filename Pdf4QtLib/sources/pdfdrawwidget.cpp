@@ -107,6 +107,7 @@ void PDFWidget::updateRenderer(RendererEngine engine, int samplesCount)
         setFocusProxy(m_drawWidget->getWidget());
         connect(m_proxy, &PDFDrawWidgetProxy::repaintNeeded, m_drawWidget->getWidget(), QOverload<>::of(&QWidget::update));
     }
+#ifdef PDF4QT_ENABLE_OPENGL
     else if (openglDrawWidget)
     {
         // Just check the samples count
@@ -117,6 +118,8 @@ void PDFWidget::updateRenderer(RendererEngine engine, int samplesCount)
             openglDrawWidget->setFormat(format);
         }
     }
+#endif
+
     updateRendererImpl();
 }
 
@@ -139,8 +142,12 @@ int PDFWidget::getPageRenderingErrorCount() const
 
 void PDFWidget::updateRendererImpl()
 {
+#ifdef PDF4QT_ENABLE_OPENGL
     PDFOpenGLDrawWidget* openglDrawWidget = qobject_cast<PDFOpenGLDrawWidget*>(m_drawWidget->getWidget());
     m_proxy->updateRenderer(openglDrawWidget != nullptr, openglDrawWidget ? openglDrawWidget->format() : QSurfaceFormat::defaultFormat());
+#else
+    m_proxy->updateRenderer(false, QSurfaceFormat::defaultFormat());
+#endif
 }
 
 void PDFWidget::onRenderingError(PDFInteger pageIndex, const QList<PDFRenderError>& errors)
@@ -181,7 +188,12 @@ IDrawWidget* PDFWidget::createDrawWidget(RendererEngine rendererEngine, int samp
             return new PDFDrawWidget(this, this);
 
         case RendererEngine::OpenGL:
+#ifdef PDF4QT_ENABLE_OPENGL
             return new PDFOpenGLDrawWidget(this, samplesCount, this);
+#else
+            Q_UNUSED(samplesCount);
+            return new PDFDrawWidget(this, this);
+#endif
 
         default:
             Q_ASSERT(false);
@@ -573,6 +585,7 @@ void PDFDrawWidgetBase<BaseWidget>::wheelEvent(QWheelEvent* event)
     event->accept();
 }
 
+#ifdef PDF4QT_ENABLE_OPENGL
 PDFOpenGLDrawWidget::PDFOpenGLDrawWidget(PDFWidget* widget, int samplesCount, QWidget* parent) :
     BaseClass(widget, parent)
 {
@@ -609,6 +622,7 @@ void PDFOpenGLDrawWidget::paintGL()
         getPDFWidget()->getDrawWidgetProxy()->draw(&painter, this->rect());
     }
 }
+#endif
 
 PDFDrawWidget::PDFDrawWidget(PDFWidget* widget, QWidget* parent) :
     BaseClass(widget, parent)
@@ -636,7 +650,9 @@ void PDFDrawWidget::resizeEvent(QResizeEvent* event)
     getPDFWidget()->getDrawWidgetProxy()->update();
 }
 
+#ifdef PDF4QT_ENABLE_OPENGL
 template class PDFDrawWidgetBase<QOpenGLWidget>;
+#endif
 template class PDFDrawWidgetBase<QWidget>;
 
 }   // namespace pdf

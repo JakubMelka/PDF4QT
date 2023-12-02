@@ -32,6 +32,8 @@ if(WIN32 AND MSVC)
     option(PDF4QT_INSTALL_PREPARE_WIX_INSTALLER "Prepare Wix installer for Windows" ON)
 endif()
 
+option(PDF4QT_ENABLE_OPENGL "Enable OpenGL" ON)
+
 set(PDF4QT_QT_ROOT "" CACHE PATH "Qt root directory")
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -43,7 +45,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(GNUInstallDirs)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg Xml PrintSupport TextToSpeech OpenGL OpenGLWidgets Multimedia Network Test)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg Xml PrintSupport TextToSpeech Multimedia Network Test)
+
+if(PDF4QT_ENABLE_OPENGL)
+    add_compile_definitions(PDF4QT_ENABLE_OPENGL)
+    find_package(Qt6 REQUIRED COMPONENTS OpenGL OpenGLWidgets)
+endif()
+
 qt_standard_project_setup()
 
 find_package(OpenSSL REQUIRED)
@@ -80,7 +88,7 @@ if (LINUX_GCC)
     find_package(TBB REQUIRED)
 endif()
 
-option(PDF4QT_INSTALL_TO_USR "Install to usr directory" OFF)
+option(PDF4QT_INSTALL_TO_USR "Install to usr directory" ON)
 
 if(PDF4QT_LINUX)
     set(PDF4QT_INSTALL_LIB_DIR_IMPL lib)

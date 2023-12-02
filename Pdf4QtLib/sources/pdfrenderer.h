@@ -217,14 +217,18 @@ public:
                   PageRotation extraRotation);
 
 private:
+#ifdef PDF4QT_ENABLE_OPENGL
     void initializeOpenGL();
     void releaseOpenGL();
+#endif
 
     Features m_features;
+#ifdef PDF4QT_ENABLE_OPENGL
     QSurfaceFormat m_surfaceFormat;
     QOffscreenSurface* m_surface;
     QOpenGLContext* m_context;
     QOpenGLFramebufferObject* m_fbo;
+#endif
 };
 
 /// Simple structure for storing rendered page images

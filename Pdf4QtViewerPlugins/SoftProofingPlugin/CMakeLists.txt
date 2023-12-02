@@ -22,7 +22,11 @@ add_library(SoftProofingPlugin SHARED
     icons.qrc
 )
 
-target_link_libraries(SoftProofingPlugin PRIVATE Pdf4QtLib Qt6::Core Qt6::Gui Qt6::Widgets Qt6::OpenGLWidgets)
+if(PDF4QT_ENABLE_OPENGL)
+    target_link_libraries(SoftProofingPlugin PRIVATE Qt6::OpenGLWidgets)
+endif()
+
+target_link_libraries(SoftProofingPlugin PRIVATE Pdf4QtLib Qt6::Core Qt6::Gui Qt6::Widgets)
 
 set_target_properties(SoftProofingPlugin PROPERTIES
                       VERSION ${PDF4QT_VERSION}

@@ -114,7 +114,11 @@ GENERATE_EXPORT_HEADER(Pdf4QtLib
                        PDF4QTLIBSHARED_EXPORT
                        EXPORT_FILE_NAME "${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR}/pdf4qtlib_export.h")
 
-target_link_libraries(Pdf4QtLib PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Xml Qt6::Svg Qt6::OpenGLWidgets)
+if(PDF4QT_ENABLE_OPENGL)
+    target_link_libraries(Pdf4QtLib PRIVATE Qt6::OpenGLWidgets)
+endif()
+
+target_link_libraries(Pdf4QtLib PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Xml Qt6::Svg)
 target_link_libraries(Pdf4QtLib PRIVATE lcms2::lcms2)
 target_link_libraries(Pdf4QtLib PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 target_link_libraries(Pdf4QtLib PRIVATE ZLIB::ZLIB)

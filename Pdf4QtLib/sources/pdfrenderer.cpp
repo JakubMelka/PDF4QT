@@ -25,11 +25,14 @@
 
 #include <QDir>
 #include <QElapsedTimer>
+
+#ifdef PDF4QT_ENABLE_OPENGL
 #include <QOpenGLContext>
 #include <QOffscreenSurface>
 #include <QOpenGLPaintDevice>
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLFunctions>
+#endif
 
 namespace pdf
 {
@@ -222,18 +225,24 @@ void PDFRenderer::compile(PDFPrecompiledPage* precompiledPage, size_t pageIndex)
 
 PDFRasterizer::PDFRasterizer(QObject* parent) :
     BaseClass(parent),
+#ifdef PDF4QT_ENABLE_OPENGL
     m_features(),
     m_surfaceFormat(),
     m_surface(nullptr),
     m_context(nullptr),
     m_fbo(nullptr)
+#else
+    m_features()
+#endif
 {
 
 }
 
 PDFRasterizer::~PDFRasterizer()
 {
+#ifdef PDF4QT_ENABLE_OPENGL
     releaseOpenGL();
+#endif
 }
 
 void PDFRasterizer::reset(bool useOpenGL, const QSurfaceFormat& surfaceFormat)
@@ -244,6 +253,7 @@ void PDFRasterizer::reset(bool useOpenGL, const QSurfaceFormat& surfaceFormat)
         m_features.setFlag(ValidOpenGL, false);
     }
 
+#ifdef PDF4QT_ENABLE_OPENGL
     if (useOpenGL != m_features.testFlag(UseOpenGL) || surfaceFormat != m_surfaceFormat)
     {
         // In either case, we must reset OpenGL
@@ -259,6 +269,10 @@ void PDFRasterizer::reset(bool useOpenGL, const QSurfaceFormat& surfaceFormat)
             initializeOpenGL();
         }
     }
+#else
+    Q_UNUSED(surfaceFormat);
+    m_features.setFlag(UseOpenGL, useOpenGL);
+#endif
 }
 
 QImage PDFRasterizer::render(PDFInteger pageIndex,
@@ -272,6 +286,8 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
     QImage image;
 
     QTransform matrix = PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), size), extraRotation);
+
+#ifdef PDF4QT_ENABLE_OPENGL
     if (m_features.testFlag(UseOpenGL) && m_features.testFlag(ValidOpenGL))
     {
         // We have valid OpenGL context, try to select it and possibly create framebuffer object
@@ -324,6 +340,7 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
             m_context->doneCurrent();
         }
     }
+#endif
 
     if (image.isNull())
     {
@@ -361,6 +378,7 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
     return image;
 }
 
+#ifdef PDF4QT_ENABLE_OPENGL
 void PDFRasterizer::initializeOpenGL()
 {
     Q_ASSERT(!m_surface);
@@ -408,7 +426,9 @@ void PDFRasterizer::initializeOpenGL()
         releaseOpenGL();
     }
 }
+#endif
 
+#ifdef PDF4QT_ENABLE_OPENGL
 void PDFRasterizer::releaseOpenGL()
 {
     if (m_surface)
@@ -437,6 +457,7 @@ void PDFRasterizer::releaseOpenGL()
         m_features.setFlag(ValidOpenGL, false);
     }
 }
+#endif
 
 PDFRasterizer* PDFRasterizerPool::acquire()
 {
@@ -983,6 +1004,7 @@ const PDFRendererInfo::Info& PDFRendererInfo::getHardwareAccelerationSupportedIn
     {
         Info info;
 
+#ifdef PDF4QT_ENABLE_OPENGL
         QOffscreenSurface surface;
         surface.create();
 
@@ -1044,6 +1066,7 @@ const PDFRendererInfo::Info& PDFRendererInfo::getHardwareAccelerationSupportedIn
             info.majorOpenGLVersion = versionStrSplitted[0].toInt();
             info.minorOpenGLVersion = versionStrSplitted[1].toInt();
         }
+#endif
 
         return info;
     };
@@ -1053,8 +1076,12 @@ const PDFRendererInfo::Info& PDFRendererInfo::getHardwareAccelerationSupportedIn
 
 bool PDFRendererInfo::isHardwareAccelerationSupported()
 {
+#ifdef PDF4QT_ENABLE_OPENGL
     const Info& info = getHardwareAccelerationSupportedInfo();
     return std::make_pair(info.majorOpenGLVersion, info.minorOpenGLVersion) >= std::make_pair(REQUIRED_OPENGL_MAJOR_VERSION, REQUIRED_OPENGL_MINOR_VERSION);
+#else
+    return false;
+#endif
 }
 
 }   // namespace pdf

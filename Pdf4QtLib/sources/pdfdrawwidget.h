@@ -23,7 +23,10 @@
 
 #include <QWidget>
 #include <QScrollBar>
+
+#ifdef PDF4QT_ENABLE_OPENGL
 #include <QOpenGLWidget>
+#endif
 
 namespace pdf
 {
@@ -176,23 +179,6 @@ private:
     MouseOperation m_mouseOperation;
 };
 
-class PDFOpenGLDrawWidget : public PDFDrawWidgetBase<QOpenGLWidget>
-{
-    Q_OBJECT
-
-private:
-    using BaseClass = PDFDrawWidgetBase<QOpenGLWidget>;
-
-public:
-    explicit PDFOpenGLDrawWidget(PDFWidget* widget, int samplesCount, QWidget* parent);
-    virtual ~PDFOpenGLDrawWidget() override;
-
-protected:
-    virtual void resizeGL(int w, int h) override;
-    virtual void initializeGL() override;
-    virtual void paintGL() override;
-};
-
 class PDFDrawWidget : public PDFDrawWidgetBase<QWidget>
 {
     Q_OBJECT
@@ -209,7 +195,30 @@ protected:
     virtual void resizeEvent(QResizeEvent* event) override;
 };
 
+#ifdef PDF4QT_ENABLE_OPENGL
+class PDFOpenGLDrawWidget : public PDFDrawWidgetBase<QOpenGLWidget>
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFDrawWidgetBase<QOpenGLWidget>;
+
+public:
+    explicit PDFOpenGLDrawWidget(PDFWidget* widget, int samplesCount, QWidget* parent);
+    virtual ~PDFOpenGLDrawWidget() override;
+
+protected:
+    virtual void resizeGL(int w, int h) override;
+    virtual void initializeGL() override;
+    virtual void paintGL() override;
+};
+#else
+using PDFOpenGLDrawWidget = PDFDrawWidget;
+#endif
+
+#ifdef PDF4QT_ENABLE_OPENGL
 extern template class PDFDrawWidgetBase<QOpenGLWidget>;
+#endif
 extern template class PDFDrawWidgetBase<QWidget>;
 
 }   // namespace pdf

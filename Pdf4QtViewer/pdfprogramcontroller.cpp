@@ -56,6 +56,10 @@
 #include <QToolBar>
 #include <QXmlStreamWriter>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
 #if defined(PDF4QT_USE_PRAGMA_LIB)
 #pragma comment(lib, "Shell32")
 #endif
@@ -2184,12 +2188,16 @@ void PDFProgramController::checkHardwareOpenGLAvailability()
     if (m_settings->getRendererEngine() == pdf::RendererEngine::OpenGL &&
         !pdf::PDFRendererInfo::isHardwareAccelerationSupported())
     {
+#ifdef PDF4QT_ENABLE_OPENGL
         pdf::PDFRendererInfo::Info info = pdf::PDFRendererInfo::getHardwareAccelerationSupportedInfo();
         QMessageBox::warning(m_mainWindow, tr("Warning"),
                              tr("Hardware acceleration is not supported on this device. "
                                 "OpenGL version at least 3.2 is required. Software rendering is used instead. "
                                 "Available OpenGL is %1 using %2. You can turn off hardware acceleration "
                                 "in 'Tools' menu using 'Options' item to stop displaying this message.").arg(info.version, info.renderer));
+#else
+        QMessageBox::warning(m_mainWindow, tr("Warning"), tr("Hardware acceleration is not enabled in this build."));
+#endif
     }
 }
 
