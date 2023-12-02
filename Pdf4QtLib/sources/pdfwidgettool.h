@@ -177,6 +177,7 @@ private:
     void onSearchText();
     void onActionPrevious();
     void onActionNext();
+    void onDialogRejected();
 
     void performSearch();
     void updateResultsUI();
@@ -193,6 +194,10 @@ private:
     QLineEdit* m_findTextEdit;
     QPushButton* m_previousButton;
     QPushButton* m_nextButton;
+
+    QString m_savedText;
+    bool m_savedIsCaseSensitive = false;
+    bool m_savedIsWholeWords = false;
 
     pdf::PDFTextSelection getTextSelection() const { return m_textSelection.get(this, &PDFFindTextTool::getTextSelectionImpl); }
     pdf::PDFTextSelection getTextSelectionImpl() const;

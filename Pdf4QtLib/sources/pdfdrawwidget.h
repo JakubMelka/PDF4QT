@@ -46,6 +46,9 @@ public:
 
     /// Returns page indices, which are currently displayed in the widget
     virtual std::vector<PDFInteger> getCurrentPages() const = 0;
+
+    /// Runs event on this widget
+    virtual bool doEvent(QEvent* event) = 0;
 };
 
 class PDF4QTLIBSHARED_EXPORT PDFWidget : public QWidget
@@ -138,6 +141,7 @@ public:
 
     virtual QSize minimumSizeHint() const override;
     virtual QWidget* getWidget() override { return this; }
+    virtual bool doEvent(QEvent* event) override { return this->event(event); }
 
 protected:
     virtual bool event(QEvent* event) override;

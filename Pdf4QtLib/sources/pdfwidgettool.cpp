@@ -221,6 +221,56 @@ void PDFWidgetTool::removeTool()
     m_toolStack.pop_back();
 }
 
+class PDFFindTextToolDialog : public QDialog
+{
+public:
+    PDFFindTextToolDialog(PDFDrawWidgetProxy* proxy, QWidget* parent, Qt::WindowFlags f) :
+        QDialog(parent, f),
+        m_proxy(proxy)
+    {
+
+    }
+
+    virtual ~PDFFindTextToolDialog() override = default;
+
+    virtual bool event(QEvent* event) override;
+
+private:
+    PDFDrawWidgetProxy* m_proxy;
+};
+
+bool PDFFindTextToolDialog::event(QEvent* event)
+{
+    switch (event->type())
+    {
+        case QEvent::Wheel:
+        {
+            PDFWidget* widget = m_proxy->getWidget();
+
+            QWheelEvent* oldEvent = dynamic_cast<QWheelEvent*>(event);
+
+            if (!rect().contains(oldEvent->position().toPoint(), false))
+            {
+                IDrawWidget* pdfDrawWidget = widget->getDrawWidget();
+                QPointF position = pdfDrawWidget->getWidget()->mapFromGlobal(oldEvent->globalPosition());
+
+                QWheelEvent wheelEvent(position, oldEvent->globalPosition(),
+                                       oldEvent->pixelDelta(), oldEvent->angleDelta(), oldEvent->buttons(),
+                                       oldEvent->modifiers(), oldEvent->phase(), oldEvent->isInverted(),
+                                       oldEvent->source(), oldEvent->pointingDevice());
+                return pdfDrawWidget->doEvent(&wheelEvent);
+            }
+
+            break;
+        }
+
+        default:
+            break;
+    }
+
+    return QDialog::event(event);
+}
+
 PDFFindTextTool::PDFFindTextTool(PDFDrawWidgetProxy* proxy, QAction* prevAction, QAction* nextAction, QObject* parent, QWidget* parentDialog) :
     BaseClass(proxy, parent),
     m_prevAction(prevAction),
@@ -262,6 +312,7 @@ void PDFFindTextTool::clearResults()
     m_findResults.clear();
     m_selectedResultIndex = 0;
     m_textSelection.dirty();
+    getProxy()->repaintNeeded();
 }
 
 void PDFFindTextTool::setActiveImpl(bool active)
@@ -276,7 +327,7 @@ void PDFFindTextTool::setActiveImpl(bool active)
         getProxy()->getTextLayoutCompiler()->makeTextLayout();
 
         // Create dialog
-        m_dialog = new QDialog(m_parentDialog, Qt::Popup | Qt::CustomizeWindowHint | Qt::WindowTitleHint);
+        m_dialog = new PDFFindTextToolDialog(getProxy(), m_parentDialog, Qt::Popup | Qt::CustomizeWindowHint | Qt::WindowTitleHint);
         m_dialog->setWindowTitle(tr("Find"));
 
         QGridLayout* layout = new QGridLayout(m_dialog);
@@ -293,6 +344,10 @@ void PDFFindTextTool::setActiveImpl(bool active)
         m_wholeWordsCheckBox = new QCheckBox(tr("Whole words only"), m_dialog);
         m_previousButton = new QPushButton(tr("Previous"), m_dialog);
         m_nextButton = new QPushButton(tr("Next"), m_dialog);
+
+        m_findTextEdit->setText(m_savedText);
+        m_caseSensitiveCheckBox->setChecked(m_savedIsCaseSensitive);
+        m_wholeWordsCheckBox->setChecked(m_savedIsWholeWords);
 
         m_previousButton->setDefault(false);
         m_nextButton->setDefault(false);
@@ -322,11 +377,19 @@ void PDFFindTextTool::setActiveImpl(bool active)
         m_dialog->move(topRightParent - QPoint(m_dialog->width() * 1.1, 0));
         m_dialog->setFocus();
         m_findTextEdit->setFocus();
-        connect(m_dialog, &QDialog::rejected, this, [this] { setActive(false); });
+        m_findTextEdit->selectAll();
+        connect(m_dialog, &QDialog::rejected, this, &PDFFindTextTool::onDialogRejected);
+
+        onSearchText();
     }
     else
     {
         Q_ASSERT(m_dialog);
+
+        m_savedText = m_findTextEdit->text();
+        m_savedIsCaseSensitive = m_caseSensitiveCheckBox->isChecked();
+        m_savedIsWholeWords = m_wholeWordsCheckBox->isChecked();
+
         m_dialog->deleteLater();
         m_dialog = nullptr;
         m_caseSensitiveCheckBox = nullptr;
@@ -351,8 +414,7 @@ void PDFFindTextTool::onSearchText()
     m_parameters.isWholeWordsOnly = m_wholeWordsCheckBox->isChecked();
     m_parameters.isSearchFinished = m_parameters.phrase.isEmpty();
 
-    m_findResults.clear();
-    m_textSelection.dirty();
+    clearResults();
     updateResultsUI();
 
     if (m_parameters.isSearchFinished)
@@ -401,6 +463,11 @@ void PDFFindTextTool::onActionNext()
         getProxy()->goToPage(m_findResults[m_selectedResultIndex].textSelectionItems.front().first.pageIndex);
         updateTitle();
     }
+}
+
+void PDFFindTextTool::onDialogRejected()
+{
+    setActive(false);
 }
 
 void PDFFindTextTool::performSearch()
