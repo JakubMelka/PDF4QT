@@ -33,7 +33,8 @@
 #include <QWheelEvent>
 #include <QClipboard>
 #include <QApplication>
-
+#include <QStylePainter>
+#include <QStyleOptionTitleBar>
 namespace pdf
 {
 
@@ -235,9 +236,38 @@ public:
 
     virtual bool event(QEvent* event) override;
 
+protected:
+    virtual void paintEvent(QPaintEvent* event) override;
+
 private:
     PDFDrawWidgetProxy* m_proxy;
 };
+
+void PDFFindTextToolDialog::paintEvent(QPaintEvent* event)
+{
+    QDialog::paintEvent(event);
+
+    QStylePainter painter(this);
+
+    // Dialog rectangle
+    QRect rect = this->rect();
+    const int titleBarHeight = style()->pixelMetric(QStyle::PM_TitleBarHeight);
+    QRect titleBarRect = rect;
+    titleBarRect.setHeight(titleBarHeight);
+
+    QStyleOptionTitleBar titleOption;
+    titleOption.initFrom(this);
+    titleOption.text = windowTitle();
+    titleOption.rect = titleBarRect;
+    titleOption.titleBarState = windowState() | Qt::WindowActive;
+    titleOption.titleBarFlags = Qt::Popup | Qt::CustomizeWindowHint | Qt::WindowTitleHint;
+    painter.drawComplexControl(QStyle::CC_TitleBar, titleOption);
+
+    QStyleOptionFrame frameOption;
+    frameOption.initFrom(this);
+    frameOption.rect = QRect(rect.x(), rect.y() + titleBarHeight, rect.width(), rect.height() - titleBarHeight);
+    painter.drawPrimitive(QStyle::PE_Frame, frameOption);
+}
 
 bool PDFFindTextToolDialog::event(QEvent* event)
 {
@@ -346,7 +376,7 @@ void PDFFindTextTool::setActiveImpl(bool active)
         getProxy()->getTextLayoutCompiler()->makeTextLayout();
 
         // Create dialog
-        m_dialog = new PDFFindTextToolDialog(getProxy(), m_parentDialog, Qt::Popup | Qt::CustomizeWindowHint | Qt::WindowTitleHint | Qt::WindowCloseButtonHint);
+        m_dialog = new PDFFindTextToolDialog(getProxy(), m_parentDialog, Qt::Popup);
         m_dialog->setWindowTitle(tr("Find"));
 
         QGridLayout* layout = new QGridLayout(m_dialog);
@@ -379,6 +409,10 @@ void PDFFindTextTool::setActiveImpl(bool active)
         connect(m_findTextEdit, &QLineEdit::editingFinished, this, &PDFFindTextTool::onSearchText);
         connect(m_caseSensitiveCheckBox, &QCheckBox::clicked, this, &PDFFindTextTool::onSearchText);
         connect(m_wholeWordsCheckBox, &QCheckBox::clicked, this, &PDFFindTextTool::onSearchText);
+
+        QMargins margins = layout->contentsMargins();
+        margins.setTop(margins.top() + m_dialog->style()->pixelMetric(QStyle::PM_TitleBarHeight));
+        layout->setContentsMargins(margins);
 
         layout->addWidget(new QLabel(tr("Search text"), m_dialog), 0, 0, 1, -1, Qt::AlignLeft);
         layout->addWidget(m_findTextEdit, 1, 0, 1, -1);
@@ -587,6 +621,8 @@ void PDFFindTextTool::updateTitle()
     {
         m_dialog->setWindowTitle(tr("Find (%1/%2)").arg(m_selectedResultIndex + 1).arg(m_findResults.size()));
     }
+
+    m_dialog->update();
 }
 
 PDFTextSelection PDFFindTextTool::getTextSelectionImpl() const
