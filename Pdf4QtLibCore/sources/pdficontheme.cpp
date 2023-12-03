@@ -18,7 +18,7 @@
 #include "pdficontheme.h"
 #include "pdfdbgheap.h"
 
-#include <QApplication>
+#include <QCoreApplication>
 
 namespace pdf
 {
@@ -111,7 +111,7 @@ void PDFIconTheme::loadTheme()
 
 QString PDFIconTheme::getThemeDirectory() const
 {
-    return QApplication::applicationDirPath() + "/" + m_directory;
+    return QCoreApplication::applicationDirPath() + "/" + m_directory;
 }
 
 QString PDFIconTheme::formatFileName(const ActionInfo& info, const QString& themeDirectory) const

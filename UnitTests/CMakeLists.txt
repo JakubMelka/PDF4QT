@@ -19,7 +19,7 @@ add_executable(UnitTests
 	tst_lexicalanalyzertest.cpp
 )
 
-target_link_libraries(UnitTests PRIVATE Pdf4QtLib Qt6::Core Qt6::Gui Qt6::Test)
+target_link_libraries(UnitTests PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
 
 set_target_properties(UnitTests PROPERTIES
     WIN32_EXECUTABLE OFF

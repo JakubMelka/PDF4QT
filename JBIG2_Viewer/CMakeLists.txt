@@ -21,7 +21,7 @@ add_executable(JBIG2_VIEWER
     main.cpp
 )
 
-target_link_libraries(JBIG2_VIEWER PRIVATE Pdf4QtLib Qt6::Core Qt6::Widgets Qt6::Gui)
+target_link_libraries(JBIG2_VIEWER PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Widgets Qt6::Gui)
 
 set_target_properties(JBIG2_VIEWER PROPERTIES
     WIN32_EXECUTABLE ON

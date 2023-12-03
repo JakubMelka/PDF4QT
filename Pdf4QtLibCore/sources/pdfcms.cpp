@@ -20,7 +20,7 @@
 #include "pdfexecutionpolicy.h"
 #include "pdfdbgheap.h"
 
-#include <QApplication>
+#include <QCoreApplication>
 #include <QReadWriteLock>
 
 #ifdef PDF4QT_COMPILER_CLANG
@@ -1731,7 +1731,7 @@ PDFColorProfileIdentifiers PDFCMSManager::getExternalColorProfiles(QString profi
     PDFColorProfileIdentifiers result;
 
     QDir directory(profileDirectory);
-    QDir applicationDirectory(QApplication::applicationDirPath());
+    QDir applicationDirectory(QCoreApplication::applicationDirPath());
     if (!profileDirectory.isEmpty() && directory.exists())
     {
         QStringList iccProfiles = directory.entryList({ "*.icc" }, QDir::Files | QDir::Readable | QDir::NoDotAndDotDot, QDir::NoSort);

@@ -66,11 +66,11 @@ if(PDF4QT_ENABLE_OPENGL)
     target_link_libraries(Pdf4QtViewer PRIVATE Qt6::OpenGLWidgets)
 endif()
 
-target_link_libraries(Pdf4QtViewer PRIVATE Pdf4QtLib Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport Qt6::TextToSpeech Qt6::Xml Qt6::Svg)
+target_link_libraries(Pdf4QtViewer PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport Qt6::TextToSpeech Qt6::Xml Qt6::Svg)
 target_include_directories(Pdf4QtViewer INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(Pdf4QtViewer PUBLIC ${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR})
 
-set_target_properties(Pdf4QtLib PROPERTIES
+set_target_properties(Pdf4QtLibCore PROPERTIES
                       VERSION ${PDF4QT_VERSION}
                       SOVERSION ${PDF4QT_VERSION}
                       LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_LIB_DIR}

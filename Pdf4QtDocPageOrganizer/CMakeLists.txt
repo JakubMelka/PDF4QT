@@ -31,7 +31,7 @@ add_executable(Pdf4QtDocPageOrganizer
     icon.rc
 )
 
-target_link_libraries(Pdf4QtDocPageOrganizer PRIVATE Pdf4QtLib Qt6::Core Qt6::Gui Qt6::Widgets)
+target_link_libraries(Pdf4QtDocPageOrganizer PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Widgets)
 
 set_target_properties(Pdf4QtDocPageOrganizer PROPERTIES
     WIN32_EXECUTABLE ON

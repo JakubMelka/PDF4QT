@@ -20,7 +20,7 @@ add_executable(PdfExampleGenerator
     main.cpp
 )
 
-target_link_libraries(PdfExampleGenerator PRIVATE Pdf4QtLib Qt6::Core Qt6::Widgets Qt6::Gui)
+target_link_libraries(PdfExampleGenerator PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Widgets Qt6::Gui)
 
 set_target_properties(PdfExampleGenerator PROPERTIES
     WIN32_EXECUTABLE ON

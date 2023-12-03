@@ -1,4 +1,4 @@
-//    Copyright (C) 2020-2022 Jakub Melka
+//    Copyright (C) 2020-2023 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -15,12 +15,11 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-
 #include "pdfexecutionpolicy.h"
 #include "pdfdbgheap.h"
 
 #include <QThread>
-#include <QApplication>
+#include <QCoreApplication>
 
 namespace pdf
 {
