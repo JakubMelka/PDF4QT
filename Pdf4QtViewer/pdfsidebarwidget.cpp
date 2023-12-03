@@ -290,9 +290,14 @@ void PDFSidebarWidget::selectPage(Page page)
     // Switch state of the buttons and select the page
     for (const auto& pageInfo : m_pageInfo)
     {
-        if (pageInfo.second.button)
+        QToolButton* pushButton = pageInfo.second.button;
+        if (pushButton)
         {
-            pageInfo.second.button->setChecked(pageInfo.first == page);
+            pushButton->setChecked(pageInfo.first == page);
+
+            QFont font = pushButton->font();
+            font.setBold(pageInfo.first == page);
+            pushButton->setFont(font);
         }
 
         if (pageInfo.first == page)

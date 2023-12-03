@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>339</width>
-    <height>566</height>
+    <height>584</height>
    </rect>
   </property>
   <layout class="QHBoxLayout" name="sidebarLayout">
@@ -36,12 +36,17 @@
          <height>0</height>
         </size>
        </property>
+       <property name="font">
+        <font>
+         <bold>false</bold>
+        </font>
+       </property>
        <property name="text">
         <string>Bookmarks</string>
        </property>
        <property name="icon">
         <iconset resource="pdf4qtviewer.qrc">
-         <normaloff>:/resources/sidebar-outline.png</normaloff>:/resources/sidebar-outline.png</iconset>
+         <normaloff>:/resources/sidebar-outline.svg</normaloff>:/resources/sidebar-outline.svg</iconset>
        </property>
        <property name="iconSize">
         <size>
@@ -73,7 +78,7 @@
        </property>
        <property name="icon">
         <iconset resource="pdf4qtviewer.qrc">
-         <normaloff>:/resources/sidebar-thumbnails.png</normaloff>:/resources/sidebar-thumbnails.png</iconset>
+         <normaloff>:/resources/sidebar-thumbnails.svg</normaloff>:/resources/sidebar-thumbnails.svg</iconset>
        </property>
        <property name="iconSize">
         <size>
@@ -105,7 +110,7 @@
        </property>
        <property name="icon">
         <iconset resource="pdf4qtviewer.qrc">
-         <normaloff>:/resources/sidebar-visibility.png</normaloff>:/resources/sidebar-visibility.png</iconset>
+         <normaloff>:/resources/sidebar-visibility.svg</normaloff>:/resources/sidebar-visibility.svg</iconset>
        </property>
        <property name="iconSize">
         <size>
@@ -137,7 +142,7 @@
        </property>
        <property name="icon">
         <iconset resource="pdf4qtviewer.qrc">
-         <normaloff>:/resources/sidebar-attachment.png</normaloff>:/resources/sidebar-attachment.png</iconset>
+         <normaloff>:/resources/sidebar-attachment.svg</normaloff>:/resources/sidebar-attachment.svg</iconset>
        </property>
        <property name="iconSize">
         <size>
@@ -169,7 +174,7 @@
        </property>
        <property name="icon">
         <iconset resource="pdf4qtviewer.qrc">
-         <normaloff>:/resources/sidebar-speech.png</normaloff>:/resources/sidebar-speech.png</iconset>
+         <normaloff>:/resources/sidebar-speech.svg</normaloff>:/resources/sidebar-speech.svg</iconset>
        </property>
        <property name="iconSize">
         <size>
@@ -201,7 +206,7 @@
        </property>
        <property name="icon">
         <iconset resource="pdf4qtviewer.qrc">
-         <normaloff>:/resources/sidebar-signature.png</normaloff>:/resources/sidebar-signature.png</iconset>
+         <normaloff>:/resources/sidebar-signature.svg</normaloff>:/resources/sidebar-signature.svg</iconset>
        </property>
        <property name="iconSize">
         <size>
