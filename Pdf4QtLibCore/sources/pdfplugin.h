@@ -34,7 +34,7 @@ namespace pdf
 class PDFWidget;
 class PDFCMSManager;
 
-struct PDF4QTLIBSHARED_EXPORT PDFPluginInfo
+struct PDF4QTLIBCORESHARED_EXPORT PDFPluginInfo
 {
     QString name;
     QString author;
@@ -69,7 +69,7 @@ public:
     virtual VoiceSettings getVoiceSettings() const = 0;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFPlugin : public QObject
+class PDF4QTLIBCORESHARED_EXPORT PDFPlugin : public QObject
 {
     Q_OBJECT
 

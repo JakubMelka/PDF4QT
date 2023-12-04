@@ -38,7 +38,7 @@ class PDFPageContentScene;
 class PDFPageContentElement;
 class PDFPageContentEditorStyleSettings;
 
-class PDF4QTLIBSHARED_EXPORT PDFPageContentEditorWidget : public QDockWidget
+class PDF4QTLIBCORESHARED_EXPORT PDFPageContentEditorWidget : public QDockWidget
 {
     Q_OBJECT
 

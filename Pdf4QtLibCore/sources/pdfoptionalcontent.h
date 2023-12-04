@@ -155,7 +155,7 @@ private:
 };
 
 /// Activeness of the optional content
-class PDF4QTLIBSHARED_EXPORT PDFOptionalContentActivity : public QObject
+class PDF4QTLIBCORESHARED_EXPORT PDFOptionalContentActivity : public QObject
 {
     Q_OBJECT
 

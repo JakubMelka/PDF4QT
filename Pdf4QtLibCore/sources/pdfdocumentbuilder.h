@@ -92,7 +92,7 @@ struct WrapEmptyArray { };
 
 /// Factory for creating various PDF objects, such as simple objects,
 /// dictionaries, arrays etc.
-class PDF4QTLIBSHARED_EXPORT PDFObjectFactory
+class PDF4QTLIBCORESHARED_EXPORT PDFObjectFactory
 {
 public:
     inline explicit PDFObjectFactory() = default;
@@ -207,7 +207,7 @@ private:
 /// to draw graphics elements on it. Content stream can have various
 /// resources, which can, if selected be dereferenced, so content
 /// stream is encapsulated and doesn't contain references.
-class PDF4QTLIBSHARED_EXPORT PDFContentStreamBuilder
+class PDF4QTLIBCORESHARED_EXPORT PDFContentStreamBuilder
 {
 public:
 
@@ -264,7 +264,7 @@ private:
 /// to draw graphics elements on it. Content stream can have various
 /// resources, which can, if selected be dereferenced, so content
 /// stream is encapsulated and doesn't contain references.
-class PDF4QTLIBSHARED_EXPORT PDFPageContentStreamBuilder
+class PDF4QTLIBCORESHARED_EXPORT PDFPageContentStreamBuilder
 {
 public:
 
@@ -314,7 +314,7 @@ private:
     Mode m_mode;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFDocumentBuilder
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentBuilder
 {
 public:
     /// Creates a new blank document (with no pages)
@@ -1588,7 +1588,7 @@ private:
 /// This class serves for document modification. While document is modified,
 /// modification flags are gathered. At the end of the modification, it is checked,
 /// if document was really changed.
-class PDF4QTLIBSHARED_EXPORT PDFDocumentModifier
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentModifier
 {
 public:
     explicit PDFDocumentModifier(const PDFDocument* originalDocument);

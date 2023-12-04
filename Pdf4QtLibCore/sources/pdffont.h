@@ -171,14 +171,14 @@ static constexpr PDFEncoding::Encoding getEncodingForStandardFont(StandardFontTy
     }
 }
 
-struct PDF4QTLIBSHARED_EXPORT CIDSystemInfo
+struct PDF4QTLIBCORESHARED_EXPORT CIDSystemInfo
 {
     QByteArray registry;
     QByteArray ordering;
     int supplement = 0;
 };
 
-struct PDF4QTLIBSHARED_EXPORT FontDescriptor
+struct PDF4QTLIBCORESHARED_EXPORT FontDescriptor
 {
     bool isEmbedded() const { return !fontFile.isEmpty() || !fontFile2.isEmpty() || !fontFile3.isEmpty(); }
 
@@ -245,7 +245,7 @@ using CharacterInfos = std::vector<CharacterInfo>;
 
 /// Font, which has fixed pixel size. It is programmed as PIMPL, because we need
 /// to remove FreeType types from the interface (so we do not include FreeType in the interface).
-class PDF4QTLIBSHARED_EXPORT PDFRealizedFont
+class PDF4QTLIBCORESHARED_EXPORT PDFRealizedFont
 {
 public:
     ~PDFRealizedFont();
@@ -281,7 +281,7 @@ private:
 };
 
 /// Base  class representing font in the PDF file
-class PDF4QTLIBSHARED_EXPORT PDFFont
+class PDF4QTLIBCORESHARED_EXPORT PDFFont
 {
 public:
     explicit PDFFont(CIDSystemInfo CIDSystemInfo, FontDescriptor fontDescriptor);
@@ -404,7 +404,7 @@ public:
 
 /// Font cache which caches both fonts, and realized fonts. Cache has individual limit
 /// for fonts, and realized fonts.
-class PDF4QTLIBSHARED_EXPORT PDFFontCache
+class PDF4QTLIBCORESHARED_EXPORT PDFFontCache
 {
 public:
     inline explicit PDFFontCache(size_t fontCacheLimit, size_t realizedFontCacheLimit) :
@@ -511,7 +511,7 @@ private:
 };
 
 /// Represents a font CMAP (mapping of CIDs)
-class PDF4QTLIBSHARED_EXPORT PDFFontCMap
+class PDF4QTLIBCORESHARED_EXPORT PDFFontCMap
 {
 public:
     explicit PDFFontCMap() = default;
@@ -663,7 +663,7 @@ private:
 };
 
 /// Repository with predefined CMaps
-class PDF4QTLIBSHARED_EXPORT PDFFontCMapRepository
+class PDF4QTLIBCORESHARED_EXPORT PDFFontCMapRepository
 {
 public:
     /// Returns instance of CMAP repository

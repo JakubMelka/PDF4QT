@@ -137,7 +137,7 @@ private:
     int m_stride = 0;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFStreamFilter
+class PDF4QTLIBCORESHARED_EXPORT PDFStreamFilter
 {
 public:
     explicit PDFStreamFilter() = default;
@@ -164,7 +164,7 @@ public:
     virtual PDFInteger getStreamDataLength(const QByteArray& data, PDFInteger offset) const;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFAsciiHexDecodeFilter : public PDFStreamFilter
+class PDF4QTLIBCORESHARED_EXPORT PDFAsciiHexDecodeFilter : public PDFStreamFilter
 {
 public:
     explicit PDFAsciiHexDecodeFilter() = default;
@@ -176,7 +176,7 @@ public:
                              const PDFSecurityHandler* securityHandler) const override;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFAscii85DecodeFilter : public PDFStreamFilter
+class PDF4QTLIBCORESHARED_EXPORT PDFAscii85DecodeFilter : public PDFStreamFilter
 {
 public:
     explicit PDFAscii85DecodeFilter() = default;
@@ -188,7 +188,7 @@ public:
                              const PDFSecurityHandler* securityHandler) const override;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFLzwDecodeFilter : public PDFStreamFilter
+class PDF4QTLIBCORESHARED_EXPORT PDFLzwDecodeFilter : public PDFStreamFilter
 {
 public:
     explicit PDFLzwDecodeFilter() = default;
@@ -200,7 +200,7 @@ public:
                              const PDFSecurityHandler* securityHandler) const override;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFFlateDecodeFilter : public PDFStreamFilter
+class PDF4QTLIBCORESHARED_EXPORT PDFFlateDecodeFilter : public PDFStreamFilter
 {
 public:
     explicit PDFFlateDecodeFilter() = default;
@@ -226,7 +226,7 @@ private:
     static QByteArray uncompress(const QByteArray& data);
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFRunLengthDecodeFilter : public PDFStreamFilter
+class PDF4QTLIBCORESHARED_EXPORT PDFRunLengthDecodeFilter : public PDFStreamFilter
 {
 public:
     explicit PDFRunLengthDecodeFilter() = default;
@@ -238,7 +238,7 @@ public:
                              const PDFSecurityHandler* securityHandler) const override;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFCryptFilter : public PDFStreamFilter
+class PDF4QTLIBCORESHARED_EXPORT PDFCryptFilter : public PDFStreamFilter
 {
 public:
     explicit PDFCryptFilter() = default;

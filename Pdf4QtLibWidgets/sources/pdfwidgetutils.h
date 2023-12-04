@@ -26,7 +26,7 @@
 namespace pdf
 {
 
-class PDF4QTLIBSHARED_EXPORT PDFWidgetUtils
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFWidgetUtils
 {
 public:
     PDFWidgetUtils() = delete;

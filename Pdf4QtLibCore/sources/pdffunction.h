@@ -46,7 +46,7 @@ using PDFFunctionPtr = std::shared_ptr<PDFFunction>;
 /// Function has domain and range, values outside of domain and range are clamped
 /// to the nearest values. This class is fully thread safe (if constant functions
 /// are called).
-class PDF4QTLIBSHARED_EXPORT PDFFunction
+class PDF4QTLIBCORESHARED_EXPORT PDFFunction
 {
 public:
 
@@ -131,7 +131,7 @@ protected:
 };
 
 /// Identity function
-class PDF4QTLIBSHARED_EXPORT PDFIdentityFunction : public PDFFunction
+class PDF4QTLIBCORESHARED_EXPORT PDFIdentityFunction : public PDFFunction
 {
 public:
     explicit PDFIdentityFunction();
@@ -148,7 +148,7 @@ public:
 /// Sampled function (Type 0 function).
 /// \note Order is ignored, linear interpolation is always performed. No cubic spline
 /// interpolation occurs.
-class PDF4QTLIBSHARED_EXPORT PDFSampledFunction : public PDFFunction
+class PDF4QTLIBCORESHARED_EXPORT PDFSampledFunction : public PDFFunction
 {
 public:
 
@@ -217,7 +217,7 @@ private:
 /// is defined as f(x) = c0 + x^exponent * (c1 - c0). If exponent is 1.0, then linear interpolation
 /// is performed as f(x) = c0 * (1 - x) + x * c1. To be more precise, if exponent is nearly 1.0,
 /// then linear interpolation is used instead.
-class PDF4QTLIBSHARED_EXPORT PDFExponentialFunction : public PDFFunction
+class PDF4QTLIBCORESHARED_EXPORT PDFExponentialFunction : public PDFFunction
 {
 public:
     /// Construct new exponential function.
@@ -254,7 +254,7 @@ private:
 /// Stitching function (Type 3 function)
 /// This type of function has always exactly one input. Transformation of this function
 /// is defined via k subfunctions which are used in defined intervals of the input value.
-class PDF4QTLIBSHARED_EXPORT PDFStitchingFunction : public PDFFunction
+class PDF4QTLIBCORESHARED_EXPORT PDFStitchingFunction : public PDFFunction
 {
 public:
     struct PartialFunction
@@ -313,7 +313,7 @@ private:
 
 /// Postscript function (Type 4 function)
 /// Implements subset of postscript language
-class PDF4QTLIBSHARED_EXPORT PDFPostScriptFunction : public PDFFunction
+class PDF4QTLIBCORESHARED_EXPORT PDFPostScriptFunction : public PDFFunction
 {
 public:
 

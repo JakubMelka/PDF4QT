@@ -413,7 +413,7 @@ private:
 /// Fields forms tree-like structure, where leafs are usually widgets. Fields include
 /// ordinary widgets, such as buttons, check boxes, combo boxes and text fields, and one
 /// special - signature field, which represents digital signature.
-class PDF4QTLIBSHARED_EXPORT PDFForm
+class PDF4QTLIBCORESHARED_EXPORT PDFForm
 {
 public:
     explicit inline PDFForm() = default;
@@ -534,7 +534,7 @@ protected:
 /// Form manager. Manages all form widgets functionality - triggers actions,
 /// edits fields, updates annotation appearances, etc. Valid pointer to annotation
 /// manager is requirement.
-class PDF4QTLIBSHARED_EXPORT PDFFormManager : public QObject, public IDrawWidgetInputInterface
+class PDF4QTLIBCORESHARED_EXPORT PDFFormManager : public QObject, public IDrawWidgetInputInterface
 {
     Q_OBJECT
 

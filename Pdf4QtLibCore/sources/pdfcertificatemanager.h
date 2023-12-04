@@ -26,7 +26,7 @@
 namespace pdf
 {
 
-class PDF4QTLIBSHARED_EXPORT PDFCertificateManager
+class PDF4QTLIBCORESHARED_EXPORT PDFCertificateManager
 {
 public:
     PDFCertificateManager();
@@ -55,7 +55,7 @@ public:
     static bool isCertificateValid(QString fileName, QString password);
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFSignatureFactory
+class PDF4QTLIBCORESHARED_EXPORT PDFSignatureFactory
 {
 public:
     static bool sign(QString certificateName, QString password, QByteArray data, QByteArray& result);

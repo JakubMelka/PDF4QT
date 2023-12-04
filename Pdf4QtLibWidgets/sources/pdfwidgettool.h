@@ -34,7 +34,7 @@ namespace pdf
 /// Base class for various widget tools (for example, searching, text selection,
 /// screenshots, zoom tool etc.). Each tool can have subtools (for example,
 /// screenshot tool is picking screenshot rectangle).
-class PDF4QTLIBSHARED_EXPORT PDFWidgetTool : public QObject, public IDocumentDrawInterface
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFWidgetTool : public QObject, public IDocumentDrawInterface
 {
     Q_OBJECT
 
@@ -273,7 +273,7 @@ private:
 };
 
 /// Tool to magnify specific area in the drawing widget
-class PDF4QTLIBSHARED_EXPORT PDFMagnifierTool : public PDFWidgetTool
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFMagnifierTool : public PDFWidgetTool
 {
     Q_OBJECT
 
@@ -308,7 +308,7 @@ private:
 };
 
 /// Tools for picking various items on page - points, rectangles, images etc.
-class PDF4QTLIBSHARED_EXPORT PDFPickTool : public PDFWidgetTool
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFPickTool : public PDFWidgetTool
 {
     Q_OBJECT
 
@@ -433,7 +433,7 @@ private:
 
 /// Tool that makes screenshot of page area and copies it to the clipboard,
 /// using current client area to determine image size.
-class PDF4QTLIBSHARED_EXPORT PDFScreenshotTool : public PDFWidgetTool
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFScreenshotTool : public PDFWidgetTool
 {
     Q_OBJECT
 
@@ -455,7 +455,7 @@ private:
 
 /// Tool that extracts image from page and copies it to the clipboard,
 /// using image original size (not zoomed size from widget area)
-class PDF4QTLIBSHARED_EXPORT PDFExtractImageTool : public PDFWidgetTool
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFExtractImageTool : public PDFWidgetTool
 {
     Q_OBJECT
 
@@ -481,7 +481,7 @@ private:
 /// Manager used for managing tools, their activity, availability
 /// and other settings. It also defines a predefined set of tools,
 /// available for various purposes (text searching, magnifier tool etc.)
-class PDF4QTLIBSHARED_EXPORT PDFToolManager : public QObject, public IDrawWidgetInputInterface
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFToolManager : public QObject, public IDrawWidgetInputInterface
 {
     Q_OBJECT
 

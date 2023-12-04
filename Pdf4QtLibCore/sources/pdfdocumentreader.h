@@ -35,7 +35,7 @@ class PDFParsingContext;
 /// This class is a reader of PDF document from various devices (file, io device,
 /// byte buffer). This class doesn't throw exceptions, to check errors, use
 /// appropriate functions.
-class PDF4QTLIBSHARED_EXPORT PDFDocumentReader
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentReader
 {
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocumentReader)
 

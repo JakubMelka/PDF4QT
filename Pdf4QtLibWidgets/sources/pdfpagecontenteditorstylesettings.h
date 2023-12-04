@@ -38,7 +38,7 @@ namespace pdf
 {
 class PDFPageContentElement;
 
-class PDF4QTLIBSHARED_EXPORT PDFPageContentEditorStyleSettings : public QWidget
+class PDF4QTLIBCORESHARED_EXPORT PDFPageContentEditorStyleSettings : public QWidget
 {
     Q_OBJECT
 

@@ -31,7 +31,7 @@ namespace pdf
 class PDFDocument;
 
 /// Outline item
-class PDF4QTLIBSHARED_EXPORT PDFOutlineItem
+class PDF4QTLIBCORESHARED_EXPORT PDFOutlineItem
 {
 public:
     explicit PDFOutlineItem() = default;

@@ -153,7 +153,7 @@ private:
 };
 
 /// Info about certificate, various details etc.
-class PDF4QTLIBSHARED_EXPORT PDFCertificateInfo
+class PDF4QTLIBCORESHARED_EXPORT PDFCertificateInfo
 {
 public:
     explicit inline PDFCertificateInfo() = default;
@@ -270,7 +270,7 @@ private:
 
 using PDFCertificateInfos = std::vector<PDFCertificateInfo>;
 
-class PDF4QTLIBSHARED_EXPORT PDFSignatureVerificationResult
+class PDF4QTLIBCORESHARED_EXPORT PDFSignatureVerificationResult
 {
 public:
     explicit PDFSignatureVerificationResult() = default;
@@ -428,7 +428,7 @@ private:
 };
 
 /// Signature handler. Can verify both certificate and signature validity.
-class PDF4QTLIBSHARED_EXPORT PDFSignatureHandler
+class PDF4QTLIBCORESHARED_EXPORT PDFSignatureHandler
 {
 public:
     explicit PDFSignatureHandler() = default;
@@ -465,7 +465,7 @@ private:
 /// Trusted certificate store. Contains list of trusted certificates. Store
 /// can be persisted to the persistent storage trough serialization/deserialization.
 /// Persisting method is versioned.
-class PDF4QTLIBSHARED_EXPORT PDFCertificateStore
+class PDF4QTLIBCORESHARED_EXPORT PDFCertificateStore
 {
 public:
     explicit inline PDFCertificateStore() = default;

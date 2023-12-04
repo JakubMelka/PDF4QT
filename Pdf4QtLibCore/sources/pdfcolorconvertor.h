@@ -30,7 +30,7 @@ namespace pdf
 /// \brief Performs color conversions in the RGB color space.
 /// This class supports multiple modes of operation, making it
 /// useful for accessibility purposes, particularly for visually impaired users.
-class PDF4QTLIBSHARED_EXPORT PDFColorConvertor
+class PDF4QTLIBCORESHARED_EXPORT PDFColorConvertor
 {
 public:
     PDFColorConvertor();

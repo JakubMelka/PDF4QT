@@ -79,7 +79,7 @@ enum class DestinationType
 /// destination has almost exactly same syntax as page destination, it should be checked,
 /// if indirect reference returned by function \p getPageReference references really page,
 /// or some structure element.
-class PDF4QTLIBSHARED_EXPORT PDFDestination
+class PDF4QTLIBCORESHARED_EXPORT PDFDestination
 {
 public:
     explicit inline PDFDestination() = default;
@@ -144,7 +144,7 @@ private:
 using PDFActionPtr = QSharedPointer<PDFAction>;
 
 /// Base class for action types.
-class PDF4QTLIBSHARED_EXPORT PDFAction
+class PDF4QTLIBCORESHARED_EXPORT PDFAction
 {
 public:
     explicit PDFAction() = default;
@@ -186,7 +186,7 @@ private:
 /// Regular go-to action. Can contain also structure destinations, both regular page destination
 /// and structure destination are present, because if structure destination fails, then
 /// page destination can be used as fallback resolution.
-class PDF4QTLIBSHARED_EXPORT PDFActionGoTo : public PDFAction
+class PDF4QTLIBCORESHARED_EXPORT PDFActionGoTo : public PDFAction
 {
 public:
     explicit inline PDFActionGoTo(PDFDestination destination, PDFDestination structureDestination) :

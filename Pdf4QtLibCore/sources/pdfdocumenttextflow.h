@@ -29,7 +29,7 @@ class PDFDocument;
 /// Text flow extracted from document. Text flow can be created \p PDFDocumentTextFlowFactory.
 /// Flow can contain various items, not just text ones. Also, some manipulation functions
 /// are available, they can modify text flow by various content.
-class PDF4QTLIBSHARED_EXPORT PDFDocumentTextFlow
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentTextFlow
 {
 public:
 
@@ -104,7 +104,7 @@ private:
 };
 
 /// This factory creates text flow for whole document
-class PDF4QTLIBSHARED_EXPORT PDFDocumentTextFlowFactory
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentTextFlowFactory
 {
 public:
     explicit PDFDocumentTextFlowFactory() = default;
@@ -150,7 +150,7 @@ private:
 /// Editor which can edit document text flow, modify user text,
 /// change order of text items, restore original state of a text flow,
 /// and many other features.
-class PDF4QTLIBSHARED_EXPORT PDFDocumentTextFlowEditor
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentTextFlowEditor
 {
 public:
     inline PDFDocumentTextFlowEditor() = default;

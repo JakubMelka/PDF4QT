@@ -73,7 +73,7 @@ struct PDFJBIG2HuffmanTableEntry
 /// state is stored as 8-bit value, where only 7 bits are used. 6 bits are used
 /// to store Qe value index (current row in the table, number 0-46), and lowest 1 bit
 /// is used to store current MPS value (most probable symbol - 0/1).
-class PDF4QTLIBSHARED_EXPORT PDFJBIG2ArithmeticDecoderState
+class PDF4QTLIBCORESHARED_EXPORT PDFJBIG2ArithmeticDecoderState
 {
 public:
     explicit inline PDFJBIG2ArithmeticDecoderState() = default;
@@ -139,7 +139,7 @@ private:
 /// of decoder described in document ISO/IEC 14492:2001, T.88, annex G (arithmetic decoding
 /// procedure). It uses 32-bit fixed point arithmetic instead of 16-bit fixed point
 /// arithmetic described in the specification (it is much faster).
-class PDF4QTLIBSHARED_EXPORT PDFJBIG2ArithmeticDecoder
+class PDF4QTLIBCORESHARED_EXPORT PDFJBIG2ArithmeticDecoder
 {
 public:
     explicit inline PDFJBIG2ArithmeticDecoder(PDFBitReader* reader) :
@@ -323,7 +323,7 @@ private:
     std::vector<PDFJBIG2HuffmanTableEntry> m_entries;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFJBIG2Bitmap : public PDFJBIG2Segment
+class PDF4QTLIBCORESHARED_EXPORT PDFJBIG2Bitmap : public PDFJBIG2Segment
 {
 public:
     explicit PDFJBIG2Bitmap();
@@ -427,7 +427,7 @@ using PDFJBIG2ATPositions = std::array<PDFJBIG2ATPosition, 4>;
 /// Decoder of JBIG2 data streams. Decodes the black/white monochrome image.
 /// Handles also global segments. Decoder decodes data using the specification
 /// ISO/IEC 14492:2001, T.88.
-class PDF4QTLIBSHARED_EXPORT PDFJBIG2Decoder
+class PDF4QTLIBCORESHARED_EXPORT PDFJBIG2Decoder
 {
 public:
     explicit inline PDFJBIG2Decoder(QByteArray data, QByteArray globalData, PDFRenderErrorReporter* errorReporter) :

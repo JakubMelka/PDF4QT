@@ -31,7 +31,7 @@ class PDFObjectStorage;
 /// Each identifier consists of two parts - permanent identifier, which
 /// is unique identifier based on original document, and changing identifier,
 /// which is updated when document is being modified.
-class PDF4QTLIBSHARED_EXPORT PDFFileIdentifier
+class PDF4QTLIBCORESHARED_EXPORT PDFFileIdentifier
 {
 public:
     explicit inline PDFFileIdentifier() = default;
@@ -49,7 +49,7 @@ private:
 /// Provides description of collection item property field. It describes it's
 /// kind, data type, if content of the property should be presented to the user,
 /// and ordering, visibility and editability.
-class PDF4QTLIBSHARED_EXPORT PDFCollectionField
+class PDF4QTLIBCORESHARED_EXPORT PDFCollectionField
 {
 public:
     explicit inline PDFCollectionField() = default;
@@ -96,7 +96,7 @@ private:
 
 /// Collection schema. Contains a list of defined fields.
 /// Schema can be queried for field definition.
-class PDF4QTLIBSHARED_EXPORT PDFCollectionSchema
+class PDF4QTLIBCORESHARED_EXPORT PDFCollectionSchema
 {
 public:
     explicit inline PDFCollectionSchema() = default;
@@ -123,7 +123,7 @@ private:
 
 /// Collection of file attachments. In the PDF file, attached files
 /// can be grouped in collection (if they are related to each other).
-class PDF4QTLIBSHARED_EXPORT PDFCollection
+class PDF4QTLIBCORESHARED_EXPORT PDFCollection
 {
 public:
     explicit inline PDFCollection() = default;
@@ -242,7 +242,7 @@ private:
 };
 
 /// Collection folder. Can contain subfolders and files.
-class PDF4QTLIBSHARED_EXPORT PDFCollectionFolder
+class PDF4QTLIBCORESHARED_EXPORT PDFCollectionFolder
 {
 public:
     explicit inline PDFCollectionFolder() = default;
@@ -277,7 +277,7 @@ private:
 
 /// Collection item. Contains properties of the collection item,
 /// for example, embedded file.
-class PDF4QTLIBSHARED_EXPORT PDFCollectionItem
+class PDF4QTLIBCORESHARED_EXPORT PDFCollectionItem
 {
 public:
     explicit inline PDFCollectionItem() = default;
@@ -316,7 +316,7 @@ private:
 
 /// Collection navigator. It contains modes of display. Interactive
 /// PDF processor should display first layout it is capable of.
-class PDF4QTLIBSHARED_EXPORT PDFCollectionNavigator
+class PDF4QTLIBCORESHARED_EXPORT PDFCollectionNavigator
 {
 public:
     explicit inline PDFCollectionNavigator() = default;
@@ -347,7 +347,7 @@ private:
     Layouts m_layouts = None;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFEmbeddedFile
+class PDF4QTLIBCORESHARED_EXPORT PDFEmbeddedFile
 {
 public:
     explicit PDFEmbeddedFile() = default;
@@ -372,7 +372,7 @@ private:
 };
 
 /// File specification
-class PDF4QTLIBSHARED_EXPORT PDFFileSpecification
+class PDF4QTLIBCORESHARED_EXPORT PDFFileSpecification
 {
 public:
     explicit PDFFileSpecification() = default;

@@ -137,7 +137,7 @@ private:
 
 /// Represents float bitmap with arbitrary color channel count. Bitmap can also
 /// have auxiliary channels, such as shape and opacity channels.
-class PDF4QTLIBSHARED_EXPORT PDFFloatBitmap
+class PDF4QTLIBCORESHARED_EXPORT PDFFloatBitmap
 {
 public:
     explicit PDFFloatBitmap();
@@ -319,7 +319,7 @@ private:
 };
 
 /// Float bitmap with color space
-class PDF4QTLIBSHARED_EXPORT PDFFloatBitmapWithColorSpace : public PDFFloatBitmap
+class PDF4QTLIBCORESHARED_EXPORT PDFFloatBitmapWithColorSpace : public PDFFloatBitmap
 {
 public:
     explicit PDFFloatBitmapWithColorSpace();
@@ -365,7 +365,7 @@ struct PDFInkMapping
 };
 
 /// Ink mapper for mapping device inks (device colors) and spot inks (spot colors).
-class PDF4QTLIBSHARED_EXPORT PDFInkMapper
+class PDF4QTLIBCORESHARED_EXPORT PDFInkMapper
 {
 public:
     explicit PDFInkMapper(const PDFCMSManager* manager, const PDFDocument* document);
@@ -633,7 +633,7 @@ struct PDFTransparencyRendererSettings
 /// page blending space and device blending space. So, painted graphics is being
 /// blended to the page blending space, and then converted to the device blending
 /// space.
-class PDF4QTLIBSHARED_EXPORT PDFTransparencyRenderer : public PDFPageContentProcessor
+class PDF4QTLIBCORESHARED_EXPORT PDFTransparencyRenderer : public PDFPageContentProcessor
 {
 private:
     using BaseClass = PDFPageContentProcessor;
@@ -927,7 +927,7 @@ private:
 
 /// Ink coverage calculator. Calculates ink coverage for a given
 /// page range. Calculates ink coverage of both cmyk colors and spot colors.
-class PDF4QTLIBSHARED_EXPORT PDFInkCoverageCalculator
+class PDF4QTLIBCORESHARED_EXPORT PDFInkCoverageCalculator
 {
 public:
     PDFInkCoverageCalculator(const PDFDocument* document,

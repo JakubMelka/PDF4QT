@@ -30,7 +30,7 @@ class PDFCreateCertificateDialog;
 namespace pdf
 {
 
-class PDF4QTLIBSHARED_EXPORT PDFCreateCertificateDialog : public QDialog
+class PDF4QTLIBCORESHARED_EXPORT PDFCreateCertificateDialog : public QDialog
 {
     Q_OBJECT
 

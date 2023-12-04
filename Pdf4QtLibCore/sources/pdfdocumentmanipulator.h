@@ -30,7 +30,7 @@ namespace pdf
 /// to a new document, where pages are inserted/removed/moved, or joined
 /// from another documents, or blank pages/image pages inserted. Document
 /// is also optimized.
-class PDF4QTLIBSHARED_EXPORT PDFDocumentManipulator
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentManipulator
 {
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocumentManipulator)
 

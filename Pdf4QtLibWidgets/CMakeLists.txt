@@ -47,13 +47,19 @@ add_library(Pdf4QtLibWidgets SHARED
     sources/pdfselectpagesdialog.h
     sources/pdfselectpagesdialog.cpp
     sources/pdfselectpagesdialog.ui
+    sources/pdfwidgetannotation.h
+    sources/pdfwidgetannotation.cpp
+    sources/pdfpagecontentelements.cpp
+    sources/pdfpagecontentelements.h
+    sources/pdfitemmodels.cpp
+    sources/pdfitemmodels.h
 )
 
 include(GenerateExportHeader)
 
 GENERATE_EXPORT_HEADER(Pdf4QtLibWidgets
                        EXPORT_MACRO_NAME
-                       PDF4QTLIBSHARED_EXPORT
+                       PDF4QTLIBCORESHARED_EXPORT
                        EXPORT_FILE_NAME "${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR}/pdf4qtlibwidgets_export.h")
 
 if(PDF4QT_ENABLE_OPENGL)

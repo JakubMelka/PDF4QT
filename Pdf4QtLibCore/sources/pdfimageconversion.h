@@ -27,7 +27,7 @@ namespace pdf
 
 /// This class facilitates various image conversions,
 /// including transforming colored images into monochromatic (or bitonal) formats.
-class PDF4QTLIBSHARED_EXPORT PDFImageConversion
+class PDF4QTLIBCORESHARED_EXPORT PDFImageConversion
 {
 public:
     PDFImageConversion();

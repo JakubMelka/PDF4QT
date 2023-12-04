@@ -29,7 +29,7 @@ namespace pdf
 /// and remove unused objects, merge same objects, or even recompress some streams
 /// to achieve better optimization ratio. Optimization is configurable, user can specify,
 /// which optimization steps should be done and which not.
-class PDF4QTLIBSHARED_EXPORT PDFOptimizer : public QObject
+class PDF4QTLIBCORESHARED_EXPORT PDFOptimizer : public QObject
 {
     Q_OBJECT
 

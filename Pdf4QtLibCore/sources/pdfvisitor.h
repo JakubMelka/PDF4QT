@@ -32,7 +32,7 @@ namespace pdf
 {
 
 /// Abstract visitor, can iterate trough object tree
-class PDF4QTLIBSHARED_EXPORT PDFAbstractVisitor
+class PDF4QTLIBCORESHARED_EXPORT PDFAbstractVisitor
 {
 public:
 
@@ -81,7 +81,7 @@ protected:
 
 /// Statistics visitor, collects statistics about PDF object, can be
 /// invoked from multiple threads.
-class PDF4QTLIBSHARED_EXPORT PDFStatisticsCollector : public PDFAbstractVisitor
+class PDF4QTLIBCORESHARED_EXPORT PDFStatisticsCollector : public PDFAbstractVisitor
 {
 public:
     explicit PDFStatisticsCollector();

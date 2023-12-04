@@ -54,7 +54,7 @@ public:
     virtual bool doEvent(QEvent* event) = 0;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFWidget : public QWidget
+class PDF4QTLIBCORESHARED_EXPORT PDFWidget : public QWidget
 {
     Q_OBJECT
 

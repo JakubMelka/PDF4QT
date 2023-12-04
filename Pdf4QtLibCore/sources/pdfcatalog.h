@@ -236,7 +236,7 @@ private:
 
 /// Document security store. Contains certificates, CRLs, OCSPs, and
 /// other data for signature validation.
-class PDF4QTLIBSHARED_EXPORT PDFDocumentSecurityStore
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentSecurityStore
 {
 public:
     explicit inline PDFDocumentSecurityStore() = default;
@@ -301,7 +301,7 @@ private:
 
 /// Document extensions. Contains information about developer's extensions
 /// used in document.
-class PDF4QTLIBSHARED_EXPORT PDFDeveloperExtensions
+class PDF4QTLIBCORESHARED_EXPORT PDFDeveloperExtensions
 {
 public:
     explicit PDFDeveloperExtensions() = default;
@@ -330,7 +330,7 @@ private:
 };
 
 /// Web capture info
-class PDF4QTLIBSHARED_EXPORT PDFWebCaptureInfo
+class PDF4QTLIBCORESHARED_EXPORT PDFWebCaptureInfo
 {
 public:
     explicit PDFWebCaptureInfo() = default;
@@ -349,7 +349,7 @@ private:
     std::vector<PDFObjectReference> m_commands;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFOutputIntentICCProfileInfo
+class PDF4QTLIBCORESHARED_EXPORT PDFOutputIntentICCProfileInfo
 {
 public:
     explicit PDFOutputIntentICCProfileInfo() = default;
@@ -377,7 +377,7 @@ private:
 };
 
 /// Output intent
-class PDF4QTLIBSHARED_EXPORT PDFOutputIntent
+class PDF4QTLIBCORESHARED_EXPORT PDFOutputIntent
 {
 public:
     explicit PDFOutputIntent() = default;
@@ -411,7 +411,7 @@ private:
 };
 
 /// Legal attestations
-class PDF4QTLIBSHARED_EXPORT PDFLegalAttestation
+class PDF4QTLIBCORESHARED_EXPORT PDFLegalAttestation
 {
 public:
     explicit inline PDFLegalAttestation() = default;
@@ -459,7 +459,7 @@ private:
 /// Document can contain requirements for viewer application. This class
 /// verifies, if this library and viewer application satisfies these requirements
 /// and returns result.
-class PDF4QTLIBSHARED_EXPORT PDFDocumentRequirements
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentRequirements
 {
 public:
 
@@ -564,7 +564,7 @@ private:
     std::array<PDFActionPtr, End> m_actions;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFCatalog
+class PDF4QTLIBCORESHARED_EXPORT PDFCatalog
 {
 public:
     inline PDFCatalog() = default;

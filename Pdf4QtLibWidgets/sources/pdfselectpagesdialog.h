@@ -30,7 +30,7 @@ class PDFSelectPagesDialog;
 namespace pdf
 {
 
-class PDF4QTLIBSHARED_EXPORT PDFSelectPagesDialog : public QDialog
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFSelectPagesDialog : public QDialog
 {
     Q_OBJECT
 

@@ -46,7 +46,7 @@ class PDFPrecompiledPage;
 class PDFAnnotationManager;
 class PDFOptionalContentActivity;
 
-class PDF4QTLIBSHARED_EXPORT PDFRendererInfo
+class PDF4QTLIBCORESHARED_EXPORT PDFRendererInfo
 {
 public:
     PDFRendererInfo() = delete;
@@ -71,7 +71,7 @@ private:
 };
 
 /// Renders the PDF page on the painter, or onto an image.
-class PDF4QTLIBSHARED_EXPORT PDFRenderer
+class PDF4QTLIBCORESHARED_EXPORT PDFRenderer
 {
 public:
 
@@ -169,7 +169,7 @@ private:
 /// if it is enabled, if this is the case, offscreen rendering to framebuffer
 /// is used.
 /// \note Construct this object only in main GUI thread
-class PDF4QTLIBSHARED_EXPORT PDFRasterizer : public QObject
+class PDF4QTLIBCORESHARED_EXPORT PDFRasterizer : public QObject
 {
     Q_OBJECT
 
@@ -246,7 +246,7 @@ struct PDFRenderedPageImage
 /// render page images asynchronously. You can use this object in two ways -
 /// first one is as standard object pool, second one is to directly render
 /// page images asynchronously.
-class PDF4QTLIBSHARED_EXPORT PDFRasterizerPool : public QObject
+class PDF4QTLIBCORESHARED_EXPORT PDFRasterizerPool : public QObject
 {
     Q_OBJECT
 
@@ -328,7 +328,7 @@ private:
 };
 
 /// Settings object for image writer
-class PDF4QTLIBSHARED_EXPORT PDFImageWriterSettings
+class PDF4QTLIBCORESHARED_EXPORT PDFImageWriterSettings
 {
 public:
     explicit PDFImageWriterSettings();
@@ -380,7 +380,7 @@ private:
 };
 
 /// This class is for setup of page image exporter
-class PDF4QTLIBSHARED_EXPORT PDFPageImageExportSettings
+class PDF4QTLIBCORESHARED_EXPORT PDFPageImageExportSettings
 {
 public:
     explicit PDFPageImageExportSettings() : PDFPageImageExportSettings(nullptr) { }

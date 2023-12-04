@@ -35,7 +35,7 @@ class PDFStructureElement;
 class PDFStructureMarkedContentReference;
 class PDFStructureObjectReference;
 
-class PDF4QTLIBSHARED_EXPORT PDFStructureTreeAbstractVisitor
+class PDF4QTLIBCORESHARED_EXPORT PDFStructureTreeAbstractVisitor
 {
 public:
     inline PDFStructureTreeAbstractVisitor() = default;
@@ -50,7 +50,7 @@ protected:
     void acceptChildren(const PDFStructureItem* item);
 };
 
-class  PDF4QTLIBSHARED_EXPORT PDFStructureTreeAttribute
+class  PDF4QTLIBCORESHARED_EXPORT PDFStructureTreeAttribute
 {
 public:
 
@@ -251,7 +251,7 @@ class PDFStructureMarkedContentReference;
 using PDFStructureItemPointer = QSharedPointer<PDFStructureItem>;
 
 /// Root class for all structure tree items
-class PDF4QTLIBSHARED_EXPORT PDFStructureItem
+class PDF4QTLIBCORESHARED_EXPORT PDFStructureItem
 {
 public:
     explicit inline PDFStructureItem(PDFStructureItem* parent, PDFStructureTree* root) :
@@ -345,7 +345,7 @@ protected:
 };
 
 /// Structure tree namespace
-class PDF4QTLIBSHARED_EXPORT PDFStructureTreeNamespace
+class PDF4QTLIBCORESHARED_EXPORT PDFStructureTreeNamespace
 {
 public:
     explicit inline PDFStructureTreeNamespace() = default;
@@ -367,7 +367,7 @@ private:
 using PDFStructureTreeNamespaces = std::vector<PDFStructureTreeNamespace>;
 
 /// Structure tree, contains structure element hierarchy
-class PDF4QTLIBSHARED_EXPORT PDFStructureTree : public PDFStructureItem
+class PDF4QTLIBCORESHARED_EXPORT PDFStructureTree : public PDFStructureItem
 {
 public:
     explicit inline PDFStructureTree() : PDFStructureItem(nullptr, this) { }
@@ -447,7 +447,7 @@ private:
 };
 
 /// Structure element
-class PDF4QTLIBSHARED_EXPORT PDFStructureElement : public PDFStructureItem
+class PDF4QTLIBCORESHARED_EXPORT PDFStructureElement : public PDFStructureItem
 {
 public:
     explicit inline PDFStructureElement(PDFStructureItem* parent, PDFStructureTree* root) :
@@ -539,7 +539,7 @@ private:
 };
 
 /// Structure marked content reference
-class PDF4QTLIBSHARED_EXPORT PDFStructureMarkedContentReference : public PDFStructureItem
+class PDF4QTLIBCORESHARED_EXPORT PDFStructureMarkedContentReference : public PDFStructureItem
 {
 public:
     explicit inline PDFStructureMarkedContentReference(PDFStructureItem* parent, PDFStructureTree* root) :
@@ -577,7 +577,7 @@ private:
 };
 
 /// Structure object reference
-class PDF4QTLIBSHARED_EXPORT PDFStructureObjectReference : public PDFStructureItem
+class PDF4QTLIBCORESHARED_EXPORT PDFStructureObjectReference : public PDFStructureItem
 {
 public:
     explicit inline PDFStructureObjectReference(PDFStructureItem* parent, PDFStructureTree* root) :

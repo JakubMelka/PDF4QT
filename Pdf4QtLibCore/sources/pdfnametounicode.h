@@ -27,7 +27,7 @@
 namespace pdf
 {
 
-class PDF4QTLIBSHARED_EXPORT PDFNameToUnicode
+class PDF4QTLIBCORESHARED_EXPORT PDFNameToUnicode
 {
 public:
     explicit PDFNameToUnicode() = delete;

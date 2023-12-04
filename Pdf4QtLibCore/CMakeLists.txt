@@ -34,7 +34,6 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdffile.cpp
     sources/pdfform.cpp
     sources/pdficontheme.cpp
-    sources/pdfitemmodels.cpp
     sources/pdfjavascriptscanner.cpp
     sources/pdfjbig2decoder.cpp
     sources/pdfmultimedia.cpp
@@ -44,7 +43,6 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfoptimizer.cpp
     sources/pdfoptionalcontent.cpp
     sources/pdfoutline.cpp
-    sources/pdfpagecontentelements.cpp
     sources/pdfpagenavigation.cpp
     sources/pdfpagetransition.cpp
     sources/pdfpainterutils.cpp
@@ -92,7 +90,7 @@ include(GenerateExportHeader)
 
 GENERATE_EXPORT_HEADER(Pdf4QtLibCore
                        EXPORT_MACRO_NAME
-                       PDF4QTLIBSHARED_EXPORT
+                       PDF4QTLIBCORESHARED_EXPORT
                        EXPORT_FILE_NAME "${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR}/pdf4qtlibcore_export.h")
 
 target_link_libraries(Pdf4QtLibCore PRIVATE Qt6::Core Qt6::Gui Qt6::Xml Qt6::Svg)
@@ -102,6 +100,10 @@ target_link_libraries(Pdf4QtLibCore PRIVATE ZLIB::ZLIB)
 target_link_libraries(Pdf4QtLibCore PRIVATE freetype)
 target_link_libraries(Pdf4QtLibCore PRIVATE openjp2)
 target_link_libraries(Pdf4QtLibCore PRIVATE JPEG::JPEG)
+
+if(PDF4QT_ENABLE_OPENGL)
+    target_link_libraries(Pdf4QtLibCore PRIVATE Qt6::OpenGL)
+endif()
 
 if(LINUX_GCC)
     target_link_libraries(Pdf4QtLibCore PUBLIC TBB::tbb)

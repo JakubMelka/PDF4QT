@@ -27,7 +27,7 @@ namespace pdf
 /// Create redacted document from the document, which have redact annotations.
 /// Redacted document has removed content marked by these annotations, and
 /// annotations themselfs are removed.
-class PDF4QTLIBSHARED_EXPORT PDFRedact
+class PDF4QTLIBCORESHARED_EXPORT PDFRedact
 {
 public:
     explicit PDFRedact(const PDFDocument* document,

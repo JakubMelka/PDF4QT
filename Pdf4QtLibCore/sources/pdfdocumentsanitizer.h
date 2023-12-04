@@ -27,7 +27,7 @@ class PDFAnnotation;
 /// Class for sanitizing documents. Can remove sensitive content from the document,
 /// except the content streams. Sanitization is configurable, user can specify,
 /// which content should be removed.
-class PDF4QTLIBSHARED_EXPORT PDFDocumentSanitizer : public QObject
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentSanitizer : public QObject
 {
     Q_OBJECT
 

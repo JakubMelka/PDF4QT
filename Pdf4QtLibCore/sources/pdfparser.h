@@ -78,7 +78,7 @@ constexpr const char* PDF_REFERENCE_COMMAND = "R";
 constexpr const char* PDF_STREAM_START_COMMAND = "stream";
 constexpr const char* PDF_STREAM_END_COMMAND = "endstream";
 
-class PDF4QTLIBSHARED_EXPORT PDFLexicalAnalyzer
+class PDF4QTLIBCORESHARED_EXPORT PDFLexicalAnalyzer
 {
     Q_GADGET
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFLexicalAnalyzer)
@@ -283,7 +283,7 @@ private:
 
 /// Class for parsing objects. Checks cyclical references. If
 /// the object cannot be obtained from the stream, exception is thrown.
-class PDF4QTLIBSHARED_EXPORT PDFParser
+class PDF4QTLIBCORESHARED_EXPORT PDFParser
 {
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFParser)
 

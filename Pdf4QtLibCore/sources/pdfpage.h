@@ -139,7 +139,7 @@ private:
 
 /// Object representing page in PDF document. Contains different page properties, such as
 /// media box, crop box, rotation, etc. and also page content, resources.
-class PDF4QTLIBSHARED_EXPORT PDFPage
+class PDF4QTLIBCORESHARED_EXPORT PDFPage
 {
 public:
     explicit PDFPage() = default;

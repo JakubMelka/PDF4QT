@@ -364,7 +364,7 @@ private:
 
 /// Processor, which processes PDF's page commands and writes them to the precompiled page.
 /// Precompiled page then can be used to execute these commands on QPainter.
-class PDF4QTLIBSHARED_EXPORT PDFPrecompiledPageGenerator : public PDFPainterBase
+class PDF4QTLIBCORESHARED_EXPORT PDFPrecompiledPageGenerator : public PDFPainterBase
 {
     using BaseClass = PDFPainterBase;
 

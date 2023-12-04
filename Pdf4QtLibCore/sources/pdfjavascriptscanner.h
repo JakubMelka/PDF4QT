@@ -57,7 +57,7 @@ struct PDFJavaScriptEntry
 /// Scans document for all javascript presence (in actions). Several option
 /// can be set, for example, scan only document actions, or stop scanning,
 /// when first javascript is found.
-class PDF4QTLIBSHARED_EXPORT PDFJavaScriptScanner
+class PDF4QTLIBCORESHARED_EXPORT PDFJavaScriptScanner
 {
 public:
     explicit PDFJavaScriptScanner(const PDFDocument* document);

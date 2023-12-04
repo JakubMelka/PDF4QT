@@ -29,7 +29,7 @@ namespace pdf
 /// Tool that creates 'sticky note' annotations. Multiple types of sticky
 /// notes are available, user can select a type of sticky note. When
 /// user select a point, popup window appears and user can enter a text.
-class PDF4QTLIBSHARED_EXPORT PDFCreateStickyNoteTool : public PDFWidgetTool
+class PDF4QTLIBCORESHARED_EXPORT PDFCreateStickyNoteTool : public PDFWidgetTool
 {
     Q_OBJECT
 
@@ -52,7 +52,7 @@ private:
     TextAnnotationIcon m_icon;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFCreateAnnotationTool : public PDFWidgetTool
+class PDF4QTLIBCORESHARED_EXPORT PDFCreateAnnotationTool : public PDFWidgetTool
 {
     Q_OBJECT
 
@@ -69,7 +69,7 @@ protected:
 /// Tool that creates url link annotation. Multiple types of link highlights
 /// are available, user can select a link highlight. When link annotation
 /// is clicked, url address is triggered.
-class PDF4QTLIBSHARED_EXPORT PDFCreateHyperlinkTool : public PDFCreateAnnotationTool
+class PDF4QTLIBCORESHARED_EXPORT PDFCreateHyperlinkTool : public PDFCreateAnnotationTool
 {
     Q_OBJECT
 
@@ -91,7 +91,7 @@ private:
 };
 
 /// Tool that creates free text note without callout line.
-class PDF4QTLIBSHARED_EXPORT PDFCreateFreeTextTool : public PDFCreateAnnotationTool
+class PDF4QTLIBCORESHARED_EXPORT PDFCreateFreeTextTool : public PDFCreateAnnotationTool
 {
     Q_OBJECT
 
@@ -109,7 +109,7 @@ private:
 };
 
 /// Tool that creates line/polyline/polygon annotations.
-class PDF4QTLIBSHARED_EXPORT PDFCreateLineTypeTool : public PDFCreateAnnotationTool
+class PDF4QTLIBCORESHARED_EXPORT PDFCreateLineTypeTool : public PDFCreateAnnotationTool
 {
     Q_OBJECT
 
@@ -160,7 +160,7 @@ private:
 };
 
 /// Tool that creates ellipse annotation.
-class PDF4QTLIBSHARED_EXPORT PDFCreateEllipseTool : public PDFCreateAnnotationTool
+class PDF4QTLIBCORESHARED_EXPORT PDFCreateEllipseTool : public PDFCreateAnnotationTool
 {
     Q_OBJECT
 
@@ -196,7 +196,7 @@ private:
     QColor m_fillColor;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFCreateFreehandCurveTool : public PDFCreateAnnotationTool
+class PDF4QTLIBCORESHARED_EXPORT PDFCreateFreehandCurveTool : public PDFCreateAnnotationTool
 {
     Q_OBJECT
 
@@ -234,7 +234,7 @@ private:
 
 /// Tool that creates 'stamp' annotations. Multiple types of stamps
 /// are available, user can select a type of stamp (text).
-class PDF4QTLIBSHARED_EXPORT PDFCreateStampTool : public PDFWidgetTool
+class PDF4QTLIBCORESHARED_EXPORT PDFCreateStampTool : public PDFWidgetTool
 {
     Q_OBJECT
 
@@ -267,7 +267,7 @@ private:
 };
 
 /// Tool for highlighting of text in document
-class PDF4QTLIBSHARED_EXPORT PDFCreateHighlightTextTool : public PDFWidgetTool
+class PDF4QTLIBCORESHARED_EXPORT PDFCreateHighlightTextTool : public PDFWidgetTool
 {
     Q_OBJECT
 
@@ -319,7 +319,7 @@ private:
 
 /// Tool that creates redaction annotation from rectangle. Rectangle is not
 /// selected from the text, it is just any rectangle.
-class PDF4QTLIBSHARED_EXPORT PDFCreateRedactRectangleTool : public PDFCreateAnnotationTool
+class PDF4QTLIBCORESHARED_EXPORT PDFCreateRedactRectangleTool : public PDFCreateAnnotationTool
 {
     Q_OBJECT
 
@@ -337,7 +337,7 @@ private:
 };
 
 /// Tool for redaction of text in document. Creates redaction annotation from  text selection.
-class PDF4QTLIBSHARED_EXPORT PDFCreateRedactTextTool : public PDFWidgetTool
+class PDF4QTLIBCORESHARED_EXPORT PDFCreateRedactTextTool : public PDFWidgetTool
 {
     Q_OBJECT
 

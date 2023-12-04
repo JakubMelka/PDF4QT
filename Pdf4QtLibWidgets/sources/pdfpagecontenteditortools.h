@@ -33,7 +33,7 @@ class PDFPageContentElementRectangle;
 class PDFPageContentElementFreehandCurve;
 class PDFTextEditPseudowidget;
 
-class PDF4QTLIBSHARED_EXPORT PDFCreatePCElementTool : public PDFWidgetTool
+class PDF4QTLIBCORESHARED_EXPORT PDFCreatePCElementTool : public PDFWidgetTool
 {
     Q_OBJECT
 public:
@@ -58,7 +58,7 @@ protected:
 };
 
 /// Tool that creates rectangle element.
-class PDF4QTLIBSHARED_EXPORT PDFCreatePCElementRectangleTool : public PDFCreatePCElementTool
+class PDF4QTLIBCORESHARED_EXPORT PDFCreatePCElementRectangleTool : public PDFCreatePCElementTool
 {
     Q_OBJECT
 
@@ -91,7 +91,7 @@ private:
 };
 
 /// Tool that displays SVG image (or raster image)
-class PDF4QTLIBSHARED_EXPORT PDFCreatePCElementImageTool : public PDFCreatePCElementTool
+class PDF4QTLIBCORESHARED_EXPORT PDFCreatePCElementImageTool : public PDFCreatePCElementTool
 {
     Q_OBJECT
 
@@ -131,7 +131,7 @@ private:
 };
 
 /// Tool that creates line element.
-class PDF4QTLIBSHARED_EXPORT PDFCreatePCElementLineTool : public PDFCreatePCElementTool
+class PDF4QTLIBCORESHARED_EXPORT PDFCreatePCElementLineTool : public PDFCreatePCElementTool
 {
     Q_OBJECT
 
@@ -167,7 +167,7 @@ private:
 };
 
 /// Tool that creates dot element.
-class PDF4QTLIBSHARED_EXPORT PDFCreatePCElementDotTool : public PDFCreatePCElementTool
+class PDF4QTLIBCORESHARED_EXPORT PDFCreatePCElementDotTool : public PDFCreatePCElementTool
 {
     Q_OBJECT
 
@@ -199,7 +199,7 @@ private:
 };
 
 /// Tool that creates freehand curve element.
-class PDF4QTLIBSHARED_EXPORT PDFCreatePCElementFreehandCurveTool : public PDFCreatePCElementTool
+class PDF4QTLIBCORESHARED_EXPORT PDFCreatePCElementFreehandCurveTool : public PDFCreatePCElementTool
 {
     Q_OBJECT
 
@@ -237,7 +237,7 @@ private:
 };
 
 /// Tool that displays SVG image
-class PDF4QTLIBSHARED_EXPORT PDFCreatePCElementTextTool : public PDFCreatePCElementTool
+class PDF4QTLIBCORESHARED_EXPORT PDFCreatePCElementTextTool : public PDFCreatePCElementTool
 {
     Q_OBJECT
 

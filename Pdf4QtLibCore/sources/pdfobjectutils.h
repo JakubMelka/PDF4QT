@@ -32,7 +32,7 @@ class PDFObjectStorage;
 class PDFDocument;
 
 /// Utilities for manipulation with objects
-class PDF4QTLIBSHARED_EXPORT PDFObjectUtils
+class PDF4QTLIBCORESHARED_EXPORT PDFObjectUtils
 {
 public:
     /// Returns a list of references referenced by \p objects. So, all references, which are present
@@ -111,7 +111,7 @@ private:
 
 /// Classifies objects according to their type. Some heuristic is used
 /// when object type is missing or document is not well-formed.
-class PDF4QTLIBSHARED_EXPORT PDFObjectClassifier
+class PDF4QTLIBCORESHARED_EXPORT PDFObjectClassifier
 {
 public:
 

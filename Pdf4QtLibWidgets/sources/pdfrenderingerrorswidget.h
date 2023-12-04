@@ -31,7 +31,7 @@ namespace pdf
 {
 class PDFWidget;
 
-class PDF4QTLIBSHARED_EXPORT PDFRenderingErrorsWidget : public QDialog
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFRenderingErrorsWidget : public QDialog
 {
     Q_OBJECT
 

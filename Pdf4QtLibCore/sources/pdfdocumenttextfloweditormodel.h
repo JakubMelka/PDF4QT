@@ -27,7 +27,7 @@ namespace pdf
 {
 class PDFDocumentTextFlowEditor;
 
-class PDF4QTLIBSHARED_EXPORT PDFDocumentTextFlowEditorModel : public QAbstractTableModel
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentTextFlowEditorModel : public QAbstractTableModel
 {
     Q_OBJECT
 

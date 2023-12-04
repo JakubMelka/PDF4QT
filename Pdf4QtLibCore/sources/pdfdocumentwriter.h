@@ -29,7 +29,7 @@ namespace pdf
 
 /// Class used for writing PDF documents to the desired target device (or file,
 /// buffer, etc.). If writing is not successful, then error message is returned.
-class PDF4QTLIBSHARED_EXPORT PDFDocumentWriter
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentWriter
 {
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocumentWriter)
 

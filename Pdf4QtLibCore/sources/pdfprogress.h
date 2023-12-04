@@ -33,7 +33,7 @@ struct ProgressStartupInfo
     QString text;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFProgress : public QObject
+class PDF4QTLIBCORESHARED_EXPORT PDFProgress : public QObject
 {
     Q_OBJECT
 

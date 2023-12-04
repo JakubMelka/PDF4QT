@@ -194,7 +194,7 @@ struct PDFWidgetSnapshot
 
 /// This is a proxy class to draw space controller using widget. We have two spaces, pixel space
 /// (on the controlled widget) and device space (device is draw space controller).
-class PDF4QTLIBSHARED_EXPORT PDFDrawWidgetProxy : public QObject
+class PDF4QTLIBCORESHARED_EXPORT PDFDrawWidgetProxy : public QObject
 {
     Q_OBJECT
 

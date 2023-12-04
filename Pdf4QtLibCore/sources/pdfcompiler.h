@@ -148,7 +148,7 @@ private:
     std::map<PDFInteger, CompileTask> m_tasks;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFAsynchronousTextLayoutCompiler : public QObject
+class PDF4QTLIBCORESHARED_EXPORT PDFAsynchronousTextLayoutCompiler : public QObject
 {
     Q_OBJECT
 

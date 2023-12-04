@@ -60,7 +60,7 @@ private:
 /// Navigation object, which helps to navigate trough document.
 /// It also handles subpage navigation, if subpage navigation
 /// steps are present.
-class PDF4QTLIBSHARED_EXPORT PDFPageNavigation : public QObject
+class PDF4QTLIBCORESHARED_EXPORT PDFPageNavigation : public QObject
 {
     Q_OBJECT
 

@@ -38,7 +38,7 @@ namespace pdf
 
 struct PDFDiffPageContext;
 
-class PDF4QTLIBSHARED_EXPORT PDFDiffResult
+class PDF4QTLIBCORESHARED_EXPORT PDFDiffResult
 {
 public:
     explicit PDFDiffResult();
@@ -236,7 +236,7 @@ private:
 };
 
 /// Class for result navigation, can go to next, or previous result.
-class PDF4QTLIBSHARED_EXPORT PDFDiffResultNavigator : public QObject
+class PDF4QTLIBCORESHARED_EXPORT PDFDiffResultNavigator : public QObject
 {
     Q_OBJECT
 
@@ -283,7 +283,7 @@ private:
 };
 
 /// Diff engine for comparing two pdf documents.
-class PDF4QTLIBSHARED_EXPORT PDFDiff : public QObject
+class PDF4QTLIBCORESHARED_EXPORT PDFDiff : public QObject
 {
     Q_OBJECT
 

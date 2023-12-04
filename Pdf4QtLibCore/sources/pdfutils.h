@@ -109,7 +109,7 @@ private:
 
 /// Bit-reader, which can read n-bit unsigned integers from the stream.
 /// Number of bits can be set in the constructor and is constant.
-class PDF4QTLIBSHARED_EXPORT PDFBitReader
+class PDF4QTLIBCORESHARED_EXPORT PDFBitReader
 {
 public:
     using Value = uint64_t;
@@ -190,7 +190,7 @@ private:
 };
 
 /// Bit writer
-class PDF4QTLIBSHARED_EXPORT PDFBitWriter
+class PDF4QTLIBCORESHARED_EXPORT PDFBitWriter
 {
 public:
     using Value = uint64_t;
@@ -386,7 +386,7 @@ inline constexpr uint8_t log2ceil(uint32_t value)
     return logarithm;
 }
 
-struct PDF4QTLIBSHARED_EXPORT PDFDependentLibraryInfo
+struct PDF4QTLIBCORESHARED_EXPORT PDFDependentLibraryInfo
 {
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFDependentLibraryInfo)
 
@@ -657,7 +657,7 @@ private:
 };
 
 /// Get system information
-class PDF4QTLIBSHARED_EXPORT PDFSysUtils
+class PDF4QTLIBCORESHARED_EXPORT PDFSysUtils
 {
 public:
 
@@ -665,7 +665,7 @@ public:
 };
 
 /// Set of closed intervals
-class PDF4QTLIBSHARED_EXPORT PDFClosedIntervalSet
+class PDF4QTLIBCORESHARED_EXPORT PDFClosedIntervalSet
 {
 public:
     explicit inline PDFClosedIntervalSet() = default;
@@ -827,7 +827,7 @@ QDataStream& operator<<(QDataStream& stream, const std::set<T>& set)
 
 /// Color scale represents hot-to-cold color scale. It maps value
 /// to the color from blue trough green to red.
-class PDF4QTLIBSHARED_EXPORT PDFColorScale
+class PDF4QTLIBCORESHARED_EXPORT PDFColorScale
 {
 public:
     explicit PDFColorScale();

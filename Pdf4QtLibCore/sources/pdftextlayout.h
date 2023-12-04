@@ -226,7 +226,7 @@ using PDFTextSelectionColoredItems = std::vector<PDFTextSelectionColoredItem>;
 
 /// Text selection, can be used across multiple pages. Also defines color
 /// for each text selection.
-class PDF4QTLIBSHARED_EXPORT PDFTextSelection
+class PDF4QTLIBCORESHARED_EXPORT PDFTextSelection
 {
 public:
     explicit PDFTextSelection() = default;
@@ -285,7 +285,7 @@ using PDFTextFlows = std::vector<PDFTextFlow>;
 
 /// This class represents a portion of continuous text on the page. It can
 /// consists of multiple blocks (which follow reading order).
-class PDF4QTLIBSHARED_EXPORT PDFTextFlow
+class PDF4QTLIBCORESHARED_EXPORT PDFTextFlow
 {
 public:
 
@@ -351,7 +351,7 @@ private:
 
 /// Text layout of single page. Can handle various fonts, various angles of lines
 /// and vertically oriented text. It performs the "docstrum" algorithm.
-class PDF4QTLIBSHARED_EXPORT PDFTextLayout
+class PDF4QTLIBCORESHARED_EXPORT PDFTextLayout
 {
 public:
     explicit PDFTextLayout();
@@ -436,7 +436,7 @@ private:
 };
 
 /// Cache for storing single text layout
-class PDF4QTLIBSHARED_EXPORT PDFTextLayoutCache
+class PDF4QTLIBCORESHARED_EXPORT PDFTextLayoutCache
 {
 public:
     explicit PDFTextLayoutCache(std::function<PDFTextLayout(PDFInteger)> textLayoutGetter);
@@ -456,7 +456,7 @@ private:
     PDFTextLayout m_layout;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFTextLayoutGetter
+class PDF4QTLIBCORESHARED_EXPORT PDFTextLayoutGetter
 {
 public:
     explicit inline PDFTextLayoutGetter(PDFTextLayoutCache* cache, PDFInteger pageIndex) :
@@ -505,7 +505,7 @@ private:
 };
 
 /// Paints text selection on various pages using page to device point matrix
-class PDF4QTLIBSHARED_EXPORT PDFTextSelectionPainter
+class PDF4QTLIBCORESHARED_EXPORT PDFTextSelectionPainter
 {
 public:
     explicit inline PDFTextSelectionPainter(const PDFTextSelection* selection) :
@@ -540,7 +540,7 @@ private:
 /// For writing, mutex is used to synchronize asynchronous writes, for reading
 /// no mutex is used at all. For this reason, both reading/writing at the same time
 /// is prohibited, it is not thread safe.
-class PDF4QTLIBSHARED_EXPORT PDFTextLayoutStorage
+class PDF4QTLIBCORESHARED_EXPORT PDFTextLayoutStorage
 {
 public:
     explicit inline PDFTextLayoutStorage() = default;

@@ -121,7 +121,7 @@ struct PDFObjectEditorModelAttribute
     bool selectorAttributeValue = false;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFObjectEditorAbstractModel : public QObject
+class PDF4QTLIBCORESHARED_EXPORT PDFObjectEditorAbstractModel : public QObject
 {
     Q_OBJECT
 
@@ -230,7 +230,7 @@ protected:
     std::map<size_t, std::vector<size_t>> m_similarAttributes;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFObjectEditorAnnotationsModel : public PDFObjectEditorAbstractModel
+class PDF4QTLIBCORESHARED_EXPORT PDFObjectEditorAnnotationsModel : public PDFObjectEditorAbstractModel
 {
     Q_OBJECT
 

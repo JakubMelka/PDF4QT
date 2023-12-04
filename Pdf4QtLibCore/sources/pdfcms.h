@@ -264,7 +264,7 @@ public:
 
 using PDFCMSPointer = QSharedPointer<PDFCMS>;
 
-class PDF4QTLIBSHARED_EXPORT PDFCMSGeneric : public PDFCMS
+class PDF4QTLIBCORESHARED_EXPORT PDFCMSGeneric : public PDFCMS
 {
 public:
     explicit inline PDFCMSGeneric() = default;
@@ -356,7 +356,7 @@ using PDFColorProfileIdentifiers = std::vector<PDFColorProfileIdentifier>;
 /// It also handles settings, and it's changes. Constant functions
 /// is save to call from multiple threads, this also holds for some
 /// non-constant functions - manager is protected by mutexes.
-class PDF4QTLIBSHARED_EXPORT PDFCMSManager : public QObject
+class PDF4QTLIBCORESHARED_EXPORT PDFCMSManager : public QObject
 {
     Q_OBJECT
 

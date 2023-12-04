@@ -80,7 +80,7 @@ private:
 };
 
 /// Process the contents of the page.
-class PDF4QTLIBSHARED_EXPORT PDFPageContentProcessor : public PDFRenderErrorReporter
+class PDF4QTLIBCORESHARED_EXPORT PDFPageContentProcessor : public PDFRenderErrorReporter
 {
 public:
     explicit PDFPageContentProcessor(const PDFPage* page,
@@ -706,7 +706,7 @@ protected:
     /// Returns optional content activity
     const PDFOptionalContentActivity* getOptionalContentActivity() const { return m_optionalContentActivity; }
 
-    class PDF4QTLIBSHARED_EXPORT PDFTransparencyGroupGuard
+    class PDF4QTLIBCORESHARED_EXPORT PDFTransparencyGroupGuard
     {
     public:
         explicit PDFTransparencyGroupGuard(PDFPageContentProcessor* processor, PDFTransparencyGroup&& group);

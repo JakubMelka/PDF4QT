@@ -112,7 +112,7 @@ struct PDFInplaceString
 };
 
 /// Reference to the string implementations
-struct PDF4QTLIBSHARED_EXPORT PDFStringRef
+struct PDF4QTLIBCORESHARED_EXPORT PDFStringRef
 {
     const PDFInplaceString* inplaceString = nullptr;
     const PDFString* memoryString = nullptr;
@@ -122,7 +122,7 @@ struct PDF4QTLIBSHARED_EXPORT PDFStringRef
 
 /// This class represents string, which can be inplace string (no memory allocation),
 /// or classic byte array string, if not enough space for embedded string.
-class PDF4QTLIBSHARED_EXPORT PDFInplaceOrMemoryString
+class PDF4QTLIBCORESHARED_EXPORT PDFInplaceOrMemoryString
 {
 public:
     constexpr PDFInplaceOrMemoryString() = default;
@@ -158,7 +158,7 @@ private:
     std::variant<typename std::monostate, PDFInplaceString, QByteArray> m_value;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFObject
+class PDF4QTLIBCORESHARED_EXPORT PDFObject
 {
 public:
     enum class Type : uint8_t
@@ -311,7 +311,7 @@ private:
 };
 
 /// Represents an array of objects in the PDF file.
-class PDF4QTLIBSHARED_EXPORT PDFArray : public PDFObjectContent
+class PDF4QTLIBCORESHARED_EXPORT PDFArray : public PDFObjectContent
 {
 public:
     inline PDFArray() = default;
@@ -353,7 +353,7 @@ private:
 /// an array of pairs key-value, where key is name object and value is any
 /// PDF object. For this reason, we use QByteArray for key. We do not use
 /// map, because dictionaries are usually small.
-class PDF4QTLIBSHARED_EXPORT PDFDictionary : public PDFObjectContent
+class PDF4QTLIBCORESHARED_EXPORT PDFDictionary : public PDFObjectContent
 {
 public:
     using DictionaryEntry = std::pair<PDFInplaceOrMemoryString, PDFObject>;
@@ -464,7 +464,7 @@ private:
 
 /// Represents a stream object in the PDF file. Stream consists of dictionary
 /// and stream content - byte array.
-class PDF4QTLIBSHARED_EXPORT PDFStream : public PDFObjectContent
+class PDF4QTLIBCORESHARED_EXPORT PDFStream : public PDFObjectContent
 {
 public:
     inline explicit PDFStream() = default;
@@ -493,7 +493,7 @@ private:
     QByteArray m_content;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFObjectManipulator
+class PDF4QTLIBCORESHARED_EXPORT PDFObjectManipulator
 {
 public:
     explicit PDFObjectManipulator() = delete;

@@ -33,7 +33,7 @@ class PDFCertificateManagerDialog;
 namespace pdf
 {
 
-class PDF4QTLIBSHARED_EXPORT PDFCertificateManagerDialog : public QDialog
+class PDF4QTLIBCORESHARED_EXPORT PDFCertificateManagerDialog : public QDialog
 {
     Q_OBJECT
 

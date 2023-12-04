@@ -27,7 +27,7 @@ namespace pdf
 
 /// Theme icon provider. Can provide icons from custom directory,
 /// so user can use their own icon theme.
-class PDF4QTLIBSHARED_EXPORT PDFIconTheme
+class PDF4QTLIBCORESHARED_EXPORT PDFIconTheme
 {
 public:
     explicit PDFIconTheme() = default;

@@ -44,7 +44,7 @@ private:
     QPainter* m_painter;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFPainterHelper
+class PDF4QTLIBCORESHARED_EXPORT PDFPainterHelper
 {
 public:
     /// Draws bubble using painter. Bubble is aligned to the point, colored with color

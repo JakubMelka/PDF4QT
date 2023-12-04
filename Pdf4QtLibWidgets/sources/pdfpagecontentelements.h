@@ -36,7 +36,7 @@ class PDFWidget;
 class PDFDocument;
 class PDFPageContentScene;
 
-class PDF4QTLIBSHARED_EXPORT PDFPageContentElement
+class PDF4QTLIBCORESHARED_EXPORT PDFPageContentElement
 { 
 public:
     explicit PDFPageContentElement() = default;
@@ -117,7 +117,7 @@ protected:
     PDFInteger m_pageIndex = -1;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFPageContentStyledElement : public PDFPageContentElement
+class PDF4QTLIBCORESHARED_EXPORT PDFPageContentStyledElement : public PDFPageContentElement
 {
 public:
     explicit PDFPageContentStyledElement() = default;
@@ -134,7 +134,7 @@ protected:
     QBrush m_brush;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFPageContentElementRectangle : public PDFPageContentStyledElement
+class PDF4QTLIBCORESHARED_EXPORT PDFPageContentElementRectangle : public PDFPageContentStyledElement
 {
 public:
     virtual ~PDFPageContentElementRectangle() = default;
@@ -167,7 +167,7 @@ private:
     QRectF m_rectangle;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFPageContentElementLine : public PDFPageContentStyledElement
+class PDF4QTLIBCORESHARED_EXPORT PDFPageContentElementLine : public PDFPageContentStyledElement
 {
 public:
     virtual ~PDFPageContentElementLine() = default;
@@ -207,7 +207,7 @@ private:
     QLineF m_line;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFPageContentElementDot : public PDFPageContentStyledElement
+class PDF4QTLIBCORESHARED_EXPORT PDFPageContentElementDot : public PDFPageContentStyledElement
 {
 public:
     virtual ~PDFPageContentElementDot() = default;
@@ -236,7 +236,7 @@ private:
     QPointF m_point;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFPageContentElementFreehandCurve : public PDFPageContentStyledElement
+class PDF4QTLIBCORESHARED_EXPORT PDFPageContentElementFreehandCurve : public PDFPageContentStyledElement
 {
 public:
     virtual ~PDFPageContentElementFreehandCurve() = default;
@@ -270,7 +270,7 @@ private:
     QPainterPath m_curve;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFPageContentImageElement : public PDFPageContentElement
+class PDF4QTLIBCORESHARED_EXPORT PDFPageContentImageElement : public PDFPageContentElement
 {
 public:
     PDFPageContentImageElement();
@@ -306,7 +306,7 @@ private:
     std::unique_ptr<QSvgRenderer> m_renderer;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFPageContentElementTextBox : public PDFPageContentStyledElement
+class PDF4QTLIBCORESHARED_EXPORT PDFPageContentElementTextBox : public PDFPageContentStyledElement
 {
 public:
     virtual ~PDFPageContentElementTextBox() = default;
@@ -351,7 +351,7 @@ private:
     Qt::Alignment m_alignment = Qt::AlignCenter;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFPageContentElementManipulator : public QObject
+class PDF4QTLIBCORESHARED_EXPORT PDFPageContentElementManipulator : public QObject
 {
     Q_OBJECT
 
@@ -463,7 +463,7 @@ private:
     QPointF m_lastUpdatedPoint;
 };
 
-class PDF4QTLIBSHARED_EXPORT PDFPageContentScene : public QObject,
+class PDF4QTLIBCORESHARED_EXPORT PDFPageContentScene : public QObject,
                                                    public IDocumentDrawInterface,
                                                    public IDrawWidgetInputInterface
 {

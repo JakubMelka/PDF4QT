@@ -44,7 +44,6 @@ namespace pdf
 {
 class PDFWidget;
 class PDFObjectStorage;
-class PDFDrawWidgetProxy;
 class PDFFontCache;
 class PDFFormManager;
 class PDFModifiedDocument;
@@ -783,7 +782,7 @@ enum class TextAnnotationIcon
 /// as if flag NoZoom and NoRotate were set). When this annotation is opened,
 /// it displays popup window containing the text of the note, font and size
 /// is implementation dependent by viewer application.
-class PDF4QTLIBSHARED_EXPORT PDFTextAnnotation : public PDFMarkupAnnotation
+class PDF4QTLIBCORESHARED_EXPORT PDFTextAnnotation : public PDFMarkupAnnotation
 {
 public:
     inline explicit PDFTextAnnotation() = default;
@@ -1104,7 +1103,7 @@ enum class StampIntent
 
 /// Annotation for stamps. Displays text or graphics intended to look
 /// as if they were stamped on the paper.
-class PDF4QTLIBSHARED_EXPORT PDFStampAnnotation : public PDFMarkupAnnotation
+class PDF4QTLIBCORESHARED_EXPORT PDFStampAnnotation : public PDFMarkupAnnotation
 {
 public:
     inline explicit PDFStampAnnotation() = default;
@@ -1433,7 +1432,7 @@ private:
 /// this object builds annotation's appearance streams, if necessary. This
 /// manager is intended to non-gui rendering. If widget annotation manager is used,
 /// then this object is not thread safe.
-class PDF4QTLIBSHARED_EXPORT PDFAnnotationManager : public QObject, public IDocumentDrawInterface
+class PDF4QTLIBCORESHARED_EXPORT PDFAnnotationManager : public QObject, public IDocumentDrawInterface
 {
     Q_OBJECT
 
@@ -1621,76 +1620,6 @@ protected:
     mutable QMutex m_mutex;
     mutable std::map<PDFInteger, PageAnnotations> m_pageAnnotations;
     Target m_target = Target::View;
-};
-
-/// Annotation manager for GUI rendering, it also manages annotations widgets
-/// for parent widget.
-class PDF4QTLIBSHARED_EXPORT PDFWidgetAnnotationManager : public PDFAnnotationManager, public IDrawWidgetInputInterface
-{
-    Q_OBJECT
-
-private:
-    using BaseClass = PDFAnnotationManager;
-
-public:
-    explicit PDFWidgetAnnotationManager(PDFDrawWidgetProxy* proxy, QObject* parent);
-    virtual ~PDFWidgetAnnotationManager() override;
-
-    virtual void setDocument(const PDFModifiedDocument& document) override;
-
-    virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) override;
-    virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
-    virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event) override;
-    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
-    virtual void mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event) override;
-    virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
-    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
-    virtual void wheelEvent(QWidget* widget, QWheelEvent* event) override;
-
-    /// Returns tooltip generated from annotation
-    virtual QString getTooltip() const override { return m_tooltip; }
-
-    /// Returns current cursor
-    virtual const std::optional<QCursor>& getCursor() const override { return m_cursor; }
-
-    virtual int getInputPriority() const override { return AnnotationPriority; }
-
-signals:
-    void actionTriggered(const PDFAction* action);
-    void documentModified(PDFModifiedDocument document);
-
-private:
-    void updateFromMouseEvent(QMouseEvent* event);
-
-    void onShowPopupAnnotation();
-    void onCopyAnnotation();
-    void onEditAnnotation();
-    void onDeleteAnnotation();
-
-    /// Creates dialog for markup annotations. This function is used only for markup annotations,
-    /// do not use them for other annotations (function can crash).
-    /// \param widget Dialog's parent widget
-    /// \param pageAnnotation Markup annotation
-    /// \param pageAnnotations Page annotations
-    QDialog* createDialogForMarkupAnnotations(PDFWidget* widget,
-                                              const PageAnnotation& pageAnnotation,
-                                              const PageAnnotations& pageAnnotations);
-
-    /// Creates widgets for markup annotation main popup widget. Also sets
-    /// default size of parent widget.
-    /// \param parentWidget Parent widget, where widgets are created
-    /// \param pageAnnotation Markup annotation
-    /// \param pageAnnotations Page annotations
-    void createWidgetsForMarkupAnnotations(QWidget* parentWidget,
-                                           const PageAnnotation& pageAnnotation,
-                                           const PageAnnotations& pageAnnotations);
-
-    PDFDrawWidgetProxy* m_proxy;
-    QString m_tooltip;
-    std::optional<QCursor> m_cursor;
-    QPoint m_editableAnnotationGlobalPosition; ///< Position, where action on annotation was executed
-    PDFObjectReference m_editableAnnotation;    ///< Annotation to be edited or deleted
-    PDFObjectReference m_editableAnnotationPage;    ///< Page of annotation above
 };
 
 }   // namespace pdf

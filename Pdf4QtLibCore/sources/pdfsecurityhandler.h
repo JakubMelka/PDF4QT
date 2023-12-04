@@ -445,7 +445,7 @@ private:
 };
 
 /// Factory, which creates security handler based on settings.
-class PDF4QTLIBSHARED_EXPORT PDFSecurityHandlerFactory
+class PDF4QTLIBCORESHARED_EXPORT PDFSecurityHandlerFactory
 {
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFSecurityHandlerFactory)
 

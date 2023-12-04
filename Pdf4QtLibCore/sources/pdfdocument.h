@@ -37,7 +37,7 @@ class PDFDocumentBuilder;
 
 /// Storage for objects. This class is not thread safe for writing (calling non-const functions). Caller must ensure
 /// locking, if this object is used from multiple threads. Calling const functions should be thread safe.
-class PDF4QTLIBSHARED_EXPORT PDFObjectStorage
+class PDF4QTLIBCORESHARED_EXPORT PDFObjectStorage
 {
 public:
     inline PDFObjectStorage() = default;
@@ -146,7 +146,7 @@ private:
 /// then if object with valid data is not found, default value is used, and second one,
 /// without default value, if valid data are not found, then exception is thrown.
 /// This class uses Decorator design pattern.
-class PDF4QTLIBSHARED_EXPORT PDFDocumentDataLoaderDecorator
+class PDF4QTLIBCORESHARED_EXPORT PDFDocumentDataLoaderDecorator
 {
 public:
     explicit PDFDocumentDataLoaderDecorator(const PDFDocument* document);
@@ -402,7 +402,7 @@ private:
 };
 
 /// PDF document main class.
-class PDF4QTLIBSHARED_EXPORT PDFDocument
+class PDF4QTLIBCORESHARED_EXPORT PDFDocument
 {
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocument)
 

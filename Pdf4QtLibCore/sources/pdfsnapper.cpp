@@ -17,7 +17,6 @@
 
 #include "pdfsnapper.h"
 #include "pdfcompiler.h"
-#include "pdfwidgetutils.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfdbgheap.h"
 

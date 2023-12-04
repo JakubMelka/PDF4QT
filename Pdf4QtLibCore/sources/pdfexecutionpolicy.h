@@ -33,7 +33,7 @@ struct PDFExecutionPolicyHolder;
 /// Defines thread execution policy based on settings and actual number of page content
 /// streams being processed. It can regulate number of threads executed at each
 /// point, where execution policy is used.
-class PDF4QTLIBSHARED_EXPORT PDFExecutionPolicy
+class PDF4QTLIBCORESHARED_EXPORT PDFExecutionPolicy
 {
 public:
 

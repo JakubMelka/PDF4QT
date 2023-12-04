@@ -33,7 +33,7 @@ namespace pdf
 class PDFPrecompiledPage;
 class PDFTextLayoutGetter;
 
-class PDF4QTLIBSHARED_EXPORT IDocumentDrawInterface
+class PDF4QTLIBCORESHARED_EXPORT IDocumentDrawInterface
 {
 public:
     explicit inline IDocumentDrawInterface() = default;
