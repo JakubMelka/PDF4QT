@@ -485,56 +485,10 @@ private:
     PDFWidgetToFormFieldMapping m_widgetToFormField;
 };
 
-/// Base class for editors of form fields. It enables editation
-/// of form fields, such as entering text, clicking on check box etc.
-class PDFFormFieldWidgetEditor
-{
-public:
-    explicit PDFFormFieldWidgetEditor(PDFFormManager* formManager, PDFFormWidget formWidget);
-    virtual ~PDFFormFieldWidgetEditor() = default;
-
-    virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event);
-    virtual void keyPressEvent(QWidget* widget, QKeyEvent* event);
-    virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event);
-    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition);
-    virtual void mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition);
-    virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition);
-    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event, const QPointF& mousePagePosition);
-    virtual void wheelEvent(QWidget* widget, QWheelEvent* event, const QPointF& mousePagePosition);
-    virtual void reloadValue() { }
-    virtual bool isEditorDrawEnabled() const { return false; }
-    virtual QRectF getActiveEditorRectangle() const { return QRectF(); }
-
-    const PDFFormWidget* getFormWidget() const { return &m_formWidget; }
-    PDFFormField*  getFormField() const { return m_formWidget.getParent(); }
-    PDFObjectReference getWidgetAnnotation() const { return m_formWidget.getWidget(); }
-
-    void setFocus(bool hasFocus);
-
-    /// Draw form field widget using given parameters. It is used, when
-    /// we want to draw editor contents on the painter using parameters.
-    /// Parameter \p edit decides, if editor is drawn, or static contents
-    /// based on field value is drawn.
-    /// \param parameters Parameters
-    /// \param edit Draw editor or static contents
-    virtual void draw(AnnotationDrawParameters& parameters, bool edit) const;
-
-protected:
-    /// This function is called every time, the focus state changes
-    /// \param focused If editor was focused, or not
-    virtual void setFocusImpl(bool focused) { Q_UNUSED(focused); }
-
-    void performKeypadNavigation(QWidget* widget, QKeyEvent* event);
-
-    PDFFormManager* m_formManager;
-    PDFFormWidget m_formWidget;
-    bool m_hasFocus;
-};
-
 /// Form manager. Manages all form widgets functionality - triggers actions,
 /// edits fields, updates annotation appearances, etc. Valid pointer to annotation
 /// manager is requirement.
-class PDF4QTLIBCORESHARED_EXPORT PDFFormManager : public QObject, public IDrawWidgetInputInterface
+class PDF4QTLIBCORESHARED_EXPORT PDFFormManager : public QObject
 {
     Q_OBJECT
 
@@ -542,7 +496,7 @@ private:
     using BaseClass = QObject;
 
 public:
-    explicit PDFFormManager(PDFDrawWidgetProxy* proxy, QObject* parent);
+    explicit PDFFormManager(QObject* parent);
     virtual ~PDFFormManager() override;
 
     enum FormAppearanceFlag
@@ -599,20 +553,6 @@ public:
     /// \param functor Functor to apply
     void modify(const std::function<void(PDFFormField*)>& functor) const;
 
-    /// Sets focus to the editor. Is is allowed to pass nullptr to this
-    /// function, it means that no editor is focused.
-    /// \param editor Editor to be focused
-    void setFocusToEditor(PDFFormFieldWidgetEditor* editor);
-
-    /// Tries to set focus on next/previous form field in the focus chain.
-    /// Function returns true, if focus has been successfully set.
-    /// \param next Focus next (true) or previous (false) widget
-    bool focusNextPrevFormField(bool next);
-
-    /// Returns true, if widget is focused.
-    /// \param widget Widget annotation reference
-    bool isFocused(PDFObjectReference widget) const;
-
     /// Tries to find appropriate action and returns it. If action is not found,
     /// then nullptr is returned.
     /// \param actionType Action to be performed
@@ -622,35 +562,11 @@ public:
     /// Returns default form apperance flags
     static constexpr FormAppearanceFlags getDefaultApperanceFlags() { return FormAppearanceFlags(HighlightFields | HighlightRequiredFields); }
 
-    struct MouseEventInfo
-    {
-        /// Form field under mouse event, nullptr, if
-        /// no form field is under mouse button.
-        PDFFormField* formField = nullptr;
-
-        /// Form field widget editor, which is associated
-        /// with given form field.
-        PDFFormFieldWidgetEditor* editor = nullptr;
-
-        /// Mouse position in form field coordinate space
-        QPointF mousePosition;
-
-        /// Matrix, which maps from device space to widget space
-        QTransform deviceToWidget;
-
-        /// Returns true, if mouse event info is valid, i.e.
-        /// mouse event occurs above some form field.
-        bool isValid() const { return editor != nullptr; }
-    };
-
     /// Tries to set value to the form field
     void setFormFieldValue(PDFFormField::SetValueParameters parameters);
 
     /// Get widget rectangle (from annotation)
     QRectF getWidgetRectangle(const PDFFormWidget& widget) const;
-
-    /// Returns editor for form field
-    PDFFormFieldWidgetEditor* getEditor(const PDFFormField* formField) const;
 
     /// Is committing data disabled?
     bool isCommitDisabled() const { return m_isCommitDisabled; }
@@ -659,23 +575,6 @@ public:
     /// according to the criteria specified in reset action.
     /// \param action Reset action
     void performResetAction(const PDFActionResetForm* action);
-
-    // interface IDrawWidgetInputInterface
-
-    virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) override;
-    virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
-    virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event) override;
-    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
-    virtual void mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event) override;
-    virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
-    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
-    virtual void wheelEvent(QWidget* widget, QWheelEvent* event) override;
-
-    /// Returns tooltip generated from annotation
-    virtual QString getTooltip() const override { return QString(); }
-
-    /// Returns current cursor
-    virtual const std::optional<QCursor>& getCursor() const override;
 
     /// Draws XFA form, or does nothing, if XFA form is not present
     /// \param pagePointToDevicePointMatrix Page point to device point matrix
@@ -692,44 +591,14 @@ public:
     /// is emitted.
     void performPaging();
 
-    virtual int getInputPriority() const override { return FormPriority; }
+protected:
+    virtual void updateFieldValues();
 
 signals:
     void actionTriggered(const pdf::PDFAction* action);
     void documentModified(pdf::PDFModifiedDocument document);
 
 private:
-    void updateFormWidgetEditors();
-    void updateFieldValues();
-
-    MouseEventInfo getMouseEventInfo(QWidget* widget, QPoint point);
-
-    struct MouseGrabInfo
-    {
-        MouseEventInfo info;
-        int mouseGrabNesting = 0;
-
-        bool isMouseGrabbed() const { return mouseGrabNesting > 0; }
-    };
-
-    bool isMouseGrabbed() const { return m_mouseGrabInfo.isMouseGrabbed(); }
-
-    /// Grabs mouse input, if mouse is already grabbed, or if event
-    /// is accepted. When mouse is grabbed, then mouse input events
-    /// are sent to active editor and are automatically accepted.
-    /// \param info Mouse event info
-    /// \param event Mouse event
-    void grabMouse(const MouseEventInfo& info, QMouseEvent* event);
-
-    /// Release mouse input
-    /// \param info Mouse event info
-    /// \param event Mouse event
-    void ungrabMouse(const MouseEventInfo& info, QMouseEvent* event);
-
-    /// Releases all form widget editors
-    void clearEditors();
-
-    PDFDrawWidgetProxy* m_proxy;
     PDFAnnotationManager* m_annotationManager;
     const PDFDocument* m_document;
     FormAppearanceFlags m_flags;
@@ -737,11 +606,6 @@ private:
     bool m_isCommitDisabled;
 
     PDFXFAEngine m_xfaEngine;
-
-    std::vector<PDFFormFieldWidgetEditor*> m_widgetEditors;
-    PDFFormFieldWidgetEditor* m_focusedEditor;
-    MouseGrabInfo m_mouseGrabInfo;
-    std::optional<QCursor> m_mouseCursor;
 };
 
 }   // namespace pdf

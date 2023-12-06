@@ -53,6 +53,10 @@ add_library(Pdf4QtLibWidgets SHARED
     sources/pdfpagecontentelements.h
     sources/pdfitemmodels.cpp
     sources/pdfitemmodels.h
+    sources/pdfwidgetformmanager.h
+    sources/pdfwidgetformmanager.cpp
+    sources/pdftexteditpseudowidget.cpp
+    sources/pdftexteditpseudowidget.h
 )
 
 include(GenerateExportHeader)

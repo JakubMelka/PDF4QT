@@ -57,7 +57,6 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfsignaturehandler.cpp
     sources/pdfsnapper.cpp
     sources/pdfstructuretree.cpp
-    sources/pdftexteditpseudowidget.cpp
     sources/pdftextlayout.cpp
     sources/pdftransparencyrenderer.cpp
     sources/pdfutils.cpp
