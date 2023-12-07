@@ -18,6 +18,7 @@
 #ifndef PDFCOMPILER_H
 #define PDFCOMPILER_H
 
+#include "pdfwidgetsglobal.h"
 #include "pdfrenderer.h"
 #include "pdfpainter.h"
 #include "pdftextlayout.h"
@@ -148,7 +149,7 @@ private:
     std::map<PDFInteger, CompileTask> m_tasks;
 };
 
-class PDF4QTLIBCORESHARED_EXPORT PDFAsynchronousTextLayoutCompiler : public QObject
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFAsynchronousTextLayoutCompiler : public QObject
 {
     Q_OBJECT
 
@@ -224,38 +225,6 @@ private:
     QFuture<PDFTextLayoutStorage> m_textLayoutCompileFuture;
     QFutureWatcher<PDFTextLayoutStorage> m_textLayoutCompileFutureWatcher;
     PDFTextLayoutCache m_cache;
-};
-
-class PDFTextLayoutGenerator : public PDFPageContentProcessor
-{
-    using BaseClass = PDFPageContentProcessor;
-
-public:
-    explicit PDFTextLayoutGenerator(PDFRenderer::Features features,
-                                    const PDFPage* page,
-                                    const PDFDocument* document,
-                                    const PDFFontCache* fontCache,
-                                    const PDFCMS* cms,
-                                    const PDFOptionalContentActivity* optionalContentActivity,
-                                    QTransform pagePointToDevicePointMatrix,
-                                    const PDFMeshQualitySettings& meshQualitySettings) :
-        BaseClass(page, document, fontCache, cms, optionalContentActivity, pagePointToDevicePointMatrix, meshQualitySettings),
-        m_features(features)
-    {
-
-    }
-
-    /// Creates text layout from the text
-    PDFTextLayout createTextLayout();
-
-protected:
-    virtual bool isContentSuppressedByOC(PDFObjectReference ocgOrOcmd) override;
-    virtual bool isContentKindSuppressed(ContentKind kind) const override;
-    virtual void performOutputCharacter(const PDFTextCharacterInfo& info) override;
-
-private:
-    PDFRenderer::Features m_features;
-    PDFTextLayout m_textLayout;
 };
 
 }   // namespace pdf

@@ -16,9 +16,10 @@
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfsnapper.h"
-#include "pdfcompiler.h"
-#include "pdfdrawspacecontroller.h"
+#include "pdfutils.h"
 #include "pdfdbgheap.h"
+#include "pdfpainter.h"
+#include "pdfwidgetsnapshot.h"
 
 #include <QPainter>
 

@@ -21,9 +21,9 @@
 #include "pdfexecutionpolicy.h"
 #include "pdffont.h"
 #include "pdfcms.h"
-#include "pdfcompiler.h"
 #include "pdfconstants.h"
 #include "pdfalgorithmlcs.h"
+#include "pdfpainter.h"
 #include "pdfdbgheap.h"
 
 #include <QtConcurrent/QtConcurrent>

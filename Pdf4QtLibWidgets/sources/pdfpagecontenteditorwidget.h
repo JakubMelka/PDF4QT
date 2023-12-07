@@ -18,6 +18,7 @@
 #ifndef PDFPAGECONTENTEDITORWIDGET_H
 #define PDFPAGECONTENTEDITORWIDGET_H
 
+#include "pdfwidgetsglobal.h"
 #include "pdfglobal.h"
 
 #include <QDockWidget>
@@ -38,7 +39,7 @@ class PDFPageContentScene;
 class PDFPageContentElement;
 class PDFPageContentEditorStyleSettings;
 
-class PDF4QTLIBCORESHARED_EXPORT PDFPageContentEditorWidget : public QDockWidget
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFPageContentEditorWidget : public QDockWidget
 {
     Q_OBJECT
 

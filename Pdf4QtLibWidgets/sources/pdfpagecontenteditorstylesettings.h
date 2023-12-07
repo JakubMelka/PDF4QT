@@ -18,6 +18,7 @@
 #ifndef PDFPAGECONTENTEDITORSTYLESETTINGS_H
 #define PDFPAGECONTENTEDITORSTYLESETTINGS_H
 
+#include "pdfwidgetsglobal.h"
 #include "pdfglobal.h"
 
 #include <QPen>
@@ -38,7 +39,7 @@ namespace pdf
 {
 class PDFPageContentElement;
 
-class PDF4QTLIBCORESHARED_EXPORT PDFPageContentEditorStyleSettings : public QWidget
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFPageContentEditorStyleSettings : public QWidget
 {
     Q_OBJECT
 

@@ -57,13 +57,19 @@ add_library(Pdf4QtLibWidgets SHARED
     sources/pdfwidgetformmanager.cpp
     sources/pdftexteditpseudowidget.cpp
     sources/pdftexteditpseudowidget.h
+    sources/pdfdrawspacecontroller.cpp
+    sources/pdfdrawspacecontroller.h
+    sources/pdfcompiler.cpp
+    sources/pdfcompiler.h
+    sources/pdfdocumentdrawinterface.h
+    sources/pdfwidgetsglobal.h
 )
 
 include(GenerateExportHeader)
 
 GENERATE_EXPORT_HEADER(Pdf4QtLibWidgets
                        EXPORT_MACRO_NAME
-                       PDF4QTLIBCORESHARED_EXPORT
+                       PDF4QTLIBWIDGETSSHARED_EXPORT
                        EXPORT_FILE_NAME "${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR}/pdf4qtlibwidgets_export.h")
 
 if(PDF4QT_ENABLE_OPENGL)

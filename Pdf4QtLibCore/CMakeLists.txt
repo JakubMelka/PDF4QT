@@ -23,7 +23,6 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfccittfaxdecoder.cpp
     sources/pdfcertificatemanager.cpp
     sources/pdfcms.cpp
-    sources/pdfcompiler.cpp
     sources/pdfdiff.cpp
     sources/pdfdocumentbuilder.cpp
     sources/pdfdocumentmanipulator.cpp
@@ -67,7 +66,6 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfcatalog.cpp
     sources/pdfpage.cpp
     sources/pdfstreamfilters.cpp
-    sources/pdfdrawspacecontroller.cpp
     sources/pdfcolorspaces.cpp
     sources/pdfrenderer.cpp
     sources/pdfpagecontentprocessor.cpp
@@ -82,6 +80,10 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfimageconversion.cpp
     sources/pdfcolorconvertor.h
     sources/pdfcolorconvertor.cpp
+    sources/pdftextlayoutgenerator.h
+    sources/pdftextlayoutgenerator.cpp
+    sources/pdfwidgetsnapshot.cpp
+    sources/pdfwidgetsnapshot.h
     cmaps.qrc
 )
 

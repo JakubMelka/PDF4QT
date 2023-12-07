@@ -18,15 +18,15 @@
 #include "pdfdocumenttextflow.h"
 #include "pdfdocument.h"
 #include "pdfstructuretree.h"
-#include "pdfcompiler.h"
 #include "pdfexecutionpolicy.h"
 #include "pdfconstants.h"
 #include "pdfcms.h"
+#include "pdftextlayoutgenerator.h"
+#include "pdfpagecontentprocessor.h"
 #include "pdfdbgheap.h"
 
 namespace pdf
 {
-
 
 class PDFStructureTreeReferenceCollector : public PDFStructureTreeAbstractVisitor
 {

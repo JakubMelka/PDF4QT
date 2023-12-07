@@ -15,8 +15,10 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDF4QT. If not, see <https://www.gnu.org/licenses/>.
 
+#include "pdfwidgetannotation.h"
 #include "pdfdrawwidget.h"
 #include "pdfwidgetutils.h"
+#include "pdfdrawspacecontroller.h"
 
 #include <QMenu>
 #include <QDialog>
@@ -508,6 +510,16 @@ void PDFWidgetAnnotationManager::createWidgetsForMarkupAnnotations(QWidget* pare
 
     frameWidget->setFixedSize(frameWidget->minimumSizeHint());
     parentWidget->setFixedSize(scrollArea->sizeHint());
+}
+
+void PDFWidgetAnnotationManager::drawPage(QPainter* painter,
+                                          PDFInteger pageIndex,
+                                          const PDFPrecompiledPage* compiledPage,
+                                          PDFTextLayoutGetter& layoutGetter,
+                                          const QTransform& pagePointToDevicePointMatrix,
+                                          QList<PDFRenderError>& errors) const
+{
+    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
 }
 
 }   // namespace pdf

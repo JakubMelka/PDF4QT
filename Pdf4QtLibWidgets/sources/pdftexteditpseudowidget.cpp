@@ -21,7 +21,7 @@
 #include <QStyle>
 #include <QKeyEvent>
 #include <QMouseEvent>
-#include <QCoreApplication>
+#include <QApplication>
 #include <QClipboard>
 
 namespace pdf
@@ -35,7 +35,7 @@ PDFTextEditPseudowidget::PDFTextEditPseudowidget(PDFFormField::FieldFlags flags)
     m_maxTextLength(0)
 {
     m_textLayout.setCacheEnabled(true);
-    m_passwordReplacementCharacter = QChar(QCoreApplication::style()->styleHint(QStyle::SH_LineEdit_PasswordCharacter));
+    m_passwordReplacementCharacter = QChar(QApplication::style()->styleHint(QStyle::SH_LineEdit_PasswordCharacter));
 }
 
 void PDFTextEditPseudowidget::shortcutOverrideEvent(QWidget* widget, QKeyEvent* event)

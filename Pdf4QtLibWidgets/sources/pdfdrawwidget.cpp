@@ -20,7 +20,8 @@
 #include "pdfcompiler.h"
 #include "pdfwidgettool.h"
 #include "pdfannotation.h"
-#include "pdfform.h"
+#include "pdfwidgetannotation.h"
+#include "pdfwidgetformmanager.h"
 #include "pdfdbgheap.h"
 
 #include <QPainter>
@@ -231,12 +232,12 @@ RendererEngine PDFWidget::getEffectiveRenderer(RendererEngine rendererEngine)
     return rendererEngine;
 }
 
-PDFFormManager* PDFWidget::getFormManager() const
+PDFWidgetFormManager* PDFWidget::getFormManager() const
 {
     return m_formManager;
 }
 
-void PDFWidget::setFormManager(PDFFormManager* formManager)
+void PDFWidget::setFormManager(PDFWidgetFormManager* formManager)
 {
     removeInputInterface(m_formManager);
     m_formManager = formManager;

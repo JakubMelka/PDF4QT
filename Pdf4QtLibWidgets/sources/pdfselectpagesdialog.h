@@ -18,6 +18,7 @@
 #ifndef PDFSELECTPAGESDIALOG_H
 #define PDFSELECTPAGESDIALOG_H
 
+#include "pdfwidgetsglobal.h"
 #include "pdfutils.h"
 
 #include <QDialog>

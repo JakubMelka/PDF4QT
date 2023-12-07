@@ -18,6 +18,7 @@
 #ifndef PDFWIDGETTOOL_H
 #define PDFWIDGETTOOL_H
 
+#include "pdfwidgetsglobal.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdftextlayout.h"
 #include "pdfsnapper.h"

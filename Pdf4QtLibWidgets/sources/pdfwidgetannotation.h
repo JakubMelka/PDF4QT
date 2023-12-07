@@ -15,7 +15,9 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDF4QT. If not, see <https://www.gnu.org/licenses/>.
 
+#include "pdfwidgetsglobal.h"
 #include "pdfannotation.h"
+#include "pdfdocumentdrawinterface.h"
 
 namespace pdf
 {
@@ -24,7 +26,7 @@ class PDFDrawWidgetProxy;
 
 /// Annotation manager for GUI rendering, it also manages annotations widgets
 /// for parent widget.
-class PDF4QTLIBWIDGETSSHARED_EXPORT PDFWidgetAnnotationManager : public PDFAnnotationManager, public IDrawWidgetInputInterface
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFWidgetAnnotationManager : public PDFAnnotationManager, public IDrawWidgetInputInterface, public IDocumentDrawInterface
 {
     Q_OBJECT
 
@@ -36,7 +38,6 @@ public:
     virtual ~PDFWidgetAnnotationManager() override;
 
     virtual void setDocument(const PDFModifiedDocument& document) override;
-
     virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) override;
     virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
     virtual void keyReleaseEvent(QWidget* widget, QKeyEvent* event) override;
@@ -45,6 +46,13 @@ public:
     virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void wheelEvent(QWidget* widget, QWheelEvent* event) override;
+
+    virtual void drawPage(QPainter* painter,
+                          PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QTransform& pagePointToDevicePointMatrix,
+                          QList<PDFRenderError>& errors) const override;
 
     /// Returns tooltip generated from annotation
     virtual QString getTooltip() const override { return m_tooltip; }

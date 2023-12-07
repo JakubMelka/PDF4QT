@@ -21,7 +21,6 @@
 #include "pdfobject.h"
 #include "pdfdocument.h"
 #include "pdfannotation.h"
-#include "pdfdocumentdrawinterface.h"
 #include "pdfsignaturehandler.h"
 #include "pdfxfaengine.h"
 

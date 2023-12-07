@@ -30,7 +30,6 @@
 #include <unordered_map>
 
 class QPainterPath;
-class QTreeWidgetItem;
 
 namespace pdf
 {
@@ -54,6 +53,16 @@ enum class TextRenderingMode
     StrokeClip = 5,
     FillStrokeClip = 6,
     Clip = 7
+};
+
+class ITreeFactory
+{
+public:
+    virtual ~ITreeFactory() = default;
+
+    virtual void pushItem(QStringList texts) = 0;
+    virtual void addItem(QStringList texts) = 0;
+    virtual void popItem() = 0;
 };
 
 /// Item of the text sequence (either single character, or advance)
@@ -261,7 +270,7 @@ public:
     bool isHorizontalWritingSystem() const;
 
     /// Adds information about the font into tree item
-    void dumpFontToTreeItem(QTreeWidgetItem* item) const;
+    void dumpFontToTreeItem(ITreeFactory* treeFactory) const;
 
     /// Returns postscript name of the font
     QString getPostScriptName() const;
@@ -303,7 +312,7 @@ public:
     const CIDSystemInfo* getCIDSystemInfo() const { return &m_CIDSystemInfo; }
 
     /// Adds information about the font into tree item
-    virtual void dumpFontToTreeItem(QTreeWidgetItem* item) const { Q_UNUSED(item); }
+    virtual void dumpFontToTreeItem(ITreeFactory* treeFactory) const { Q_UNUSED(treeFactory); }
 
     /// Creates font from the object. If font can't be created, exception is thrown.
     /// \param object Font dictionary
@@ -351,7 +360,7 @@ public:
     /// Returns the glyph advance (or zero, if glyph advance is invalid)
     PDFInteger getGlyphAdvance(size_t index) const;
 
-    virtual void dumpFontToTreeItem(QTreeWidgetItem* item) const override;
+    virtual void dumpFontToTreeItem(ITreeFactory* treeFactory) const override;
 
 protected:
     QByteArray m_name;
@@ -384,7 +393,7 @@ public:
     virtual ~PDFType1Font() override = default;
 
     virtual FontType getFontType() const override;
-    virtual void dumpFontToTreeItem(QTreeWidgetItem*item) const override;
+    virtual void dumpFontToTreeItem(ITreeFactory* treeFactory) const override;
 
     /// Returns the assigned standard font (or invalid, if font is not standard)
     StandardFontType getStandardFontType() const { return m_standardFontType; }
@@ -598,7 +607,7 @@ public:
                           PDFFontCMap toUnicode);
 
     virtual FontType getFontType() const override;
-    virtual void dumpFontToTreeItem(QTreeWidgetItem*item) const override;
+    virtual void dumpFontToTreeItem(ITreeFactory* treeFactory) const override;
     virtual const PDFFontCMap* getToUnicode() const override { return &m_toUnicode; }
 
     /// Returns width of the character. If character doesn't exist, then zero is returned.

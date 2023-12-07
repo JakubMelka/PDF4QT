@@ -1,4 +1,4 @@
-//    Copyright (C) 2019-2021 Jakub Melka
+//    Copyright (C) 2023 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -15,35 +15,31 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef PDFRENDERINGERRORSWIDGET_H
-#define PDFRENDERINGERRORSWIDGET_H
-
-#include "pdfwidgetsglobal.h"
 #include "pdfglobal.h"
 
-#include <QDialog>
-
-namespace Ui
-{
-class PDFRenderingErrorsWidget;
-}
+#include <QRectF>
+#include <QTransform>
 
 namespace pdf
 {
-class PDFWidget;
+class PDFPrecompiledPage;
 
-class PDF4QTLIBWIDGETSSHARED_EXPORT PDFRenderingErrorsWidget : public QDialog
+/// Snapshot for current widget viewable items.
+struct PDFWidgetSnapshot
 {
-    Q_OBJECT
+    struct SnapshotItem
+    {
+        PDFInteger pageIndex = -1;  ///< Index of page
+        QRectF rect;                ///< Page rectangle on viewport
+        QTransform pageToDeviceMatrix;             ///< Transforms page coordinates to widget coordinates
+        const PDFPrecompiledPage* compiledPage = nullptr; ///< Compiled page (can be nullptr)
+    };
 
-public:
-    explicit PDFRenderingErrorsWidget(QWidget* parent, PDFWidget* pdfWidget);
-    virtual ~PDFRenderingErrorsWidget() override;
+    bool hasPage(PDFInteger pageIndex) const { return getPageSnapshot(pageIndex) != nullptr; }
+    const SnapshotItem* getPageSnapshot(PDFInteger pageIndex) const;
 
-private:
-    Ui::PDFRenderingErrorsWidget* ui;
+    using SnapshotItems = std::vector<SnapshotItem>;
+    SnapshotItems items;
 };
 
 }   // namespace pdf
-
-#endif // PDFRENDERINGERRORSWIDGET_H

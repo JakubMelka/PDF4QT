@@ -23,8 +23,8 @@
 #include "pdfrenderer.h"
 #include "pdfpagecontentprocessor.h"
 #include "pdftextlayout.h"
-#include "pdfsnapper.h"
 #include "pdfcolorconvertor.h"
+#include "pdfsnapper.h"
 
 #include <QPen>
 #include <QBrush>
@@ -370,13 +370,13 @@ class PDF4QTLIBCORESHARED_EXPORT PDFPrecompiledPageGenerator : public PDFPainter
 
 public:
     explicit PDFPrecompiledPageGenerator(PDFPrecompiledPage* precompiledPage,
-                                                PDFRenderer::Features features,
-                                                const PDFPage* page,
-                                                const PDFDocument* document,
-                                                const PDFFontCache* fontCache,
-                                                const PDFCMS* cms,
-                                                const PDFOptionalContentActivity* optionalContentActivity,
-                                                const PDFMeshQualitySettings& meshQualitySettings);
+                                         PDFRenderer::Features features,
+                                         const PDFPage* page,
+                                         const PDFDocument* document,
+                                         const PDFFontCache* fontCache,
+                                         const PDFCMS* cms,
+                                         const PDFOptionalContentActivity* optionalContentActivity,
+                                         const PDFMeshQualitySettings& meshQualitySettings);
 
 protected:
     virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule) override;

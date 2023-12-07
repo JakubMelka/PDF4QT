@@ -18,6 +18,7 @@
 #ifndef PDFITEMMODELS_H
 #define PDFITEMMODELS_H
 
+#include "pdfwidgetsglobal.h"
 #include "pdfglobal.h"
 #include "pdfobject.h"
 
@@ -39,7 +40,7 @@ class PDFDrawWidgetProxy;
 class PDFDestination;
 
 /// Represents tree item in the GUI tree
-class PDF4QTLIBCORESHARED_EXPORT PDFTreeItem
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFTreeItem
 {
 public:
     inline explicit PDFTreeItem() = default;
@@ -89,7 +90,7 @@ private:
 /// Root of all tree item models. Reimplementations of this model
 /// must handle "soft" document updates, such as only annotations changed etc.
 /// Model should be rebuilded only, if it is neccessary.
-class PDF4QTLIBCORESHARED_EXPORT PDFTreeItemModel : public QAbstractItemModel
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFTreeItemModel : public QAbstractItemModel
 {
 public:
     explicit PDFTreeItemModel(QObject* parent);
@@ -132,7 +133,7 @@ private:
     bool m_locked; ///< Node is locked (user can't change it)
 };
 
-class PDF4QTLIBCORESHARED_EXPORT PDFOptionalContentTreeItemModel : public PDFTreeItemModel
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFOptionalContentTreeItemModel : public PDFTreeItemModel
 {
     Q_OBJECT
 public:
@@ -167,7 +168,7 @@ private:
     QSharedPointer<PDFOutlineItem> m_outlineItem;
 };
 
-class PDF4QTLIBCORESHARED_EXPORT PDFOutlineTreeItemModel : public PDFTreeItemModel
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFOutlineTreeItemModel : public PDFTreeItemModel
 {
     Q_OBJECT
 public:
@@ -221,7 +222,7 @@ private:
     mutable QSharedPointer<PDFOutlineItem> m_dragDropItem;
 };
 
-class PDF4QTLIBCORESHARED_EXPORT PDFSelectableOutlineTreeItemModel : public PDFOutlineTreeItemModel
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFSelectableOutlineTreeItemModel : public PDFOutlineTreeItemModel
 {
     Q_OBJECT
 
@@ -264,7 +265,7 @@ private:
     std::unique_ptr<PDFFileSpecification> m_fileSpecification;
 };
 
-class PDF4QTLIBCORESHARED_EXPORT PDFAttachmentsTreeItemModel : public PDFTreeItemModel
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFAttachmentsTreeItemModel : public PDFTreeItemModel
 {
     Q_OBJECT
 public:
@@ -289,7 +290,7 @@ public:
     const PDFFileSpecification* getFileSpecification(const QModelIndex& index) const;
 };
 
-class PDF4QTLIBCORESHARED_EXPORT PDFThumbnailsItemModel : public QAbstractItemModel
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFThumbnailsItemModel : public QAbstractItemModel
 {
     Q_OBJECT
 

@@ -19,7 +19,6 @@
 #include "pdfdocument.h"
 #include "pdfencoding.h"
 #include "pdfpainter.h"
-#include "pdfdrawspacecontroller.h"
 #include "pdfcms.h"
 #include "pdfpagecontentprocessor.h"
 #include "pdfparser.h"
@@ -3114,7 +3113,7 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
             case PDFFormField::FieldType::Text:
             case PDFFormField::FieldType::Choice:
             {
-                m_parameters.formManager->drawFormField(parameters, false);
+                parameters.formManager->drawFormField(formField, parameters, false);
                 break;
             }
 

@@ -16,6 +16,7 @@
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfform.h"
+#include "pdfdocumentdrawinterface.h"
 
 namespace pdf
 {
@@ -53,7 +54,7 @@ public:
     /// based on field value is drawn.
     /// \param parameters Parameters
     /// \param edit Draw editor or static contents
-    virtual void draw(AnnotationDrawParameters& parameters, bool edit) const override;
+    virtual void draw(AnnotationDrawParameters& parameters, bool edit) const;
 
 protected:
     /// This function is called every time, the focus state changes

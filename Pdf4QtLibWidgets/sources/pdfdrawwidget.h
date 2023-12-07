@@ -18,6 +18,7 @@
 #ifndef PDFDRAWWIDGET_H
 #define PDFDRAWWIDGET_H
 
+#include "pdfwidgetsglobal.h"
 #include "pdfglobal.h"
 #include "pdfrenderer.h"
 
@@ -34,7 +35,7 @@ class PDFDocument;
 class PDFCMSManager;
 class PDFToolManager;
 class PDFDrawWidget;
-class PDFFormManager;
+class PDFWidgetFormManager;
 class PDFDrawWidgetProxy;
 class PDFModifiedDocument;
 class PDFWidgetAnnotationManager;
@@ -54,7 +55,7 @@ public:
     virtual bool doEvent(QEvent* event) = 0;
 };
 
-class PDF4QTLIBCORESHARED_EXPORT PDFWidget : public QWidget
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFWidget : public QWidget
 {
     Q_OBJECT
 
@@ -102,8 +103,8 @@ public:
     void setToolManager(PDFToolManager* toolManager);
     void setAnnotationManager(PDFWidgetAnnotationManager* annotationManager);
 
-    PDFFormManager* getFormManager() const;
-    void setFormManager(PDFFormManager* formManager);
+    PDFWidgetFormManager* getFormManager() const;
+    void setFormManager(PDFWidgetFormManager* formManager);
 
     void removeInputInterface(IDrawWidgetInputInterface* inputInterface);
     void addInputInterface(IDrawWidgetInputInterface* inputInterface);
@@ -123,7 +124,7 @@ private:
     const PDFCMSManager* m_cmsManager;
     PDFToolManager* m_toolManager;
     PDFWidgetAnnotationManager* m_annotationManager;
-    PDFFormManager* m_formManager;
+    PDFWidgetFormManager* m_formManager;
     IDrawWidget* m_drawWidget;
     QScrollBar* m_horizontalScrollBar;
     QScrollBar* m_verticalScrollBar;

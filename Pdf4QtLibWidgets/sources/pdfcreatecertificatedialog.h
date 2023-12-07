@@ -18,6 +18,7 @@
 #ifndef PDFCREATECERTIFICATEDIALOG_H
 #define PDFCREATECERTIFICATEDIALOG_H
 
+#include "pdfwidgetsglobal.h"
 #include "pdfcertificatemanager.h"
 
 #include <QDialog>
@@ -30,7 +31,7 @@ class PDFCreateCertificateDialog;
 namespace pdf
 {
 
-class PDF4QTLIBCORESHARED_EXPORT PDFCreateCertificateDialog : public QDialog
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFCreateCertificateDialog : public QDialog
 {
     Q_OBJECT
 

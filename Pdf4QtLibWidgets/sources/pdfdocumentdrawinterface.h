@@ -18,6 +18,7 @@
 #ifndef PDFDOCUMENTDRAWINTERFACE_H
 #define PDFDOCUMENTDRAWINTERFACE_H
 
+#include "pdfwidgetsglobal.h"
 #include "pdfglobal.h"
 #include "pdfexception.h"
 
@@ -33,7 +34,7 @@ namespace pdf
 class PDFPrecompiledPage;
 class PDFTextLayoutGetter;
 
-class PDF4QTLIBCORESHARED_EXPORT IDocumentDrawInterface
+class PDF4QTLIBWIDGETSSHARED_EXPORT IDocumentDrawInterface
 {
 public:
     explicit inline IDocumentDrawInterface() = default;

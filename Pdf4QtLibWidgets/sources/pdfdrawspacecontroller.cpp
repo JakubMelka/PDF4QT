@@ -22,6 +22,7 @@
 #include "pdfconstants.h"
 #include "pdfcms.h"
 #include "pdfannotation.h"
+#include "pdfdrawwidget.h"
 #include "pdfdbgheap.h"
 
 #include <QTimer>
@@ -1607,17 +1608,6 @@ void IDocumentDrawInterface::drawPostRendering(QPainter* painter, QRect rect) co
 {
     Q_UNUSED(painter);
     Q_UNUSED(rect);
-}
-
-const PDFWidgetSnapshot::SnapshotItem* PDFWidgetSnapshot::getPageSnapshot(PDFInteger pageIndex) const
-{
-    auto it = std::find_if(items.cbegin(), items.cend(), [pageIndex](const auto& item) { return item.pageIndex == pageIndex; });
-    if (it != items.cend())
-    {
-        return &*it;
-    }
-
-    return nullptr;
 }
 
 }   // namespace pdf

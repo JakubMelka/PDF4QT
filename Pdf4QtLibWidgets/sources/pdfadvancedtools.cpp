@@ -20,6 +20,7 @@
 #include "pdfdrawwidget.h"
 #include "pdfutils.h"
 #include "pdfcompiler.h"
+#include "pdfwidgetformmanager.h"
 #include "pdfdbgheap.h"
 
 #include <QActionGroup>

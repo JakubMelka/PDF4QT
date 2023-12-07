@@ -17,7 +17,6 @@
 
 #include "pdfform.h"
 #include "pdfdocument.h"
-#include "pdfdrawspacecontroller.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfpainterutils.h"
 #include "pdfdbgheap.h"
@@ -910,6 +909,19 @@ bool PDFFormManager::isEditorDrawEnabled(const PDFObjectReference& reference) co
 {
     Q_UNUSED(reference);
     return false;
+}
+
+bool PDFFormManager::isEditorDrawEnabled(const PDFFormField* formField) const
+{
+    Q_UNUSED(formField);
+    return false;
+}
+
+void PDFFormManager::drawFormField(const PDFFormField* formField, AnnotationDrawParameters& parameters, bool edit) const
+{
+    Q_UNUSED(formField);
+    Q_UNUSED(parameters);
+    Q_UNUSED(edit);
 }
 
 void PDFFormManager::updateFieldValues()

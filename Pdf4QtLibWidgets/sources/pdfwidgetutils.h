@@ -18,6 +18,7 @@
 #ifndef PDFWIDGETUTILS_H
 #define PDFWIDGETUTILS_H
 
+#include "pdfwidgetsglobal.h"
 #include "pdfglobal.h"
 
 #include <QIcon>

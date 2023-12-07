@@ -25,11 +25,11 @@
 #include "pdfcms.h"
 #include "pdfmultimedia.h"
 #include "pdfmeshqualitysettings.h"
-#include "pdfdocumentdrawinterface.h"
 #include "pdfrenderer.h"
 #include "pdfblendfunction.h"
 #include "pdfdocument.h"
 #include "pdfcolorconvertor.h"
+#include "pdftextlayout.h"
 
 #include <QCursor>
 #include <QPainterPath>
@@ -1432,7 +1432,7 @@ private:
 /// this object builds annotation's appearance streams, if necessary. This
 /// manager is intended to non-gui rendering. If widget annotation manager is used,
 /// then this object is not thread safe.
-class PDF4QTLIBCORESHARED_EXPORT PDFAnnotationManager : public QObject, public IDocumentDrawInterface
+class PDF4QTLIBCORESHARED_EXPORT PDFAnnotationManager : public QObject
 {
     Q_OBJECT
 
@@ -1463,7 +1463,7 @@ public:
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
-                          QList<PDFRenderError>& errors) const override;
+                          QList<PDFRenderError>& errors) const;
 
     /// Set document
     /// \param document New document

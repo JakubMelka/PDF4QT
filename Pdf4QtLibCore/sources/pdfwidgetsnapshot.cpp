@@ -1,4 +1,4 @@
-//    Copyright (C) 2019-2021 Jakub Melka
+//    Copyright (C) 2023 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -15,35 +15,20 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef PDFRENDERINGERRORSWIDGET_H
-#define PDFRENDERINGERRORSWIDGET_H
-
-#include "pdfwidgetsglobal.h"
-#include "pdfglobal.h"
-
-#include <QDialog>
-
-namespace Ui
-{
-class PDFRenderingErrorsWidget;
-}
+#include "pdfwidgetsnapshot.h"
 
 namespace pdf
 {
-class PDFWidget;
 
-class PDF4QTLIBWIDGETSSHARED_EXPORT PDFRenderingErrorsWidget : public QDialog
+const PDFWidgetSnapshot::SnapshotItem* PDFWidgetSnapshot::getPageSnapshot(PDFInteger pageIndex) const
 {
-    Q_OBJECT
+    auto it = std::find_if(items.cbegin(), items.cend(), [pageIndex](const auto& item) { return item.pageIndex == pageIndex; });
+    if (it != items.cend())
+    {
+        return &*it;
+    }
 
-public:
-    explicit PDFRenderingErrorsWidget(QWidget* parent, PDFWidget* pdfWidget);
-    virtual ~PDFRenderingErrorsWidget() override;
-
-private:
-    Ui::PDFRenderingErrorsWidget* ui;
-};
+    return nullptr;
+}
 
 }   // namespace pdf
-
-#endif // PDFRENDERINGERRORSWIDGET_H

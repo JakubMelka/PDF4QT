@@ -18,11 +18,13 @@
 #ifndef PDFDRAWSPACECONTROLLER_H
 #define PDFDRAWSPACECONTROLLER_H
 
+#include "pdfwidgetsglobal.h"
 #include "pdfglobal.h"
 #include "pdfdocument.h"
 #include "pdfrenderer.h"
 #include "pdffont.h"
 #include "pdfdocumentdrawinterface.h"
+#include "pdfwidgetsnapshot.h"
 
 #include <QRectF>
 #include <QObject>
@@ -174,27 +176,9 @@ private:
     PDFFontCache m_fontCache;
 };
 
-/// Snapshot for current widget viewable items.
-struct PDFWidgetSnapshot
-{
-    struct SnapshotItem
-    {
-        PDFInteger pageIndex = -1;  ///< Index of page
-        QRectF rect;                ///< Page rectangle on viewport
-        QTransform pageToDeviceMatrix;             ///< Transforms page coordinates to widget coordinates
-        const PDFPrecompiledPage* compiledPage = nullptr; ///< Compiled page (can be nullptr)
-    };
-
-    bool hasPage(PDFInteger pageIndex) const { return getPageSnapshot(pageIndex) != nullptr; }
-    const SnapshotItem* getPageSnapshot(PDFInteger pageIndex) const;
-
-    using SnapshotItems = std::vector<SnapshotItem>;
-    SnapshotItems items;
-};
-
 /// This is a proxy class to draw space controller using widget. We have two spaces, pixel space
 /// (on the controlled widget) and device space (device is draw space controller).
-class PDF4QTLIBCORESHARED_EXPORT PDFDrawWidgetProxy : public QObject
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFDrawWidgetProxy : public QObject
 {
     Q_OBJECT
 

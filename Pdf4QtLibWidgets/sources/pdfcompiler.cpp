@@ -17,9 +17,10 @@
 
 #include "pdfcompiler.h"
 #include "pdfcms.h"
-#include "pdfdrawspacecontroller.h"
 #include "pdfprogress.h"
 #include "pdfexecutionpolicy.h"
+#include "pdftextlayoutgenerator.h"
+#include "pdfdrawspacecontroller.h"
 #include "pdfdbgheap.h"
 
 #include <QtConcurrent/QtConcurrent>
@@ -318,54 +319,6 @@ void PDFAsynchronousPageCompiler::onPageCompiled()
     {
         Q_ASSERT(std::is_sorted(compiledPages.cbegin(), compiledPages.cend()));
         Q_EMIT pageImageChanged(false, compiledPages);
-    }
-}
-
-PDFTextLayout PDFTextLayoutGenerator::createTextLayout()
-{
-    m_textLayout.perform();
-    m_textLayout.optimize();
-    return qMove(m_textLayout);
-}
-
-bool PDFTextLayoutGenerator::isContentSuppressedByOC(PDFObjectReference ocgOrOcmd)
-{
-    if (m_features.testFlag(PDFRenderer::IgnoreOptionalContent))
-    {
-        return false;
-    }
-
-    return PDFPageContentProcessor::isContentSuppressedByOC(ocgOrOcmd);
-}
-
-bool PDFTextLayoutGenerator::isContentKindSuppressed(ContentKind kind) const
-{
-    switch (kind)
-    {
-        case ContentKind::Shapes:
-        case ContentKind::Text:
-        case ContentKind::Images:
-        case ContentKind::Shading:
-            return true;
-
-        case ContentKind::Tiling:
-            return false; // Tiling can have text
-
-        default:
-        {
-            Q_ASSERT(false);
-            break;
-        }
-    }
-
-    return false;
-}
-
-void PDFTextLayoutGenerator::performOutputCharacter(const PDFTextCharacterInfo& info)
-{
-    if (!isContentSuppressed() && !info.character.isSpace())
-    {
-        m_textLayout.addCharacter(info);
     }
 }
 
