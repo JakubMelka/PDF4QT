@@ -591,8 +591,25 @@ public:
     /// is emitted.
     void performPaging();
 
+    /// Returns true, if widget is focused.
+    /// \param widget Widget annotation reference
+    virtual bool isFocused(PDFObjectReference widget) const;
+
+    /// Is editor draw enabled?
+    virtual bool isEditorDrawEnabled(const PDFObjectReference& reference) const;
+    virtual bool isEditorDrawEnabled(const PDFFormField* formField) const;
+
+    /// Draw form field widget using given parameters. It is used, when
+    /// we want to draw editor contents on the painter using parameters.
+    /// Parameter \p edit decides, if editor is drawn, or static contents
+    /// based on field value is drawn.
+    /// \param parameters Parameters
+    /// \param edit Draw editor or static contents
+    virtual void drawFormField(const PDFFormField* formField, AnnotationDrawParameters& parameters, bool edit) const;
+
 protected:
     virtual void updateFieldValues();
+    virtual void onDocumentReset() { }
 
 signals:
     void actionTriggered(const pdf::PDFAction* action);

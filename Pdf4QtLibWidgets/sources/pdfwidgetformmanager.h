@@ -53,7 +53,7 @@ public:
     /// based on field value is drawn.
     /// \param parameters Parameters
     /// \param edit Draw editor or static contents
-    virtual void draw(AnnotationDrawParameters& parameters, bool edit) const;
+    virtual void draw(AnnotationDrawParameters& parameters, bool edit) const override;
 
 protected:
     /// This function is called every time, the focus state changes
@@ -104,7 +104,7 @@ public:
 
     /// Returns true, if widget is focused.
     /// \param widget Widget annotation reference
-    bool isFocused(PDFObjectReference widget) const;
+    virtual bool isFocused(PDFObjectReference widget) const override;
 
     /// Returns editor for form field
     PDFFormFieldWidgetEditor* getEditor(const PDFFormField* formField) const;
@@ -130,8 +130,13 @@ public:
         bool isValid() const { return editor != nullptr; }
     };
 
+    virtual bool isEditorDrawEnabled(const PDFObjectReference& reference) const override;
+    virtual bool isEditorDrawEnabled(const PDFFormField* formField) const override;
+    virtual void drawFormField(const PDFFormField* formField, AnnotationDrawParameters& parameters, bool edit) const override;
+
 protected:
     virtual void updateFieldValues() override;
+    virtual void onDocumentReset() override;
 
 private:
     void updateFormWidgetEditors();

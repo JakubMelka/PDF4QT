@@ -17,7 +17,6 @@
 
 #include "pdfform.h"
 #include "pdfdocument.h"
-#include "pdftexteditpseudowidget.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfpainterutils.h"
@@ -25,141 +24,6 @@
 
 namespace pdf
 {
-
-/// "Pseudo" widget, which is emulating list box. It can contain scrollbar.
-class PDFListBoxPseudowidget
-{
-public:
-    explicit PDFListBoxPseudowidget(PDFFormField::FieldFlags flags);
-
-    using Options = PDFFormFieldChoice::Options;
-
-    inline bool isReadonly() const { return m_flags.testFlag(PDFFormField::ReadOnly); }
-    inline bool isMultiSelect() const { return m_flags.testFlag(PDFFormField::MultiSelect); }
-    inline bool isCommitOnSelectionChange() const { return m_flags.testFlag(PDFFormField::CommitOnSelectionChange); }
-
-    void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event);
-    void keyPressEvent(QWidget* widget, QKeyEvent* event);
-
-    /// Sets widget appearance, such as font, font size, color, text alignment,
-    /// and rectangle, in which widget resides on page (in page coordinates)
-    /// \param appearance Appearance
-    /// \param textAlignment Text alignment
-    /// \param rect Widget rectangle in page coordinates
-    /// \param options Options selectable by list box
-    /// \param topIndex Index of first visible item
-    void setAppearance(const PDFAnnotationDefaultAppearance& appearance,
-                       Qt::Alignment textAlignment,
-                       QRectF rect,
-                       const Options& options,
-                       int topIndex,
-                       std::set<int> selection);
-
-    /// Draw text edit using given parameters
-    /// \param parameters Parameters
-    void draw(AnnotationDrawParameters& parameters, bool edit) const;
-
-    /// Sets current selection. If commit on selection change flag
-    /// is set, then contents of the widgets are commited. New selection
-    /// is not set, if field is readonly and \p force is false
-    /// \param selection New selection
-    /// \param force Set selection even if readonly
-    void setSelection(std::set<int> selection, bool force);
-
-    /// Returns active item selection
-    const std::set<int>& getSelection() const { return m_selection; }
-
-    /// Returns top index
-    int getTopItemIndex() const { return m_topIndex; }
-
-    /// Set top item index
-    /// \param index Top item index
-    void setTopItemIndex(int index);
-
-    /// Scrolls the list box in such a way, that index is visible
-    /// \param index Index to scroll to
-    void scrollTo(int index);
-
-    /// Returns valid index from index (i.e. index which ranges from first
-    /// row to the last one). If index itself is valid, then it is returned.
-    /// \param index Index, from which we want to get valid one
-    int getValidIndex(int index) const;
-
-    /// Returns true, if index is valid
-    bool isValidIndex(int index) const { return index == getValidIndex(index); }
-
-    /// Returns number of rows in the viewport
-    int getViewportRowCount() const { return qFloor(m_widgetRect.height() / m_lineSpacing); }
-
-    /// Returns item index from widget position (i.e. transforms
-    /// point in the widget to the index of item, which is under the point)
-    /// \param point Widget point
-    int getIndexFromWidgetPosition(const QPointF& point) const;
-
-    /// Sets current item and updates selection based on keyboard modifiers
-    /// \param index New index
-    /// \param modifiers Keyboard modifiers
-    void setCurrentItem(int index, Qt::KeyboardModifiers modifiers);
-
-    /// Returns text of selected item text. If no item is selected,
-    /// or multiple items are selected, then empty string is returned.
-    /// \returns Selected text
-    QString getSelectedItemText() const;
-
-    /// Returns true, if single item is selected
-    bool isSingleItemSelected() const { return m_selection.size() == 1; }
-
-    /// Returns index of option, in the list box option list.
-    /// If option is not found, then -1 is returned.
-    /// \param option Option
-    int findOption(const QString& option) const;
-
-    /// Sets widget appearance, such as font, font size, color, text alignment,
-    /// and rectangle, in which widget resides on page (in page coordinates)
-    /// \param font Font
-    /// \param fontColor Font color
-    /// \param textAlignment Text alignment
-    /// \param rect Widget rectangle in page coordinates
-    /// \param options Options selectable by list box
-    /// \param topIndex Index of first visible item
-    void initialize(QFont font, QColor fontColor, Qt::Alignment textAlignment, QRectF rect,
-                    const Options& options, int topIndex, std::set<int> selection);
-
-private:
-    int getStartItemIndex() const { return 0; }
-    int getEndItemIndex() const { return m_options.empty() ? 0 : int(m_options.size() - 1); }
-
-    int getSingleStep() const { return 1; }
-    int getPageStep() const { return qMax(getViewportRowCount() - 1, getSingleStep()); }
-
-    /// Returns true, if row with this index is visible in the widget
-    /// (it is in viewport).
-    /// \param index Index
-    bool isVisible(int index) const;
-
-    /// Moves current item by offset (negative is up, positive is down)
-    /// \param offset Offset
-    /// \param modifiers Keyboard modifiers
-    void moveCurrentItemIndexByOffset(int offset, Qt::KeyboardModifiers modifiers) { setCurrentItem(m_currentIndex + offset, modifiers); }
-
-    /// Returns true, if list box has continuous selection
-    bool hasContinuousSelection() const;
-
-    /// Creates transformation matrix, which transforms widget coordinates to page coordinates
-    QTransform createListBoxTransformMatrix() const;
-
-    PDFFormField::FieldFlags m_flags;
-
-    Options m_options;
-    Qt::Alignment m_textAlignment = Qt::Alignment();
-    int m_topIndex = 0;
-    int m_currentIndex = 0;
-    std::set<int> m_selection;
-    QFont m_font;
-    PDFReal m_lineSpacing = 0.0;
-    QRectF m_widgetRect;
-    QColor m_textColor;
-};
 
 PDFForm PDFForm::parse(const PDFDocument* document, PDFObject object)
 {
@@ -807,7 +671,7 @@ void PDFFormManager::setDocument(const PDFModifiedDocument& document)
                 m_form = PDFForm();
             }
 
-            updateFormWidgetEditors();
+            onDocumentReset();
         }
         else if (document.hasFlag(PDFModifiedDocument::FormField))
         {
@@ -1034,6 +898,18 @@ void PDFFormManager::performPaging()
             Q_EMIT documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
         }
     }
+}
+
+bool PDFFormManager::isFocused(PDFObjectReference widget) const
+{
+    Q_UNUSED(widget);
+    return false;
+}
+
+bool PDFFormManager::isEditorDrawEnabled(const PDFObjectReference& reference) const
+{
+    Q_UNUSED(reference);
+    return false;
 }
 
 void PDFFormManager::updateFieldValues()

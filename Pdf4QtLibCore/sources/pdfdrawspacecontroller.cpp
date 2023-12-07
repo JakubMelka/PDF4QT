@@ -15,9 +15,7 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-
 #include "pdfdrawspacecontroller.h"
-#include "pdfdrawwidget.h"
 #include "pdfrenderer.h"
 #include "pdfpainter.h"
 #include "pdfcompiler.h"

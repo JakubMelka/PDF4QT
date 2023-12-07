@@ -1424,11 +1424,9 @@ bool PDFAnnotationManager::isAnnotationDrawnByEditor(const PageAnnotation& annot
         return false;
     }
 
-    const PDFFormFieldWidgetEditor* editor = nullptr;
     if (annotation.annotation->getType() == AnnotationType::Widget)
     {
-        editor = m_formManager->getEditor(m_formManager->getFormFieldForWidget(annotation.annotation->getSelfReference()));
-        return editor && editor->isEditorDrawEnabled();
+        return m_formManager->isEditorDrawEnabled(annotation.annotation->getSelfReference());
     }
 
     return false;
@@ -3105,10 +3103,9 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
     PDFPainterStateGuard guard(parameters.painter);
     parameters.painter->setCompositionMode(getCompositionMode());
 
-    const PDFFormFieldWidgetEditor* editor = parameters.formManager->getEditor(formField);
-    if (editor && editor->isEditorDrawEnabled())
+    if (parameters.formManager->isEditorDrawEnabled(formField))
     {
-        editor->draw(parameters, true);
+        parameters.formManager->drawFormField(formField, parameters, true);
     }
     else
     {
@@ -3117,7 +3114,7 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
             case PDFFormField::FieldType::Text:
             case PDFFormField::FieldType::Choice:
             {
-                editor->draw(parameters, false);
+                m_parameters.formManager->drawFormField(parameters, false);
                 break;
             }
 
@@ -3145,8 +3142,6 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
                             font.setHintingPreference(QFont::PreferNoHinting);
                             font.setPixelSize(qCeil(fontSize));
                             font.setStyleStrategy(QFont::ForceOutline);
-
-                            QFontMetrics fontMetrics(font);
 
                             QPainter* painter = parameters.painter;
                             painter->translate(rectangle.bottomLeft());
