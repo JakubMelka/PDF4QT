@@ -18,7 +18,11 @@
 #include "pdfwidgetannotation.h"
 #include "pdfdrawwidget.h"
 #include "pdfwidgetutils.h"
+#include "pdfwidgetformmanager.h"
 #include "pdfdrawspacecontroller.h"
+#include "pdfselectpagesdialog.h"
+#include "pdfobjecteditorwidget.h"
+#include "pdfdocumentbuilder.h"
 
 #include <QMenu>
 #include <QDialog>

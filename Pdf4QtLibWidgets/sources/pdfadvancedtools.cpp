@@ -21,6 +21,7 @@
 #include "pdfutils.h"
 #include "pdfcompiler.h"
 #include "pdfwidgetformmanager.h"
+#include "pdfwidgetannotation.h"
 #include "pdfdbgheap.h"
 
 #include <QActionGroup>

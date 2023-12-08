@@ -42,7 +42,7 @@ class PDFAction;
 class PDFWidget;
 class PDFCMSManager;
 class PDFToolManager;
-class PDFFormManager;
+class PDFWidgetFormManager;
 class PDFWidgetAnnotationManager;
 }
 
@@ -421,7 +421,7 @@ private:
     pdf::PDFCMSManager* m_CMSManager;
     pdf::PDFToolManager* m_toolManager;
     pdf::PDFWidgetAnnotationManager* m_annotationManager;
-    pdf::PDFFormManager* m_formManager;
+    pdf::PDFWidgetFormManager* m_formManager;
 
     PDFFileInfo m_fileInfo;
     QFileSystemWatcher m_fileWatcher;

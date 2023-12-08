@@ -623,7 +623,6 @@ void PDFFormFieldButton::resetValue(const ResetValueParameters& parameters)
 
 PDFFormManager::PDFFormManager(QObject* parent) :
     BaseClass(parent),
-    m_annotationManager(nullptr),
     m_document(nullptr),
     m_flags(getDefaultApperanceFlags()),
     m_isCommitDisabled(false)
@@ -634,16 +633,6 @@ PDFFormManager::PDFFormManager(QObject* parent) :
 PDFFormManager::~PDFFormManager()
 {
 
-}
-
-PDFAnnotationManager* PDFFormManager::getAnnotationManager() const
-{
-    return m_annotationManager;
-}
-
-void PDFFormManager::setAnnotationManager(PDFAnnotationManager* annotationManager)
-{
-    m_annotationManager = annotationManager;
 }
 
 const PDFDocument* PDFFormManager::getDocument() const

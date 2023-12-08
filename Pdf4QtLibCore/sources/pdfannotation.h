@@ -426,7 +426,7 @@ private:
 };
 
 /// Annotation default appearance
-class PDFAnnotationDefaultAppearance
+class PDF4QTLIBCORESHARED_EXPORT PDFAnnotationDefaultAppearance
 {
 public:
     explicit inline PDFAnnotationDefaultAppearance() = default;
@@ -482,7 +482,7 @@ struct AnnotationDrawParameters
 /// Annotations are various enhancements to pages graphical representation,
 /// such as graphics, text, highlight or multimedia content, such as sounds,
 /// videos and 3D annotations.
-class PDFAnnotation
+class PDF4QTLIBCORESHARED_EXPORT PDFAnnotation
 {
 public:
     explicit PDFAnnotation();
@@ -1497,7 +1497,7 @@ public:
         mutable PDFCachedItem<PDFObject> appearanceStream;
     };
 
-    struct PageAnnotations
+    struct PDF4QTLIBCORESHARED_EXPORT PageAnnotations
     {
         bool isEmpty() const { return annotations.empty(); }
 

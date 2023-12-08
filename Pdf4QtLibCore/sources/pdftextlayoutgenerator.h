@@ -20,7 +20,7 @@
 namespace pdf
 {
 
-class PDFTextLayoutGenerator : public PDFPageContentProcessor
+class PDF4QTLIBCORESHARED_EXPORT PDFTextLayoutGenerator : public PDFPageContentProcessor
 {
     using BaseClass = PDFPageContentProcessor;
 

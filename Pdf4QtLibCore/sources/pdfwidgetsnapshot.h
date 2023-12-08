@@ -25,7 +25,7 @@ namespace pdf
 class PDFPrecompiledPage;
 
 /// Snapshot for current widget viewable items.
-struct PDFWidgetSnapshot
+struct PDF4QTLIBCORESHARED_EXPORT PDFWidgetSnapshot
 {
     struct SnapshotItem
     {

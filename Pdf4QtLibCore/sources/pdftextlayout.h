@@ -264,7 +264,7 @@ private:
     PDFTextSelectionColoredItems m_items;
 };
 
-struct PDFFindResult
+struct PDF4QTLIBCORESHARED_EXPORT PDFFindResult
 {
     bool operator<(const PDFFindResult& other) const;
 

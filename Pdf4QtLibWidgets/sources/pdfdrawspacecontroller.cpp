@@ -23,6 +23,7 @@
 #include "pdfcms.h"
 #include "pdfannotation.h"
 #include "pdfdrawwidget.h"
+#include "pdfwidgetannotation.h"
 #include "pdfdbgheap.h"
 
 #include <QTimer>

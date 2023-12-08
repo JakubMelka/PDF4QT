@@ -147,7 +147,7 @@ private:
 /// Precompiled page contains precompiled graphic instructions of a PDF page to draw it quickly
 /// on the target painter. It enables very fast drawing, because instructions are not decoded
 /// and interpreted from the PDF stream, but they are just "played" on the painter.
-class PDFPrecompiledPage
+class PDF4QTLIBCORESHARED_EXPORT PDFPrecompiledPage
 {
 public:
     explicit inline PDFPrecompiledPage() = default;

@@ -20,7 +20,7 @@ add_executable(Pdf4QtViewerLite
     icon.rc
 )
 
-target_link_libraries(Pdf4QtViewerLite PRIVATE Pdf4QtLibCore Pdf4QtViewer Qt6::Core Qt6::Gui Qt6::Widgets)
+target_link_libraries(Pdf4QtViewerLite PRIVATE Pdf4QtLibCore Pdf4QtLibWidgets Pdf4QtViewer Qt6::Core Qt6::Gui Qt6::Widgets)
 
 set_target_properties(Pdf4QtViewerLite PROPERTIES
     WIN32_EXECUTABLE ON

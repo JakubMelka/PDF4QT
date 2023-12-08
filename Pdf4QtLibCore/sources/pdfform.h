@@ -72,7 +72,7 @@ using PDFFormWidgets = std::vector<PDFFormWidget>;
 /// have children), fields represents various interactive widgets, such as
 /// checks, radio buttons, text edits etc., which are editable and user
 /// can interact with them.
-class PDFFormField
+class PDF4QTLIBCORESHARED_EXPORT PDFFormField
 {
 public:
     explicit inline PDFFormField() = default;
@@ -280,7 +280,7 @@ protected:
 
 /// Represents pushbutton, checkbox and radio button (which is distinguished
 /// by flags).
-class PDFFormFieldButton : public PDFFormField
+class PDF4QTLIBCORESHARED_EXPORT PDFFormFieldButton : public PDFFormField
 {
 public:
     explicit inline PDFFormFieldButton() = default;
@@ -325,7 +325,7 @@ private:
 };
 
 /// Represents single line, or multiline text field
-class PDFFormFieldText : public PDFFormField
+class PDF4QTLIBCORESHARED_EXPORT PDFFormFieldText : public PDFFormField
 {
 public:
     explicit inline PDFFormFieldText() = default;
@@ -359,7 +359,7 @@ private:
     QString m_richTextValue;
 };
 
-class PDFFormFieldChoice : public PDFFormField
+class PDF4QTLIBCORESHARED_EXPORT PDFFormFieldChoice : public PDFFormField
 {
     using BaseClass = PDFFormField;
 
@@ -394,7 +394,7 @@ private:
     PDFObject m_selection;
 };
 
-class PDFFormFieldSignature : public PDFFormField
+class PDF4QTLIBCORESHARED_EXPORT PDFFormFieldSignature : public PDFFormField
 {
 public:
     explicit inline PDFFormFieldSignature() = default;
@@ -522,9 +522,6 @@ public:
     /// \param widget Widget annotation
     PDFFormField* getFormFieldForWidget(PDFObjectReference widget) { return m_form.getFormFieldForWidget(widget); }
 
-    PDFAnnotationManager* getAnnotationManager() const;
-    void setAnnotationManager(PDFAnnotationManager* annotationManager);
-
     const PDFDocument* getDocument() const;
     void setDocument(const PDFModifiedDocument& document);
 
@@ -615,7 +612,6 @@ signals:
     void documentModified(pdf::PDFModifiedDocument document);
 
 private:
-    PDFAnnotationManager* m_annotationManager;
     const PDFDocument* m_document;
     FormAppearanceFlags m_flags;
     PDFForm m_form;

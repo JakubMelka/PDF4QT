@@ -15,19 +15,25 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
+#ifndef PDFWIDGETFORMMANAGER_H
+#define PDFWIDGETFORMMANAGER_H
+
+#include "pdfwidgetsglobal.h"
 #include "pdfform.h"
 #include "pdfdocumentdrawinterface.h"
 
 namespace pdf
 {
 class PDFDrawWidgetProxy;
+class PDFWidgetAnnotationManager;
+class PDFWidgetFormManager;
 
 /// Base class for editors of form fields. It enables editation
 /// of form fields, such as entering text, clicking on check box etc.
-class PDFFormFieldWidgetEditor
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFFormFieldWidgetEditor
 {
 public:
-    explicit PDFFormFieldWidgetEditor(PDFFormManager* formManager, PDFFormWidget formWidget);
+    explicit PDFFormFieldWidgetEditor(PDFWidgetFormManager* formManager, PDFFormWidget formWidget);
     virtual ~PDFFormFieldWidgetEditor() = default;
 
     virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event);
@@ -63,12 +69,12 @@ protected:
 
     void performKeypadNavigation(QWidget* widget, QKeyEvent* event);
 
-    PDFFormManager* m_formManager;
+    PDFWidgetFormManager* m_formManager;
     PDFFormWidget m_formWidget;
     bool m_hasFocus;
 };
 
-class PDFWidgetFormManager : public PDFFormManager, public IDrawWidgetInputInterface
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFWidgetFormManager : public PDFFormManager, public IDrawWidgetInputInterface
 {
     Q_OBJECT
 
@@ -135,6 +141,9 @@ public:
     virtual bool isEditorDrawEnabled(const PDFFormField* formField) const override;
     virtual void drawFormField(const PDFFormField* formField, AnnotationDrawParameters& parameters, bool edit) const override;
 
+    PDFWidgetAnnotationManager* getAnnotationManager() const;
+    void setAnnotationManager(PDFWidgetAnnotationManager* annotationManager);
+
 protected:
     virtual void updateFieldValues() override;
     virtual void onDocumentReset() override;
@@ -169,6 +178,7 @@ private:
     /// \param event Mouse event
     void ungrabMouse(const MouseEventInfo& info, QMouseEvent* event);
 
+    PDFWidgetAnnotationManager* m_annotationManager;
     PDFDrawWidgetProxy* m_proxy;
     MouseGrabInfo m_mouseGrabInfo;
     std::optional<QCursor> m_mouseCursor;
@@ -177,3 +187,5 @@ private:
 };
 
 }   // namespace pdf
+
+#endif // PDFWIDGETFORMMANAGER_H

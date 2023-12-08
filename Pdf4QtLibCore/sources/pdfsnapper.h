@@ -106,7 +106,7 @@ private:
 };
 
 /// Snap engine, which handles snapping of points on the page.
-class PDFSnapper
+class PDF4QTLIBCORESHARED_EXPORT PDFSnapper
 {
 public:
     PDFSnapper();

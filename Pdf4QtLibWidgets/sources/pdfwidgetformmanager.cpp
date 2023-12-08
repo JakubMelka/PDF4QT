@@ -17,7 +17,12 @@
 
 #include "pdfwidgetformmanager.h"
 #include "pdfdrawwidget.h"
+#include "pdftexteditpseudowidget.h"
+#include "pdfdrawspacecontroller.h"
 #include "pdfform.h"
+#include "pdfpainterutils.h"
+#include "pdfwidgetannotation.h"
+#include "pdfdocumentbuilder.h"
 
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -172,7 +177,7 @@ private:
     using BaseClass = PDFFormFieldWidgetEditor;
 
 public:
-    explicit PDFFormFieldAbstractButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget);
+    explicit PDFFormFieldAbstractButtonEditor(PDFWidgetFormManager* formManager, PDFFormWidget formWidget);
     virtual ~PDFFormFieldAbstractButtonEditor() = default;
 
     virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) override;
@@ -191,7 +196,7 @@ private:
     using BaseClass = PDFFormFieldAbstractButtonEditor;
 
 public:
-    explicit PDFFormFieldPushButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget);
+    explicit PDFFormFieldPushButtonEditor(PDFWidgetFormManager* formManager, PDFFormWidget formWidget);
     virtual ~PDFFormFieldPushButtonEditor() = default;
 
 protected:
@@ -205,7 +210,7 @@ private:
     using BaseClass = PDFFormFieldAbstractButtonEditor;
 
 public:
-    explicit PDFFormFieldCheckableButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget);
+    explicit PDFFormFieldCheckableButtonEditor(PDFWidgetFormManager* formManager, PDFFormWidget formWidget);
     virtual ~PDFFormFieldCheckableButtonEditor() = default;
 
 protected:
@@ -219,7 +224,7 @@ private:
     using BaseClass = PDFFormFieldWidgetEditor;
 
 public:
-    explicit PDFFormFieldTextBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget);
+    explicit PDFFormFieldTextBoxEditor(PDFWidgetFormManager* formManager, PDFFormWidget formWidget);
     virtual ~PDFFormFieldTextBoxEditor() = default;
 
     virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) override;
@@ -250,7 +255,7 @@ private:
     using BaseClass = PDFFormFieldWidgetEditor;
 
 public:
-    explicit PDFFormFieldComboBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget);
+    explicit PDFFormFieldComboBoxEditor(PDFWidgetFormManager* formManager, PDFFormWidget formWidget);
     virtual ~PDFFormFieldComboBoxEditor() = default;
 
     virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) override;
@@ -300,7 +305,7 @@ private:
     using BaseClass = PDFFormFieldWidgetEditor;
 
 public:
-    explicit PDFFormFieldListBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget);
+    explicit PDFFormFieldListBoxEditor(PDFWidgetFormManager* formManager, PDFFormWidget formWidget);
     virtual ~PDFFormFieldListBoxEditor() = default;
 
     virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) override;
@@ -337,10 +342,21 @@ private:
 
 PDFWidgetFormManager::PDFWidgetFormManager(PDFDrawWidgetProxy* proxy, QObject* parent) :
     BaseClass(parent),
+    m_annotationManager(nullptr),
     m_proxy(proxy),
     m_focusedEditor(nullptr)
 {
     Q_ASSERT(proxy);
+}
+
+PDFWidgetAnnotationManager* PDFWidgetFormManager::getAnnotationManager() const
+{
+    return m_annotationManager;
+}
+
+void PDFWidgetFormManager::setAnnotationManager(PDFWidgetAnnotationManager* annotationManager)
+{
+    m_annotationManager = annotationManager;
 }
 
 void PDFWidgetFormManager::shortcutOverrideEvent(QWidget* widget, QKeyEvent* event)
@@ -522,7 +538,7 @@ void PDFWidgetFormManager::grabMouse(const MouseEventInfo& info, QMouseEvent* ev
     }
 }
 
-PDFFormManager::MouseEventInfo PDFWidgetFormManager::getMouseEventInfo(QWidget* widget, QPoint point)
+PDFWidgetFormManager::MouseEventInfo PDFWidgetFormManager::getMouseEventInfo(QWidget* widget, QPoint point)
 {
     MouseEventInfo result;
 
@@ -567,7 +583,7 @@ PDFFormManager::MouseEventInfo PDFWidgetFormManager::getMouseEventInfo(QWidget* 
                 {
                     annotationRect = pageAnnotation.annotation->getRectangle();
                 }
-                QTransform widgetToDevice = m_annotationManager->prepareTransformations(snapshotItem.pageToDeviceMatrix, widget, pageAnnotation.annotation->getEffectiveFlags(), m_document->getCatalog()->getPage(snapshotItem.pageIndex), annotationRect);
+                QTransform widgetToDevice = m_annotationManager->prepareTransformations(snapshotItem.pageToDeviceMatrix, widget, pageAnnotation.annotation->getEffectiveFlags(), getDocument()->getCatalog()->getPage(snapshotItem.pageIndex), annotationRect);
 
                 QPainterPath path;
                 path.addRect(annotationRect);
@@ -796,7 +812,7 @@ void PDFWidgetFormManager::updateFieldValues()
 {
     BaseClass::updateFieldValues();
 
-    if (m_document)
+    if (getDocument())
     {
         for (PDFFormFieldWidgetEditor* editor : m_widgetEditors)
         {
@@ -818,7 +834,7 @@ PDFFormFieldWidgetEditor* PDFWidgetFormManager::getEditor(const PDFFormField* fo
     return nullptr;
 }
 
-PDFFormFieldWidgetEditor::PDFFormFieldWidgetEditor(PDFFormManager* formManager, PDFFormWidget formWidget) :
+PDFFormFieldWidgetEditor::PDFFormFieldWidgetEditor(PDFWidgetFormManager* formManager, PDFFormWidget formWidget) :
     m_formManager(formManager),
     m_formWidget(formWidget),
     m_hasFocus(false)
@@ -959,13 +975,13 @@ void PDFFormFieldWidgetEditor::performKeypadNavigation(QWidget* widget, QKeyEven
     m_formManager->focusNextPrevFormField(next);
 }
 
-PDFFormFieldPushButtonEditor::PDFFormFieldPushButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget) :
+PDFFormFieldPushButtonEditor::PDFFormFieldPushButtonEditor(PDFWidgetFormManager* formManager, PDFFormWidget formWidget) :
     BaseClass(formManager, formWidget)
 {
 
 }
 
-PDFFormFieldAbstractButtonEditor::PDFFormFieldAbstractButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget) :
+PDFFormFieldAbstractButtonEditor::PDFFormFieldAbstractButtonEditor(PDFWidgetFormManager* formManager, PDFFormWidget formWidget) :
     BaseClass(formManager, formWidget)
 {
 
@@ -1062,7 +1078,7 @@ void PDFFormFieldPushButtonEditor::click()
     }
 }
 
-PDFFormFieldCheckableButtonEditor::PDFFormFieldCheckableButtonEditor(PDFFormManager* formManager, PDFFormWidget formWidget) :
+PDFFormFieldCheckableButtonEditor::PDFFormFieldCheckableButtonEditor(PDFWidgetFormManager* formManager, PDFFormWidget formWidget) :
     BaseClass(formManager, formWidget)
 {
 
@@ -1095,7 +1111,7 @@ void PDFFormFieldCheckableButtonEditor::click()
     m_formManager->setFormFieldValue(parameters);
 }
 
-PDFFormFieldComboBoxEditor::PDFFormFieldComboBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget) :
+PDFFormFieldComboBoxEditor::PDFFormFieldComboBoxEditor(PDFWidgetFormManager* formManager, PDFFormWidget formWidget) :
     BaseClass(formManager, formWidget),
     m_textEdit(getTextEditFlags(formWidget.getParent()->getFlags())),
     m_listBox(formWidget.getParent()->getFlags()),
@@ -1460,7 +1476,7 @@ void PDFFormFieldTextBoxEditor::setFocusImpl(bool focused)
     }
 }
 
-PDFFormFieldTextBoxEditor::PDFFormFieldTextBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget) :
+PDFFormFieldTextBoxEditor::PDFFormFieldTextBoxEditor(PDFWidgetFormManager* formManager, PDFFormWidget formWidget) :
     BaseClass(formManager, formWidget),
     m_textEdit(formWidget.getParent()->getFlags())
 {
@@ -1905,7 +1921,7 @@ int PDFListBoxPseudowidget::getIndexFromWidgetPosition(const QPointF& point) con
     return m_topIndex + visualIndex;
 }
 
-PDFFormFieldListBoxEditor::PDFFormFieldListBoxEditor(PDFFormManager* formManager, PDFFormWidget formWidget) :
+PDFFormFieldListBoxEditor::PDFFormFieldListBoxEditor(PDFWidgetFormManager* formManager, PDFFormWidget formWidget) :
     BaseClass(formManager, formWidget),
     m_listBox(formWidget.getParent()->getFlags())
 {
@@ -2154,7 +2170,7 @@ void PDFFormFieldListBoxEditor::commit()
     }
 }
 
-PDFWidgetFormManager::isEditorDrawEnabled(const PDFObjectReference& reference) const
+bool PDFWidgetFormManager::isEditorDrawEnabled(const PDFObjectReference& reference) const
 {
     const PDFFormFieldWidgetEditor* editor = getEditor(getFormFieldForWidget(reference));
     return editor && editor->isEditorDrawEnabled();
