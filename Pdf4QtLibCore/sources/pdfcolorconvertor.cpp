@@ -85,9 +85,11 @@ QColor PDFColorConvertor::convert(QColor color, bool background, bool foreground
             }
 
             const float lightness = color.lightnessF();
-            QColor hslColor = m_foregroundColor;
-            hslColor.setHslF(hslColor.hueF(), hslColor.saturationF(), lightness, color.alphaF());
-            return hslColor.toRgb();
+            QColor convertedColor = m_foregroundColor;
+            convertedColor.setRedF(convertedColor.redF() * lightness);
+            convertedColor.setGreenF(convertedColor.greenF() * lightness);
+            convertedColor.setBlueF(convertedColor.blueF() * lightness);
+            return convertedColor;
         }
 
         default:
@@ -136,7 +138,6 @@ QImage PDFColorConvertor::convert(QImage image) const
         }
 
         case Mode::HighContrast:
-        case Mode::CustomColors:
         {
             for (int row = 0; row < image.height(); ++row)
             {
@@ -145,6 +146,25 @@ QImage PDFColorConvertor::convert(QImage image) const
                     QColor color = image.pixelColor(column, row);
                     QColor adjustedColor = convert(color, false, false);
                     image.setPixelColor(column, row, adjustedColor);
+                }
+            }
+
+            return image;
+        }
+
+        case Mode::CustomColors:
+        {
+            for (int row = 0; row < image.height(); ++row)
+            {
+                for (int column = 0; column < image.width(); ++column)
+                {
+                    QColor color = image.pixelColor(column, row);
+                    const float lightness = 1.0f - color.lightnessF();
+                    QColor convertedColor = m_foregroundColor;
+                    convertedColor.setRedF(convertedColor.redF() * lightness);
+                    convertedColor.setGreenF(convertedColor.greenF() * lightness);
+                    convertedColor.setBlueF(convertedColor.blueF() * lightness);
+                    image.setPixelColor(column, row, convertedColor);
                 }
             }
 
