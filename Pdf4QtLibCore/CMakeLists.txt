@@ -17,63 +17,121 @@
 
 add_library(Pdf4QtLibCore SHARED
     sources/pdfaction.cpp
+    sources/pdfaction.h
     sources/pdfalgorithmlcs.cpp
+    sources/pdfalgorithmlcs.h
     sources/pdfannotation.cpp
+    sources/pdfannotation.h
     sources/pdfblendfunction.cpp
+    sources/pdfblendfunction.h
     sources/pdfccittfaxdecoder.cpp
+    sources/pdfccittfaxdecoder.h
     sources/pdfcertificatemanager.cpp
+    sources/pdfcertificatemanager.h
     sources/pdfcms.cpp
+    sources/pdfcms.h
     sources/pdfdiff.cpp
+    sources/pdfdiff.h
     sources/pdfdocumentbuilder.cpp
+    sources/pdfdocumentbuilder.h
     sources/pdfdocumentmanipulator.cpp
+    sources/pdfdocumentmanipulator.h
     sources/pdfdocumenttextflow.cpp
+    sources/pdfdocumenttextflow.h
     sources/pdfdocumenttextfloweditormodel.cpp
+    sources/pdfdocumenttextfloweditormodel.h
     sources/pdfdocumentwriter.cpp
+    sources/pdfdocumentwriter.h
     sources/pdfexecutionpolicy.cpp
+    sources/pdfexecutionpolicy.h
     sources/pdffile.cpp
+    sources/pdffile.h
     sources/pdfform.cpp
+    sources/pdfform.h
     sources/pdficontheme.cpp
+    sources/pdficontheme.h
     sources/pdfjavascriptscanner.cpp
+    sources/pdfjavascriptscanner.h
     sources/pdfjbig2decoder.cpp
+    sources/pdfjbig2decoder.h
     sources/pdfmultimedia.cpp
+    sources/pdfmultimedia.h
     sources/pdfobject.cpp
+    sources/pdfobject.h
     sources/pdfobjecteditormodel.cpp
+    sources/pdfobjecteditormodel.h
     sources/pdfobjectutils.cpp
+    sources/pdfobjectutils.h
     sources/pdfoptimizer.cpp
+    sources/pdfoptimizer.h
     sources/pdfoptionalcontent.cpp
+    sources/pdfoptionalcontent.h
     sources/pdfoutline.cpp
+    sources/pdfoutline.h
     sources/pdfpagenavigation.cpp
+    sources/pdfpagenavigation.h
     sources/pdfpagetransition.cpp
+    sources/pdfpagetransition.h
     sources/pdfpainterutils.cpp
+    sources/pdfpainterutils.h
     sources/pdfparser.cpp
+    sources/pdfparser.h
     sources/pdfdocument.cpp
+    sources/pdfdocument.h
     sources/pdfdocumentreader.cpp
+    sources/pdfdocumentreader.h
     sources/pdfpattern.cpp
+    sources/pdfpattern.h
     sources/pdfplugin.cpp
+    sources/pdfplugin.h
     sources/pdfprogress.cpp
+    sources/pdfprogress.h
     sources/pdfredact.cpp
+    sources/pdfredact.h
     sources/pdfsecurityhandler.cpp
+    sources/pdfsecurityhandler.h
     sources/pdfsignaturehandler.cpp
+    sources/pdfsignaturehandler.h
     sources/pdfsnapper.cpp
+    sources/pdfsnapper.h
     sources/pdfstructuretree.cpp
+    sources/pdfstructuretree.h
     sources/pdftextlayout.cpp
+    sources/pdftextlayout.h
     sources/pdftransparencyrenderer.cpp
+    sources/pdftransparencyrenderer.h
     sources/pdfutils.cpp
+    sources/pdfutils.h
     sources/pdfxfaengine.cpp
+    sources/pdfxfaengine.h
     sources/pdfxreftable.cpp
+    sources/pdfxreftable.h
     sources/pdfvisitor.cpp
+    sources/pdfvisitor.h
     sources/pdfencoding.cpp
+    sources/pdfencoding.h
     sources/pdfcatalog.cpp
+    sources/pdfcatalog.h
     sources/pdfpage.cpp
+    sources/pdfpage.h
     sources/pdfstreamfilters.cpp
+    sources/pdfstreamfilters.h
     sources/pdfcolorspaces.cpp
+    sources/pdfcolorspaces.h
     sources/pdfrenderer.cpp
+    sources/pdfrenderer.h
     sources/pdfpagecontentprocessor.cpp
+    sources/pdfpagecontentprocessor.h
     sources/pdfpainter.cpp
+    sources/pdfpainter.h
     sources/pdffunction.cpp
+    sources/pdffunction.h
     sources/pdfnametounicode.cpp
+    sources/pdfnametounicode.h
     sources/pdffont.cpp
+    sources/pdffont.h
     sources/pdfimage.cpp
+    sources/pdfimage.h
     sources/pdfdocumentsanitizer.h
     sources/pdfdocumentsanitizer.cpp
     sources/pdfimageconversion.h

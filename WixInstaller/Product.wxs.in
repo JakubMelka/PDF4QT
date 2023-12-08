@@ -63,9 +63,12 @@
       <Component Id="cmp2B0BBC8908FE104E7FE849B6C9361904" Directory="INSTALLFOLDER" Guid="{B0309455-5073-465A-B3C4-83CEAE720761}">
         <File Id="filCC63CF9D6F210D0049D050EB06297019" KeyPath="yes" Source="$(var.MyInstallDir)\libssl-3-x64.dll" />
       </Component>
-      <Component Id="cmpD902D80240D92E0BA5C21A7CBFFEB34D" Directory="INSTALLFOLDER" Guid="{E54B48ED-6C16-4501-B580-4B75A996BC9C}">
-        <File Id="fil0756A2ECB744DFD7A8F4B4CA126C0EBF" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtLib.dll" />
+      <Component Id="cmpPdf4QtLibCore" Directory="INSTALLFOLDER" Guid="{C8CFFAE9-F913-4103-BD46-A8299E42938E}">
+        <File Id="filPdf4QtLibCore" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtLibCore.dll" />
       </Component>
+        <Component Id="cmpPdf4QtLibWidgets" Directory="INSTALLFOLDER" Guid="{40A714A4-3F2A-41BE-9C70-216FAB048061}">
+            <File Id="filPdf4QtLibWidgets" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtLibWidgets.dll" />
+        </Component>
       <Component Id="cmpA99D3E7760DA61048DF14141B017863B" Directory="INSTALLFOLDER" Guid="{7EFA71AF-99EC-40D8-9C07-4B99EB3FAECB}">
         <File Id="fil0CB615EFFEBF4E5461A1C353B0A551E2" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtViewer.dll" />
       </Component>

@@ -1,4 +1,4 @@
-#    Copyright (C) 2022 Jakub Melka
+#    Copyright (C) 2022-2023 Jakub Melka
 #
 #    This file is part of PDF4QT.
 #
@@ -17,11 +17,16 @@
 
 add_executable(Pdf4QtDocDiff
     aboutdialog.cpp
+    aboutdialog.h
     differencesdockwidget.cpp
+    differencesdockwidget.h
     main.cpp
     mainwindow.cpp
+    mainwindow.h
     settingsdockwidget.cpp
+    settingsdockwidget.h
     utils.cpp
+    utils.h
     aboutdialog.ui
     differencesdockwidget.ui
     mainwindow.ui

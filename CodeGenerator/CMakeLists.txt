@@ -1,4 +1,4 @@
-#    Copyright (C) 2022 Jakub Melka
+#    Copyright (C) 2022-2023 Jakub Melka
 #
 #    This file is part of PDF4QT.
 #
@@ -17,8 +17,10 @@
 
 add_executable(CodeGenerator
     codegenerator.cpp
+    codegenerator.h
     main.cpp
     generatormainwindow.cpp
+    generatormainwindow.h
     generatormainwindow.ui
 )
 

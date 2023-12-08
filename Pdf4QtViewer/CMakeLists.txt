@@ -1,4 +1,4 @@
-#    Copyright (C) 2022 Jakub Melka
+#    Copyright (C) 2022-2023 Jakub Melka
 #
 #    This file is part of PDF4QT.
 #
@@ -17,23 +17,41 @@
 
 add_library(Pdf4QtViewer SHARED
     pdfaboutdialog.cpp
+    pdfaboutdialog.h
     pdfadvancedfindwidget.cpp
+    pdfadvancedfindwidget.h
     pdfdocumentpropertiesdialog.cpp
+    pdfdocumentpropertiesdialog.h
     pdfencryptionsettingsdialog.cpp
+    pdfencryptionsettingsdialog.h
     pdfencryptionstrengthhintwidget.cpp
+    pdfencryptionstrengthhintwidget.h
     pdfoptimizedocumentdialog.cpp
+    pdfoptimizedocumentdialog.h
     pdfprogramcontroller.cpp
+    pdfprogramcontroller.h
     pdfrecentfilemanager.cpp
+    pdfrecentfilemanager.h
     pdfrendertoimagesdialog.cpp
+    pdfrendertoimagesdialog.h
     pdfsendmail.cpp
+    pdfsendmail.h
     pdfsidebarwidget.cpp
+    pdfsidebarwidget.h
     pdftexttospeech.cpp
+    pdftexttospeech.h
     pdfundoredomanager.cpp
+    pdfundoredomanager.h
     pdfviewermainwindow.cpp
+    pdfviewermainwindow.h
     pdfviewermainwindowlite.cpp
+    pdfviewermainwindowlite.h
     pdfviewersettings.cpp
+    pdfviewersettings.h
     pdfviewersettingsdialog.cpp
+    pdfviewersettingsdialog.h
     pdfwintaskbarprogress.cpp
+    pdfwintaskbarprogress.h
     pdfaboutdialog.ui
     pdfadvancedfindwidget.ui
     pdfdocumentpropertiesdialog.ui

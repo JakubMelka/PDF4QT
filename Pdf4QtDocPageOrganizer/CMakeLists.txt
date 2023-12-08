@@ -1,4 +1,4 @@
-#    Copyright (C) 2022 Jakub Melka
+#    Copyright (C) 2022-2023 Jakub Melka
 #
 #    This file is part of PDF4QT.
 #
@@ -17,12 +17,18 @@
 
 add_executable(Pdf4QtDocPageOrganizer
     aboutdialog.cpp
+    aboutdialog.h
     assembleoutputsettingsdialog.cpp
+    assembleoutputsettingsdialog.h
     main.cpp
     mainwindow.cpp
+    mainwindow.h
     pageitemdelegate.cpp
+    pageitemdelegate.h
     pageitemmodel.cpp
+    pageitemmodel.h
     selectbookmarkstoregroupdialog.cpp
+    selectbookmarkstoregroupdialog.h
     aboutdialog.ui
     assembleoutputsettingsdialog.ui
     mainwindow.ui
