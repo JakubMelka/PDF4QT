@@ -16,7 +16,11 @@
 #    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 if(WIN32 AND MSVC AND PDF4QT_INSTALL_PREPARE_WIX_INSTALLER)
-    file(TO_NATIVE_PATH "${CMAKE_INSTALL_PREFIX}/bin" WIX_INSTALL_PREFIX)
+    if(PDF4QT_INSTALL_TO_USR)
+        file(TO_NATIVE_PATH "${CMAKE_INSTALL_PREFIX}/usr/bin" WIX_INSTALL_PREFIX)
+    else()
+        file(TO_NATIVE_PATH "${CMAKE_INSTALL_PREFIX}/bin" WIX_INSTALL_PREFIX)
+    endif()
     file(TO_NATIVE_PATH "${CMAKE_BINARY_DIR}/WixInstaller" PDF4QT_WIX_DIR)
 
     configure_file(PDF4QT.sln.in PDF4QT.sln)

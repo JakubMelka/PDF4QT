@@ -30,10 +30,46 @@
 #include <QPageSize>
 #include <QtConcurrent/QtConcurrent>
 
+#include <stack>
 #include <execution>
 
 namespace pdfviewer
 {
+
+class PDFTreeFactory : public pdf::ITreeFactory
+{
+public:
+    PDFTreeFactory(QTreeWidgetItem* root)
+    {
+        m_roots.push(root);
+    }
+
+    // ITreeFactory interface
+    virtual void pushItem(QStringList texts) override;
+    virtual void addItem(QStringList texts) override;
+    virtual void popItem() override;
+
+private:
+    std::stack<QTreeWidgetItem*> m_roots;
+};
+
+void PDFTreeFactory::pushItem(QStringList texts)
+{
+    Q_ASSERT(!m_roots.empty());
+    m_roots.push(new QTreeWidgetItem(m_roots.top(), texts));
+}
+
+void PDFTreeFactory::addItem(QStringList texts)
+{
+    Q_ASSERT(!m_roots.empty());
+    new QTreeWidgetItem(m_roots.top(), texts);
+}
+
+void PDFTreeFactory::popItem()
+{
+    Q_ASSERT(!m_roots.empty());
+    m_roots.pop();
+}
 
 PDFDocumentPropertiesDialog::PDFDocumentPropertiesDialog(const pdf::PDFDocument* document,
                                                          const PDFFileInfo* fileInfo,
@@ -352,9 +388,14 @@ void PDFDocumentPropertiesDialog::initializeFonts(const pdf::PDFDocument* docume
                                         {
                                             new QTreeWidgetItem(fontRootItem, { tr("Font family"), fontDescriptor->fontFamily });
                                         }
+
                                         new QTreeWidgetItem(fontRootItem, { tr("Embedded subset"), fontDescriptor->getEmbeddedFontData() ? tr("Yes") : tr("No") });
-                                        font->dumpFontToTreeItem(fontRootItem);
-                                        realizedFont->dumpFontToTreeItem(fontRootItem);
+
+                                        PDFTreeFactory treeFactory1(fontRootItem);
+                                        font->dumpFontToTreeItem(&treeFactory1);
+
+                                        PDFTreeFactory treeFactory2(fontRootItem);
+                                        realizedFont->dumpFontToTreeItem(&treeFactory2);
 
                                         // Separator item
                                         new QTreeWidgetItem(fontRootItem, QStringList());

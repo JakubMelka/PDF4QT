@@ -1,4 +1,4 @@
-#    Copyright (C) 2022 Jakub Melka
+#    Copyright (C) 2022-2023 Jakub Melka
 #
 #    This file is part of PDF4QT.
 #
@@ -17,23 +17,41 @@
 
 add_library(Pdf4QtViewer SHARED
     pdfaboutdialog.cpp
+    pdfaboutdialog.h
     pdfadvancedfindwidget.cpp
+    pdfadvancedfindwidget.h
     pdfdocumentpropertiesdialog.cpp
+    pdfdocumentpropertiesdialog.h
     pdfencryptionsettingsdialog.cpp
+    pdfencryptionsettingsdialog.h
     pdfencryptionstrengthhintwidget.cpp
+    pdfencryptionstrengthhintwidget.h
     pdfoptimizedocumentdialog.cpp
+    pdfoptimizedocumentdialog.h
     pdfprogramcontroller.cpp
+    pdfprogramcontroller.h
     pdfrecentfilemanager.cpp
+    pdfrecentfilemanager.h
     pdfrendertoimagesdialog.cpp
+    pdfrendertoimagesdialog.h
     pdfsendmail.cpp
+    pdfsendmail.h
     pdfsidebarwidget.cpp
+    pdfsidebarwidget.h
     pdftexttospeech.cpp
+    pdftexttospeech.h
     pdfundoredomanager.cpp
+    pdfundoredomanager.h
     pdfviewermainwindow.cpp
+    pdfviewermainwindow.h
     pdfviewermainwindowlite.cpp
+    pdfviewermainwindowlite.h
     pdfviewersettings.cpp
+    pdfviewersettings.h
     pdfviewersettingsdialog.cpp
+    pdfviewersettingsdialog.h
     pdfwintaskbarprogress.cpp
+    pdfwintaskbarprogress.h
     pdfaboutdialog.ui
     pdfadvancedfindwidget.ui
     pdfdocumentpropertiesdialog.ui
@@ -66,11 +84,11 @@ if(PDF4QT_ENABLE_OPENGL)
     target_link_libraries(Pdf4QtViewer PRIVATE Qt6::OpenGLWidgets)
 endif()
 
-target_link_libraries(Pdf4QtViewer PRIVATE Pdf4QtLib Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport Qt6::TextToSpeech Qt6::Xml Qt6::Svg)
+target_link_libraries(Pdf4QtViewer PRIVATE Pdf4QtLibCore Pdf4QtLibWidgets Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport Qt6::TextToSpeech Qt6::Xml Qt6::Svg)
 target_include_directories(Pdf4QtViewer INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(Pdf4QtViewer PUBLIC ${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR})
 
-set_target_properties(Pdf4QtLib PROPERTIES
+set_target_properties(Pdf4QtLibCore PROPERTIES
                       VERSION ${PDF4QT_VERSION}
                       SOVERSION ${PDF4QT_VERSION}
                       LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_LIB_DIR}

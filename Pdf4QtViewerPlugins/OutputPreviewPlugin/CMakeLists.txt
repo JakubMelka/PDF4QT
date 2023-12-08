@@ -29,7 +29,7 @@ if(PDF4QT_ENABLE_OPENGL)
     target_link_libraries(OutputPreviewPlugin PRIVATE Qt6::OpenGLWidgets)
 endif()
 
-target_link_libraries(OutputPreviewPlugin PRIVATE Pdf4QtLib Qt6::Core Qt6::Gui Qt6::Widgets)
+target_link_libraries(OutputPreviewPlugin PRIVATE Pdf4QtLibCore Pdf4QtLibWidgets Qt6::Core Qt6::Gui Qt6::Widgets)
 
 set_target_properties(OutputPreviewPlugin PROPERTIES
                       VERSION ${PDF4QT_VERSION}

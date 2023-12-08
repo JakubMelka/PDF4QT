@@ -1,4 +1,4 @@
-#    Copyright (C) 2022 Jakub Melka
+#    Copyright (C) 2022-2023 Jakub Melka
 #
 #    This file is part of PDF4QT.
 #
@@ -17,11 +17,16 @@
 
 add_executable(Pdf4QtDocDiff
     aboutdialog.cpp
+    aboutdialog.h
     differencesdockwidget.cpp
+    differencesdockwidget.h
     main.cpp
     mainwindow.cpp
+    mainwindow.h
     settingsdockwidget.cpp
+    settingsdockwidget.h
     utils.cpp
+    utils.h
     aboutdialog.ui
     differencesdockwidget.ui
     mainwindow.ui
@@ -31,10 +36,10 @@ add_executable(Pdf4QtDocDiff
 )
 
 if(PDF4QT_ENABLE_OPENGL)
-    target_link_libraries(Pdf4QtDocDiff PRIVATE Pdf4QtLib Qt6::OpenGLWidgets)
+    target_link_libraries(Pdf4QtDocDiff PRIVATE Qt6::OpenGLWidgets)
 endif()
 
-target_link_libraries(Pdf4QtDocDiff PRIVATE Pdf4QtLib Qt6::Core Qt6::Gui Qt6::Widgets)
+target_link_libraries(Pdf4QtDocDiff PRIVATE Pdf4QtLibCore Pdf4QtLibWidgets Qt6::Core Qt6::Gui Qt6::Widgets)
 
 set_target_properties(Pdf4QtDocDiff PROPERTIES
     WIN32_EXECUTABLE ON

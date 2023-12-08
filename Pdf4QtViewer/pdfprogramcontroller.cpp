@@ -42,6 +42,8 @@
 #include "pdfrecentfilemanager.h"
 #include "pdftexttospeech.h"
 #include "pdfencryptionsettingsdialog.h"
+#include "pdfwidgetannotation.h"
+#include "pdfwidgetformmanager.h"
 
 #include <QMenu>
 #include <QPrinter>
@@ -385,7 +387,7 @@ void PDFProgramController::initializeAnnotationManager()
 
 void PDFProgramController::initializeFormManager()
 {
-    m_formManager = new pdf::PDFFormManager(m_pdfWidget->getDrawWidgetProxy(), this);
+    m_formManager = new pdf::PDFWidgetFormManager(m_pdfWidget->getDrawWidgetProxy(), this);
     m_formManager->setAnnotationManager(m_annotationManager);
     m_formManager->setAppearanceFlags(m_settings->getSettings().m_formAppearanceFlags);
     m_annotationManager->setFormManager(m_formManager);

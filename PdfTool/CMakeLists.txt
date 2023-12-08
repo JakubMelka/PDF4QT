@@ -46,7 +46,7 @@ add_executable(PdfTool
     pdftoolxml.cpp
 )
 
-target_link_libraries(PdfTool PRIVATE Pdf4QtLib Qt6::Core Qt6::Gui Qt6::Xml)
+target_link_libraries(PdfTool PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Xml)
 
 if(MINGW)
     target_link_libraries(PdfTool PRIVATE ole32 sapi)
