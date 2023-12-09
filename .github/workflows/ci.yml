@@ -43,6 +43,7 @@ jobs:
           target: 'desktop'
           dir: '${{ github.workspace }}/qt/'
           install-deps: 'true'
+          modules: 'qtspeech'
           cache: 'true'
           cache-key-prefix: ${{ runner.os }}-qt-660
 
