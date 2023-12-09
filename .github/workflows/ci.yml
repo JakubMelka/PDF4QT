@@ -61,8 +61,7 @@ jobs:
           
       - name: Upload DEB package
         uses: actions/upload-artifact@v3
-        working-directory: pdf4qt/build
         with:
           name: ubuntu-deb-package
-          path: ./*.deb
+          path: ./pdf4qt/build/*.deb
           retention-days: 30
