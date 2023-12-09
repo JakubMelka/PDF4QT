@@ -40,7 +40,8 @@
 #include <QTreeView>
 #include <QMainWindow>
 #include <QFutureWatcher>
-#include <QProgressDialog>
+#include <QProgressBar>
+#include <QLabel>
 
 class QLabel;
 class QSpinBox;
@@ -115,7 +116,8 @@ private:
     pdf::PDFProgress* m_progress;
     PDFWinTaskBarProgress* m_progressTaskbarIndicator;
 
-    QProgressDialog* m_progressDialog;
+    QProgressBar* m_progressBarOnStatusBar;
+    QLabel* m_progressBarLeftLabelOnStatusBar;
     bool m_isChangingProgressStep;
 };
 

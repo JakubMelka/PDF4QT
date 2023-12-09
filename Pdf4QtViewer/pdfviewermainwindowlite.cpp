@@ -88,7 +88,8 @@ PDFViewerMainWindowLite::PDFViewerMainWindowLite(QWidget* parent) :
     m_isLoadingUI(false),
     m_progress(new pdf::PDFProgress(this)),
     m_progressTaskbarIndicator(new PDFWinTaskBarProgress(this)),
-    m_progressDialog(nullptr),
+    m_progressBarOnStatusBar(nullptr),
+    m_progressBarLeftLabelOnStatusBar(nullptr),
     m_isChangingProgressStep(false)
 {
     ui->setupUi(this);
@@ -98,6 +99,14 @@ PDFViewerMainWindowLite::PDFViewerMainWindowLite(QWidget* parent) :
     // Initialize toolbar icon size
     adjustToolbar(ui->mainToolBar);
     ui->mainToolBar->setWindowTitle(tr("Standard"));
+
+    // Initialize status bar
+    m_progressBarOnStatusBar = new QProgressBar(this);
+    m_progressBarOnStatusBar->setHidden(true);
+    m_progressBarLeftLabelOnStatusBar = new QLabel(this);
+    m_progressBarLeftLabelOnStatusBar->setHidden(true);
+    statusBar()->addPermanentWidget(m_progressBarLeftLabelOnStatusBar);
+    statusBar()->addPermanentWidget(m_progressBarOnStatusBar);
 
     // Initialize actions
     m_actionManager->setAction(PDFActionManager::Open, ui->actionOpen);
@@ -270,13 +279,12 @@ void PDFViewerMainWindowLite::onPageZoomSpinboxEditingFinished()
 
 void PDFViewerMainWindowLite::onProgressStarted(pdf::ProgressStartupInfo info)
 {
-    Q_ASSERT(!m_progressDialog);
-    if (info.showDialog)
-    {
-        m_progressDialog = new QProgressDialog(info.text, QString(), 0, 100, this);
-        m_progressDialog->setWindowModality(Qt::WindowModal);
-        m_progressDialog->setCancelButton(nullptr);
-    }
+    m_progressBarLeftLabelOnStatusBar->setText(info.text);
+    m_progressBarLeftLabelOnStatusBar->setVisible(!info.text.isEmpty());
+
+    m_progressBarOnStatusBar->setRange(0, 100);
+    m_progressBarOnStatusBar->reset();
+    m_progressBarOnStatusBar->show();
 
     m_progressTaskbarIndicator->setRange(0, 100);
     m_progressTaskbarIndicator->reset();
@@ -294,24 +302,14 @@ void PDFViewerMainWindowLite::onProgressStep(int percentage)
     }
 
     pdf::PDFTemporaryValueChange guard(&m_isChangingProgressStep, true);
-
-    if (m_progressDialog)
-    {
-        m_progressDialog->setValue(percentage);
-    }
-
+    m_progressBarOnStatusBar->setValue(percentage);
     m_progressTaskbarIndicator->setValue(percentage);
 }
 
 void PDFViewerMainWindowLite::onProgressFinished()
 {
-    if (m_progressDialog)
-    {
-        m_progressDialog->hide();
-        m_progressDialog->deleteLater();
-        m_progressDialog = nullptr;
-    }
-
+    m_progressBarLeftLabelOnStatusBar->hide();
+    m_progressBarOnStatusBar->hide();
     m_progressTaskbarIndicator->hide();
 
     m_programController->setIsBusy(false);

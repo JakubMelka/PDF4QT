@@ -35,6 +35,7 @@
 #include <QApplication>
 #include <QStylePainter>
 #include <QStyleOptionTitleBar>
+
 namespace pdf
 {
 
@@ -222,27 +223,6 @@ void PDFWidgetTool::removeTool()
     m_toolStack.pop_back();
 }
 
-class PDFFindTextToolDialog : public QDialog
-{
-public:
-    PDFFindTextToolDialog(PDFDrawWidgetProxy* proxy, QWidget* parent, Qt::WindowFlags f) :
-        QDialog(parent, f),
-        m_proxy(proxy)
-    {
-
-    }
-
-    virtual ~PDFFindTextToolDialog() override = default;
-
-    virtual bool event(QEvent* event) override;
-
-protected:
-    virtual void paintEvent(QPaintEvent* event) override;
-
-private:
-    PDFDrawWidgetProxy* m_proxy;
-};
-
 void PDFFindTextToolDialog::paintEvent(QPaintEvent* event)
 {
     QDialog::paintEvent(event);
@@ -269,6 +249,13 @@ void PDFFindTextToolDialog::paintEvent(QPaintEvent* event)
     painter.drawPrimitive(QStyle::PE_Frame, frameOption);
 }
 
+PDFFindTextToolDialog::PDFFindTextToolDialog(PDFDrawWidgetProxy* proxy, QWidget* parent, Qt::WindowFlags f) :
+    QDialog(parent, f),
+    m_proxy(proxy)
+{
+
+}
+
 bool PDFFindTextToolDialog::event(QEvent* event)
 {
     switch (event->type())
@@ -291,6 +278,37 @@ bool PDFFindTextToolDialog::event(QEvent* event)
                 return pdfDrawWidget->doEvent(&wheelEvent);
             }
 
+            break;
+        }
+
+        case QEvent::KeyPress:
+        {
+            QKeyEvent* keyEvent = dynamic_cast<QKeyEvent*>(event);
+
+            if (!keyEvent->modifiers() || ((keyEvent->modifiers() & Qt::KeypadModifier) && keyEvent->key() == Qt::Key_Enter))
+            {
+                switch (keyEvent->key())
+                {
+                    case Qt::Key_Return:
+                    case Qt::Key_Enter:
+                    case Qt::Key_Home:
+                    {
+                        keyEvent->accept();
+                        Q_EMIT goToFirstResult();
+                        return true;
+                    }
+
+                    case Qt::Key_End:
+                    {
+                        keyEvent->accept();
+                        Q_EMIT goToLastResult();
+                        return true;
+                    }
+
+                    default:
+                        break;
+                }
+            }
             break;
         }
 
@@ -399,7 +417,7 @@ void PDFFindTextTool::setActiveImpl(bool active)
         m_wholeWordsCheckBox->setChecked(m_savedIsWholeWords);
 
         m_previousButton->setDefault(false);
-        m_nextButton->setDefault(false);
+        m_nextButton->setDefault(true);
 
         m_previousButton->setShortcut(m_prevAction->shortcut());
         m_nextButton->setShortcut(m_nextAction->shortcut());
@@ -409,6 +427,8 @@ void PDFFindTextTool::setActiveImpl(bool active)
         connect(m_findTextEdit, &QLineEdit::editingFinished, this, &PDFFindTextTool::onSearchText);
         connect(m_caseSensitiveCheckBox, &QCheckBox::clicked, this, &PDFFindTextTool::onSearchText);
         connect(m_wholeWordsCheckBox, &QCheckBox::clicked, this, &PDFFindTextTool::onSearchText);
+        connect(m_dialog, &PDFFindTextToolDialog::goToFirstResult, this, &PDFFindTextTool::onActionFirst);
+        connect(m_dialog, &PDFFindTextToolDialog::goToLastResult, this, &PDFFindTextTool::onActionLast);
 
         QMargins margins = layout->contentsMargins();
         margins.setTop(margins.top() + m_dialog->style()->pixelMetric(QStyle::PM_TitleBarHeight));
@@ -487,22 +507,27 @@ void PDFFindTextTool::onSearchText()
     }
 }
 
+void PDFFindTextTool::onActionFirst()
+{
+    if (!m_findResults.empty())
+    {
+        setCurrentResultIndex(0);
+    }
+}
+
+void PDFFindTextTool::onActionLast()
+{
+    if (!m_findResults.empty())
+    {
+        setCurrentResultIndex(m_findResults.size() - 1);
+    }
+}
+
 void PDFFindTextTool::onActionPrevious()
 {
     if (!m_findResults.empty())
     {
-        if (m_selectedResultIndex == 0)
-        {
-            m_selectedResultIndex = m_findResults.size() - 1;
-        }
-        else
-        {
-            --m_selectedResultIndex;
-        }
-        m_textSelection.dirty();
-        getProxy()->repaintNeeded();
-        goToCurrentResult();
-        updateTitle();
+        setCurrentResultIndex(m_selectedResultIndex == 0 ? m_findResults.size() - 1 : m_selectedResultIndex - 1);
     }
 }
 
@@ -510,7 +535,15 @@ void PDFFindTextTool::onActionNext()
 {
     if (!m_findResults.empty())
     {
-        m_selectedResultIndex = (m_selectedResultIndex + 1) % m_findResults.size();
+        setCurrentResultIndex((m_selectedResultIndex + 1) % m_findResults.size());
+    }
+}
+
+void PDFFindTextTool::setCurrentResultIndex(size_t index)
+{
+    if (!m_findResults.empty())
+    {
+        m_selectedResultIndex = index;
         m_textSelection.dirty();
         getProxy()->repaintNeeded();
         goToCurrentResult();

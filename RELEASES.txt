@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #119: Improve search bar 2 (the revenge) 
  - Issue #118: Adding CMAKE options for minimal builds
  - Issue #116: Improve search bar (rembember searched text, allow scroll and zoom)
  - Issue #115: Redesign of sidebar widget, new icons

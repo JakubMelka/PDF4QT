@@ -145,6 +145,26 @@ private:
     std::optional<QCursor> m_cursor;
 };
 
+class PDFFindTextToolDialog : public QDialog
+{
+    Q_OBJECT
+public:
+    PDFFindTextToolDialog(PDFDrawWidgetProxy* proxy, QWidget* parent, Qt::WindowFlags f);
+
+    virtual ~PDFFindTextToolDialog() override = default;
+    virtual bool event(QEvent* event) override;
+
+signals:
+    void goToFirstResult();
+    void goToLastResult();
+
+protected:
+    virtual void paintEvent(QPaintEvent* event) override;
+
+private:
+    PDFDrawWidgetProxy* m_proxy;
+};
+
 /// Simple tool for find text in PDF document. It is much simpler than advanced
 /// search and can't search using regular expressions.
 class PDFFindTextTool : public PDFWidgetTool
@@ -176,10 +196,13 @@ protected:
 
 private:
     void onSearchText();
+    void onActionFirst();
+    void onActionLast();
     void onActionPrevious();
     void onActionNext();
     void onDialogRejected();
 
+    void setCurrentResultIndex(size_t index);
     void performSearch();
     void updateResultsUI();
     void updateTitle();
@@ -190,7 +213,7 @@ private:
     QAction* m_nextAction;
     QWidget* m_parentDialog;
 
-    QDialog* m_dialog;
+    PDFFindTextToolDialog* m_dialog;
     QCheckBox* m_caseSensitiveCheckBox;
     QCheckBox* m_wholeWordsCheckBox;
     QLineEdit* m_findTextEdit;

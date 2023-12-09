@@ -533,7 +533,7 @@ void PDFAsynchronousTextLayoutCompiler::makeTextLayout()
     m_isRunning = true;
 
     ProgressStartupInfo info;
-    info.showDialog = true;
+    info.showDialog = false;
     info.text = tr("Indexing document contents...");
 
     m_proxy->getFontCache()->setCacheShrinkEnabled(this, false);
