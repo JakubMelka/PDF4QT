@@ -13,7 +13,7 @@ jobs:
         with:
           path: pdf4qt
 
-      - name: VCPKG: Set up VCPKG
+      - name: 'VCPKG: Set up VCPKG'
         run: |
           git clone --depth=1 https://github.com/microsoft/vcpkg.git
           cd vcpkg
@@ -21,7 +21,7 @@ jobs:
           ./vcpkg integrate install
         working-directory: vcpkg
         
-      - name: VCPKG: Cache vcpkg dependencies
+      - name: 'VCPKG: Cache vcpkg dependencies'
         uses: actions/cache@v2
         with:
           path: |
@@ -31,7 +31,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-vcpkg-
 
-      - name: VCPKG: Install project dependencies
+      - name: 'VCPKG: Install project dependencies'
         run: |
           ./vcpkg/vcpkg install tbb openssl lcms zlib openjpeg freetype ijg-libjpeg libpng
         working-directory: vcpkg
