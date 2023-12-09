@@ -43,7 +43,6 @@ jobs:
           target: 'desktop'
           dir: '${{ github.workspace }}/qt/'
           install-deps: 'true'
-          modules: 'qtsvg qtxml qtprintsupport qtspeech qttest qtopengl qtopenglwidgets'
           cache: 'true'
           cache-key-prefix: ${{ runner.os }}-qt-660
 
