@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          path: pdf4qt
+
+      - name: VCPKG: Set up VCPKG
+        run: |
+          git clone --depth=1 https://github.com/microsoft/vcpkg.git
+          cd vcpkg
+          ./bootstrap-vcpkg.sh
+          ./vcpkg integrate install
+        working-directory: vcpkg
+        
+      - name: VCPKG: Cache vcpkg dependencies
+        uses: actions/cache@v2
+        with:
+          path: |
+            ./vcpkg/downloads
+            ./vcpkg/packages
+          key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/vcpkg.json') }}
+          restore-keys: |
+            ${{ runner.os }}-vcpkg-
+
+      - name: VCPKG: Install project dependencies
+        run: |
+          ./vcpkg/vcpkg install tbb openssl lcms zlib openjpeg freetype ijg-libjpeg libpng
+        working-directory: vcpkg
+        
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.6.0'
+          host: 'linux'
+          target: 'desktop'
+          dir: '${{ github.workspace }}/qt/'
+          install-deps: 'true'
+          modules: 'Qt6Core Qt6Gui Qt6Widgets Qt6Svg Qt6Xml Qt6PrintSupport Qt6TextToSpeech Qt6Test QtOpenGL QtOpenGLWidgets'
+          cache: 'true'
+          cache-key-prefix: ${{ runner.os }}-qt-660
+
+      - name: Build project
+        run: |
+          cd pdf4qt
+          cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j6
+          cmake --install build
+        working-directory: pdf4qt
+
+      - name: Make DEB package
+        run: |
+          cd pdf4qt/build
+          sh make-package.sh
+          
+      - name: Upload DEB package
+          uses: actions/upload-artifact@v3
+          with:
+            name: ubuntu-deb-package
+            path: ./pdf4qt/build/*.deb
+            retention-days: 30
