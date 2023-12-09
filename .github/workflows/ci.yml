@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build_ubuntu:
     runs-on: ubuntu-latest
 
     steps:
@@ -19,7 +19,6 @@ jobs:
           cd vcpkg
           ./bootstrap-vcpkg.sh
           ./vcpkg integrate install
-        working-directory: vcpkg
         
       - name: 'VCPKG: Cache vcpkg dependencies'
         uses: actions/cache@v2
@@ -33,7 +32,7 @@ jobs:
 
       - name: 'VCPKG: Install project dependencies'
         run: |
-          ./vcpkg/vcpkg install tbb openssl lcms zlib openjpeg freetype ijg-libjpeg libpng
+          ./vcpkg install tbb openssl lcms zlib openjpeg freetype ijg-libjpeg libpng
         working-directory: vcpkg
         
       - name: Install Qt
@@ -49,21 +48,21 @@ jobs:
           cache-key-prefix: ${{ runner.os }}-qt-660
 
       - name: Build project
+        working-directory: pdf4qt
         run: |
-          cd pdf4qt
           cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release
           cmake --build build -j6
           cmake --install build
-        working-directory: pdf4qt
 
       - name: Make DEB package
+        working-directory: pdf4qt/build
         run: |
-          cd pdf4qt/build
           sh make-package.sh
           
       - name: Upload DEB package
         uses: actions/upload-artifact@v3
+        working-directory: pdf4qt/build
         with:
           name: ubuntu-deb-package
-          path: ./pdf4qt/build/*.deb
+          path: ./*.deb
           retention-days: 30
