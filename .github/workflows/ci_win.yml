@@ -50,19 +50,18 @@ jobs:
       - name: Build project
         working-directory: pdf4qt
         run: |
-          cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=ON -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release
+          cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=ON -DPDF4QT_INSTALL_DEPENDENCIES=ON -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE\vcpkg\scripts\buildsystems\vcpkg.cmake -DPDF4QT_QT_ROOT=$Qt6_DIR -DPDF4QT_INSTALL_MSVC_REDISTRIBUTABLE=ON -DPDF4QT_INSTALL_PREPARE_WIX_INSTALLER=ON -DCMAKE_BUILD_TYPE=Release -DPDF4QT_INSTALL_TO_USR=ON
           cmake --build build -j6
           cmake --install build
 
-      # Note: The following steps will need to be adapted based on your specific Windows build and packaging process
-      - name: Make Windows package
-        working-directory: pdf4qt/build
+      - name: Make Windows ZIP package
+        working-directory: pdf4qt/build/usr
         run: |
-          # Add commands to create a Windows package, e.g., building a .exe installer
-
+          7z a -r pdf4qt.zip bin
+          
       - name: Upload Windows package
         uses: actions/upload-artifact@v3
         with:
-          name: windows-package
-          path: ./pdf4qt/build/*.<your-package-extension> # Replace with your package's file extension
+          name: 'pdf4qt-${{ runner.os }}.zip'
+          path: .\pdf4qt\build\usr\*.zip
           retention-days: 30
