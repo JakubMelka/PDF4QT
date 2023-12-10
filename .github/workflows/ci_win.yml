@@ -49,8 +49,9 @@ jobs:
 
       - name: Build project
         working-directory: pdf4qt
+        shell: pwsh
         run: |
-          cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=ON -DPDF4QT_INSTALL_DEPENDENCIES=ON -DCMAKE_TOOLCHAIN_FILE=$GITHUB_WORKSPACE\vcpkg\scripts\buildsystems\vcpkg.cmake -DPDF4QT_QT_ROOT=$Qt6_DIR -DPDF4QT_INSTALL_MSVC_REDISTRIBUTABLE=ON -DPDF4QT_INSTALL_PREPARE_WIX_INSTALLER=ON -DCMAKE_BUILD_TYPE=Release -DPDF4QT_INSTALL_TO_USR=ON
+          cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=ON -DPDF4QT_INSTALL_DEPENDENCIES=ON -DCMAKE_TOOLCHAIN_FILE="${env:GITHUB_WORKSPACE}\vcpkg\scripts\buildsystems\vcpkg.cmake" -DPDF4QT_QT_ROOT="${env:Qt6_DIR}" -DPDF4QT_INSTALL_MSVC_REDISTRIBUTABLE=ON -DPDF4QT_INSTALL_PREPARE_WIX_INSTALLER=ON -DCMAKE_BUILD_TYPE=Release -DPDF4QT_INSTALL_TO_USR=ON
           cmake --build build -j6
           cmake --install build
 
