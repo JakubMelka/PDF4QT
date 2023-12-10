@@ -1,0 +1,68 @@
+name: CIWIN
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build_windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: pdf4qt
+
+      - name: 'VCPKG: Set up VCPKG'
+        run: |
+          git clone --depth=1 https://github.com/microsoft/vcpkg.git
+          cd vcpkg
+          .\bootstrap-vcpkg.bat
+          .\vcpkg integrate install
+
+      - name: 'VCPKG: Cache vcpkg dependencies'
+        uses: actions/cache@v3
+        with:
+          path: |
+            ./vcpkg/downloads
+            ./vcpkg/packages
+          key: ${{ runner.os }}-vcpkg-v2-${{ hashFiles('**/vcpkg.json') }}
+          restore-keys: |
+            ${{ runner.os }}-vcpkg-v2-
+
+      - name: 'VCPKG: Install project dependencies'
+        run: |
+          .\vcpkg install tbb openssl lcms zlib openjpeg freetype ijg-libjpeg libpng
+        working-directory: vcpkg
+        
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.6.0'
+          host: 'windows'
+          target: 'desktop'
+          dir: '${{ github.workspace }}/qt/'
+          install-deps: 'true'
+          modules: 'qtspeech qtmultimedia'
+          cache: 'true'
+          cache-key-prefix: ${{ runner.os }}-qt-660
+
+      - name: Build project
+        working-directory: pdf4qt
+        run: |
+          cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=ON -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j6
+          cmake --install build
+
+      # Note: The following steps will need to be adapted based on your specific Windows build and packaging process
+      - name: Make Windows package
+        working-directory: pdf4qt/build
+        run: |
+          # Add commands to create a Windows package, e.g., building a .exe installer
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows-package
+          path: ./pdf4qt/build/*.<your-package-extension> # Replace with your package's file extension
+          retention-days: 30
