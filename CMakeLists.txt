@@ -18,6 +18,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 set(PDF4QT_VERSION 1.3.6)
+message(STATUS "Build type - CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 
 project(PDF4QT VERSION ${PDF4QT_VERSION} LANGUAGES CXX)
 
