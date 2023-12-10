@@ -26,6 +26,8 @@ jobs:
           path: |
             ./vcpkg/downloads
             ./vcpkg/packages
+            ./vcpkg/installed
+            ./vcpkg/buildtrees
           key: ${{ runner.os }}-vcpkg-v2-${{ hashFiles('**/vcpkg.json') }}
           restore-keys: |
             ${{ runner.os }}-vcpkg-v2-
@@ -46,12 +48,17 @@ jobs:
           modules: 'qtspeech qtmultimedia'
           cache: 'true'
           cache-key-prefix: ${{ runner.os }}-qt-660
+          
+      - name: Echo CMake command
+        run: echo "cmake --trace -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=ON -DPDF4QT_INSTALL_DEPENDENCIES=ON -DCMAKE_TOOLCHAIN_FILE=${env:GITHUB_WORKSPACE}\vcpkg\scripts\buildsystems\vcpkg.cmake -DPDF4QT_QT_ROOT=${env:Qt6_DIR} -DPDF4QT_INSTALL_MSVC_REDISTRIBUTABLE=ON -DPDF4QT_INSTALL_PREPARE_WIX_INSTALLER=ON -DCMAKE_BUILD_TYPE=Release -DPDF4QT_INSTALL_TO_USR=ON"
+        shell: pwsh
+
 
       - name: Build project
         working-directory: pdf4qt
         shell: pwsh
         run: |
-          cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=ON -DPDF4QT_INSTALL_DEPENDENCIES=ON -DCMAKE_TOOLCHAIN_FILE="${env:GITHUB_WORKSPACE}\vcpkg\scripts\buildsystems\vcpkg.cmake" -DPDF4QT_QT_ROOT="${env:Qt6_DIR}" -DPDF4QT_INSTALL_MSVC_REDISTRIBUTABLE=ON -DPDF4QT_INSTALL_PREPARE_WIX_INSTALLER=ON -DCMAKE_BUILD_TYPE=Release -DPDF4QT_INSTALL_TO_USR=ON
+          cmake --trace -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=ON -DPDF4QT_INSTALL_DEPENDENCIES=ON -DCMAKE_TOOLCHAIN_FILE="${env:GITHUB_WORKSPACE}\vcpkg\scripts\buildsystems\vcpkg.cmake" -DPDF4QT_QT_ROOT="${env:Qt6_DIR}" -DPDF4QT_INSTALL_MSVC_REDISTRIBUTABLE=ON -DPDF4QT_INSTALL_PREPARE_WIX_INSTALLER=ON -DCMAKE_BUILD_TYPE=Release -DPDF4QT_INSTALL_TO_USR=ON
           cmake --build build -j6
           cmake --install build
 
