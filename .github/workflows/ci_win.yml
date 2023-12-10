@@ -64,15 +64,10 @@ jobs:
           cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DPDF4QT_INSTALL_QT_DEPENDENCIES=ON -DPDF4QT_INSTALL_DEPENDENCIES=ON -DCMAKE_TOOLCHAIN_FILE="${env:GITHUB_WORKSPACE}\vcpkg\scripts\buildsystems\vcpkg.cmake" -DPDF4QT_QT_ROOT="${env:Qt6_DIR}" -DPDF4QT_INSTALL_MSVC_REDISTRIBUTABLE=ON -DPDF4QT_INSTALL_PREPARE_WIX_INSTALLER=ON -DPDF4QT_INSTALL_TO_USR=ON
           cmake --build build --config Release -j6
           cmake --install build
-
-      - name: Make Windows ZIP package
-        working-directory: pdf4qt\build\install\usr
-        run: |
-          7z a -r pdf4qt.zip bin
-          
+ 
       - name: Upload Windows package
         uses: actions/upload-artifact@v3
         with:
           name: 'pdf4qt-${{ runner.os }}.zip'
-          path: .\pdf4qt\build\install\usr\*.zip
+          path: .\pdf4qt\build\install\usr\bin
           retention-days: 30
