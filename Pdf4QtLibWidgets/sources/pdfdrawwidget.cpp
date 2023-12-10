@@ -432,6 +432,7 @@ void PDFDrawWidgetBase<BaseWidget>::mousePressEvent(QMouseEvent* event)
             m_autoScrollLastElapsedTimer.restart();
             m_autoScrollOffset = QPointF(0.0, 0.0);
             m_lastMousePosition = event->pos();
+            m_autoScrollTimer.setInterval(10);
             m_autoScrollTimer.start();
         }
     }
