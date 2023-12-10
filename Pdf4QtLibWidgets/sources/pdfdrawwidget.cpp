@@ -266,6 +266,8 @@ PDFDrawWidgetBase<BaseWidget>::PDFDrawWidgetBase(PDFWidget* widget, QWidget* par
 {
     this->setFocusPolicy(Qt::StrongFocus);
     this->setMouseTracking(true);
+
+    QObject::connect(&m_autoScrollTimer, &QTimer::timeout, this, &PDFDrawWidgetBase::onAutoScrollTimeout);
 }
 
 template<typename BaseWidget>
@@ -305,6 +307,13 @@ void PDFDrawWidgetBase<BaseWidget>::performMouseOperation(QPoint currentMousePos
             QPoint difference = currentMousePosition - m_lastMousePosition;
             m_widget->getDrawWidgetProxy()->scrollByPixels(difference);
             m_lastMousePosition = currentMousePosition;
+            break;
+        }
+
+        case MouseOperation::AutoScroll:
+        {
+            m_lastMousePosition = currentMousePosition;
+            onAutoScrollTimeout();
             break;
         }
 
@@ -407,6 +416,27 @@ void PDFDrawWidgetBase<BaseWidget>::mousePressEvent(QMouseEvent* event)
         m_lastMousePosition = event->pos();
     }
 
+    if (event->button() == Qt::MiddleButton)
+    {
+        if (m_mouseOperation == MouseOperation::AutoScroll)
+        {
+            m_mouseOperation = MouseOperation::None;
+            m_autoScrollTimer.stop();
+            m_autoScrollLastElapsedTimer.restart();
+            m_autoScrollOffset = QPointF(0.0, 0.0);
+        }
+        else
+        {
+            m_mouseOperation = MouseOperation::AutoScroll;
+            m_autoScrollMousePosition = event->pos();
+            m_autoScrollLastElapsedTimer.restart();
+            m_autoScrollOffset = QPointF(0.0, 0.0);
+            m_lastMousePosition = event->pos();
+            m_autoScrollTimer.setInterval(10);
+            m_autoScrollTimer.start();
+        }
+    }
+
     updateCursor();
     event->accept();
 }
@@ -441,12 +471,19 @@ void PDFDrawWidgetBase<BaseWidget>::mouseReleaseEvent(QMouseEvent* event)
 
         case MouseOperation::Translate:
         {
-            m_mouseOperation = MouseOperation::None;
+            if (event->button() != Qt::MiddleButton)
+            {
+                m_mouseOperation = MouseOperation::None;
+            }
             break;
         }
 
+        case MouseOperation::AutoScroll:
+            break;
+
         default:
             Q_ASSERT(false);
+            break;
     }
 
     updateCursor();
@@ -496,6 +533,10 @@ void PDFDrawWidgetBase<BaseWidget>::updateCursor()
                 cursor = QCursor(Qt::ClosedHandCursor);
                 break;
 
+            case MouseOperation::AutoScroll:
+                cursor = QCursor(Qt::SizeAllCursor);
+                break;
+
             default:
                 Q_ASSERT(false);
                 break;
@@ -510,6 +551,31 @@ void PDFDrawWidgetBase<BaseWidget>::updateCursor()
     {
         this->unsetCursor();
     }
+}
+
+template<typename BaseWidget>
+void PDFDrawWidgetBase<BaseWidget>::onAutoScrollTimeout()
+{
+    if (m_mouseOperation != MouseOperation::AutoScroll)
+    {
+        return;
+    }
+
+    QPointF offset = m_autoScrollMousePosition - m_lastMousePosition;
+    QPointF scrollOffset = m_autoScrollOffset;
+
+    qreal secondsElapsed = qreal(m_autoScrollLastElapsedTimer.nsecsElapsed()) * 0.000000001;
+    m_autoScrollLastElapsedTimer.restart();
+    scrollOffset += offset * secondsElapsed;
+
+    int scrollX = qFloor(scrollOffset.x());
+    int scrollY = qFloor(scrollOffset.y());
+
+    scrollOffset -= QPointF(scrollX, scrollY);
+    m_autoScrollOffset = scrollOffset;
+
+    PDFDrawWidgetProxy* proxy = m_widget->getDrawWidgetProxy();
+    proxy->scrollByPixels(QPoint(scrollX, scrollY));
 }
 
 template<typename BaseWidget>

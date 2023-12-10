@@ -24,6 +24,8 @@
 
 #include <QWidget>
 #include <QScrollBar>
+#include <QTimer>
+#include <QElapsedTimer>
 
 #ifdef PDF4QT_ENABLE_OPENGL
 #include <QOpenGLWidget>
@@ -161,6 +163,7 @@ protected:
 
 private:
     void updateCursor();
+    void onAutoScrollTimeout();
 
     template<typename Event, void(IDrawWidgetInputInterface::* Function)(QWidget*, Event*)>
     bool processEvent(Event* event);
@@ -168,7 +171,8 @@ private:
     enum class MouseOperation
     {
         None,
-        Translate
+        Translate,
+        AutoScroll
     };
 
     /// Performs the mouse operation (under the current mouse position)
@@ -177,7 +181,11 @@ private:
 
     PDFWidget* m_widget;
     QPoint m_lastMousePosition;
+    QPoint m_autoScrollMousePosition;
     MouseOperation m_mouseOperation;
+    QTimer m_autoScrollTimer;
+    QPointF m_autoScrollOffset;
+    QElapsedTimer m_autoScrollLastElapsedTimer;
 };
 
 class PDFDrawWidget : public PDFDrawWidgetBase<QWidget>
