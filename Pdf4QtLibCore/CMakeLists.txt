@@ -162,6 +162,7 @@ target_link_libraries(Pdf4QtLibCore PRIVATE JPEG::JPEG)
 
 target_include_directories(Pdf4QtLibCore PUBLIC SYSTEM
     ${FREETYPE_INCLUDE_DIRS}
+    ${OPENJPEG_INCLUDES}
 )
 
 if(PDF4QT_ENABLE_OPENGL)
