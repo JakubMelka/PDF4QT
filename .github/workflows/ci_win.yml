@@ -20,7 +20,7 @@ jobs:
           .\bootstrap-vcpkg.bat -disableMetrics
           .\vcpkg integrate install
           set VCPKG_ROOT=${env:GITHUB_WORKSPACE}\vcpkg\
-          set VCPKG_BINARY_SOURCES=clear;files,${env:GITHUB_WORKSPACE}\vcpkg\archives,readwrite
+          set "VCPKG_BINARY_SOURCES=clear;files,${env:GITHUB_WORKSPACE}\vcpkg\archives,readwrite"
 
       - name: 'VCPKG: Cache vcpkg dependencies'
         uses: actions/cache@v3
