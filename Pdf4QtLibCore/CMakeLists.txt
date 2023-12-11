@@ -160,6 +160,10 @@ target_link_libraries(Pdf4QtLibCore PRIVATE freetype)
 target_link_libraries(Pdf4QtLibCore PRIVATE openjp2)
 target_link_libraries(Pdf4QtLibCore PRIVATE JPEG::JPEG)
 
+target_include_directories(Pdf4QtLibCore PUBLIC SYSTEM
+    ${FREETYPE_INCLUDE_DIRS}
+)
+
 if(PDF4QT_ENABLE_OPENGL)
     target_link_libraries(Pdf4QtLibCore PRIVATE Qt6::OpenGL)
 endif()
