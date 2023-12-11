@@ -12,16 +12,15 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: pdf4qt
-          
- #     - name: Install Ninja
- #       run: choco install ninja
 
       - name: 'VCPKG: Set up VCPKG'
         run: |
           git clone --depth=1 https://github.com/microsoft/vcpkg.git
           cd vcpkg
-          .\bootstrap-vcpkg.bat
+          .\bootstrap-vcpkg.bat -disableMetrics
           .\vcpkg integrate install
+          set VCPKG_ROOT=${env:GITHUB_WORKSPACE}\vcpkg\
+          set VCPKG_BINARY_SOURCES=clear;files,${env:GITHUB_WORKSPACE}\vcpkg\archives,readwrite
 
       - name: 'VCPKG: Cache vcpkg dependencies'
         uses: actions/cache@v3
@@ -30,10 +29,9 @@ jobs:
             ./vcpkg/downloads
             ./vcpkg/packages
             ./vcpkg/installed
-            ./vcpkg/buildtrees
-          key: ${{ runner.os }}-vcpkg-v2-${{ hashFiles('**/vcpkg.json') }}
-          restore-keys: |
-            ${{ runner.os }}-vcpkg-v2-
+            ./vcpkg/archives
+          key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/vcpkg.json') }}
+
 
       - name: 'VCPKG: Install project dependencies'
         run: |
@@ -51,11 +49,6 @@ jobs:
           modules: 'qtspeech qtmultimedia'
           cache: 'true'
           cache-key-prefix: ${{ runner.os }}-qt-660
-          
-      - name: Echo CMake command
-        run: echo "cmake -B build -S .  -DCMAKE_BUILD_TYPE=Release -DPDF4QT_INSTALL_QT_DEPENDENCIES=ON -DPDF4QT_INSTALL_DEPENDENCIES=ON -DCMAKE_TOOLCHAIN_FILE="${env:GITHUB_WORKSPACE}\vcpkg\scripts\buildsystems\vcpkg.cmake" -DPDF4QT_QT_ROOT="${env:Qt6_DIR}" -DPDF4QT_INSTALL_MSVC_REDISTRIBUTABLE=ON -DPDF4QT_INSTALL_PREPARE_WIX_INSTALLER=ON -DPDF4QT_INSTALL_TO_USR=ON"
-        shell: pwsh
-
 
       - name: Build project
         working-directory: pdf4qt
