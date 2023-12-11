@@ -15,6 +15,26 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
+cmake_minimum_required(VERSION 3.16)
+
+set(PDF4QT_VERSION 1.3.6)
+message(STATUS "Build type - CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
+
+project(PDF4QT VERSION ${PDF4QT_VERSION} LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Svg Xml)
+
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
+
+set(CMAKE_AUTORCC_OPTIONS "--threshold;0;--compress;9")
+
+option(PDF4QT_ENABLE_OPENGL "Enable OpenGL" ON)
+
 add_library(Pdf4QtLibCore SHARED
     sources/pdfaction.cpp
     sources/pdfaction.h
@@ -151,6 +171,14 @@ GENERATE_EXPORT_HEADER(Pdf4QtLibCore
                        EXPORT_MACRO_NAME
                        PDF4QTLIBCORESHARED_EXPORT
                        EXPORT_FILE_NAME "${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR}/pdf4qtlibcore_export.h")
+
+
+find_package(OpenSSL REQUIRED)
+find_package(lcms REQUIRED)
+find_package(ZLIB REQUIRED)
+find_package(freetype REQUIRED)
+find_package(OpenJPEG CONFIG REQUIRED)
+find_package(JPEG REQUIRED)
 
 target_link_libraries(Pdf4QtLibCore PRIVATE Qt6::Core Qt6::Gui Qt6::Xml Qt6::Svg)
 target_link_libraries(Pdf4QtLibCore PRIVATE lcms2::lcms2)
