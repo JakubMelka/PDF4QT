@@ -1,6 +1,10 @@
 name: CI
 
 on:
+  push:
+    branches:
+      - master
+      
   workflow_dispatch:
 
 jobs:
@@ -64,4 +68,65 @@ jobs:
         with:
           name: ubuntu-deb-package
           path: ./pdf4qt/build/*.deb
+          retention-days: 30
+
+  build_windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: pdf4qt
+
+      - name: 'VCPKG: Set up VCPKG'
+        run: |
+          git clone --depth=1 https://github.com/microsoft/vcpkg.git
+          cd vcpkg
+          .\bootstrap-vcpkg.bat -disableMetrics
+          .\vcpkg integrate install
+          set VCPKG_ROOT=${env:GITHUB_WORKSPACE}\vcpkg\
+          set "VCPKG_BINARY_SOURCES=clear;files,${env:GITHUB_WORKSPACE}\vcpkg\archives,readwrite"
+
+      - name: 'VCPKG: Cache vcpkg dependencies'
+        uses: actions/cache@v3
+        with:
+          path: |
+            ./vcpkg/downloads
+            ./vcpkg/packages
+            ./vcpkg/installed
+            ./vcpkg/archives
+          key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/vcpkg.json') }}
+
+
+      - name: 'VCPKG: Install project dependencies'
+        run: |
+          .\vcpkg install tbb openssl lcms zlib openjpeg freetype ijg-libjpeg libpng --triplet x64-windows
+        working-directory: vcpkg
+        
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.6.0'
+          host: 'windows'
+          target: 'desktop'
+          dir: '${{ github.workspace }}/qt/'
+          install-deps: 'true'
+          modules: 'qtspeech qtmultimedia'
+          cache: 'true'
+          cache-key-prefix: ${{ runner.os }}-qt-660
+
+      - name: Build project
+        working-directory: pdf4qt
+        shell: pwsh
+        run: |
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DPDF4QT_INSTALL_QT_DEPENDENCIES=ON -DPDF4QT_INSTALL_DEPENDENCIES=ON -DCMAKE_TOOLCHAIN_FILE="${env:GITHUB_WORKSPACE}\vcpkg\scripts\buildsystems\vcpkg.cmake" -DPDF4QT_QT_ROOT="${env:Qt6_DIR}" -DPDF4QT_INSTALL_MSVC_REDISTRIBUTABLE=ON -DPDF4QT_INSTALL_PREPARE_WIX_INSTALLER=ON -DPDF4QT_INSTALL_TO_USR=ON
+          cmake --build build --config Release -j6
+          cmake --install build
+ 
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v3
+        with:
+          name: 'pdf4qt-${{ runner.os }}.zip'
+          path: .\pdf4qt\build\install\usr\bin
           retention-days: 30
