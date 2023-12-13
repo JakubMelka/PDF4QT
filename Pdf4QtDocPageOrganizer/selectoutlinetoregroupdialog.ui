@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>SelectBookmarksToRegroupDialog</class>
- <widget class="QDialog" name="SelectBookmarksToRegroupDialog">
+ <class>SelectOutlineToRegroupDialog</class>
+ <widget class="QDialog" name="SelectOutlineToRegroupDialog">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -11,11 +11,11 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Select Bookmarks</string>
+   <string>Select Outline</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
-    <widget class="QTreeView" name="bookmarksView"/>
+    <widget class="QTreeView" name="outlineView"/>
    </item>
    <item>
     <widget class="QDialogButtonBox" name="buttonBox">
@@ -34,7 +34,7 @@
   <connection>
    <sender>buttonBox</sender>
    <signal>accepted()</signal>
-   <receiver>SelectBookmarksToRegroupDialog</receiver>
+   <receiver>SelectOutlineToRegroupDialog</receiver>
    <slot>accept()</slot>
    <hints>
     <hint type="sourcelabel">
@@ -50,7 +50,7 @@
   <connection>
    <sender>buttonBox</sender>
    <signal>rejected()</signal>
-   <receiver>SelectBookmarksToRegroupDialog</receiver>
+   <receiver>SelectOutlineToRegroupDialog</receiver>
    <slot>reject()</slot>
    <hints>
     <hint type="sourcelabel">

@@ -15,8 +15,8 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef PDFDOCPAGEORGANIZER_SELECTBOOKMARKSTOREGROUPDIALOG_H
-#define PDFDOCPAGEORGANIZER_SELECTBOOKMARKSTOREGROUPDIALOG_H
+#ifndef PDFDOCPAGEORGANIZER_SELECTOUTLINETOREGROUPDIALOG_H
+#define PDFDOCPAGEORGANIZER_SELECTOUTLINETOREGROUPDIALOG_H
 
 #include "pdfdocument.h"
 
@@ -24,7 +24,7 @@
 
 namespace Ui
 {
-class SelectBookmarksToRegroupDialog;
+class SelectOutlineToRegroupDialog;
 }
 
 namespace pdf
@@ -35,13 +35,13 @@ class PDFSelectableOutlineTreeItemModel;
 namespace pdfdocpage
 {
 
-class SelectBookmarksToRegroupDialog : public QDialog
+class SelectOutlineToRegroupDialog : public QDialog
 {
     Q_OBJECT
 
 public:
-    explicit SelectBookmarksToRegroupDialog(const pdf::PDFDocument* document, QWidget* parent);
-    virtual ~SelectBookmarksToRegroupDialog() override;
+    explicit SelectOutlineToRegroupDialog(const pdf::PDFDocument* document, QWidget* parent);
+    virtual ~SelectOutlineToRegroupDialog() override;
 
     std::vector<const pdf::PDFOutlineItem*> getSelectedOutlineItems() const;
 
@@ -62,7 +62,7 @@ private:
 
     std::function<void (QModelIndex)> createCheckByDepthManipulator(int targetDepth) const;
 
-    Ui::SelectBookmarksToRegroupDialog* ui;
+    Ui::SelectOutlineToRegroupDialog* ui;
     const pdf::PDFDocument* m_document;
     pdf::PDFSelectableOutlineTreeItemModel* m_model;
     QModelIndex m_menuIndex;
@@ -70,4 +70,4 @@ private:
 
 }   // namespace pdfdocpage
 
-#endif // PDFDOCPAGEORGANIZER_SELECTBOOKMARKSTOREGROUPDIALOG_H
+#endif // PDFDOCPAGEORGANIZER_SELECTOUTLINETOREGROUPDIALOG_H

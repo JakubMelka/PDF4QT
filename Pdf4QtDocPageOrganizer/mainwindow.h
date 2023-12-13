@@ -91,7 +91,7 @@ public:
 
         RegroupEvenOdd,
         RegroupPaired,
-        RegroupBookmarks,
+        RegroupOutline,
         RegroupAlternatingPages,
         RegroupAlternatingPagesReversed,
 

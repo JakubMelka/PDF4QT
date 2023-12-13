@@ -81,26 +81,26 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
     setStyleSheet(STYLESHEET);
 
     // Outline
-    QIcon bookmarkIcon(":/resources/bookmark.svg");
-    m_outlineTreeModel = new pdf::PDFOutlineTreeItemModel(qMove(bookmarkIcon), editableOutline, this);
-    ui->bookmarksTreeView->setModel(m_outlineTreeModel);
-    ui->bookmarksTreeView->header()->hide();
+    QIcon outlineIcon(":/resources/outline.svg");
+    m_outlineTreeModel = new pdf::PDFOutlineTreeItemModel(qMove(outlineIcon), editableOutline, this);
+    ui->outlineTreeView->setModel(m_outlineTreeModel);
+    ui->outlineTreeView->header()->hide();
 
     if (editableOutline)
     {
-        ui->bookmarksTreeView->setDragEnabled(true);
-        ui->bookmarksTreeView->setAcceptDrops(true);
-        ui->bookmarksTreeView->setDropIndicatorShown(true);
-        ui->bookmarksTreeView->setDragDropMode(QAbstractItemView::InternalMove);
-        ui->bookmarksTreeView->setContextMenuPolicy(Qt::CustomContextMenu);
-        connect(ui->bookmarksTreeView, &QTreeView::customContextMenuRequested, this, &PDFSidebarWidget::onBookmarksTreeViewContextMenuRequested);
+        ui->outlineTreeView->setDragEnabled(true);
+        ui->outlineTreeView->setAcceptDrops(true);
+        ui->outlineTreeView->setDropIndicatorShown(true);
+        ui->outlineTreeView->setDragDropMode(QAbstractItemView::InternalMove);
+        ui->outlineTreeView->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(ui->outlineTreeView, &QTreeView::customContextMenuRequested, this, &PDFSidebarWidget::onOutlineTreeViewContextMenuRequested);
         connect(m_outlineTreeModel, &pdf::PDFOutlineTreeItemModel::dataChanged, this, &PDFSidebarWidget::onOutlineItemsChanged);
         connect(m_outlineTreeModel, &pdf::PDFOutlineTreeItemModel::rowsInserted, this, &PDFSidebarWidget::onOutlineItemsChanged);
         connect(m_outlineTreeModel, &pdf::PDFOutlineTreeItemModel::rowsRemoved, this, &PDFSidebarWidget::onOutlineItemsChanged);
         connect(m_outlineTreeModel, &pdf::PDFOutlineTreeItemModel::rowsMoved, this, &PDFSidebarWidget::onOutlineItemsChanged);
     }
 
-    connect(ui->bookmarksTreeView, &QTreeView::clicked, this, &PDFSidebarWidget::onOutlineItemClicked);
+    connect(ui->outlineTreeView, &QTreeView::clicked, this, &PDFSidebarWidget::onOutlineItemClicked);
 
     // Thumbnails
     m_thumbnailsModel = new pdf::PDFThumbnailsItemModel(proxy, this);
@@ -128,7 +128,7 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
 
     m_pageInfo[Invalid] = { nullptr, ui->emptyPage };
     m_pageInfo[OptionalContent] = { ui->optionalContentButton, ui->optionalContentPage };
-    m_pageInfo[Bookmarks] = { ui->bookmarksButton, ui->bookmarksPage };
+    m_pageInfo[Outline] = { ui->outlineButton, ui->outlinePage };
     m_pageInfo[Thumbnails] = { ui->thumbnailsButton, ui->thumbnailsPage };
     m_pageInfo[Attachments] = { ui->attachmentsButton, ui->attachmentsPage };
     m_pageInfo[Speech] = { ui->speechButton, ui->speechPage };
@@ -189,7 +189,7 @@ void PDFSidebarWidget::setDocument(const pdf::PDFModifiedDocument& document, con
         switch (pageMode)
         {
             case pdf::PageMode::UseOutlines:
-                preferred = Bookmarks;
+                preferred = Outline;
                 break;
 
             case pdf::PageMode::UseThumbnails:
@@ -210,7 +210,7 @@ void PDFSidebarWidget::setDocument(const pdf::PDFModifiedDocument& document, con
                 switch (nonFullscreenPageMode)
                 {
                     case pdf::PDFViewerPreferences::NonFullScreenPageMode::UseOutline:
-                        preferred = Bookmarks;
+                        preferred = Outline;
                         break;
 
                     case pdf::PDFViewerPreferences::NonFullScreenPageMode::UseThumbnails:
@@ -259,7 +259,7 @@ bool PDFSidebarWidget::isEmpty(Page page) const
         case Invalid:
             return true;
 
-        case Bookmarks:
+        case Outline:
             return m_outlineTreeModel->isEmpty() && (!m_document || !m_outlineTreeModel->isEditable());
 
         case Thumbnails:
@@ -764,11 +764,11 @@ void PDFSidebarWidget::onSignatureCustomContextMenuRequested(const QPoint& pos)
     }
 }
 
-void PDFSidebarWidget::onBookmarksTreeViewContextMenuRequested(const QPoint& pos)
+void PDFSidebarWidget::onOutlineTreeViewContextMenuRequested(const QPoint& pos)
 {
     QMenu contextMenu;
 
-    QModelIndex index = ui->bookmarksTreeView->indexAt(pos);
+    QModelIndex index = ui->outlineTreeView->indexAt(pos);
 
     auto onFollow = [this, index]()
     {
@@ -779,22 +779,22 @@ void PDFSidebarWidget::onBookmarksTreeViewContextMenuRequested(const QPoint& pos
     {
         if (index.isValid())
         {
-            ui->bookmarksTreeView->model()->insertRow(index.row() + 1, index.parent());
+            ui->outlineTreeView->model()->insertRow(index.row() + 1, index.parent());
         }
         else
         {
-            ui->bookmarksTreeView->model()->insertRow(ui->bookmarksTreeView->model()->rowCount());
+            ui->outlineTreeView->model()->insertRow(ui->outlineTreeView->model()->rowCount());
         }
     };
 
     auto onDelete = [this, index]()
     {
-        ui->bookmarksTreeView->model()->removeRow(index.row(), index.parent());
+        ui->outlineTreeView->model()->removeRow(index.row(), index.parent());
     };
 
     auto onRename = [this, index]()
     {
-        ui->bookmarksTreeView->edit(index);
+        ui->outlineTreeView->edit(index);
     };
 
     QAction* followAction = contextMenu.addAction(tr("Follow"), onFollow);
@@ -927,7 +927,7 @@ void PDFSidebarWidget::onBookmarksTreeViewContextMenuRequested(const QPoint& pos
     submenu->addAction(tr("Fit Bounding Box Vertically"), createOnSetTarget(pdf::DestinationType::FitBV));
     submenu->addAction(tr("XYZ"), createOnSetTarget(pdf::DestinationType::XYZ));
 
-    contextMenu.exec(ui->bookmarksTreeView->mapToGlobal(pos));
+    contextMenu.exec(ui->outlineTreeView->mapToGlobal(pos));
 }
 
 void PDFSidebarWidget::onOutlineItemsChanged()

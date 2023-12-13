@@ -33,12 +33,12 @@
         <file>resources/invert-selection.svg</file>
         <file>resources/regroup-alternating.svg</file>
         <file>resources/regroup-alternating-reversed.svg</file>
-        <file>resources/regroup-bookmarks.svg</file>
         <file>resources/regroup-even-odd.svg</file>
         <file>resources/regroup-pairs.svg</file>
         <file>resources/undo.svg</file>
         <file>resources/redo.svg</file>
         <file>resources/bookmark.svg</file>
         <file>resources/wallet.svg</file>
+        <file>resources/regroup-outline.svg</file>
     </qresource>
 </RCC>

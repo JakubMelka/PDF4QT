@@ -138,7 +138,7 @@
     </property>
     <addaction name="actionRegroup_Even_Odd"/>
     <addaction name="actionRegroup_by_Page_Pairs"/>
-    <addaction name="actionRegroup_by_Bookmarks"/>
+    <addaction name="actionRegroup_by_Outline"/>
     <addaction name="actionRegroup_by_Alternating_Pages"/>
     <addaction name="actionRegroup_by_Alternating_Pages_Reversed_Order"/>
    </widget>
@@ -533,13 +533,13 @@
     <string>Regroup by Page Pairs</string>
    </property>
   </action>
-  <action name="actionRegroup_by_Bookmarks">
+  <action name="actionRegroup_by_Outline">
    <property name="icon">
     <iconset resource="resources.qrc">
-     <normaloff>:/pdfdocpage/resources/regroup-bookmarks.svg</normaloff>:/pdfdocpage/resources/regroup-bookmarks.svg</iconset>
+     <normaloff>:/pdfdocpage/resources/regroup-outline.svg</normaloff>:/pdfdocpage/resources/regroup-outline.svg</iconset>
    </property>
    <property name="text">
-    <string>Regroup by Bookmarks</string>
+    <string>Regroup by Outline</string>
    </property>
   </action>
   <action name="actionRegroup_by_Alternating_Pages">

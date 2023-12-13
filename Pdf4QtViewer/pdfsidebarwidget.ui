@@ -29,7 +29,7 @@
    <item>
     <layout class="QVBoxLayout" name="verticalLayout">
      <item>
-      <widget class="QToolButton" name="bookmarksButton">
+      <widget class="QToolButton" name="outlineButton">
        <property name="minimumSize">
         <size>
          <width>96</width>
@@ -42,7 +42,7 @@
         </font>
        </property>
        <property name="text">
-        <string>Bookmarks</string>
+        <string>Outline</string>
        </property>
        <property name="icon">
         <iconset resource="pdf4qtviewer.qrc">
@@ -243,11 +243,11 @@
    <item>
     <widget class="QStackedWidget" name="stackedWidget">
      <property name="currentIndex">
-      <number>2</number>
+      <number>1</number>
      </property>
      <widget class="QWidget" name="emptyPage"/>
-     <widget class="QWidget" name="bookmarksPage">
-      <layout class="QVBoxLayout" name="bookmarksPageLayout">
+     <widget class="QWidget" name="outlinePage">
+      <layout class="QVBoxLayout" name="outlinePageLayout">
        <property name="spacing">
         <number>0</number>
        </property>
@@ -264,7 +264,7 @@
         <number>0</number>
        </property>
        <item>
-        <widget class="QTreeView" name="bookmarksTreeView"/>
+        <widget class="QTreeView" name="outlineTreeView"/>
        </item>
       </layout>
      </widget>

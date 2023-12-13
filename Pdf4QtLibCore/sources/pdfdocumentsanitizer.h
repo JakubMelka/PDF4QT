@@ -38,7 +38,7 @@ public:
         None                = 0x0000, ///< No sanitization is performed
         DocumentInfo        = 0x0001, ///< Remove document information
         Metadata            = 0x0002, ///< Remove all metadata streams in all objects
-        Bookmarks           = 0x0004, ///< Remove bookmarks
+        Outline             = 0x0004, ///< Remove outline
         FileAttachments     = 0x0008, ///< Remove file attachments
         EmbeddedSearchIndex = 0x0010, ///< Remove embedded search index
         MarkupAnnotations   = 0x0020, ///< Remove markup annotations from all pages
@@ -82,7 +82,7 @@ signals:
 private:
     void performSanitizeDocumentInfo();
     void performSanitizeMetadata();
-    void performSanitizeBookmarks();
+    void performSanitizeOutline();
     void performSanitizeFileAttachments();
     void performSanitizeEmbeddedSearchIndex();
     void performSanitizeMarkupAnnotations();

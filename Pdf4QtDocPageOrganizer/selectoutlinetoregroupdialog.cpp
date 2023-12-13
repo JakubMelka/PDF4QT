@@ -15,8 +15,8 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "selectbookmarkstoregroupdialog.h"
-#include "ui_selectbookmarkstoregroupdialog.h"
+#include "selectoutlinetoregroupdialog.h"
+#include "ui_selectoutlinetoregroupdialog.h"
 
 #include "pdfitemmodels.h"
 #include "pdfwidgetutils.h"
@@ -26,9 +26,9 @@
 namespace pdfdocpage
 {
 
-SelectBookmarksToRegroupDialog::SelectBookmarksToRegroupDialog(const pdf::PDFDocument* document, QWidget* parent) :
+SelectOutlineToRegroupDialog::SelectOutlineToRegroupDialog(const pdf::PDFDocument* document, QWidget* parent) :
     QDialog(parent),
-    ui(new Ui::SelectBookmarksToRegroupDialog),
+    ui(new Ui::SelectOutlineToRegroupDialog),
     m_document(document),
     m_model(nullptr)
 {
@@ -36,53 +36,53 @@ SelectBookmarksToRegroupDialog::SelectBookmarksToRegroupDialog(const pdf::PDFDoc
 
     QIcon bookmarkIcon(":/pdfdocpage/resources/bookmark.svg");
     m_model = new pdf::PDFSelectableOutlineTreeItemModel(qMove(bookmarkIcon), this);
-    ui->bookmarksView->setModel(m_model);
-    ui->bookmarksView->header()->hide();
+    ui->outlineView->setModel(m_model);
+    ui->outlineView->header()->hide();
 
     m_model->setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(document), nullptr));
-    ui->bookmarksView->expandToDepth(2);
-    ui->bookmarksView->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(ui->bookmarksView, &QTreeView::customContextMenuRequested, this, &SelectBookmarksToRegroupDialog::onViewContextMenuRequested);
+    ui->outlineView->expandToDepth(2);
+    ui->outlineView->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(ui->outlineView, &QTreeView::customContextMenuRequested, this, &SelectOutlineToRegroupDialog::onViewContextMenuRequested);
 
     QSize size = pdf::PDFWidgetUtils::scaleDPI(this, QSize(400, 600));
     setMinimumSize(size);
     pdf::PDFWidgetUtils::style(this);
 }
 
-SelectBookmarksToRegroupDialog::~SelectBookmarksToRegroupDialog()
+SelectOutlineToRegroupDialog::~SelectOutlineToRegroupDialog()
 {
     delete ui;
 }
 
-std::vector<const pdf::PDFOutlineItem*> SelectBookmarksToRegroupDialog::getSelectedOutlineItems() const
+std::vector<const pdf::PDFOutlineItem*> SelectOutlineToRegroupDialog::getSelectedOutlineItems() const
 {
     return m_model->getSelectedItems();
 }
 
-void SelectBookmarksToRegroupDialog::onViewContextMenuRequested(const QPoint& pos)
+void SelectOutlineToRegroupDialog::onViewContextMenuRequested(const QPoint& pos)
 {
     QMenu menu;
-    menu.addAction(tr("Select All"), this, &SelectBookmarksToRegroupDialog::selectAll);
-    menu.addAction(tr("Deselect All"), this, &SelectBookmarksToRegroupDialog::deselectAll);
-    menu.addAction(tr("Invert Selection"), this, &SelectBookmarksToRegroupDialog::invertSelection);
+    menu.addAction(tr("Select All"), this, &SelectOutlineToRegroupDialog::selectAll);
+    menu.addAction(tr("Deselect All"), this, &SelectOutlineToRegroupDialog::deselectAll);
+    menu.addAction(tr("Invert Selection"), this, &SelectOutlineToRegroupDialog::invertSelection);
 
     menu.addSeparator();
-    menu.addAction(tr("Select Level 1"), this, &SelectBookmarksToRegroupDialog::selectLevel1);
-    menu.addAction(tr("Select Level 2"), this, &SelectBookmarksToRegroupDialog::selectLevel2);
+    menu.addAction(tr("Select Level 1"), this, &SelectOutlineToRegroupDialog::selectLevel1);
+    menu.addAction(tr("Select Level 2"), this, &SelectOutlineToRegroupDialog::selectLevel2);
 
-    QModelIndex index = ui->bookmarksView->indexAt(pos);
+    QModelIndex index = ui->outlineView->indexAt(pos);
     if (index.isValid())
     {
         m_menuIndex = index;
 
         menu.addSeparator();
-        menu.addAction(tr("Select subtree"), this, &SelectBookmarksToRegroupDialog::selectSubtree);
-        menu.addAction(tr("Deselect subtree"), this, &SelectBookmarksToRegroupDialog::deselectSubtree);
+        menu.addAction(tr("Select subtree"), this, &SelectOutlineToRegroupDialog::selectSubtree);
+        menu.addAction(tr("Deselect subtree"), this, &SelectOutlineToRegroupDialog::deselectSubtree);
     }
-    menu.exec(ui->bookmarksView->mapToGlobal(pos));
+    menu.exec(ui->outlineView->mapToGlobal(pos));
 }
 
-void SelectBookmarksToRegroupDialog::manipulateTree(const QModelIndex& index,
+void SelectOutlineToRegroupDialog::manipulateTree(const QModelIndex& index,
                                                     const std::function<void (QModelIndex)>& manipulator)
 {
     if (index.isValid())
@@ -98,7 +98,7 @@ void SelectBookmarksToRegroupDialog::manipulateTree(const QModelIndex& index,
     }
 }
 
-std::function<void (QModelIndex)> SelectBookmarksToRegroupDialog::createCheckByDepthManipulator(int targetDepth) const
+std::function<void (QModelIndex)> SelectOutlineToRegroupDialog::createCheckByDepthManipulator(int targetDepth) const
 {
     auto manipulator = [this, targetDepth](QModelIndex index)
     {
@@ -119,42 +119,42 @@ std::function<void (QModelIndex)> SelectBookmarksToRegroupDialog::createCheckByD
     return manipulator;
 }
 
-void SelectBookmarksToRegroupDialog::selectAll()
+void SelectOutlineToRegroupDialog::selectAll()
 {
-    manipulateTree(ui->bookmarksView->rootIndex(), [this](QModelIndex index) { m_model->setData(index, Qt::Checked, Qt::CheckStateRole); });
+    manipulateTree(ui->outlineView->rootIndex(), [this](QModelIndex index) { m_model->setData(index, Qt::Checked, Qt::CheckStateRole); });
 }
 
-void SelectBookmarksToRegroupDialog::deselectAll()
+void SelectOutlineToRegroupDialog::deselectAll()
 {
-    manipulateTree(ui->bookmarksView->rootIndex(), [this](QModelIndex index) { m_model->setData(index, Qt::Unchecked, Qt::CheckStateRole); });
+    manipulateTree(ui->outlineView->rootIndex(), [this](QModelIndex index) { m_model->setData(index, Qt::Unchecked, Qt::CheckStateRole); });
 }
 
-void SelectBookmarksToRegroupDialog::invertSelection()
+void SelectOutlineToRegroupDialog::invertSelection()
 {
     auto manipulator = [this](QModelIndex index)
     {
         const bool isChecked = index.data(Qt::CheckStateRole).toInt() == Qt::Checked;
         m_model->setData(index, isChecked ? Qt::Unchecked : Qt::Checked, Qt::CheckStateRole);
     };
-    manipulateTree(ui->bookmarksView->rootIndex(), manipulator);
+    manipulateTree(ui->outlineView->rootIndex(), manipulator);
 }
 
-void SelectBookmarksToRegroupDialog::selectLevel1()
+void SelectOutlineToRegroupDialog::selectLevel1()
 {
-    manipulateTree(ui->bookmarksView->rootIndex(), createCheckByDepthManipulator(1));
+    manipulateTree(ui->outlineView->rootIndex(), createCheckByDepthManipulator(1));
 }
 
-void SelectBookmarksToRegroupDialog::selectLevel2()
+void SelectOutlineToRegroupDialog::selectLevel2()
 {
-    manipulateTree(ui->bookmarksView->rootIndex(), createCheckByDepthManipulator(2));
+    manipulateTree(ui->outlineView->rootIndex(), createCheckByDepthManipulator(2));
 }
 
-void SelectBookmarksToRegroupDialog::selectSubtree()
+void SelectOutlineToRegroupDialog::selectSubtree()
 {
     manipulateTree(m_menuIndex, [this](QModelIndex index) { m_model->setData(index, Qt::Checked, Qt::CheckStateRole); });
 }
 
-void SelectBookmarksToRegroupDialog::deselectSubtree()
+void SelectOutlineToRegroupDialog::deselectSubtree()
 {
     manipulateTree(m_menuIndex, [this](QModelIndex index) { m_model->setData(index, Qt::Unchecked, Qt::CheckStateRole); });
 }

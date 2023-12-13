@@ -72,7 +72,7 @@ public:
     {
         Invalid,
         _BEGIN,
-        Bookmarks = _BEGIN,
+        Outline = _BEGIN,
         Thumbnails,
         OptionalContent,
         Attachments,
@@ -113,7 +113,7 @@ private:
     void onAttachmentCustomContextMenuRequested(const QPoint& pos);
     void onThumbnailClicked(const QModelIndex& index);
     void onSignatureCustomContextMenuRequested(const QPoint &pos);
-    void onBookmarksTreeViewContextMenuRequested(const QPoint &pos);
+    void onOutlineTreeViewContextMenuRequested(const QPoint &pos);
     void onOutlineItemsChanged();
 
     struct PageInfo
