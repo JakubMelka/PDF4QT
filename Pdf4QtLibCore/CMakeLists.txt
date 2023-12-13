@@ -156,7 +156,7 @@ target_link_libraries(Pdf4QtLibCore PRIVATE Qt6::Core Qt6::Gui Qt6::Xml Qt6::Svg
 target_link_libraries(Pdf4QtLibCore PRIVATE lcms2::lcms2)
 target_link_libraries(Pdf4QtLibCore PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 target_link_libraries(Pdf4QtLibCore PRIVATE ZLIB::ZLIB)
-target_link_libraries(Pdf4QtLibCore PRIVATE freetype)
+target_link_libraries(Pdf4QtLibCore PRIVATE Freetype::Freetype)
 target_link_libraries(Pdf4QtLibCore PRIVATE openjp2)
 target_link_libraries(Pdf4QtLibCore PRIVATE JPEG::JPEG)
 
