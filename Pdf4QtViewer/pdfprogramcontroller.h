@@ -24,6 +24,7 @@
 #include "pdfdocumentreader.h"
 #include "pdfdocumentpropertiesdialog.h"
 #include "pdfplugin.h"
+#include "pdfbookmarkmanager.h"
 
 #include <QObject>
 #include <QAction>
@@ -275,6 +276,7 @@ public:
     PDFViewerSettings* getSettings() const { return m_settings; }
     pdf::PDFDocument* getDocument() const { return m_pdfDocument.data(); }
     pdf::PDFCertificateStore* getCertificateStore() const { return const_cast<pdf::PDFCertificateStore*>(&m_certificateStore); }
+    PDFBookmarkManager* getBookmarkManager() const { return m_bookmarkManager; }
     PDFTextToSpeech* getTextToSpeech() const { return m_textToSpeech; }
     const std::vector<pdf::PDFSignatureVerificationResult>* getSignatures() const { return &m_signatures; }
 
@@ -326,6 +328,7 @@ private:
     void initializeToolManager();
     void initializeAnnotationManager();
     void initializeFormManager();
+    void initializeBookmarkManager();
 
     void onActionGoToDocumentStartTriggered();
     void onActionGoToDocumentEndTriggered();
@@ -422,6 +425,7 @@ private:
     pdf::PDFToolManager* m_toolManager;
     pdf::PDFWidgetAnnotationManager* m_annotationManager;
     pdf::PDFWidgetFormManager* m_formManager;
+    PDFBookmarkManager* m_bookmarkManager;
 
     PDFFileInfo m_fileInfo;
     QFileSystemWatcher m_fileWatcher;

@@ -361,6 +361,7 @@ PDFProgramController::PDFProgramController(QObject* parent) :
     m_toolManager(nullptr),
     m_annotationManager(nullptr),
     m_formManager(nullptr),
+    m_bookmarkManager(nullptr),
     m_isBusy(false),
     m_isFactorySettingsBeingRestored(false),
     m_progress(nullptr)
@@ -375,6 +376,9 @@ PDFProgramController::~PDFProgramController()
 
     delete m_annotationManager;
     m_annotationManager = nullptr;
+
+    delete m_bookmarkManager;
+    m_bookmarkManager = nullptr;
 }
 
 void PDFProgramController::initializeAnnotationManager()
@@ -394,6 +398,11 @@ void PDFProgramController::initializeFormManager()
     m_pdfWidget->setFormManager(m_formManager);
     connect(m_formManager, &pdf::PDFFormManager::actionTriggered, this, &PDFProgramController::onActionTriggered);
     connect(m_formManager, &pdf::PDFFormManager::documentModified, this, &PDFProgramController::onDocumentModified);
+}
+
+void PDFProgramController::initializeBookmarkManager()
+{
+    m_bookmarkManager = new PDFBookmarkManager(this);
 }
 
 void PDFProgramController::initialize(Features features,
@@ -605,6 +614,7 @@ void PDFProgramController::initialize(Features features,
     }
 
     initializeAnnotationManager();
+    initializeBookmarkManager();
 
     if (features.testFlag(Forms))
     {
@@ -1913,6 +1923,11 @@ void PDFProgramController::setDocument(pdf::PDFModifiedDocument document, bool i
     if (m_annotationManager)
     {
         m_annotationManager->setDocument(document);
+    }
+
+    if (m_bookmarkManager)
+    {
+        m_bookmarkManager->setDocument(document);
     }
 
     if (m_formManager)

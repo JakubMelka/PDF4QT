@@ -33,6 +33,7 @@
 #include "pdfdrawspacecontroller.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfwidgetutils.h"
+#include "pdfbookmarkui.h"
 
 #include <QMenu>
 #include <QAction>
@@ -60,6 +61,7 @@ constexpr const char* STYLESHEET =
 PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
                                    PDFTextToSpeech* textToSpeech,
                                    pdf::PDFCertificateStore* certificateStore,
+                                   PDFBookmarkManager* bookmarkManager,
                                    PDFViewerSettings* settings,
                                    bool editableOutline,
                                    QWidget* parent) :
@@ -68,10 +70,12 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
     m_proxy(proxy),
     m_textToSpeech(textToSpeech),
     m_certificateStore(certificateStore),
+    m_bookmarkManager(bookmarkManager),
     m_settings(settings),
     m_outlineTreeModel(nullptr),
     m_thumbnailsModel(nullptr),
     m_optionalContentTreeModel(nullptr),
+    m_bookmarkItemModel(nullptr),
     m_document(nullptr),
     m_optionalContentActivity(nullptr),
     m_attachmentsTreeModel(nullptr)
@@ -126,6 +130,11 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
     ui->attachmentsTreeView->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(ui->attachmentsTreeView, &QTreeView::customContextMenuRequested, this, &PDFSidebarWidget::onAttachmentCustomContextMenuRequested);
 
+    // Bookmarks
+    m_bookmarkItemModel = new PDFBookmarkItemModel(bookmarkManager, this);
+    ui->bookmarksView->setModel(m_bookmarkItemModel);
+    ui->bookmarksView->setItemDelegate(new PDFBookmarkItemDelegate(bookmarkManager, this));
+
     m_pageInfo[Invalid] = { nullptr, ui->emptyPage };
     m_pageInfo[OptionalContent] = { ui->optionalContentButton, ui->optionalContentPage };
     m_pageInfo[Outline] = { ui->outlineButton, ui->outlinePage };
@@ -133,6 +142,7 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
     m_pageInfo[Attachments] = { ui->attachmentsButton, ui->attachmentsPage };
     m_pageInfo[Speech] = { ui->speechButton, ui->speechPage };
     m_pageInfo[Signatures] = { ui->signaturesButton, ui->signaturesPage };
+    m_pageInfo[Bookmarks] = { ui->bookmarksButton, ui->bookmarksPage };
 
     for (const auto& pageInfo : m_pageInfo)
     {
@@ -270,6 +280,9 @@ bool PDFSidebarWidget::isEmpty(Page page) const
 
         case Attachments:
             return m_attachmentsTreeModel->isEmpty();
+
+        case Bookmarks:
+            return !m_document || !m_bookmarkManager;
 
         case Speech:
             return !m_textToSpeech->isValid();

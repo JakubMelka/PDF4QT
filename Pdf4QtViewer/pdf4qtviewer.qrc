@@ -104,5 +104,6 @@
         <file>resources/sidebar-thumbnails.svg</file>
         <file>resources/sidebar-visibility.svg</file>
         <file>resources/outline.svg</file>
+        <file>resources/sidebar-favourites.svg</file>
     </qresource>
 </RCC>

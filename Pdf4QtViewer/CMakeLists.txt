@@ -69,6 +69,10 @@ add_library(Pdf4QtViewer SHARED
     pdfcreatebitonaldocumentdialog.cpp
     pdfcreatebitonaldocumentdialog.h
     pdf4qtviewer.qrc
+    pdfbookmarkmanager.h
+    pdfbookmarkmanager.cpp
+    pdfbookmarkui.h
+    pdfbookmarkui.cpp
 )
 
 add_compile_definitions(QT_INSTALL_DIRECTORY="${QT6_INSTALL_PREFIX}")

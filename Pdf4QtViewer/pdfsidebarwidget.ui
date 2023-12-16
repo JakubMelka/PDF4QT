@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>339</width>
-    <height>584</height>
+    <width>388</width>
+    <height>681</height>
    </rect>
   </property>
   <layout class="QHBoxLayout" name="sidebarLayout">
@@ -226,6 +226,35 @@
       </widget>
      </item>
      <item>
+      <widget class="QToolButton" name="bookmarksButton">
+       <property name="minimumSize">
+        <size>
+         <width>96</width>
+         <height>0</height>
+        </size>
+       </property>
+       <property name="text">
+        <string>Bookmarks</string>
+       </property>
+       <property name="icon">
+        <iconset resource="pdf4qtviewer.qrc">
+         <normaloff>:/resources/sidebar-favourites.svg</normaloff>:/resources/sidebar-favourites.svg</iconset>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>64</width>
+         <height>64</height>
+        </size>
+       </property>
+       <property name="checkable">
+        <bool>true</bool>
+       </property>
+       <property name="toolButtonStyle">
+        <enum>Qt::ToolButtonTextUnderIcon</enum>
+       </property>
+      </widget>
+     </item>
+     <item>
       <spacer name="buttonSpacer">
        <property name="orientation">
         <enum>Qt::Vertical</enum>
@@ -243,7 +272,7 @@
    <item>
     <widget class="QStackedWidget" name="stackedWidget">
      <property name="currentIndex">
-      <number>1</number>
+      <number>5</number>
      </property>
      <widget class="QWidget" name="emptyPage"/>
      <widget class="QWidget" name="outlinePage">
@@ -380,6 +409,32 @@
        </property>
        <item>
         <widget class="QTreeView" name="attachmentsTreeView"/>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="bookmarksPage">
+      <layout class="QVBoxLayout" name="verticalLayout_3">
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="QListView" name="bookmarksView">
+         <property name="editTriggers">
+          <set>QAbstractItemView::NoEditTriggers</set>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
        </item>
       </layout>
      </widget>
