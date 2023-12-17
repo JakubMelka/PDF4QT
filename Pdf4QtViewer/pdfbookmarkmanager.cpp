@@ -35,7 +35,7 @@ public:
         QJsonObject json;
         json["isAuto"] = bookmark.isAuto;
         json["name"] = bookmark.name;
-        json["pageIndex"] = bookmark.pageIndex;
+        json["pageIndex"] = static_cast<qint64>(bookmark.pageIndex);
         return json;
     }
 
@@ -44,7 +44,7 @@ public:
         PDFBookmarkManager::Bookmark bookmark;
         bookmark.isAuto = json["isAuto"].toBool();
         bookmark.name = json["name"].toString();
-        bookmark.pageIndex = json["pageIndex"].toInt();
+        bookmark.pageIndex = json["pageIndex"].toInteger();
         return bookmark;
     }
 
