@@ -20,7 +20,7 @@
 
 #include "aboutdialog.h"
 #include "assembleoutputsettingsdialog.h"
-#include "selectbookmarkstoregroupdialog.h"
+#include "selectoutlinetoregroupdialog.h"
 
 #include "pdfaction.h"
 #include "pdfwidgetutils.h"
@@ -94,7 +94,7 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->actionInvert_Selection->setData(int(Operation::InvertSelection));
     ui->actionRegroup_Even_Odd->setData(int(Operation::RegroupEvenOdd));
     ui->actionRegroup_by_Page_Pairs->setData(int(Operation::RegroupPaired));
-    ui->actionRegroup_by_Bookmarks->setData(int(Operation::RegroupBookmarks));
+    ui->actionRegroup_by_Outline->setData(int(Operation::RegroupOutline));
     ui->actionRegroup_by_Alternating_Pages->setData(int(Operation::RegroupAlternatingPages));
     ui->actionRegroup_by_Alternating_Pages_Reversed_Order->setData(int(Operation::RegroupAlternatingPagesReversed));
     ui->actionPrepare_Icon_Theme->setData(int(Operation::PrepareIconTheme));
@@ -132,7 +132,7 @@ MainWindow::MainWindow(QWidget* parent) :
     m_iconTheme.registerAction(ui->actionClear, ":/pdfdocpage/resources/clear.svg");
     m_iconTheme.registerAction(ui->actionRegroup_Even_Odd, ":/pdfdocpage/resources/regroup-even-odd.svg");
     m_iconTheme.registerAction(ui->actionRegroup_by_Page_Pairs, ":/pdfdocpage/resources/regroup-pairs.svg");
-    m_iconTheme.registerAction(ui->actionRegroup_by_Bookmarks, ":/pdfdocpage/resources/regroup-bookmarks.svg");
+    m_iconTheme.registerAction(ui->actionRegroup_by_Outline, ":/pdfdocpage/resources/regroup-outline.svg");
     m_iconTheme.registerAction(ui->actionRegroup_by_Alternating_Pages, ":/pdfdocpage/resources/regroup-alternating.svg");
     m_iconTheme.registerAction(ui->actionRegroup_by_Alternating_Pages_Reversed_Order, ":/pdfdocpage/resources/regroup-alternating-reversed.svg");
     m_iconTheme.registerAction(ui->actionInvert_Selection, ":/pdfdocpage/resources/invert-selection.svg");
@@ -162,7 +162,7 @@ MainWindow::MainWindow(QWidget* parent) :
     selectToolbar->addActions({ ui->actionSelect_None, ui->actionSelect_All, ui->actionSelect_Even, ui->actionSelect_Odd, ui->actionSelect_Portrait, ui->actionSelect_Landscape, ui->actionInvert_Selection });
     QToolBar* regroupToolbar = addToolBar(tr("Regroup"));
     regroupToolbar->setObjectName("regroup_toolbar");
-    regroupToolbar->addActions({ ui->actionRegroup_Even_Odd, ui->actionRegroup_by_Page_Pairs, ui->actionRegroup_by_Bookmarks, ui->actionRegroup_by_Alternating_Pages, ui->actionRegroup_by_Alternating_Pages_Reversed_Order });
+    regroupToolbar->addActions({ ui->actionRegroup_Even_Odd, ui->actionRegroup_by_Page_Pairs, ui->actionRegroup_by_Outline, ui->actionRegroup_by_Alternating_Pages, ui->actionRegroup_by_Alternating_Pages_Reversed_Order });
     QToolBar* zoomToolbar = addToolBar(tr("Zoom"));
     zoomToolbar->setObjectName("zoom_toolbar");
     zoomToolbar->addActions({ ui->actionZoom_In, ui->actionZoom_Out });
@@ -283,7 +283,7 @@ void MainWindow::onWorkspaceCustomContextMenuRequested(const QPoint& point)
     regroupMenu->addAction(ui->actionRegroup_by_Alternating_Pages);
     regroupMenu->addAction(ui->actionRegroup_by_Alternating_Pages_Reversed_Order);
     regroupMenu->addAction(ui->actionRegroup_by_Page_Pairs);
-    regroupMenu->addAction(ui->actionRegroup_by_Bookmarks);
+    regroupMenu->addAction(ui->actionRegroup_by_Outline);
     contextMenu->addSeparator();
     contextMenu->addAction(ui->actionGroup);
     contextMenu->addAction(ui->actionUngroup);
@@ -482,7 +482,7 @@ bool MainWindow::canPerformOperation(Operation operation) const
         case Operation::RegroupPaired:
             return !isModelEmpty && !selection.isEmpty();
 
-        case Operation::RegroupBookmarks:
+        case Operation::RegroupOutline:
         {
             PageItemModel::SelectionInfo info = m_model->getSelectionInfo(selection);
             return info.isSingleDocument();
@@ -916,7 +916,7 @@ void MainWindow::performOperation(Operation operation)
             break;
         }
 
-        case Operation::RegroupBookmarks:
+        case Operation::RegroupOutline:
         {
             QModelIndexList indexes = ui->documentItemsView->selectionModel()->selection().indexes();
 
@@ -929,9 +929,9 @@ void MainWindow::performOperation(Operation operation)
                 if (it != documents.end())
                 {
                     const pdf::PDFDocument* document = &it->second.document;
-                    SelectBookmarksToRegroupDialog dialog(document, this);
+                    SelectOutlineToRegroupDialog dialog(document, this);
 
-                    if (dialog.exec() == SelectBookmarksToRegroupDialog::Accepted)
+                    if (dialog.exec() == SelectOutlineToRegroupDialog::Accepted)
                     {
                         std::vector<pdf::PDFInteger> breakPageIndices;
                         std::vector<const pdf::PDFOutlineItem*> outlineItems = dialog.getSelectedOutlineItems();
@@ -972,7 +972,7 @@ void MainWindow::performOperation(Operation operation)
                         std::sort(breakPageIndices.begin(), breakPageIndices.end());
                         breakPageIndices.erase(std::unique(breakPageIndices.begin(), breakPageIndices.end()), breakPageIndices.end());
 
-                        m_model->regroupBookmarks(indexes, breakPageIndices);
+                        m_model->regroupOutline(indexes, breakPageIndices);
                     }
                 }
             }

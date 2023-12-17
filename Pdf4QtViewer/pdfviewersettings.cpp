@@ -104,6 +104,10 @@ void PDFViewerSettings::readSettings(QSettings& settings, const pdf::PDFCMSSetti
     m_settings.m_signatureUseSystemStore = settings.value("signatureUseSystemStore", defaultSettings.m_signatureUseSystemStore).toBool();
     settings.endGroup();
 
+    settings.beginGroup("Bookmarks");
+    m_settings.m_autoGenerateBookmarks = settings.value("autoGenerateBookmarks", defaultSettings.m_autoGenerateBookmarks).toBool();
+    settings.endGroup();
+
     Q_EMIT settingsChanged();
 }
 
@@ -173,6 +177,10 @@ void PDFViewerSettings::writeSettings(QSettings& settings)
     settings.setValue("signatureTreatWarningsAsErrors", m_settings.m_signatureTreatWarningsAsErrors);
     settings.setValue("signatureIgnoreCertificateValidityTime", m_settings.m_signatureIgnoreCertificateValidityTime);
     settings.setValue("signatureUseSystemStore", m_settings.m_signatureUseSystemStore);
+    settings.endGroup();
+
+    settings.beginGroup("Bookmarks");
+    settings.setValue("autoGenerateBookmarks", m_settings.m_autoGenerateBookmarks);
     settings.endGroup();
 }
 
@@ -287,7 +295,8 @@ PDFViewerSettings::Settings::Settings() :
     m_signatureVerificationEnabled(true),
     m_signatureTreatWarningsAsErrors(false),
     m_signatureIgnoreCertificateValidityTime(false),
-    m_signatureUseSystemStore(true)
+    m_signatureUseSystemStore(true),
+    m_autoGenerateBookmarks(true)
 {
 
 }

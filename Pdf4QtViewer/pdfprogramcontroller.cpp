@@ -210,6 +210,9 @@ void PDFActionManager::initActions(QSize iconSize, bool initializeStampActions)
     setShortcut(GoToPreviousPage, QKeySequence::MoveToPreviousPage);
     setShortcut(GoToNextLine, QKeySequence::MoveToNextLine);
     setShortcut(GoToPreviousLine, QKeySequence::MoveToPreviousLine);
+    setShortcut(BookmarkPage, QKeySequence("Ctrl+M"));
+    setShortcut(BookmarkGoToNext, QKeySequence("Ctrl+."));
+    setShortcut(BookmarkGoToPrevious, QKeySequence("Ctrl+,"));
 
     if (hasActions({ CreateStickyNoteComment, CreateStickyNoteHelp, CreateStickyNoteInsert, CreateStickyNoteKey, CreateStickyNoteNewParagraph, CreateStickyNoteNote, CreateStickyNoteParagraph }))
     {
@@ -361,6 +364,7 @@ PDFProgramController::PDFProgramController(QObject* parent) :
     m_toolManager(nullptr),
     m_annotationManager(nullptr),
     m_formManager(nullptr),
+    m_bookmarkManager(nullptr),
     m_isBusy(false),
     m_isFactorySettingsBeingRestored(false),
     m_progress(nullptr)
@@ -375,6 +379,9 @@ PDFProgramController::~PDFProgramController()
 
     delete m_annotationManager;
     m_annotationManager = nullptr;
+
+    delete m_bookmarkManager;
+    m_bookmarkManager = nullptr;
 }
 
 void PDFProgramController::initializeAnnotationManager()
@@ -394,6 +401,13 @@ void PDFProgramController::initializeFormManager()
     m_pdfWidget->setFormManager(m_formManager);
     connect(m_formManager, &pdf::PDFFormManager::actionTriggered, this, &PDFProgramController::onActionTriggered);
     connect(m_formManager, &pdf::PDFFormManager::documentModified, this, &PDFProgramController::onDocumentModified);
+}
+
+void PDFProgramController::initializeBookmarkManager()
+{
+    m_bookmarkManager = new PDFBookmarkManager(this);
+    connect(m_bookmarkManager, &PDFBookmarkManager::bookmarkActivated, this, &PDFProgramController::onBookmarkActivated);
+    updateBookmarkSettings();
 }
 
 void PDFProgramController::initialize(Features features,
@@ -572,6 +586,30 @@ void PDFProgramController::initialize(Features features,
     {
         connect(action, &QAction::triggered, this, &PDFProgramController::onActionAutomaticDocumentRefresh);
     }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::BookmarkPage))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionBookmarkPage);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::BookmarkGoToNext))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionBookmarkGoToNext);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::BookmarkGoToPrevious))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionBookmarkGoToPrevious);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::BookmarkExport))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionBookmarkExport);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::BookmarkImport))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionBookmarkImport);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::BookmarkGenerateAutomatically))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionBookmarkGenerateAutomatically);
+    }
 
     if (m_recentFileManager)
     {
@@ -605,6 +643,7 @@ void PDFProgramController::initialize(Features features,
     }
 
     initializeAnnotationManager();
+    initializeBookmarkManager();
 
     if (features.testFlag(Forms))
     {
@@ -1549,6 +1588,8 @@ void PDFProgramController::readSettings(Settings settingsFlags)
         {
             m_formManager->setAppearanceFlags(m_settings->getSettings().m_formAppearanceFlags);
         }
+
+        updateBookmarkSettings();
     }
 
     if (settingsFlags.testFlag(PluginsSettings))
@@ -1700,6 +1741,13 @@ void PDFProgramController::onFileChanged(const QString& fileName)
             }
         }
     }
+}
+
+void PDFProgramController::onBookmarkActivated(int index, PDFBookmarkManager::Bookmark bookmark)
+{
+    Q_UNUSED(index);
+
+    m_pdfWidget->getDrawWidgetProxy()->goToPage(bookmark.pageIndex);
 }
 
 void PDFProgramController::updateFileInfo(const QString& fileName)
@@ -1915,6 +1963,11 @@ void PDFProgramController::setDocument(pdf::PDFModifiedDocument document, bool i
         m_annotationManager->setDocument(document);
     }
 
+    if (m_bookmarkManager)
+    {
+        m_bookmarkManager->setDocument(document);
+    }
+
     if (m_formManager)
     {
         m_formManager->setDocument(document);
@@ -1978,6 +2031,22 @@ void PDFProgramController::updateRenderingOptionActions()
     for (QAction* action : m_actionManager->getRenderingOptionActions())
     {
         action->setChecked(features.testFlag(static_cast<pdf::PDFRenderer::Feature>(action->data().toInt())));
+    }
+}
+
+void PDFProgramController::updateBookmarkSettings()
+{
+    const bool enable = m_settings->getSettings().m_autoGenerateBookmarks;
+
+    if (m_bookmarkManager)
+    {
+        m_bookmarkManager->setGenerateBookmarksAutomatically(enable);
+    }
+
+    QAction* action = m_actionManager->getAction(PDFActionManager::BookmarkGenerateAutomatically);
+    if (action)
+    {
+        action->setChecked(enable);
     }
 }
 
@@ -2533,6 +2602,63 @@ void PDFProgramController::onActionBecomeSponsor()
 void PDFProgramController::onActionAutomaticDocumentRefresh()
 {
     updateFileWatcher();
+}
+
+void PDFProgramController::onActionBookmarkPage()
+{
+    std::vector<pdf::PDFInteger> currentPages = m_pdfWidget->getDrawWidget()->getCurrentPages();
+    if (!currentPages.empty())
+    {
+        m_bookmarkManager->toggleBookmark(currentPages.front());
+    }
+}
+
+void PDFProgramController::onActionBookmarkGoToNext()
+{
+    m_bookmarkManager->goToNextBookmark();
+}
+
+void PDFProgramController::onActionBookmarkGoToPrevious()
+{
+    m_bookmarkManager->goToPreviousBookmark();
+}
+
+void PDFProgramController::onActionBookmarkExport()
+{
+    if (!m_pdfDocument)
+    {
+        return;
+    }
+
+    QFileInfo fileInfo(m_fileInfo.originalFileName);
+    QString saveFileName = QFileDialog::getSaveFileName(m_mainWindow, tr("Export Bookmarks As"), fileInfo.dir().absoluteFilePath(m_fileInfo.originalFileName).replace(".pdf", ".json"), tr("JSON (*.json);;All files (*.*)"));
+    if (!saveFileName.isEmpty())
+    {
+        m_bookmarkManager->saveToFile(saveFileName);
+    }
+}
+
+void PDFProgramController::onActionBookmarkImport()
+{
+    if (!m_pdfDocument)
+    {
+        return;
+    }
+
+    QFileInfo fileInfo(m_fileInfo.originalFileName);
+    QString fileName = QFileDialog::getOpenFileName(m_mainWindow, tr("Select PDF document"), fileInfo.dir().absolutePath(), tr("JSON (*.json)"));
+    if (!fileName.isEmpty())
+    {
+        m_bookmarkManager->loadFromFile(fileName);
+    }
+}
+
+void PDFProgramController::onActionBookmarkGenerateAutomatically(bool checked)
+{
+    auto settings = m_settings->getSettings();
+    settings.m_autoGenerateBookmarks = checked;
+    m_settings->setSettings(settings);
+    m_bookmarkManager->setGenerateBookmarksAutomatically(checked);
 }
 
 void PDFProgramController::onPageRenderingErrorsChanged(pdf::PDFInteger pageIndex, int errorsCount)

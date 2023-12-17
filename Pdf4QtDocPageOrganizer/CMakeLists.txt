@@ -27,12 +27,12 @@ add_executable(Pdf4QtDocPageOrganizer
     pageitemdelegate.h
     pageitemmodel.cpp
     pageitemmodel.h
-    selectbookmarkstoregroupdialog.cpp
-    selectbookmarkstoregroupdialog.h
+    selectoutlinetoregroupdialog.cpp
+    selectoutlinetoregroupdialog.h
     aboutdialog.ui
     assembleoutputsettingsdialog.ui
     mainwindow.ui
-    selectbookmarkstoregroupdialog.ui
+    selectoutlinetoregroupdialog.ui
     resources.qrc
     icon.rc
 )

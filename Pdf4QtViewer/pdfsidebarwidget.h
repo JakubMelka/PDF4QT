@@ -20,6 +20,7 @@
 #define PDFSIDEBARWIDGET_H
 
 #include "pdfglobal.h"
+#include "pdfbookmarkmanager.h"
 
 #include <QWidget>
 
@@ -52,6 +53,7 @@ namespace pdfviewer
 {
 class PDFTextToSpeech;
 class PDFViewerSettings;
+class PDFBookmarkItemModel;
 
 class PDFSidebarWidget : public QWidget
 {
@@ -61,6 +63,7 @@ public:
     explicit PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
                               PDFTextToSpeech* textToSpeech,
                               pdf::PDFCertificateStore* certificateStore,
+                              PDFBookmarkManager* bookmarkManager,
                               PDFViewerSettings* settings,
                               bool editableOutline,
                               QWidget* parent);
@@ -72,12 +75,13 @@ public:
     {
         Invalid,
         _BEGIN,
-        Bookmarks = _BEGIN,
+        Outline = _BEGIN,
         Thumbnails,
         OptionalContent,
         Attachments,
         Speech,
         Signatures,
+        Bookmarks,
         _END
     };
 
@@ -113,8 +117,11 @@ private:
     void onAttachmentCustomContextMenuRequested(const QPoint& pos);
     void onThumbnailClicked(const QModelIndex& index);
     void onSignatureCustomContextMenuRequested(const QPoint &pos);
-    void onBookmarksTreeViewContextMenuRequested(const QPoint &pos);
+    void onOutlineTreeViewContextMenuRequested(const QPoint &pos);
     void onOutlineItemsChanged();
+    void onBookmarkActivated(int index, PDFBookmarkManager::Bookmark bookmark);
+    void onBookmarsCurrentIndexChanged(const QModelIndex& current, const QModelIndex& previous);
+    void onBookmarkClicked(const QModelIndex& index);
 
     struct PageInfo
     {
@@ -126,16 +133,19 @@ private:
     pdf::PDFDrawWidgetProxy* m_proxy;
     PDFTextToSpeech* m_textToSpeech;
     pdf::PDFCertificateStore* m_certificateStore;
+    PDFBookmarkManager* m_bookmarkManager;
     PDFViewerSettings* m_settings;
     pdf::PDFOutlineTreeItemModel* m_outlineTreeModel;
     pdf::PDFThumbnailsItemModel* m_thumbnailsModel;
     pdf::PDFOptionalContentTreeItemModel* m_optionalContentTreeModel;
+    PDFBookmarkItemModel* m_bookmarkItemModel;
     const pdf::PDFDocument* m_document;
     pdf::PDFOptionalContentActivity* m_optionalContentActivity;
     pdf::PDFAttachmentsTreeItemModel* m_attachmentsTreeModel;
     std::map<Page, PageInfo> m_pageInfo;
     std::vector<pdf::PDFSignatureVerificationResult> m_signatures;
     std::vector<pdf::PDFCertificateInfo> m_certificateInfos;
+    bool m_bookmarkChangeInProgress = false;
 };
 
 }   // namespace pdfviewer

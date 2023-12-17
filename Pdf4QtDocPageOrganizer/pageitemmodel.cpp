@@ -703,7 +703,7 @@ void PageItemModel::regroupPaired(const QModelIndexList& list)
     }
 }
 
-void PageItemModel::regroupBookmarks(const QModelIndexList& list, const std::vector<pdf::PDFInteger>& indices)
+void PageItemModel::regroupOutline(const QModelIndexList& list, const std::vector<pdf::PDFInteger>& indices)
 {
     if (list.empty())
     {

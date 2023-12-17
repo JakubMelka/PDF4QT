@@ -86,9 +86,9 @@ void PDFDocumentSanitizer::sanitize()
         performSanitizeMetadata();
     }
 
-    if (m_flags.testFlag(Bookmarks))
+    if (m_flags.testFlag(Outline))
     {
-        performSanitizeBookmarks();
+        performSanitizeOutline();
     }
 
     if (m_flags.testFlag(FileAttachments))
@@ -163,7 +163,7 @@ void PDFDocumentSanitizer::performSanitizeMetadata()
     Q_EMIT sanitizationProgress(tr("Metadata streams removed: %1").arg(counter));
 }
 
-void PDFDocumentSanitizer::performSanitizeBookmarks()
+void PDFDocumentSanitizer::performSanitizeOutline()
 {
     PDFDocumentBuilder builder(m_storage, PDFVersion(2, 0));
     PDFObject catalogObject = builder.getObjectByReference(builder.getCatalogReference());

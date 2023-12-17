@@ -51,7 +51,7 @@ PDFSanitizeDocumentDialog::PDFSanitizeDocumentDialog(const pdf::PDFDocument* doc
 
     addCheckBox(tr("Remove document info"), pdf::PDFDocumentSanitizer::DocumentInfo);
     addCheckBox(tr("Remove all metadata"), pdf::PDFDocumentSanitizer::Metadata);
-    addCheckBox(tr("Remove outline (bookmarks)"), pdf::PDFDocumentSanitizer::Bookmarks);
+    addCheckBox(tr("Remove outline"), pdf::PDFDocumentSanitizer::Outline);
     addCheckBox(tr("Remove file attachments"), pdf::PDFDocumentSanitizer::FileAttachments);
     addCheckBox(tr("Remove embedded search index"), pdf::PDFDocumentSanitizer::EmbeddedSearchIndex);
     addCheckBox(tr("Remove comments and other markup annotations"), pdf::PDFDocumentSanitizer::MarkupAnnotations);

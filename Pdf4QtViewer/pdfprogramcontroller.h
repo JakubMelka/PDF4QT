@@ -24,6 +24,7 @@
 #include "pdfdocumentreader.h"
 #include "pdfdocumentpropertiesdialog.h"
 #include "pdfplugin.h"
+#include "pdfbookmarkmanager.h"
 
 #include <QObject>
 #include <QAction>
@@ -177,6 +178,12 @@ public:
         ToolScreenshot,
         ToolExtractImage,
         DeveloperCreateInstaller,
+        BookmarkPage,
+        BookmarkGoToNext,
+        BookmarkGoToPrevious,
+        BookmarkExport,
+        BookmarkImport,
+        BookmarkGenerateAutomatically,
         LastAction
     };
 
@@ -275,6 +282,7 @@ public:
     PDFViewerSettings* getSettings() const { return m_settings; }
     pdf::PDFDocument* getDocument() const { return m_pdfDocument.data(); }
     pdf::PDFCertificateStore* getCertificateStore() const { return const_cast<pdf::PDFCertificateStore*>(&m_certificateStore); }
+    PDFBookmarkManager* getBookmarkManager() const { return m_bookmarkManager; }
     PDFTextToSpeech* getTextToSpeech() const { return m_textToSpeech; }
     const std::vector<pdf::PDFSignatureVerificationResult>* getSignatures() const { return &m_signatures; }
 
@@ -326,6 +334,7 @@ private:
     void initializeToolManager();
     void initializeAnnotationManager();
     void initializeFormManager();
+    void initializeBookmarkManager();
 
     void onActionGoToDocumentStartTriggered();
     void onActionGoToDocumentEndTriggered();
@@ -364,6 +373,12 @@ private:
     void onActionGetSource();
     void onActionBecomeSponsor();
     void onActionAutomaticDocumentRefresh();
+    void onActionBookmarkPage();
+    void onActionBookmarkGoToNext();
+    void onActionBookmarkGoToPrevious();
+    void onActionBookmarkExport();
+    void onActionBookmarkImport();
+    void onActionBookmarkGenerateAutomatically(bool checked);
 
     void onDrawSpaceChanged();
     void onPageLayoutChanged();
@@ -374,6 +389,7 @@ private:
     void onViewerSettingsChanged();
     void onColorManagementSystemChanged();
     void onFileChanged(const QString& fileName);
+    void onBookmarkActivated(int index, PDFBookmarkManager::Bookmark bookmark);
 
     void updateMagnifierToolSettings();
     void updateUndoRedoSettings();
@@ -381,6 +397,7 @@ private:
     void updateTitle();
     void updatePageLayoutActions();
     void updateRenderingOptionActions();
+    void updateBookmarkSettings();
 
     void setPageLayout(pdf::PageLayout pageLayout);
     void updateFileInfo(const QString& fileName);
@@ -422,6 +439,7 @@ private:
     pdf::PDFToolManager* m_toolManager;
     pdf::PDFWidgetAnnotationManager* m_annotationManager;
     pdf::PDFWidgetFormManager* m_formManager;
+    PDFBookmarkManager* m_bookmarkManager;
 
     PDFFileInfo m_fileInfo;
     QFileSystemWatcher m_fileWatcher;

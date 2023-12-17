@@ -91,6 +91,9 @@ public:
         bool m_signatureTreatWarningsAsErrors;
         bool m_signatureIgnoreCertificateValidityTime;
         bool m_signatureUseSystemStore;
+
+        // Bookmarks settings
+        bool m_autoGenerateBookmarks;
     };
 
     const Settings& getSettings() const { return m_settings; }
