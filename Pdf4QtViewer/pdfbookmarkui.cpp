@@ -17,6 +17,7 @@
 
 #include "pdfbookmarkui.h"
 #include "pdfwidgetutils.h"
+#include "pdfpainterutils.h"
 
 #include <QPainter>
 #include <QPainterPath>
@@ -34,11 +35,17 @@ PDFBookmarkItemModel::PDFBookmarkItemModel(PDFBookmarkManager* bookmarkManager, 
 
 QModelIndex PDFBookmarkItemModel::index(int row, int column, const QModelIndex& parent) const
 {
+    if (parent.isValid())
+    {
+        return QModelIndex();
+    }
+
     return createIndex(row, column, nullptr);
 }
 
 QModelIndex PDFBookmarkItemModel::parent(const QModelIndex& child) const
 {
+    Q_UNUSED(child);
     return QModelIndex();
 }
 
@@ -54,6 +61,11 @@ int PDFBookmarkItemModel::rowCount(const QModelIndex& parent) const
 
 int PDFBookmarkItemModel::columnCount(const QModelIndex& parent) const
 {
+    if (parent.isValid())
+    {
+        return 0;
+    }
+
     return 1;
 }
 
@@ -92,14 +104,22 @@ void PDFBookmarkItemDelegate::paint(QPainter* painter,
     QRect rect = options.rect;
     rect.marginsRemoved(QMargins(margin, margin, margin, margin));
 
+    QColor color = bookmark.isAuto ? QColor(0, 123, 255) : QColor(255, 159, 0);
+
+    if (options.state.testFlag(QStyle::State_Selected))
+    {
+        color = Qt::yellow;
+    }
+
     QRect iconRect = rect;
     iconRect.setWidth(iconSize);
     iconRect.setHeight(iconSize);
     iconRect.moveCenter(QPoint(rect.left() + iconSize / 2, rect.center().y()));
-    drawStar(*painter, iconRect.center(), iconRect.width() * 0.5, QColor(64, 64, 192));
+    drawStar(*painter, iconRect.center(), iconRect.width() * 0.5, color);
 
     QRect textRect = rect;
     textRect.setLeft(iconRect.right() + margin);
+    textRect.moveTop(rect.top() + (rect.height() - 2 * options.fontMetrics.lineSpacing()) / 2);
 
     textRect.setHeight(options.fontMetrics.lineSpacing());
 
@@ -135,18 +155,19 @@ QSize PDFBookmarkItemDelegate::sizeHint(const QStyleOptionViewItem& option, cons
 
 void PDFBookmarkItemDelegate::drawStar(QPainter& painter, const QPointF& center, double size, const QColor& color) const
 {
-    painter.save();
+    pdf::PDFPainterStateGuard guard(&painter);
 
     painter.setPen(Qt::NoPen);
     painter.setBrush(color);
 
     QPainterPath path;
     double angle = M_PI / 5;
+    double phase = -M_PI / 10;
 
     for (int i = 0; i < 10; ++i)
     {
         double radius = (i % 2 == 0) ? size : size / 2.5;
-        QPointF point(radius * cos(i * angle), radius * sin(i * angle));
+        QPointF point(radius * cos(i * angle + phase), radius * sin(i * angle + phase));
         point += center;
 
         if (i == 0)
@@ -159,15 +180,19 @@ void PDFBookmarkItemDelegate::drawStar(QPainter& painter, const QPointF& center,
         }
     }
     path.closeSubpath();
-
     painter.drawPath(path);
-
-    painter.restore();
 }
 
 QString PDFBookmarkItemDelegate::getPageText(const PDFBookmarkManager::Bookmark& bookmark) const
 {
-    return tr("Page %1").arg(bookmark.pageIndex + 1);
+    if (bookmark.isAuto)
+    {
+        return tr("Page %1 | Generated").arg(bookmark.pageIndex + 1);
+    }
+    else
+    {
+        return tr("Page %1").arg(bookmark.pageIndex + 1);
+    }
 }
 
 }   // namespace pdfviewer

@@ -119,6 +119,9 @@ private:
     void onSignatureCustomContextMenuRequested(const QPoint &pos);
     void onOutlineTreeViewContextMenuRequested(const QPoint &pos);
     void onOutlineItemsChanged();
+    void onBookmarkActivated(int index, PDFBookmarkManager::Bookmark bookmark);
+    void onBookmarsCurrentIndexChanged(const QModelIndex& current, const QModelIndex& previous);
+    void onBookmarkClicked(const QModelIndex& index);
 
     struct PageInfo
     {
@@ -142,6 +145,7 @@ private:
     std::map<Page, PageInfo> m_pageInfo;
     std::vector<pdf::PDFSignatureVerificationResult> m_signatures;
     std::vector<pdf::PDFCertificateInfo> m_certificateInfos;
+    bool m_bookmarkChangeInProgress = false;
 };
 
 }   // namespace pdfviewer

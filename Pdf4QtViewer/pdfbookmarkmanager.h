@@ -47,16 +47,26 @@ public:
         pdf::PDFInteger pageIndex = -1;
     };
 
+    bool isEmpty() const;
     int getBookmarkCount() const;
     Bookmark getBookmark(int index) const;
+    void toggleBookmark(pdf::PDFInteger pageIndex);
+    void setGenerateBookmarksAutomatically(bool generateBookmarksAutomatically);
+
+    void goToNextBookmark();
+    void goToPreviousBookmark();
+    void goToCurrentBookmark();
+    void goToBookmark(int index, bool force);
 
 signals:
     void bookmarksAboutToBeChanged();
     void bookmarksChanged();
+    void bookmarkActivated(int index, Bookmark bookmark);
 
 private:
     friend class PDFBookmarkManagerHelper;
 
+    void sortBookmarks();
     void regenerateAutoBookmarks();
 
     struct Bookmarks
@@ -65,8 +75,9 @@ private:
     };
 
     pdf::PDFDocument* m_document;
-    QString m_currentKey;
-    std::map<QString, Bookmarks> m_bookmarks;
+    Bookmarks m_bookmarks;
+    int m_currentBookmark = -1;
+    bool m_generateBookmarksAutomatically = true;
 };
 
 }   // namespace pdf

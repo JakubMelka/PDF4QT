@@ -110,38 +110,15 @@ void PDFBookmarkManager::setDocument(const pdf::PDFModifiedDocument& document)
 {
     Q_EMIT bookmarksAboutToBeChanged();
 
-    const bool init = !m_document;
     m_document = document.getDocument();
 
-    QString key;
-
-    if (document.hasPreserveView() && m_document)
+    if (document.hasReset())
     {
-        // Pass the key
-        key = QString::fromLatin1(m_document->getSourceDataHash().toHex());
-
-        if (m_bookmarks.count(m_currentKey) && m_currentKey != key)
+        if (!document.hasPreserveView())
         {
-            m_bookmarks[key] = m_bookmarks[m_currentKey];
-            m_bookmarks.erase(m_currentKey);
+            m_bookmarks.bookmarks.clear();
+            regenerateAutoBookmarks();
         }
-    }
-
-    if (init && m_document)
-    {
-        key = QString::fromLatin1(m_document->getSourceDataHash().toHex());
-    }
-
-    if (key.isEmpty())
-    {
-        key = "generic";
-    }
-
-    m_currentKey = key;
-
-    if (document.hasReset() && !document.hasPreserveView())
-    {
-        regenerateAutoBookmarks();
     }
 
     Q_EMIT bookmarksChanged();
@@ -149,7 +126,7 @@ void PDFBookmarkManager::setDocument(const pdf::PDFModifiedDocument& document)
 
 void PDFBookmarkManager::saveToFile(QString fileName)
 {
-    QJsonDocument doc = PDFBookmarkManagerHelper::convertBookmarksMapToJsonDocument(m_bookmarks);
+    QJsonDocument doc(PDFBookmarkManagerHelper::convertBookmarksToJson(m_bookmarks));
 
     // Příklad zápisu do souboru
     QFile file(fileName);
@@ -168,31 +145,130 @@ bool PDFBookmarkManager::loadFromFile(QString fileName)
         QJsonDocument loadedDoc = QJsonDocument::fromJson(file.readAll());
         file.close();
 
-        m_bookmarks = PDFBookmarkManagerHelper::convertBookmarksMapFromJsonDocument(loadedDoc);
+        Q_EMIT bookmarksAboutToBeChanged();
+        m_bookmarks = PDFBookmarkManagerHelper::convertBookmarksFromJson(loadedDoc.object());
+        Q_EMIT bookmarksChanged();
         return true;
     }
 
     return false;
 }
 
+bool PDFBookmarkManager::isEmpty() const
+{
+    return m_bookmarks.bookmarks.empty();
+}
+
 int PDFBookmarkManager::getBookmarkCount() const
 {
-    if (m_bookmarks.count(m_currentKey))
-    {
-        return m_bookmarks.at(m_currentKey).bookmarks.size();
-    }
-
-    return 0;
+    return static_cast<int>(m_bookmarks.bookmarks.size());
 }
 
 PDFBookmarkManager::Bookmark PDFBookmarkManager::getBookmark(int index) const
 {
-    if (m_bookmarks.count(m_currentKey))
+    return m_bookmarks.bookmarks.at(index);
+}
+
+void PDFBookmarkManager::toggleBookmark(pdf::PDFInteger pageIndex)
+{
+    Q_EMIT bookmarksAboutToBeChanged();
+
+    auto it = std::find_if(m_bookmarks.bookmarks.begin(), m_bookmarks.bookmarks.end(), [pageIndex](const auto& bookmark) { return bookmark.pageIndex == pageIndex; });
+    if (it != m_bookmarks.bookmarks.cend())
     {
-        return m_bookmarks.at(m_currentKey).bookmarks.at(index);
+        Bookmark& bookmark = *it;
+        if (bookmark.isAuto)
+        {
+            bookmark.isAuto = false;
+        }
+        else
+        {
+            m_bookmarks.bookmarks.erase(it);
+        }
+    }
+    else
+    {
+        Bookmark bookmark;
+        bookmark.isAuto = false;
+        bookmark.name = tr("User bookmark for page %1").arg(pageIndex + 1);
+        bookmark.pageIndex = pageIndex;
+        m_bookmarks.bookmarks.push_back(bookmark);
+        sortBookmarks();
     }
 
-    return Bookmark();
+    Q_EMIT bookmarksChanged();
+}
+
+void PDFBookmarkManager::setGenerateBookmarksAutomatically(bool generateBookmarksAutomatically)
+{
+    if (m_generateBookmarksAutomatically != generateBookmarksAutomatically)
+    {
+        Q_EMIT bookmarksAboutToBeChanged();
+        m_generateBookmarksAutomatically = generateBookmarksAutomatically;
+        regenerateAutoBookmarks();
+        Q_EMIT bookmarksChanged();
+    }
+}
+
+void PDFBookmarkManager::goToNextBookmark()
+{
+    if (isEmpty())
+    {
+        return;
+    }
+
+    m_currentBookmark = (m_currentBookmark + 1) % getBookmarkCount();
+    goToCurrentBookmark();
+}
+
+void PDFBookmarkManager::goToPreviousBookmark()
+{
+    if (isEmpty())
+    {
+        return;
+    }
+
+    if (m_currentBookmark <= 0)
+    {
+        m_currentBookmark = getBookmarkCount() - 1;
+    }
+    else
+    {
+        --m_currentBookmark;
+    }
+
+    goToCurrentBookmark();
+}
+
+void PDFBookmarkManager::goToCurrentBookmark()
+{
+    if (isEmpty())
+    {
+        return;
+    }
+
+    if (m_currentBookmark >= 0 && m_currentBookmark < getBookmarkCount())
+    {
+        Q_EMIT bookmarkActivated(m_currentBookmark, m_bookmarks.bookmarks.at(m_currentBookmark));
+    }
+}
+
+void PDFBookmarkManager::goToBookmark(int index, bool force)
+{
+    if (m_currentBookmark != index || force)
+    {
+        m_currentBookmark = index;
+        goToCurrentBookmark();
+    }
+}
+
+void PDFBookmarkManager::sortBookmarks()
+{
+    auto predicate = [](const auto& l, const auto& r)
+    {
+        return l.pageIndex < r.pageIndex;
+    };
+    std::sort(m_bookmarks.bookmarks.begin(), m_bookmarks.bookmarks.end(), predicate);
 }
 
 void PDFBookmarkManager::regenerateAutoBookmarks()
@@ -203,7 +279,7 @@ void PDFBookmarkManager::regenerateAutoBookmarks()
     }
 
     // Create bookmarks for all main chapters
-    Bookmarks& bookmarks = m_bookmarks[m_currentKey];
+    Bookmarks& bookmarks = m_bookmarks;
 
     for (auto it = bookmarks.bookmarks.begin(); it != bookmarks.bookmarks.end();)
     {
@@ -215,6 +291,11 @@ void PDFBookmarkManager::regenerateAutoBookmarks()
         {
             ++it;
         }
+    }
+
+    if (!m_generateBookmarksAutomatically)
+    {
+        return;
     }
 
     if (auto outlineRoot = m_document->getCatalog()->getOutlineRootPtr())

@@ -105,5 +105,8 @@
         <file>resources/sidebar-visibility.svg</file>
         <file>resources/outline.svg</file>
         <file>resources/sidebar-favourites.svg</file>
+        <file>resources/bookmark.svg</file>
+        <file>resources/bookmark-next.svg</file>
+        <file>resources/bookmark-previous.svg</file>
     </qresource>
 </RCC>

@@ -194,6 +194,12 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_actionManager->setAction(PDFActionManager::ToolScreenshot, ui->actionScreenshot);
     m_actionManager->setAction(PDFActionManager::ToolExtractImage, ui->actionExtractImage);
     m_actionManager->setAction(PDFActionManager::DeveloperCreateInstaller, ui->actionDeveloperCreateInstaller);
+    m_actionManager->setAction(PDFActionManager::BookmarkPage, ui->actionBookmarkPage);
+    m_actionManager->setAction(PDFActionManager::BookmarkGoToNext, ui->actionGotoNextBookmark);
+    m_actionManager->setAction(PDFActionManager::BookmarkGoToPrevious, ui->actionGotoPreviousBookmark);
+    m_actionManager->setAction(PDFActionManager::BookmarkExport, ui->actionBookmarkExport);
+    m_actionManager->setAction(PDFActionManager::BookmarkImport, ui->actionBookmarkImport);
+    m_actionManager->setAction(PDFActionManager::BookmarkGenerateAutomatically, ui->actionBookmarkAutoGenerate);
     m_actionManager->initActions(pdf::PDFWidgetUtils::scaleDPI(this, QSize(24, 24)), true);
 
     for (QAction* action : m_programController->getRecentFileManager()->getActions())

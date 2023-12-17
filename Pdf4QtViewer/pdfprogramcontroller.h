@@ -178,6 +178,12 @@ public:
         ToolScreenshot,
         ToolExtractImage,
         DeveloperCreateInstaller,
+        BookmarkPage,
+        BookmarkGoToNext,
+        BookmarkGoToPrevious,
+        BookmarkExport,
+        BookmarkImport,
+        BookmarkGenerateAutomatically,
         LastAction
     };
 
@@ -367,6 +373,12 @@ private:
     void onActionGetSource();
     void onActionBecomeSponsor();
     void onActionAutomaticDocumentRefresh();
+    void onActionBookmarkPage();
+    void onActionBookmarkGoToNext();
+    void onActionBookmarkGoToPrevious();
+    void onActionBookmarkExport();
+    void onActionBookmarkImport();
+    void onActionBookmarkGenerateAutomatically(bool checked);
 
     void onDrawSpaceChanged();
     void onPageLayoutChanged();
@@ -377,6 +389,7 @@ private:
     void onViewerSettingsChanged();
     void onColorManagementSystemChanged();
     void onFileChanged(const QString& fileName);
+    void onBookmarkActivated(int index, PDFBookmarkManager::Bookmark bookmark);
 
     void updateMagnifierToolSettings();
     void updateUndoRedoSettings();
@@ -384,6 +397,7 @@ private:
     void updateTitle();
     void updatePageLayoutActions();
     void updateRenderingOptionActions();
+    void updateBookmarkSettings();
 
     void setPageLayout(pdf::PageLayout pageLayout);
     void updateFileInfo(const QString& fileName);

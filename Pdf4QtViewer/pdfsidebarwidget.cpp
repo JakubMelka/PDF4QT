@@ -134,6 +134,9 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
     m_bookmarkItemModel = new PDFBookmarkItemModel(bookmarkManager, this);
     ui->bookmarksView->setModel(m_bookmarkItemModel);
     ui->bookmarksView->setItemDelegate(new PDFBookmarkItemDelegate(bookmarkManager, this));
+    connect(m_bookmarkManager, &PDFBookmarkManager::bookmarkActivated, this, &PDFSidebarWidget::onBookmarkActivated);
+    connect(ui->bookmarksView->selectionModel(), &QItemSelectionModel::currentChanged, this, &PDFSidebarWidget::onBookmarsCurrentIndexChanged);
+    connect(ui->bookmarksView, &QListView::clicked, this, &PDFSidebarWidget::onBookmarkClicked);
 
     m_pageInfo[Invalid] = { nullptr, ui->emptyPage };
     m_pageInfo[OptionalContent] = { ui->optionalContentButton, ui->optionalContentPage };
@@ -953,6 +956,46 @@ void PDFSidebarWidget::onOutlineItemsChanged()
         pdf::PDFDocumentPointer pointer(new pdf::PDFDocument(builder.build()));
         pdf::PDFModifiedDocument document(qMove(pointer), m_optionalContentActivity, pdf::PDFModifiedDocument::None);
         Q_EMIT documentModified(qMove(document));
+    }
+}
+
+void PDFSidebarWidget::onBookmarkActivated(int index, PDFBookmarkManager::Bookmark bookmark)
+{
+    if (m_bookmarkChangeInProgress)
+    {
+        return;
+    }
+
+    pdf::PDFTemporaryValueChange<bool> guard(&m_bookmarkChangeInProgress, true);
+    QModelIndex currentIndex = m_bookmarkItemModel->index(index, 0, QModelIndex());
+    ui->bookmarksView->selectionModel()->select(currentIndex, QItemSelectionModel::SelectCurrent);
+    ui->bookmarksView->setCurrentIndex(currentIndex);
+}
+
+void PDFSidebarWidget::onBookmarsCurrentIndexChanged(const QModelIndex& current, const QModelIndex& previous)
+{
+    Q_UNUSED(previous);
+
+    if (m_bookmarkChangeInProgress)
+    {
+        return;
+    }
+
+    pdf::PDFTemporaryValueChange<bool> guard(&m_bookmarkChangeInProgress, true);
+    m_bookmarkManager->goToBookmark(current.row(), false);
+}
+
+void PDFSidebarWidget::onBookmarkClicked(const QModelIndex& index)
+{
+    if (m_bookmarkChangeInProgress)
+    {
+        return;
+    }
+
+    if (index == ui->bookmarksView->currentIndex())
+    {
+        pdf::PDFTemporaryValueChange<bool> guard(&m_bookmarkChangeInProgress, true);
+        m_bookmarkManager->goToCurrentBookmark();
     }
 }
 

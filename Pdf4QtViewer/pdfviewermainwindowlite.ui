@@ -42,12 +42,26 @@
     <property name="title">
      <string>Go To</string>
     </property>
+	    <widget class="QMenu" name="menuBookmarkSettings">
+     <property name="title">
+      <string>Bookmark Settings</string>
+     </property>
+     <addaction name="actionBookmarkExport"/>
+     <addaction name="actionBookmarkImport"/>
+     <addaction name="actionBookmarkAutoGenerate"/>
+    </widget>
     <addaction name="actionGoToDocumentStart"/>
     <addaction name="actionGoToDocumentEnd"/>
     <addaction name="actionGoToPreviousPage"/>
     <addaction name="actionGoToNextPage"/>
     <addaction name="actionGoToPreviousLine"/>
     <addaction name="actionGoToNextLine"/>
+	
+    <addaction name="separator"/>
+    <addaction name="actionBookmarkPage"/>
+    <addaction name="actionGotoPreviousBookmark"/>
+    <addaction name="actionGotoNextBookmark"/>
+    <addaction name="menuBookmarkSettings"/>
    </widget>
    <widget class="QMenu" name="menuView">
     <property name="title">
@@ -541,6 +555,100 @@
    </property>
    <property name="toolTip">
     <string>Become a Sponsor</string>
+   </property>
+  </action>
+  
+  <action name="actionBookmarkPage">
+   <property name="icon">
+    <iconset resource="pdf4qtviewer.qrc">
+     <normaloff>:/resources/bookmark.svg</normaloff>:/resources/bookmark.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Bookmark Page</string>
+   </property>
+   <property name="toolTip">
+    <string>Bookmark Page</string>
+   </property>
+   <property name="statusTip">
+    <string>Bookmark page for fast navigation.</string>
+   </property>
+  </action>
+  <action name="actionGotoNextBookmark">
+   <property name="icon">
+    <iconset resource="pdf4qtviewer.qrc">
+     <normaloff>:/resources/bookmark-next.svg</normaloff>:/resources/bookmark-next.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Go to Next Bookmark</string>
+   </property>
+   <property name="toolTip">
+    <string>Go to Next Bookmark</string>
+   </property>
+   <property name="statusTip">
+    <string>Navigates to the next bookmarked page.</string>
+   </property>
+  </action>
+  <action name="actionGotoPreviousBookmark">
+   <property name="icon">
+    <iconset resource="pdf4qtviewer.qrc">
+     <normaloff>:/resources/bookmark-previous.svg</normaloff>:/resources/bookmark-previous.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Go to Previous Bookmark</string>
+   </property>
+   <property name="toolTip">
+    <string>Go to Previous Bookmark</string>
+   </property>
+   <property name="statusTip">
+    <string>Navigates to the previous bookmarked page.</string>
+   </property>
+  </action>
+  <action name="actionBookmarkExport">
+   <property name="icon">
+    <iconset resource="pdf4qtviewer.qrc">
+     <normaloff>:/resources/bookmark.svg</normaloff>:/resources/bookmark.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Export Bookmarks</string>
+   </property>
+   <property name="toolTip">
+    <string>Export Bookmarks</string>
+   </property>
+   <property name="statusTip">
+    <string>Export bookmarks to the file.</string>
+   </property>
+  </action>
+  <action name="actionBookmarkImport">
+   <property name="icon">
+    <iconset resource="pdf4qtviewer.qrc">
+     <normaloff>:/resources/bookmark.svg</normaloff>:/resources/bookmark.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Import Bookmarks</string>
+   </property>
+   <property name="toolTip">
+    <string>Import Bookmarks</string>
+   </property>
+   <property name="statusTip">
+    <string>Import bookmarks from the file.</string>
+   </property>
+  </action>
+  <action name="actionBookmarkAutoGenerate">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pdf4qtviewer.qrc">
+     <normaloff>:/resources/bookmark.svg</normaloff>:/resources/bookmark.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Generate Bookmarks Automatically</string>
+   </property>
+   <property name="toolTip">
+    <string>Generate Bookmarks Automatically</string>
+   </property>
+   <property name="statusTip">
+    <string>If checked, bookmarks for main document chapters are generated automatically.</string>
    </property>
   </action>
  </widget>
