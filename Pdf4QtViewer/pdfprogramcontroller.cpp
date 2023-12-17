@@ -2625,6 +2625,11 @@ void PDFProgramController::onActionBookmarkGoToPrevious()
 
 void PDFProgramController::onActionBookmarkExport()
 {
+    if (!m_pdfDocument)
+    {
+        return;
+    }
+
     QFileInfo fileInfo(m_fileInfo.originalFileName);
     QString saveFileName = QFileDialog::getSaveFileName(m_mainWindow, tr("Export Bookmarks As"), fileInfo.dir().absoluteFilePath(m_fileInfo.originalFileName).replace(".pdf", ".json"), tr("JSON (*.json);;All files (*.*)"));
     if (!saveFileName.isEmpty())
@@ -2635,6 +2640,11 @@ void PDFProgramController::onActionBookmarkExport()
 
 void PDFProgramController::onActionBookmarkImport()
 {
+    if (!m_pdfDocument)
+    {
+        return;
+    }
+
     QFileInfo fileInfo(m_fileInfo.originalFileName);
     QString fileName = QFileDialog::getOpenFileName(m_mainWindow, tr("Select PDF document"), fileInfo.dir().absolutePath(), tr("JSON (*.json)"));
     if (!fileName.isEmpty())
