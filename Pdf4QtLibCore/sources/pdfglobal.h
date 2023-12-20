@@ -18,8 +18,8 @@
 #ifndef PDFGLOBAL_H
 #define PDFGLOBAL_H
 
+#include <QtCore>
 #include <QtGlobal>
-#include <QCoreApplication>
 
 #include <limits>
 #include <tuple>

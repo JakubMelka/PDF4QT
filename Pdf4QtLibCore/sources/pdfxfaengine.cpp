@@ -21,7 +21,6 @@
 #include "pdffont.h"
 #include "pdfdbgheap.h"
 
-#include <QBuffer>
 #include <QDomElement>
 #include <QDomDocument>
 #include <QStringList>

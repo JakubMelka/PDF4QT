@@ -24,6 +24,8 @@
 #include "pdfoutline.h"
 #include "pdfaction.h"
 
+#include <QtCore>
+
 #include <array>
 #include <vector>
 #include <utility>

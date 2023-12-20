@@ -24,8 +24,6 @@
 #include <QByteArray>
 #include <QSharedPointer>
 
-class QRandomGenerator;
-
 #include <map>
 #include <functional>
 

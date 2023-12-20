@@ -23,7 +23,6 @@
 
 #include <QFile>
 #include <QThread>
-#include <QMetaEnum>
 
 #include <cctype>
 #include <memory>

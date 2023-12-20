@@ -24,8 +24,8 @@
 #include "pdfprogress.h"
 #include "pdfxreftable.h"
 
+#include <QtCore>
 #include <QIODevice>
-#include <QMutex>
 
 namespace pdf
 {

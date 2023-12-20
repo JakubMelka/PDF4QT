@@ -20,6 +20,8 @@
 
 #include "pdfobject.h"
 
+#include <QtCore>
+
 #include <set>
 #include <vector>
 #include <atomic>

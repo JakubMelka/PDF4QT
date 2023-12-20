@@ -25,8 +25,6 @@
 #include <QDataStream>
 #include <QPainterPath>
 
-class QMutex;
-
 #include <set>
 #include <compare>
 

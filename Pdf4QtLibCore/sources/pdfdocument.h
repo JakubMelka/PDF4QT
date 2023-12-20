@@ -23,6 +23,7 @@
 #include "pdfcatalog.h"
 #include "pdfsecurityhandler.h"
 
+#include <QtCore>
 #include <QColor>
 #include <QTransform>
 #include <QDateTime>

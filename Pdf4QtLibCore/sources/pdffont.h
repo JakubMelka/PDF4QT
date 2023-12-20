@@ -23,7 +23,6 @@
 #include "pdfobject.h"
 
 #include <QFont>
-#include <QMutex>
 #include <QTransform>
 #include <QSharedPointer>
 

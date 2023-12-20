@@ -40,13 +40,10 @@
 #include <openssl/ts.h>
 #include <openssl/tserr.h>
 
-#include <QDir>
-#include <QLockFile>
 #include <QMutex>
 #include <QMutexLocker>
 #include <QDataStream>
 #include <QFileInfo>
-#include <QStandardPaths>
 
 #include <array>
 #ifdef Q_OS_UNIX
