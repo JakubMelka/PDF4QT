@@ -21,8 +21,6 @@
 #include "pdfglobal.h"
 #include "pdfobject.h"
 
-#include <QtCore>
-
 #include <vector>
 
 namespace pdf

@@ -22,6 +22,7 @@
 #include "pdfstreamfilters.h"
 #include "pdfdbgheap.h"
 
+#include <QIODevice>
 #include <stack>
 
 namespace pdf

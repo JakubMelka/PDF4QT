@@ -24,6 +24,7 @@
 #include "pdfconstants.h"
 #include "pdfdbgheap.h"
 
+#include <QMutex>
 #include <QPainter>
 
 #include <execution>

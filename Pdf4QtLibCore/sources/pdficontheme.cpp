@@ -19,6 +19,7 @@
 #include "pdfdbgheap.h"
 
 #include <QCoreApplication>
+#include <QDir>
 
 namespace pdf
 {
