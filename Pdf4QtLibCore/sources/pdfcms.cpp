@@ -20,7 +20,10 @@
 #include "pdfexecutionpolicy.h"
 #include "pdfdbgheap.h"
 
+#include <QBuffer>
 #include <QCoreApplication>
+#include <QDir>
+#include <QFile>
 #include <QReadWriteLock>
 
 #ifdef PDF4QT_COMPILER_CLANG

@@ -21,6 +21,7 @@
 #include "pdfparser.h"
 #include "pdfdbgheap.h"
 
+#include <QBuffer>
 #include <QFile>
 #include <QSaveFile>
 

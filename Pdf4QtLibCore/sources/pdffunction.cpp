@@ -23,6 +23,8 @@
 #include "pdfutils.h"
 #include "pdfdbgheap.h"
 
+#include <QIODevice>
+
 #include <stack>
 #include <iterator>
 #include <type_traits>
