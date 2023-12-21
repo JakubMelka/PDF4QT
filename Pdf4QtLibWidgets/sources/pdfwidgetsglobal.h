@@ -18,8 +18,7 @@
 #ifndef PDFWIDGETSGLOBAL_H
 #define PDFWIDGETSGLOBAL_H
 
-#include <QtCore>
-#include <QtGlobal>
+#include <QtCompilerDetection>
 
 #include <pdf4qtlibwidgets_export.h>
 
@@ -30,6 +29,5 @@
 #  define PDF4QTLIBWIDGETSSHARED_EXPORT Q_DECL_IMPORT
 #endif
 #endif
-
 
 #endif // PDFWIDGETSGLOBAL_H

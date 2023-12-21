@@ -20,6 +20,9 @@
 #include "pdfexecutionpolicy.h"
 #include "pdfdbgheap.h"
 
+#include <QDir>
+#include <QFile>
+#include <QBuffer>
 #include <QCoreApplication>
 #include <QReadWriteLock>
 

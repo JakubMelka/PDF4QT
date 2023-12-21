@@ -27,6 +27,8 @@
 #include <map>
 #include <functional>
 
+class QRandomGenerator;
+
 namespace pdf
 {
 class PDFObjectFactory;

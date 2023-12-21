@@ -23,8 +23,6 @@
 #include "pdfdrawspacecontroller.h"
 #include "pdfdocumentdrawinterface.h"
 
-#include <QtCore>
-
 namespace pdf
 {
 class PDFDocumentBuilder;

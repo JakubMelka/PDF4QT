@@ -30,6 +30,7 @@
 #include <freetype/ftoutln.h>
 #include <freetype/t1tables.h>
 
+#include <QFile>
 #include <QMutex>
 #include <QReadWriteLock>
 #include <QPainterPath>

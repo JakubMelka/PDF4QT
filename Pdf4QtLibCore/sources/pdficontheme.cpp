@@ -18,6 +18,8 @@
 #include "pdficontheme.h"
 #include "pdfdbgheap.h"
 
+#include <QDir>
+#include <QFile>
 #include <QCoreApplication>
 
 namespace pdf

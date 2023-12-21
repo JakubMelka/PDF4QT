@@ -19,7 +19,9 @@
 #define PDFGLOBAL_H
 
 #include <QtCore>
-#include <QtGlobal>
+#include <QtSystemDetection>
+#include <QtCompilerDetection>
+#include <QCoreApplication>
 
 #include <limits>
 #include <tuple>

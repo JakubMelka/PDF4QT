@@ -20,7 +20,11 @@
 #include "pdfexecutionpolicy.h"
 #include "pdfdbgheap.h"
 
+#include <QMutex>
 #include <QPainter>
+#include <QIODevice>
+#include <QMutexLocker>
+#include <QRegularExpression>
 
 #include <execution>
 

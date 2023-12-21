@@ -21,6 +21,7 @@
 #include "pdfobject.h"
 
 #include <QRectF>
+#include <QDateTime>
 
 #include <set>
 #include <optional>

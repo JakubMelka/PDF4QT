@@ -22,6 +22,7 @@
 #include "pdfdbgheap.h"
 
 #include <QFile>
+#include <QBuffer>
 #include <QSaveFile>
 
 namespace pdf

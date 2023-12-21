@@ -18,6 +18,7 @@
 #ifndef PDFCOMPILER_H
 #define PDFCOMPILER_H
 
+#include "pdfglobal.h"
 #include "pdfwidgetsglobal.h"
 #include "pdfrenderer.h"
 #include "pdfpainter.h"

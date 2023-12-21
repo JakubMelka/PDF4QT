@@ -28,6 +28,8 @@
 #include <set>
 #include <compare>
 
+class QMutex;
+
 namespace pdf
 {
 class PDFTextLayout;

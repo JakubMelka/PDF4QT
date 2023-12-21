@@ -23,7 +23,6 @@
 #include "pdfobject.h"
 #include "pdfflatmap.h"
 
-#include <QtCore>
 #include <QVariant>
 #include <QByteArray>
 

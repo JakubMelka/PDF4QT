@@ -22,6 +22,7 @@
 #include "pdfdocument.h"
 #include "pdfannotation.h"
 
+class QBuffer;
 class QPdfWriter;
 
 namespace pdf

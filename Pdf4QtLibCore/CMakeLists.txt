@@ -16,6 +16,7 @@
 #    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 add_library(Pdf4QtLibCore SHARED
+    sources/pdfglobal.h
     sources/pdfaction.cpp
     sources/pdfaction.h
     sources/pdfalgorithmlcs.cpp
