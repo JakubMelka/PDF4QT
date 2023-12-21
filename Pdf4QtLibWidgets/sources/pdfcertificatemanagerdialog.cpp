@@ -27,6 +27,7 @@
 #include <QDesktopServices>
 #include <QMessageBox>
 #include <QFileDialog>
+#include <QStandardPaths>
 
 namespace pdf
 {

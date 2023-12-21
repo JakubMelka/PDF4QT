@@ -20,7 +20,6 @@
 #include "pdfcompiler.h"
 #include "pdfwidgetutils.h"
 #include "pdfpainterutils.h"
-#include "pdfdbgheap.h"
 
 #include <QLabel>
 #include <QAction>
@@ -35,6 +34,8 @@
 #include <QApplication>
 #include <QStylePainter>
 #include <QStyleOptionTitleBar>
+
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

@@ -18,6 +18,9 @@
 #include "pdftoolattachments.h"
 #include "pdfexception.h"
 
+#include <QFile>
+#include <QMimeDatabase>
+
 namespace pdftool
 {
 

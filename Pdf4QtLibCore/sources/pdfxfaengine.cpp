@@ -19,7 +19,6 @@
 #include "pdfform.h"
 #include "pdfpainterutils.h"
 #include "pdffont.h"
-#include "pdfdbgheap.h"
 
 #include <QBuffer>
 #include <QDomElement>
@@ -31,6 +30,8 @@
 #include <QTextBlock>
 #include <QFontDatabase>
 #include <QAbstractTextDocumentLayout>
+
+#include "pdfdbgheap.h"
 
 #include <stack>
 #include <optional>

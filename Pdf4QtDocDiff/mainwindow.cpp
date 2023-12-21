@@ -38,6 +38,7 @@
 #include <QVBoxLayout>
 #include <QActionGroup>
 #include <QScreen>
+#include <QSettings>
 
 namespace pdfdocdiff
 {

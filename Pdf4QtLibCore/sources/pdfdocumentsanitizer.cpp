@@ -20,6 +20,7 @@
 #include "pdfexecutionpolicy.h"
 #include "pdfoptimizer.h"
 #include "pdfdocumentbuilder.h"
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

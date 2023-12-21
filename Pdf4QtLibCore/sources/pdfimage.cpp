@@ -22,10 +22,11 @@
 #include "pdfutils.h"
 #include "pdfjbig2decoder.h"
 #include "pdfccittfaxdecoder.h"
-#include "pdfdbgheap.h"
 
 #include <openjpeg.h>
 #include <jpeglib.h>
+
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

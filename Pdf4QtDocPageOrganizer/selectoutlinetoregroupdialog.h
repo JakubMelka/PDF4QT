@@ -21,6 +21,7 @@
 #include "pdfdocument.h"
 
 #include <QDialog>
+#include <QModelIndex>
 
 namespace Ui
 {

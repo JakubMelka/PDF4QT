@@ -23,6 +23,8 @@
 #include "pdftransparencyrenderer.h"
 
 #include <QDialog>
+#include <QFuture>
+#include <QFutureWatcher>
 #include <QAbstractItemModel>
 
 namespace Ui

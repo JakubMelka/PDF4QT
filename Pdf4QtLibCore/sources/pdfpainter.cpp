@@ -18,10 +18,11 @@
 #include "pdfpainter.h"
 #include "pdfpattern.h"
 #include "pdfcms.h"
-#include "pdfdbgheap.h"
 
 #include <QPainter>
 #include <QCryptographicHash>
+
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

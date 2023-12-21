@@ -16,10 +16,10 @@
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfselectpagesdialog.h"
-#include "pdfdbgheap.h"
 #include "ui_pdfselectpagesdialog.h"
 
 #include "pdfwidgetutils.h"
+#include "pdfdbgheap.h"
 
 #include <QMessageBox>
 

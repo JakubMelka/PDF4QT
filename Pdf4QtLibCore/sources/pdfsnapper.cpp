@@ -17,11 +17,12 @@
 
 #include "pdfsnapper.h"
 #include "pdfutils.h"
-#include "pdfdbgheap.h"
 #include "pdfpainter.h"
 #include "pdfwidgetsnapshot.h"
 
 #include <QPainter>
+
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

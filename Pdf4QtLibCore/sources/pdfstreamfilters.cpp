@@ -21,11 +21,12 @@
 #include "pdfparser.h"
 #include "pdfsecurityhandler.h"
 #include "pdfutils.h"
-#include "pdfdbgheap.h"
 
 #include <zlib.h>
 
 #include <QtEndian>
+
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

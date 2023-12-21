@@ -1,4 +1,4 @@
-//    Copyright (C) 2020-2021 Jakub Melka
+//    Copyright (C) 2020-2023 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -17,6 +17,8 @@
 
 #include "pdftoolcertstore.h"
 #include "pdfsignaturehandler.h"
+
+#include <QFile>
 
 namespace pdftool
 {

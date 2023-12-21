@@ -18,7 +18,6 @@
 #include "pdfitemmodels.h"
 #include "pdfdocument.h"
 #include "pdfdrawspacecontroller.h"
-#include "pdfdbgheap.h"
 #include "pdfdrawwidget.h"
 
 #include <QFont>
@@ -26,6 +25,9 @@
 #include <QApplication>
 #include <QMimeDatabase>
 #include <QFileIconProvider>
+#include <QMimeData>
+
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

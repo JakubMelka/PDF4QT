@@ -19,11 +19,12 @@
 #include "pdfconstants.h"
 #include "pdfvisitor.h"
 #include "pdfparser.h"
-#include "pdfdbgheap.h"
 
 #include <QFile>
 #include <QBuffer>
 #include <QSaveFile>
+
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

@@ -20,12 +20,13 @@
 
 #include "pdfwidgetutils.h"
 #include "pdfdocumentwriter.h"
-#include "pdfdbgheap.h"
 
 #include <QCheckBox>
 #include <QPushButton>
 #include <QElapsedTimer>
 #include <QtConcurrent/QtConcurrent>
+
+#include "pdfdbgheap.h"
 
 namespace pdfviewer
 {

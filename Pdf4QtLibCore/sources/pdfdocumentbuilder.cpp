@@ -21,13 +21,14 @@
 #include "pdfdocumentreader.h"
 #include "pdfobjectutils.h"
 #include "pdfnametreeloader.h"
-#include "pdfdbgheap.h"
 #include "pdfparser.h"
 #include "pdfstreamfilters.h"
 
 #include <QBuffer>
 #include <QPainter>
 #include <QPdfWriter>
+
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

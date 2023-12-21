@@ -23,9 +23,10 @@
 #include "pdfwidgetutils.h"
 #include "pdfsecurityhandler.h"
 #include "pdfcertificatemanager.h"
-#include "pdfdbgheap.h"
 
 #include <QMessageBox>
+
+#include "pdfdbgheap.h"
 
 namespace pdfviewer
 {

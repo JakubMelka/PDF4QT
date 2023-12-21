@@ -20,7 +20,6 @@
 #include "pdfdrawspacecontroller.h"
 #include "pdfcompiler.h"
 #include "pdfdrawwidget.h"
-#include "pdfdbgheap.h"
 
 #include <QLabel>
 #include <QAction>
@@ -29,6 +28,8 @@
 #include <QToolButton>
 #include <QTextBrowser>
 #include <QTextToSpeech>
+
+#include "pdfdbgheap.h"
 
 namespace pdfviewer
 {

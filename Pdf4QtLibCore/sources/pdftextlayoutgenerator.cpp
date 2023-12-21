@@ -16,6 +16,7 @@
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdftextlayoutgenerator.h"
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

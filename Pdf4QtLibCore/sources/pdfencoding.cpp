@@ -16,10 +16,11 @@
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfencoding.h"
-#include "pdfdbgheap.h"
 
 #include <QTimeZone>
 #include <QStringDecoder>
+
+#include "pdfdbgheap.h"
 
 #include <cctype>
 #include <cstring>

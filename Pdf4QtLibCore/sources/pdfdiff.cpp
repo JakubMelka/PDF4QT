@@ -24,9 +24,10 @@
 #include "pdfconstants.h"
 #include "pdfalgorithmlcs.h"
 #include "pdfpainter.h"
-#include "pdfdbgheap.h"
 
 #include <QtConcurrent/QtConcurrent>
+
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

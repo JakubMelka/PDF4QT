@@ -23,7 +23,6 @@
 #include "pdfwidgetutils.h"
 #include "pdfrecentfilemanager.h"
 #include "pdfcolorconvertor.h"
-#include "pdfdbgheap.h"
 
 #include <QAction>
 #include <QLineEdit>
@@ -33,6 +32,8 @@
 #include <QTextToSpeech>
 #include <QDomDocument>
 #include <QStyledItemDelegate>
+
+#include "pdfdbgheap.h"
 
 namespace pdfviewer
 {

@@ -18,6 +18,7 @@
 #include "pdfbookmarkmanager.h"
 #include "pdfaction.h"
 
+#include <QFile>
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QJsonDocument>

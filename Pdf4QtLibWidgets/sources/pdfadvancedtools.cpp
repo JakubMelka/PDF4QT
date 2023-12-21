@@ -22,11 +22,12 @@
 #include "pdfcompiler.h"
 #include "pdfwidgetformmanager.h"
 #include "pdfwidgetannotation.h"
-#include "pdfdbgheap.h"
 
 #include <QActionGroup>
 #include <QInputDialog>
 #include <QKeyEvent>
+
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

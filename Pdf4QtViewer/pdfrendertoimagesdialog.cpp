@@ -22,13 +22,14 @@
 #include "pdfwidgetutils.h"
 #include "pdfoptionalcontent.h"
 #include "pdfdrawspacecontroller.h"
-#include "pdfdbgheap.h"
 
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QtConcurrent/QtConcurrent>
 #include <QImageWriter>
+
+#include "pdfdbgheap.h"
 
 namespace pdfviewer
 {

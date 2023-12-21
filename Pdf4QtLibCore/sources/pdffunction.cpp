@@ -21,9 +21,10 @@
 #include "pdfdocument.h"
 #include "pdfexception.h"
 #include "pdfutils.h"
-#include "pdfdbgheap.h"
 
 #include <QIODevice>
+
+#include "pdfdbgheap.h"
 
 #include <stack>
 #include <iterator>

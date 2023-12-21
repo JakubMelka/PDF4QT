@@ -19,6 +19,7 @@
 
 #include <QFileInfo>
 #include <QImageReader>
+#include <QMimeData>
 
 #include <iterator>
 

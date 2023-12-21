@@ -23,10 +23,11 @@
 #include "pdfparser.h"
 #include "pdfstreamfilters.h"
 #include "pdfexecutionpolicy.h"
-#include "pdfdbgheap.h"
 
 #include <QFile>
 #include <QCryptographicHash>
+
+#include "pdfdbgheap.h"
 
 #include <regex>
 #include <cctype>

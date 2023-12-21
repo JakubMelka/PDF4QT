@@ -19,11 +19,12 @@
 #include "pdfparser.h"
 #include "pdfconstants.h"
 #include "pdfexception.h"
-#include "pdfdbgheap.h"
 
 #include <QFile>
 #include <QThread>
 #include <QMetaEnum>
+
+#include "pdfdbgheap.h"
 
 #include <cctype>
 #include <memory>

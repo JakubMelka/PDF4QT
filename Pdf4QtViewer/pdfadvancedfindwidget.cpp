@@ -16,7 +16,6 @@
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfadvancedfindwidget.h"
-#include "pdfdbgheap.h"
 #include "ui_pdfadvancedfindwidget.h"
 
 #include "pdfcompiler.h"
@@ -24,6 +23,8 @@
 #include "pdfdrawspacecontroller.h"
 
 #include <QMessageBox>
+
+#include "pdfdbgheap.h"
 
 namespace pdfviewer
 {

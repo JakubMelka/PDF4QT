@@ -17,9 +17,10 @@
 
 #include "pdfutils.h"
 #include "pdfexception.h"
-#include "pdfdbgheap.h"
 
 #include <QtGlobal>
+
+#include "pdfdbgheap.h"
 
 #include <jpeglib.h>
 #include <ft2build.h>

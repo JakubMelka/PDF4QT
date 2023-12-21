@@ -24,7 +24,6 @@
 #include "pdfviewersettingsdialog.h"
 #include "pdfdocumentpropertiesdialog.h"
 #include "pdfrendertoimagesdialog.h"
-#include "pdfdbgheap.h"
 
 #include "pdfdocumentreader.h"
 #include "pdfvisitor.h"
@@ -67,6 +66,8 @@
 #include <QPluginLoader>
 #include <QToolButton>
 #include <QActionGroup>
+
+#include "pdfdbgheap.h"
 
 #ifdef Q_OS_WIN
 #include "Windows.h"

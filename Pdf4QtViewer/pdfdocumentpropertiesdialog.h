@@ -23,6 +23,7 @@
 #include <QDialog>
 #include <QFuture>
 #include <QFutureWatcher>
+#include <QDateTime>
 
 class QTreeWidgetItem;
 

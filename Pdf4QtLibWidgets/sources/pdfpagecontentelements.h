@@ -26,6 +26,7 @@
 #include <QBrush>
 #include <QCursor>
 #include <QPainterPath>
+#include <QElapsedTimer>
 
 #include <set>
 

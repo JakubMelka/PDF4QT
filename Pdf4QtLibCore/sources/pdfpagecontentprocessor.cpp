@@ -22,9 +22,10 @@
 #include "pdfpattern.h"
 #include "pdfexecutionpolicy.h"
 #include "pdfstreamfilters.h"
-#include "pdfdbgheap.h"
 
 #include <QPainterPathStroker>
+
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

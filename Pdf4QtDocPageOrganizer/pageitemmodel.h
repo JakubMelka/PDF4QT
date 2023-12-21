@@ -23,6 +23,7 @@
 #include "pdfdocumentmanipulator.h"
 
 #include <QImage>
+#include <QItemSelection>
 #include <QAbstractItemModel>
 
 namespace pdfdocpage

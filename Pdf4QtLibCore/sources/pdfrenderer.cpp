@@ -21,7 +21,6 @@
 #include "pdfexecutionpolicy.h"
 #include "pdfprogress.h"
 #include "pdfannotation.h"
-#include "pdfdbgheap.h"
 
 #include <QDir>
 #include <QElapsedTimer>
@@ -33,6 +32,8 @@
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLFunctions>
 #endif
+
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

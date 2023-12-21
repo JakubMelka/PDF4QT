@@ -18,9 +18,10 @@
 #include "pdfmultimedia.h"
 #include "pdfdocument.h"
 #include "pdfnametreeloader.h"
-#include "pdfdbgheap.h"
 
 #include <QtEndian>
+
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

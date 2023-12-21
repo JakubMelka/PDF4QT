@@ -27,6 +27,7 @@
 #include <QFileDialog>
 #include <QImageReader>
 #include <QGuiApplication>
+#include <QStandardPaths>
 
 namespace pdf
 {

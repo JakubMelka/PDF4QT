@@ -18,10 +18,11 @@
 #include "pdfencryptionstrengthhintwidget.h"
 #include "pdfwidgetutils.h"
 #include "pdfutils.h"
-#include "pdfdbgheap.h"
 
 #include <QPainter>
 #include <QFontMetrics>
+
+#include "pdfdbgheap.h"
 
 namespace pdfviewer
 {

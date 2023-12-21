@@ -22,7 +22,6 @@
 #include "pdfannotation.h"
 #include "pdfwidgetannotation.h"
 #include "pdfwidgetformmanager.h"
-#include "pdfdbgheap.h"
 
 #include <QPainter>
 #include <QGridLayout>
@@ -30,6 +29,8 @@
 #include <QApplication>
 #include <QPixmapCache>
 #include <QColorSpace>
+
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

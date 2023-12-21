@@ -66,7 +66,7 @@ endif()
 qt_standard_project_setup()
 
 find_package(OpenSSL REQUIRED)
-find_package(lcms2 REQUIRED)
+find_package(lcms REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(OpenJPEG CONFIG REQUIRED)

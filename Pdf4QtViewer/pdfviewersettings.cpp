@@ -17,9 +17,12 @@
 
 #include "pdfviewersettings.h"
 #include "pdfconstants.h"
-#include "pdfdbgheap.h"
 
+#include <QSettings>
 #include <QPixmapCache>
+#include <QStandardPaths>
+
+#include "pdfdbgheap.h"
 
 namespace pdfviewer
 {

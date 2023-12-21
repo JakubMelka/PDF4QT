@@ -17,7 +17,6 @@
 
 #include "pdfwidgetutils.h"
 #include "pdfcolorconvertor.h"
-#include "pdfdbgheap.h"
 
 #include <QDialog>
 #include <QLayout>
@@ -25,6 +24,8 @@
 #include <QPixmap>
 #include <QGroupBox>
 #include <QApplication>
+
+#include "pdfdbgheap.h"
 
 #ifdef Q_OS_MAC
 int qt_default_dpi_x() { return 72; }

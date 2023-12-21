@@ -21,7 +21,6 @@
 #include "pdfwidgetutils.h"
 #include "pdfdocumentwriter.h"
 #include "pdfimage.h"
-#include "pdfdbgheap.h"
 #include "pdfexception.h"
 #include "pdfwidgetutils.h"
 #include "pdfimageconversion.h"
@@ -38,6 +37,8 @@
 #include <QtSvg/QSvgRenderer>
 #include <QMouseEvent>
 #include <QToolTip>
+
+#include "pdfdbgheap.h"
 
 namespace pdfviewer
 {

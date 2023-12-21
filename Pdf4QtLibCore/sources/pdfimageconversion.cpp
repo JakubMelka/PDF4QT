@@ -1,4 +1,5 @@
 #include "pdfimageconversion.h"
+#include "pdfdbgheap.h"
 
 #include <cmath>
 

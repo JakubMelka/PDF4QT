@@ -17,10 +17,11 @@
 
 #include "pdfdocumenttextfloweditormodel.h"
 #include "pdfdocumenttextflow.h"
-#include "pdfdbgheap.h"
 
 #include <QColor>
 #include <QBrush>
+
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

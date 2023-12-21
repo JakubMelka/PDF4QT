@@ -21,6 +21,8 @@
 #include <QFile>
 #include <QStandardPaths>
 
+#include "pdfdbgheap.h"
+
 #if defined(PDF4QT_COMPILER_MINGW) || defined(PDF4QT_COMPILER_GCC)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"

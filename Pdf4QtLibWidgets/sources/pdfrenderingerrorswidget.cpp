@@ -17,10 +17,10 @@
 
 #include "pdfrenderingerrorswidget.h"
 #include "pdfdrawwidget.h"
-#include "pdfdbgheap.h"
 #include "ui_pdfrenderingerrorswidget.h"
 
 #include "pdfwidgetutils.h"
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

@@ -18,13 +18,14 @@
 #include "pdftextlayout.h"
 #include "pdfutils.h"
 #include "pdfexecutionpolicy.h"
-#include "pdfdbgheap.h"
 
 #include <QMutex>
 #include <QPainter>
 #include <QIODevice>
 #include <QMutexLocker>
 #include <QRegularExpression>
+
+#include "pdfdbgheap.h"
 
 #include <execution>
 

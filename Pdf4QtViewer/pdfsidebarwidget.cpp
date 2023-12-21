@@ -22,7 +22,6 @@
 
 #include "pdfwidgetutils.h"
 #include "pdftexttospeech.h"
-#include "pdfdbgheap.h"
 #include "pdfdrawwidget.h"
 #include "pdfwidgettool.h"
 
@@ -46,6 +45,8 @@
 #include <QHBoxLayout>
 #include <QDialog>
 #include <QPushButton>
+
+#include "pdfdbgheap.h"
 
 namespace pdfviewer
 {

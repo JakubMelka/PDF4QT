@@ -21,10 +21,11 @@
 #include "pdfvisitor.h"
 #include "pdfutils.h"
 #include "pdfdocumentbuilder.h"
-#include "pdfdbgheap.h"
 #include "pdfcertificatemanager.h"
 
 #include <QRandomGenerator>
+
+#include "pdfdbgheap.h"
 
 #if defined(PDF4QT_COMPILER_MINGW) || defined(PDF4QT_COMPILER_GCC)
 #pragma GCC diagnostic push

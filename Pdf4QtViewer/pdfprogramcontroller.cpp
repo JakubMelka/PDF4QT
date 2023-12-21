@@ -25,7 +25,6 @@
 #include "pdfwidgetutils.h"
 #include "pdfconstants.h"
 #include "pdfdocumentbuilder.h"
-#include "pdfdbgheap.h"
 #include "pdfcertificatemanagerdialog.h"
 #include "pdfwidgetutils.h"
 
@@ -57,6 +56,8 @@
 #include <QMainWindow>
 #include <QToolBar>
 #include <QXmlStreamWriter>
+
+#include "pdfdbgheap.h"
 
 #ifdef Q_OS_WIN
 #include <windows.h>

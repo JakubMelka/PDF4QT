@@ -25,9 +25,10 @@
 #include "pdfform.h"
 #include "pdfpainterutils.h"
 #include "pdfdocumentbuilder.h"
-#include "pdfdbgheap.h"
 
 #include <QIcon>
+
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

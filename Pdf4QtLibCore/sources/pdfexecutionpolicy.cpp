@@ -16,10 +16,11 @@
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfexecutionpolicy.h"
-#include "pdfdbgheap.h"
 
 #include <QThread>
 #include <QCoreApplication>
+
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

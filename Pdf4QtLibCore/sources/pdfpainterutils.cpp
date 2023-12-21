@@ -16,9 +16,10 @@
 //    along with PDF4QT. If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfpainterutils.h"
-#include "pdfdbgheap.h"
 
 #include <QFontMetrics>
+
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

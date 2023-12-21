@@ -27,6 +27,7 @@
 #include "pdfcompiler.h"
 
 #include <QAction>
+#include <QFileInfo>
 #include <QMessageBox>
 
 namespace pdfplugin

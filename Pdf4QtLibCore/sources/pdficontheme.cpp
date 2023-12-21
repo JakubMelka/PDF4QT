@@ -16,11 +16,12 @@
 //    along with PDF4QT. If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdficontheme.h"
-#include "pdfdbgheap.h"
 
 #include <QDir>
 #include <QFile>
 #include <QCoreApplication>
+
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

@@ -39,6 +39,8 @@
 #include <QGuiApplication>
 #include <QDragEnterEvent>
 #include <QDropEvent>
+#include <QSettings>
+#include <QMimeData>
 
 namespace pdfdocpage
 {

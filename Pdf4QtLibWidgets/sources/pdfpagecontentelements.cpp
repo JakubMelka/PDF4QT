@@ -22,6 +22,7 @@
 #include "pdfwidgetutils.h"
 #include "pdfutils.h"
 
+#include <QBuffer>
 #include <QPainter>
 #include <QKeyEvent>
 #include <QMouseEvent>

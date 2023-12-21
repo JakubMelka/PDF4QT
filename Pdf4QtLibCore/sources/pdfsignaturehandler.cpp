@@ -20,7 +20,6 @@
 #include "pdfencoding.h"
 #include "pdfform.h"
 #include "pdfutils.h"
-#include "pdfdbgheap.h"
 #include "pdfsignaturehandler_impl.h"
 
 #if defined(PDF4QT_COMPILER_MINGW) || defined(PDF4QT_COMPILER_GCC)
@@ -47,6 +46,8 @@
 #include <QDataStream>
 #include <QMutexLocker>
 #include <QStandardPaths>
+
+#include "pdfdbgheap.h"
 
 #include <array>
 #ifdef Q_OS_UNIX

@@ -18,7 +18,6 @@
 #ifndef PDFGLOBAL_H
 #define PDFGLOBAL_H
 
-#include <QtCore>
 #include <QtSystemDetection>
 #include <QtCompilerDetection>
 #include <QCoreApplication>

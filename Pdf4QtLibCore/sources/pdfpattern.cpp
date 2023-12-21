@@ -22,10 +22,11 @@
 #include "pdfcolorspaces.h"
 #include "pdfexecutionpolicy.h"
 #include "pdfconstants.h"
-#include "pdfdbgheap.h"
 
 #include <QMutex>
 #include <QPainter>
+
+#include "pdfdbgheap.h"
 
 #include <execution>
 

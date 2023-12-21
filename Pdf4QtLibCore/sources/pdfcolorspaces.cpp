@@ -23,9 +23,10 @@
 #include "pdfpattern.h"
 #include "pdfcms.h"
 #include "pdfexecutionpolicy.h"
-#include "pdfdbgheap.h"
 
 #include <QCryptographicHash>
+
+#include "pdfdbgheap.h"
 
 #include <execution>
 

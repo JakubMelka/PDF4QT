@@ -20,9 +20,10 @@
 #include "pdfexception.h"
 #include "pdfparser.h"
 #include "pdfstreamfilters.h"
-#include "pdfdbgheap.h"
 
 #include <QIODevice>
+
+#include "pdfdbgheap.h"
 
 #include <stack>
 

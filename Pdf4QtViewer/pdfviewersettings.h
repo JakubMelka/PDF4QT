@@ -26,6 +26,8 @@
 
 #include <QObject>
 
+class QSettings;
+
 namespace pdfviewer
 {
 

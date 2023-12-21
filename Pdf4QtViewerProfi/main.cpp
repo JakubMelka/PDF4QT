@@ -17,10 +17,11 @@
 
 #include "pdfviewermainwindow.h"
 #include "pdfconstants.h"
-#include "pdfdbgheap.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
+
+#include "pdfdbgheap.h"
 
 int main(int argc, char *argv[])
 {

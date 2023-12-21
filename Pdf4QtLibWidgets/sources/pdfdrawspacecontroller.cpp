@@ -24,13 +24,14 @@
 #include "pdfannotation.h"
 #include "pdfdrawwidget.h"
 #include "pdfwidgetannotation.h"
-#include "pdfdbgheap.h"
 
 #include <QTimer>
 #include <QPainter>
 #include <QFontMetrics>
 #include <QScreen>
 #include <QGuiApplication>
+
+#include "pdfdbgheap.h"
 
 namespace pdf
 {

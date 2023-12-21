@@ -18,6 +18,7 @@
 #include "pdfcolorconvertor.h"
 #include "pdfimageconversion.h"
 #include "pdfutils.h"
+#include "pdfdbgheap.h"
 
 #include <cmath>
 

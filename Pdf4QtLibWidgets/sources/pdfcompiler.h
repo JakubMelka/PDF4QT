@@ -24,10 +24,12 @@
 #include "pdfpainter.h"
 #include "pdftextlayout.h"
 
-#include <QCache>
 #include <QFuture>
 #include <QFutureWatcher>
 #include <QWaitCondition>
+
+template <class Key, class T>
+class QCache;
 
 namespace pdf
 {
@@ -143,7 +145,7 @@ private:
     PDFAsynchronousPageCompilerWorkerThread* m_thread = nullptr;
 
     PDFDrawWidgetProxy* m_proxy;
-    QCache<PDFInteger, PDFPrecompiledPage> m_cache;
+    QCache<PDFInteger, PDFPrecompiledPage>* m_cache;
 
     /// This task is protected by mutex. Every access to this
     /// variable must be done with locked mutex.

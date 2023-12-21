@@ -21,9 +21,11 @@
 #include "pdfexecutionpolicy.h"
 #include "pdftextlayoutgenerator.h"
 #include "pdfdrawspacecontroller.h"
-#include "pdfdbgheap.h"
 
+#include <QCache>
 #include <QtConcurrent/QtConcurrent>
+
+#include "pdfdbgheap.h"
 
 #include <execution>
 
@@ -114,14 +116,18 @@ void PDFAsynchronousPageCompilerWorkerThread::run()
 
 PDFAsynchronousPageCompiler::PDFAsynchronousPageCompiler(PDFDrawWidgetProxy* proxy) :
     BaseClass(proxy),
-    m_proxy(proxy)
+    m_proxy(proxy),
+    m_cache(new QCache<PDFInteger, PDFPrecompiledPage>())
 {
-    m_cache.setMaxCost(128 * 1024 * 1024);
+    m_cache->setMaxCost(128 * 1024 * 1024);
 }
 
 PDFAsynchronousPageCompiler::~PDFAsynchronousPageCompiler()
 {
     stop(true);
+
+    delete m_cache;
+    m_cache = nullptr;
 }
 
 bool PDFAsynchronousPageCompiler::isOperationCancelled() const
@@ -183,7 +189,7 @@ void PDFAsynchronousPageCompiler::stop(bool clearCache)
 
             if (clearCache)
             {
-                m_cache.clear();
+                m_cache->clear();
             }
 
             m_state = State::Inactive;
@@ -207,7 +213,7 @@ void PDFAsynchronousPageCompiler::reset()
 
 void PDFAsynchronousPageCompiler::setCacheLimit(int limit)
 {
-    m_cache.setMaxCost(limit);
+    m_cache->setMaxCost(limit);
 }
 
 const PDFPrecompiledPage* PDFAsynchronousPageCompiler::getCompiledPage(PDFInteger pageIndex, bool compile)
@@ -218,7 +224,7 @@ const PDFPrecompiledPage* PDFAsynchronousPageCompiler::getCompiledPage(PDFIntege
         return nullptr;
     }
 
-    PDFPrecompiledPage* page = m_cache.object(pageIndex);
+    PDFPrecompiledPage* page = m_cache->object(pageIndex);
 
     if (!page && compile)
     {
@@ -250,7 +256,7 @@ void PDFAsynchronousPageCompiler::smartClearCache(const int milisecondsLimit, co
 
     Q_ASSERT(std::is_sorted(activePages.cbegin(), activePages.cend()));
 
-    QList<PDFInteger> pageIndices = m_cache.keys();
+    QList<PDFInteger> pageIndices = m_cache->keys();
     for (const PDFInteger pageIndex : pageIndices)
     {
         if (std::binary_search(activePages.cbegin(), activePages.cend(), pageIndex))
@@ -259,10 +265,10 @@ void PDFAsynchronousPageCompiler::smartClearCache(const int milisecondsLimit, co
             continue;
         }
 
-        const PDFPrecompiledPage* page = m_cache.object(pageIndex);
+        const PDFPrecompiledPage* page = m_cache->object(pageIndex);
         if (page && page->hasExpired(milisecondsLimit))
         {
-            m_cache.remove(pageIndex);
+            m_cache->remove(pageIndex);
         }
     }
 }
@@ -287,7 +293,7 @@ void PDFAsynchronousPageCompiler::onPageCompiled()
                     PDFPrecompiledPage* page = new PDFPrecompiledPage(std::move(task.precompiledPage));
                     page->markAccessed();
                     qint64 memoryConsumptionEstimate = page->getMemoryConsumptionEstimate();
-                    if (m_cache.insert(it->first, page, memoryConsumptionEstimate))
+                    if (m_cache->insert(it->first, page, memoryConsumptionEstimate))
                     {
                         compiledPages.push_back(it->first);
                     }
@@ -295,7 +301,7 @@ void PDFAsynchronousPageCompiler::onPageCompiled()
                     {
                         // We can't insert page to the cache, because cache size is too small. We will
                         // emit error string to inform the user, that cache is too small.
-                        QString message = PDFTranslationContext::tr("Precompiled page size is too high (%1 kB). Cache size is %2 kB. Increase the cache size!").arg(memoryConsumptionEstimate / 1024).arg(m_cache.maxCost() / 1024);
+                        QString message = PDFTranslationContext::tr("Precompiled page size is too high (%1 kB). Cache size is %2 kB. Increase the cache size!").arg(memoryConsumptionEstimate / 1024).arg(m_cache->maxCost() / 1024);
                         errors[it->first] = PDFRenderError(RenderErrorType::Error, message);
                     }
                 }

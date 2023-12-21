@@ -16,11 +16,11 @@
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfaboutdialog.h"
-#include "pdfdbgheap.h"
 #include "ui_pdfaboutdialog.h"
 
 #include "pdfutils.h"
 #include "pdfwidgetutils.h"
+#include "pdfdbgheap.h"
 
 namespace pdfviewer
 {

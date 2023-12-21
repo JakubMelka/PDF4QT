@@ -24,11 +24,12 @@
 #include "pdfutils.h"
 #include "pdfexception.h"
 #include "pdfexecutionpolicy.h"
-#include "pdfdbgheap.h"
 
 #include <QLocale>
 #include <QPageSize>
 #include <QtConcurrent/QtConcurrent>
+
+#include "pdfdbgheap.h"
 
 #include <stack>
 #include <execution>

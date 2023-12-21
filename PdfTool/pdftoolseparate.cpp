@@ -21,6 +21,8 @@
 #include "pdfoptimizer.h"
 #include "pdfdocumentwriter.h"
 
+#include <QFileInfo>
+
 namespace pdftool
 {
 

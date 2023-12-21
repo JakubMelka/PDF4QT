@@ -16,11 +16,12 @@
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfsendmail.h"
-#include "pdfdbgheap.h"
 
 #include <QDir>
 #include <QWidget>
 #include <QFileInfo>
+
+#include "pdfdbgheap.h"
 
 #ifdef Q_OS_WIN
 #include <Windows.h>

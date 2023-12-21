@@ -25,6 +25,7 @@
 #include "signdialog.h"
 #include "pdfdocumentwriter.h"
 
+#include <QBuffer>
 #include <QAction>
 #include <QToolButton>
 #include <QMainWindow>

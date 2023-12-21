@@ -27,6 +27,7 @@
 
 #include <QDialog>
 #include <QFuture>
+#include <QFutureWatcher>
 
 namespace Ui
 {

@@ -21,7 +21,6 @@
 #include "pdfnametounicode.h"
 #include "pdfexception.h"
 #include "pdfutils.h"
-#include "pdfdbgheap.h"
 
 #include <ft2build.h>
 #include <freetype/freetype.h>
@@ -35,6 +34,8 @@
 #include <QReadWriteLock>
 #include <QPainterPath>
 #include <QDataStream>
+
+#include "pdfdbgheap.h"
 
 #if defined(Q_OS_WIN)
 #include "Windows.h"

@@ -18,13 +18,14 @@
 #include "pdfcms.h"
 #include "pdfdocument.h"
 #include "pdfexecutionpolicy.h"
-#include "pdfdbgheap.h"
 
 #include <QDir>
 #include <QFile>
 #include <QBuffer>
 #include <QCoreApplication>
 #include <QReadWriteLock>
+
+#include "pdfdbgheap.h"
 
 #ifdef PDF4QT_COMPILER_CLANG
 #pragma clang diagnostic push

@@ -19,6 +19,7 @@
 #include "pdfdocumentreader.h"
 #include "pdfutils.h"
 
+#include <QFileInfo>
 #include <QCommandLineParser>
 
 namespace pdftool

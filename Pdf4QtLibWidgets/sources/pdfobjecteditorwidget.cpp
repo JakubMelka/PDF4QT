@@ -20,7 +20,6 @@
 #include "pdfdocumentbuilder.h"
 #include "pdfencoding.h"
 #include "pdfwidgetutils.h"
-#include "pdfdbgheap.h"
 
 #include <QTabWidget>
 #include <QVBoxLayout>
@@ -36,6 +35,8 @@
 #include <QCheckBox>
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
+
+#include "pdfdbgheap.h"
 
 namespace pdf
 {
