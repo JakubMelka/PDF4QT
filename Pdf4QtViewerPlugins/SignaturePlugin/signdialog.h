@@ -18,6 +18,8 @@
 #ifndef SIGNDIALOG_H
 #define SIGNDIALOG_H
 
+#include "pdfcertificatemanager.h"
+
 #include <QDialog>
 
 namespace Ui
@@ -45,13 +47,14 @@ public:
     };
 
     SignMethod getSignMethod() const;
-    QString getCertificatePath() const;
     QString getPassword() const;
     QString getReasonText() const;
     QString getContactInfoText() const;
+    const pdf::PDFCertificateEntry* getCertificate() const;
 
 private:
     Ui::SignDialog* ui;
+    pdf::PDFCertificateEntries m_certificates;
 };
 
 }   // namespace pdfplugin

@@ -23,6 +23,7 @@
 #include "pdfwidgetutils.h"
 #include "pdfsecurityhandler.h"
 #include "pdfcertificatemanager.h"
+#include "pdfcertificatelisthelper.h"
 
 #include <QMessageBox>
 
@@ -83,6 +84,8 @@ PDFEncryptionSettingsDialog::PDFEncryptionSettingsDialog(QByteArray documentId, 
     m_checkBoxToPermission[ui->permAccessibilityCheckBox] = pdf::PDFSecurityHandler::Permission::Accessibility;
     m_checkBoxToPermission[ui->permAssembleCheckBox] = pdf::PDFSecurityHandler::Permission::Assemble;
     m_checkBoxToPermission[ui->permPrintHighResolutionCheckBox] = pdf::PDFSecurityHandler::Permission::PrintHighResolution;
+
+    pdf::PDFCertificateListHelper::initComboBox(ui->certificateComboBox);
 
     updateCertificates();
     updateUi();
@@ -194,17 +197,8 @@ void PDFEncryptionSettingsDialog::updateUi()
 
 void PDFEncryptionSettingsDialog::updateCertificates()
 {
-    QFileInfoList certificates = pdf::PDFCertificateManager::getCertificates();
-
-    QVariant currentCertificate = ui->certificateComboBox->currentData();
-
-    ui->certificateComboBox->clear();
-    for (const QFileInfo& certificateItem : certificates)
-    {
-        ui->certificateComboBox->addItem(certificateItem.fileName(), certificateItem.absoluteFilePath());
-    }
-
-    ui->certificateComboBox->setCurrentIndex(ui->certificateComboBox->findData(currentCertificate));
+    m_certificates = pdf::PDFCertificateManager::getCertificates();
+    pdf::PDFCertificateListHelper::fillComboBox(ui->certificateComboBox, m_certificates);
 }
 
 void PDFEncryptionSettingsDialog::updatePasswordScore()
@@ -237,7 +231,12 @@ void PDFEncryptionSettingsDialog::accept()
     settings.userPassword = ui->userPasswordEdit->text();
     settings.ownerPassword = ui->ownerPasswordEdit->text();
     settings.permissions = 0;
-    settings.certificateFileName = ui->certificateComboBox->currentData().toString();
+
+    const int currentCertificateIndex = ui->certificateComboBox->currentIndex();
+    if (currentCertificateIndex >= 0 && currentCertificateIndex < m_certificates.size())
+    {
+        settings.certificate = m_certificates.at(currentCertificateIndex);
+    }
 
     for (auto item : m_checkBoxToPermission)
     {

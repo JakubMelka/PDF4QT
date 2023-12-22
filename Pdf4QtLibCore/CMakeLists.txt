@@ -144,6 +144,8 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfwidgetsnapshot.cpp
     sources/pdfwidgetsnapshot.h
     cmaps.qrc
+    sources/pdfcertificatestore.h
+    sources/pdfcertificatestore.cpp
 )
 
 include(GenerateExportHeader)

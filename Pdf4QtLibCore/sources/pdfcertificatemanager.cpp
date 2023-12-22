@@ -116,16 +116,9 @@ void PDFCertificateManager::createCertificate(const NewCertificateInfo& info)
             QByteArray privateKeyPaswordUtf8 = info.privateKeyPasword.toUtf8();
 
             // Write the data
-            openssl_ptr<PKCS12> pkcs12(PKCS12_create(privateKeyPaswordUtf8.constData(),
-                                                     nullptr,
-                                                     privateKey.get(),
-                                                     certificate.get(),
-                                                     nullptr,
-                                                     0,
-                                                     0,
-                                                     PKCS12_DEFAULT_ITER,
-                                                     PKCS12_DEFAULT_ITER,
-                                                     0), &PKCS12_free);
+            openssl_ptr<PKCS12> pkcs12(PKCS12_init(NID_pkcs7_data), &PKCS12_free);
+            PKCS12_add_cert(&pkcs12->certs, certificate.get());
+            PKCS12_add_key(&pkcs12->keybags, privateKey.get(), 0, PKCS12_DEFAULT_ITER, NID_pbe_WithSHA1And3_Key_TripleDES_CBC, privateKeyPaswordUtf8.data()));
             i2d_PKCS12_bio(pksBuffer.get(), pkcs12.get());
 
             BUF_MEM* pksMemoryBuffer = nullptr;
@@ -144,10 +137,55 @@ void PDFCertificateManager::createCertificate(const NewCertificateInfo& info)
     }
 }
 
-QFileInfoList PDFCertificateManager::getCertificates()
+PDFCertificateEntries PDFCertificateManager::getCertificates()
 {
+    PDFCertificateEntries entries;
+
+#ifdef Q_OS_WIN
+    entries = PDFCertificateStore::getPersonalCertificates();
+#endif
+
     QDir directory(getCertificateDirectory());
-    return directory.entryInfoList(QStringList() << "*.pfx", QDir::Files | QDir::NoDotAndDotDot | QDir::Readable, QDir::Name);
+    QFileInfoList pfxFiles = directory.entryInfoList(QStringList() << "*.pfx", QDir::Files | QDir::NoDotAndDotDot | QDir::Readable, QDir::Name);
+
+    for (const QFileInfo& fileInfo : pfxFiles)
+    {
+        QFile file(fileInfo.absoluteFilePath());
+        if (file.open(QFile::ReadOnly))
+        {
+            QByteArray data = file.readAll();
+
+            openssl_ptr<BIO> pksBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
+            BIO_write(pksBuffer.get(), data.constData(), data.length());
+
+            openssl_ptr<PKCS12> pkcs12(d2i_PKCS12_bio(pksBuffer.get(), nullptr), &PKCS12_free);
+            if (pkcs12)
+            {
+                EVP_PKEY* key = nullptr;
+                X509* certificatePtr = nullptr;
+                STACK_OF(X509)* certificates = nullptr;
+
+                // Parse PKCS12 with password
+                bool isParsed = PKCS12_parse(pkcs12.get(), nullptr, &key, &certificatePtr, &certificates) == 1;
+                if (isParsed)
+                {
+                    std::optional<PDFCertificateInfo> info = PDFCertificateInfo::getCertificateInfo(certificatePtr);
+                    if (info)
+                    {
+                        PDFCertificateEntry entry;
+                        entry.type = PDFCertificateEntry::EntryType::System;
+                        entry.info = qMove(*info);
+                        entry.pkcs12 = data;
+                        entries.emplace_back(qMove(entry));
+                    }
+                }
+            }
+
+            file.close();
+        }
+    }
+
+    return entries;
 }
 
 QString PDFCertificateManager::getCertificateDirectory()
@@ -175,85 +213,75 @@ QString PDFCertificateManager::generateCertificateFileName()
     return QString();
 }
 
-bool PDFCertificateManager::isCertificateValid(QString fileName, QString password)
+bool PDFCertificateManager::isCertificateValid(const PDFCertificateEntry& certificateEntry, QString password)
 {
-    QFile file(fileName);
-    if (file.open(QFile::ReadOnly))
+    QByteArray data = certificateEntry.info.getCertificateData();
+
+    openssl_ptr<BIO> pksBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
+    BIO_write(pksBuffer.get(), data.constData(), data.length());
+
+    openssl_ptr<PKCS12> pkcs12(d2i_PKCS12_bio(pksBuffer.get(), nullptr), &PKCS12_free);
+    if (pkcs12)
     {
-        QByteArray data = file.readAll();
-        file.close();
-
-        openssl_ptr<BIO> pksBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
-        BIO_write(pksBuffer.get(), data.constData(), data.length());
-
-        openssl_ptr<PKCS12> pkcs12(d2i_PKCS12_bio(pksBuffer.get(), nullptr), &PKCS12_free);
-        if (pkcs12)
+        const char* passwordPointer = nullptr;
+        QByteArray passwordByteArray = password.isEmpty() ? QByteArray() : password.toUtf8();
+        if (!passwordByteArray.isEmpty())
         {
-            const char* passwordPointer = nullptr;
-            QByteArray passwordByteArray = password.isEmpty() ? QByteArray() : password.toUtf8();
-            if (!passwordByteArray.isEmpty())
-            {
-                passwordPointer = passwordByteArray.constData();
-            }
-
-            return PKCS12_parse(pkcs12.get(), passwordPointer, nullptr, nullptr, nullptr) == 1;
+            passwordPointer = passwordByteArray.constData();
         }
+
+        return PKCS12_parse(pkcs12.get(), passwordPointer, nullptr, nullptr, nullptr) == 1;
     }
 
     return false;
 }
 
-bool PDFSignatureFactory::sign(QString certificateName, QString password, QByteArray data, QByteArray& result)
+bool PDFSignatureFactory::sign(const PDFCertificateEntry& certificateEntry, QString password, QByteArray data, QByteArray& result)
 {
-    QFile file(certificateName);
-    if (file.open(QFile::ReadOnly))
+    QByteArray certificateData = certificateEntry.pkcs12;
+
+    openssl_ptr<BIO> certificateBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
+    BIO_write(certificateBuffer.get(), certificateData.constData(), certificateData.length());
+
+    openssl_ptr<PKCS12> pkcs12(d2i_PKCS12_bio(certificateBuffer.get(), nullptr), &PKCS12_free);
+    if (pkcs12)
     {
-        QByteArray certificateData = file.readAll();
-        file.close();
-
-        openssl_ptr<BIO> certificateBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
-        BIO_write(certificateBuffer.get(), certificateData.constData(), certificateData.length());
-
-        openssl_ptr<PKCS12> pkcs12(d2i_PKCS12_bio(certificateBuffer.get(), nullptr), &PKCS12_free);
-        if (pkcs12)
+        const char* passwordPointer = nullptr;
+        QByteArray passwordByteArray = password.isEmpty() ? QByteArray() : password.toUtf8();
+        if (!passwordByteArray.isEmpty())
         {
-            const char* passwordPointer = nullptr;
-            QByteArray passwordByteArray = password.isEmpty() ? QByteArray() : password.toUtf8();
-            if (!passwordByteArray.isEmpty())
+            passwordPointer = passwordByteArray.constData();
+        }
+
+        EVP_PKEY* key = nullptr;
+        X509* certificate = nullptr;
+        STACK_OF(X509)* certificates = nullptr;
+        if (PKCS12_parse(pkcs12.get(), passwordPointer, &key, &certificate, &certificates) == 1)
+        {
+            openssl_ptr<BIO> signedDataBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
+            BIO_write(signedDataBuffer.get(), data.constData(), data.length());
+
+            PKCS7* signature = PKCS7_sign(certificate, key, certificates, signedDataBuffer.get(), PKCS7_DETACHED | PKCS7_BINARY);
+            if (signature)
             {
-                passwordPointer = passwordByteArray.constData();
-            }
+                openssl_ptr<BIO> outputBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
+                i2d_PKCS7_bio(outputBuffer.get(), signature);
 
-            EVP_PKEY* key = nullptr;
-            X509* certificate = nullptr;
-            STACK_OF(X509)* certificates = nullptr;
-            if (PKCS12_parse(pkcs12.get(), passwordPointer, &key, &certificate, &certificates) == 1)
-            {
-                openssl_ptr<BIO> signedDataBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
-                BIO_write(signedDataBuffer.get(), data.constData(), data.length());
+                BUF_MEM* pksMemoryBuffer = nullptr;
+                BIO_get_mem_ptr(outputBuffer.get(), &pksMemoryBuffer);
 
-                PKCS7* signature = PKCS7_sign(certificate, key, certificates, signedDataBuffer.get(), PKCS7_DETACHED | PKCS7_BINARY);
-                if (signature)
-                {
-                    openssl_ptr<BIO> outputBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
-                    i2d_PKCS7_bio(outputBuffer.get(), signature);
-
-                    BUF_MEM* pksMemoryBuffer = nullptr;
-                    BIO_get_mem_ptr(outputBuffer.get(), &pksMemoryBuffer);
-
-                    result = QByteArray(pksMemoryBuffer->data, int(pksMemoryBuffer->length));
-
-                    EVP_PKEY_free(key);
-                    X509_free(certificate);
-                    sk_X509_free(certificates);
-                    return true;
-                }
+                result = QByteArray(pksMemoryBuffer->data, int(pksMemoryBuffer->length));
 
                 EVP_PKEY_free(key);
                 X509_free(certificate);
                 sk_X509_free(certificates);
-                return false;
+                return true;
             }
+
+            EVP_PKEY_free(key);
+            X509_free(certificate);
+            sk_X509_free(certificates);
+            return false;
         }
     }
 

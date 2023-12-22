@@ -1,4 +1,4 @@
-//    Copyright (C) 2022 Jakub Melka
+//    Copyright (C) 2022-2023 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -19,6 +19,7 @@
 #define PDFCERTIFICATEMANAGER_H
 
 #include "pdfglobal.h"
+#include "pdfcertificatestore.h"
 
 #include <QString>
 #include <QFileInfoList>
@@ -49,16 +50,16 @@ public:
 
     void createCertificate(const NewCertificateInfo& info);
 
-    static QFileInfoList getCertificates();
+    static PDFCertificateEntries getCertificates();
     static QString getCertificateDirectory();
     static QString generateCertificateFileName();
-    static bool isCertificateValid(QString fileName, QString password);
+    static bool isCertificateValid(const PDFCertificateEntry& certificateEntry, QString password);
 };
 
 class PDF4QTLIBCORESHARED_EXPORT PDFSignatureFactory
 {
 public:
-    static bool sign(QString certificateName, QString password, QByteArray data, QByteArray& result);
+    static bool sign(const PDFCertificateEntry& certificateEntry, QString password, QByteArray data, QByteArray& result);
 };
 
 } // namespace pdf

@@ -767,7 +767,7 @@ void PDFSidebarWidget::onSignatureCustomContextMenuRequested(const QPoint& pos)
                 {
                     if (QMessageBox::question(this, tr("Add to Trusted Certificate Store"), tr("Are you sure want to add '%1' to the trusted certificate store?").arg(info.getName(pdf::PDFCertificateInfo::CommonName))) == QMessageBox::Yes)
                     {
-                        if (!m_certificateStore->add(pdf::PDFCertificateStore::EntryType::User, info))
+                        if (!m_certificateStore->add(pdf::PDFCertificateEntry::EntryType::User, info))
                         {
                             QMessageBox::critical(this, tr("Trusted Certificate Store Error"), tr("Failed to add certificate to the trusted certificate store."));
                         }

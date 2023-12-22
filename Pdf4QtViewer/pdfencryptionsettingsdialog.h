@@ -20,6 +20,7 @@
 
 #include "pdfviewerglobal.h"
 #include "pdfsecurityhandler.h"
+#include "pdfcertificatestore.h"
 
 #include <QDialog>
 
@@ -61,6 +62,7 @@ private:
     PDFEncryptionStrengthHintWidget* m_userPasswordStrengthHintWidget;
     PDFEncryptionStrengthHintWidget* m_ownerPasswordStrengthHintWidget;
     PDFEncryptionStrengthHintWidget* m_algorithmHintWidget;
+    pdf::PDFCertificateEntries m_certificates;
 };
 
 }   // namespace pdfviewer

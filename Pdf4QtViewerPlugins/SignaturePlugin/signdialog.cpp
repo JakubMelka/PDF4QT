@@ -19,6 +19,7 @@
 #include "ui_signdialog.h"
 
 #include "pdfcertificatemanager.h"
+#include "pdfcertificatelisthelper.h"
 
 #include <openssl/pkcs7.h>
 
@@ -41,11 +42,10 @@ SignDialog::SignDialog(QWidget* parent, bool isSceneEmpty) :
     ui->methodCombo->addItem(tr("Sign digitally (invisible signature)"), SignDigitallyInvisible);
     ui->methodCombo->setCurrentIndex(0);
 
-    QFileInfoList certificates = pdf::PDFCertificateManager::getCertificates();
-    for (const QFileInfo& certificateFileInfo : certificates)
-    {
-        ui->certificateCombo->addItem(certificateFileInfo.fileName(), certificateFileInfo.absoluteFilePath());
-    }
+    m_certificates = pdf::PDFCertificateManager::getCertificates();
+
+    pdf::PDFCertificateListHelper::initComboBox(ui->certificateCombo);
+    pdf::PDFCertificateListHelper::fillComboBox(ui->certificateCombo, m_certificates);
 }
 
 SignDialog::~SignDialog()
@@ -56,11 +56,6 @@ SignDialog::~SignDialog()
 SignDialog::SignMethod SignDialog::getSignMethod() const
 {
     return static_cast<SignMethod>(ui->methodCombo->currentData().toInt());
-}
-
-QString SignDialog::getCertificatePath() const
-{
-    return ui->certificateCombo->currentData().toString();
 }
 
 QString SignDialog::getPassword() const
@@ -78,10 +73,23 @@ QString SignDialog::getContactInfoText() const
     return ui->contactInfoEdit->text();
 }
 
+const pdf::PDFCertificateEntry* SignDialog::getCertificate() const
+{
+    const int index = ui->certificateCombo->currentIndex();
+    if (index >= 0 && index < m_certificates.size())
+    {
+        return &m_certificates.at(index);
+    }
+
+    return nullptr;
+}
+
 void SignDialog::accept()
 {
+    const pdf::PDFCertificateEntry* certificate = getCertificate();
+
     // Check certificate
-    if (!QFile::exists(getCertificatePath()))
+    if (!certificate)
     {
         QMessageBox::critical(this, tr("Error"), tr("Certificate does not exist."));
         ui->certificateCombo->setFocus();
@@ -89,7 +97,7 @@ void SignDialog::accept()
     }
 
     // Check we can access the certificate
-    if (!pdf::PDFCertificateManager::isCertificateValid(getCertificatePath(), ui->certificatePasswordEdit->text()))
+    if (!pdf::PDFCertificateManager::isCertificateValid(*certificate, ui->certificatePasswordEdit->text()))
     {
         QMessageBox::critical(this, tr("Error"), tr("Password to open certificate is invalid."));
         ui->certificatePasswordEdit->setFocus();
