@@ -245,7 +245,10 @@ bool PDFCertificateManager::isCertificateValid(const PDFCertificateEntry& certif
     return pkcs12data.isEmpty();
 }
 
-bool PDFSignatureFactory::sign(const PDFCertificateEntry& certificateEntry, QString password, QByteArray data, QByteArray& result)
+bool PDFSignatureFactory::sign(const PDFCertificateEntry& certificateEntry,
+                               QString password,
+                               QByteArray data,
+                               QByteArray& result)
 {
     QByteArray pkcs12Data = certificateEntry.pkcs12;
 
@@ -296,12 +299,12 @@ bool PDFSignatureFactory::sign(const PDFCertificateEntry& certificateEntry, QStr
             }
         }
     }
+#ifdef Q_OS_WIN
     else
     {
-#ifdef Q_OS_WIN
         return signImpl_Win(certificateEntry, password, data, result);
-#endif
     }
+#endif
 
     return false;
 }
@@ -327,12 +330,12 @@ bool pdf::PDFSignatureFactory::signImpl_Win(const pdf::PDFCertificateEntry& cert
     HCERTSTORE certStore = CertOpenStore(CERT_STORE_PROV_SYSTEM, 0, NULL, CERT_SYSTEM_STORE_CURRENT_USER, L"MY");
     if (certStore)
     {
-        PCCERT_CONTEXT context = nullptr;
+        PCCERT_CONTEXT pCertContext = nullptr;
 
-        while (context = CertEnumCertificatesInStore(certStore, context))
+        while (pCertContext = CertEnumCertificatesInStore(certStore, pCertContext))
         {
-            const unsigned char* pointer = context->pbCertEncoded;
-            QByteArray testData(reinterpret_cast<const char*>(pointer), context->cbCertEncoded);
+            const unsigned char* pointer = pCertContext->pbCertEncoded;
+            QByteArray testData(reinterpret_cast<const char*>(pointer), pCertContext->cbCertEncoded);
 
             if (testData == certificateEntry.info.getCertificateData())
             {
@@ -340,54 +343,61 @@ bool pdf::PDFSignatureFactory::signImpl_Win(const pdf::PDFCertificateEntry& cert
             }
         }
 
-        if (context)
+        if (pCertContext)
         {
-            HCRYPTPROV_OR_NCRYPT_KEY_HANDLE hCryptProv{};
-            if (CryptAcquireCertificatePrivateKey(context, CRYPT_ACQUIRE_SILENT_FLAG, nullptr, &hCryptProv, NULL, NULL))
+            CRYPT_SIGN_MESSAGE_PARA SignParams{};
+            BYTE* pbSignedBlob = nullptr;
+            DWORD cbSignedBlob = 0;
+            PCCERT_CONTEXT pCertContextArray[1] = { pCertContext };
+
+            const BYTE* pbDataToBeSigned = (const BYTE*)data.constData();
+            DWORD cbDataToBeSigned = (DWORD)data.size();
+
+            // Nastavení parametrů pro podpis
+            SignParams.cbSize = sizeof(CRYPT_SIGN_MESSAGE_PARA);
+            SignParams.dwMsgEncodingType = PKCS_7_ASN_ENCODING | X509_ASN_ENCODING;
+            SignParams.pSigningCert = pCertContext;
+            SignParams.HashAlgorithm.pszObjId = (LPSTR)szOID_RSA_SHA256RSA;
+            SignParams.HashAlgorithm.Parameters.cbData = 0;
+            SignParams.HashAlgorithm.Parameters.pbData = NULL;
+            SignParams.cMsgCert = 1;
+            SignParams.rgpMsgCert = pCertContextArray;
+            pCertContextArray[0] = pCertContext;
+
+            const BYTE* rgpbToBeSigned[1] = {pbDataToBeSigned};
+            DWORD rgcbToBeSigned[1] = {cbDataToBeSigned};
+
+            // Retrieve signed message size
+            CryptSignMessage(
+                &SignParams,
+                TRUE,
+                1,
+                rgpbToBeSigned,
+                rgcbToBeSigned,
+                NULL,
+                &cbSignedBlob
+                );
+
+            pbSignedBlob = new BYTE[cbSignedBlob];
+
+            // Create digital signature
+            if (CryptSignMessage(
+                    &SignParams,
+                    TRUE,
+                    1,
+                    rgpbToBeSigned,
+                    rgcbToBeSigned,
+                    pbSignedBlob,
+                    &cbSignedBlob
+                    ))
             {
-                HCRYPTHASH hHash{};
-
-                CryptCreateHash(hCryptProv, CALG_SHA_256, 0, 0, &hHash);
-                if (!hHash)
-                {
-                    CryptCreateHash(hCryptProv, CALG_SHA1, 0, 0, &hHash);
-                }
-
-                if (hHash)
-                {
-                    const BYTE* pDataToSign = reinterpret_cast<const BYTE*>(data.constData());
-                    const DWORD dwDataLen = data.size();
-
-                    // Hash the data
-                    if (CryptHashData(hHash, pDataToSign, dwDataLen, 0))
-                    {
-                        DWORD dwSigLen = 0;
-
-                        // Retrieve length of signature
-                        if (CryptSignHash(hHash, AT_KEYEXCHANGE, NULL, 0, NULL, &dwSigLen))
-                        {
-                            // Allocate memory for signature
-                            BYTE* pbSignature = new BYTE[dwSigLen];
-                            if(pbSignature != nullptr)
-                            {
-                                // Sign the hash
-                                if(CryptSignHash(hHash, AT_KEYEXCHANGE, NULL, 0, pbSignature, &dwSigLen))
-                                {
-                                    result = QByteArray(reinterpret_cast<const char*>(pbSignature), dwSigLen);
-                                    success = true;
-                                }
-                                delete[] pbSignature;
-                            }
-                        }
-                    }
-
-                    CryptDestroyHash(hHash);
-                }
-
-                CryptReleaseContext(hCryptProv, 0);
+                result = QByteArray((const char*)pbSignedBlob, cbSignedBlob);
+                success = true;
             }
 
-            CertFreeCertificateContext(context);
+            delete[] pbSignedBlob;
+
+            CertFreeCertificateContext(pCertContext);
         }
 
         CertCloseStore(certStore, CERT_CLOSE_STORE_FORCE_FLAG);
@@ -397,6 +407,7 @@ bool pdf::PDFSignatureFactory::signImpl_Win(const pdf::PDFCertificateEntry& cert
     Q_UNUSED(password);
     Q_UNUSED(data);
     Q_UNUSED(result);
+    Q_UNUSED(isDetermineLengthOnly);
 #endif
 
     return success;
