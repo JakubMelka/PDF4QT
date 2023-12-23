@@ -28,6 +28,8 @@ namespace pdf
 
 class PDF4QTLIBWIDGETSSHARED_EXPORT PDFCertificateListHelper
 {
+    Q_DECLARE_TR_FUNCTIONS(pdf::PDFCertificateListHelper)
+
 public:
     PDFCertificateListHelper() = delete;
 

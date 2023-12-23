@@ -60,6 +60,9 @@ class PDF4QTLIBCORESHARED_EXPORT PDFSignatureFactory
 {
 public:
     static bool sign(const PDFCertificateEntry& certificateEntry, QString password, QByteArray data, QByteArray& result);
+
+private:
+    static bool signImpl_Win(const PDFCertificateEntry& certificateEntry, QString password, QByteArray data, QByteArray& result);
 };
 
 } // namespace pdf

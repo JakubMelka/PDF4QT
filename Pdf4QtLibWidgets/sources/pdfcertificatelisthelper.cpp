@@ -71,10 +71,20 @@ void PDFCertificateListHelper::fillComboBox(QComboBox* comboBox, const PDFCertif
             secondInfoEntry = entry.info.getName(PDFCertificateInfo::NameEntry::Email);
         }
 
-        model->setItem(i, 0, new QStandardItem(entry.info.getName(PDFCertificateInfo::NameEntry::CommonName)));
-        model->setItem(i, 1, new QStandardItem(secondInfoEntry));
-        model->setItem(i, 2, new QStandardItem(entry.info.getNotValidBefore().toLocalTime().toString()));
-        model->setItem(i, 3, new QStandardItem(entry.info.getNotValidAfter().toLocalTime().toString()));
+        if (entry.pkcs12fileName.isEmpty())
+        {
+            model->setItem(i, 0, new QStandardItem(entry.info.getName(PDFCertificateInfo::NameEntry::CommonName)));
+            model->setItem(i, 1, new QStandardItem(secondInfoEntry));
+            model->setItem(i, 2, new QStandardItem(entry.info.getNotValidBefore().toLocalTime().toString()));
+            model->setItem(i, 3, new QStandardItem(entry.info.getNotValidAfter().toLocalTime().toString()));
+        }
+        else
+        {
+            model->setItem(i, 0, new QStandardItem(entry.pkcs12fileName));
+            model->setItem(i, 1, new QStandardItem(tr("Password protected")));
+            model->setItem(i, 2, new QStandardItem(QString()));
+            model->setItem(i, 3, new QStandardItem(QString()));
+        }
     }
 
     comboBox->setUpdatesEnabled(updatesEnabled);

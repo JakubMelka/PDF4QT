@@ -182,6 +182,7 @@ struct PDFCertificateEntry
     EntryType type = EntryType::User;
     PDFCertificateInfo info;
     QByteArray pkcs12;
+    QString pkcs12fileName;
 };
 
 using PDFCertificateEntries = std::vector<PDFCertificateEntry>;
