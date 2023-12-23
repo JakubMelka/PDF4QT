@@ -407,7 +407,6 @@ bool pdf::PDFSignatureFactory::signImpl_Win(const pdf::PDFCertificateEntry& cert
     Q_UNUSED(password);
     Q_UNUSED(data);
     Q_UNUSED(result);
-    Q_UNUSED(isDetermineLengthOnly);
 #endif
 
     return success;
