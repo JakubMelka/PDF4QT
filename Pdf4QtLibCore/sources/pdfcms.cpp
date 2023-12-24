@@ -803,6 +803,7 @@ cmsBool PDFLittleCMS::optimizePipeline(cmsPipeline** Lut, cmsUInt32Number Intent
     {
         cmsContext contextId = cmsGetPipelineContextID(*Lut);
         cmsPipeline* pipeline = cmsPipelineAlloc(contextId, T_CHANNELS(*InputFormat), T_CHANNELS(*OutputFormat));
+
         if (!pipeline)
         {
             return FALSE;
@@ -820,53 +821,19 @@ cmsBool PDFLittleCMS::optimizePipeline(cmsPipeline** Lut, cmsUInt32Number Intent
                     const cmsToneCurve* curve = data->TheCurves[i];
                     const cmsInt32Number type = cmsGetToneCurveParametricType(curve);
 
-                    if (type != 0 && !cmsIsToneCurveMultisegment(curve))
+                    if (type != 0)
                     {
-                        std::array<cmsCurveSegment, 3> segments = { };
+                        const cmsUInt32Number tableEntryCount = cmsGetToneCurveEstimatedTableEntries(curve);
+                        const cmsUInt16Number* tableEntries = cmsGetToneCurveEstimatedTable(curve);
 
-                        const cmsFloat64Number* params = cmsGetToneCurveParams(curve);
-
-                        cmsCurveSegment& s1 = segments[0];
-                        cmsCurveSegment& s2 = segments[1];
-                        cmsCurveSegment& s3 = segments[2];
-
-                        const cmsFloat32Number eps = cmsFloat32Number(1e-5);
-                        const cmsFloat32Number low = 0.0f - eps;
-                        const cmsFloat32Number high = 1.0f + eps;
-
-                        s1.Type = type;
-                        s1.nGridPoints = 0;
-                        s1.SampledPoints = nullptr;
-                        std::copy(params, params + (sizeof(s1.Params) / sizeof(*s1.Params)), s1.Params);
-                        s1.x0 = std::numeric_limits<cmsFloat32Number>::min();
-                        s1.x1 = low;
-
-                        const cmsUInt32Number gridPoints = 1024;
-                        const cmsFloat32Number factor = 1.0f / cmsFloat32Number(gridPoints - 1);
-
-                        s2.Type = 0;
-                        s2.nGridPoints = gridPoints;
-                        s2.SampledPoints = static_cast<cmsFloat32Number*>(_cmsCalloc(contextId, gridPoints, sizeof(*s2.SampledPoints)));
-                        std::copy(params, params + (sizeof(s2.Params) / sizeof(*s2.Params)), s2.Params);
-                        s2.x0 = low;
-                        s2.x1 = high;
-
-                        for (cmsUInt32Number iPt = 0; iPt < gridPoints; ++iPt)
+                        if (tableEntryCount > 0)
                         {
-                            const cmsFloat32Number x = iPt * factor;
-                            s2.SampledPoints[iPt] = cmsEvalToneCurveFloat(curve, interpolate(x, 0.0, 1.0, low, high));
+                            curves[i] = cmsBuildTabulatedToneCurve16(contextId, tableEntryCount, tableEntries);
                         }
-
-                        s3.Type = type;
-                        s3.nGridPoints = 0;
-                        s3.SampledPoints = nullptr;
-                        std::copy(params, params + (sizeof(s3.Params) / sizeof(*s3.Params)), s3.Params);
-                        s3.x0 = high;
-                        s3.x1 = std::numeric_limits<cmsFloat32Number>::max();
-
-                        curves[i] = cmsBuildSegmentedToneCurve(contextId, cmsUInt32Number(segments.size()), segments.data());
-
-                        _cmsFree(contextId, s2.SampledPoints);
+                        else
+                        {
+                            curves[i] = cmsDupToneCurve(curve);
+                        }
                     }
                     else
                     {
