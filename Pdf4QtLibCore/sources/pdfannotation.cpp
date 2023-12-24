@@ -189,6 +189,114 @@ PDFAnnotation::PDFAnnotation() :
 
 }
 
+QString PDFAnnotation::getGUICaption() const
+{
+    QStringList texts;
+
+    switch (getType())
+    {
+    case pdf::AnnotationType::Text:
+        texts << PDFTranslationContext::tr("Text");
+        break;
+    case pdf::AnnotationType::Link:
+        texts << PDFTranslationContext::tr("Line");
+        break;
+    case pdf::AnnotationType::FreeText:
+        texts << PDFTranslationContext::tr("Free Text");
+        break;
+    case pdf::AnnotationType::Line:
+        texts << PDFTranslationContext::tr("Line");
+        break;
+    case pdf::AnnotationType::Square:
+        texts << PDFTranslationContext::tr("Square");
+        break;
+    case pdf::AnnotationType::Circle:
+        texts << PDFTranslationContext::tr("Circle");
+        break;
+    case pdf::AnnotationType::Polygon:
+        texts << PDFTranslationContext::tr("Polygon");
+        break;
+    case pdf::AnnotationType::Polyline:
+        texts << PDFTranslationContext::tr("Polyline");
+        break;
+    case pdf::AnnotationType::Highlight:
+        texts << PDFTranslationContext::tr("Highlight");
+        break;
+    case pdf::AnnotationType::Underline:
+        texts << PDFTranslationContext::tr("Underline");
+        break;
+    case pdf::AnnotationType::Squiggly:
+        texts << PDFTranslationContext::tr("Squiggly");
+        break;
+    case pdf::AnnotationType::StrikeOut:
+        texts << PDFTranslationContext::tr("Strike Out");
+        break;
+    case pdf::AnnotationType::Stamp:
+        texts << PDFTranslationContext::tr("Stamp");
+        break;
+    case pdf::AnnotationType::Caret:
+        texts << PDFTranslationContext::tr("Caret");
+        break;
+    case pdf::AnnotationType::Ink:
+        texts << PDFTranslationContext::tr("Ink");
+        break;
+    case pdf::AnnotationType::Popup:
+        texts << PDFTranslationContext::tr("Popup");
+        break;
+    case pdf::AnnotationType::FileAttachment:
+        texts << PDFTranslationContext::tr("File Attachment");
+        break;
+    case pdf::AnnotationType::Sound:
+        texts << PDFTranslationContext::tr("Sound");
+        break;
+    case pdf::AnnotationType::Movie:
+        texts << PDFTranslationContext::tr("Movie");
+        break;
+    case pdf::AnnotationType::Widget:
+        texts << PDFTranslationContext::tr("Widget");
+        break;
+    case pdf::AnnotationType::Screen:
+        texts << PDFTranslationContext::tr("Screen");
+        break;
+    case pdf::AnnotationType::PrinterMark:
+        texts << PDFTranslationContext::tr("Printer Mark");
+        break;
+    case pdf::AnnotationType::TrapNet:
+        texts << PDFTranslationContext::tr("Trap Net");
+        break;
+    case pdf::AnnotationType::Watermark:
+        texts << PDFTranslationContext::tr("Watermark");
+        break;
+    case pdf::AnnotationType::Redact:
+        texts << PDFTranslationContext::tr("Redaction");
+        break;
+    case pdf::AnnotationType::Projection:
+        texts << PDFTranslationContext::tr("Projection");
+        break;
+    case pdf::AnnotationType::_3D:
+        texts << PDFTranslationContext::tr("3D");
+        break;
+    case pdf::AnnotationType::RichMedia:
+        texts << PDFTranslationContext::tr("Rich Media");
+        break;
+
+    default:
+        break;
+    }
+
+    if (isReplyTo())
+    {
+        texts << PDFTranslationContext::tr("Reply");
+    }
+
+    if (!getContents().isEmpty())
+    {
+        texts << getContents();
+    }
+
+    return texts.join(" | ");
+}
+
 void PDFAnnotation::draw(AnnotationDrawParameters& parameters) const
 {
     Q_UNUSED(parameters);
@@ -1632,6 +1740,25 @@ bool PDFAnnotationManager::hasAnnotation(PDFInteger pageIndex) const
 bool PDFAnnotationManager::hasAnyPageAnnotation(const std::vector<PDFInteger>& pageIndices) const
 {
     return std::any_of(pageIndices.cbegin(), pageIndices.cend(), std::bind(&PDFAnnotationManager::hasAnnotation, this, std::placeholders::_1));
+}
+
+bool PDFAnnotationManager::hasAnyPageAnnotation() const
+{
+    if (!m_document)
+    {
+        return false;
+    }
+
+    size_t pageCount = m_document->getCatalog()->getPageCount();
+    for (size_t i = 0; i < pageCount; ++i)
+    {
+        if (hasAnnotation(i))
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 PDFFormManager* PDFAnnotationManager::getFormManager() const

@@ -95,6 +95,7 @@
         <file>resources/book.svg</file>
         <file>resources/wallet.svg</file>
         <file>resources/web.svg</file>
+        <file>resources/user.svg</file>
         <file>resources/create-bitonal-document.svg</file>
         <file>resources/sanitize-document.svg</file>
         <file>resources/sidebar-attachment.svg</file>
@@ -103,10 +104,13 @@
         <file>resources/sidebar-speech.svg</file>
         <file>resources/sidebar-thumbnails.svg</file>
         <file>resources/sidebar-visibility.svg</file>
+        <file>resources/sidebar-annotations.svg</file>
         <file>resources/outline.svg</file>
         <file>resources/sidebar-favourites.svg</file>
         <file>resources/bookmark.svg</file>
         <file>resources/bookmark-next.svg</file>
         <file>resources/bookmark-previous.svg</file>
+        <file>resources/page.svg</file>
+        <file>resources/bubble.svg</file>
     </qresource>
 </RCC>

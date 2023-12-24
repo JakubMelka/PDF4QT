@@ -33,6 +33,7 @@
 #include "pdfdocumentbuilder.h"
 #include "pdfwidgetutils.h"
 #include "pdfbookmarkui.h"
+#include "pdfwidgetannotation.h"
 
 #include <QMenu>
 #include <QAction>
@@ -45,19 +46,13 @@
 #include <QHBoxLayout>
 #include <QDialog>
 #include <QPushButton>
+#include <QStandardItemModel>
+#include <QSortFilterProxyModel>
 
 #include "pdfdbgheap.h"
 
 namespace pdfviewer
 {
-
-constexpr const char* STYLESHEET =
-        "QPushButton { background-color: #404040; color: #FFFFFF; }"
-        "QPushButton:disabled { background-color: #404040; color: #000000; }"
-        "QPushButton:checked { background-color: #808080; color: #FFFFFF; }"
-        "QWidget#thumbnailsToolbarWidget { background-color: #F0F0F0 }"
-        "QWidget#speechPage { background-color: #F0F0F0 }"
-        "QWidget#PDFSidebarWidget { background-color: #404040; background: green;}";
 
 PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
                                    PDFTextToSpeech* textToSpeech,
@@ -74,22 +69,32 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
     m_bookmarkManager(bookmarkManager),
     m_settings(settings),
     m_outlineTreeModel(nullptr),
+    m_outlineSortProxyTreeModel(nullptr),
     m_thumbnailsModel(nullptr),
     m_optionalContentTreeModel(nullptr),
     m_bookmarkItemModel(nullptr),
+    m_notesTreeModel(nullptr),
+    m_notesSortProxyTreeModel(nullptr),
     m_document(nullptr),
     m_optionalContentActivity(nullptr),
     m_attachmentsTreeModel(nullptr)
 {
     ui->setupUi(this);
 
-    setStyleSheet(STYLESHEET);
-
     // Outline
     QIcon outlineIcon(":/resources/outline.svg");
     m_outlineTreeModel = new pdf::PDFOutlineTreeItemModel(qMove(outlineIcon), editableOutline, this);
-    ui->outlineTreeView->setModel(m_outlineTreeModel);
+    m_outlineSortProxyTreeModel = new QSortFilterProxyModel(this);
+    m_outlineSortProxyTreeModel->setFilterKeyColumn(0);
+    m_outlineSortProxyTreeModel->setFilterRole(Qt::DisplayRole);
+    m_outlineSortProxyTreeModel->setAutoAcceptChildRows(false);
+    m_outlineSortProxyTreeModel->setRecursiveFilteringEnabled(true);
+    m_outlineSortProxyTreeModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
+    m_outlineSortProxyTreeModel->setSourceModel(m_outlineTreeModel);
+    ui->outlineTreeView->setModel(m_outlineSortProxyTreeModel);
     ui->outlineTreeView->header()->hide();
+    connect(ui->outlineSearchLineEdit, &QLineEdit::editingFinished, this, &PDFSidebarWidget::onOutlineSearchText);
+    connect(ui->outlineSearchLineEdit, &QLineEdit::textChanged, this, &PDFSidebarWidget::onOutlineSearchText);
 
     if (editableOutline)
     {
@@ -139,6 +144,21 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
     connect(ui->bookmarksView->selectionModel(), &QItemSelectionModel::currentChanged, this, &PDFSidebarWidget::onBookmarsCurrentIndexChanged);
     connect(ui->bookmarksView, &QListView::clicked, this, &PDFSidebarWidget::onBookmarkClicked);
 
+    // Notes
+    m_notesTreeModel = new QStandardItemModel(this);
+    m_notesSortProxyTreeModel = new QSortFilterProxyModel(this);
+    m_notesSortProxyTreeModel->setFilterKeyColumn(0);
+    m_notesSortProxyTreeModel->setFilterRole(Qt::DisplayRole);
+    m_notesSortProxyTreeModel->setAutoAcceptChildRows(false);
+    m_notesSortProxyTreeModel->setRecursiveFilteringEnabled(true);
+    m_notesSortProxyTreeModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
+    m_notesSortProxyTreeModel->setSourceModel(m_notesTreeModel);
+    ui->notesTreeView->setModel(m_notesSortProxyTreeModel);
+    ui->notesTreeView->header()->hide();
+    connect(ui->notesSearchLineEdit, &QLineEdit::editingFinished, this, &PDFSidebarWidget::onNotesSearchText);
+    connect(ui->notesSearchLineEdit, &QLineEdit::textChanged, this, &PDFSidebarWidget::onNotesSearchText);
+    connect(ui->notesTreeView, &QTreeView::clicked, this, &PDFSidebarWidget::onNotesItemClicked);
+
     m_pageInfo[Invalid] = { nullptr, ui->emptyPage };
     m_pageInfo[OptionalContent] = { ui->optionalContentButton, ui->optionalContentPage };
     m_pageInfo[Outline] = { ui->outlineButton, ui->outlinePage };
@@ -147,6 +167,7 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
     m_pageInfo[Speech] = { ui->speechButton, ui->speechPage };
     m_pageInfo[Signatures] = { ui->signaturesButton, ui->signaturesPage };
     m_pageInfo[Bookmarks] = { ui->bookmarksButton, ui->bookmarksPage };
+    m_pageInfo[Notes] = { ui->notesButton, ui->notesPage };
 
     for (const auto& pageInfo : m_pageInfo)
     {
@@ -251,6 +272,11 @@ void PDFSidebarWidget::setDocument(const pdf::PDFModifiedDocument& document, con
     updateGUI(preferred);
     updateButtons();
     updateSignatures(signatures);
+
+    if (document.hasReset() || document.hasFlag(pdf::PDFModifiedDocument::Annotation))
+    {
+        updateNotes();
+    }
 }
 
 bool PDFSidebarWidget::isEmpty() const
@@ -293,6 +319,9 @@ bool PDFSidebarWidget::isEmpty(Page page) const
 
         case Signatures:
             return m_signatures.empty();
+
+        case Notes:
+            return !m_document || !m_proxy->getAnnotationManager()->hasAnyPageAnnotation();
 
         default:
             Q_ASSERT(false);
@@ -663,6 +692,120 @@ void PDFSidebarWidget::updateSignatures(const std::vector<pdf::PDFSignatureVerif
     ui->signatureTreeWidget->setUpdatesEnabled(true);
 }
 
+void PDFSidebarWidget::updateNotes()
+{
+    const bool updatesEnabled = ui->notesTreeView->updatesEnabled();
+    ui->notesTreeView->setUpdatesEnabled(false);
+
+    m_notesTreeModel->clear();
+    m_markupAnnotations.clear();
+
+    if (m_document)
+    {
+        QIcon bubbleIcon(":/resources/bubble.svg");
+        QIcon pageIcon(":/resources/page.svg");
+        QIcon userIcon(":/resources/user.svg");
+
+        pdf::PDFAnnotationManager annotationManager(m_proxy->getFontCache(),
+                                                    m_proxy->getCMSManager(),
+                                                    m_optionalContentActivity,
+                                                    pdf::PDFMeshQualitySettings(),
+                                                    m_proxy->getFeatures(),
+                                                    pdf::PDFAnnotationManager::Target::View,
+                                                    nullptr);
+        annotationManager.setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(m_document), m_optionalContentActivity));
+
+        pdf::PDFInteger pageCount = m_document->getCatalog()->getPageCount();
+        for (pdf::PDFInteger pageIndex = 0; pageIndex < pageCount; ++pageIndex)
+        {
+            const pdf::PDFAnnotationManager::PageAnnotations& pageAnnotations = annotationManager.getPageAnnotations(pageIndex);
+
+            if (pageAnnotations.isEmpty())
+            {
+                continue;
+            }
+
+            std::map<QString, std::vector<const pdf::PDFMarkupAnnotation*>> annotations;
+
+            for (const pdf::PDFAnnotationManager::PageAnnotation& pageAnnotation : pageAnnotations.annotations)
+            {
+                if (!pageAnnotation.annotation || !pageAnnotation.annotation->asMarkupAnnotation())
+                {
+                    continue;
+                }
+
+                const pdf::PDFMarkupAnnotation* markupAnnotation = pageAnnotation.annotation->asMarkupAnnotation();
+
+                QString user = markupAnnotation->getWindowTitle();
+
+                if (user.isEmpty())
+                {
+                    user = tr("User");
+                }
+
+                annotations[user].push_back(markupAnnotation);
+            }
+
+            if (!annotations.empty())
+            {
+                QStandardItem* pageItem = new QStandardItem(pageIcon, tr("Page %1").arg(pageIndex + 1));
+                pageItem->setFlags(Qt::ItemIsEnabled);
+
+                for (const auto& annotationItem : annotations)
+                {
+                    QStandardItem* userItem = new QStandardItem(userIcon, annotationItem.first);
+                    userItem->setFlags(Qt::ItemIsEnabled);
+                    pageItem->appendRow(userItem);
+
+                    for (const pdf::PDFMarkupAnnotation* markupAnnotation : annotationItem.second)
+                    {
+                        QStandardItem* annotationTreeItem = new QStandardItem(bubbleIcon, markupAnnotation->getGUICaption());
+                        annotationTreeItem->setData(int(m_markupAnnotations.size()), Qt::UserRole);
+                        annotationTreeItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable);
+                        userItem->appendRow(annotationTreeItem);
+                        m_markupAnnotations.push_back(std::make_pair(markupAnnotation->getSelfReference(), pageIndex));
+                    }
+                }
+
+                m_notesTreeModel->appendRow(pageItem);
+            }
+        }
+    }
+
+    ui->notesTreeView->setUpdatesEnabled(updatesEnabled);
+    ui->notesTreeView->expandAll();
+}
+
+void PDFSidebarWidget::onOutlineSearchText()
+{
+    QString text = ui->outlineSearchLineEdit->text();
+    const bool isWildcard = text.contains(QChar('*')) || text.contains(QChar('?'));
+
+    if (isWildcard)
+    {
+        m_outlineSortProxyTreeModel->setFilterWildcard(text);
+    }
+    else
+    {
+        m_outlineSortProxyTreeModel->setFilterFixedString(text);
+    }
+}
+
+void PDFSidebarWidget::onNotesSearchText()
+{
+    QString text = ui->notesSearchLineEdit->text();
+    const bool isWildcard = text.contains(QChar('*')) || text.contains(QChar('?'));
+
+    if (isWildcard)
+    {
+        m_notesSortProxyTreeModel->setFilterWildcard(text);
+    }
+    else
+    {
+        m_notesSortProxyTreeModel->setFilterFixedString(text);
+    }
+}
+
 void PDFSidebarWidget::onPageButtonClicked()
 {
     QObject* pushButton = sender();
@@ -680,7 +823,8 @@ void PDFSidebarWidget::onPageButtonClicked()
 
 void PDFSidebarWidget::onOutlineItemClicked(const QModelIndex& index)
 {
-    if (const pdf::PDFAction* action = m_outlineTreeModel->getAction(index))
+    QModelIndex sourceIndex = m_outlineSortProxyTreeModel->mapToSource(index);
+    if (const pdf::PDFAction* action = m_outlineTreeModel->getAction(sourceIndex))
     {
         Q_EMIT actionTriggered(action);
     }
@@ -785,18 +929,18 @@ void PDFSidebarWidget::onOutlineTreeViewContextMenuRequested(const QPoint& pos)
 {
     QMenu contextMenu;
 
-    QModelIndex index = ui->outlineTreeView->indexAt(pos);
+    QModelIndex proxyIndex = ui->outlineTreeView->indexAt(pos);
 
-    auto onFollow = [this, index]()
+    auto onFollow = [this, proxyIndex]()
     {
-        onOutlineItemClicked(index);
+        onOutlineItemClicked(proxyIndex);
     };
 
-    auto onInsert = [this, index]()
+    auto onInsert = [this, proxyIndex]()
     {
-        if (index.isValid())
+        if (proxyIndex.isValid())
         {
-            ui->outlineTreeView->model()->insertRow(index.row() + 1, index.parent());
+            ui->outlineTreeView->model()->insertRow(proxyIndex.row() + 1, proxyIndex.parent());
         }
         else
         {
@@ -804,42 +948,43 @@ void PDFSidebarWidget::onOutlineTreeViewContextMenuRequested(const QPoint& pos)
         }
     };
 
-    auto onDelete = [this, index]()
+    auto onDelete = [this, proxyIndex]()
     {
-        ui->outlineTreeView->model()->removeRow(index.row(), index.parent());
+        ui->outlineTreeView->model()->removeRow(proxyIndex.row(), proxyIndex.parent());
     };
 
-    auto onRename = [this, index]()
+    auto onRename = [this, proxyIndex]()
     {
-        ui->outlineTreeView->edit(index);
+        ui->outlineTreeView->edit(proxyIndex);
     };
 
     QAction* followAction = contextMenu.addAction(tr("Follow"), onFollow);
-    followAction->setEnabled(index.isValid());
+    followAction->setEnabled(proxyIndex.isValid());
     contextMenu.addSeparator();
 
     QAction* deleteAction = contextMenu.addAction(tr("Delete"), onDelete);
     QAction* insertAction = contextMenu.addAction(tr("Insert"), this, onInsert);
     QAction* renameAction = contextMenu.addAction(tr("Rename"), this, onRename);
 
-    deleteAction->setEnabled(index.isValid());
+    deleteAction->setEnabled(proxyIndex.isValid());
     insertAction->setEnabled(true);
-    renameAction->setEnabled(index.isValid());
+    renameAction->setEnabled(proxyIndex.isValid());
 
     contextMenu.addSeparator();
 
-    const pdf::PDFOutlineItem* outlineItem = m_outlineTreeModel->getOutlineItem(index);
+    QModelIndex sourceIndex = m_outlineSortProxyTreeModel->mapToSource(proxyIndex);
+    const pdf::PDFOutlineItem* outlineItem = m_outlineTreeModel->getOutlineItem(sourceIndex);
     const bool isFontBold = outlineItem && outlineItem->isFontBold();
     const bool isFontItalics = outlineItem && outlineItem->isFontItalics();
 
-    auto onFontBold = [this, index, isFontBold]()
+    auto onFontBold = [this, sourceIndex, isFontBold]()
     {
-        m_outlineTreeModel->setFontBold(index, !isFontBold);
+        m_outlineTreeModel->setFontBold(sourceIndex, !isFontBold);
     };
 
-    auto onFontItalic = [this, index, isFontItalics]()
+    auto onFontItalic = [this, sourceIndex, isFontItalics]()
     {
-        m_outlineTreeModel->setFontItalics(index, !isFontItalics);
+        m_outlineTreeModel->setFontItalics(sourceIndex, !isFontItalics);
     };
 
     QAction* fontBoldAction = contextMenu.addAction(tr("Font Bold"), onFontBold);
@@ -848,20 +993,20 @@ void PDFSidebarWidget::onOutlineTreeViewContextMenuRequested(const QPoint& pos)
     fontItalicAction->setCheckable(true);
     fontBoldAction->setChecked(isFontBold);
     fontItalicAction->setChecked(isFontItalics);
-    fontBoldAction->setEnabled(index.isValid());
-    fontItalicAction->setEnabled(index.isValid());
+    fontBoldAction->setEnabled(sourceIndex.isValid());
+    fontItalicAction->setEnabled(sourceIndex.isValid());
 
     QMenu* submenu = new QMenu(tr("Set Target"), &contextMenu);
     QAction* targetAction = contextMenu.addMenu(submenu);
-    targetAction->setEnabled(index.isValid());
+    targetAction->setEnabled(sourceIndex.isValid());
 
-    auto createOnSetTarget = [this, index](pdf::DestinationType destinationType)
+    auto createOnSetTarget = [this, sourceIndex](pdf::DestinationType destinationType)
     {
-        auto onSetTarget = [this, index, destinationType]()
+        auto onSetTarget = [this, sourceIndex, destinationType]()
         {
             pdf::PDFToolManager* toolManager = m_proxy->getWidget()->getToolManager();
 
-            auto pickRectangle = [this, index, destinationType](pdf::PDFInteger pageIndex, QRectF rect)
+            auto pickRectangle = [this, sourceIndex, destinationType](pdf::PDFInteger pageIndex, QRectF rect)
             {
                 pdf::PDFDestination destination;
                 destination.setDestinationType(destinationType);
@@ -872,7 +1017,7 @@ void PDFSidebarWidget::onOutlineTreeViewContextMenuRequested(const QPoint& pos)
                 destination.setTop(rect.bottom());
                 destination.setBottom(rect.top());
                 destination.setZoom(m_proxy->getZoom());
-                m_outlineTreeModel->setDestination(index, destination);
+                m_outlineTreeModel->setDestination(sourceIndex, destination);
             };
 
             toolManager->pickRectangle(pickRectangle);
@@ -881,7 +1026,7 @@ void PDFSidebarWidget::onOutlineTreeViewContextMenuRequested(const QPoint& pos)
         return onSetTarget;
     };
 
-    auto onNamedDestinationTriggered = [this, index]()
+    auto onNamedDestinationTriggered = [this, sourceIndex]()
     {
         class SelectNamedDestinationDialog : public QDialog
         {
@@ -930,7 +1075,7 @@ void PDFSidebarWidget::onOutlineTreeViewContextMenuRequested(const QPoint& pos)
         SelectNamedDestinationDialog dialog(items, m_proxy->getWidget());
         if (dialog.exec() == QDialog::Accepted)
         {
-            m_outlineTreeModel->setDestination(index, pdf::PDFDestination::createNamed(dialog.selectedText().toLatin1()));
+            m_outlineTreeModel->setDestination(sourceIndex, pdf::PDFDestination::createNamed(dialog.selectedText().toLatin1()));
         }
     };
 
@@ -1000,11 +1145,18 @@ void PDFSidebarWidget::onBookmarkClicked(const QModelIndex& index)
     }
 }
 
-void PDFSidebarWidget::paintEvent(QPaintEvent* event)
+void PDFSidebarWidget::onNotesItemClicked(const QModelIndex& index)
 {
-    Q_UNUSED(event);
-    QPainter painter(this);
-    painter.fillRect(rect(), QColor(64, 64, 64));
+    QVariant userData = index.data(Qt::UserRole);
+    if (userData.isValid())
+    {
+        int i = userData.toInt();
+        if (i >= 0 && i < m_markupAnnotations.size())
+        {
+            pdf::PDFInteger pageIndex = m_markupAnnotations[i].second;
+            m_proxy->goToPage(pageIndex);
+        }
+    }
 }
 
 }   // namespace pdfviewer
