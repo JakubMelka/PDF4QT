@@ -58,10 +58,10 @@ int PDFToolCertStore::execute(const PDFToolOptions& options)
         certificateStore.loadDefaultUserCertificates();
     }
 
-    pdf::PDFCertificateStore::CertificateEntries certificates = certificateStore.getCertificates();
+    pdf::PDFCertificateEntries certificates = certificateStore.getCertificates();
     if (options.certStoreEnumerateSystemCertificates)
     {
-        pdf::PDFCertificateStore::CertificateEntries systemCertificates = pdf::PDFCertificateStore::getSystemCertificates();
+        pdf::PDFCertificateEntries systemCertificates = pdf::PDFCertificateStore::getSystemCertificates();
         certificates.insert(certificates.end(), std::make_move_iterator(systemCertificates.begin()), std::make_move_iterator(systemCertificates.end()));
     }
 
@@ -83,20 +83,16 @@ int PDFToolCertStore::execute(const PDFToolOptions& options)
     int ref = 1;
     QLocale locale;
 
-    for (const pdf::PDFCertificateStore::CertificateEntry& entry : certificates)
+    for (const pdf::PDFCertificateEntry& entry : certificates)
     {
         QString type;
         switch (entry.type)
         {
-            case pdf::PDFCertificateStore::EntryType::User:
+            case pdf::PDFCertificateEntry::EntryType::User:
                 type = PDFToolTranslationContext::tr("User");
                 break;
 
-            case pdf::PDFCertificateStore::EntryType::EUTL:
-                type = PDFToolTranslationContext::tr("EUTL");
-                break;
-
-            case pdf::PDFCertificateStore::EntryType::System:
+            case pdf::PDFCertificateEntry::EntryType::System:
                 type = PDFToolTranslationContext::tr("System");
                 break;
 
@@ -185,7 +181,7 @@ int PDFToolCertStoreInstallCertificate::execute(const PDFToolOptions& options)
     pdf::PDFCertificateStore certificateStore;
     certificateStore.loadDefaultUserCertificates();
 
-    if (certificateStore.add(pdf::PDFCertificateStore::EntryType::User, certificateData))
+    if (certificateStore.add(pdf::PDFCertificateEntry::EntryType::User, certificateData))
     {
         certificateStore.saveDefaultUserCertificates();
     }

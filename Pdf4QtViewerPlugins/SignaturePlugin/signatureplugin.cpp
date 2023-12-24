@@ -315,11 +315,11 @@ void SignaturePlugin::onSignDigitally()
     // Jakub Melka: do we have certificates? If not,
     // open certificate dialog, so the user can create
     // a new one.
-    if (pdf::PDFCertificateManager::getCertificates().isEmpty())
+    if (pdf::PDFCertificateManager::getCertificates().empty())
     {
         onOpenCertificatesManager();
 
-        if (pdf::PDFCertificateManager::getCertificates().isEmpty())
+        if (pdf::PDFCertificateManager::getCertificates().empty())
         {
             return;
         }
@@ -328,9 +328,12 @@ void SignaturePlugin::onSignDigitally()
     SignDialog dialog(m_dataExchangeInterface->getMainWindow(), m_scene.isEmpty());
     if (dialog.exec() == SignDialog::Accepted)
     {
+        const pdf::PDFCertificateEntry* certificate = dialog.getCertificate();
+        Q_ASSERT(certificate);
+
         QByteArray data = "SampleDataToBeSigned" + QByteArray::number(QDateTime::currentMSecsSinceEpoch());
         QByteArray signature;
-        if (!pdf::PDFSignatureFactory::sign(dialog.getCertificatePath(), dialog.getPassword(), data, signature))
+        if (!pdf::PDFSignatureFactory::sign(*certificate, dialog.getPassword(), data, signature))
         {
             QMessageBox::critical(m_widget, tr("Error"), tr("Failed to create digital signature."));
             return;
@@ -459,7 +462,7 @@ void SignaturePlugin::onSignDigitally()
         buffer.seek(i3);
         dataToBeSigned.append(buffer.read(i4));
 
-        if (!pdf::PDFSignatureFactory::sign(dialog.getCertificatePath(), dialog.getPassword(), dataToBeSigned, signature))
+        if (!pdf::PDFSignatureFactory::sign(*certificate, dialog.getPassword(), dataToBeSigned, signature))
         {
             QMessageBox::critical(m_widget, tr("Error"), tr("Failed to create digital signature."));
             buffer.close();

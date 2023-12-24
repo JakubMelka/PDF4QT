@@ -36,6 +36,7 @@
 #include <security.h>
 #if defined(PDF4QT_USE_PRAGMA_LIB)
 #pragma comment(lib, "Secur32.lib")
+#pragma comment(lib, "Ncrypt.lib")
 #endif
 #endif
 

@@ -1979,62 +1979,57 @@ PDFSecurityHandlerPointer PDFSecurityHandlerFactory::createSecurityHandler(const
             publicKeyHandler->m_permissions = publicKeyHandler->m_permissions | PDFPublicKeySecurityHandler::PKSH_PrintHighResolution;
         }
 
-        QFile file(settings.certificateFileName);
-        if (file.open(QFile::ReadOnly))
+        QByteArray data = settings.certificate.pkcs12;
+
+        openssl_ptr<BIO> pksBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
+        BIO_write(pksBuffer.get(), data.constData(), data.length());
+
+        openssl_ptr<PKCS12> pkcs12(d2i_PKCS12_bio(pksBuffer.get(), nullptr), &PKCS12_free);
+        if (pkcs12)
         {
-            QByteArray data = file.readAll();
-            file.close();
-
-            openssl_ptr<BIO> pksBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
-            BIO_write(pksBuffer.get(), data.constData(), data.length());
-
-            openssl_ptr<PKCS12> pkcs12(d2i_PKCS12_bio(pksBuffer.get(), nullptr), &PKCS12_free);
-            if (pkcs12)
+            QByteArray password = PDFStandardOrPublicSecurityHandler::adjustPassword(settings.userPassword, 0);
+            const char* passwordPointer = nullptr;
+            if (!password.isEmpty())
             {
-                QByteArray password = PDFStandardOrPublicSecurityHandler::adjustPassword(settings.userPassword, 0);
-                const char* passwordPointer = nullptr;
-                if (!password.isEmpty())
+                passwordPointer = password.constData();
+            }
+
+            EVP_PKEY* keyPtr = nullptr;
+            X509* certificatePtr = nullptr;
+            STACK_OF(X509)* certificatesPtr = nullptr;
+
+            // Parse PKCS12 with password
+            bool isParsed = PKCS12_parse(pkcs12.get(), passwordPointer, &keyPtr, &certificatePtr, &certificatesPtr) == 1;
+
+            if (isParsed)
+            {
+                openssl_ptr<EVP_PKEY> key(keyPtr, EVP_PKEY_free);
+                openssl_ptr<X509> certificate(certificatePtr, X509_free);
+                openssl_ptr<STACK_OF(X509)> certificates(certificatesPtr, sk_x509_free_impl);
+                openssl_ptr<BIO> dataToBeSigned(BIO_new(BIO_s_mem()), BIO_free_all);
+
+                uint32_t permissions = qToLittleEndian(publicKeyHandler->m_permissions);
+                QRandomGenerator generator = QRandomGenerator::securelySeeded();
+                QByteArray randomKey = generateRandomByteArray(generator, 20);
+                BIO_write(dataToBeSigned.get(), randomKey.data(), randomKey.length());
+                BIO_write(dataToBeSigned.get(), &permissions, sizeof(permissions));
+
+                openssl_ptr<STACK_OF(X509)> recipientCertificates(sk_X509_new_null(), sk_x509_free_impl);
+                sk_X509_push(recipientCertificates.get(), certificate.get());
+
+                openssl_ptr<PKCS7> pkcs7(PKCS7_encrypt(recipientCertificates.get(), dataToBeSigned.get(), EVP_aes_256_cbc(), PKCS7_BINARY), PKCS7_free);
+
+                if (pkcs7)
                 {
-                    passwordPointer = password.constData();
-                }
+                    openssl_ptr<BIO> storedData(BIO_new(BIO_s_mem()), BIO_free_all);
 
-                EVP_PKEY* keyPtr = nullptr;
-                X509* certificatePtr = nullptr;
-                STACK_OF(X509)* certificatesPtr = nullptr;
-
-                // Parse PKCS12 with password
-                bool isParsed = PKCS12_parse(pkcs12.get(), passwordPointer, &keyPtr, &certificatePtr, &certificatesPtr) == 1;
-
-                if (isParsed)
-                {
-                    openssl_ptr<EVP_PKEY> key(keyPtr, EVP_PKEY_free);
-                    openssl_ptr<X509> certificate(certificatePtr, X509_free);
-                    openssl_ptr<STACK_OF(X509)> certificates(certificatesPtr, sk_x509_free_impl);
-                    openssl_ptr<BIO> dataToBeSigned(BIO_new(BIO_s_mem()), BIO_free_all);
-
-                    uint32_t permissions = qToLittleEndian(publicKeyHandler->m_permissions);
-                    QRandomGenerator generator = QRandomGenerator::securelySeeded();
-                    QByteArray randomKey = generateRandomByteArray(generator, 20);
-                    BIO_write(dataToBeSigned.get(), randomKey.data(), randomKey.length());
-                    BIO_write(dataToBeSigned.get(), &permissions, sizeof(permissions));
-
-                    openssl_ptr<STACK_OF(X509)> recipientCertificates(sk_X509_new_null(), sk_x509_free_impl);
-                    sk_X509_push(recipientCertificates.get(), certificate.get());
-
-                    openssl_ptr<PKCS7> pkcs7(PKCS7_encrypt(recipientCertificates.get(), dataToBeSigned.get(), EVP_aes_256_cbc(), PKCS7_BINARY), PKCS7_free);
-
-                    if (pkcs7)
+                    if (i2d_PKCS7_bio(storedData.get(), pkcs7.get()))
                     {
-                        openssl_ptr<BIO> storedData(BIO_new(BIO_s_mem()), BIO_free_all);
+                        BUF_MEM* memoryBuffer = nullptr;
+                        BIO_get_mem_ptr(storedData.get(), &memoryBuffer);
 
-                        if (i2d_PKCS7_bio(storedData.get(), pkcs7.get()))
-                        {
-                            BUF_MEM* memoryBuffer = nullptr;
-                            BIO_get_mem_ptr(storedData.get(), &memoryBuffer);
-
-                            QByteArray recipient(memoryBuffer->data, int(memoryBuffer->length));
-                            publicKeyHandler->m_filterDefault.recipients << recipient;
-                        }
+                        QByteArray recipient(memoryBuffer->data, int(memoryBuffer->length));
+                        publicKeyHandler->m_filterDefault.recipients << recipient;
                     }
                 }
             }
@@ -2354,7 +2349,7 @@ bool PDFSecurityHandlerFactory::validate(const SecuritySettings& settings, QStri
 
         case pdf::PDFSecurityHandlerFactory::Certificate:
         {
-            if (!pdf::PDFCertificateManager::isCertificateValid(settings.certificateFileName, settings.userPassword))
+            if (!pdf::PDFCertificateManager::isCertificateValid(settings.certificate, settings.userPassword))
             {
                 *errorMessage = tr("Invalid certificate or password.");
                 return false;
@@ -2401,8 +2396,8 @@ PDFSecurityHandler::AuthorizationResult PDFPublicKeySecurityHandler::authenticat
     constexpr int revision = 0;
     QByteArray password = adjustPassword(getPasswordCallback(&passwordObtained), revision);
 
-    QFileInfoList certificates = PDFCertificateManager::getCertificates();
-    if (certificates.isEmpty())
+    PDFCertificateEntries certificates = PDFCertificateManager::getCertificates();
+    if (certificates.empty())
     {
         return AuthorizationResult::Failed;
     }
@@ -2421,114 +2416,109 @@ PDFSecurityHandler::AuthorizationResult PDFPublicKeySecurityHandler::authenticat
     while (passwordObtained)
     {
         // We will iterate trough all certificates
-        for (const QFileInfo& certificateFileInfo : certificates)
+        for (const PDFCertificateEntry& certificateEntry : certificates)
         {
-            if (!PDFCertificateManager::isCertificateValid(certificateFileInfo.absoluteFilePath(), password))
+            if (!PDFCertificateManager::isCertificateValid(certificateEntry, password))
             {
                 continue;
             }
 
-            QFile file(certificateFileInfo.absoluteFilePath());
-            if (file.open(QFile::ReadOnly))
+            QByteArray data = certificateEntry.info.getCertificateData();
+
+            openssl_ptr<BIO> pksBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
+            BIO_write(pksBuffer.get(), data.constData(), data.length());
+
+            openssl_ptr<PKCS12> pkcs12(d2i_PKCS12_bio(pksBuffer.get(), nullptr), &PKCS12_free);
+            if (pkcs12)
             {
-                QByteArray data = file.readAll();
-                file.close();
-
-                openssl_ptr<BIO> pksBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
-                BIO_write(pksBuffer.get(), data.constData(), data.length());
-
-                openssl_ptr<PKCS12> pkcs12(d2i_PKCS12_bio(pksBuffer.get(), nullptr), &PKCS12_free);
-                if (pkcs12)
+                const char* passwordPointer = nullptr;
+                if (!password.isEmpty())
                 {
-                    const char* passwordPointer = nullptr;
-                    if (!password.isEmpty())
+                    passwordPointer = password.constData();
+                }
+
+                EVP_PKEY* keyPtr = nullptr;
+                X509* certificatePtr = nullptr;
+                STACK_OF(X509)* certificatesPtr = nullptr;
+
+                // Parse PKCS12 with password
+                bool isParsed = PKCS12_parse(pkcs12.get(), passwordPointer, &keyPtr, &certificatePtr, &certificatesPtr) == 1;
+
+                if (!isParsed)
+                {
+                    continue;
+                }
+
+                openssl_ptr<EVP_PKEY> key(keyPtr, EVP_PKEY_free);
+                openssl_ptr<X509> certificate(certificatePtr, X509_free);
+                openssl_ptr<STACK_OF(X509)> certificates2(certificatesPtr, sk_x509_free_impl);
+
+                for (const auto& recipientItem : recipients)
+                {
+                    PKCS7* pkcs7 = recipientItem.get();
+
+                    openssl_ptr<BIO> dataBuffer(BIO_new(BIO_s_mem()), BIO_free_all);
+                    if (PKCS7_decrypt(pkcs7, keyPtr, certificatePtr, dataBuffer.get(), PKCS7_BINARY) == 1)
                     {
-                        passwordPointer = password.constData();
-                    }
+                        BUF_MEM* memoryBuffer = nullptr;
+                        BIO_get_mem_ptr(dataBuffer.get(), &memoryBuffer);
 
-                    EVP_PKEY* keyPtr = nullptr;
-                    X509* certificatePtr = nullptr;
-                    STACK_OF(X509)* certificatesPtr = nullptr;
+                        // Acc. to chapter 7.6.5.3 - decrypted data
+                        QByteArray decryptedData(memoryBuffer->data, int(memoryBuffer->length));
 
-                    // Parse PKCS12 with password
-                    bool isParsed = PKCS12_parse(pkcs12.get(), passwordPointer, &keyPtr, &certificatePtr, &certificatesPtr) == 1;
+                        // Calculate file encryption key
+                        EVP_MD_CTX* context = EVP_MD_CTX_new();
+                        Q_ASSERT(context);
 
-                    if (!isParsed)
-                    {
-                        continue;
-                    }
-
-                    openssl_ptr<EVP_PKEY> key(keyPtr, EVP_PKEY_free);
-                    openssl_ptr<X509> certificate(certificatePtr, X509_free);
-                    openssl_ptr<STACK_OF(X509)> certificates2(certificatesPtr, sk_x509_free_impl);
-
-                    for (const auto& recipientItem : recipients)
-                    {
-                        PKCS7* pkcs7 = recipientItem.get();
-
-                        openssl_ptr<BIO> dataBuffer(BIO_new(BIO_s_mem()), BIO_free_all);
-                        if (PKCS7_decrypt(pkcs7, keyPtr, certificatePtr, dataBuffer.get(), PKCS7_BINARY) == 1)
+                        switch (m_keyLength)
                         {
-                            BUF_MEM* memoryBuffer = nullptr;
-                            BIO_get_mem_ptr(dataBuffer.get(), &memoryBuffer);
+                        case 128:
+                            EVP_DigestInit(context, EVP_sha1());
+                            break;
 
-                            // Acc. to chapter 7.6.5.3 - decrypted data
-                            QByteArray decryptedData(memoryBuffer->data, int(memoryBuffer->length));
+                        case 256:
+                            EVP_DigestInit(context, EVP_sha256());
+                            break;
 
-                            // Calculate file encryption key
-                            EVP_MD_CTX* context = EVP_MD_CTX_new();
-                            Q_ASSERT(context);
-
-                            switch (m_keyLength)
-                            {
-                                case 128:
-                                    EVP_DigestInit(context, EVP_sha1());
-                                    break;
-
-                                case 256:
-                                    EVP_DigestInit(context, EVP_sha256());
-                                    break;
-
-                                default:
-                                    Q_ASSERT(false);
-                                    EVP_DigestInit(context, EVP_sha256());
-                                    break;
-                            }
-
-                            QByteArray seed = decryptedData.left(20);
-
-                            // 7.6.5.3 a)
-                            EVP_DigestUpdate(context, seed.constData(), seed.size());
-
-                            // 7.6.5.3 b)
-                            for (const QByteArray& recipient : m_filterDefault.recipients)
-                            {
-                                EVP_DigestUpdate(context, recipient.constData(), recipient.size());
-                            }
-
-                            // 7.6.5.3 c)
-                            if (!isMetadataEncrypted())
-                            {
-                                constexpr uint32_t value = 0xFFFFFFFF;
-                                EVP_DigestUpdate(context, &value, sizeof(value));
-                            }
-
-                            unsigned int size = EVP_MD_size(EVP_MD_CTX_md(context));
-                            QByteArray digestBuffer(size, char());
-
-                            EVP_DigestFinal_ex(context, convertByteArrayToUcharPtr(digestBuffer), &size);
-                            EVP_MD_CTX_free(context);
-
-                            if (decryptedData.size() == 20 + sizeof(uint32_t))
-                            {
-                                // We shall set permissions
-                                m_permissions = qFromLittleEndian<uint32_t>(decryptedData.data() + 20);
-                            }
-
-                            m_authorizationData.fileEncryptionKey = digestBuffer.left(m_keyLength / 8);
-                            m_authorizationData.authorizationResult = AuthorizationResult::UserAuthorized;
-                            return AuthorizationResult::UserAuthorized;
+                        default:
+                            Q_ASSERT(false);
+                            EVP_DigestInit(context, EVP_sha256());
+                            break;
                         }
+
+                        QByteArray seed = decryptedData.left(20);
+
+                        // 7.6.5.3 a)
+                        EVP_DigestUpdate(context, seed.constData(), seed.size());
+
+                        // 7.6.5.3 b)
+                        for (const QByteArray& recipient : m_filterDefault.recipients)
+                        {
+                            EVP_DigestUpdate(context, recipient.constData(), recipient.size());
+                        }
+
+                        // 7.6.5.3 c)
+                        if (!isMetadataEncrypted())
+                        {
+                            constexpr uint32_t value = 0xFFFFFFFF;
+                            EVP_DigestUpdate(context, &value, sizeof(value));
+                        }
+
+                        unsigned int size = EVP_MD_size(EVP_MD_CTX_md(context));
+                        QByteArray digestBuffer(size, char());
+
+                        EVP_DigestFinal_ex(context, convertByteArrayToUcharPtr(digestBuffer), &size);
+                        EVP_MD_CTX_free(context);
+
+                        if (decryptedData.size() == 20 + sizeof(uint32_t))
+                        {
+                            // We shall set permissions
+                            m_permissions = qFromLittleEndian<uint32_t>(decryptedData.data() + 20);
+                        }
+
+                        m_authorizationData.fileEncryptionKey = digestBuffer.left(m_keyLength / 8);
+                        m_authorizationData.authorizationResult = AuthorizationResult::UserAuthorized;
+                        return AuthorizationResult::UserAuthorized;
                     }
                 }
             }

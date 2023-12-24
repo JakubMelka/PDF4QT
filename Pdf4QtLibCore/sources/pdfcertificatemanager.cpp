@@ -144,10 +144,57 @@ void PDFCertificateManager::createCertificate(const NewCertificateInfo& info)
     }
 }
 
-QFileInfoList PDFCertificateManager::getCertificates()
+PDFCertificateEntries PDFCertificateManager::getCertificates()
 {
+    PDFCertificateEntries entries = PDFCertificateStore::getPersonalCertificates();
+
     QDir directory(getCertificateDirectory());
-    return directory.entryInfoList(QStringList() << "*.pfx", QDir::Files | QDir::NoDotAndDotDot | QDir::Readable, QDir::Name);
+    QFileInfoList pfxFiles = directory.entryInfoList(QStringList() << "*.pfx", QDir::Files | QDir::NoDotAndDotDot | QDir::Readable, QDir::Name);
+
+    for (const QFileInfo& fileInfo : pfxFiles)
+    {
+        QFile file(fileInfo.absoluteFilePath());
+        if (file.open(QFile::ReadOnly))
+        {
+            QByteArray data = file.readAll();
+
+            openssl_ptr<BIO> pksBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
+            BIO_write(pksBuffer.get(), data.constData(), data.length());
+
+            openssl_ptr<PKCS12> pkcs12(d2i_PKCS12_bio(pksBuffer.get(), nullptr), &PKCS12_free);
+            if (pkcs12)
+            {
+                X509* certificatePtr = nullptr;
+
+                PDFCertificateEntry entry;
+
+                // Parse PKCS12 with password
+                bool isParsed = PKCS12_parse(pkcs12.get(), nullptr, nullptr, &certificatePtr, nullptr) == 1;
+                if (isParsed)
+                {
+                    std::optional<PDFCertificateInfo> info = PDFCertificateInfo::getCertificateInfo(certificatePtr);
+                    if (info)
+                    {
+                        entry.type = PDFCertificateEntry::EntryType::System;
+                        entry.info = qMove(*info);
+                    }
+                }
+
+                if (certificatePtr)
+                {
+                    X509_free(certificatePtr);
+                }
+
+                entry.pkcs12 = data;
+                entry.pkcs12fileName = fileInfo.fileName();
+                entries.emplace_back(qMove(entry));
+            }
+
+            file.close();
+        }
+    }
+
+    return entries;
 }
 
 QString PDFCertificateManager::getCertificateDirectory()
@@ -175,46 +222,42 @@ QString PDFCertificateManager::generateCertificateFileName()
     return QString();
 }
 
-bool PDFCertificateManager::isCertificateValid(QString fileName, QString password)
+bool PDFCertificateManager::isCertificateValid(const PDFCertificateEntry& certificateEntry, QString password)
 {
-    QFile file(fileName);
-    if (file.open(QFile::ReadOnly))
+    QByteArray pkcs12data = certificateEntry.pkcs12;
+
+    openssl_ptr<BIO> pksBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
+    BIO_write(pksBuffer.get(), pkcs12data.constData(), pkcs12data.length());
+
+    openssl_ptr<PKCS12> pkcs12(d2i_PKCS12_bio(pksBuffer.get(), nullptr), &PKCS12_free);
+    if (pkcs12)
     {
-        QByteArray data = file.readAll();
-        file.close();
-
-        openssl_ptr<BIO> pksBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
-        BIO_write(pksBuffer.get(), data.constData(), data.length());
-
-        openssl_ptr<PKCS12> pkcs12(d2i_PKCS12_bio(pksBuffer.get(), nullptr), &PKCS12_free);
-        if (pkcs12)
+        const char* passwordPointer = nullptr;
+        QByteArray passwordByteArray = password.isEmpty() ? QByteArray() : password.toUtf8();
+        if (!passwordByteArray.isEmpty())
         {
-            const char* passwordPointer = nullptr;
-            QByteArray passwordByteArray = password.isEmpty() ? QByteArray() : password.toUtf8();
-            if (!passwordByteArray.isEmpty())
-            {
-                passwordPointer = passwordByteArray.constData();
-            }
-
-            return PKCS12_parse(pkcs12.get(), passwordPointer, nullptr, nullptr, nullptr) == 1;
+            passwordPointer = passwordByteArray.constData();
         }
+
+        return PKCS12_parse(pkcs12.get(), passwordPointer, nullptr, nullptr, nullptr) == 1;
     }
 
-    return false;
+    return pkcs12data.isEmpty();
 }
 
-bool PDFSignatureFactory::sign(QString certificateName, QString password, QByteArray data, QByteArray& result)
+bool PDFSignatureFactory::sign(const PDFCertificateEntry& certificateEntry,
+                               QString password,
+                               QByteArray data,
+                               QByteArray& result)
 {
-    QFile file(certificateName);
-    if (file.open(QFile::ReadOnly))
+    QByteArray pkcs12Data = certificateEntry.pkcs12;
+
+    if (!pkcs12Data.isEmpty())
     {
-        QByteArray certificateData = file.readAll();
-        file.close();
+        openssl_ptr<BIO> pkcs12Buffer(BIO_new(BIO_s_mem()), &BIO_free_all);
+        BIO_write(pkcs12Buffer.get(), pkcs12Data.constData(), pkcs12Data.length());
 
-        openssl_ptr<BIO> certificateBuffer(BIO_new(BIO_s_mem()), &BIO_free_all);
-        BIO_write(certificateBuffer.get(), certificateData.constData(), certificateData.length());
-
-        openssl_ptr<PKCS12> pkcs12(d2i_PKCS12_bio(certificateBuffer.get(), nullptr), &PKCS12_free);
+        openssl_ptr<PKCS12> pkcs12(d2i_PKCS12_bio(pkcs12Buffer.get(), nullptr), &PKCS12_free);
         if (pkcs12)
         {
             const char* passwordPointer = nullptr;
@@ -256,11 +299,118 @@ bool PDFSignatureFactory::sign(QString certificateName, QString password, QByteA
             }
         }
     }
+#ifdef Q_OS_WIN
+    else
+    {
+        return signImpl_Win(certificateEntry, password, data, result);
+    }
+#endif
 
     return false;
 }
 
 }   // namespace pdf
+
+#ifdef Q_OS_WIN
+#include <Windows.h>
+#include <wincrypt.h>
+#include <ncrypt.h>
+#if defined(PDF4QT_USE_PRAGMA_LIB)
+#pragma comment(lib, "crypt32.lib")
+#endif
+#endif
+
+bool pdf::PDFSignatureFactory::signImpl_Win(const pdf::PDFCertificateEntry& certificateEntry, QString password, QByteArray data, QByteArray& result)
+{
+    bool success = false;
+
+#ifdef Q_OS_WIN
+    Q_UNUSED(password);
+
+    HCERTSTORE certStore = CertOpenStore(CERT_STORE_PROV_SYSTEM, 0, NULL, CERT_SYSTEM_STORE_CURRENT_USER, L"MY");
+    if (certStore)
+    {
+        PCCERT_CONTEXT pCertContext = nullptr;
+
+        while (pCertContext = CertEnumCertificatesInStore(certStore, pCertContext))
+        {
+            const unsigned char* pointer = pCertContext->pbCertEncoded;
+            QByteArray testData(reinterpret_cast<const char*>(pointer), pCertContext->cbCertEncoded);
+
+            if (testData == certificateEntry.info.getCertificateData())
+            {
+                break;
+            }
+        }
+
+        if (pCertContext)
+        {
+            CRYPT_SIGN_MESSAGE_PARA SignParams{};
+            BYTE* pbSignedBlob = nullptr;
+            DWORD cbSignedBlob = 0;
+            PCCERT_CONTEXT pCertContextArray[1] = { pCertContext };
+
+            const BYTE* pbDataToBeSigned = (const BYTE*)data.constData();
+            DWORD cbDataToBeSigned = (DWORD)data.size();
+
+            // Nastavení parametrů pro podpis
+            SignParams.cbSize = sizeof(CRYPT_SIGN_MESSAGE_PARA);
+            SignParams.dwMsgEncodingType = PKCS_7_ASN_ENCODING | X509_ASN_ENCODING;
+            SignParams.pSigningCert = pCertContext;
+            SignParams.HashAlgorithm.pszObjId = (LPSTR)szOID_RSA_SHA256RSA;
+            SignParams.HashAlgorithm.Parameters.cbData = 0;
+            SignParams.HashAlgorithm.Parameters.pbData = NULL;
+            SignParams.cMsgCert = 1;
+            SignParams.rgpMsgCert = pCertContextArray;
+            pCertContextArray[0] = pCertContext;
+
+            const BYTE* rgpbToBeSigned[1] = {pbDataToBeSigned};
+            DWORD rgcbToBeSigned[1] = {cbDataToBeSigned};
+
+            // Retrieve signed message size
+            CryptSignMessage(
+                &SignParams,
+                TRUE,
+                1,
+                rgpbToBeSigned,
+                rgcbToBeSigned,
+                NULL,
+                &cbSignedBlob
+                );
+
+            pbSignedBlob = new BYTE[cbSignedBlob];
+
+            // Create digital signature
+            if (CryptSignMessage(
+                    &SignParams,
+                    TRUE,
+                    1,
+                    rgpbToBeSigned,
+                    rgcbToBeSigned,
+                    pbSignedBlob,
+                    &cbSignedBlob
+                    ))
+            {
+                result = QByteArray((const char*)pbSignedBlob, cbSignedBlob);
+                success = true;
+            }
+
+            delete[] pbSignedBlob;
+
+            CertFreeCertificateContext(pCertContext);
+        }
+
+        CertCloseStore(certStore, CERT_CLOSE_STORE_FORCE_FLAG);
+    }
+#else
+    Q_UNUSED(certificateEntry);
+    Q_UNUSED(password);
+    Q_UNUSED(data);
+    Q_UNUSED(result);
+#endif
+
+    return success;
+}
 
 #if defined(PDF4QT_COMPILER_MINGW) || defined(PDF4QT_COMPILER_GCC)
 #pragma GCC diagnostic pop

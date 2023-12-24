@@ -675,7 +675,7 @@ void PDFViewerSettingsDialog::updateTrustedCertificatesTable()
     ui->trustedCertificateStoreTableWidget->setUpdatesEnabled(false);
     ui->trustedCertificateStoreTableWidget->clear();
 
-    const pdf::PDFCertificateStore::CertificateEntries& certificates = m_certificateStore.getCertificates();
+    const pdf::PDFCertificateEntries& certificates = m_certificateStore.getCertificates();
     ui->trustedCertificateStoreTableWidget->setRowCount(int(certificates.size()));
     ui->trustedCertificateStoreTableWidget->setColumnCount(5);
     ui->trustedCertificateStoreTableWidget->verticalHeader()->setVisible(true);
@@ -688,15 +688,11 @@ void PDFViewerSettingsDialog::updateTrustedCertificatesTable()
         QString type;
         switch (certificates[i].type)
         {
-            case pdf::PDFCertificateStore::EntryType::User:
+            case pdf::PDFCertificateEntry::EntryType::User:
                 type = tr("User");
                 break;
 
-            case pdf::PDFCertificateStore::EntryType::EUTL:
-                type = tr("EUTL");
-                break;
-
-            case pdf::PDFCertificateStore::EntryType::System:
+            case pdf::PDFCertificateEntry::EntryType::System:
                 type = tr("System");
                 break;
 
@@ -920,8 +916,8 @@ void PDFViewerSettingsDialog::on_removeCertificateButton_clicked()
         rows.insert(index.row());
     }
 
-    pdf::PDFCertificateStore::CertificateEntries newEntries;
-    const pdf::PDFCertificateStore::CertificateEntries& certificates = m_certificateStore.getCertificates();
+    pdf::PDFCertificateEntries newEntries;
+    const pdf::PDFCertificateEntries& certificates = m_certificateStore.getCertificates();
     for (int i = 0; i < int(certificates.size()); ++i)
     {
         if (!rows.count(i))

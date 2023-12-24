@@ -20,6 +20,7 @@
 
 #include "pdfglobal.h"
 #include "pdfobject.h"
+#include "pdfcertificatestore.h"
 
 #include <QByteArray>
 #include <QSharedPointer>
@@ -477,7 +478,7 @@ public:
         QString ownerPassword;
         uint32_t permissions = 0;
         QByteArray id;
-        QString certificateFileName;
+        PDFCertificateEntry certificate;
     };
 
     /// Creates security handler based on given settings. If security handler cannot
@@ -513,6 +514,5 @@ public:
 };
 
 }   // namespace pdf
-
 
 #endif // PDFSECURITYHANDLER_H

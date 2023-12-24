@@ -1,4 +1,4 @@
-//    Copyright (C) 2022 Jakub Melka
+//    Copyright (C) 2023 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -15,48 +15,31 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-#ifndef SIGNDIALOG_H
-#define SIGNDIALOG_H
+#ifndef PDFCERTIFICATELISTHELPER_H
+#define PDFCERTIFICATELISTHELPER_H
 
-#include "pdfcertificatemanager.h"
+#include "pdfwidgetsglobal.h"
+#include "pdfcertificatestore.h"
 
-#include <QDialog>
+class QComboBox;
 
-namespace Ui
-{
-class SignDialog;
-}
-
-namespace pdfplugin
+namespace pdf
 {
 
-class SignDialog : public QDialog
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFCertificateListHelper
 {
-    Q_OBJECT
+    Q_DECLARE_TR_FUNCTIONS(pdf::PDFCertificateListHelper)
 
 public:
-    explicit SignDialog(QWidget* parent, bool isSceneEmpty);
-    virtual ~SignDialog() override;
+    PDFCertificateListHelper() = delete;
 
-    virtual void accept() override;
-
-    enum SignMethod
-    {
-        SignDigitally,
-        SignDigitallyInvisible
-    };
-
-    SignMethod getSignMethod() const;
-    QString getPassword() const;
-    QString getReasonText() const;
-    QString getContactInfoText() const;
-    const pdf::PDFCertificateEntry* getCertificate() const;
+    static void initComboBox(QComboBox* comboBox);
+    static void fillComboBox(QComboBox* comboBox, const PDFCertificateEntries& entries);
 
 private:
-    Ui::SignDialog* ui;
-    pdf::PDFCertificateEntries m_certificates;
+    static constexpr int COLUMN_COUNT = 4;
 };
 
-}   // namespace pdfplugin
+}   // namespace pdf
 
-#endif // SIGNDIALOG_H
+#endif // PDFCERTIFICATELISTHELPER_H

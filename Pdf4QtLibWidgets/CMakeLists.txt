@@ -63,6 +63,8 @@ add_library(Pdf4QtLibWidgets SHARED
     sources/pdfcompiler.h
     sources/pdfdocumentdrawinterface.h
     sources/pdfwidgetsglobal.h
+    sources/pdfcertificatelisthelper.h
+    sources/pdfcertificatelisthelper.cpp
 )
 
 include(GenerateExportHeader)

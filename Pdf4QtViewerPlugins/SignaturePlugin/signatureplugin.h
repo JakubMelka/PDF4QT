@@ -108,6 +108,8 @@ private:
 
     void setActive(bool active);
 
+    pdf::PDFWidgetTool* getActiveTool();
+
     void updateActions();
     void updateGraphics();
     void updateDockWidget();
@@ -120,7 +122,6 @@ private:
 
     pdf::PDFPageContentScene m_scene;
     bool m_sceneSelectionChangeEnabled;
-    pdf::PDFWidgetTool* getActiveTool();
 };
 
 }   // namespace pdfplugin
