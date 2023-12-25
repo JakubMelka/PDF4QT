@@ -73,6 +73,8 @@ add_library(Pdf4QtViewer SHARED
     pdfbookmarkmanager.cpp
     pdfbookmarkui.h
     pdfbookmarkui.cpp
+    pdfactioncombobox.h
+    pdfactioncombobox.cpp
 )
 
 add_compile_definitions(QT_INSTALL_DIRECTORY="${QT6_INSTALL_PREFIX}")

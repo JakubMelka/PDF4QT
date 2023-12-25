@@ -35,6 +35,7 @@
 #include <array>
 
 class QMainWindow;
+class QComboBox;
 class QToolBar;
 
 namespace pdf
@@ -53,6 +54,7 @@ class PDFViewerSettings;
 class PDFUndoRedoManager;
 class PDFRecentFileManager;
 class PDFTextToSpeech;
+class PDFActionComboBox;
 
 class IMainWindow
 {
@@ -291,6 +293,7 @@ public:
                     IMainWindow* mainWindowInterface,
                     PDFActionManager* actionManager,
                     pdf::PDFProgress* progress);
+    void initActionComboBox(PDFActionComboBox* comboBox);
     void finishInitialization();
     void writeSettings();
     void resetSettings();
@@ -440,6 +443,7 @@ private:
     pdf::PDFWidgetAnnotationManager* m_annotationManager;
     pdf::PDFWidgetFormManager* m_formManager;
     PDFBookmarkManager* m_bookmarkManager;
+    PDFActionComboBox* m_actionComboBox;
 
     PDFFileInfo m_fileInfo;
     QFileSystemWatcher m_fileWatcher;

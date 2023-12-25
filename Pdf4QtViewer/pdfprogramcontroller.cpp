@@ -43,6 +43,7 @@
 #include "pdfencryptionsettingsdialog.h"
 #include "pdfwidgetannotation.h"
 #include "pdfwidgetformmanager.h"
+#include "pdfactioncombobox.h"
 
 #include <QMenu>
 #include <QPrinter>
@@ -56,6 +57,8 @@
 #include <QMainWindow>
 #include <QToolBar>
 #include <QXmlStreamWriter>
+#include <QMenuBar>
+#include <QComboBox>
 
 #include "pdfdbgheap.h"
 
@@ -366,6 +369,7 @@ PDFProgramController::PDFProgramController(QObject* parent) :
     m_annotationManager(nullptr),
     m_formManager(nullptr),
     m_bookmarkManager(nullptr),
+    m_actionComboBox(nullptr),
     m_isBusy(false),
     m_isFactorySettingsBeingRestored(false),
     m_progress(nullptr)
@@ -670,6 +674,24 @@ void PDFProgramController::initialize(Features features,
     if (features.testFlag(Plugins))
     {
         loadPlugins();
+    }
+}
+
+void PDFProgramController::initActionComboBox(PDFActionComboBox* comboBox)
+{
+    m_actionComboBox = comboBox;
+
+    if (m_actionComboBox)
+    {
+        bool updatesEnabled = m_actionComboBox->updatesEnabled();
+        m_actionComboBox->setUpdatesEnabled(false);
+
+        for (QAction* action : m_actionManager->getActions())
+        {
+            m_actionComboBox->addQuickFindAction(action);
+        }
+
+        m_actionComboBox->setUpdatesEnabled(updatesEnabled);
     }
 }
 
