@@ -120,8 +120,9 @@ private:
     void onThumbnailsSizeChanged(int size);
     void onAttachmentCustomContextMenuRequested(const QPoint& pos);
     void onThumbnailClicked(const QModelIndex& index);
-    void onSignatureCustomContextMenuRequested(const QPoint &pos);
-    void onOutlineTreeViewContextMenuRequested(const QPoint &pos);
+    void onSignatureCustomContextMenuRequested(const QPoint& pos);
+    void onOutlineTreeViewContextMenuRequested(const QPoint& pos);
+    void onNotesTreeViewContextMenuRequested(const QPoint& pos);
     void onOutlineItemsChanged();
     void onBookmarkActivated(int index, PDFBookmarkManager::Bookmark bookmark);
     void onBookmarsCurrentIndexChanged(const QModelIndex& current, const QModelIndex& previous);

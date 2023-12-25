@@ -158,6 +158,7 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
     connect(ui->notesSearchLineEdit, &QLineEdit::editingFinished, this, &PDFSidebarWidget::onNotesSearchText);
     connect(ui->notesSearchLineEdit, &QLineEdit::textChanged, this, &PDFSidebarWidget::onNotesSearchText);
     connect(ui->notesTreeView, &QTreeView::clicked, this, &PDFSidebarWidget::onNotesItemClicked);
+    connect(ui->notesTreeView, &QTreeView::customContextMenuRequested, this, &PDFSidebarWidget::onNotesTreeViewContextMenuRequested);
 
     m_pageInfo[Invalid] = { nullptr, ui->emptyPage };
     m_pageInfo[OptionalContent] = { ui->optionalContentButton, ui->optionalContentPage };
@@ -1090,6 +1091,32 @@ void PDFSidebarWidget::onOutlineTreeViewContextMenuRequested(const QPoint& pos)
     submenu->addAction(tr("XYZ"), createOnSetTarget(pdf::DestinationType::XYZ));
 
     contextMenu.exec(ui->outlineTreeView->mapToGlobal(pos));
+}
+
+void PDFSidebarWidget::onNotesTreeViewContextMenuRequested(const QPoint& pos)
+{
+    QModelIndex index = ui->notesTreeView->indexAt(pos);
+
+    if (index.isValid())
+    {
+        QVariant userData = index.data(Qt::UserRole);
+        if (userData.isValid())
+        {
+            const int annotationIndex = userData.toInt();
+
+            if (annotationIndex >= 0 && annotationIndex < m_markupAnnotations.size())
+            {
+                const auto& annotationItem = m_markupAnnotations[annotationIndex];
+                QPoint globalPos = ui->notesTreeView->viewport()->mapToGlobal(pos);
+
+                pdf::PDFObjectReference annotationReference = annotationItem.first;
+                pdf::PDFObjectReference pageReference = m_document->getCatalog()->getPage(annotationItem.second)->getPageReference();
+
+                m_proxy->goToPage(annotationItem.second);
+                m_proxy->getAnnotationManager()->showAnnotationMenu(annotationReference, pageReference, globalPos);
+            }
+        }
+    }
 }
 
 void PDFSidebarWidget::onOutlineItemsChanged()
