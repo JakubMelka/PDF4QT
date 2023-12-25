@@ -126,21 +126,34 @@ void PDFWidgetAnnotationManager::mousePressEvent(QWidget* widget, QMouseEvent* e
             }
         }
 
-        if (m_editableAnnotation.isValid())
-        {
-            QMenu menu(tr("Annotation"), pdfWidget);
-            QAction* showPopupAction = menu.addAction(tr("Show Popup Window"));
-            QAction* copyAction = menu.addAction(tr("Copy to Multiple Pages"));
-            QAction* editAction = menu.addAction(tr("Edit"));
-            QAction* deleteAction = menu.addAction(tr("Delete"));
-            connect(showPopupAction, &QAction::triggered, this, &PDFWidgetAnnotationManager::onShowPopupAnnotation);
-            connect(copyAction, &QAction::triggered, this, &PDFWidgetAnnotationManager::onCopyAnnotation);
-            connect(editAction, &QAction::triggered, this, &PDFWidgetAnnotationManager::onEditAnnotation);
-            connect(deleteAction, &QAction::triggered, this, &PDFWidgetAnnotationManager::onDeleteAnnotation);
+        QPoint menuPosition = pdfWidget->mapToGlobal(event->pos());
+        showAnnotationMenu(m_editableAnnotation, m_editableAnnotationPage, menuPosition);
+    }
+}
 
-            m_editableAnnotationGlobalPosition = pdfWidget->mapToGlobal(event->pos());
-            menu.exec(m_editableAnnotationGlobalPosition);
-        }
+void PDFWidgetAnnotationManager::showAnnotationMenu(PDFObjectReference annotationReference,
+                                                    PDFObjectReference pageReference,
+                                                    QPoint globalMenuPosition)
+{
+    m_editableAnnotation = annotationReference;
+    m_editableAnnotationPage = pageReference;
+
+    if (m_editableAnnotation.isValid())
+    {
+        PDFWidget* pdfWidget = m_proxy->getWidget();
+
+        QMenu menu(tr("Annotation"), pdfWidget);
+        QAction* showPopupAction = menu.addAction(tr("Show Popup Window"));
+        QAction* copyAction = menu.addAction(tr("Copy to Multiple Pages"));
+        QAction* editAction = menu.addAction(tr("Edit"));
+        QAction* deleteAction = menu.addAction(tr("Delete"));
+        connect(showPopupAction, &QAction::triggered, this, &PDFWidgetAnnotationManager::onShowPopupAnnotation);
+        connect(copyAction, &QAction::triggered, this, &PDFWidgetAnnotationManager::onCopyAnnotation);
+        connect(editAction, &QAction::triggered, this, &PDFWidgetAnnotationManager::onEditAnnotation);
+        connect(deleteAction, &QAction::triggered, this, &PDFWidgetAnnotationManager::onDeleteAnnotation);
+
+        m_editableAnnotationGlobalPosition = globalMenuPosition;
+        menu.exec(m_editableAnnotationGlobalPosition);
     }
 }
 

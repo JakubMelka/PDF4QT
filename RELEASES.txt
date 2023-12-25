@@ -1,5 +1,6 @@
 CURRENT:
  - Issue #129: Cannot compile with lcms 2.16
+ - Issue #128: Create list of markup annotations 
  - Issue #126: Remove <QtCore> include from main headers
  - Issue #119: Improve search bar 2 (the revenge) 
  - Issue #118: Adding CMAKE options for minimal builds

@@ -509,6 +509,7 @@ public:
     virtual PDFMarkupAnnotation* asMarkupAnnotation() { return nullptr; }
     virtual const PDFMarkupAnnotation* asMarkupAnnotation() const { return nullptr; }
     virtual bool isReplyTo() const { return false; }
+    virtual QString getGUICaption() const;
 
     /// Draws the annotation using parameters. Annotation is drawn onto painter,
     /// but actual graphics can be drawn outside of annotation's rectangle.
@@ -1524,10 +1525,10 @@ public:
     /// \param page Page
     /// \param[in,out] annotationRectangle Input/output annotation rectangle
     QTransform prepareTransformations(const QTransform& pagePointToDevicePointMatrix,
-                                   QPaintDevice* device,
-                                   const PDFAnnotation::Flags annotationFlags,
-                                   const PDFPage* page,
-                                   QRectF& annotationRectangle) const;
+                                      QPaintDevice* device,
+                                      const PDFAnnotation::Flags annotationFlags,
+                                      const PDFPage* page,
+                                      QRectF& annotationRectangle) const;
 
     /// Returns current appearance stream for given page annotation
     /// \param pageAnnotation Page annotation
@@ -1548,6 +1549,9 @@ public:
 
     /// Returns true, if any page in the given indices has annotation
     bool hasAnyPageAnnotation(const std::vector<PDFInteger>& pageIndices) const;
+
+    /// Returns true, if any page in the document has annotation
+    bool hasAnyPageAnnotation() const;
 
 protected:
     void drawWidgetAnnotationHighlight(QRectF annotationRectangle,

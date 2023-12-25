@@ -27,6 +27,8 @@
 class QPushButton;
 class QToolButton;
 class QWidget;
+class QStandardItemModel;
+class QSortFilterProxyModel;
 
 namespace Ui
 {
@@ -69,8 +71,6 @@ public:
                               QWidget* parent);
     virtual ~PDFSidebarWidget() override;
 
-    virtual void paintEvent(QPaintEvent* event) override;
-
     enum Page
     {
         Invalid,
@@ -82,6 +82,7 @@ public:
         Speech,
         Signatures,
         Bookmarks,
+        Notes,
         _END
     };
 
@@ -110,18 +111,23 @@ private:
     void updateGUI(Page preferredPage);
     void updateButtons();
     void updateSignatures(const std::vector<pdf::PDFSignatureVerificationResult>& signatures);
+    void updateNotes();
 
+    void onOutlineSearchText();
+    void onNotesSearchText();
     void onPageButtonClicked();
     void onOutlineItemClicked(const QModelIndex& index);
     void onThumbnailsSizeChanged(int size);
     void onAttachmentCustomContextMenuRequested(const QPoint& pos);
     void onThumbnailClicked(const QModelIndex& index);
-    void onSignatureCustomContextMenuRequested(const QPoint &pos);
-    void onOutlineTreeViewContextMenuRequested(const QPoint &pos);
+    void onSignatureCustomContextMenuRequested(const QPoint& pos);
+    void onOutlineTreeViewContextMenuRequested(const QPoint& pos);
+    void onNotesTreeViewContextMenuRequested(const QPoint& pos);
     void onOutlineItemsChanged();
     void onBookmarkActivated(int index, PDFBookmarkManager::Bookmark bookmark);
     void onBookmarsCurrentIndexChanged(const QModelIndex& current, const QModelIndex& previous);
     void onBookmarkClicked(const QModelIndex& index);
+    void onNotesItemClicked(const QModelIndex& index);
 
     struct PageInfo
     {
@@ -136,15 +142,19 @@ private:
     PDFBookmarkManager* m_bookmarkManager;
     PDFViewerSettings* m_settings;
     pdf::PDFOutlineTreeItemModel* m_outlineTreeModel;
+    QSortFilterProxyModel* m_outlineSortProxyTreeModel;
     pdf::PDFThumbnailsItemModel* m_thumbnailsModel;
     pdf::PDFOptionalContentTreeItemModel* m_optionalContentTreeModel;
     PDFBookmarkItemModel* m_bookmarkItemModel;
+    QStandardItemModel* m_notesTreeModel;
+    QSortFilterProxyModel* m_notesSortProxyTreeModel;
     const pdf::PDFDocument* m_document;
     pdf::PDFOptionalContentActivity* m_optionalContentActivity;
     pdf::PDFAttachmentsTreeItemModel* m_attachmentsTreeModel;
     std::map<Page, PageInfo> m_pageInfo;
     std::vector<pdf::PDFSignatureVerificationResult> m_signatures;
     std::vector<pdf::PDFCertificateInfo> m_certificateInfos;
+    std::vector<std::pair<pdf::PDFObjectReference, pdf::PDFInteger>> m_markupAnnotations;
     bool m_bookmarkChangeInProgress = false;
 };
 

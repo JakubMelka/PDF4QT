@@ -65,6 +65,10 @@ public:
 
     virtual int getInputPriority() const override { return AnnotationPriority; }
 
+    void showAnnotationMenu(pdf::PDFObjectReference annotationReference,
+                            pdf::PDFObjectReference pageReference,
+                            QPoint globalMenuPosition);
+
 signals:
     void actionTriggered(const PDFAction* action);
     void documentModified(PDFModifiedDocument document);
