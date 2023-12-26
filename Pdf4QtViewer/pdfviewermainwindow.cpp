@@ -41,6 +41,7 @@
 #include "pdfsignaturehandler.h"
 #include "pdfadvancedtools.h"
 #include "pdfwidgetutils.h"
+#include "pdfactioncombobox.h"
 
 #include <QPainter>
 #include <QFileDialog>
@@ -310,6 +311,9 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     connect(m_progress, &pdf::PDFProgress::progressStep, this, &PDFViewerMainWindow::onProgressStep);
     connect(m_progress, &pdf::PDFProgress::progressFinished, this, &PDFViewerMainWindow::onProgressFinished);
 
+    PDFActionComboBox* actionComboBox = new PDFActionComboBox(this);
+    menuBar()->setCornerWidget(actionComboBox);
+
     m_programController->finishInitialization();
     updateDeveloperMenu();
 
@@ -319,6 +323,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     }
 
     m_actionManager->styleActions();
+    m_programController->initActionComboBox(actionComboBox);
 }
 
 PDFViewerMainWindow::~PDFViewerMainWindow()

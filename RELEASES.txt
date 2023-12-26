@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #134: Add search bar for actions
  - Issue #129: Cannot compile with lcms 2.16
  - Issue #128: Create list of markup annotations 
  - Issue #126: Remove <QtCore> include from main headers
