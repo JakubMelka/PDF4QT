@@ -22,6 +22,8 @@
 #include <QStandardItemModel>
 #include <QSortFilterProxyModel>
 #include <QCompleter>
+#include <QAbstractItemView>
+#include <QKeyEvent>
 
 namespace pdfviewer
 {
@@ -30,37 +32,26 @@ PDFActionComboBox::PDFActionComboBox(QWidget* parent) :
     BaseClass(parent),
     m_model(nullptr)
 {
-    setEditable(true);
-    lineEdit()->setPlaceholderText(tr("Find action..."));
-    lineEdit()->setClearButtonEnabled(true);
+    setPlaceholderText(tr("Find action..."));
+    setClearButtonEnabled(true);
     setMinimumWidth(pdf::PDFWidgetUtils::scaleDPI_x(this, DEFAULT_WIDTH));
 
     m_model = new QStandardItemModel(this);
-    m_proxyModel = new QSortFilterProxyModel(this);
 
-    m_proxyModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
-    m_proxyModel->setDynamicSortFilter(true);
-    m_proxyModel->setFilterKeyColumn(0);
-    m_proxyModel->setFilterRole(Qt::DisplayRole);
-    m_proxyModel->setSortCaseSensitivity(Qt::CaseInsensitive);
-    m_proxyModel->setSortLocaleAware(true);
-    m_proxyModel->setSortRole(Qt::DisplayRole);
-    m_proxyModel->setSourceModel(m_model);
-
+    QCompleter* completer = new QCompleter(m_model, this);
     setFocusPolicy(Qt::StrongFocus);
-    setCompleter(nullptr);
-    setInsertPolicy(QComboBox::NoInsert);
-/*
-    completer()->setCompletionMode(QCompleter::PopupCompletion);
-    completer()->setCompletionColumn(-1);
-    completer()->setFilterMode(Qt::MatchContains | Qt::MatchWildcard);
-    completer()->setCaseSensitivity(Qt::CaseInsensitive);
-    completer()->setModelSorting(QCompleter::UnsortedModel);*/
+    setCompleter(completer);
 
-    connect(this, &PDFActionComboBox::activated, this, &PDFActionComboBox::onActionActivated);
-    connect(this, &PDFActionComboBox::editTextChanged, this, &PDFActionComboBox::onEditTextChanged, Qt::QueuedConnection);
+    completer->setCompletionMode(QCompleter::PopupCompletion);
+    completer->setCompletionColumn(0);
+    completer->setCompletionRole(Qt::DisplayRole);
+    completer->setFilterMode(Qt::MatchContains);
+    completer->setCaseSensitivity(Qt::CaseInsensitive);
+    completer->setModelSorting(QCompleter::CaseInsensitivelySortedModel);
+    completer->setWrapAround(false);
+    completer->setMaxVisibleItems(20);
 
-    setModel(m_proxyModel);
+    connect(this, &QLineEdit::editingFinished, this, &PDFActionComboBox::performExecuteAction, Qt::QueuedConnection);
 }
 
 QSize PDFActionComboBox::sizeHint() const
@@ -87,52 +78,83 @@ void PDFActionComboBox::addQuickFindAction(QAction* action)
     }
 }
 
+bool PDFActionComboBox::event(QEvent* event)
+{
+    if (event->type() == QEvent::ShortcutOverride)
+    {
+        QKeyEvent* keyEvent = dynamic_cast<QKeyEvent*>(event);
+        switch (keyEvent->key())
+        {
+        case Qt::Key_Down:
+        case Qt::Key_Up:
+            event->accept();
+            return true;
+        }
+    }
+
+    if (event->type() == QEvent::KeyPress)
+    {
+        QKeyEvent* keyEvent = dynamic_cast<QKeyEvent*>(event);
+
+        // Redirect up and down arrows to the completer
+        switch (keyEvent->key())
+        {
+        case Qt::Key_Down:
+        case Qt::Key_Up:
+        {
+            if (completer())
+            {
+                if (completer()->popup()->isVisible())
+                {
+                    QCoreApplication::sendEvent(completer()->popup(), event);
+                }
+                else
+                {
+                    completer()->complete();
+                }
+            }
+            return true;
+        }
+
+        case Qt::Key_Enter:
+        case Qt::Key_Return:
+            clearFocus();
+            return true;
+
+        default:
+            break;
+        }
+    }
+
+    return BaseClass::event(event);
+}
+
 void PDFActionComboBox::onActionChanged()
 {
     QAction* action = qobject_cast<QAction*>(sender());
     updateAction(action);
 }
 
-void PDFActionComboBox::onActionActivated(int index)
+void PDFActionComboBox::performExecuteAction()
 {
-    QVariant actionData = itemData(index, Qt::UserRole);
-    QAction* action = actionData.value<QAction*>();
+    QString text = this->text();
 
-    lineEdit()->clear();
-    setCurrentIndex(-1);
+    QAction* action = nullptr;
+    for (QAction* currentAction : m_actions)
+    {
+        if (currentAction->text() == text)
+        {
+            action = currentAction;
+        }
+    }
 
-    if (action && action->isEnabled())
+    clear();
+    completer()->setCompletionPrefix(QString());
+
+    if (action)
     {
         action->trigger();
     }
-}
-
-void PDFActionComboBox::onEditTextChanged(const QString& text)
-{
-    if (text.isEmpty())
-    {
-        m_proxyModel->setFilterFixedString(QString());
-    }
-    else if (text.contains(QChar('*')) || text.contains(QChar('?')))
-    {
-        m_proxyModel->setFilterWildcard(text);
-    }
-    else
-    {
-        m_proxyModel->setFilterFixedString(text);
-    }
-
-    if (!text.isEmpty())
-    {
-        showPopup();
-    }
-    else
-    {
-        hidePopup();
-    }
-
-    lineEdit()->setFocus();
-    lineEdit()->setCursorPosition(text.size());
 }
 
 void PDFActionComboBox::updateAction(QAction* action)
@@ -166,8 +188,6 @@ void PDFActionComboBox::updateAction(QAction* action)
             m_model->removeRow(actionIndex);
         }
     }
-
-    setCurrentIndex(-1);
 }
 
 int PDFActionComboBox::findAction(QAction* action)

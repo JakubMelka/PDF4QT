@@ -22,6 +22,7 @@
 
 #include <QAction>
 #include <QComboBox>
+#include <QLineEdit>
 
 class QStandardItemModel;
 class QSortFilterProxyModel;
@@ -29,18 +30,19 @@ class QSortFilterProxyModel;
 namespace pdfviewer
 {
 
-class PDFActionComboBox : public QComboBox
+class PDFActionComboBox : public QLineEdit
 {
     Q_OBJECT
 
 private:
-    using BaseClass = QComboBox;
+    using BaseClass = QLineEdit;
 
 public:
     PDFActionComboBox(QWidget* parent);
 
     virtual QSize sizeHint() const override;
     virtual QSize minimumSizeHint() const override;
+    virtual bool event(QEvent* event) override;
 
     void addQuickFindAction(QAction* action);
 
@@ -48,15 +50,13 @@ private:
     static constexpr int DEFAULT_WIDTH = 220;
 
     void onActionChanged();
-    void onActionActivated(int index);
-    void onEditTextChanged(const QString& text);
+    void performExecuteAction();
 
     void updateAction(QAction* action);
     int findAction(QAction* action);
 
     std::vector<QAction*> m_actions;
     QStandardItemModel* m_model;
-    QSortFilterProxyModel* m_proxyModel;
 };
 
 }   // namespace pdfviewer
