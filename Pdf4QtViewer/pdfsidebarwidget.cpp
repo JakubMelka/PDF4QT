@@ -1027,6 +1027,28 @@ void PDFSidebarWidget::onOutlineTreeViewContextMenuRequested(const QPoint& pos)
         return onSetTarget;
     };
 
+    auto createOnSetTargetPage = [this, sourceIndex](pdf::DestinationType destinationType)
+    {
+        auto onSetTargetPage = [this, sourceIndex, destinationType]()
+        {
+            pdf::PDFToolManager* toolManager = m_proxy->getWidget()->getToolManager();
+
+            auto pickPage = [this, sourceIndex, destinationType](pdf::PDFInteger pageIndex)
+            {
+                pdf::PDFDestination destination;
+                destination.setDestinationType(destinationType);
+                destination.setPageIndex(pageIndex);
+                destination.setPageReference(m_document->getCatalog()->getPage(pageIndex)->getPageReference());
+                destination.setZoom(m_proxy->getZoom());
+                m_outlineTreeModel->setDestination(sourceIndex, destination);
+            };
+
+            toolManager->pickPage(pickPage);
+        };
+
+        return onSetTargetPage;
+    };
+
     auto onNamedDestinationTriggered = [this, sourceIndex]()
     {
         class SelectNamedDestinationDialog : public QDialog
@@ -1081,13 +1103,13 @@ void PDFSidebarWidget::onOutlineTreeViewContextMenuRequested(const QPoint& pos)
     };
 
     submenu->addAction(tr("Named Destination"), onNamedDestinationTriggered);
-    submenu->addAction(tr("Fit Page"), createOnSetTarget(pdf::DestinationType::Fit));
-    submenu->addAction(tr("Fit Page Horizontally"), createOnSetTarget(pdf::DestinationType::FitH));
-    submenu->addAction(tr("Fit Page Vertically"), createOnSetTarget(pdf::DestinationType::FitV));
+    submenu->addAction(tr("Fit Page"), createOnSetTargetPage(pdf::DestinationType::Fit));
+    submenu->addAction(tr("Fit Page Horizontally"), createOnSetTargetPage(pdf::DestinationType::FitH));
+    submenu->addAction(tr("Fit Page Vertically"), createOnSetTargetPage(pdf::DestinationType::FitV));
     submenu->addAction(tr("Fit Rectangle"), createOnSetTarget(pdf::DestinationType::FitR));
-    submenu->addAction(tr("Fit Bounding Box"), createOnSetTarget(pdf::DestinationType::FitB));
-    submenu->addAction(tr("Fit Bounding Box Horizontally"), createOnSetTarget(pdf::DestinationType::FitBH));
-    submenu->addAction(tr("Fit Bounding Box Vertically"), createOnSetTarget(pdf::DestinationType::FitBV));
+    submenu->addAction(tr("Fit Bounding Box"), createOnSetTargetPage(pdf::DestinationType::FitB));
+    submenu->addAction(tr("Fit Bounding Box Horizontally"), createOnSetTargetPage(pdf::DestinationType::FitBH));
+    submenu->addAction(tr("Fit Bounding Box Vertically"), createOnSetTargetPage(pdf::DestinationType::FitBV));
     submenu->addAction(tr("XYZ"), createOnSetTarget(pdf::DestinationType::XYZ));
 
     contextMenu.exec(ui->outlineTreeView->mapToGlobal(pos));

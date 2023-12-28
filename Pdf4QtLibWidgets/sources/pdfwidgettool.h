@@ -343,6 +343,7 @@ public:
 
     enum class Mode
     {
+        Pages,      ///< Pick whole single page
         Points,     ///< Pick points
         Rectangles, ///< Pick rectangles
         Images      ///< Pick images
@@ -354,7 +355,8 @@ public:
     /// \param parent Parent object
     explicit PDFPickTool(PDFDrawWidgetProxy* proxy, Mode mode, QObject* parent);
 
-    virtual void drawPage(QPainter* painter, PDFInteger pageIndex,
+    virtual void drawPage(QPainter* painter,
+                          PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
@@ -388,6 +390,7 @@ signals:
     void pointPicked(pdf::PDFInteger pageIndex, QPointF pagePoint);
     void rectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
     void imagePicked(const QImage& image);
+    void pagePicked(pdf::PDFInteger pageIndex);
 
 protected:
     virtual void setActiveImpl(bool active) override;
@@ -540,6 +543,7 @@ public:
 
     enum PredefinedTools
     {
+        PickPageTool,
         PickRectangleTool,
         FindTextTool,
         SelectTextTool,
@@ -560,6 +564,11 @@ public:
     /// then callback is called.
     /// \param callback Callback function
     void pickRectangle(std::function<void(PDFInteger, QRectF)> callback);
+
+    /// Picks page, if page is successfully picked,
+    /// then callback is called.
+    /// \param callback Callback function
+    void pickPage(std::function<void(PDFInteger)> callback);
 
     /// Returns first active tool from tool set. If no tool is active,
     /// then nullptr is returned.
@@ -632,11 +641,13 @@ private:
     void onToolActivityChanged(bool active);
     void onToolActionTriggered(bool checked);
     void onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle);
+    void onPagePicked(PDFInteger pageIndex);
 
     std::set<PDFWidgetTool*> m_tools;
     std::array<PDFWidgetTool*, ToolEnd> m_predefinedTools;
     std::map<QAction*, PDFWidgetTool*> m_actionsToTools;
     std::function<void(PDFInteger, QRectF)> m_pickRectangleCallback;
+    std::function<void(PDFInteger)> m_pickPageCallback;
 };
 
 }   // namespace pdf
