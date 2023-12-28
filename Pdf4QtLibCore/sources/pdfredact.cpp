@@ -1,4 +1,4 @@
-//    Copyright (C) 2020-2022 Jakub Melka
+//    Copyright (C) 2020-2023 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -98,7 +98,7 @@ PDFDocument PDFRedact::perform(Options options)
             const PDFRedactAnnotation* redactAnnotation = dynamic_cast<const PDFRedactAnnotation*>(annotation.get());
             Q_ASSERT(redactAnnotation);
 
-            redactPath.addPath(redactAnnotation->getRedactionRegion().getPath());
+            redactPath = redactPath.united(redactAnnotation->getRedactionRegion().getPath());
         }
 
         QTransform matrix;

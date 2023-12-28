@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #137: Redaction - Cannot convert '#000000' to color value
  - Issue #134: Add search bar for actions
  - Issue #129: Cannot compile with lcms 2.16
  - Issue #128: Create list of markup annotations 
