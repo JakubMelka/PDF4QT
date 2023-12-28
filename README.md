@@ -1,3 +1,5 @@
+[![CI](https://github.com/JakubMelka/PDF4QT/actions/workflows/ci.yml/badge.svg)](https://github.com/JakubMelka/PDF4QT/actions/workflows/ci.yml)
+
 # PDF4QT
 
 **(c) Jakub Melka 2018-2023**
