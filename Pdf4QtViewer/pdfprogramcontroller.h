@@ -179,7 +179,6 @@ public:
         ToolMagnifier,
         ToolScreenshot,
         ToolExtractImage,
-        DeveloperCreateInstaller,
         BookmarkPage,
         BookmarkGoToNext,
         BookmarkGoToPrevious,
@@ -372,7 +371,6 @@ private:
     void onActionCertificateManagerTriggered();
     void onActionOpenTriggered();
     void onActionCloseTriggered();
-    void onActionDeveloperCreateInstaller();
     void onActionGetSource();
     void onActionBecomeSponsor();
     void onActionAutomaticDocumentRefresh();

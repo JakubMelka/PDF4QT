@@ -55,7 +55,6 @@
         <file>resources/squiggly.svg</file>
         <file>resources/strikeout.svg</file>
         <file>resources/underline.svg</file>
-        <file>../LICENSE.txt</file>
         <file>resources/annot-ellipse.svg</file>
         <file>resources/annot-freehand-curve.svg</file>
         <file>resources/annot-inline-text.svg</file>

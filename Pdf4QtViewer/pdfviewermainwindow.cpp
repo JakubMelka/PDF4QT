@@ -195,7 +195,6 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_actionManager->setAction(PDFActionManager::ToolMagnifier, ui->actionMagnifier);
     m_actionManager->setAction(PDFActionManager::ToolScreenshot, ui->actionScreenshot);
     m_actionManager->setAction(PDFActionManager::ToolExtractImage, ui->actionExtractImage);
-    m_actionManager->setAction(PDFActionManager::DeveloperCreateInstaller, ui->actionDeveloperCreateInstaller);
     m_actionManager->setAction(PDFActionManager::BookmarkPage, ui->actionBookmarkPage);
     m_actionManager->setAction(PDFActionManager::BookmarkGoToNext, ui->actionGotoNextBookmark);
     m_actionManager->setAction(PDFActionManager::BookmarkGoToPrevious, ui->actionGotoPreviousBookmark);

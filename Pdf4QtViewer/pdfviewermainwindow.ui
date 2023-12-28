@@ -139,7 +139,6 @@
     </property>
     <addaction name="actionShow_Text_Blocks"/>
     <addaction name="actionShow_Text_Lines"/>
-    <addaction name="actionDeveloperCreateInstaller"/>
    </widget>
    <widget class="QMenu" name="menuEdit">
     <property name="title">
@@ -983,11 +982,6 @@
    </property>
    <property name="text">
     <string>Go to previous line</string>
-   </property>
-  </action>
-  <action name="actionDeveloperCreateInstaller">
-   <property name="text">
-    <string>Create Installer</string>
    </property>
   </action>
   <action name="actionGetSource">
