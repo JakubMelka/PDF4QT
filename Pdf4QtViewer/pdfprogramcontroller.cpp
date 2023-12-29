@@ -2056,7 +2056,7 @@ void PDFProgramController::closeDocument()
             QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
 
             settings.beginGroup("LastOpenedDocumentPages");
-            settings.setValue(m_fileInfo.absoluteFilePath, pages.front());
+            settings.setValue(m_fileInfo.absoluteFilePath, int(pages.front()));
             settings.endGroup();
         }
     }
