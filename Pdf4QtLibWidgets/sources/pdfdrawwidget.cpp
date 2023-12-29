@@ -128,7 +128,7 @@ void PDFWidget::updateRenderer(RendererEngine engine, int samplesCount)
 void PDFWidget::updateCacheLimits(int compiledPageCacheLimit, int thumbnailsCacheLimit, int fontCacheLimit, int instancedFontCacheLimit)
 {
     m_proxy->getCompiler()->setCacheLimit(compiledPageCacheLimit);
-    QPixmapCache::setCacheLimit(thumbnailsCacheLimit);
+    QPixmapCache::setCacheLimit(qMax(thumbnailsCacheLimit, 16384));
     m_proxy->getFontCache()->setCacheLimits(fontCacheLimit, instancedFontCacheLimit);
 }
 
