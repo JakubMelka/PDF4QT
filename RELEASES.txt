@@ -1,6 +1,7 @@
 CURRENT:
  - Issue #137: Redaction - Cannot convert '#000000' to color value
  - Issue #134: Add search bar for actions
+ - Issue #133: Rectangle selector when choosing the page of the PDF 
  - Issue #129: Cannot compile with lcms 2.16
  - Issue #128: Create list of markup annotations 
  - Issue #126: Remove <QtCore> include from main headers

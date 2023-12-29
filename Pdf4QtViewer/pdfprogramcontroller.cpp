@@ -1900,6 +1900,17 @@ void PDFProgramController::onDocumentReadingFinished()
                 QMessageBox::warning(m_mainWindow, QApplication::applicationDisplayName(), requirementResult.message);
             }
 
+            QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
+
+            settings.beginGroup("LastOpenedDocumentPages");
+            QVariant lastOpenedPage = settings.value(m_fileInfo.absoluteFilePath, QVariant());
+            settings.endGroup();
+
+            if (lastOpenedPage.isValid())
+            {
+                m_pdfWidget->getDrawWidgetProxy()->goToPage(lastOpenedPage.toInt());
+            }
+
             m_mainWindowInterface->setStatusBarMessage(tr("Document '%1' was successfully loaded!").arg(m_fileInfo.fileName), 4000);
             break;
         }
@@ -2036,6 +2047,20 @@ void PDFProgramController::setDocument(pdf::PDFModifiedDocument document, bool i
 
 void PDFProgramController::closeDocument()
 {
+    if (m_pdfDocument && !m_fileInfo.absoluteFilePath.isEmpty())
+    {
+        std::vector<pdf::PDFInteger> pages = m_pdfWidget->getDrawWidget()->getCurrentPages();
+
+        if (!pages.empty())
+        {
+            QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
+
+            settings.beginGroup("LastOpenedDocumentPages");
+            settings.setValue(m_fileInfo.absoluteFilePath, pages.front());
+            settings.endGroup();
+        }
+    }
+
     m_signatures.clear();
     setDocument(pdf::PDFModifiedDocument(), true);
     m_pdfDocument.reset();
