@@ -14,6 +14,7 @@ CURRENT:
  - Issue #113: Color | Custom (green/black) partially works in scanned PDF (1.3.6)
  - Issue #112: smooth scrolling
  - Issue #104: pdf_3d branch and license
+ - Issue #102: Does this software use Qt's PDF tool? Or based on Poppler or muPDF? 
  - Issue #99: Icons for dark mode
  - Issue #55: System certificates store - not found
  - Issue #54: Bookmarks for pages
