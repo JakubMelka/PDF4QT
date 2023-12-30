@@ -939,13 +939,39 @@ void PDFSidebarWidget::onOutlineTreeViewContextMenuRequested(const QPoint& pos)
 
     auto onInsert = [this, proxyIndex]()
     {
+        QModelIndex insertProxyIndex;
+
+        QAbstractItemModel* model = ui->outlineTreeView->model();
         if (proxyIndex.isValid())
         {
-            ui->outlineTreeView->model()->insertRow(proxyIndex.row() + 1, proxyIndex.parent());
+            if (model->insertRow(proxyIndex.row() + 1, proxyIndex.parent()))
+            {
+                insertProxyIndex = proxyIndex.sibling(proxyIndex.row() + 1, 0);
+            }
         }
         else
         {
-            ui->outlineTreeView->model()->insertRow(ui->outlineTreeView->model()->rowCount());
+            if (model->insertRow(model->rowCount()))
+            {
+                insertProxyIndex = model->index(model->rowCount() - 1, 0);
+            }
+        }
+
+        if (insertProxyIndex.isValid())
+        {
+            std::vector<pdf::PDFInteger> pages = m_proxy->getWidget()->getDrawWidget()->getCurrentPages();
+
+            if (!pages.empty())
+            {
+                QModelIndex sourceInsertIndex = m_outlineSortProxyTreeModel->mapToSource(insertProxyIndex);
+
+                pdf::PDFDestination destination;
+                destination.setDestinationType(pdf::DestinationType::Fit);
+                destination.setPageIndex(pages.front());
+                destination.setPageReference(m_document->getCatalog()->getPage(pages.front())->getPageReference());
+                destination.setZoom(m_proxy->getZoom());
+                m_outlineTreeModel->setDestination(sourceInsertIndex, destination);
+            }
         }
     };
 
