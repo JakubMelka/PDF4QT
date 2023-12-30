@@ -1328,7 +1328,24 @@ void PDFDrawWidgetProxy::setPageLayout(PageLayout pageLayout)
 {
     if (getPageLayout() != pageLayout)
     {
+        std::optional<PDFInteger> pageIndex;
+
+        if (m_widget)
+        {
+            std::vector<PDFInteger> currentPages = m_widget->getDrawWidget()->getCurrentPages();
+            if (!currentPages.empty())
+            {
+                pageIndex = currentPages.front();
+            }
+        }
+
         m_controller->setPageLayout(pageLayout);
+
+        if (pageIndex.has_value())
+        {
+            goToPage(*pageIndex);
+        }
+
         Q_EMIT pageLayoutChanged();
     }
 }

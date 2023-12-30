@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #139: Changing page layout reset the current page
  - Issue #137: Redaction - Cannot convert '#000000' to color value
  - Issue #134: Add search bar for actions
  - Issue #133: Rectangle selector when choosing the page of the PDF 
