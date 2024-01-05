@@ -645,8 +645,14 @@ void PDFDrawWidgetBase<BaseWidget>::wheelEvent(QWheelEvent* event)
             // We must move to another block (we are in block mode)
             bool up = scrollByPixels.y() > 0;
 
-            m_widget->getVerticalScrollbar()->setValue(m_widget->getVerticalScrollbar()->value() + (up ? -1 : 1));
-            proxy->scrollByPixels(QPoint(0, up ? std::numeric_limits<int>::min() : std::numeric_limits<int>::max()));
+            QScrollBar* verticalScrollbar = m_widget->getVerticalScrollbar();
+            const int newValue = verticalScrollbar->value() + (up ? -1 : 1);
+
+            if (newValue >= verticalScrollbar->minimum() && newValue <= verticalScrollbar->maximum())
+            {
+                verticalScrollbar->setValue(newValue);
+                proxy->scrollByPixels(QPoint(0, up ? std::numeric_limits<int>::min() : std::numeric_limits<int>::max()));
+            }
         }
     }
 
