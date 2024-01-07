@@ -104,6 +104,18 @@ option(PDF4QT_INSTALL_TO_USR "Install to usr directory" ON)
 if(PDF4QT_LINUX)
     set(PDF4QT_INSTALL_LIB_DIR_IMPL lib)
     set(PDF4QT_INSTALL_BIN_DIR_IMPL bin)
+
+    # Check if VCPKG_OVERLAY_PORTS is set as an environment variable or a CMake argument
+    if(NOT DEFINED ENV{VCPKG_OVERLAY_PORTS} AND NOT DEFINED VCPKG_OVERLAY_PORTS)
+        message(WARNING "The VCPKG_OVERLAY_PORTS variable is not set! Application can crash in Open/Save dialog due to incompatible LIBPNG.")
+    else()
+        set(VCPKG_OVERLAY_PORTS_VALUE "$ENV{VCPKG_OVERLAY_PORTS}")
+        if(DEFINED VCPKG_OVERLAY_PORTS)
+            set(VCPKG_OVERLAY_PORTS_VALUE "${VCPKG_OVERLAY_PORTS}")
+        endif()
+        message(STATUS "The VCPKG_OVERLAY_PORTS variable is set to: ${VCPKG_OVERLAY_PORTS_VALUE}")
+    endif()
+
 else()
     set(PDF4QT_INSTALL_LIB_DIR_IMPL bin)
     set(PDF4QT_INSTALL_BIN_DIR_IMPL bin)

@@ -126,6 +126,8 @@ On Linux, a GCC version >= 8 should work, altough we tested it with GCC 11.
 
     For a debug build, append `-DCMAKE_BUILD_TYPE=Debug`.
 
+    It is recommended to set the VCPKG_OVERLAY_PORTS variable to 'PDF4QT/vcpkg/overlays' to prevent crashes due to the incompatible LIBPNG library on some Linux systems.
+
     2.3 Build
 
         cmake --build build
@@ -154,7 +156,8 @@ CMake can prepare a Wix project to create a *.msi installer package.
 | `PDF4QT_INSTALL_PREPARE_WIX_INSTALLER` | Windows  |Prepare .msi installator using Wix installer              |
 | `PDF4QT_INSTALL_DEPENDENCIES`          | Any      |Install dependent libraries into installation directory   |
 | `PDF4QT_INSTALL_QT_DEPENDENCIES`       | Any      |Install Qt dependent libraries into installation directory|
-
+| `VCPKG_OVERLAY_PORTS`                  | Linux    |Set it to prevent crashes with incompatible libpng library|
+ 
 Following important variables should be set or checked before any attempt to compile this project:
 
 |                  Variable              | Platform |     Description                                          |
