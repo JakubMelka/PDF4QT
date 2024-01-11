@@ -1778,7 +1778,7 @@ PDFColorProfileIdentifiers PDFCMSManager::getExternalProfilesImpl() const
     if (directory.exists())
     {
         QStringList colorDirectories = directory.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-        for (const QString colorDirectory : colorDirectories)
+        for (const QString& colorDirectory : colorDirectories)
         {
             QString colorDirectoryName = directory.absoluteFilePath(colorDirectory);
             directories << QDir::fromNativeSeparators(colorDirectoryName);
