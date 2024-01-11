@@ -2646,7 +2646,7 @@ PDFAnnotationDefaultAppearance PDFAnnotationDefaultAppearance::parse(const QByte
 
     auto readNumber = [&tokens](size_t index) -> PDFReal
     {
-        Q_ASSERT(index >= 0 && index < tokens.size());
+        Q_ASSERT(index < tokens.size());
         const PDFLexicalAnalyzer::Token& token = tokens[index];
         if (token.type == PDFLexicalAnalyzer::TokenType::Real ||
             token.type == PDFLexicalAnalyzer::TokenType::Integer)
