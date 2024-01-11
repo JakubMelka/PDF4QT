@@ -1814,7 +1814,7 @@ void PDFDiffResultNavigator::setResult(const PDFDiffResult* diffResult)
 bool PDFDiffResultNavigator::isSelected() const
 {
     const size_t limit = getLimit();
-    return m_currentIndex >= 0 && m_currentIndex < limit;
+    return m_currentIndex < limit;
 }
 
 bool PDFDiffResultNavigator::canGoNext() const
