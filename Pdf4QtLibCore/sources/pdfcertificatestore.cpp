@@ -401,7 +401,7 @@ bool PDFCertificateStore::add(PDFCertificateEntry::EntryType type, PDFCertificat
     auto it = std::find_if(m_certificates.cbegin(), m_certificates.cend(), [&info](const auto& entry) { return entry.info == info; });
     if (it == m_certificates.cend())
     {
-        m_certificates.push_back({ type, qMove(info) });
+        m_certificates.push_back({ type, qMove(info), QByteArray(), QString() });
     }
 
     return true;
