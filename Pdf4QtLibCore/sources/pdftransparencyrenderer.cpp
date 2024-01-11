@@ -527,8 +527,8 @@ void PDFFloatBitmap::blend(const PDFFloatBitmap& source,
 
     Q_ASSERT(blendRegion.left() >= 0);
     Q_ASSERT(blendRegion.top() >= 0);
-    Q_ASSERT(blendRegion.right() < source.getWidth());
-    Q_ASSERT(blendRegion.bottom() < source.getHeight());
+    Q_ASSERT(static_cast<std::size_t>( blendRegion.right() ) < source.getWidth());
+    Q_ASSERT(static_cast< std::size_t >( blendRegion.bottom() ) < source.getHeight());
 
     const PDFPixelFormat pixelFormat = source.getPixelFormat();
     const uint8_t shapeChannel = pixelFormat.getShapeChannelIndex();
@@ -3682,7 +3682,7 @@ PDFColorComponent PDFPainterPathSampler::sampleByScanLine(QPoint point) const
     PDFColorComponent sampleValue = 0.0f;
     const PDFColorComponent sampleGain = 1.0f / PDFColorComponent(m_samplesCount * m_samplesCount);
 
-    for (size_t i = 0; i < m_samplesCount; ++i)
+    for (int i = 0; i < m_samplesCount; ++i)
     {
         sampleValue += performSampling(scanLineGridRowTop++, coordX1 + offset, m_samplesCount, offset, sampleGain);
     }

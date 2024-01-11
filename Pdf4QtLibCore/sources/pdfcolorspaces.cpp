@@ -2132,7 +2132,7 @@ std::vector<PDFColorComponent> PDFIndexedColorSpace::transformColorsToBaseColorS
 
         const char* bytePointer = m_colors.constData() + byteOffset;
 
-        for (int i = 0; i < colorComponentCount; ++i)
+        for (std::size_t i = 0; i < colorComponentCount; ++i)
         {
             const unsigned char value = *bytePointer++;
             const PDFColorComponent component = static_cast<PDFColorComponent>(value) / 255.0f;

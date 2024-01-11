@@ -324,7 +324,7 @@ PDFImageData PDFCCITTFaxDecoder::decode()
 
         if (isUsing2DEncoding)
         {
-            int b1_index = 0;
+            size_t b1_index = 0;
 
             // 2D encoding
             while (codingLine[a0_index] < m_parameters.columns)

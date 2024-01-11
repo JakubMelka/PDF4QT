@@ -773,7 +773,7 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
                         pageIndex1 = textItem->pageIndex;
                     }
 
-                    if (textCompareItem.charIndex + textCompareItem.charCount <= textItem->characterBoundingRects.size())
+                    if (static_cast< std::size_t >( textCompareItem.charIndex ) + textCompareItem.charCount <= textItem->characterBoundingRects.size())
                     {
                         const size_t startIndex =  textCompareItem.charIndex;
                         const size_t endIndex = startIndex + textCompareItem.charCount;
@@ -801,7 +801,7 @@ void PDFDiff::performCompare(const std::vector<PDFDiffPageContext>& leftPrepared
                         pageIndex2 = textItem->pageIndex;
                     }
 
-                    if (textCompareItem.charIndex + textCompareItem.charCount <= textItem->characterBoundingRects.size())
+                    if (static_cast< std::size_t >(textCompareItem.charIndex) + textCompareItem.charCount <= textItem->characterBoundingRects.size())
                     {
                         const size_t startIndex =  textCompareItem.charIndex;
                         const size_t endIndex = startIndex + textCompareItem.charCount;

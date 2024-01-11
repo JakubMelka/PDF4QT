@@ -112,7 +112,7 @@ QByteArray PDFAscii85DecodeFilter::apply(const QByteArray& data,
             std::array<uint32_t, 5> scannedChars;
             scannedChars.fill(84);
             scannedChars[0] = scannedChar - 33;
-            int validBytes = 0;
+            std::size_t validBytes = 0;
             for (auto it2 = std::next(scannedChars.begin()); it2 != scannedChars.end(); ++it2)
             {
                 uint32_t character = getChar();
@@ -141,7 +141,7 @@ QByteArray PDFAscii85DecodeFilter::apply(const QByteArray& data,
             }
 
             Q_ASSERT(validBytes <= decodedBytesUnpacked.size());
-            for (int i = 0; i < validBytes; ++i)
+            for (std::size_t i = 0; i < validBytes; ++i)
             {
                 result.push_back(decodedBytesUnpacked[i]);
             }

@@ -1305,7 +1305,7 @@ bool PDFSignatureHandler_adbe_pkcs7_rsa_sha1::getMessageDigestAlgorithm(ASN1_OCT
         return false;
     }
 
-    Q_ASSERT(signatureSize < decryptedBuffer.size());
+    Q_ASSERT(static_cast<std::size_t>(signatureSize) < decryptedBuffer.size());
 
     const unsigned char* decryptedBufferPtr = decryptedBuffer.data();
     if (X509_SIG* x509_sig = d2i_X509_SIG(nullptr, &decryptedBufferPtr, signatureSize))
