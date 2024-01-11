@@ -2104,7 +2104,7 @@ void PDFFontCache::setCacheShrinkEnabled(const void* source, bool enabled)
     }
 }
 
-void PDFFontCache::setCacheLimits(int fontCacheLimit, int instancedFontCacheLimit)
+void PDFFontCache::setCacheLimits(std::size_t fontCacheLimit, std::size_t instancedFontCacheLimit)
 {
     if (m_fontCacheLimit != fontCacheLimit || m_realizedFontCacheLimit != instancedFontCacheLimit)
     {

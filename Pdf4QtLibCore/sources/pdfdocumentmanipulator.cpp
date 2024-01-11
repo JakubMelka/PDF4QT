@@ -283,9 +283,9 @@ PDFDocumentManipulator::ProcessedPages PDFDocumentManipulator::collectObjectsAnd
             std::vector<pdf::PDFObjectReference> objectsToMerge;
             objectsToMerge.reserve(std::distance(it, itEnd));
 
-            for (int pageIndex : pageIndices)
+            for (PDFInteger pageIndex : pageIndices)
             {
-                if (pageIndex < 0 || pageIndex >= currentPages.size())
+                if (pageIndex < 0 || pageIndex >= static_cast< PDFInteger >(currentPages.size()))
                 {
                     throw PDFException(tr("Missing page (%1) in a document.").arg(pageIndex));
                 }

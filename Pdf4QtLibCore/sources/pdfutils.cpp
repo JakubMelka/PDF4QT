@@ -581,7 +581,7 @@ QColor PDFColorScale::map(PDFReal value) const
         fractionValue = 1.0;
     }
 
-    Q_ASSERT(index + 1 < m_colorScales.size());
+    Q_ASSERT(index + 1 < static_cast<int>(m_colorScales.size()));
 
     const QColor& leftValue = m_colorScales[index];
     const QColor& rightValue = m_colorScales[index + 1];

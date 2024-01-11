@@ -452,7 +452,7 @@ public:
     void setCacheShrinkEnabled(const void* source, bool enabled);
 
     /// Set font cache limits
-    void setCacheLimits(int fontCacheLimit, int instancedFontCacheLimit);
+    void setCacheLimits(std::size_t fontCacheLimit, std::size_t instancedFontCacheLimit);
 
     /// If shrinking is enabled, then erase font, if cache limit is exceeded.
     void shrink();

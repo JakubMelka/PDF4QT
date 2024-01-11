@@ -10398,7 +10398,7 @@ void PDFXFALayoutEngine::layoutFlow(LayoutParameters& layoutParameters, bool bre
                 sourceLayout.updatePresence(layoutParameters.presence);
 
                 PDFReal width = 0;
-                for (size_t i = 0; i < sourceLayout.colSpan; ++i)
+                for (int i = 0; i < sourceLayout.colSpan; ++i)
                 {
                     if (columnTargetIndex >= columnWidths.size())
                     {
