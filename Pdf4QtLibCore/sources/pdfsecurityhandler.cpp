@@ -1243,6 +1243,7 @@ QByteArray PDFStandardOrPublicSecurityHandler::adjustPassword(const QString& pas
             // We don't do other checks. We will transform password to the UTF-8 encoding
             // and according the PDF specification, we take only first 127 characters.
             result = preparedPassword.toUtf8().left(127);
+            break;
         }
 
         default:
