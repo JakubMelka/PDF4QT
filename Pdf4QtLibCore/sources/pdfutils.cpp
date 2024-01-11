@@ -19,7 +19,7 @@
 #include "pdfexception.h"
 
 #include <QtGlobal>
-
+#include <QtMath>
 #include "pdfdbgheap.h"
 
 #include <jpeglib.h>

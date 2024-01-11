@@ -23,6 +23,7 @@
 #include "pdfutils.h"
 
 #include <QIODevice>
+#include <QtMath>
 
 #include "pdfdbgheap.h"
 

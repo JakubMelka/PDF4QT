@@ -26,6 +26,7 @@
 #include "pdfpainterutils.h"
 #include "pdfdocumentbuilder.h"
 
+#include <QtMath>
 #include <QIcon>
 
 #include "pdfdbgheap.h"

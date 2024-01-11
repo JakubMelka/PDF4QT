@@ -24,6 +24,7 @@
 
 #include <QDir>
 #include <QElapsedTimer>
+#include <QtMath>
 
 #ifdef PDF4QT_ENABLE_OPENGL
 #include <QOpenGLContext>

@@ -20,6 +20,7 @@
 #include <QDir>
 #include <QFile>
 #include <QCoreApplication>
+#include <QTextStream>
 
 #include "pdfdbgheap.h"
 

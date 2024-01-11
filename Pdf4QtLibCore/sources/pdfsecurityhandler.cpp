@@ -24,6 +24,8 @@
 #include "pdfcertificatemanager.h"
 
 #include <QRandomGenerator>
+#include <QtMath>
+#include <QtEndian>
 
 #include "pdfdbgheap.h"
 
