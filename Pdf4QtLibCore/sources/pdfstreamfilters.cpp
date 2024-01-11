@@ -895,7 +895,7 @@ QByteArray PDFStreamPredictor::applyPNGPredictor(const QByteArray& data) const
             }
 
             // Fill the output buffer
-            outputData.push_back(static_cast<const char>(line[lineIndex]));
+            outputData.push_back(static_cast<char>(line[lineIndex]));
         }
 
         // Swap the buffers
