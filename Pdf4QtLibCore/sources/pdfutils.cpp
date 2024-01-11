@@ -225,7 +225,7 @@ void PDFBitWriter::flush(bool alignToByteBoundary)
         for (Value byteIndex = 0; byteIndex < bytesToWrite; ++byteIndex)
         {
             const Value shift = (bytesToWrite - 1 - byteIndex) * 8;
-            m_outputByteArray.push_back(static_cast<const char>(static_cast<uint8_t>((alignedBuffer >> shift) & 0xFF)));
+            m_outputByteArray.push_back(static_cast<char>(static_cast<uint8_t>((alignedBuffer >> shift) & 0xFF)));
         }
 
         m_bitsInBuffer = remainder;
