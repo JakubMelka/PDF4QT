@@ -71,11 +71,11 @@ public:
     {
         if constexpr (index < FlatSize)
         {
-            return m_flatBlock[size];
+            return m_flatBlock[size()];
         }
         else
         {
-            return m_variableBlock[size - FlatSize];
+            return m_variableBlock[size() - FlatSize];
         }
     }
 
@@ -84,11 +84,11 @@ public:
     {
         if constexpr (index < FlatSize)
         {
-            return m_flatBlock[size];
+            return m_flatBlock[size()];
         }
         else
         {
-            return m_variableBlock[size - FlatSize];
+            return m_variableBlock[size() - FlatSize];
         }
     }
 
