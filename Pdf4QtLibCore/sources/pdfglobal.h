@@ -25,6 +25,7 @@
 #include <limits>
 #include <tuple>
 #include <array>
+#include <cmath>
 
 #include <pdf4qtlibcore_export.h>
 

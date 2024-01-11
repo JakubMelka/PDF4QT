@@ -24,6 +24,7 @@
 #include "pdfstreamfilters.h"
 
 #include <QPainterPathStroker>
+#include <QtMath>
 
 #include "pdfdbgheap.h"
 

@@ -19,6 +19,7 @@
 #include "pdfutils.h"
 #include "pdfexecutionpolicy.h"
 
+#include <QtMath>
 #include <QMutex>
 #include <QPainter>
 #include <QIODevice>

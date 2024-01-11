@@ -21,6 +21,7 @@
 
 #include <QPainter>
 #include <QCryptographicHash>
+#include <QtMath>
 
 #include "pdfdbgheap.h"
 

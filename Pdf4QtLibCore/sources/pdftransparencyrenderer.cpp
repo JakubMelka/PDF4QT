@@ -23,6 +23,7 @@
 #include "pdfpattern.h"
 #include "pdfdbgheap.h"
 
+#include <QtMath>
 #include <iterator>
 
 namespace pdf

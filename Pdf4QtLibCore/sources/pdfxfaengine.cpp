@@ -30,6 +30,7 @@
 #include <QTextBlock>
 #include <QFontDatabase>
 #include <QAbstractTextDocumentLayout>
+#include <QtMath>
 
 #include "pdfdbgheap.h"
 

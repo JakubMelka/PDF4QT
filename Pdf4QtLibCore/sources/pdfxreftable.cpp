@@ -22,6 +22,7 @@
 #include "pdfstreamfilters.h"
 
 #include <QIODevice>
+#include <QDataStream>
 
 #include "pdfdbgheap.h"
 

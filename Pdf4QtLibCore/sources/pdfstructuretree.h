@@ -18,6 +18,8 @@
 #ifndef PDFSTRUCTURETREE_H
 #define PDFSTRUCTURETREE_H
 
+#include <QSharedPointer>
+
 #include "pdfobject.h"
 #include "pdfobjectutils.h"
 #include "pdffile.h"
