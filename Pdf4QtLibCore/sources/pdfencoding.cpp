@@ -2174,7 +2174,7 @@ bool PDFEncoding::canConvertToEncoding(const QString& string, Encoding encoding,
         ushort unicode = character.unicode();
         bool converted = false;
 
-        for (int i = 0; i < table->size(); ++i)
+        for (int i = 0; i < static_cast< int >(table->size()); ++i)
         {
             if (unicode == (*table)[static_cast<unsigned char>(i)])
             {
