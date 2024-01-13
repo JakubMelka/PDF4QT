@@ -252,7 +252,7 @@ bool PDFOptimizer::performMergeIdenticalObjects()
     std::vector<QByteArray> serializedObjects(objects.size());
 
     PDFIntegerRange<size_t> range(0, objects.size());
-    auto serializeEntry = [&, this](size_t index)
+    auto serializeEntry = [&objects, &serializedObjects](size_t index)
     {
         const PDFObjectStorage::Entry& entry = objects[index];
 
