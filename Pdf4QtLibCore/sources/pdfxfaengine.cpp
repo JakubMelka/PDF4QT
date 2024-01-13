@@ -9855,7 +9855,6 @@ private:
 
     xfa::XFA_Node<xfa::XFA_template> m_template;
     const PDFDocument* m_document;
-    PDFForm* m_form;
     Layout m_layout;
     std::map<int, QByteArray> m_fonts;
 };
@@ -11621,8 +11620,7 @@ void PDFXFAEngine::draw(const QTransform& pagePointToDevicePointMatrix,
 }
 
 PDFXFAEngineImpl::PDFXFAEngineImpl() :
-    m_document(nullptr),
-    m_form(nullptr)
+    m_document(nullptr)
 {
 
 }
