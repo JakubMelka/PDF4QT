@@ -56,7 +56,7 @@ jobs:
       - name: Build project
         working-directory: pdf4qt
         run: |
-          cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release -DVCPKG_OVERLAY_PORTS=vcpkg/overlays
+          cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release -DVCPKG_OVERLAY_PORTS=vcpkg/overlays -DPDF4QT_INSTALL_TO_USR=ON
           cmake --build build -j6
           cmake --install build
           
@@ -65,7 +65,8 @@ jobs:
         run: |
           wget -O deploy.AppImage https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage
           chmod +x deploy.AppImage
-          ./deploy.AppImage install/usr/share/io.github.JakubMelka.Pdf4qt.desktop -executable-dir=install/usr/bin 
+          ls -l
+          ./deploy.AppImage install/usr/share/io.github.JakubMelka.Pdf4qt.desktop -executable-dir=install/usr/bin -extra-plugins=iconengines,svg,imageformats
 
       - name: Make DEB package
         working-directory: pdf4qt/build
