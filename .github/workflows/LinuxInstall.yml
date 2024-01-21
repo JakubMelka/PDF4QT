@@ -18,6 +18,9 @@ jobs:
         with:
           version: 11
           platform: x64
+          
+      - name: Install LinuxDeployQt
+        uses: miurahr/install-linuxdeployqt-action@v0
 
       - name: 'VCPKG: Set up VCPKG'
         run: |
@@ -59,6 +62,11 @@ jobs:
           cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release -DVCPKG_OVERLAY_PORTS=vcpkg/overlays
           cmake --build build -j6
           cmake --install build
+          
+       - name: LinuxDeployQT
+         working-directory: pdf4qt/build/install
+         run: |
+           linuxdeployqt-continuous-x86_64.AppImage usr/share/io.github.JakubMelka.Pdf4qt.desktop -executable-dir=usr/bin 
 
       - name: Make DEB package
         working-directory: pdf4qt/build
