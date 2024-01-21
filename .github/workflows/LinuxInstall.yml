@@ -12,6 +12,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libxcb-cursor0
+          sudo apt-get install -y libspeechd2
     
       - name: Checkout repository
         uses: actions/checkout@v4
