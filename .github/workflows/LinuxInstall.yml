@@ -1,6 +1,10 @@
 name: LinuxInstall
 
-on:    
+on:
+  create:
+    tags:
+      - 'v*'
+
   workflow_dispatch:
 
 jobs:
@@ -71,17 +75,29 @@ jobs:
         run: |
           wget -O deploy.AppImage https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage
           chmod +x deploy.AppImage
-          ls -l
           ./deploy.AppImage install/usr/share/applications/io.github.JakubMelka.Pdf4qt.desktop -executable-dir=install/usr/bin -extra-plugins=iconengines,imageformats,texttospeech
 
       - name: Make DEB package
         working-directory: pdf4qt/build
         run: |
           sh make-package.sh
-          
+           
       - name: Upload DEB package
         uses: actions/upload-artifact@v3
         with:
           name: ubuntu-deb-package
           path: ./pdf4qt/build/*.deb
           retention-days: 30
+          
+      - name: 'Make AppImage'
+        working-directory: pdf4qt/build
+        run: |
+          ./deploy.AppImage install/usr/share/applications/io.github.JakubMelka.Pdf4qt.desktop -appimage -executable-dir=install/usr/bin -extra-plugins=iconengines,imageformats,texttospeech
+          
+      - name: Upload AppImage package
+        uses: actions/upload-artifact@v3
+        with:
+          name: ubuntu-appimage
+          path: ./pdf4qt/build/*.AppImage
+          retention-days: 30
+         
