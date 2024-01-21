@@ -93,6 +93,7 @@ jobs:
       - name: 'Make AppImage'
         working-directory: pdf4qt/build
         run: |
+          cp install_appimage/usr/share/icons/hicolor/scalable/apps/io.github.JakubMelka.Pdf4qt.svg install_appimage/io.github.JakubMelka.Pdf4qt.svg
           ./deploy.AppImage install_appimage/usr/share/applications/io.github.JakubMelka.Pdf4qt.desktop -appimage -executable-dir=install_appimage/usr/bin -always-overwrite -extra-plugins=iconengines,imageformats,texttospeech
           
       - name: Upload AppImage package
