@@ -69,6 +69,7 @@ jobs:
           cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release -DVCPKG_OVERLAY_PORTS=vcpkg/overlays -DPDF4QT_INSTALL_TO_USR=ON
           cmake --build build -j6
           cmake --install build
+          cp -rp build/install build/install_appimage
           
       - name: 'Linux Deploy Qt'
         working-directory: pdf4qt/build
@@ -92,7 +93,7 @@ jobs:
       - name: 'Make AppImage'
         working-directory: pdf4qt/build
         run: |
-          ./deploy.AppImage install/usr/share/applications/io.github.JakubMelka.Pdf4qt.desktop -appimage -executable-dir=install/usr/bin -always-overwrite -extra-plugins=iconengines,imageformats,texttospeech
+          ./deploy.AppImage install_appimage/usr/share/applications/io.github.JakubMelka.Pdf4qt.desktop -appimage -executable-dir=install_appimage/usr/bin -always-overwrite -extra-plugins=iconengines,imageformats,texttospeech
           
       - name: Upload AppImage package
         uses: actions/upload-artifact@v3
