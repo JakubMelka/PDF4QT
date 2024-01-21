@@ -8,6 +8,11 @@ jobs:
     runs-on: ubuntu-20.04
 
     steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxcb-cursor0
+    
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -66,7 +71,7 @@ jobs:
           wget -O deploy.AppImage https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage
           chmod +x deploy.AppImage
           ls -l
-          ./deploy.AppImage install/usr/share/applications/io.github.JakubMelka.Pdf4qt.desktop -executable-dir=install/usr/bin -extra-plugins=iconengines,svg,imageformats,speech
+          ./deploy.AppImage install/usr/share/applications/io.github.JakubMelka.Pdf4qt.desktop -executable-dir=install/usr/bin -extra-plugins=iconengines,imageformats,texttospeech
 
       - name: Make DEB package
         working-directory: pdf4qt/build
