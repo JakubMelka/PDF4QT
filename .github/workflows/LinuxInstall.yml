@@ -60,12 +60,12 @@ jobs:
           cmake --build build -j6
           cmake --install build
           
-       - name: 'Linux Deploy Qt'
-         working-directory: pdf4qt/build
-         run: |
-           wget -O deploy.AppImage https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage
-           chmod +x deploy.AppImage
-           ./deploy.AppImage install/usr/share/io.github.JakubMelka.Pdf4qt.desktop -executable-dir=install/usr/bin 
+      - name: 'Linux Deploy Qt'
+        working-directory: pdf4qt/build
+        run: |
+          wget -O deploy.AppImage https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage
+          chmod +x deploy.AppImage
+          ./deploy.AppImage install/usr/share/io.github.JakubMelka.Pdf4qt.desktop -executable-dir=install/usr/bin 
 
       - name: Make DEB package
         working-directory: pdf4qt/build
