@@ -92,7 +92,7 @@ jobs:
       - name: 'Make AppImage'
         working-directory: pdf4qt/build
         run: |
-          ./deploy.AppImage install/usr/share/applications/io.github.JakubMelka.Pdf4qt.desktop -appimage -executable-dir=install/usr/bin -extra-plugins=iconengines,imageformats,texttospeech
+          ./deploy.AppImage install/usr/share/applications/io.github.JakubMelka.Pdf4qt.desktop -appimage -executable-dir=install/usr/bin -always-overwrite -extra-plugins=iconengines,imageformats,texttospeech
           
       - name: Upload AppImage package
         uses: actions/upload-artifact@v3
