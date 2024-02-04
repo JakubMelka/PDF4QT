@@ -299,7 +299,7 @@ void PDFRenderToImagesDialog::on_buttonBox_clicked(QAbstractButton* button)
             m_cms = m_proxy->getCMSManager()->getCurrentCMS();
             m_rasterizerPool = new pdf::PDFRasterizerPool(m_document, m_proxy->getFontCache(), m_proxy->getCMSManager(),
                                                           m_optionalContentActivity, m_proxy->getFeatures(), m_proxy->getMeshQualitySettings(),
-                                                          pdf::PDFRasterizerPool::getDefaultRasterizerCount(), m_proxy->isUsingOpenGL(), m_proxy->getSurfaceFormat(), this);
+                                                          pdf::PDFRasterizerPool::getDefaultRasterizerCount(), m_proxy->getRendererEngine(), this);
             connect(m_rasterizerPool, &pdf::PDFRasterizerPool::renderError, this, &PDFRenderToImagesDialog::onRenderError);
 
             auto process = [this]()

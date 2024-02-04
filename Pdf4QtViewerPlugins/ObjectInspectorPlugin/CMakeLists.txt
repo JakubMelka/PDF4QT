@@ -29,10 +29,6 @@ add_library(ObjectInspectorPlugin SHARED
     icons.qrc
 )
 
-if(PDF4QT_ENABLE_OPENGL)
-    target_link_libraries(ObjectInspectorPlugin PRIVATE Qt6::OpenGLWidgets)
-endif()
-
 target_link_libraries(ObjectInspectorPlugin PRIVATE Pdf4QtLibCore Pdf4QtLibWidgets Qt6::Core Qt6::Gui Qt6::Widgets)
 
 set_target_properties(ObjectInspectorPlugin PROPERTIES

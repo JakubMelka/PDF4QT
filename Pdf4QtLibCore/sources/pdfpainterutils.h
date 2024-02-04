@@ -22,6 +22,8 @@
 
 #include <QPainter>
 
+#include <Blend2d.h>
+
 namespace pdf
 {
 
@@ -55,6 +57,27 @@ public:
     /// \param text Text inside the bubble
     /// \param alignment Bubble alignment relative to the bubble position point
     static QRect drawBubble(QPainter* painter, QPoint point, QColor color, QString text, Qt::Alignment alignment);
+
+    /// Get BL matrix from transformation
+    static BLMatrix2D getBLMatrix(QTransform transform);
+
+    /// Get BL rect from regular rect
+    static BLRect getBLRect(QRect rect);
+
+    /// Get BL rect from regular rect
+    static BLRect getBLRect(QRectF rect);
+
+    /// Get BL path from path
+    static BLPath getBLPath(const QPainterPath& path);
+
+    /// Set pen to the context
+    static void setBLPen(BLContext& context, const QPen& pen);
+
+    /// Set brush to the context
+    static void setBLBrush(BLContext& context, const QBrush& brush);
+
+    /// Returns composition operator
+    static BLCompOp getBLCompOp(QPainter::CompositionMode mode);
 };
 
 }   // namespace pdf

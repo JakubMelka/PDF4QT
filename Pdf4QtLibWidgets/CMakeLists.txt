@@ -74,10 +74,6 @@ GENERATE_EXPORT_HEADER(Pdf4QtLibWidgets
                        PDF4QTLIBWIDGETSSHARED_EXPORT
                        EXPORT_FILE_NAME "${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR}/pdf4qtlibwidgets_export.h")
 
-if(PDF4QT_ENABLE_OPENGL)
-    target_link_libraries(Pdf4QtLibWidgets PRIVATE Qt6::OpenGLWidgets)
-endif()
-
 target_link_libraries(Pdf4QtLibWidgets PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Xml Qt6::Svg Qt6::Widgets)
 
 if(LINUX_GCC)
@@ -87,6 +83,8 @@ endif()
 if(MINGW)
     target_link_libraries(Pdf4QtLibWidgets PRIVATE Secur32 Mscms Gdi32 User32 crypt32)
 endif()
+
+target_link_libraries(Pdf4QtLibWidgets PRIVATE blend2d::blend2d)
 
 target_include_directories(Pdf4QtLibWidgets INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/sources)
 target_include_directories(Pdf4QtLibWidgets PUBLIC ${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR})

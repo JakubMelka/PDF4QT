@@ -27,10 +27,6 @@
 #include <QTimer>
 #include <QElapsedTimer>
 
-#ifdef PDF4QT_ENABLE_OPENGL
-#include <QOpenGLWidget>
-#endif
-
 namespace pdf
 {
 class PDFDocument;
@@ -65,8 +61,7 @@ public:
     /// Constructs new PDFWidget.
     /// \param cmsManager Color management system manager
     /// \param engine Rendering engine type
-    /// \param samplesCount Samples count for rendering engine MSAA antialiasing
-    explicit PDFWidget(const PDFCMSManager* cmsManager, RendererEngine engine, int samplesCount, QWidget* parent);
+    explicit PDFWidget(const PDFCMSManager* cmsManager, RendererEngine engine, QWidget* parent);
     virtual ~PDFWidget() override;
 
     virtual bool focusNextPrevChild(bool next) override;
@@ -81,8 +76,7 @@ public:
 
     /// Update rendering engine according the settings
     /// \param engine Engine type
-    /// \param samplesCount Samples count for rendering engine MSAA antialiasing
-    void updateRenderer(RendererEngine engine, int samplesCount);
+    void updateRenderer(RendererEngine engine);
 
     /// Updates cache limits
     /// \param compiledPageCacheLimit Compiled page cache limit [bytes]
@@ -115,13 +109,8 @@ signals:
     void pageRenderingErrorsChanged(pdf::PDFInteger pageIndex, int errorsCount);
 
 private:
-    RendererEngine getEffectiveRenderer(RendererEngine rendererEngine);
-
-    void updateRendererImpl();
     void onRenderingError(PDFInteger pageIndex, const QList<PDFRenderError>& errors);
     void onPageImageChanged(bool all, const std::vector<PDFInteger>& pages);
-
-    IDrawWidget* createDrawWidget(RendererEngine rendererEngine, int samplesCount);
 
     const PDFCMSManager* m_cmsManager;
     PDFToolManager* m_toolManager;
@@ -133,14 +122,19 @@ private:
     PDFDrawWidgetProxy* m_proxy;
     PageRenderingErrors m_pageRenderingErrors;
     std::vector<IDrawWidgetInputInterface*> m_inputInterfaces;
+    RendererEngine m_rendererEngine;
 };
 
-template<typename BaseWidget>
-class PDFDrawWidgetBase : public BaseWidget, public IDrawWidget
+class PDFDrawWidget : public QWidget, public IDrawWidget
 {
+    Q_OBJECT
+
+private:
+    using BaseClass = QWidget;
+
 public:
-    explicit PDFDrawWidgetBase(PDFWidget* widget, QWidget* parent);
-    virtual ~PDFDrawWidgetBase() override = default;
+    explicit PDFDrawWidget(PDFWidget* widget, QWidget* parent);
+    virtual ~PDFDrawWidget() override = default;
 
     /// Returns page indices, which are currently displayed in the widget
     virtual std::vector<PDFInteger> getCurrentPages() const override;
@@ -158,6 +152,8 @@ protected:
     virtual void mouseReleaseEvent(QMouseEvent* event) override;
     virtual void mouseMoveEvent(QMouseEvent* event) override;
     virtual void wheelEvent(QWheelEvent* event) override;
+    virtual void paintEvent(QPaintEvent* event) override;
+    virtual void resizeEvent(QResizeEvent* event) override;
 
     PDFWidget* getPDFWidget() const { return m_widget; }
 
@@ -186,49 +182,8 @@ private:
     QTimer m_autoScrollTimer;
     QPointF m_autoScrollOffset;
     QElapsedTimer m_autoScrollLastElapsedTimer;
+    QImage m_blend2DframeBuffer;
 };
-
-class PDFDrawWidget : public PDFDrawWidgetBase<QWidget>
-{
-    Q_OBJECT
-
-private:
-    using BaseClass = PDFDrawWidgetBase<QWidget>;
-
-public:
-    explicit PDFDrawWidget(PDFWidget* widget, QWidget* parent);
-    virtual ~PDFDrawWidget() override;
-
-protected:
-    virtual void paintEvent(QPaintEvent* event) override;
-    virtual void resizeEvent(QResizeEvent* event) override;
-};
-
-#ifdef PDF4QT_ENABLE_OPENGL
-class PDFOpenGLDrawWidget : public PDFDrawWidgetBase<QOpenGLWidget>
-{
-    Q_OBJECT
-
-private:
-    using BaseClass = PDFDrawWidgetBase<QOpenGLWidget>;
-
-public:
-    explicit PDFOpenGLDrawWidget(PDFWidget* widget, int samplesCount, QWidget* parent);
-    virtual ~PDFOpenGLDrawWidget() override;
-
-protected:
-    virtual void resizeGL(int w, int h) override;
-    virtual void initializeGL() override;
-    virtual void paintGL() override;
-};
-#else
-using PDFOpenGLDrawWidget = PDFDrawWidget;
-#endif
-
-#ifdef PDF4QT_ENABLE_OPENGL
-extern template class PDFDrawWidgetBase<QOpenGLWidget>;
-#endif
-extern template class PDFDrawWidgetBase<QWidget>;
 
 }   // namespace pdf
 

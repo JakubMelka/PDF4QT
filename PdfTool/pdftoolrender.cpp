@@ -180,21 +180,11 @@ int PDFToolRenderBase::execute(const PDFToolOptions& options)
     fontCache.setDocument(md);
     fontCache.setCacheShrinkEnabled(nullptr, false);
 
-    QSurfaceFormat surfaceFormat;
-    if (options.renderUseHardwareRendering)
-    {
-        surfaceFormat = QSurfaceFormat::defaultFormat();
-        surfaceFormat.setProfile(QSurfaceFormat::CoreProfile);
-        surfaceFormat.setSamples(options.renderMSAAsamples);
-        surfaceFormat.setColorSpace(QColorSpace(QColorSpace::SRgb));
-        surfaceFormat.setSwapBehavior(QSurfaceFormat::DefaultSwapBehavior);
-    }
-
     m_pageInfo.resize(document.getCatalog()->getPageCount());
     pdf::PDFRasterizerPool rasterizerPool(&document, &fontCache, &cmsManager,
                                           &optionalContentActivity, options.renderFeatures, meshQualitySettings,
                                           pdf::PDFRasterizerPool::getCorrectedRasterizerCount(options.renderRasterizerCount),
-                                          options.renderUseHardwareRendering, surfaceFormat, nullptr);
+                                          options.renderUseSoftwareRendering ? pdf::RendererEngine::QPainter : pdf::RendererEngine::Blend2D, nullptr);
 
     auto onRenderError = [this](pdf::PDFInteger pageIndex, pdf::PDFRenderError error)
     {

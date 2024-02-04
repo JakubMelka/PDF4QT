@@ -34,6 +34,8 @@ class QPainter;
 class QScrollBar;
 class QTimer;
 
+class BLContext;
+
 namespace pdf
 {
 class PDFProgress;
@@ -212,12 +214,28 @@ public:
     /// \param rect Rectangle in which the content is painted
     void draw(QPainter* painter, QRect rect);
 
+    /// Draws the actually visible pages on the context using the rectangle.
+    /// Rectangle is space in the widget, which is used for painting the PDF.
+    /// This function is using drawPages function to draw all pages. After that,
+    /// custom drawing is performed.
+    /// \sa drawPages
+    /// \param context Context to paint the PDF pages
+    /// \param rect Rectangle in which the content is painted
+    void draw(BLContext& context, QRect rect);
+
     /// Draws the actually visible pages on the painter using the rectangle.
     /// Rectangle is space in the widget, which is used for painting the PDF.
     /// \param painter Painter to paint the PDF pages
     /// \param rect Rectangle in which the content is painted
     /// \param features Rendering features
     void drawPages(QPainter* painter, QRect rect, PDFRenderer::Features features);
+
+    /// Draws the actually visible pages on the painter using the rectangle.
+    /// Rectangle is space in the widget, which is used for painting the PDF.
+    /// \param painter Painter to paint the PDF pages
+    /// \param rect Rectangle in which the content is painted
+    /// \param features Rendering features
+    void drawPages(BLContext& context, QRect rect, PDFRenderer::Features features);
 
     /// Draws thumbnail image of the given size (so larger of the page size
     /// width or height equals to pixel size and the latter size is rescaled
@@ -317,9 +335,8 @@ public:
 
     /// Updates renderer (in current implementation, renderer for page thumbnails)
     /// using given parameters.
-    /// \param useOpenGL Use OpenGL for rendering?
-    /// \param surfaceFormat Surface format for OpenGL rendering
-    void updateRenderer(bool useOpenGL, const QSurfaceFormat& surfaceFormat);
+    /// \param rendererEngine Renderer engine
+    void updateRenderer(RendererEngine rendererEngine);
 
     /// Prefetches (prerenders) pages after page with pageIndex, i.e., prepares
     /// for non-flickering scroll operation.
@@ -338,8 +355,7 @@ public:
     void setProgress(PDFProgress* progress) { m_progress = progress; }
     PDFAsynchronousTextLayoutCompiler* getTextLayoutCompiler() const { return m_textLayoutCompiler; }
     PDFWidget* getWidget() const { return m_widget; }
-    bool isUsingOpenGL() const { return m_useOpenGL; }
-    const QSurfaceFormat& getSurfaceFormat() const { return m_surfaceFormat; }
+    RendererEngine getRendererEngine() const { return m_rendererEngine; }
     PageRotation getPageRotation() const { return m_controller->getPageRotation(); }
 
     void setFeatures(PDFRenderer::Features features);
@@ -461,8 +477,6 @@ private:
         constexpr inline T bound(T value) { return qBound(min, value, max); }
     };
 
-    static constexpr bool ENABLE_OPENGL_FOR_THUMBNAILS = false;
-
     /// Flag, disables the update
     bool m_updateDisabled;
 
@@ -536,11 +550,8 @@ private:
     /// Additional drawing interfaces
     std::set<IDocumentDrawInterface*> m_drawInterfaces;
 
-    /// Use OpenGL for rendering?
-    bool m_useOpenGL;
-
-    /// Surface format for OpenGL
-    QSurfaceFormat m_surfaceFormat;
+    /// Renderer engine
+    RendererEngine m_rendererEngine;
 
     /// Page group info for rendering. Group of pages
     /// can be rendered with transparency or without paper

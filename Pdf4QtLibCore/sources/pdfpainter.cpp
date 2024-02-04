@@ -18,10 +18,13 @@
 #include "pdfpainter.h"
 #include "pdfpattern.h"
 #include "pdfcms.h"
+#include "pdfpainterutils.h"
 
 #include <QPainter>
 #include <QCryptographicHash>
 #include <QtMath>
+
+#include <Blend2d.h>
 
 #include "pdfdbgheap.h"
 
@@ -618,6 +621,135 @@ void PDFPrecompiledPage::draw(QPainter* painter,
     }
 
     painter->restore();
+}
+
+void PDFPrecompiledPage::draw(BLContext& painter,
+                              const QRectF& cropBox,
+                              const QTransform& pagePointToDevicePointMatrix,
+                              PDFRenderer::Features features,
+                              PDFReal opacity) const
+{
+    Q_ASSERT(painter);
+    Q_ASSERT(pagePointToDevicePointMatrix.isInvertible());
+
+    painter.save();
+    painter.setMatrix(BLMatrix2D());
+    painter.setGlobalAlpha(opacity);
+
+    if (features.testFlag(PDFRenderer::ClipToCropBox) && cropBox.isValid())
+    {
+        QRectF mappedCropBox = pagePointToDevicePointMatrix.mapRect(cropBox);
+        BLRect clipRect = PDFPainterHelper::getBLRect(mappedCropBox);
+        painter.clipToRect(clipRect);
+    }
+
+    // Process all instructions
+    for (const Instruction& instruction : m_instructions)
+    {
+        switch (instruction.type)
+        {
+            case InstructionType::DrawPath:
+            {
+                const PathPaintData& data = m_paths[instruction.dataIndex];
+                BLPath path = PDFPainterHelper::getBLPath(data.path);
+
+                PDFPainterHelper::setBLPen(painter, data.pen);
+                PDFPainterHelper::setBLBrush(painter, data.brush);
+
+                if (data.brush.style() != Qt::NoBrush)
+                {
+                    painter.fillPath(path);
+                }
+
+                if (data.pen.style() != Qt::NoPen)
+                {
+                    painter.strokePath(path);
+                }
+                break;
+            }
+
+            case InstructionType::DrawImage:
+            {
+                const ImageData& data = m_images[instruction.dataIndex];
+                QImage image = data.image;
+
+                if (image.format() != QImage::Format_ARGB32_Premultiplied)
+                {
+                    image.convertTo(QImage::Format_ARGB32_Premultiplied);
+                }
+
+                painter.save();
+
+                BLImage blImage;
+                blImage.createFromData(image.width(), image.height(), BL_FORMAT_PRGB32, image.bits(), image.bytesPerLine());
+
+                BLMatrix2D imageTransform(1.0 / image.width(), 0, 0, 1.0 / image.height(), 0, 0);
+                BLMatrix2D worldTransform = imageTransform;
+                worldTransform.postTransform(painter.userMatrix());
+
+                // Jakub Melka: Because Qt uses opposite axis direction than PDF, then we must transform the y-axis
+                // to the opposite (so the image is then unchanged)
+                worldTransform.translate(0, image.height());
+                worldTransform.scale(1, -1);
+
+                painter.setMatrix(worldTransform);
+                painter.blitImage(BLPointI(0, 0), blImage);
+                painter.restore();
+                break;
+            }
+
+            case InstructionType::DrawMesh:
+            {
+                const MeshPaintData& data = m_meshes[instruction.dataIndex];
+
+                painter.save();
+                painter.setMatrix(PDFPainterHelper::getBLMatrix(pagePointToDevicePointMatrix));
+                data.mesh.paint(painter, data.alpha);
+                painter.restore();
+                break;
+            }
+
+            case InstructionType::Clip:
+            {
+                // Blend2D does not have path clipping
+                break;
+            }
+
+            case InstructionType::SaveGraphicState:
+            {
+                painter.save();
+                break;
+            }
+
+            case InstructionType::RestoreGraphicState:
+            {
+                painter.restore();
+                break;
+            }
+
+            case InstructionType::SetWorldMatrix:
+            {
+                QTransform transform(m_matrices[instruction.dataIndex] * pagePointToDevicePointMatrix);
+                BLMatrix2D matrix = PDFPainterHelper::getBLMatrix(transform);
+                painter.setMatrix(matrix);
+                break;
+            }
+
+            case InstructionType::SetCompositionMode:
+            {
+                painter.setCompOp(PDFPainterHelper::getBLCompOp(m_compositionModes[instruction.dataIndex]));
+                break;
+            }
+
+            default:
+            {
+                Q_ASSERT(false);
+                break;
+            }
+        }
+    }
+
+    painter.restore();
 }
 
 void PDFPrecompiledPage::redact(QPainterPath redactPath, const QTransform& matrix, QColor color)

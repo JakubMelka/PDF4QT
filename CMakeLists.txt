@@ -33,7 +33,6 @@ if(WIN32 AND MSVC)
     option(PDF4QT_INSTALL_PREPARE_WIX_INSTALLER "Prepare Wix installer for Windows" ON)
 endif()
 
-option(PDF4QT_ENABLE_OPENGL "Enable OpenGL" ON)
 option(PDF4QT_BUILD_ONLY_CORE_LIBRARY "Build only core library" OFF)
 
 set(PDF4QT_QT_ROOT "" CACHE PATH "Qt root directory")
@@ -49,18 +48,8 @@ include(GNUInstallDirs)
 
 if(PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     find_package(Qt6 REQUIRED COMPONENTS Core Gui Svg Xml)
-
-    if(PDF4QT_ENABLE_OPENGL)
-        add_compile_definitions(PDF4QT_ENABLE_OPENGL)
-        find_package(Qt6 REQUIRED COMPONENTS OpenGL)
-    endif()
 else()
     find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg Xml PrintSupport TextToSpeech Test)
-
-    if(PDF4QT_ENABLE_OPENGL)
-        add_compile_definitions(PDF4QT_ENABLE_OPENGL)
-        find_package(Qt6 REQUIRED COMPONENTS OpenGL OpenGLWidgets)
-    endif()
 endif()
 
 qt_standard_project_setup()
@@ -72,6 +61,7 @@ find_package(Freetype REQUIRED)
 find_package(OpenJPEG CONFIG REQUIRED)
 find_package(JPEG REQUIRED)
 find_package(PNG REQUIRED)
+find_package(blend2d CONFIG REQUIRED)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
@@ -178,7 +168,7 @@ if(PDF4QT_INSTALL_DEPENDENCIES AND NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         install(DIRECTORY ${PDF4QT_QT_ROOT}/bin/
             RUNTIME DESTINATION ${PDF4QT_INSTALL_LIB_DIR}/
             FILES_MATCHING
-            REGEX "(Qt6Core|Qt6Gui|Qt6PrintSupport|Qt6Svg|Qt6TextToSpeech|Qt6Widgets|Qt6Xml|Qt6OpenGL|Qt6OpenGLWidgets|Qt6Multimedia|Qt6Network)\\..*"
+            REGEX "(Qt6Core|Qt6Gui|Qt6PrintSupport|Qt6Svg|Qt6TextToSpeech|Qt6Widgets|Qt6Xml|Qt6Multimedia|Qt6Network)\\..*"
             PATTERN "Debug" EXCLUDE
         )
 

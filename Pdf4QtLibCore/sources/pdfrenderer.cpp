@@ -26,13 +26,7 @@
 #include <QElapsedTimer>
 #include <QtMath>
 
-#ifdef PDF4QT_ENABLE_OPENGL
-#include <QOpenGLContext>
-#include <QOffscreenSurface>
-#include <QOpenGLPaintDevice>
-#include <QOpenGLFramebufferObject>
-#include <QOpenGLFunctions>
-#endif
+#include <Blend2d.h>
 
 #include "pdfdbgheap.h"
 
@@ -227,54 +221,19 @@ void PDFRenderer::compile(PDFPrecompiledPage* precompiledPage, size_t pageIndex)
 
 PDFRasterizer::PDFRasterizer(QObject* parent) :
     BaseClass(parent),
-#ifdef PDF4QT_ENABLE_OPENGL
-    m_features(),
-    m_surfaceFormat(),
-    m_surface(nullptr),
-    m_context(nullptr),
-    m_fbo(nullptr)
-#else
-    m_features()
-#endif
+    m_rendererEngine(RendererEngine::Blend2D)
 {
 
 }
 
 PDFRasterizer::~PDFRasterizer()
 {
-#ifdef PDF4QT_ENABLE_OPENGL
-    releaseOpenGL();
-#endif
+
 }
 
-void PDFRasterizer::reset(bool useOpenGL, const QSurfaceFormat& surfaceFormat)
+void PDFRasterizer::reset(RendererEngine rendererEngine)
 {
-    if (!PDFRendererInfo::isHardwareAccelerationSupported())
-    {
-        m_features.setFlag(FailedOpenGL, true);
-        m_features.setFlag(ValidOpenGL, false);
-    }
-
-#ifdef PDF4QT_ENABLE_OPENGL
-    if (useOpenGL != m_features.testFlag(UseOpenGL) || surfaceFormat != m_surfaceFormat)
-    {
-        // In either case, we must reset OpenGL
-        releaseOpenGL();
-
-        m_features.setFlag(UseOpenGL, useOpenGL);
-        m_surfaceFormat = surfaceFormat;
-
-        // We create new OpenGL renderer, but only if it hasn't failed (we do not try
-        // again to create new OpenGL renderer.
-        if (m_features.testFlag(UseOpenGL) && !m_features.testFlag(FailedOpenGL))
-        {
-            initializeOpenGL();
-        }
-    }
-#else
-    Q_UNUSED(surfaceFormat);
-    m_features.setFlag(UseOpenGL, useOpenGL);
-#endif
+    m_rendererEngine = rendererEngine;
 }
 
 QImage PDFRasterizer::render(PDFInteger pageIndex,
@@ -285,70 +244,37 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
                              const PDFAnnotationManager* annotationManager,
                              PageRotation extraRotation)
 {
-    QImage image;
+    QImage image(size, QImage::Format_ARGB32_Premultiplied);
 
     QTransform matrix = PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), size), extraRotation);
 
-#ifdef PDF4QT_ENABLE_OPENGL
-    if (m_features.testFlag(UseOpenGL) && m_features.testFlag(ValidOpenGL))
+    if (m_rendererEngine == RendererEngine::Blend2D)
     {
-        // We have valid OpenGL context, try to select it and possibly create framebuffer object
-        // for target image (to paint it using paint device).
-        Q_ASSERT(m_surface && m_context);
-        if (m_context->makeCurrent(m_surface))
+        BLContext blContext;
+        BLImage blImage;
+
+        blContext.setHint(BL_CONTEXT_HINT_RENDERING_QUALITY, BL_RENDERING_QUALITY_MAX_VALUE);
+
+        blImage.createFromData(image.width(), image.height(), BL_FORMAT_PRGB32, image.bits(), image.bytesPerLine());
+        if (blContext.begin(blImage) == BL_SUCCESS)
         {
-            if (!m_fbo || m_fbo->width() != size.width() || m_fbo->height() != size.height())
-            {
-                // Delete old framebuffer object
-                delete m_fbo;
+            blContext.clearAll();
 
-                // Create a new framebuffer object
-                QOpenGLFramebufferObjectFormat format;
-                format.setSamples(m_surfaceFormat.samples());
-                m_fbo = new QOpenGLFramebufferObject(size.width(), size.height(), format);
+            compiledPage->draw(blContext, page->getCropBox(), matrix, features, 1.0);
+
+            if (annotationManager)
+            {
+                QList<PDFRenderError> errors;
+                PDFTextLayoutGetter textLayoutGetter(nullptr, pageIndex);
+                annotationManager->drawPage(blContext, pageIndex, compiledPage, textLayoutGetter, matrix, errors);
             }
 
-            Q_ASSERT(m_fbo);
-            if (m_fbo->isValid() && m_fbo->bind())
-            {
-                // Now, we have bind the buffer. Due to bug in Qt's OpenGL drawing subsystem,
-                // we must render it two times, otherwise painter paths will be sometimes
-                // replaced by filled rectangles.
-                for (int i = 0; i < 2; ++i)
-                {
-                    QOpenGLPaintDevice device(size);
-                    QPainter painter(&device);
-                    painter.fillRect(QRect(QPoint(0, 0), size), compiledPage->getPaperColor());
-                    compiledPage->draw(&painter, page->getCropBox(), matrix, features, 1.0);
-
-                    if (annotationManager)
-                    {
-                        QList<PDFRenderError> errors;
-                        PDFTextLayoutGetter textLayoutGetter(nullptr, pageIndex);
-                        annotationManager->drawPage(&painter, pageIndex, compiledPage, textLayoutGetter, matrix, errors);
-                    }
-                }
-
-                m_fbo->release();
-
-                image = m_fbo->toImage();
-            }
-            else
-            {
-                m_features.setFlag(FailedOpenGL, true);
-                m_features.setFlag(ValidOpenGL, false);
-            }
-
-            m_context->doneCurrent();
+            blContext.end();
         }
     }
-#endif
-
-    if (image.isNull())
+    else
     {
-        // If we can't use OpenGL, or user doesn't want to use OpenGL, then fallback
-        // to standard software rasterizer.
-        image = QImage(size, QImage::Format_ARGB32_Premultiplied);
+        // Use standard software rasterizer.
         image.fill(Qt::white);
 
         QPainter painter(&image);
@@ -362,13 +288,6 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
         }
     }
 
-    // Jakub Melka: Convert the image into format Format_ARGB32_Premultiplied for fast drawing.
-    // If this format is used, then no image conversion is performed while drawing.
-    if (image.format() != QImage::Format_ARGB32_Premultiplied)
-    {
-        image.convertTo(QImage::Format_ARGB32_Premultiplied);
-    }
-
     // Calculate image DPI
     QSizeF rotatedSizeInMeters = page->getRotatedMediaBoxMM().size() / 1000.0;
     QSizeF rotatedSizeInPixels = image.size();
@@ -379,87 +298,6 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
 
     return image;
 }
-
-#ifdef PDF4QT_ENABLE_OPENGL
-void PDFRasterizer::initializeOpenGL()
-{
-    Q_ASSERT(!m_surface);
-    Q_ASSERT(!m_context);
-    Q_ASSERT(!m_fbo);
-
-    m_features.setFlag(ValidOpenGL, false);
-    m_features.setFlag(FailedOpenGL, false);
-
-    // Create context
-    m_context = new QOpenGLContext(this);
-    m_context->setFormat(m_surfaceFormat);
-    if (!m_context->create())
-    {
-        m_features.setFlag(FailedOpenGL, true);
-
-        delete m_context;
-        m_context = nullptr;
-    }
-
-    // Create surface
-    m_surface = new QOffscreenSurface(nullptr, this);
-    m_surface->setFormat(m_surfaceFormat);
-    m_surface->create();
-    if (!m_surface->isValid())
-    {
-        m_features.setFlag(FailedOpenGL, true);
-
-        delete m_context;
-        delete m_surface;
-
-        m_context = nullptr;
-        m_surface = nullptr;
-    }
-
-    // Check, if we can make it current
-    if (m_context->makeCurrent(m_surface))
-    {
-        m_features.setFlag(ValidOpenGL, true);
-        m_context->doneCurrent();
-    }
-    else
-    {
-        m_features.setFlag(FailedOpenGL, true);
-        releaseOpenGL();
-    }
-}
-#endif
-
-#ifdef PDF4QT_ENABLE_OPENGL
-void PDFRasterizer::releaseOpenGL()
-{
-    if (m_surface)
-    {
-        Q_ASSERT(m_context);
-
-        // Delete framebuffer
-        if (m_fbo)
-        {
-            m_context->makeCurrent(m_surface);
-            delete m_fbo;
-            m_fbo = nullptr;
-            m_context->doneCurrent();
-        }
-
-        // Delete OpenGL context
-        delete m_context;
-        m_context = nullptr;
-
-        // Delete surface
-        m_surface->destroy();
-        delete m_surface;
-        m_surface = nullptr;
-
-        // Set flag, that we do not have valid OpenGL
-        m_features.setFlag(ValidOpenGL, false);
-    }
-}
-#endif
 
 PDFRasterizer* PDFRasterizerPool::acquire()
 {
@@ -978,8 +816,7 @@ PDFRasterizerPool::PDFRasterizerPool(const PDFDocument* document,
                                      PDFRenderer::Features features,
                                      const PDFMeshQualitySettings& meshQualitySettings,
                                      int rasterizerCount,
-                                     bool useOpenGL,
-                                     const QSurfaceFormat& surfaceFormat,
+                                     RendererEngine rendererEngine,
                                      QObject* parent) :
     BaseClass(parent),
     m_document(document),
@@ -994,96 +831,8 @@ PDFRasterizerPool::PDFRasterizerPool(const PDFDocument* document,
     for (int i = 0; i < rasterizerCount; ++i)
     {
         m_rasterizers.push_back(new PDFRasterizer(this));
-        m_rasterizers.back()->reset(useOpenGL, surfaceFormat);
+        m_rasterizers.back()->reset(rendererEngine);
     }
-}
-
-PDFCachedItem<PDFRendererInfo::Info> PDFRendererInfo::s_info;
-
-const PDFRendererInfo::Info& PDFRendererInfo::getHardwareAccelerationSupportedInfo()
-{
-    auto getInfo = []()
-    {
-        Info info;
-
-#ifdef PDF4QT_ENABLE_OPENGL
-        QOffscreenSurface surface;
-        surface.create();
-
-        if (!surface.isValid())
-        {
-            info.renderer = PDFTranslationContext::tr("GDI Generic");
-            info.version = PDFTranslationContext::tr("1.1");
-            info.vendor = PDFTranslationContext::tr("System");
-            return info;
-        }
-
-        QOpenGLContext context;
-
-        if (!context.create())
-        {
-            info.renderer = PDFTranslationContext::tr("GDI Generic");
-            info.version = PDFTranslationContext::tr("1.1");
-            info.vendor = PDFTranslationContext::tr("System");
-            surface.destroy();
-            return info;
-        }
-
-        if (!context.makeCurrent(&surface))
-        {
-            info.renderer = PDFTranslationContext::tr("GDI Generic");
-            info.version = PDFTranslationContext::tr("1.1");
-            info.vendor = PDFTranslationContext::tr("System");
-            surface.destroy();
-            return info;
-        }
-
-        const char* versionStr = reinterpret_cast<const char*>(context.functions()->glGetString(GL_VERSION));
-        const char* vendorStr = reinterpret_cast<const char*>(context.functions()->glGetString(GL_VENDOR));
-        const char* rendererStr = reinterpret_cast<const char*>(context.functions()->glGetString(GL_RENDERER));
-
-        QString versionString = QString::fromLocal8Bit(versionStr, std::strlen(versionStr));
-        QString vendorString = QString::fromLocal8Bit(vendorStr, std::strlen(vendorStr));
-        QString rendererString = QString::fromLocal8Bit(rendererStr, std::strlen(rendererStr));
-
-        context.doneCurrent();
-        surface.destroy();
-
-        versionString = versionString.trimmed();
-
-        int spaceIndex = versionString.indexOf(QChar(QChar::Space));
-        if (spaceIndex != -1)
-        {
-            versionString = versionString.left(spaceIndex);
-        }
-
-        info.vendor = vendorString;
-        info.renderer = rendererString;
-        info.version = versionString;
-
-        QStringList versionStrSplitted = versionString.split('.', Qt::KeepEmptyParts);
-
-        if (versionStrSplitted.size() >= 2)
-        {
-            info.majorOpenGLVersion = versionStrSplitted[0].toInt();
-            info.minorOpenGLVersion = versionStrSplitted[1].toInt();
-        }
-#endif
-
-        return info;
-    };
-
-    return s_info.get(getInfo);
-}
-
-bool PDFRendererInfo::isHardwareAccelerationSupported()
-{
-#ifdef PDF4QT_ENABLE_OPENGL
-    const Info& info = getHardwareAccelerationSupportedInfo();
-    return std::make_pair(info.majorOpenGLVersion, info.minorOpenGLVersion) >= std::make_pair(REQUIRED_OPENGL_MAJOR_VERSION, REQUIRED_OPENGL_MINOR_VERSION);
-#else
-    return false;
-#endif
 }
 
 }   // namespace pdf

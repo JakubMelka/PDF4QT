@@ -57,6 +57,13 @@ public:
                           const QTransform& pagePointToDevicePointMatrix,
                           QList<PDFRenderError>& errors) const override;
 
+    virtual void drawPage(BLContext& context,
+                          PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QTransform& pagePointToDevicePointMatrix,
+                          QList<PDFRenderError>& errors) const override;
+
     /// Returns tooltip generated from annotation
     virtual QString getTooltip() const override { return m_tooltip; }
 

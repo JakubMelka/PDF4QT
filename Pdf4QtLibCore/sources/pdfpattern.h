@@ -29,6 +29,8 @@
 
 #include <memory>
 
+class BLContext;
+
 namespace pdf
 {
 class PDFPattern;
@@ -93,6 +95,11 @@ public:
     /// \param painter Painter, onto which is mesh drawn
     /// \param alpha Opacity factor
     void paint(QPainter* painter, PDFReal alpha) const;
+
+    /// Paints the mesh on the context
+    /// \param context Painter, onto which is mesh drawn
+    /// \param alpha Opacity factor
+    void paint(BLContext& context, PDFReal alpha) const;
 
     /// Transforms the mesh according to the matrix transform
     /// \param matrix Matrix transform to be performed

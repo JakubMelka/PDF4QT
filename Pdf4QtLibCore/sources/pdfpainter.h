@@ -30,6 +30,8 @@
 #include <QBrush>
 #include <QElapsedTimer>
 
+class BLContext;
+
 namespace pdf
 {
 
@@ -191,6 +193,18 @@ public:
     /// \param features Renderer features
     /// \param opacity Opacity of page graphics
     void draw(QPainter* painter,
+              const QRectF& cropBox,
+              const QTransform& pagePointToDevicePointMatrix,
+              PDFRenderer::Features features,
+              PDFReal opacity) const;
+
+    /// Paints page onto the blend2d painter using matrix
+    /// \param painter Painter, onto which is page drawn
+    /// \param cropBox Page's crop box
+    /// \param pagePointToDevicePointMatrix Page point to device point transformation matrix
+    /// \param features Renderer features
+    /// \param opacity Opacity of page graphics
+    void draw(BLContext& painter,
               const QRectF& cropBox,
               const QTransform& pagePointToDevicePointMatrix,
               PDFRenderer::Features features,

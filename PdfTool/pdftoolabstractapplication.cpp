@@ -847,12 +847,12 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
             }
         }
 
-        QString textValue = parser->value("render-hw-accel");
+        QString textValue = parser->value("render-software");
         bool ok = false;
         bool value = textValue.toInt(&ok);
         if (ok)
         {
-            options.renderUseHardwareRendering = value;
+            options.renderUseSoftwareRendering = value;
         }
         else
         {

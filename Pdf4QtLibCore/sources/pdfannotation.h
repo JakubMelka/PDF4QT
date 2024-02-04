@@ -40,6 +40,8 @@ class QKeyEvent;
 class QMouseEvent;
 class QWheelEvent;
 
+class BLContext;
+
 namespace pdf
 {
 class PDFWidget;
@@ -1460,6 +1462,13 @@ public:
     virtual ~PDFAnnotationManager() override;
 
     virtual void drawPage(QPainter* painter,
+                          PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QTransform& pagePointToDevicePointMatrix,
+                          QList<PDFRenderError>& errors) const;
+
+    virtual void drawPage(BLContext& context,
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,

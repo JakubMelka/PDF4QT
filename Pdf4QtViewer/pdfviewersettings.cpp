@@ -43,7 +43,7 @@ void PDFViewerSettings::readSettings(QSettings& settings, const pdf::PDFCMSSetti
     settings.beginGroup("ViewerSettings");
     m_settings.m_directory = settings.value("defaultDirectory", QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).toString();
     m_settings.m_features = static_cast<pdf::PDFRenderer::Features>(settings.value("rendererFeaturesv2", static_cast<int>(pdf::PDFRenderer::getDefaultFeatures())).toInt());
-    m_settings.m_rendererEngine = static_cast<pdf::RendererEngine>(settings.value("renderingEngine", static_cast<int>(pdf::RendererEngine::OpenGL)).toInt());
+    m_settings.m_rendererEngine = static_cast<pdf::RendererEngine>(settings.value("renderingEngine", static_cast<int>(pdf::RendererEngine::Blend2D)).toInt());
     m_settings.m_multisampleAntialiasing = settings.value("msaa", defaultSettings.m_multisampleAntialiasing).toBool();
     m_settings.m_rendererSamples = settings.value("rendererSamples", defaultSettings.m_rendererSamples).toInt();
     m_settings.m_prefetchPages = settings.value("prefetchPages", defaultSettings.m_prefetchPages).toBool();
@@ -271,7 +271,7 @@ void PDFViewerSettings::setColorTolerance(pdf::PDFReal colorTolerance)
 
 PDFViewerSettings::Settings::Settings() :
     m_features(pdf::PDFRenderer::getDefaultFeatures()),
-    m_rendererEngine(pdf::RendererEngine::OpenGL),
+    m_rendererEngine(pdf::RendererEngine::Blend2D),
     m_multisampleAntialiasing(true),
     m_rendererSamples(16),
     m_prefetchPages(true),

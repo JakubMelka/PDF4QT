@@ -22,10 +22,6 @@ add_library(SignaturePlugin SHARED
     icons.qrc
 )
 
-if(PDF4QT_ENABLE_OPENGL)
-    target_link_libraries(SignaturePlugin PRIVATE Qt6::OpenGLWidgets)
-endif()
-
 target_link_libraries(SignaturePlugin PRIVATE Pdf4QtLibCore  Pdf4QtLibWidgets Qt6::Core Qt6::Gui Qt6::Widgets)
 target_link_libraries(SignaturePlugin PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 

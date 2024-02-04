@@ -163,10 +163,6 @@ target_link_libraries(Pdf4QtLibCore PRIVATE Freetype::Freetype)
 target_link_libraries(Pdf4QtLibCore PRIVATE openjp2)
 target_link_libraries(Pdf4QtLibCore PRIVATE JPEG::JPEG)
 
-if(PDF4QT_ENABLE_OPENGL)
-    target_link_libraries(Pdf4QtLibCore PRIVATE Qt6::OpenGL)
-endif()
-
 if(LINUX_GCC)
     target_link_libraries(Pdf4QtLibCore PUBLIC TBB::tbb)
 endif()
@@ -177,6 +173,8 @@ endif()
 
 target_include_directories(Pdf4QtLibCore INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/sources)
 target_include_directories(Pdf4QtLibCore PUBLIC ${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR})
+
+target_link_libraries(Pdf4QtLibCore PRIVATE blend2d::blend2d)
 
 set_target_properties(Pdf4QtLibCore PROPERTIES
                       VERSION ${PDF4QT_VERSION}

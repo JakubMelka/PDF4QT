@@ -24,7 +24,6 @@
 int main(int argc, char *argv[])
 {
     QGuiApplication a(argc, argv);
-    QGuiApplication::setAttribute(Qt::AA_DontCheckOpenGLContextThreadAffinity, true);
     QCoreApplication::setOrganizationName("MelkaJ");
     QCoreApplication::setApplicationName("PdfTool");
     QCoreApplication::setApplicationVersion(pdf::PDF_LIBRARY_VERSION);

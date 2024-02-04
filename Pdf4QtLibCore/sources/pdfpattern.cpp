@@ -22,9 +22,12 @@
 #include "pdfcolorspaces.h"
 #include "pdfexecutionpolicy.h"
 #include "pdfconstants.h"
+#include "pdfpainterutils.h"
 
 #include <QMutex>
 #include <QPainter>
+
+#include <Blend2d.h>
 
 #include "pdfdbgheap.h"
 
@@ -1357,6 +1360,45 @@ void PDFMesh::paint(QPainter* painter, PDFReal alpha) const
     }
 
     painter->restore();
+}
+
+void PDFMesh::paint(BLContext& context, PDFReal alpha) const
+{
+    if (m_triangles.empty())
+    {
+        return;
+    }
+
+    context.save();
+    PDFPainterHelper::setBLPen(context, Qt::NoPen);
+
+    if (!m_backgroundPath.isEmpty() && m_backgroundColor.isValid())
+    {
+        QColor backgroundColor = m_backgroundColor;
+        backgroundColor.setAlphaF(alpha);
+        PDFPainterHelper::setBLBrush(context, QBrush(backgroundColor, Qt::SolidPattern));
+        context.fillPath(PDFPainterHelper::getBLPath(m_backgroundPath));
+    }
+
+    QColor color;
+
+    // Draw all triangles
+    for (const Triangle& triangle : m_triangles)
+    {
+        if (color != triangle.color)
+        {
+            QColor newColor(triangle.color);
+            newColor.setAlphaF(alpha);
+            PDFPainterHelper::setBLBrush(context, QBrush(newColor, Qt::SolidPattern));
+            color = newColor;
+        }
+
+        context.fillTriangle(m_vertices[triangle.v1].x(), m_vertices[triangle.v1].y(),
+                             m_vertices[triangle.v2].x(), m_vertices[triangle.v2].y(),
+                             m_vertices[triangle.v3].x(), m_vertices[triangle.v3].y());
+    }
+
+    context.restore();
 }
 
 void PDFMesh::transform(const QTransform& matrix)

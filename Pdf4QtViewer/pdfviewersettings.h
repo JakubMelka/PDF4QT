@@ -52,8 +52,6 @@ public:
         pdf::PDFRenderer::Features m_features;
         QString m_directory;
         pdf::RendererEngine m_rendererEngine;
-        bool m_multisampleAntialiasing;
-        int m_rendererSamples;
         bool m_prefetchPages;
         pdf::PDFReal m_preferredMeshResolutionRatio;
         pdf::PDFReal m_minimalMeshResolutionRatio;

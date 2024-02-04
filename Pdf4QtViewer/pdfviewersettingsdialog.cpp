@@ -102,8 +102,8 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     font.setPointSize(font.pointSize() * 1.5);
     ui->optionsPagesWidget->setFont(font);
 
-    ui->renderingEngineComboBox->addItem(tr("Software"), static_cast<int>(pdf::RendererEngine::Software));
-    ui->renderingEngineComboBox->addItem(tr("Hardware accelerated (OpenGL)"), static_cast<int>(pdf::RendererEngine::OpenGL));
+    ui->renderingEngineComboBox->addItem(tr("Software | QPainter"), static_cast<int>(pdf::RendererEngine::QPainter));
+    ui->renderingEngineComboBox->addItem(tr("Software | Blend2D | Multithreaded"), static_cast<int>(pdf::RendererEngine::Blend2D));
 
     for (int i : { 1, 2, 4, 8, 16 })
     {
@@ -279,29 +279,6 @@ void PDFViewerSettingsDialog::loadData()
     ui->renderingEngineComboBox->setCurrentIndex(ui->renderingEngineComboBox->findData(static_cast<int>(m_settings.m_rendererEngine)));
 
     // Engine
-    if (m_settings.m_rendererEngine == pdf::RendererEngine::OpenGL)
-    {
-        ui->multisampleAntialiasingCheckBox->setEnabled(true);
-        ui->multisampleAntialiasingCheckBox->setChecked(m_settings.m_multisampleAntialiasing);
-
-        if (m_settings.m_multisampleAntialiasing)
-        {
-            ui->multisampleAntialiasingSamplesCountComboBox->setEnabled(true);
-            ui->multisampleAntialiasingSamplesCountComboBox->setCurrentIndex(ui->multisampleAntialiasingSamplesCountComboBox->findData(m_settings.m_rendererSamples));
-        }
-        else
-        {
-            ui->multisampleAntialiasingSamplesCountComboBox->setEnabled(false);
-            ui->multisampleAntialiasingSamplesCountComboBox->setCurrentIndex(-1);
-        }
-    }
-    else
-    {
-        ui->multisampleAntialiasingCheckBox->setEnabled(false);
-        ui->multisampleAntialiasingCheckBox->setChecked(false);
-        ui->multisampleAntialiasingSamplesCountComboBox->setEnabled(false);
-        ui->multisampleAntialiasingSamplesCountComboBox->setCurrentIndex(-1);
-    }
     ui->prefetchPagesCheckBox->setChecked(m_settings.m_prefetchPages);
     ui->multithreadingComboBox->setCurrentIndex(ui->multithreadingComboBox->findData(static_cast<int>(m_settings.m_multithreadingStrategy)));
 
