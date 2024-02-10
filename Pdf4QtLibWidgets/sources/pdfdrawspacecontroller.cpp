@@ -32,8 +32,6 @@
 #include <QScreen>
 #include <QGuiApplication>
 
-#include <Blend2d.h>
-
 #include "pdfdbgheap.h"
 
 namespace pdf
@@ -768,18 +766,6 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
     }
 }
 
-void PDFDrawWidgetProxy::draw(BLContext& context, QRect rect)
-{
-    drawPages(context, rect, m_features);
-
-    for (IDocumentDrawInterface* drawInterface : m_drawInterfaces)
-    {
-        context.save();
-        drawInterface->drawPostRendering(context, rect);
-        context.restore();
-    }
-}
-
 QColor PDFDrawWidgetProxy::getPaperColor()
 {
     QColor paperColor = getCMSManager()->getCurrentCMS()->getPaperColor();
@@ -918,153 +904,6 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
                     painter->drawText(0, 0, PDFTranslationContext::tr("Draw time:       %1 [ms]").arg(formatDrawTime(drawTimeNS)));
 
                     painter->restore();
-                }
-
-                const QList<PDFRenderError>& pageErrors = compiledPage->getErrors();
-                if (!pageErrors.empty() || !drawInterfaceErrors.empty())
-                {
-                    QList<PDFRenderError> errors = pageErrors;
-                    if (!drawInterfaceErrors.isEmpty())
-                    {
-                        errors.append(drawInterfaceErrors);
-                    }
-                    Q_EMIT renderingError(item.pageIndex, qMove(errors));
-                }
-            }
-        }
-    }
-}
-
-void PDFDrawWidgetProxy::drawPages(BLContext& context, QRect rect, PDFRenderer::Features features)
-{
-    PDFPainterHelper::setBLBrush(context, QBrush(Qt::lightGray));
-    context.fillRect(rect);
-    BLMatrix2D baseMatrix = context.userMatrix();
-
-    // Use current paper color (it can be a bit different from white)
-    QColor paperColor = getPaperColor();
-
-    // Iterate trough pages and display them on the painter device
-    for (const LayoutItem& item : m_layout.items)
-    {
-        // The offsets m_horizontalOffset and m_verticalOffset are offsets to the
-        // topleft point of the block. But block maybe doesn't start at (0, 0),
-        // so we must also use translation from the block beginning.
-        QRect placedRect = item.pageRect.translated(m_horizontalOffset - m_layout.blockRect.left(), m_verticalOffset - m_layout.blockRect.top());
-        if (placedRect.intersects(rect))
-        {
-            GroupInfo groupInfo = getGroupInfo(item.groupIndex);
-
-            // Clear the page space by paper color
-            if (groupInfo.drawPaper)
-            {
-                PDFPainterHelper::setBLBrush(context, paperColor);
-                context.fillRect(placedRect);
-            }
-
-            const PDFPrecompiledPage* compiledPage = m_compiler->getCompiledPage(item.pageIndex, true);
-            if (compiledPage && compiledPage->isValid())
-            {
-                QElapsedTimer timer;
-                timer.start();
-
-                const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(item.pageIndex);
-                QTransform matrix = QTransform(createPagePointToDevicePointMatrix(page, placedRect)) * baseMatrix;
-                compiledPage->draw(context, page->getCropBox(), matrix, features, groupInfo.transparency);
-                PDFTextLayoutGetter layoutGetter = m_textLayoutCompiler->getTextLayoutLazy(item.pageIndex);
-
-                // Draw text blocks/text lines, if it is enabled
-                if (features.testFlag(PDFRenderer::DebugTextBlocks))
-                {
-                    m_textLayoutCompiler->makeTextLayout();
-                    const PDFTextLayout& layout = layoutGetter;
-                    const PDFTextBlocks& textBlocks = layout.getTextBlocks();
-
-                    context.save();
-                    painter->setFont(m_widget->font());
-                    painter->setPen(Qt::red);
-                    painter->setBrush(QColor(255, 0, 0, 128));
-
-                    QFontMetricsF fontMetrics(painter->font(), painter->device());
-                    int blockIndex = 1;
-                    for (const PDFTextBlock& block : textBlocks)
-                    {
-                        QString blockNumber = QString::number(blockIndex++);
-
-                        painter->drawPath(matrix.map(block.getBoundingBox()));
-                        painter->drawText(matrix.map(block.getTopLeft()) - QPointF(fontMetrics.horizontalAdvance(blockNumber), 0), blockNumber, Qt::TextSingleLine, 0);
-                    }
-
-                    context.restore();
-                }
-                if (features.testFlag(PDFRenderer::DebugTextLines))
-                {
-                    m_textLayoutCompiler->makeTextLayout();
-                    const PDFTextLayout& layout = layoutGetter;
-                    const PDFTextBlocks& textBlocks = layout.getTextBlocks();
-
-                    context.save();
-                    painter->setFont(m_widget->font());
-                    painter->setPen(Qt::green);
-                    painter->setBrush(QColor(0, 255, 0, 128));
-
-                    QFontMetricsF fontMetrics(painter->font(), painter->device());
-                    int lineIndex = 1;
-                    for (const PDFTextBlock& block : textBlocks)
-                    {
-                        for (const PDFTextLine& line : block.getLines())
-                        {
-                            QString lineNumber = QString::number(lineIndex++);
-
-                            painter->drawPath(matrix.map(line.getBoundingBox()));
-                            painter->drawText(matrix.map(line.getTopLeft()) - QPointF(fontMetrics.horizontalAdvance(lineNumber), 0), lineNumber, Qt::TextSingleLine, 0);
-                        }
-                    }
-
-                    context.restore();
-                }
-
-                QList<PDFRenderError> drawInterfaceErrors;
-                if (!features.testFlag(PDFRenderer::DenyExtraGraphics))
-                {
-                    for (IDocumentDrawInterface* drawInterface : m_drawInterfaces)
-                    {
-                        context.save();
-                        drawInterface->drawPage(context, item.pageIndex, compiledPage, layoutGetter, matrix, drawInterfaceErrors);
-                        context.restore();
-                    }
-                }
-
-                const qint64 drawTimeNS = timer.nsecsElapsed();
-
-                // Draw rendering times
-                if (features.testFlag(PDFRenderer::DisplayTimes))
-                {
-                    QFont font = m_widget->font();
-                    font.setPointSize(12);
-
-                    auto formatDrawTime = [](qint64 nanoseconds)
-                    {
-                        PDFReal miliseconds = nanoseconds / 1000000.0;
-                        return QString::number(miliseconds, 'f', 3);
-                    };
-
-                    QFontMetrics fontMetrics(font);
-                    const int lineSpacing = fontMetrics.lineSpacing();
-
-                    context.save();
-                    painter->setPen(Qt::red);
-                    painter->setFont(font);
-                    context.translate(placedRect.topLeft());
-                    context.translate(placedRect.width() / 20.0, placedRect.height() / 20.0); // Offset
-
-                    painter->setBackground(QBrush(Qt::white));
-                    painter->setBackgroundMode(Qt::OpaqueMode);
-                    painter->drawText(0, 0, PDFTranslationContext::tr("Compile time:    %1 [ms]").arg(formatDrawTime(compiledPage->getCompilingTimeNS())));
-                    painter->translate(0, lineSpacing);
-                    painter->drawText(0, 0, PDFTranslationContext::tr("Draw time:       %1 [ms]").arg(formatDrawTime(drawTimeNS)));
-
-                    context.restore();
                 }
 
                 const QList<PDFRenderError>& pageErrors = compiledPage->getErrors();

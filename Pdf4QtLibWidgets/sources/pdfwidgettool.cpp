@@ -1197,7 +1197,7 @@ void PDFMagnifierTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
     if (m_mousePos != mousePos)
     {
         m_mousePos = mousePos;
-        getProxy()->repaintNeeded();
+        Q_EMIT getProxy()->repaintNeeded();
     }
 }
 

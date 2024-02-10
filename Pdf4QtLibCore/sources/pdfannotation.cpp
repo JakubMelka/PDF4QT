@@ -1482,17 +1482,6 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
     }
 }
 
-void PDFAnnotationManager::drawPage(BLContext& context, PDFInteger pageIndex, const PDFPrecompiledPage* compiledPage, PDFTextLayoutGetter& layoutGetter, const QTransform& pagePointToDevicePointMatrix, QList<PDFRenderError>& errors) const
-{
-    // TODO: Implement it
-    Q_UNUSED(context);
-    Q_UNUSED(pageIndex);
-    Q_UNUSED(compiledPage);
-    Q_UNUSED(layoutGetter);
-    Q_UNUSED(pagePointToDevicePointMatrix);
-    Q_UNUSED(errors);
-}
-
 void PDFAnnotationManager::drawAnnotation(const PageAnnotation& annotation,
                                           const QTransform& pagePointToDevicePointMatrix,
                                           const PDFPage* page,

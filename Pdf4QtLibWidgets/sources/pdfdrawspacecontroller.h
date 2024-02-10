@@ -34,8 +34,6 @@ class QPainter;
 class QScrollBar;
 class QTimer;
 
-class BLContext;
-
 namespace pdf
 {
 class PDFProgress;
@@ -214,28 +212,12 @@ public:
     /// \param rect Rectangle in which the content is painted
     void draw(QPainter* painter, QRect rect);
 
-    /// Draws the actually visible pages on the context using the rectangle.
-    /// Rectangle is space in the widget, which is used for painting the PDF.
-    /// This function is using drawPages function to draw all pages. After that,
-    /// custom drawing is performed.
-    /// \sa drawPages
-    /// \param context Context to paint the PDF pages
-    /// \param rect Rectangle in which the content is painted
-    void draw(BLContext& context, QRect rect);
-
     /// Draws the actually visible pages on the painter using the rectangle.
     /// Rectangle is space in the widget, which is used for painting the PDF.
     /// \param painter Painter to paint the PDF pages
     /// \param rect Rectangle in which the content is painted
     /// \param features Rendering features
     void drawPages(QPainter* painter, QRect rect, PDFRenderer::Features features);
-
-    /// Draws the actually visible pages on the painter using the rectangle.
-    /// Rectangle is space in the widget, which is used for painting the PDF.
-    /// \param painter Painter to paint the PDF pages
-    /// \param rect Rectangle in which the content is painted
-    /// \param features Rendering features
-    void drawPages(BLContext& context, QRect rect, PDFRenderer::Features features);
 
     /// Draws thumbnail image of the given size (so larger of the page size
     /// width or height equals to pixel size and the latter size is rescaled

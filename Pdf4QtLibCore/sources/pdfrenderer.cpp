@@ -21,12 +21,11 @@
 #include "pdfexecutionpolicy.h"
 #include "pdfprogress.h"
 #include "pdfannotation.h"
+#include "pdfblpainter.h"
 
 #include <QDir>
 #include <QElapsedTimer>
 #include <QtMath>
-
-#include <Blend2d.h>
 
 #include "pdfdbgheap.h"
 
@@ -250,26 +249,16 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
 
     if (m_rendererEngine == RendererEngine::Blend2D)
     {
-        BLContext blContext;
-        BLImage blImage;
+        PDFBLPaintDevice blPaintDevice(image, false);
 
-        blContext.setHint(BL_CONTEXT_HINT_RENDERING_QUALITY, BL_RENDERING_QUALITY_MAX_VALUE);
+        QPainter painter(&blPaintDevice);
+        compiledPage->draw(&painter, page->getCropBox(), matrix, features, 1.0);
 
-        blImage.createFromData(image.width(), image.height(), BL_FORMAT_PRGB32, image.bits(), image.bytesPerLine());
-        if (blContext.begin(blImage) == BL_SUCCESS)
+        if (annotationManager)
         {
-            blContext.clearAll();
-
-            compiledPage->draw(blContext, page->getCropBox(), matrix, features, 1.0);
-
-            if (annotationManager)
-            {
-                QList<PDFRenderError> errors;
-                PDFTextLayoutGetter textLayoutGetter(nullptr, pageIndex);
-                annotationManager->drawPage(blContext, pageIndex, compiledPage, textLayoutGetter, matrix, errors);
-            }
-
-            blContext.end();
+            QList<PDFRenderError> errors;
+            PDFTextLayoutGetter textLayoutGetter(nullptr, pageIndex);
+            annotationManager->drawPage(&painter, pageIndex, compiledPage, textLayoutGetter, matrix, errors);
         }
     }
     else

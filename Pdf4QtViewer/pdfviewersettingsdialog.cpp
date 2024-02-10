@@ -105,11 +105,6 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     ui->renderingEngineComboBox->addItem(tr("Software | QPainter"), static_cast<int>(pdf::RendererEngine::QPainter));
     ui->renderingEngineComboBox->addItem(tr("Software | Blend2D | Multithreaded"), static_cast<int>(pdf::RendererEngine::Blend2D));
 
-    for (int i : { 1, 2, 4, 8, 16 })
-    {
-        ui->multisampleAntialiasingSamplesCountComboBox->addItem(QString::number(i), i);
-    }
-
     ui->multithreadingComboBox->addItem(tr("Single thread"), static_cast<int>(pdf::PDFExecutionPolicy::Strategy::SingleThreaded));
     ui->multithreadingComboBox->addItem(tr("Multithreading (load balanced)"), static_cast<int>(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded));
     ui->multithreadingComboBox->addItem(tr("Multithreading (maximum threads)"), static_cast<int>(pdf::PDFExecutionPolicy::Strategy::AlwaysMultithreaded));
@@ -408,14 +403,6 @@ void PDFViewerSettingsDialog::saveData()
     if (sender == ui->renderingEngineComboBox)
     {
         m_settings.m_rendererEngine = static_cast<pdf::RendererEngine>(ui->renderingEngineComboBox->currentData().toInt());
-    }
-    else if (sender == ui->multisampleAntialiasingCheckBox)
-    {
-        m_settings.m_multisampleAntialiasing = ui->multisampleAntialiasingCheckBox->isChecked();
-    }
-    else if (sender == ui->multisampleAntialiasingSamplesCountComboBox)
-    {
-        m_settings.m_rendererSamples = ui->multisampleAntialiasingSamplesCountComboBox->currentData().toInt();
     }
     else if (sender == ui->prefetchPagesCheckBox)
     {

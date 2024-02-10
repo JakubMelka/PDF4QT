@@ -111,11 +111,7 @@ public:
     pdf::RendererEngine getRendererEngine() const;
     void setRendererEngine(pdf::RendererEngine rendererEngine);
 
-    int getRendererSamples() const;
-    void setRendererSamples(int rendererSamples);
-
     bool isPagePrefetchingEnabled() const { return m_settings.m_prefetchPages; }
-    bool isMultisampleAntialiasingEnabled() const { return m_settings.m_multisampleAntialiasing; }
 
     pdf::PDFReal getPreferredMeshResolutionRatio() const { return m_settings.m_preferredMeshResolutionRatio; }
     void setPreferredMeshResolutionRatio(pdf::PDFReal preferredMeshResolutionRatio);

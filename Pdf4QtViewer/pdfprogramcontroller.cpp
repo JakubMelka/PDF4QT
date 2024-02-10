@@ -624,7 +624,7 @@ void PDFProgramController::initialize(Features features,
 
     readSettings(Settings(GeneralSettings | PluginsSettings | RecentFileSettings | CertificateSettings));
 
-    m_pdfWidget = new pdf::PDFWidget(m_CMSManager, m_settings->getRendererEngine(), m_settings->isMultisampleAntialiasingEnabled() ? m_settings->getRendererSamples() : -1, m_mainWindow);
+    m_pdfWidget = new pdf::PDFWidget(m_CMSManager, m_settings->getRendererEngine(), m_mainWindow);
     m_pdfWidget->setObjectName("pdfWidget");
     m_pdfWidget->updateCacheLimits(m_settings->getCompiledPageCacheLimit() * 1024, m_settings->getThumbnailsCacheLimit(), m_settings->getFontCacheLimit(), m_settings->getInstancedFontCacheLimit());
     m_pdfWidget->getDrawWidgetProxy()->setProgress(m_progress);
@@ -1697,7 +1697,7 @@ void PDFProgramController::updateActionsAvailability()
 
 void PDFProgramController::onViewerSettingsChanged()
 {
-    m_pdfWidget->updateRenderer(m_settings->getRendererEngine(), m_settings->isMultisampleAntialiasingEnabled() ? m_settings->getRendererSamples() : -1);
+    m_pdfWidget->updateRenderer(m_settings->getRendererEngine());
     m_pdfWidget->updateCacheLimits(m_settings->getCompiledPageCacheLimit() * 1024, m_settings->getThumbnailsCacheLimit(), m_settings->getFontCacheLimit(), m_settings->getInstancedFontCacheLimit());
     m_pdfWidget->getDrawWidgetProxy()->setFeatures(m_settings->getFeatures());
     m_pdfWidget->getDrawWidgetProxy()->setPreferredMeshResolutionRatio(m_settings->getPreferredMeshResolutionRatio());

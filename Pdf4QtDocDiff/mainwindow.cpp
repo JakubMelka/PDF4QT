@@ -82,7 +82,7 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->documentFrame->setLayout(new QVBoxLayout);
 
     m_cmsManager = new pdf::PDFCMSManager(this);
-    m_pdfWidget = new pdf::PDFWidget(m_cmsManager, pdf::RendererEngine::Software, 1, ui->documentFrame);
+    m_pdfWidget = new pdf::PDFWidget(m_cmsManager, pdf::RendererEngine::QPainter, ui->documentFrame);
     m_pdfWidget->getDrawWidgetProxy()->setProgress(m_progress);
     ui->documentFrame->layout()->addWidget(m_pdfWidget);
     m_pdfWidget->getDrawWidgetProxy()->registerDrawInterface(&m_drawInterface);

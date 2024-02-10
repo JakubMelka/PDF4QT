@@ -22,6 +22,7 @@
 #include "pdfannotation.h"
 #include "pdfwidgetannotation.h"
 #include "pdfwidgetformmanager.h"
+#include "pdfblpainter.h"
 
 #include <QPainter>
 #include <QGridLayout>
@@ -29,8 +30,6 @@
 #include <QApplication>
 #include <QPixmapCache>
 #include <QColorSpace>
-
-#include <Blend2d.h>
 
 #include "pdfdbgheap.h"
 
@@ -583,33 +582,23 @@ void PDFDrawWidget::paintEvent(QPaintEvent* event)
     {
         case RendererEngine::Blend2D:
         {
-            BLContext blContext;
-            BLImage blImage;
-
             QRect rect = this->rect();
             if (m_blend2DframeBuffer.size() != rect.size())
             {
                 m_blend2DframeBuffer = QImage(rect.size(), QImage::Format_ARGB32_Premultiplied);
             }
 
-            BLContextCreateInfo info{};
-            info.reset();
-            info.flags = BL_CONTEXT_CREATE_FLAG_FALLBACK_TO_SYNC;
-            info.threadCount = QThread::idealThreadCount();
+            PDFBLPaintDevice blPaintDevice(m_blend2DframeBuffer, true);
+            QPainter blPainter;
 
-            blContext.setHint(BL_CONTEXT_HINT_RENDERING_QUALITY, BL_RENDERING_QUALITY_MAX_VALUE);
-
-            blImage.createFromData(m_blend2DframeBuffer.width(), m_blend2DframeBuffer.height(), BL_FORMAT_PRGB32, m_blend2DframeBuffer.bits(), m_blend2DframeBuffer.bytesPerLine());
-            if (blContext.begin(blImage, info) == BL_SUCCESS)
+            if (blPainter.begin(&blPaintDevice))
             {
-                blContext.clearAll();
-                getPDFWidget()->getDrawWidgetProxy()->draw(blContext, rect);
-                blContext.end();
-
-                QPainter painter(this);
-                painter.drawImage(QPoint(0, 0), m_blend2DframeBuffer);
+                getPDFWidget()->getDrawWidgetProxy()->draw(&blPainter, rect);
+                blPainter.end();
             }
 
+            QPainter painter(this);
+            painter.drawImage(QPoint(0, 0), m_blend2DframeBuffer);
             break;
         }
 
