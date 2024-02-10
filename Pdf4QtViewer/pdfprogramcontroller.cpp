@@ -150,6 +150,7 @@ std::vector<QAction*> PDFActionManager::getRenderingOptionActions() const
          RenderOptionTextAntialiasing,
          RenderOptionSmoothPictures,
          RenderOptionIgnoreOptionalContentSettings,
+         RenderOptionDisplayRenderTimes,
          RenderOptionDisplayAnnotations,
          RenderOptionInvertColors,
          RenderOptionGrayscale,
@@ -157,8 +158,7 @@ std::vector<QAction*> PDFActionManager::getRenderingOptionActions() const
          RenderOptionHighContrast,
          RenderOptionCustomColors,
          RenderOptionShowTextBlocks,
-         RenderOptionShowTextLines
-                         });
+         RenderOptionShowTextLines});
 }
 
 std::vector<QAction*> PDFActionManager::getActions() const
@@ -266,6 +266,7 @@ void PDFActionManager::initActions(QSize iconSize, bool initializeStampActions)
     setUserData(RenderOptionTextAntialiasing, pdf::PDFRenderer::TextAntialiasing);
     setUserData(RenderOptionSmoothPictures, pdf::PDFRenderer::SmoothImages);
     setUserData(RenderOptionIgnoreOptionalContentSettings, pdf::PDFRenderer::IgnoreOptionalContent);
+    setUserData(RenderOptionDisplayRenderTimes, pdf::PDFRenderer::DisplayTimes);
     setUserData(RenderOptionDisplayAnnotations, pdf::PDFRenderer::DisplayAnnotations);
     setUserData(RenderOptionInvertColors, pdf::PDFRenderer::ColorAdjust_Invert);
     setUserData(RenderOptionGrayscale, pdf::PDFRenderer::ColorAdjust_Grayscale);

@@ -161,6 +161,7 @@ public:
         RenderOptionTextAntialiasing,
         RenderOptionSmoothPictures,
         RenderOptionIgnoreOptionalContentSettings,
+        RenderOptionDisplayRenderTimes,
         RenderOptionDisplayAnnotations,
         RenderOptionInvertColors,
         RenderOptionGrayscale,

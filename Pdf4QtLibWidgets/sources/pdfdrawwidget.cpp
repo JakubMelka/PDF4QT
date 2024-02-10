@@ -583,9 +583,16 @@ void PDFDrawWidget::paintEvent(QPaintEvent* event)
         case RendererEngine::Blend2D:
         {
             QRect rect = this->rect();
-            if (m_blend2DframeBuffer.size() != rect.size())
+
+            qreal devicePixelRatio = devicePixelRatioF();
+            m_blend2DframeBuffer.setDevicePixelRatio(devicePixelRatio);
+            m_blend2DframeBuffer.setDotsPerMeterX(logicalDpiX());
+            m_blend2DframeBuffer.setDotsPerMeterY(logicalDpiY());
+
+            QSize requiredSize = rect.size() * devicePixelRatio;
+            if (m_blend2DframeBuffer.size() != requiredSize)
             {
-                m_blend2DframeBuffer = QImage(rect.size(), QImage::Format_ARGB32_Premultiplied);
+                m_blend2DframeBuffer = QImage(requiredSize, QImage::Format_ARGB32_Premultiplied);
             }
 
             PDFBLPaintDevice blPaintDevice(m_blend2DframeBuffer, true);

@@ -187,6 +187,10 @@ bool PDFBLPaintEngine::begin(QPaintDevice*)
     if (m_blContext->begin(m_blOffscreenBuffer.value(), info) == BL_SUCCESS)
     {
         m_blContext->clearAll();
+
+        qreal devicePixelRatio = m_qtOffscreenBuffer.devicePixelRatioF();
+        m_blContext->scale(devicePixelRatio);
+        m_blContext->userToMeta();
         return true;
     }
     else
