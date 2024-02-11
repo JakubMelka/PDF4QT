@@ -586,8 +586,11 @@ void PDFDrawWidget::paintEvent(QPaintEvent* event)
 
             qreal devicePixelRatio = devicePixelRatioF();
             m_blend2DframeBuffer.setDevicePixelRatio(devicePixelRatio);
-            m_blend2DframeBuffer.setDotsPerMeterX(logicalDpiX());
-            m_blend2DframeBuffer.setDotsPerMeterY(logicalDpiY());
+
+            qreal dpmX = logicalDpiX() / 0.0254;
+            qreal dpmY = logicalDpiY() / 0.0254;
+            m_blend2DframeBuffer.setDotsPerMeterX(qCeil(dpmX));
+            m_blend2DframeBuffer.setDotsPerMeterY(qCeil(dpmY));
 
             QSize requiredSize = rect.size() * devicePixelRatio;
             if (m_blend2DframeBuffer.size() != requiredSize)

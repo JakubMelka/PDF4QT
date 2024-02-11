@@ -19,6 +19,7 @@
 #include "pdffont.h"
 
 #include <QThread>
+#include <QRawFont>
 #include <QPainterPath>
 #include <QPaintEngine>
 
@@ -83,6 +84,9 @@ private:
     /// Returns composition operator
     static BLCompOp getBLCompOp(QPainter::CompositionMode mode);
 
+    void setFillRule(Qt::FillRule fillRule);
+    void updateFont(QFont newFont);
+
     bool isStrokeActive() const { return m_currentPen.style() != Qt::NoPen; }
     bool isFillActive() const { return m_currentBrush.style() != Qt::NoBrush; }
 
@@ -94,6 +98,7 @@ private:
     QPen m_currentPen;
     QBrush m_currentBrush;
     QFont m_currentFont;
+    QRawFont m_currentRawFont;
 };
 
 PDFBLPaintDevice::PDFBLPaintDevice(QImage& offscreenBuffer, bool isMultithreaded) :
@@ -191,6 +196,10 @@ bool PDFBLPaintEngine::begin(QPaintDevice*)
         qreal devicePixelRatio = m_qtOffscreenBuffer.devicePixelRatioF();
         m_blContext->scale(devicePixelRatio);
         m_blContext->userToMeta();
+
+        setBLPen(m_blContext.value(), m_currentPen);
+        setBLBrush(m_blContext.value(), m_currentBrush);
+        updateFont(QFont());
         return true;
     }
     else
@@ -215,10 +224,26 @@ bool PDFBLPaintEngine::end()
     return true;
 }
 
+void PDFBLPaintEngine::updateFont(QFont newFont)
+{
+    m_currentFont = newFont;
+    m_currentFont.setHintingPreference(QFont::PreferNoHinting);
+
+    PDFReal pixelSize = m_currentFont.pixelSize();
+    if (pixelSize == -1)
+    {
+        PDFReal pointSizeF = m_currentFont.pointSizeF();
+        PDFReal dpi = m_qtOffscreenBuffer.logicalDpiY();
+        pixelSize = pointSizeF / 72 * dpi;
+        m_currentFont.setPixelSize(pixelSize);
+    }
+
+    m_currentRawFont = QRawFont::fromFont(m_currentFont);
+}
+
 void PDFBLPaintEngine::updateState(const QPaintEngineState& updatedState)
 {
     /*  DirtyBrushOrigin        = 0x0004,
-        DirtyFont               = 0x0008,
         DirtyBackground         = 0x0010,
         DirtyBackgroundMode     = 0x0020,
         DirtyClipRegion         = 0x0080,
@@ -251,6 +276,11 @@ void PDFBLPaintEngine::updateState(const QPaintEngineState& updatedState)
     if (updatedState.state().testFlag(QPaintEngine::DirtyTransform))
     {
         m_blContext->setMatrix(getBLMatrix(updatedState.transform()));
+    }
+
+    if (updatedState.state().testFlag(QPaintEngine::DirtyFont))
+    {
+        updateFont(updatedState.font());
     }
 }
 
@@ -356,20 +386,18 @@ void PDFBLPaintEngine::drawEllipse(const QRect& r)
     }
 }
 
-void PDFBLPaintEngine::drawPath(const QPainterPath& path)
+void PDFBLPaintEngine::setFillRule(Qt::FillRule fillRule)
 {
-    BLPath blPath = getBLPath(path);
+    BLFillRule blFillRule{};
 
-    BLFillRule fillRule{};
-
-    switch (path.fillRule())
+    switch (fillRule)
     {
         case Qt::OddEvenFill:
-            fillRule = BL_FILL_RULE_EVEN_ODD;
+            blFillRule = BL_FILL_RULE_EVEN_ODD;
             break;
 
         case Qt::WindingFill:
-            fillRule = BL_FILL_RULE_NON_ZERO;
+            blFillRule = BL_FILL_RULE_NON_ZERO;
             break;
 
         default:
@@ -377,7 +405,14 @@ void PDFBLPaintEngine::drawPath(const QPainterPath& path)
             break;
     }
 
-    m_blContext->setFillRule(fillRule);
+    m_blContext->setFillRule(blFillRule);
+}
+
+void PDFBLPaintEngine::drawPath(const QPainterPath& path)
+{
+    BLPath blPath = getBLPath(path);
+
+    setFillRule(path.fillRule());
 
     if (isFillActive())
     {
@@ -392,35 +427,176 @@ void PDFBLPaintEngine::drawPath(const QPainterPath& path)
 
 void PDFBLPaintEngine::drawPoints(const QPointF* points, int pointCount)
 {
+    m_blContext->save();
+    m_blContext->setFillStyle(BLRgba32(m_currentPen.color().rgba()));
 
+    for (int i = 0; i < pointCount; ++i)
+    {
+        const QPointF& c = points[i];
+        BLEllipse blEllipse(c.x(), c.y(), m_currentPen.widthF() * 0.5, m_currentPen.widthF() * 0.5);
+        m_blContext->fillEllipse(blEllipse);
+    }
+
+    m_blContext->restore();
 }
 
 void PDFBLPaintEngine::drawPoints(const QPoint* points, int pointCount)
 {
+    m_blContext->save();
+    m_blContext->setFillStyle(BLRgba32(m_currentPen.color().rgba()));
+
+    for (int i = 0; i < pointCount; ++i)
+    {
+        const QPointF& c = points[i];
+        BLEllipse blEllipse(c.x(), c.y(), m_currentPen.widthF() * 0.5, m_currentPen.widthF() * 0.5);
+        m_blContext->fillEllipse(blEllipse);
+    }
+
+    m_blContext->restore();
 }
 
 void PDFBLPaintEngine::drawPolygon(const QPointF* points, int pointCount, PolygonDrawMode mode)
 {
+    QPainterPath path;
+    QPolygonF polygon;
+    polygon.assign(points, points + pointCount);
+    path.addPolygon(polygon);
+
+    switch (mode)
+    {
+    case QPaintEngine::OddEvenMode:
+        path.setFillRule(Qt::OddEvenFill);
+        break;
+    case QPaintEngine::WindingMode:
+        path.setFillRule(Qt::WindingFill);
+        break;
+    case QPaintEngine::ConvexMode:
+        path.setFillRule(Qt::OddEvenFill);
+        break;
+    case QPaintEngine::PolylineMode:
+        path.setFillRule(Qt::OddEvenFill);
+        break;
+    }
+
+    setFillRule(path.fillRule());
+    BLPath blPath = getBLPath(path);
+
+    if (isFillActive() && mode != QPaintEngine::PolylineMode)
+    {
+        m_blContext->fillPath(blPath);
+    }
+
+    if (isStrokeActive())
+    {
+        m_blContext->strokePath(blPath);
+    }
 }
 
 void PDFBLPaintEngine::drawPolygon(const QPoint* points, int pointCount, PolygonDrawMode mode)
 {
+    QPainterPath path;
+    QPolygonF polygon;
+    polygon.assign(points, points + pointCount);
+    path.addPolygon(polygon);
+
+    switch (mode)
+    {
+    case QPaintEngine::OddEvenMode:
+        path.setFillRule(Qt::OddEvenFill);
+        break;
+    case QPaintEngine::WindingMode:
+        path.setFillRule(Qt::WindingFill);
+        break;
+    case QPaintEngine::ConvexMode:
+        path.setFillRule(Qt::OddEvenFill);
+        break;
+    case QPaintEngine::PolylineMode:
+        path.setFillRule(Qt::OddEvenFill);
+        break;
+    }
+
+    setFillRule(path.fillRule());
+    BLPath blPath = getBLPath(path);
+
+    if (isFillActive() && mode != QPaintEngine::PolylineMode)
+    {
+        m_blContext->fillPath(blPath);
+    }
+
+    if (isStrokeActive())
+    {
+        m_blContext->strokePath(blPath);
+    }
 }
 
 void PDFBLPaintEngine::drawPixmap(const QRectF& r, const QPixmap& pm, const QRectF& sr)
 {
+    drawImage(r, pm.toImage(), sr, Qt::ImageConversionFlags());
 }
 
 void PDFBLPaintEngine::drawTextItem(const QPointF& p, const QTextItem& textItem)
 {
+    if (m_currentRawFont.isValid())
+    {
+        QString text = textItem.text();
+        QList<quint32> glyphIndices = m_currentRawFont.glyphIndexesForString(text);
+        QList<QPointF> glyphPositions = m_currentRawFont.advancesForGlyphIndexes(glyphIndices);
+
+        QPointF currentPosition = p;
+        QPainterPath path;
+        for (int i = 0; i < glyphIndices.size(); ++i)
+        {
+            QPainterPath glyphPath = m_currentRawFont.pathForGlyph(glyphIndices[i]);
+            glyphPath.translate(currentPosition);
+            path.addPath(glyphPath);
+            currentPosition += glyphPositions[i];
+        }
+
+        m_blContext->save();
+        setFillRule(path.fillRule());
+        m_blContext->setFillStyle(BLRgba32(m_currentPen.color().rgba()));
+        m_blContext->fillPath(getBLPath(path));
+        m_blContext->restore();
+    }
 }
 
 void PDFBLPaintEngine::drawTiledPixmap(const QRectF& r, const QPixmap& pixmap, const QPointF& s)
 {
+    QImage image = pixmap.toImage();
+
+    if (image.format() != QImage::Format_ARGB32_Premultiplied)
+    {
+        image.convertTo(QImage::Format_ARGB32_Premultiplied);
+    }
+
+    int tilesX = qCeil(r.width() / pixmap.width());
+    int tilesY = qCeil(r.height() / pixmap.height());
+
+    BLImage blImage;
+    blImage.createFromData(image.width(), image.height(), BL_FORMAT_PRGB32, image.bits(), image.bytesPerLine());
+
+    BLImage blDrawImage;
+    blDrawImage.assignDeep(blImage);
+
+    for (int x = 0; x < tilesX; ++x)
+    {
+        for (int y = 0; y < tilesY; ++y)
+        {
+            QPointF tilePos = QPointF(r.left() + x * pixmap.width() + s.x(),
+                                      r.top() + y * pixmap.height() + s.y());
+
+            if (tilePos.x() < r.right() && tilePos.y() < r.bottom())
+            {
+                m_blContext->blitImage(getBLPoint(tilePos), blDrawImage);
+            }
+        }
+    }
 }
 
 void PDFBLPaintEngine::drawImage(const QRectF& r, const QImage& pm, const QRectF& sr, Qt::ImageConversionFlags flags)
 {
+    Q_UNUSED(flags);
+
     QImage image = pm;
 
     if (image.format() != QImage::Format_ARGB32_Premultiplied)
