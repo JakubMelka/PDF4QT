@@ -84,11 +84,26 @@ private:
     /// Returns composition operator
     static BLCompOp getBLCompOp(QPainter::CompositionMode mode);
 
+    void drawPathImpl(const QPainterPath& path, bool enableStroke, bool enableFill);
+
     void setFillRule(Qt::FillRule fillRule);
     void updateFont(QFont newFont);
+    void setPathFillMode(PolygonDrawMode mode, QPainterPath& path);
+    void updateClipping(std::optional<QRegion> clipRegion,
+                        std::optional<QPainterPath> clipPath,
+                        Qt::ClipOperation clipOperation);
 
     bool isStrokeActive() const { return m_currentPen.style() != Qt::NoPen; }
     bool isFillActive() const { return m_currentBrush.style() != Qt::NoBrush; }
+
+    enum class ClipMode
+    {
+        NoClip,
+        NotVisible,
+        NeedsResolve
+    };
+
+    ClipMode resolveClipping(const QPainterPath& path) const;
 
     QImage& m_qtOffscreenBuffer;
     std::optional<BLContext> m_blContext;
@@ -99,6 +114,13 @@ private:
     QBrush m_currentBrush;
     QFont m_currentFont;
     QRawFont m_currentRawFont;
+    QTransform m_currentTransform;
+
+    bool m_currentIsClipEnabled = false;
+    bool m_clipSingleRect = false;
+    std::optional<QRegion> m_clipRegion;
+    std::optional<QPainterPath> m_clipPath;
+    std::optional<QPainterPath> m_finalClipPath;
 };
 
 PDFBLPaintDevice::PDFBLPaintDevice(QImage& offscreenBuffer, bool isMultithreaded) :
@@ -247,9 +269,7 @@ void PDFBLPaintEngine::updateState(const QPaintEngineState& updatedState)
         DirtyBackground         = 0x0010,
         DirtyBackgroundMode     = 0x0020,
         DirtyClipRegion         = 0x0080,
-        DirtyClipPath           = 0x0100,
-        DirtyHints              = 0x0200,
-        DirtyClipEnabled        = 0x0800,*/
+        DirtyClipPath           = 0x0100,*/
 
     if (updatedState.state().testFlag(QPaintEngine::DirtyPen))
     {
@@ -275,12 +295,41 @@ void PDFBLPaintEngine::updateState(const QPaintEngineState& updatedState)
 
     if (updatedState.state().testFlag(QPaintEngine::DirtyTransform))
     {
+        m_currentTransform = updatedState.transform();
         m_blContext->setMatrix(getBLMatrix(updatedState.transform()));
     }
 
     if (updatedState.state().testFlag(QPaintEngine::DirtyFont))
     {
         updateFont(updatedState.font());
+    }
+
+    if (updatedState.state().testFlag(QPaintEngine::DirtyClipEnabled))
+    {
+        m_currentIsClipEnabled = updatedState.isClipEnabled();
+    }
+
+    if (updatedState.state().testFlag(QPaintEngine::DirtyHints))
+    {
+        // Do nothing
+    }
+
+    if (updatedState.state().testAnyFlags(QPaintEngine::DirtyClipPath | QPaintEngine::DirtyClipRegion))
+    {
+        std::optional<QRegion> clipRegion;
+        std::optional<QPainterPath> clipPath;
+
+        if (updatedState.state().testFlag(QPaintEngine::DirtyClipRegion))
+        {
+            clipRegion = updatedState.clipRegion();
+        }
+
+        if (updatedState.state().testFlag(QPaintEngine::DirtyClipPath))
+        {
+            clipPath = updatedState.clipPath();
+        }
+
+        updateClipping(std::move(clipRegion), std::move(clipPath), updatedState.clipOperation());
     }
 }
 
@@ -356,70 +405,52 @@ void PDFBLPaintEngine::drawLines(const QLineF* lines, int lineCount)
 
 void PDFBLPaintEngine::drawEllipse(const QRectF& r)
 {
-    QPointF c = r.center();
-    BLEllipse blEllipse(c.x(), c.y(), r.width() * 0.5, r.height() * 0.5);
-
-    if (isFillActive())
-    {
-        m_blContext->fillEllipse(blEllipse);
-    }
-
-    if (isStrokeActive())
-    {
-        m_blContext->strokeEllipse(blEllipse);
-    }
+    QPainterPath path;
+    path.addEllipse(r);
+    drawPathImpl(path, true, true);
 }
 
 void PDFBLPaintEngine::drawEllipse(const QRect& r)
 {
-    QPointF c = r.center();
-    BLEllipse blEllipse(c.x(), c.y(), r.width() * 0.5, r.height() * 0.5);
-
-    if (isFillActive())
-    {
-        m_blContext->fillEllipse(blEllipse);
-    }
-
-    if (isStrokeActive())
-    {
-        m_blContext->strokeEllipse(blEllipse);
-    }
-}
-
-void PDFBLPaintEngine::setFillRule(Qt::FillRule fillRule)
-{
-    BLFillRule blFillRule{};
-
-    switch (fillRule)
-    {
-        case Qt::OddEvenFill:
-            blFillRule = BL_FILL_RULE_EVEN_ODD;
-            break;
-
-        case Qt::WindingFill:
-            blFillRule = BL_FILL_RULE_NON_ZERO;
-            break;
-
-        default:
-            Q_ASSERT(false);
-            break;
-    }
-
-    m_blContext->setFillRule(blFillRule);
+    QPainterPath path;
+    path.addEllipse(r);
+    drawPathImpl(path, true, true);
 }
 
 void PDFBLPaintEngine::drawPath(const QPainterPath& path)
 {
+    drawPathImpl(path, true, true);
+}
+
+void PDFBLPaintEngine::drawPathImpl(const QPainterPath& path, bool enableStroke, bool enableFill)
+{
+    QPainterPath transformedPath = m_currentTransform.map(path);
+    ClipMode clipMode = resolveClipping(transformedPath);
+
+    switch (clipMode)
+    {
+    case ClipMode::NoClip:
+        // Do as normal
+        break;
+
+    case pdf::PDFBLPaintEngine::ClipMode::NotVisible:
+        // Graphics is not visible
+        return;
+
+    case pdf::PDFBLPaintEngine::ClipMode::NeedsResolve:
+        break;
+    }
+
     BLPath blPath = getBLPath(path);
 
     setFillRule(path.fillRule());
 
-    if (isFillActive())
+    if (isFillActive() && enableFill)
     {
         m_blContext->fillPath(blPath);
     }
 
-    if (isStrokeActive())
+    if (isStrokeActive() && enableStroke)
     {
         m_blContext->strokePath(blPath);
     }
@@ -462,34 +493,9 @@ void PDFBLPaintEngine::drawPolygon(const QPointF* points, int pointCount, Polygo
     polygon.assign(points, points + pointCount);
     path.addPolygon(polygon);
 
-    switch (mode)
-    {
-    case QPaintEngine::OddEvenMode:
-        path.setFillRule(Qt::OddEvenFill);
-        break;
-    case QPaintEngine::WindingMode:
-        path.setFillRule(Qt::WindingFill);
-        break;
-    case QPaintEngine::ConvexMode:
-        path.setFillRule(Qt::OddEvenFill);
-        break;
-    case QPaintEngine::PolylineMode:
-        path.setFillRule(Qt::OddEvenFill);
-        break;
-    }
+    setPathFillMode(mode, path);
 
-    setFillRule(path.fillRule());
-    BLPath blPath = getBLPath(path);
-
-    if (isFillActive() && mode != QPaintEngine::PolylineMode)
-    {
-        m_blContext->fillPath(blPath);
-    }
-
-    if (isStrokeActive())
-    {
-        m_blContext->strokePath(blPath);
-    }
+    drawPathImpl(path, true, mode != QPaintEngine::PolylineMode);
 }
 
 void PDFBLPaintEngine::drawPolygon(const QPoint* points, int pointCount, PolygonDrawMode mode)
@@ -499,34 +505,9 @@ void PDFBLPaintEngine::drawPolygon(const QPoint* points, int pointCount, Polygon
     polygon.assign(points, points + pointCount);
     path.addPolygon(polygon);
 
-    switch (mode)
-    {
-    case QPaintEngine::OddEvenMode:
-        path.setFillRule(Qt::OddEvenFill);
-        break;
-    case QPaintEngine::WindingMode:
-        path.setFillRule(Qt::WindingFill);
-        break;
-    case QPaintEngine::ConvexMode:
-        path.setFillRule(Qt::OddEvenFill);
-        break;
-    case QPaintEngine::PolylineMode:
-        path.setFillRule(Qt::OddEvenFill);
-        break;
-    }
+    setPathFillMode(mode, path);
 
-    setFillRule(path.fillRule());
-    BLPath blPath = getBLPath(path);
-
-    if (isFillActive() && mode != QPaintEngine::PolylineMode)
-    {
-        m_blContext->fillPath(blPath);
-    }
-
-    if (isStrokeActive())
-    {
-        m_blContext->strokePath(blPath);
-    }
+    drawPathImpl(path, true, mode != QPaintEngine::PolylineMode);
 }
 
 void PDFBLPaintEngine::drawPixmap(const QRectF& r, const QPixmap& pm, const QRectF& sr)
@@ -930,6 +911,159 @@ BLCompOp PDFBLPaintEngine::getBLCompOp(QPainter::CompositionMode mode)
     }
 
     return BL_COMP_OP_SRC_OVER;
+}
+
+void PDFBLPaintEngine::setPathFillMode(PolygonDrawMode mode, QPainterPath& path)
+{
+    switch (mode)
+    {
+    case QPaintEngine::OddEvenMode:
+        path.setFillRule(Qt::OddEvenFill);
+        break;
+    case QPaintEngine::WindingMode:
+        path.setFillRule(Qt::WindingFill);
+        break;
+    case QPaintEngine::ConvexMode:
+        path.setFillRule(Qt::OddEvenFill);
+        break;
+    case QPaintEngine::PolylineMode:
+        path.setFillRule(Qt::OddEvenFill);
+        break;
+    }
+}
+
+void PDFBLPaintEngine::updateClipping(std::optional<QRegion> clipRegion,
+                                      std::optional<QPainterPath> clipPath,
+                                      Qt::ClipOperation clipOperation)
+{
+    switch (clipOperation)
+    {
+        case Qt::NoClip:
+            m_clipRegion.reset();
+            m_clipPath.reset();
+            m_finalClipPath.reset();
+            m_clipSingleRect = false;
+            m_blContext->restoreClipping();
+            return;
+
+        case Qt::ReplaceClip:
+        {
+            m_clipPath = std::move(clipPath);
+            m_clipRegion = std::move(clipRegion);
+            break;
+        }
+
+        case Qt::IntersectClip:
+        {
+            if (m_clipPath.has_value())
+            {
+                if (clipPath.has_value())
+                {
+                    *m_clipPath = m_clipPath->intersected(*clipPath);
+                }
+            }
+            else
+            {
+                m_clipPath = std::move(clipPath);
+            }
+
+            if (m_clipRegion.has_value())
+            {
+                if (clipRegion.has_value())
+                {
+                    *m_clipRegion = m_clipRegion->intersected(*clipRegion);
+                }
+            }
+            else
+            {
+                m_clipRegion = std::move(clipRegion);
+            }
+
+            break;
+        }
+    }
+
+    m_clipSingleRect = m_clipRegion.has_value() && !m_clipPath.has_value() && m_clipRegion->rectCount() == 1;
+
+    if (m_clipSingleRect)
+    {
+        QRegion transformedRegion = m_currentTransform.map(m_clipRegion.value());
+        m_blContext->clipToRect(getBLRect(transformedRegion.boundingRect()));
+    }
+    else
+    {
+        m_blContext->restoreClipping();
+    }
+
+    m_finalClipPath = QPainterPath();
+
+    QPainterPath clip1;
+    QPainterPath clip2;
+
+    if (m_clipPath.has_value())
+    {
+        clip1 = m_clipPath.value();
+    }
+
+    if (m_clipRegion.has_value())
+    {
+        clip2.addRegion(m_clipRegion.value());
+    }
+
+    if (!clip1.isEmpty() && !clip2.isEmpty())
+    {
+        m_finalClipPath = clip1.intersected(clip2);
+    }
+    else if (!clip1.isEmpty())
+    {
+        m_finalClipPath = std::move(clip1);
+    }
+    else if (!clip2.isEmpty())
+    {
+        m_finalClipPath = std::move(clip2);
+    }
+
+    m_finalClipPath = m_currentTransform.map(m_finalClipPath.value());
+}
+
+PDFBLPaintEngine::ClipMode PDFBLPaintEngine::resolveClipping(const QPainterPath& path) const
+{
+    if (!m_currentIsClipEnabled || m_clipSingleRect || !m_finalClipPath.has_value() || m_finalClipPath->isEmpty())
+    {
+        return ClipMode::NoClip;
+    }
+
+    QRectF clipRect = m_finalClipPath->controlPointRect();
+    QRectF pathRect = path.controlPointRect();
+
+    if (!pathRect.intersects(clipRect))
+    {
+        return ClipMode::NotVisible;
+    }
+
+    return ClipMode::NeedsResolve;
+}
+
+void PDFBLPaintEngine::setFillRule(Qt::FillRule fillRule)
+{
+    BLFillRule blFillRule{};
+
+    switch (fillRule)
+    {
+    case Qt::OddEvenFill:
+        blFillRule = BL_FILL_RULE_EVEN_ODD;
+        break;
+
+    case Qt::WindingFill:
+        blFillRule = BL_FILL_RULE_NON_ZERO;
+        break;
+
+    default:
+        Q_ASSERT(false);
+        break;
+    }
+
+    m_blContext->setFillRule(blFillRule);
 }
 
 }   // namespace pdf
