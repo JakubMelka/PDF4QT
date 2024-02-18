@@ -22,6 +22,7 @@
 #include <QRawFont>
 #include <QPainterPath>
 #include <QPaintEngine>
+#include <QPainterPathStroker>
 
 #include <Blend2d.h>
 
@@ -103,6 +104,7 @@ private:
         NeedsResolve
     };
 
+    ClipMode resolveClipping(const QRectF& rect) const;
     ClipMode resolveClipping(const QPainterPath& path) const;
 
     QImage& m_qtOffscreenBuffer;
@@ -118,9 +120,8 @@ private:
 
     bool m_currentIsClipEnabled = false;
     bool m_clipSingleRect = false;
-    std::optional<QRegion> m_clipRegion;
-    std::optional<QPainterPath> m_clipPath;
-    std::optional<QPainterPath> m_finalClipPath;
+    QPainterPath m_finalClipPath;
+    QRectF m_finalClipPathBoundingBox;
 };
 
 PDFBLPaintDevice::PDFBLPaintDevice(QImage& offscreenBuffer, bool isMultithreaded) :
@@ -335,12 +336,37 @@ void PDFBLPaintEngine::updateState(const QPaintEngineState& updatedState)
 
 void PDFBLPaintEngine::drawRects(const QRect* rects, int rectCount)
 {
+    QRect boundingRect;
+
     BLArray<BLRectI> blRects;
     blRects.reserve(rectCount);
 
     for (int i = 0; i < rectCount; ++i)
     {
+        boundingRect = boundingRect.united(rects[i]);
         blRects.append(getBLRect(rects[i]));
+    }
+
+    QRect mappedBoundingRect = m_currentTransform.mapRect(boundingRect);
+    ClipMode clipMode = resolveClipping(mappedBoundingRect);
+    switch (clipMode)
+    {
+        case ClipMode::NoClip:
+            break;
+
+        case ClipMode::NotVisible:
+            return;
+
+        case ClipMode::NeedsResolve:
+        {
+            for (int i = 0; i < rectCount; ++i)
+            {
+                QPainterPath path;
+                path.addRect(rects[i]);
+                drawPathImpl(path, true, true);
+            }
+            return;
+        }
     }
 
     if (isFillActive())
@@ -356,12 +382,37 @@ void PDFBLPaintEngine::drawRects(const QRect* rects, int rectCount)
 
 void PDFBLPaintEngine::drawRects(const QRectF* rects, int rectCount)
 {
+    QRectF boundingRect;
+
     BLArray<BLRect> blRects;
     blRects.reserve(rectCount);
 
     for (int i = 0; i < rectCount; ++i)
     {
+        boundingRect = boundingRect.united(rects[i]);
         blRects.append(getBLRect(rects[i]));
+    }
+
+    QRectF mappedBoundingRect = m_currentTransform.mapRect(boundingRect);
+    ClipMode clipMode = resolveClipping(mappedBoundingRect);
+    switch (clipMode)
+    {
+        case ClipMode::NoClip:
+            break;
+
+        case ClipMode::NotVisible:
+            return;
+
+        case ClipMode::NeedsResolve:
+        {
+            for (int i = 0; i < rectCount; ++i)
+            {
+                QPainterPath path;
+                path.addRect(rects[i]);
+                drawPathImpl(path, true, true);
+            }
+            return;
+        }
     }
 
     if (isFillActive())
@@ -427,23 +478,61 @@ void PDFBLPaintEngine::drawPathImpl(const QPainterPath& path, bool enableStroke,
     QPainterPath transformedPath = m_currentTransform.map(path);
     ClipMode clipMode = resolveClipping(transformedPath);
 
+    setFillRule(path.fillRule());
+
     switch (clipMode)
     {
-    case ClipMode::NoClip:
-        // Do as normal
-        break;
+        case ClipMode::NoClip:
+            // Do as normal
+            break;
 
-    case pdf::PDFBLPaintEngine::ClipMode::NotVisible:
-        // Graphics is not visible
-        return;
+        case ClipMode::NotVisible:
+            // Graphics is not visible
+            return;
 
-    case pdf::PDFBLPaintEngine::ClipMode::NeedsResolve:
-        break;
+        case ClipMode::NeedsResolve:
+        {
+            if (m_finalClipPath.isEmpty())
+            {
+                return;
+            }
+
+            if (isFillActive() && enableFill)
+            {
+                QPainterPath fillPath = transformedPath.intersected(m_finalClipPath);
+
+                if (!fillPath.isEmpty())
+                {
+                    m_blContext->save();
+                    m_blContext->resetMatrix();
+                    m_blContext->fillPath(getBLPath(fillPath));
+                    m_blContext->restore();
+                }
+            }
+
+            if (isStrokeActive() && enableStroke)
+            {
+                QPainterPathStroker stroker(m_currentPen);
+                QPainterPath strokedPath = stroker.createStroke(path);
+                QPainterPath transformedStrokedPath = m_currentTransform.map(strokedPath);
+                QPainterPath finalTransformedStrokedPath = transformedStrokedPath.intersected(m_finalClipPath);
+
+                BLVarCore strokeStyle;
+                if (!finalTransformedStrokedPath.isEmpty() && m_blContext->getStrokeStyle(strokeStyle) == BL_SUCCESS)
+                {
+                    m_blContext->save();
+                    m_blContext->resetMatrix();
+                    m_blContext->setFillStyle(strokeStyle);
+                    m_blContext->fillPath(getBLPath(finalTransformedStrokedPath));
+                    m_blContext->restore();
+                }
+            }
+
+            return;
+        }
     }
 
     BLPath blPath = getBLPath(path);
-
-    setFillRule(path.fillRule());
 
     if (isFillActive() && enableFill)
     {
@@ -577,6 +666,14 @@ void PDFBLPaintEngine::drawTiledPixmap(const QRectF& r, const QPixmap& pixmap, c
 void PDFBLPaintEngine::drawImage(const QRectF& r, const QImage& pm, const QRectF& sr, Qt::ImageConversionFlags flags)
 {
     Q_UNUSED(flags);
+
+    QRectF transformedRect = m_currentTransform.mapRect(r);
+    ClipMode clipMode = resolveClipping(transformedRect);
+
+    if (clipMode == ClipMode::NotVisible)
+    {
+        return;
+    }
 
     QImage image = pm;
 
@@ -936,104 +1033,99 @@ void PDFBLPaintEngine::updateClipping(std::optional<QRegion> clipRegion,
                                       std::optional<QPainterPath> clipPath,
                                       Qt::ClipOperation clipOperation)
 {
+    QPainterPath finalClipPath;
+
+    if (clipRegion.has_value())
+    {
+        finalClipPath.addRegion(clipRegion.value());
+    }
+
+    if (clipPath.has_value())
+    {
+        finalClipPath.addPath(clipPath.value());
+    }
+
+    finalClipPath = m_currentTransform.map(finalClipPath);
+
     switch (clipOperation)
     {
         case Qt::NoClip:
-            m_clipRegion.reset();
-            m_clipPath.reset();
-            m_finalClipPath.reset();
+            m_finalClipPath = QPainterPath();
+            m_finalClipPathBoundingBox = QRectF();
             m_clipSingleRect = false;
             m_blContext->restoreClipping();
             return;
 
         case Qt::ReplaceClip:
         {
-            m_clipPath = std::move(clipPath);
-            m_clipRegion = std::move(clipRegion);
+            m_finalClipPath = std::move(finalClipPath);
             break;
         }
 
         case Qt::IntersectClip:
         {
-            if (m_clipPath.has_value())
-            {
-                if (clipPath.has_value())
-                {
-                    *m_clipPath = m_clipPath->intersected(*clipPath);
-                }
-            }
-            else
-            {
-                m_clipPath = std::move(clipPath);
-            }
-
-            if (m_clipRegion.has_value())
-            {
-                if (clipRegion.has_value())
-                {
-                    *m_clipRegion = m_clipRegion->intersected(*clipRegion);
-                }
-            }
-            else
-            {
-                m_clipRegion = std::move(clipRegion);
-            }
-
+            m_finalClipPath = m_finalClipPath.intersected(finalClipPath);
             break;
         }
     }
 
-    m_clipSingleRect = m_clipRegion.has_value() && !m_clipPath.has_value() && m_clipRegion->rectCount() == 1;
+    m_clipSingleRect = false;
+    m_finalClipPathBoundingBox = m_finalClipPath.controlPointRect();
+
+    if (m_finalClipPath.elementCount() == 5)
+    {
+        QRectF testRect = m_finalClipPathBoundingBox.adjusted(1.0, 1.0, -2.0, -2.0);
+        m_clipSingleRect = m_finalClipPath.contains(testRect);
+    }
 
     if (m_clipSingleRect)
     {
-        QRegion transformedRegion = m_currentTransform.map(m_clipRegion.value());
-        m_blContext->clipToRect(getBLRect(transformedRegion.boundingRect()));
+        BLMatrix2D matrix = m_blContext->userMatrix();
+        m_blContext->resetMatrix();
+        m_blContext->clipToRect(getBLRect(m_finalClipPath.boundingRect()));
+        m_blContext->setMatrix(matrix);
     }
     else
     {
         m_blContext->restoreClipping();
     }
-
-    m_finalClipPath = QPainterPath();
-
-    QPainterPath clip1;
-    QPainterPath clip2;
-
-    if (m_clipPath.has_value())
-    {
-        clip1 = m_clipPath.value();
-    }
-
-    if (m_clipRegion.has_value())
-    {
-        clip2.addRegion(m_clipRegion.value());
-    }
-
-    if (!clip1.isEmpty() && !clip2.isEmpty())
-    {
-        m_finalClipPath = clip1.intersected(clip2);
-    }
-    else if (!clip1.isEmpty())
-    {
-        m_finalClipPath = std::move(clip1);
-    }
-    else if (!clip2.isEmpty())
-    {
-        m_finalClipPath = std::move(clip2);
-    }
-
-    m_finalClipPath = m_currentTransform.map(m_finalClipPath.value());
 }
 
-PDFBLPaintEngine::ClipMode PDFBLPaintEngine::resolveClipping(const QPainterPath& path) const
+PDFBLPaintEngine::ClipMode PDFBLPaintEngine::resolveClipping(const QRectF& rect) const
 {
-    if (!m_currentIsClipEnabled || m_clipSingleRect || !m_finalClipPath.has_value() || m_finalClipPath->isEmpty())
+    if (!m_currentIsClipEnabled || m_clipSingleRect || m_finalClipPath.isEmpty())
     {
         return ClipMode::NoClip;
     }
 
-    QRectF clipRect = m_finalClipPath->controlPointRect();
+    if (m_finalClipPath.isEmpty())
+    {
+        return ClipMode::NotVisible;
+    }
+
+    QRectF clipRect = m_finalClipPathBoundingBox;
+
+    if (!rect.intersects(clipRect))
+    {
+        return ClipMode::NotVisible;
+    }
+
+    return ClipMode::NeedsResolve;
+}
+
+PDFBLPaintEngine::ClipMode PDFBLPaintEngine::resolveClipping(const QPainterPath& path) const
+{
+    if (!m_currentIsClipEnabled || m_clipSingleRect)
+    {
+        return ClipMode::NoClip;
+    }
+
+    if (m_finalClipPath.isEmpty())
+    {
+        return ClipMode::NotVisible;
+    }
+
+    QRectF clipRect = m_finalClipPathBoundingBox;
     QRectF pathRect = path.controlPointRect();
 
     if (!pathRect.intersects(clipRect))
