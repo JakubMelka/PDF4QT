@@ -266,12 +266,6 @@ void PDFBLPaintEngine::updateFont(QFont newFont)
 
 void PDFBLPaintEngine::updateState(const QPaintEngineState& updatedState)
 {
-    /*  DirtyBrushOrigin        = 0x0004,
-        DirtyBackground         = 0x0010,
-        DirtyBackgroundMode     = 0x0020,
-        DirtyClipRegion         = 0x0080,
-        DirtyClipPath           = 0x0100,*/
-
     if (updatedState.state().testFlag(QPaintEngine::DirtyPen))
     {
         m_currentPen = updatedState.pen();
@@ -534,7 +528,7 @@ void PDFBLPaintEngine::drawPathImpl(const QPainterPath& path, bool enableStroke,
 
     BLPath blPath = getBLPath(path);
 
-    if (isFillActive() && enableFill)
+    if ((isFillActive() && enableFill))
     {
         m_blContext->fillPath(blPath);
     }
@@ -622,6 +616,8 @@ void PDFBLPaintEngine::drawTextItem(const QPointF& p, const QTextItem& textItem)
             currentPosition += glyphPositions[i];
         }
 
+        drawPathImpl(path, false, true);
+
         m_blContext->save();
         setFillRule(path.fillRule());
         m_blContext->setFillStyle(BLRgba32(m_currentPen.color().rgba()));
@@ -680,6 +676,26 @@ void PDFBLPaintEngine::drawImage(const QRectF& r, const QImage& pm, const QRectF
     if (image.format() != QImage::Format_ARGB32_Premultiplied)
     {
         image.convertTo(QImage::Format_ARGB32_Premultiplied);
+    }
+
+    if (clipMode == ClipMode::NeedsResolve)
+    {
+        QImage mask(image.size(), QImage::Format_ARGB32);
+        mask.fill(Qt::transparent);
+
+        QPainter maskPainter(&mask);
+        maskPainter.setCompositionMode(QPainter::CompositionMode_Source);
+
+        QPainterPath path = m_finalClipPath;
+        path = m_currentTransform.inverted().map(path);
+
+        maskPainter.fillPath(path, Qt::white);
+        maskPainter.end();
+
+        QPainter imagePainter(&image);
+        imagePainter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+        imagePainter.drawImage(0, 0, mask);
+        imagePainter.end();
     }
 
     BLImage blImage;
@@ -1093,7 +1109,7 @@ void PDFBLPaintEngine::updateClipping(std::optional<QRegion> clipRegion,
 
 PDFBLPaintEngine::ClipMode PDFBLPaintEngine::resolveClipping(const QRectF& rect) const
 {
-    if (!m_currentIsClipEnabled || m_clipSingleRect || m_finalClipPath.isEmpty())
+    if (!m_currentIsClipEnabled || m_clipSingleRect)
     {
         return ClipMode::NoClip;
     }
