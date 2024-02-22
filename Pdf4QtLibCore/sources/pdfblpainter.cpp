@@ -85,7 +85,7 @@ private:
     /// Returns composition operator
     static BLCompOp getBLCompOp(QPainter::CompositionMode mode);
 
-    void drawPathImpl(const QPainterPath& path, bool enableStroke, bool enableFill);
+    void drawPathImpl(const QPainterPath& path, bool enableStroke, bool enableFill, bool forceFill = false);
 
     void setFillRule(Qt::FillRule fillRule);
     void updateFont(QFont newFont);
@@ -120,7 +120,7 @@ private:
 
     bool m_currentIsClipEnabled = false;
     bool m_clipSingleRect = false;
-    QPainterPath m_finalClipPath;
+    std::optional<QPainterPath> m_finalClipPath;
     QRectF m_finalClipPathBoundingBox;
 };
 
@@ -467,7 +467,7 @@ void PDFBLPaintEngine::drawPath(const QPainterPath& path)
     drawPathImpl(path, true, true);
 }
 
-void PDFBLPaintEngine::drawPathImpl(const QPainterPath& path, bool enableStroke, bool enableFill)
+void PDFBLPaintEngine::drawPathImpl(const QPainterPath& path, bool enableStroke, bool enableFill, bool forceFill)
 {
     QPainterPath transformedPath = m_currentTransform.map(path);
     ClipMode clipMode = resolveClipping(transformedPath);
@@ -486,14 +486,14 @@ void PDFBLPaintEngine::drawPathImpl(const QPainterPath& path, bool enableStroke,
 
         case ClipMode::NeedsResolve:
         {
-            if (m_finalClipPath.isEmpty())
+            if (m_finalClipPath->isEmpty())
             {
                 return;
             }
 
-            if (isFillActive() && enableFill)
+            if ((isFillActive() && enableFill) || forceFill)
             {
-                QPainterPath fillPath = transformedPath.intersected(m_finalClipPath);
+                QPainterPath fillPath = transformedPath.intersected(m_finalClipPath.value());
 
                 if (!fillPath.isEmpty())
                 {
@@ -509,7 +509,7 @@ void PDFBLPaintEngine::drawPathImpl(const QPainterPath& path, bool enableStroke,
                 QPainterPathStroker stroker(m_currentPen);
                 QPainterPath strokedPath = stroker.createStroke(path);
                 QPainterPath transformedStrokedPath = m_currentTransform.map(strokedPath);
-                QPainterPath finalTransformedStrokedPath = transformedStrokedPath.intersected(m_finalClipPath);
+                QPainterPath finalTransformedStrokedPath = transformedStrokedPath.intersected(m_finalClipPath.value());
 
                 BLVarCore strokeStyle;
                 if (!finalTransformedStrokedPath.isEmpty() && m_blContext->getStrokeStyle(strokeStyle) == BL_SUCCESS)
@@ -528,7 +528,7 @@ void PDFBLPaintEngine::drawPathImpl(const QPainterPath& path, bool enableStroke,
 
     BLPath blPath = getBLPath(path);
 
-    if ((isFillActive() && enableFill))
+    if ((isFillActive() && enableFill) || forceFill)
     {
         m_blContext->fillPath(blPath);
     }
@@ -616,12 +616,12 @@ void PDFBLPaintEngine::drawTextItem(const QPointF& p, const QTextItem& textItem)
             currentPosition += glyphPositions[i];
         }
 
-        drawPathImpl(path, false, true);
+
 
         m_blContext->save();
         setFillRule(path.fillRule());
         m_blContext->setFillStyle(BLRgba32(m_currentPen.color().rgba()));
-        m_blContext->fillPath(getBLPath(path));
+        drawPathImpl(path, false, true, true);
         m_blContext->restore();
     }
 }
@@ -686,7 +686,7 @@ void PDFBLPaintEngine::drawImage(const QRectF& r, const QImage& pm, const QRectF
         QPainter maskPainter(&mask);
         maskPainter.setCompositionMode(QPainter::CompositionMode_Source);
 
-        QPainterPath path = m_finalClipPath;
+        QPainterPath path = m_finalClipPath.value();
         path = m_currentTransform.inverted().map(path);
 
         maskPainter.fillPath(path, Qt::white);
@@ -1066,7 +1066,7 @@ void PDFBLPaintEngine::updateClipping(std::optional<QRegion> clipRegion,
     switch (clipOperation)
     {
         case Qt::NoClip:
-            m_finalClipPath = QPainterPath();
+            m_finalClipPath.reset();
             m_finalClipPathBoundingBox = QRectF();
             m_clipSingleRect = false;
             m_blContext->restoreClipping();
@@ -1080,25 +1080,32 @@ void PDFBLPaintEngine::updateClipping(std::optional<QRegion> clipRegion,
 
         case Qt::IntersectClip:
         {
-            m_finalClipPath = m_finalClipPath.intersected(finalClipPath);
+            if (m_finalClipPath.has_value())
+            {
+                m_finalClipPath = m_finalClipPath->intersected(finalClipPath);
+            }
+            else
+            {
+                m_finalClipPath = std::move(finalClipPath);
+            }
             break;
         }
     }
 
     m_clipSingleRect = false;
-    m_finalClipPathBoundingBox = m_finalClipPath.controlPointRect();
+    m_finalClipPathBoundingBox = m_finalClipPath->controlPointRect();
 
-    if (m_finalClipPath.elementCount() == 5)
+    if (m_finalClipPath->elementCount() == 5)
     {
         QRectF testRect = m_finalClipPathBoundingBox.adjusted(1.0, 1.0, -2.0, -2.0);
-        m_clipSingleRect = m_finalClipPath.contains(testRect);
+        m_clipSingleRect = m_finalClipPath->contains(testRect);
     }
 
     if (m_clipSingleRect)
     {
         BLMatrix2D matrix = m_blContext->userMatrix();
         m_blContext->resetMatrix();
-        m_blContext->clipToRect(getBLRect(m_finalClipPath.boundingRect()));
+        m_blContext->clipToRect(getBLRect(m_finalClipPath->boundingRect()));
         m_blContext->setMatrix(matrix);
     }
     else
@@ -1109,12 +1116,12 @@ void PDFBLPaintEngine::updateClipping(std::optional<QRegion> clipRegion,
 
 PDFBLPaintEngine::ClipMode PDFBLPaintEngine::resolveClipping(const QRectF& rect) const
 {
-    if (!m_currentIsClipEnabled || m_clipSingleRect)
+    if (!m_currentIsClipEnabled || m_clipSingleRect || !m_finalClipPath.has_value())
     {
         return ClipMode::NoClip;
     }
 
-    if (m_finalClipPath.isEmpty())
+    if (m_finalClipPath->isEmpty())
     {
         return ClipMode::NotVisible;
     }
@@ -1131,12 +1138,12 @@ PDFBLPaintEngine::ClipMode PDFBLPaintEngine::resolveClipping(const QRectF& rect)
 
 PDFBLPaintEngine::ClipMode PDFBLPaintEngine::resolveClipping(const QPainterPath& path) const
 {
-    if (!m_currentIsClipEnabled || m_clipSingleRect)
+    if (!m_currentIsClipEnabled || m_clipSingleRect || !m_finalClipPath.has_value())
     {
         return ClipMode::NoClip;
     }
 
-    if (m_finalClipPath.isEmpty())
+    if (m_finalClipPath->isEmpty())
     {
         return ClipMode::NotVisible;
     }
