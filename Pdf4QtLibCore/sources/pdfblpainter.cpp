@@ -104,6 +104,8 @@ private:
         NeedsResolve
     };
 
+    ClipMode resolveClipping(const QLineF& line) const;
+    ClipMode resolveClipping(const QPointF& point) const;
     ClipMode resolveClipping(const QRectF& rect) const;
     ClipMode resolveClipping(const QPainterPath& path) const;
 
@@ -430,6 +432,42 @@ void PDFBLPaintEngine::drawLines(const QLine* lines, int lineCount)
     for (int i = 0; i < lineCount; ++i)
     {
         const QLine& line = lines[i];
+        ClipMode clipMode = resolveClipping(m_currentTransform.map(line));
+
+        switch (clipMode)
+        {
+            case ClipMode::NoClip:
+                // Do as normal
+                break;
+
+            case ClipMode::NotVisible:
+                // Graphics is not visible
+                return;
+
+            case ClipMode::NeedsResolve:
+            {
+                QLineF lineF = line.toLineF();
+                if (m_finalClipPath->isEmpty() || qFuzzyIsNull(lineF.length()))
+                {
+                    return;
+                }
+
+                QLineF normalVectorLine = lineF.normalVector().unitVector();
+                QPointF normalVector = normalVectorLine.p2() - normalVectorLine.p1();
+                qreal widthF = m_currentPen.widthF() * 0.5;
+
+                QPainterPath path;
+                path.moveTo(lineF.p1() + normalVector * widthF);
+                path.lineTo(lineF.p2() + normalVector * widthF);
+                path.lineTo(lineF.p2() - normalVector * widthF);
+                path.lineTo(lineF.p1() - normalVector * widthF);
+                path.closeSubpath();
+
+                drawPathImpl(path, true, false);
+                return;
+            }
+        }
+
         m_blContext->strokeLine(line.x1(), line.y1(), line.x2(), line.y2());
     }
 }
@@ -444,6 +482,41 @@ void PDFBLPaintEngine::drawLines(const QLineF* lines, int lineCount)
     for (int i = 0; i < lineCount; ++i)
     {
         const QLineF& line = lines[i];
+
+        ClipMode clipMode = resolveClipping(m_currentTransform.map(line));
+        switch (clipMode)
+        {
+            case ClipMode::NoClip:
+                // Do as normal
+                break;
+
+            case ClipMode::NotVisible:
+                // Graphics is not visible
+                return;
+
+            case ClipMode::NeedsResolve:
+            {
+                if (m_finalClipPath->isEmpty() || qFuzzyIsNull(line.length()))
+                {
+                    return;
+                }
+
+                QLineF normalVectorLine = line.normalVector().unitVector();
+                QPointF normalVector = normalVectorLine.p2() - normalVectorLine.p1();
+                qreal widthF = m_currentPen.widthF() * 0.5;
+
+                QPainterPath path;
+                path.moveTo(line.p1() + normalVector * widthF);
+                path.lineTo(line.p2() + normalVector * widthF);
+                path.lineTo(line.p2() - normalVector * widthF);
+                path.lineTo(line.p1() - normalVector * widthF);
+                path.closeSubpath();
+
+                drawPathImpl(path, true, false);
+                return;
+            }
+        }
+
         m_blContext->strokeLine(line.x1(), line.y1(), line.x2(), line.y2());
     }
 }
@@ -547,6 +620,12 @@ void PDFBLPaintEngine::drawPoints(const QPointF* points, int pointCount)
     for (int i = 0; i < pointCount; ++i)
     {
         const QPointF& c = points[i];
+
+        if (resolveClipping(m_currentTransform.map(c)) == ClipMode::NotVisible)
+        {
+            continue;
+        }
+
         BLEllipse blEllipse(c.x(), c.y(), m_currentPen.widthF() * 0.5, m_currentPen.widthF() * 0.5);
         m_blContext->fillEllipse(blEllipse);
     }
@@ -562,6 +641,12 @@ void PDFBLPaintEngine::drawPoints(const QPoint* points, int pointCount)
     for (int i = 0; i < pointCount; ++i)
     {
         const QPointF& c = points[i];
+
+        if (resolveClipping(m_currentTransform.map(c)) == ClipMode::NotVisible)
+        {
+            continue;
+        }
+
         BLEllipse blEllipse(c.x(), c.y(), m_currentPen.widthF() * 0.5, m_currentPen.widthF() * 0.5);
         m_blContext->fillEllipse(blEllipse);
     }
@@ -615,8 +700,6 @@ void PDFBLPaintEngine::drawTextItem(const QPointF& p, const QTextItem& textItem)
             path.addPath(glyphPath);
             currentPosition += glyphPositions[i];
         }
-
-
 
         m_blContext->save();
         setFillRule(path.fillRule());
@@ -1112,6 +1195,55 @@ void PDFBLPaintEngine::updateClipping(std::optional<QRegion> clipRegion,
     {
         m_blContext->restoreClipping();
     }
+}
+
+PDFBLPaintEngine::ClipMode PDFBLPaintEngine::resolveClipping(const QLineF& line) const
+{
+    if (!m_currentIsClipEnabled || m_clipSingleRect || !m_finalClipPath.has_value())
+    {
+        return ClipMode::NoClip;
+    }
+
+    if (m_finalClipPath->isEmpty())
+    {
+        return ClipMode::NotVisible;
+    }
+
+    QRectF clipRect = m_finalClipPathBoundingBox;
+
+    qreal minX = qMin(line.x1(), line.x2());
+    qreal maxX = qMax(line.x1(), line.x2());
+    qreal minY = qMin(line.y1(), line.y2());
+    qreal maxY = qMax(line.y1(), line.y2());
+
+    QRectF rect(minX, minY, maxX - minX + 1.0, maxY - minY + 1.0);
+
+    if (!rect.intersects(clipRect))
+    {
+        return ClipMode::NotVisible;
+    }
+
+    return ClipMode::NeedsResolve;
+}
+
+PDFBLPaintEngine::ClipMode PDFBLPaintEngine::resolveClipping(const QPointF& point) const
+{
+    if (!m_currentIsClipEnabled || m_clipSingleRect || !m_finalClipPath.has_value())
+    {
+        return ClipMode::NoClip;
+    }
+
+    if (m_finalClipPath->isEmpty())
+    {
+        return ClipMode::NotVisible;
+    }
+
+    if (!m_finalClipPath->contains(point))
+    {
+        return ClipMode::NotVisible;
+    }
+
+    return ClipMode::NoClip;
 }
 
 PDFBLPaintEngine::ClipMode PDFBLPaintEngine::resolveClipping(const QRectF& rect) const
