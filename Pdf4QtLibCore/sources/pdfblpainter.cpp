@@ -24,7 +24,11 @@
 #include <QPaintEngine>
 #include <QPainterPathStroker>
 
+#ifdef Q_OS_WIN
 #include <Blend2d.h>
+#else
+#include <blend2d.h>
+#endif
 
 namespace pdf
 {
