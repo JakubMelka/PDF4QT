@@ -35,9 +35,7 @@ PageItemDelegate::PageItemDelegate(PageItemModel* model, QObject* parent) :
     m_rasterizer(nullptr)
 {
     m_rasterizer = new pdf::PDFRasterizer(this);
-    QSurfaceFormat format;
-    format.setSamples(16);
-    m_rasterizer->reset(false, format);
+    m_rasterizer->reset(pdf::RendererEngine::Blend2D_SingleThread);
 }
 
 PageItemDelegate::~PageItemDelegate()

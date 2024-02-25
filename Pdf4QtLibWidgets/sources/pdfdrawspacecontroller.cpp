@@ -24,6 +24,7 @@
 #include "pdfannotation.h"
 #include "pdfdrawwidget.h"
 #include "pdfwidgetannotation.h"
+#include "pdfpainterutils.h"
 
 #include <QTimer>
 #include <QPainter>
@@ -469,7 +470,7 @@ PDFDrawWidgetProxy::PDFDrawWidgetProxy(QObject* parent) :
     m_rasterizer(new PDFRasterizer(this)),
     m_progress(nullptr),
     m_cacheClearTimer(new QTimer(this)),
-    m_useOpenGL(false)
+    m_rendererEngine(RendererEngine::Blend2D_MultiThread)
 {
     m_controller = new PDFDrawSpaceController(this);
     connect(m_controller, &PDFDrawSpaceController::drawSpaceChanged, this, &PDFDrawWidgetProxy::update);
@@ -1403,11 +1404,10 @@ bool PDFDrawWidgetProxy::isBlockMode() const
     return false;
 }
 
-void PDFDrawWidgetProxy::updateRenderer(bool useOpenGL, const QSurfaceFormat& surfaceFormat)
+void PDFDrawWidgetProxy::updateRenderer(RendererEngine rendererEngine)
 {
-    m_useOpenGL = useOpenGL;
-    m_surfaceFormat = surfaceFormat;
-    m_rasterizer->reset(useOpenGL && ENABLE_OPENGL_FOR_THUMBNAILS, surfaceFormat);
+    m_rendererEngine = rendererEngine;
+    m_rasterizer->reset(m_rendererEngine);
 }
 
 void PDFDrawWidgetProxy::prefetchPages(PDFInteger pageIndex)

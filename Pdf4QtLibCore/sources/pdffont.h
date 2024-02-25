@@ -698,6 +698,12 @@ private:
     std::map<QByteArray, QByteArray> m_cmaps;
 };
 
+class PDF4QTLIBCORESHARED_EXPORT PDFSystemFont
+{
+public:
+    static QByteArray getFontData(const QByteArray& fontName);
+};
+
 }   // namespace pdf
 
 #endif // PDFFONT_H

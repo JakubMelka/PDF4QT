@@ -22,6 +22,7 @@
 #include "pdfcolorspaces.h"
 #include "pdfexecutionpolicy.h"
 #include "pdfconstants.h"
+#include "pdfpainterutils.h"
 
 #include <QMutex>
 #include <QPainter>

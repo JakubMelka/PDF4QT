@@ -2685,4 +2685,16 @@ CharacterInfos PDFRealizedType3FontImpl::getCharacterInfos() const
     return result;
 }
 
+QByteArray PDFSystemFont::getFontData(const QByteArray& fontName)
+{
+    const PDFSystemFontInfoStorage* storage = PDFSystemFontInfoStorage::getInstance();
+
+    CIDSystemInfo systemInfo;
+    PDFRenderErrorReporterDummy reporter;
+    FontDescriptor descriptor;
+    descriptor.fontName = fontName;
+
+    return storage->loadFont(&systemInfo, &descriptor, StandardFontType::Invalid, &reporter);
+}
+
 }   // namespace pdf

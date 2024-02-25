@@ -22,6 +22,7 @@
 #include "pdfannotation.h"
 #include "pdfwidgetannotation.h"
 #include "pdfwidgetformmanager.h"
+#include "pdfblpainter.h"
 
 #include <QPainter>
 #include <QGridLayout>
@@ -35,7 +36,7 @@
 namespace pdf
 {
 
-PDFWidget::PDFWidget(const PDFCMSManager* cmsManager, RendererEngine engine, int samplesCount, QWidget* parent) :
+PDFWidget::PDFWidget(const PDFCMSManager* cmsManager, RendererEngine engine, QWidget* parent) :
     QWidget(parent),
     m_cmsManager(cmsManager),
     m_toolManager(nullptr),
@@ -44,9 +45,10 @@ PDFWidget::PDFWidget(const PDFCMSManager* cmsManager, RendererEngine engine, int
     m_drawWidget(nullptr),
     m_horizontalScrollBar(nullptr),
     m_verticalScrollBar(nullptr),
-    m_proxy(nullptr)
+    m_proxy(nullptr),
+    m_rendererEngine(engine)
 {
-    m_drawWidget = createDrawWidget(getEffectiveRenderer(engine), samplesCount);
+    m_drawWidget = new PDFDrawWidget(this, this);
     m_horizontalScrollBar = new QScrollBar(Qt::Horizontal, this);
     m_verticalScrollBar = new QScrollBar(Qt::Vertical, this);
 
@@ -62,10 +64,10 @@ PDFWidget::PDFWidget(const PDFCMSManager* cmsManager, RendererEngine engine, int
 
     m_proxy = new PDFDrawWidgetProxy(this);
     m_proxy->init(this);
+    m_proxy->updateRenderer(m_rendererEngine);
     connect(m_proxy, &PDFDrawWidgetProxy::renderingError, this, &PDFWidget::onRenderingError);
     connect(m_proxy, &PDFDrawWidgetProxy::repaintNeeded, m_drawWidget->getWidget(), QOverload<>::of(&QWidget::update));
     connect(m_proxy, &PDFDrawWidgetProxy::pageImageChanged, this, &PDFWidget::onPageImageChanged);
-    updateRendererImpl();
 }
 
 PDFWidget::~PDFWidget()
@@ -90,39 +92,10 @@ void PDFWidget::setDocument(const PDFModifiedDocument& document)
     m_drawWidget->getWidget()->update();
 }
 
-void PDFWidget::updateRenderer(RendererEngine engine, int samplesCount)
+void PDFWidget::updateRenderer(RendererEngine engine)
 {
-    engine = getEffectiveRenderer(engine);
-
-    PDFOpenGLDrawWidget* openglDrawWidget = qobject_cast<PDFOpenGLDrawWidget*>(m_drawWidget->getWidget());
-    PDFDrawWidget* softwareDrawWidget = qobject_cast<PDFDrawWidget*>(m_drawWidget->getWidget());
-
-    // Do we need to change renderer?
-    if ((openglDrawWidget && engine != RendererEngine::OpenGL) || (softwareDrawWidget && engine != RendererEngine::Software))
-    {
-        QGridLayout* layout = qobject_cast<QGridLayout*>(this->layout());
-        layout->removeWidget(m_drawWidget->getWidget());
-        delete m_drawWidget->getWidget();
-
-        m_drawWidget = createDrawWidget(engine, samplesCount);
-        layout->addWidget(m_drawWidget->getWidget(), 0, 0);
-        setFocusProxy(m_drawWidget->getWidget());
-        connect(m_proxy, &PDFDrawWidgetProxy::repaintNeeded, m_drawWidget->getWidget(), QOverload<>::of(&QWidget::update));
-    }
-#ifdef PDF4QT_ENABLE_OPENGL
-    else if (openglDrawWidget)
-    {
-        // Just check the samples count
-        QSurfaceFormat format = openglDrawWidget->format();
-        if (format.samples() != samplesCount)
-        {
-            format.setSamples(samplesCount);
-            openglDrawWidget->setFormat(format);
-        }
-    }
-#endif
-
-    updateRendererImpl();
+    m_rendererEngine = engine;
+    m_proxy->updateRenderer(m_rendererEngine);
 }
 
 void PDFWidget::updateCacheLimits(int compiledPageCacheLimit, int thumbnailsCacheLimit, int fontCacheLimit, int instancedFontCacheLimit)
@@ -140,16 +113,6 @@ int PDFWidget::getPageRenderingErrorCount() const
         count += item.second.size();
     }
     return count;
-}
-
-void PDFWidget::updateRendererImpl()
-{
-#ifdef PDF4QT_ENABLE_OPENGL
-    PDFOpenGLDrawWidget* openglDrawWidget = qobject_cast<PDFOpenGLDrawWidget*>(m_drawWidget->getWidget());
-    m_proxy->updateRenderer(openglDrawWidget != nullptr, openglDrawWidget ? openglDrawWidget->format() : QSurfaceFormat::defaultFormat());
-#else
-    m_proxy->updateRenderer(false, QSurfaceFormat::defaultFormat());
-#endif
 }
 
 void PDFWidget::onRenderingError(PDFInteger pageIndex, const QList<PDFRenderError>& errors)
@@ -182,29 +145,6 @@ void PDFWidget::onPageImageChanged(bool all, const std::vector<PDFInteger>& page
     }
 }
 
-IDrawWidget* PDFWidget::createDrawWidget(RendererEngine rendererEngine, int samplesCount)
-{
-    switch (rendererEngine)
-    {
-        case RendererEngine::Software:
-            return new PDFDrawWidget(this, this);
-
-        case RendererEngine::OpenGL:
-#ifdef PDF4QT_ENABLE_OPENGL
-            return new PDFOpenGLDrawWidget(this, samplesCount, this);
-#else
-            Q_UNUSED(samplesCount);
-            return new PDFDrawWidget(this, this);
-#endif
-
-        default:
-            Q_ASSERT(false);
-            break;
-    }
-
-    return nullptr;
-}
-
 void PDFWidget::removeInputInterface(IDrawWidgetInputInterface* inputInterface)
 {
     auto it = std::find(m_inputInterfaces.begin(), m_inputInterfaces.end(), inputInterface);
@@ -221,16 +161,6 @@ void PDFWidget::addInputInterface(IDrawWidgetInputInterface* inputInterface)
         m_inputInterfaces.push_back(inputInterface);
         std::sort(m_inputInterfaces.begin(), m_inputInterfaces.end(), IDrawWidgetInputInterface::Comparator());
     }
-}
-
-RendererEngine PDFWidget::getEffectiveRenderer(RendererEngine rendererEngine)
-{
-    if (rendererEngine == RendererEngine::OpenGL && !pdf::PDFRendererInfo::isHardwareAccelerationSupported())
-    {
-        return RendererEngine::Software;
-    }
-
-    return rendererEngine;
 }
 
 PDFWidgetFormManager* PDFWidget::getFormManager() const
@@ -259,43 +189,38 @@ void PDFWidget::setAnnotationManager(PDFWidgetAnnotationManager* annotationManag
     addInputInterface(m_annotationManager);
 }
 
-template<typename BaseWidget>
-PDFDrawWidgetBase<BaseWidget>::PDFDrawWidgetBase(PDFWidget* widget, QWidget* parent) :
-    BaseWidget(parent),
+PDFDrawWidget::PDFDrawWidget(PDFWidget* widget, QWidget* parent) :
+    BaseClass(parent),
     m_widget(widget),
     m_mouseOperation(MouseOperation::None)
 {
     this->setFocusPolicy(Qt::StrongFocus);
     this->setMouseTracking(true);
 
-    QObject::connect(&m_autoScrollTimer, &QTimer::timeout, this, &PDFDrawWidgetBase::onAutoScrollTimeout);
+    QObject::connect(&m_autoScrollTimer, &QTimer::timeout, this, &PDFDrawWidget::onAutoScrollTimeout);
 }
 
-template<typename BaseWidget>
-std::vector<PDFInteger> PDFDrawWidgetBase<BaseWidget>::getCurrentPages() const
+std::vector<PDFInteger> PDFDrawWidget::getCurrentPages() const
 {
     return this->m_widget->getDrawWidgetProxy()->getPagesIntersectingRect(this->rect());
 }
 
-template<typename BaseWidget>
-QSize PDFDrawWidgetBase<BaseWidget>::minimumSizeHint() const
+QSize PDFDrawWidget::minimumSizeHint() const
 {
     return QSize(200, 200);
 }
 
-template<typename BaseWidget>
-bool PDFDrawWidgetBase<BaseWidget>::event(QEvent* event)
+bool PDFDrawWidget::event(QEvent* event)
 {
     if (event->type() == QEvent::ShortcutOverride)
     {
         return processEvent<QKeyEvent, &IDrawWidgetInputInterface::shortcutOverrideEvent>(static_cast<QKeyEvent*>(event));
     }
 
-    return BaseWidget::event(event);
+    return BaseClass::event(event);
 }
 
-template<typename BaseWidget>
-void PDFDrawWidgetBase<BaseWidget>::performMouseOperation(QPoint currentMousePosition)
+void PDFDrawWidget::performMouseOperation(QPoint currentMousePosition)
 {
     switch (m_mouseOperation)
     {
@@ -323,9 +248,8 @@ void PDFDrawWidgetBase<BaseWidget>::performMouseOperation(QPoint currentMousePos
     }
 }
 
-template<typename BaseWidget>
 template<typename Event, void (IDrawWidgetInputInterface::* Function)(QWidget*, Event*)>
-bool PDFDrawWidgetBase<BaseWidget>::processEvent(Event* event)
+bool PDFDrawWidget::processEvent(Event* event)
 {
     QString tooltip;
     for (IDrawWidgetInputInterface* inputInterface : m_widget->getInputInterfaces())
@@ -351,8 +275,7 @@ bool PDFDrawWidgetBase<BaseWidget>::processEvent(Event* event)
     return false;
 }
 
-template<typename BaseWidget>
-void PDFDrawWidgetBase<BaseWidget>::keyPressEvent(QKeyEvent* event)
+void PDFDrawWidget::keyPressEvent(QKeyEvent* event)
 {
     event->ignore();
 
@@ -388,8 +311,7 @@ void PDFDrawWidgetBase<BaseWidget>::keyPressEvent(QKeyEvent* event)
     updateCursor();
 }
 
-template<typename BaseWidget>
-void PDFDrawWidgetBase<BaseWidget>::keyReleaseEvent(QKeyEvent* event)
+void PDFDrawWidget::keyReleaseEvent(QKeyEvent* event)
 {
     event->ignore();
 
@@ -401,8 +323,7 @@ void PDFDrawWidgetBase<BaseWidget>::keyReleaseEvent(QKeyEvent* event)
     event->accept();
 }
 
-template<typename BaseWidget>
-void PDFDrawWidgetBase<BaseWidget>::mousePressEvent(QMouseEvent* event)
+void PDFDrawWidget::mousePressEvent(QMouseEvent* event)
 {
     event->ignore();
 
@@ -442,8 +363,7 @@ void PDFDrawWidgetBase<BaseWidget>::mousePressEvent(QMouseEvent* event)
     event->accept();
 }
 
-template<typename BaseWidget>
-void PDFDrawWidgetBase<BaseWidget>::mouseDoubleClickEvent(QMouseEvent* event)
+void PDFDrawWidget::mouseDoubleClickEvent(QMouseEvent* event)
 {
     event->ignore();
 
@@ -453,8 +373,7 @@ void PDFDrawWidgetBase<BaseWidget>::mouseDoubleClickEvent(QMouseEvent* event)
     }
 }
 
-template<typename BaseWidget>
-void PDFDrawWidgetBase<BaseWidget>::mouseReleaseEvent(QMouseEvent* event)
+void PDFDrawWidget::mouseReleaseEvent(QMouseEvent* event)
 {
     event->ignore();
 
@@ -491,8 +410,7 @@ void PDFDrawWidgetBase<BaseWidget>::mouseReleaseEvent(QMouseEvent* event)
     event->accept();
 }
 
-template<typename BaseWidget>
-void PDFDrawWidgetBase<BaseWidget>::mouseMoveEvent(QMouseEvent* event)
+void PDFDrawWidget::mouseMoveEvent(QMouseEvent* event)
 {
     event->ignore();
 
@@ -506,8 +424,7 @@ void PDFDrawWidgetBase<BaseWidget>::mouseMoveEvent(QMouseEvent* event)
     event->accept();
 }
 
-template<typename BaseWidget>
-void PDFDrawWidgetBase<BaseWidget>::updateCursor()
+void PDFDrawWidget::updateCursor()
 {
     std::optional<QCursor> cursor;
 
@@ -554,8 +471,7 @@ void PDFDrawWidgetBase<BaseWidget>::updateCursor()
     }
 }
 
-template<typename BaseWidget>
-void PDFDrawWidgetBase<BaseWidget>::onAutoScrollTimeout()
+void PDFDrawWidget::onAutoScrollTimeout()
 {
     if (m_mouseOperation != MouseOperation::AutoScroll)
     {
@@ -579,8 +495,7 @@ void PDFDrawWidgetBase<BaseWidget>::onAutoScrollTimeout()
     proxy->scrollByPixels(QPoint(scrollX, scrollY));
 }
 
-template<typename BaseWidget>
-void PDFDrawWidgetBase<BaseWidget>::wheelEvent(QWheelEvent* event)
+void PDFDrawWidget::wheelEvent(QWheelEvent* event)
 {
     event->ignore();
 
@@ -659,62 +574,59 @@ void PDFDrawWidgetBase<BaseWidget>::wheelEvent(QWheelEvent* event)
     event->accept();
 }
 
-#ifdef PDF4QT_ENABLE_OPENGL
-PDFOpenGLDrawWidget::PDFOpenGLDrawWidget(PDFWidget* widget, int samplesCount, QWidget* parent) :
-    BaseClass(widget, parent)
-{
-    QSurfaceFormat format = this->format();
-    format.setProfile(QSurfaceFormat::CoreProfile);
-    format.setSamples(samplesCount);
-    format.setColorSpace(QColorSpace(QColorSpace::SRgb));
-    format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
-    setFormat(format);
-}
-
-PDFOpenGLDrawWidget::~PDFOpenGLDrawWidget()
-{
-
-}
-
-void PDFOpenGLDrawWidget::resizeGL(int w, int h)
-{
-    QOpenGLWidget::resizeGL(w, h);
-
-    getPDFWidget()->getDrawWidgetProxy()->update();
-}
-
-void PDFOpenGLDrawWidget::initializeGL()
-{
-    QOpenGLWidget::initializeGL();
-}
-
-void PDFOpenGLDrawWidget::paintGL()
-{
-    if (this->isValid())
-    {
-        QPainter painter(this);
-        getPDFWidget()->getDrawWidgetProxy()->draw(&painter, this->rect());
-    }
-}
-#endif
-
-PDFDrawWidget::PDFDrawWidget(PDFWidget* widget, QWidget* parent) :
-    BaseClass(widget, parent)
-{
-
-}
-
-PDFDrawWidget::~PDFDrawWidget()
-{
-
-}
-
 void PDFDrawWidget::paintEvent(QPaintEvent* event)
 {
     Q_UNUSED(event);
 
-    QPainter painter(this);
-    getPDFWidget()->getDrawWidgetProxy()->draw(&painter, this->rect());
+    RendererEngine rendererEngine = getPDFWidget()->getDrawWidgetProxy()->getRendererEngine();
+    switch (rendererEngine)
+    {
+        case RendererEngine::Blend2D_MultiThread:
+        case RendererEngine::Blend2D_SingleThread:
+        {
+            QRect rect = this->rect();
+
+            qreal devicePixelRatio = devicePixelRatioF();
+            m_blend2DframeBuffer.setDevicePixelRatio(devicePixelRatio);
+
+            qreal dpmX = logicalDpiX() / 0.0254;
+            qreal dpmY = logicalDpiY() / 0.0254;
+            m_blend2DframeBuffer.setDotsPerMeterX(qCeil(dpmX));
+            m_blend2DframeBuffer.setDotsPerMeterY(qCeil(dpmY));
+
+            QSize requiredSize = rect.size() * devicePixelRatio;
+            if (m_blend2DframeBuffer.size() != requiredSize)
+            {
+                m_blend2DframeBuffer = QImage(requiredSize, QImage::Format_ARGB32_Premultiplied);
+            }
+
+            const bool multithreaded = rendererEngine == RendererEngine::Blend2D_MultiThread;
+            PDFBLPaintDevice blPaintDevice(m_blend2DframeBuffer, multithreaded);
+            QPainter blPainter;
+
+            if (blPainter.begin(&blPaintDevice))
+            {
+                getPDFWidget()->getDrawWidgetProxy()->draw(&blPainter, rect);
+                blPainter.end();
+            }
+
+            QPainter painter(this);
+            painter.drawImage(QPoint(0, 0), m_blend2DframeBuffer);
+            break;
+        }
+
+        case RendererEngine::QPainter:
+        {
+            QPainter painter(this);
+            getPDFWidget()->getDrawWidgetProxy()->draw(&painter, this->rect());
+            m_blend2DframeBuffer = QImage();
+            break;
+        }
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
 }
 
 void PDFDrawWidget::resizeEvent(QResizeEvent* event)
@@ -723,10 +635,5 @@ void PDFDrawWidget::resizeEvent(QResizeEvent* event)
 
     getPDFWidget()->getDrawWidgetProxy()->update();
 }
-
-#ifdef PDF4QT_ENABLE_OPENGL
-template class PDFDrawWidgetBase<QOpenGLWidget>;
-#endif
-template class PDFDrawWidgetBase<QWidget>;
 
 }   // namespace pdf

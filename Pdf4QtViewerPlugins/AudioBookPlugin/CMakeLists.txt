@@ -23,10 +23,6 @@ add_library(AudioBookPlugin SHARED
     icons.qrc
 )
 
-if(PDF4QT_ENABLE_OPENGL)
-    target_link_libraries(AudioBookPlugin PRIVATE Qt6::OpenGLWidgets)
-endif()
-
 target_link_libraries(AudioBookPlugin PRIVATE Pdf4QtLibCore Pdf4QtLibWidgets Qt6::Core Qt6::Gui Qt6::Widgets)
 
 if(MINGW)

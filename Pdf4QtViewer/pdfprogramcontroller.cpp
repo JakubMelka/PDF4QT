@@ -150,6 +150,7 @@ std::vector<QAction*> PDFActionManager::getRenderingOptionActions() const
          RenderOptionTextAntialiasing,
          RenderOptionSmoothPictures,
          RenderOptionIgnoreOptionalContentSettings,
+         RenderOptionDisplayRenderTimes,
          RenderOptionDisplayAnnotations,
          RenderOptionInvertColors,
          RenderOptionGrayscale,
@@ -157,8 +158,7 @@ std::vector<QAction*> PDFActionManager::getRenderingOptionActions() const
          RenderOptionHighContrast,
          RenderOptionCustomColors,
          RenderOptionShowTextBlocks,
-         RenderOptionShowTextLines
-                         });
+         RenderOptionShowTextLines});
 }
 
 std::vector<QAction*> PDFActionManager::getActions() const
@@ -266,6 +266,7 @@ void PDFActionManager::initActions(QSize iconSize, bool initializeStampActions)
     setUserData(RenderOptionTextAntialiasing, pdf::PDFRenderer::TextAntialiasing);
     setUserData(RenderOptionSmoothPictures, pdf::PDFRenderer::SmoothImages);
     setUserData(RenderOptionIgnoreOptionalContentSettings, pdf::PDFRenderer::IgnoreOptionalContent);
+    setUserData(RenderOptionDisplayRenderTimes, pdf::PDFRenderer::DisplayTimes);
     setUserData(RenderOptionDisplayAnnotations, pdf::PDFRenderer::DisplayAnnotations);
     setUserData(RenderOptionInvertColors, pdf::PDFRenderer::ColorAdjust_Invert);
     setUserData(RenderOptionGrayscale, pdf::PDFRenderer::ColorAdjust_Grayscale);
@@ -624,7 +625,7 @@ void PDFProgramController::initialize(Features features,
 
     readSettings(Settings(GeneralSettings | PluginsSettings | RecentFileSettings | CertificateSettings));
 
-    m_pdfWidget = new pdf::PDFWidget(m_CMSManager, m_settings->getRendererEngine(), m_settings->isMultisampleAntialiasingEnabled() ? m_settings->getRendererSamples() : -1, m_mainWindow);
+    m_pdfWidget = new pdf::PDFWidget(m_CMSManager, m_settings->getRendererEngine(), m_mainWindow);
     m_pdfWidget->setObjectName("pdfWidget");
     m_pdfWidget->updateCacheLimits(m_settings->getCompiledPageCacheLimit() * 1024, m_settings->getThumbnailsCacheLimit(), m_settings->getFontCacheLimit(), m_settings->getInstancedFontCacheLimit());
     m_pdfWidget->getDrawWidgetProxy()->setProgress(m_progress);
@@ -1697,7 +1698,7 @@ void PDFProgramController::updateActionsAvailability()
 
 void PDFProgramController::onViewerSettingsChanged()
 {
-    m_pdfWidget->updateRenderer(m_settings->getRendererEngine(), m_settings->isMultisampleAntialiasingEnabled() ? m_settings->getRendererSamples() : -1);
+    m_pdfWidget->updateRenderer(m_settings->getRendererEngine());
     m_pdfWidget->updateCacheLimits(m_settings->getCompiledPageCacheLimit() * 1024, m_settings->getThumbnailsCacheLimit(), m_settings->getFontCacheLimit(), m_settings->getInstancedFontCacheLimit());
     m_pdfWidget->getDrawWidgetProxy()->setFeatures(m_settings->getFeatures());
     m_pdfWidget->getDrawWidgetProxy()->setPreferredMeshResolutionRatio(m_settings->getPreferredMeshResolutionRatio());
@@ -2295,24 +2296,6 @@ void PDFProgramController::resetSettings()
         QMessageBox::information(m_mainWindow, tr("Reset Settings"), tr("Default factory settings were restored. Application will be now closed."));
         m_isFactorySettingsBeingRestored = true;
         m_mainWindow->close();
-    }
-}
-
-void PDFProgramController::checkHardwareOpenGLAvailability()
-{
-    if (m_settings->getRendererEngine() == pdf::RendererEngine::OpenGL &&
-        !pdf::PDFRendererInfo::isHardwareAccelerationSupported())
-    {
-#ifdef PDF4QT_ENABLE_OPENGL
-        pdf::PDFRendererInfo::Info info = pdf::PDFRendererInfo::getHardwareAccelerationSupportedInfo();
-        QMessageBox::warning(m_mainWindow, tr("Warning"),
-                             tr("Hardware acceleration is not supported on this device. "
-                                "OpenGL version at least 3.2 is required. Software rendering is used instead. "
-                                "Available OpenGL is %1 using %2. You can turn off hardware acceleration "
-                                "in 'Tools' menu using 'Options' item to stop displaying this message.").arg(info.version, info.renderer));
-#else
-        QMessageBox::warning(m_mainWindow, tr("Warning"), tr("Hardware acceleration is not enabled in this build."));
-#endif
     }
 }
 

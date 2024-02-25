@@ -317,9 +317,8 @@ public:
 
     /// Updates renderer (in current implementation, renderer for page thumbnails)
     /// using given parameters.
-    /// \param useOpenGL Use OpenGL for rendering?
-    /// \param surfaceFormat Surface format for OpenGL rendering
-    void updateRenderer(bool useOpenGL, const QSurfaceFormat& surfaceFormat);
+    /// \param rendererEngine Renderer engine
+    void updateRenderer(RendererEngine rendererEngine);
 
     /// Prefetches (prerenders) pages after page with pageIndex, i.e., prepares
     /// for non-flickering scroll operation.
@@ -338,8 +337,7 @@ public:
     void setProgress(PDFProgress* progress) { m_progress = progress; }
     PDFAsynchronousTextLayoutCompiler* getTextLayoutCompiler() const { return m_textLayoutCompiler; }
     PDFWidget* getWidget() const { return m_widget; }
-    bool isUsingOpenGL() const { return m_useOpenGL; }
-    const QSurfaceFormat& getSurfaceFormat() const { return m_surfaceFormat; }
+    RendererEngine getRendererEngine() const { return m_rendererEngine; }
     PageRotation getPageRotation() const { return m_controller->getPageRotation(); }
 
     void setFeatures(PDFRenderer::Features features);
@@ -461,8 +459,6 @@ private:
         constexpr inline T bound(T value) { return qBound(min, value, max); }
     };
 
-    static constexpr bool ENABLE_OPENGL_FOR_THUMBNAILS = false;
-
     /// Flag, disables the update
     bool m_updateDisabled;
 
@@ -536,11 +532,8 @@ private:
     /// Additional drawing interfaces
     std::set<IDocumentDrawInterface*> m_drawInterfaces;
 
-    /// Use OpenGL for rendering?
-    bool m_useOpenGL;
-
-    /// Surface format for OpenGL
-    QSurfaceFormat m_surfaceFormat;
+    /// Renderer engine
+    RendererEngine m_rendererEngine;
 
     /// Page group info for rendering. Group of pages
     /// can be rendered with transparency or without paper

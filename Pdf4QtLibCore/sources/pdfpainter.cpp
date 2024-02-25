@@ -18,6 +18,7 @@
 #include "pdfpainter.h"
 #include "pdfpattern.h"
 #include "pdfcms.h"
+#include "pdfpainterutils.h"
 
 #include <QPainter>
 #include <QCryptographicHash>

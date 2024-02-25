@@ -28,13 +28,9 @@
 #include <QMutex>
 #include <QSemaphore>
 #include <QImageWriter>
-#include <QSurfaceFormat>
 #include <QImage>
 
 class QPainter;
-class QOpenGLContext;
-class QOffscreenSurface;
-class QOpenGLFramebufferObject;
 
 namespace pdf
 {
@@ -45,30 +41,6 @@ class PDFCMSManager;
 class PDFPrecompiledPage;
 class PDFAnnotationManager;
 class PDFOptionalContentActivity;
-
-class PDF4QTLIBCORESHARED_EXPORT PDFRendererInfo
-{
-public:
-    PDFRendererInfo() = delete;
-
-    struct Info
-    {
-        QString vendor;
-        QString renderer;
-        QString version;
-        int majorOpenGLVersion = 0;
-        int minorOpenGLVersion = 0;
-    };
-
-    static const Info& getHardwareAccelerationSupportedInfo();
-    static bool isHardwareAccelerationSupported();
-
-    static constexpr int REQUIRED_OPENGL_MAJOR_VERSION = 3;
-    static constexpr int REQUIRED_OPENGL_MINOR_VERSION = 2;
-
-private:
-    static PDFCachedItem<Info> s_info;
-};
 
 /// Renders the PDF page on the painter, or onto an image.
 class PDF4QTLIBCORESHARED_EXPORT PDFRenderer
@@ -165,9 +137,7 @@ private:
     PDFMeshQualitySettings m_meshQualitySettings;
 };
 
-/// Renders PDF pages to bitmap images (QImage). It can use OpenGL for painting,
-/// if it is enabled, if this is the case, offscreen rendering to framebuffer
-/// is used.
+/// Renders PDF pages to bitmap images (QImage).
 /// \note Construct this object only in main GUI thread
 class PDF4QTLIBCORESHARED_EXPORT PDFRasterizer : public QObject
 {
@@ -180,22 +150,9 @@ public:
     explicit PDFRasterizer(QObject* parent);
     virtual ~PDFRasterizer() override;
 
-    /// Resets the renderer. This function must be called from main GUI thread,
-    /// it cannot be called from deferred threads, because it can create hidden
-    /// window (offscreen surface). If hardware renderer is required, and
-    /// none is available, then software renderer is used.
-    /// \param useOpenGL Use OpenGL for rendering (ignored if not available)
-    /// \param surfaceFormat Surface format to render
-    void reset(bool useOpenGL, const QSurfaceFormat& surfaceFormat);
-
-    enum Feature
-    {
-        UseOpenGL               = 0x0001,   ///< Use OpenGL for rendering
-        ValidOpenGL             = 0x0002,   ///< OpenGL is initialized and valid
-        FailedOpenGL            = 0x0004,   ///< OpenGL creation has failed
-    };
-
-    Q_DECLARE_FLAGS(Features, Feature)
+    /// Resets the renderer.
+    /// \param rendererEngine Renderer engine type
+    void reset(RendererEngine rendererEngine);
 
     /// Renders page to the image of given size. If some error occurs, then
     /// empty image is returned. Warning: this function can modify this object,
@@ -217,18 +174,7 @@ public:
                   PageRotation extraRotation);
 
 private:
-#ifdef PDF4QT_ENABLE_OPENGL
-    void initializeOpenGL();
-    void releaseOpenGL();
-#endif
-
-    Features m_features;
-#ifdef PDF4QT_ENABLE_OPENGL
-    QSurfaceFormat m_surfaceFormat;
-    QOffscreenSurface* m_surface;
-    QOpenGLContext* m_context;
-    QOpenGLFramebufferObject* m_fbo;
-#endif
+    RendererEngine m_rendererEngine;
 };
 
 /// Simple structure for storing rendered page images
@@ -267,8 +213,7 @@ public:
     /// \param features Renderer features
     /// \param meshQualitySettings Mesh quality settings
     /// \param rasterizerCount Number of rasterizers
-    /// \param useOpenGL Use OpenGL for rendering?
-    /// \param surfaceFormat Surface format
+    /// \param rendererEngine Renderer engine
     /// \param parent Parent object
     explicit PDFRasterizerPool(const PDFDocument* document,
                                PDFFontCache* fontCache,
@@ -277,8 +222,7 @@ public:
                                PDFRenderer::Features features,
                                const PDFMeshQualitySettings& meshQualitySettings,
                                int rasterizerCount,
-                               bool useOpenGL,
-                               const QSurfaceFormat& surfaceFormat,
+                               RendererEngine rendererEngine,
                                QObject* parent);
 
     /// Acquire rasterizer. This function is thread safe.

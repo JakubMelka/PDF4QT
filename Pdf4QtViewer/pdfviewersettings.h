@@ -52,8 +52,6 @@ public:
         pdf::PDFRenderer::Features m_features;
         QString m_directory;
         pdf::RendererEngine m_rendererEngine;
-        bool m_multisampleAntialiasing;
-        int m_rendererSamples;
         bool m_prefetchPages;
         pdf::PDFReal m_preferredMeshResolutionRatio;
         pdf::PDFReal m_minimalMeshResolutionRatio;
@@ -113,11 +111,7 @@ public:
     pdf::RendererEngine getRendererEngine() const;
     void setRendererEngine(pdf::RendererEngine rendererEngine);
 
-    int getRendererSamples() const;
-    void setRendererSamples(int rendererSamples);
-
     bool isPagePrefetchingEnabled() const { return m_settings.m_prefetchPages; }
-    bool isMultisampleAntialiasingEnabled() const { return m_settings.m_multisampleAntialiasing; }
 
     pdf::PDFReal getPreferredMeshResolutionRatio() const { return m_settings.m_preferredMeshResolutionRatio; }
     void setPreferredMeshResolutionRatio(pdf::PDFReal preferredMeshResolutionRatio);

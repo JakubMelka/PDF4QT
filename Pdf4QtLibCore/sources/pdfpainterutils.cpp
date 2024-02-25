@@ -1,4 +1,4 @@
-//    Copyright (C) 2021-2022 Jakub Melka
+//    Copyright (C) 2021-2024 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -17,6 +17,7 @@
 
 #include "pdfpainterutils.h"
 
+#include <QPainterPath>
 #include <QFontMetrics>
 
 #include "pdfdbgheap.h"
@@ -62,5 +63,6 @@ QRect PDFPainterHelper::drawBubble(QPainter* painter, QPoint point, QColor color
 
     return rectangle;
 }
+
 
 }   // namespace pdf

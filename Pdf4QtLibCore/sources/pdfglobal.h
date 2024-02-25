@@ -187,8 +187,9 @@ private:
 
 enum class RendererEngine
 {
-    Software,
-    OpenGL
+    Blend2D_MultiThread,
+    Blend2D_SingleThread,
+    QPainter,
 };
 
 enum class RenderingIntent

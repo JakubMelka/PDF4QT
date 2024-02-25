@@ -42,7 +42,7 @@
     <property name="title">
      <string>Go To</string>
     </property>
-	    <widget class="QMenu" name="menuBookmarkSettings">
+    <widget class="QMenu" name="menuBookmarkSettings">
      <property name="title">
       <string>Bookmark Settings</string>
      </property>
@@ -56,7 +56,6 @@
     <addaction name="actionGoToNextPage"/>
     <addaction name="actionGoToPreviousLine"/>
     <addaction name="actionGoToNextLine"/>
-	
     <addaction name="separator"/>
     <addaction name="actionBookmarkPage"/>
     <addaction name="actionGotoPreviousBookmark"/>
@@ -87,6 +86,7 @@
      <addaction name="actionRenderOptionSmoothPictures"/>
      <addaction name="actionRenderOptionIgnoreOptionalContentSettings"/>
      <addaction name="actionRenderOptionDisplayAnnotations"/>
+     <addaction name="actionRenderOptionDisplayRenderTimes"/>
     </widget>
     <addaction name="menuPage_Layout"/>
     <addaction name="menuRendering_Options"/>
@@ -368,65 +368,65 @@
    </property>
   </action>
   <action name="actionColorInvert">
-     <property name="checkable">
-      <bool>true</bool>
-     </property>
-     <property name="icon">
-      <iconset resource="pdf4qtviewer.qrc">
-       <normaloff>:/resources/invert-colors.svg</normaloff>:/resources/invert-colors.svg</iconset>
-     </property>
-     <property name="text">
-      <string>Color | Inverted</string>
-     </property>
-    </action>
-    <action name="actionColorGrayscale">
-     <property name="checkable">
-      <bool>true</bool>
-     </property>
-     <property name="icon">
-      <iconset resource="pdf4qtviewer.qrc">
-       <normaloff>:/resources/invert-colors.svg</normaloff>:/resources/invert-colors.svg</iconset>
-     </property>
-     <property name="text">
-      <string>Color | Grayscale</string>
-     </property>
-    </action>
-    <action name="actionColorHighContrast">
-     <property name="checkable">
-      <bool>true</bool>
-     </property>
-     <property name="icon">
-      <iconset resource="pdf4qtviewer.qrc">
-       <normaloff>:/resources/invert-colors.svg</normaloff>:/resources/invert-colors.svg</iconset>
-     </property>
-     <property name="text">
-      <string>Color | High Contrast</string>
-     </property>
-    </action>
-    <action name="actionColorBitonal">
-     <property name="checkable">
-      <bool>true</bool>
-     </property>
-     <property name="icon">
-      <iconset resource="pdf4qtviewer.qrc">
-       <normaloff>:/resources/invert-colors.svg</normaloff>:/resources/invert-colors.svg</iconset>
-     </property>
-     <property name="text">
-      <string>Color | Monochromatic</string>
-     </property>
-    </action>
-    <action name="actionColorCustom">
-     <property name="checkable">
-      <bool>true</bool>
-     </property>
-     <property name="icon">
-      <iconset resource="pdf4qtviewer.qrc">
-       <normaloff>:/resources/invert-colors.svg</normaloff>:/resources/invert-colors.svg</iconset>
-     </property>
-     <property name="text">
-      <string>Color | Custom</string>
-     </property>
-    </action>
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pdf4qtviewer.qrc">
+     <normaloff>:/resources/invert-colors.svg</normaloff>:/resources/invert-colors.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Color | Inverted</string>
+   </property>
+  </action>
+  <action name="actionColorGrayscale">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pdf4qtviewer.qrc">
+     <normaloff>:/resources/invert-colors.svg</normaloff>:/resources/invert-colors.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Color | Grayscale</string>
+   </property>
+  </action>
+  <action name="actionColorHighContrast">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pdf4qtviewer.qrc">
+     <normaloff>:/resources/invert-colors.svg</normaloff>:/resources/invert-colors.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Color | High Contrast</string>
+   </property>
+  </action>
+  <action name="actionColorBitonal">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pdf4qtviewer.qrc">
+     <normaloff>:/resources/invert-colors.svg</normaloff>:/resources/invert-colors.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Color | Monochromatic</string>
+   </property>
+  </action>
+  <action name="actionColorCustom">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pdf4qtviewer.qrc">
+     <normaloff>:/resources/invert-colors.svg</normaloff>:/resources/invert-colors.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Color | Custom</string>
+   </property>
+  </action>
   <action name="actionRotateRight">
    <property name="icon">
     <iconset resource="pdf4qtviewer.qrc">
@@ -557,7 +557,6 @@
     <string>Become a Sponsor</string>
    </property>
   </action>
-  
   <action name="actionBookmarkPage">
    <property name="icon">
     <iconset resource="pdf4qtviewer.qrc">
@@ -649,6 +648,17 @@
    </property>
    <property name="statusTip">
     <string>If checked, bookmarks for main document chapters are generated automatically.</string>
+   </property>
+  </action>
+  <action name="actionRenderOptionDisplayRenderTimes">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Display Render Times</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::NoRole</enum>
    </property>
   </action>
  </widget>

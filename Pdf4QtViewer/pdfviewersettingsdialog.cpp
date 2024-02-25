@@ -102,13 +102,9 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     font.setPointSize(font.pointSize() * 1.5);
     ui->optionsPagesWidget->setFont(font);
 
-    ui->renderingEngineComboBox->addItem(tr("Software"), static_cast<int>(pdf::RendererEngine::Software));
-    ui->renderingEngineComboBox->addItem(tr("Hardware accelerated (OpenGL)"), static_cast<int>(pdf::RendererEngine::OpenGL));
-
-    for (int i : { 1, 2, 4, 8, 16 })
-    {
-        ui->multisampleAntialiasingSamplesCountComboBox->addItem(QString::number(i), i);
-    }
+    ui->renderingEngineComboBox->addItem(tr("Software | QPainter"), static_cast<int>(pdf::RendererEngine::QPainter));
+    ui->renderingEngineComboBox->addItem(tr("Software | Blend2D | Parallel"), static_cast<int>(pdf::RendererEngine::Blend2D_MultiThread));
+    ui->renderingEngineComboBox->addItem(tr("Software | Blend2D | Sequential"), static_cast<int>(pdf::RendererEngine::Blend2D_SingleThread));
 
     ui->multithreadingComboBox->addItem(tr("Single thread"), static_cast<int>(pdf::PDFExecutionPolicy::Strategy::SingleThreaded));
     ui->multithreadingComboBox->addItem(tr("Multithreading (load balanced)"), static_cast<int>(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded));
@@ -279,29 +275,6 @@ void PDFViewerSettingsDialog::loadData()
     ui->renderingEngineComboBox->setCurrentIndex(ui->renderingEngineComboBox->findData(static_cast<int>(m_settings.m_rendererEngine)));
 
     // Engine
-    if (m_settings.m_rendererEngine == pdf::RendererEngine::OpenGL)
-    {
-        ui->multisampleAntialiasingCheckBox->setEnabled(true);
-        ui->multisampleAntialiasingCheckBox->setChecked(m_settings.m_multisampleAntialiasing);
-
-        if (m_settings.m_multisampleAntialiasing)
-        {
-            ui->multisampleAntialiasingSamplesCountComboBox->setEnabled(true);
-            ui->multisampleAntialiasingSamplesCountComboBox->setCurrentIndex(ui->multisampleAntialiasingSamplesCountComboBox->findData(m_settings.m_rendererSamples));
-        }
-        else
-        {
-            ui->multisampleAntialiasingSamplesCountComboBox->setEnabled(false);
-            ui->multisampleAntialiasingSamplesCountComboBox->setCurrentIndex(-1);
-        }
-    }
-    else
-    {
-        ui->multisampleAntialiasingCheckBox->setEnabled(false);
-        ui->multisampleAntialiasingCheckBox->setChecked(false);
-        ui->multisampleAntialiasingSamplesCountComboBox->setEnabled(false);
-        ui->multisampleAntialiasingSamplesCountComboBox->setCurrentIndex(-1);
-    }
     ui->prefetchPagesCheckBox->setChecked(m_settings.m_prefetchPages);
     ui->multithreadingComboBox->setCurrentIndex(ui->multithreadingComboBox->findData(static_cast<int>(m_settings.m_multithreadingStrategy)));
 
@@ -431,14 +404,6 @@ void PDFViewerSettingsDialog::saveData()
     if (sender == ui->renderingEngineComboBox)
     {
         m_settings.m_rendererEngine = static_cast<pdf::RendererEngine>(ui->renderingEngineComboBox->currentData().toInt());
-    }
-    else if (sender == ui->multisampleAntialiasingCheckBox)
-    {
-        m_settings.m_multisampleAntialiasing = ui->multisampleAntialiasingCheckBox->isChecked();
-    }
-    else if (sender == ui->multisampleAntialiasingSamplesCountComboBox)
-    {
-        m_settings.m_rendererSamples = ui->multisampleAntialiasingSamplesCountComboBox->currentData().toInt();
     }
     else if (sender == ui->prefetchPagesCheckBox)
     {

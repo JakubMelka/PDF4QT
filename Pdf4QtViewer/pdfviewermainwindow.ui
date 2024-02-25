@@ -90,6 +90,7 @@
      <addaction name="actionRenderOptionSmoothPictures"/>
      <addaction name="actionRenderOptionIgnoreOptionalContentSettings"/>
      <addaction name="actionRenderOptionDisplayAnnotations"/>
+     <addaction name="actionRenderOptionDisplayRenderTimes"/>
     </widget>
     <addaction name="menuPage_Layout"/>
     <addaction name="menuRendering_Options"/>
@@ -1151,6 +1152,17 @@
    </property>
    <property name="statusTip">
     <string>If checked, bookmarks for main document chapters are generated automatically.</string>
+   </property>
+  </action>
+  <action name="actionRenderOptionDisplayRenderTimes">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Display Render Times</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::NoRole</enum>
    </property>
   </action>
  </widget>

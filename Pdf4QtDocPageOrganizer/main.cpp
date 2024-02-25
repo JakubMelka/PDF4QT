@@ -24,7 +24,6 @@
 int main(int argc, char *argv[])
 {
     QApplication::setAttribute(Qt::AA_CompressHighFrequencyEvents, true);
-    QApplication::setAttribute(Qt::AA_DontCheckOpenGLContextThreadAffinity, true);
     QApplication application(argc, argv);
 
     QCoreApplication::setOrganizationName("MelkaJ");

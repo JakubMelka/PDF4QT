@@ -35,7 +35,7 @@
      <item>
       <widget class="QStackedWidget" name="stackedWidget">
        <property name="currentIndex">
-        <number>6</number>
+        <number>0</number>
        </property>
        <widget class="QWidget" name="enginePage">
         <layout class="QVBoxLayout" name="enginePageLayout">
@@ -59,46 +59,15 @@
            <layout class="QVBoxLayout" name="engineSettingsGroupBoxLayout">
             <item>
              <layout class="QGridLayout" name="engineSettingsGridLayout">
-              <item row="1" column="1">
-               <widget class="QCheckBox" name="multisampleAntialiasingCheckBox">
+              <item row="2" column="0">
+               <widget class="QLabel" name="multithreadingLabel">
                 <property name="text">
-                 <string>Enable</string>
+                 <string>Multithreading strategy</string>
                 </property>
                </widget>
               </item>
               <item row="0" column="1">
                <widget class="QComboBox" name="renderingEngineComboBox"/>
-              </item>
-              <item row="1" column="0">
-               <widget class="QLabel" name="multisampleAntialiasingLabel">
-                <property name="text">
-                 <string>Multisample antialiasing (MSAA)</string>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="1">
-               <widget class="QComboBox" name="multisampleAntialiasingSamplesCountComboBox"/>
-              </item>
-              <item row="3" column="0">
-               <widget class="QLabel" name="prefetchPagesLabel">
-                <property name="text">
-                 <string>Prefetch pages</string>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="0">
-               <widget class="QLabel" name="multisampleAntiailasingSamplesLabel">
-                <property name="text">
-                 <string>MSAA Samples count</string>
-                </property>
-               </widget>
-              </item>
-              <item row="3" column="1">
-               <widget class="QCheckBox" name="prefetchPagesCheckBox">
-                <property name="text">
-                 <string>Enable</string>
-                </property>
-               </widget>
               </item>
               <item row="0" column="0">
                <widget class="QLabel" name="renderingEngineLabel">
@@ -107,22 +76,29 @@
                 </property>
                </widget>
               </item>
-              <item row="4" column="0">
-               <widget class="QLabel" name="multithreadingLabel">
+              <item row="1" column="0">
+               <widget class="QLabel" name="prefetchPagesLabel">
                 <property name="text">
-                 <string>Multithreading strategy</string>
+                 <string>Prefetch pages</string>
                 </property>
                </widget>
               </item>
-              <item row="4" column="1">
+              <item row="2" column="1">
                <widget class="QComboBox" name="multithreadingComboBox"/>
+              </item>
+              <item row="1" column="1">
+               <widget class="QCheckBox" name="prefetchPagesCheckBox">
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+               </widget>
               </item>
              </layout>
             </item>
             <item>
              <widget class="QLabel" name="engineInfoLabel">
               <property name="text">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Choose a rendering method based on your needs. Although &lt;span style=&quot; font-weight:600;&quot;&gt;Software Rendering&lt;/span&gt; is slower than the hardware-accelerated &lt;span style=&quot; font-weight:600;&quot;&gt;OpenGL Rendering&lt;/span&gt;, it can be utilized when OpenGL is not available on your platform. The default (and recommended) method is OpenGL Rendering. &lt;/p&gt;&lt;p&gt;OpenGL rendering employs &lt;span style=&quot; font-weight:600;&quot;&gt;Multisample Antialiasing (MSAA)&lt;/span&gt;, ensuring high-quality image rendering. You have the option to enable or disable this feature. However, disabling it might lead to inferior image quality. The Samples Count sets the number of samples per pixel used to determine pixel color. It can be set to 1, 2, 4, 8, or 16. Most modern GPUs support at least a value of 8. If your GPU doesn't support the desired sample count, lower this value. &lt;/p&gt;&lt;p&gt;The &lt;span style=&quot; font-weight:600;&quot;&gt;Prefetch Pages&lt;/span&gt; feature pre-renders pages adjacent to the currently viewed pages, minimizing flickering during scrolling. Prefetched pages are stored in the page cache. &lt;/p&gt;&lt;p&gt;The &lt;span style=&quot; font-weight:600;&quot;&gt;Multithreading Strategy&lt;/span&gt; determines how the program will utilize CPU cores. With the &lt;span style=&quot; font-weight:600;&quot;&gt;Single Thread&lt;/span&gt; strategy, only one CPU core is used for rendering a page. This results in longer processing times, but each page is independently compiled/drawn in its own thread. Alternatively, there are two multithreading strategies: Load Balanced and Maximum Threads. Load Balanced only parallelizes pages without processing individual page content. In contrast, the Maximum Threads strategy spawns as many threads as possible for operations to achieve optimal performance.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Select a rendering method tailored to your application's requirements. Software Rendering, utilizing QPainter, is a versatile choice that guarantees compatibility across all platforms. It's particularly useful in scenarios where direct access to hardware acceleration isn't crucial. QPainter, part of the Qt framework, excels in rendering 2D graphics with support for various painting styles, image processing, and intricate graphical transformations, making it an excellent tool for applications that require detailed and sophisticated 2D graphics without relying on hardware acceleration.&lt;/p&gt;&lt;p&gt;On the other hand, for applications that demand high-performance rendering, leveraging the Blend2D library offers a compelling alternative. Blend2D is a high-performance 2D vector graphics engine that utilizes multi-threading to accelerate the rendering process. It does not rely on QPainter or hardware acceleration but instead offers a software-based rendering solution optimized for speed and quality. Blend2D's advanced anti-aliasing techniques ensure crisp and clear image quality, making it suitable for applications where rendering performance and image quality are paramount.&lt;/p&gt;&lt;p&gt;The Prefetch Pages feature is a strategy that can be applied regardless of the rendering method chosen. By pre-rendering pages adjacent to the currently viewed content, this approach minimizes flickering and enhances the smoothness of transitions during scrolling, improving the overall user experience.&lt;/p&gt;&lt;p&gt;When it comes to optimizing the rendering process, the choice of multithreading strategy plays a crucial role. A Single Thread strategy, where rendering tasks are executed sequentially on a single CPU core, might be preferable in environments where simplicity and predictability are key. For more demanding applications, employing a Multi-threading strategy can significantly improve rendering times. Strategies like Load Balanced distribute the workload evenly across CPU cores without delving into content-specific processing, offering a good performance boost. The Maximum Threads strategy takes full advantage of available CPU resources by allocating as many threads as possible to the rendering tasks, achieving optimal performance and minimizing rendering times.&lt;/p&gt;&lt;p&gt;This delineation between using QPainter for software rendering and Blend2D for high-performance, multi-threaded rendering allows developers to choose the most appropriate rendering pathway based on their specific performance requirements and the graphical complexity of their application.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
               <property name="wordWrap">
                <bool>true</bool>

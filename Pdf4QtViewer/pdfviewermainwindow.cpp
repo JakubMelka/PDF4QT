@@ -160,6 +160,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_actionManager->setAction(PDFActionManager::RenderOptionTextAntialiasing, ui->actionRenderOptionTextAntialiasing);
     m_actionManager->setAction(PDFActionManager::RenderOptionSmoothPictures, ui->actionRenderOptionSmoothPictures);
     m_actionManager->setAction(PDFActionManager::RenderOptionIgnoreOptionalContentSettings, ui->actionRenderOptionIgnoreOptionalContentSettings);
+    m_actionManager->setAction(PDFActionManager::RenderOptionDisplayRenderTimes, ui->actionRenderOptionDisplayRenderTimes);
     m_actionManager->setAction(PDFActionManager::RenderOptionDisplayAnnotations, ui->actionRenderOptionDisplayAnnotations);
     m_actionManager->setAction(PDFActionManager::RenderOptionInvertColors, ui->actionColorInvert);
     m_actionManager->setAction(PDFActionManager::RenderOptionGrayscale, ui->actionColorGrayscale);
@@ -543,7 +544,6 @@ void PDFViewerMainWindow::showEvent(QShowEvent* event)
 {
     QMainWindow::showEvent(event);
     m_progressTaskbarIndicator->setWindow(windowHandle());
-    QTimer::singleShot(0, this, [this] { m_programController->checkHardwareOpenGLAvailability(); });
 }
 
 void PDFViewerMainWindow::dragEnterEvent(QDragEnterEvent* event)

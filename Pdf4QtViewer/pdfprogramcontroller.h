@@ -161,6 +161,7 @@ public:
         RenderOptionTextAntialiasing,
         RenderOptionSmoothPictures,
         RenderOptionIgnoreOptionalContentSettings,
+        RenderOptionDisplayRenderTimes,
         RenderOptionDisplayAnnotations,
         RenderOptionInvertColors,
         RenderOptionGrayscale,
@@ -296,8 +297,6 @@ public:
     void finishInitialization();
     void writeSettings();
     void resetSettings();
-
-    void checkHardwareOpenGLAvailability();
 
     void performPrint();
     void performSave();
