@@ -17,6 +17,7 @@
 
 #include "pdfutils.h"
 #include "pdfexception.h"
+#include "pdfblpainter.h"
 
 #include <QtGlobal>
 #include <QtMath>
@@ -314,6 +315,18 @@ std::vector<PDFDependentLibraryInfo> PDFDependentLibraryInfo::getLibraryInfo()
     zlibInfo.version = ZLIB_VERSION;
     zlibInfo.url = tr("https://zlib.net/");
     result.emplace_back(qMove(zlibInfo));
+
+    // blend2d
+    const uint32_t blend2dVersion = PDFBLPaintDevice::getVersion();
+    const int blend2dMajor = (blend2dVersion >> 16) & 0xFF;
+    const int blend2dMinor = (blend2dVersion >> 8) & 0xFF;
+    const int blend2dPatch = (blend2dVersion) & 0xFF;
+    PDFDependentLibraryInfo blend2dInfo;
+    blend2dInfo.library = tr("Blend2D");
+    blend2dInfo.license = tr("zlib specific");
+    blend2dInfo.version = QString("%1.%2.%3").arg(blend2dMajor).arg(blend2dMinor).arg(blend2dPatch);
+    blend2dInfo.url = tr("https://blend2d.com/");
+    result.emplace_back(qMove(blend2dInfo));
 
     return result;
 }

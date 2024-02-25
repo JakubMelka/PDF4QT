@@ -36,6 +36,8 @@ public:
     virtual int devType() const override;
     virtual QPaintEngine* paintEngine() const override;
 
+    static uint32_t getVersion();
+
 protected:
     virtual int metric(PaintDeviceMetric metric) const override;
 

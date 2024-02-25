@@ -153,6 +153,11 @@ QPaintEngine* PDFBLPaintDevice::paintEngine() const
     return m_paintEngine;
 }
 
+uint32_t PDFBLPaintDevice::getVersion()
+{
+    return BL_VERSION;
+}
+
 int PDFBLPaintDevice::metric(PaintDeviceMetric metric) const
 {
     switch (metric)
