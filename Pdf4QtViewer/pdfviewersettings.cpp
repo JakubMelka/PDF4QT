@@ -43,7 +43,7 @@ void PDFViewerSettings::readSettings(QSettings& settings, const pdf::PDFCMSSetti
     settings.beginGroup("ViewerSettings");
     m_settings.m_directory = settings.value("defaultDirectory", QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).toString();
     m_settings.m_features = static_cast<pdf::PDFRenderer::Features>(settings.value("rendererFeaturesv2", static_cast<int>(pdf::PDFRenderer::getDefaultFeatures())).toInt());
-    m_settings.m_rendererEngine = static_cast<pdf::RendererEngine>(settings.value("renderingEngine", static_cast<int>(pdf::RendererEngine::Blend2D)).toInt());
+    m_settings.m_rendererEngine = static_cast<pdf::RendererEngine>(settings.value("renderingEngine", static_cast<int>(pdf::RendererEngine::Blend2D_MultiThread)).toInt());
     m_settings.m_prefetchPages = settings.value("prefetchPages", defaultSettings.m_prefetchPages).toBool();
     m_settings.m_preferredMeshResolutionRatio = settings.value("preferredMeshResolutionRatio", defaultSettings.m_preferredMeshResolutionRatio).toDouble();
     m_settings.m_minimalMeshResolutionRatio = settings.value("minimalMeshResolutionRatio", defaultSettings.m_minimalMeshResolutionRatio).toDouble();
@@ -253,7 +253,7 @@ void PDFViewerSettings::setColorTolerance(pdf::PDFReal colorTolerance)
 
 PDFViewerSettings::Settings::Settings() :
     m_features(pdf::PDFRenderer::getDefaultFeatures()),
-    m_rendererEngine(pdf::RendererEngine::Blend2D),
+    m_rendererEngine(pdf::RendererEngine::Blend2D_MultiThread),
     m_prefetchPages(true),
     m_preferredMeshResolutionRatio(0.02),
     m_minimalMeshResolutionRatio(0.005),

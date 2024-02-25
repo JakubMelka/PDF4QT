@@ -578,9 +578,11 @@ void PDFDrawWidget::paintEvent(QPaintEvent* event)
 {
     Q_UNUSED(event);
 
-    switch (getPDFWidget()->getDrawWidgetProxy()->getRendererEngine())
+    RendererEngine rendererEngine = getPDFWidget()->getDrawWidgetProxy()->getRendererEngine();
+    switch (rendererEngine)
     {
-        case RendererEngine::Blend2D:
+        case RendererEngine::Blend2D_MultiThread:
+        case RendererEngine::Blend2D_SingleThread:
         {
             QRect rect = this->rect();
 
@@ -598,7 +600,8 @@ void PDFDrawWidget::paintEvent(QPaintEvent* event)
                 m_blend2DframeBuffer = QImage(requiredSize, QImage::Format_ARGB32_Premultiplied);
             }
 
-            PDFBLPaintDevice blPaintDevice(m_blend2DframeBuffer, true);
+            const bool multithreaded = rendererEngine == RendererEngine::Blend2D_MultiThread;
+            PDFBLPaintDevice blPaintDevice(m_blend2DframeBuffer, multithreaded);
             QPainter blPainter;
 
             if (blPainter.begin(&blPaintDevice))

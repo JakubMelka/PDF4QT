@@ -470,7 +470,7 @@ PDFDrawWidgetProxy::PDFDrawWidgetProxy(QObject* parent) :
     m_rasterizer(new PDFRasterizer(this)),
     m_progress(nullptr),
     m_cacheClearTimer(new QTimer(this)),
-    m_rendererEngine(RendererEngine::Blend2D)
+    m_rendererEngine(RendererEngine::Blend2D_MultiThread)
 {
     m_controller = new PDFDrawSpaceController(this);
     connect(m_controller, &PDFDrawSpaceController::drawSpaceChanged, this, &PDFDrawWidgetProxy::update);

@@ -184,7 +184,7 @@ int PDFToolRenderBase::execute(const PDFToolOptions& options)
     pdf::PDFRasterizerPool rasterizerPool(&document, &fontCache, &cmsManager,
                                           &optionalContentActivity, options.renderFeatures, meshQualitySettings,
                                           pdf::PDFRasterizerPool::getCorrectedRasterizerCount(options.renderRasterizerCount),
-                                          options.renderUseSoftwareRendering ? pdf::RendererEngine::QPainter : pdf::RendererEngine::Blend2D, nullptr);
+                                          options.renderUseSoftwareRendering ? pdf::RendererEngine::QPainter : pdf::RendererEngine::Blend2D_SingleThread, nullptr);
 
     auto onRenderError = [this](pdf::PDFInteger pageIndex, pdf::PDFRenderError error)
     {

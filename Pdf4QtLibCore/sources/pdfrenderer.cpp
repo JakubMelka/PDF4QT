@@ -220,7 +220,7 @@ void PDFRenderer::compile(PDFPrecompiledPage* precompiledPage, size_t pageIndex)
 
 PDFRasterizer::PDFRasterizer(QObject* parent) :
     BaseClass(parent),
-    m_rendererEngine(RendererEngine::Blend2D)
+    m_rendererEngine(RendererEngine::Blend2D_SingleThread)
 {
 
 }
@@ -247,7 +247,8 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
 
     QTransform matrix = PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), size), extraRotation);
 
-    if (m_rendererEngine == RendererEngine::Blend2D)
+    if (m_rendererEngine == RendererEngine::Blend2D_MultiThread ||
+        m_rendererEngine == RendererEngine::Blend2D_SingleThread)
     {
         PDFBLPaintDevice blPaintDevice(image, false);
 

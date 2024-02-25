@@ -588,12 +588,11 @@ void PDFBLPaintEngine::drawPathImpl(const QPainterPath& path, bool enableStroke,
                 QPainterPath transformedStrokedPath = m_currentTransform.map(strokedPath);
                 QPainterPath finalTransformedStrokedPath = transformedStrokedPath.intersected(m_finalClipPath.value());
 
-                BLVarCore strokeStyle;
-                if (!finalTransformedStrokedPath.isEmpty() && m_blContext->getStrokeStyle(strokeStyle) == BL_SUCCESS)
+                if (!finalTransformedStrokedPath.isEmpty())
                 {
                     m_blContext->save();
                     m_blContext->resetMatrix();
-                    m_blContext->setFillStyle(strokeStyle);
+                    setBLBrush(m_blContext.value(), m_currentPen.brush());
                     m_blContext->fillPath(getBLPath(finalTransformedStrokedPath));
                     m_blContext->restore();
                 }

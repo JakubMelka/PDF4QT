@@ -103,7 +103,8 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     ui->optionsPagesWidget->setFont(font);
 
     ui->renderingEngineComboBox->addItem(tr("Software | QPainter"), static_cast<int>(pdf::RendererEngine::QPainter));
-    ui->renderingEngineComboBox->addItem(tr("Software | Blend2D | Multithreaded"), static_cast<int>(pdf::RendererEngine::Blend2D));
+    ui->renderingEngineComboBox->addItem(tr("Software | Blend2D | Parallel"), static_cast<int>(pdf::RendererEngine::Blend2D_MultiThread));
+    ui->renderingEngineComboBox->addItem(tr("Software | Blend2D | Sequential"), static_cast<int>(pdf::RendererEngine::Blend2D_SingleThread));
 
     ui->multithreadingComboBox->addItem(tr("Single thread"), static_cast<int>(pdf::PDFExecutionPolicy::Strategy::SingleThreaded));
     ui->multithreadingComboBox->addItem(tr("Multithreading (load balanced)"), static_cast<int>(pdf::PDFExecutionPolicy::Strategy::PageMultithreaded));

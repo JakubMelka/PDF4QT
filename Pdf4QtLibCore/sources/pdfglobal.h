@@ -187,7 +187,8 @@ private:
 
 enum class RendererEngine
 {
-    Blend2D,
+    Blend2D_MultiThread,
+    Blend2D_SingleThread,
     QPainter,
 };
 

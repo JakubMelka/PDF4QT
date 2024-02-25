@@ -35,7 +35,7 @@ PageItemDelegate::PageItemDelegate(PageItemModel* model, QObject* parent) :
     m_rasterizer(nullptr)
 {
     m_rasterizer = new pdf::PDFRasterizer(this);
-    m_rasterizer->reset(pdf::RendererEngine::Blend2D);
+    m_rasterizer->reset(pdf::RendererEngine::Blend2D_SingleThread);
 }
 
 PageItemDelegate::~PageItemDelegate()
