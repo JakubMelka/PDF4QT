@@ -1,5 +1,6 @@
 CURRENT:
  - Issue #161: Can it be possible to trust a certificate like in acrobat? 
+ - Issue #123: Alternative software rendering backend (Blend2D)
 
 V: 1.3.7 10.1.2024
  - Issue #142: Cannot reach the top
