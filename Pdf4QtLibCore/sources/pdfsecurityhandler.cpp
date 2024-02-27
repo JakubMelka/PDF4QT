@@ -353,9 +353,14 @@ void PDFSecurityHandler::parseDataStandardSecurityHandler(const PDFDictionary* d
         {
             result = object.getString();
 
-            if (result.size() != size)
+            if (result.size() < size)
             {
                 throw PDFException(PDFTranslationContext::tr("Expected %1 characters long string in entry '%2'. Provided length is %3.").arg(size).arg(QString::fromLatin1(key)).arg(result.size()));
+            }
+
+            if (result.size() > size)
+            {
+                result.resize(size);
             }
         }
         else
