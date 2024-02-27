@@ -1,4 +1,4 @@
-//    Copyright (C) 2021 Jakub Melka
+//    Copyright (C) 2021-2024 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -36,6 +36,9 @@ int main(int argc, char *argv[])
     parser.addVersionOption();
     parser.addPositionalArgument("file", "The PDF file to open.");
     parser.process(application);
+
+    QIcon appIcon(":/app-icon.svg");
+    QApplication::setWindowIcon(appIcon);
 
     pdfviewer::PDFViewerMainWindowLite mainWindow;
     mainWindow.show();

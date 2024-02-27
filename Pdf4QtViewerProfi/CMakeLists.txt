@@ -1,4 +1,4 @@
-#    Copyright (C) 2022 Jakub Melka
+#    Copyright (C) 2022-2024 Jakub Melka
 #
 #    This file is part of PDF4QT.
 #
@@ -18,6 +18,7 @@
 add_executable(Pdf4QtViewerProfi
     main.cpp
     icon.rc
+    app.qrc
 )
 
 target_link_libraries(Pdf4QtViewerProfi PRIVATE Pdf4QtLibCore Pdf4QtLibWidgets Pdf4QtViewer Qt6::Core Qt6::Gui Qt6::Widgets)

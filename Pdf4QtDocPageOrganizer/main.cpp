@@ -37,6 +37,9 @@ int main(int argc, char *argv[])
     parser.addPositionalArgument("file", "The PDF file to open.");
     parser.process(application);
 
+    QIcon appIcon(":/app-icon.svg");
+    QApplication::setWindowIcon(appIcon);
+
     pdfdocpage::MainWindow mainWindow(nullptr);
     mainWindow.show();
 

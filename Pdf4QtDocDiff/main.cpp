@@ -38,6 +38,9 @@ int main(int argc, char *argv[])
     parser.addPositionalArgument("file2", "The PDF file to be compared.");
     parser.process(application);
 
+    QIcon appIcon(":/app-icon.svg");
+    QApplication::setWindowIcon(appIcon);
+
     pdfdocdiff::MainWindow mainWindow(nullptr);
     mainWindow.show();
 
