@@ -84,7 +84,8 @@ enum class AnnotationType
     Redact,
     Projection,
     _3D,
-    RichMedia
+    RichMedia,
+    Unknown
 };
 
 enum class AnnotationLineEnding
@@ -1315,6 +1316,15 @@ public:
     inline explicit PDFTrapNetworkAnnotation() = default;
 
     virtual AnnotationType getType() const override { return AnnotationType::TrapNet; }
+};
+
+/// Unknown (not recognized) annotation.
+class PDFUnknownAnnotation : public PDFAnnotation
+{
+public:
+    inline explicit PDFUnknownAnnotation() = default;
+
+    virtual AnnotationType getType() const override { return AnnotationType::Unknown; }
 };
 
 /// Watermark annotation represents watermark displayed on the page,

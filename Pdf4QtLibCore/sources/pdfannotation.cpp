@@ -924,6 +924,11 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
         annotation->m_content = PDFRichMediaContent::parse(storage, dictionary->get("RichMediaContent"));
         annotation->m_settings = PDFRichMediaSettings::parse(storage, dictionary->get("RichMediaSettings"));
     }
+    else
+    {
+        // Fill unknown annotation
+        result.reset(new PDFUnknownAnnotation());
+    }
 
     if (!result)
     {
