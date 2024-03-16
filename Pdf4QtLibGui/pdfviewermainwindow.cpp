@@ -16,7 +16,7 @@
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfviewermainwindow.h"
-#include "ui_pdfviewermainwindowlite.h"
+#include "ui_pdfviewermainwindow.h"
 
 #include "pdfaboutdialog.h"
 #include "pdfsidebarwidget.h"

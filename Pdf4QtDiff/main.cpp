@@ -27,9 +27,9 @@ int main(int argc, char *argv[])
     QApplication application(argc, argv);
 
     QCoreApplication::setOrganizationName("MelkaJ");
-    QCoreApplication::setApplicationName("PDF4QT Document Diff");
+    QCoreApplication::setApplicationName("PDF4QT Diff");
     QCoreApplication::setApplicationVersion(pdf::PDF_LIBRARY_VERSION);
-    QApplication::setApplicationDisplayName(QApplication::translate("Application", "PDF4QT Document Diff"));
+    QApplication::setApplicationDisplayName(QApplication::translate("Application", "PDF4QT Diff"));
     QCommandLineParser parser;
     parser.setApplicationDescription(QCoreApplication::applicationName());
     parser.addHelpOption();
