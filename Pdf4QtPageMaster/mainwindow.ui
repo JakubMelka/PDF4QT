@@ -1,0 +1,615 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>600</height>
+   </rect>
+  </property>
+  <property name="acceptDrops">
+   <bool>true</bool>
+  </property>
+  <property name="windowTitle">
+   <string>Workspace</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+     <widget class="QListView" name="documentItemsView">
+      <property name="contextMenuPolicy">
+       <enum>Qt::CustomContextMenu</enum>
+      </property>
+      <property name="dragEnabled">
+       <bool>true</bool>
+      </property>
+      <property name="dragDropMode">
+       <enum>QAbstractItemView::DragDrop</enum>
+      </property>
+      <property name="defaultDropAction">
+       <enum>Qt::MoveAction</enum>
+      </property>
+      <property name="selectionMode">
+       <enum>QAbstractItemView::ExtendedSelection</enum>
+      </property>
+      <property name="flow">
+       <enum>QListView::LeftToRight</enum>
+      </property>
+      <property name="viewMode">
+       <enum>QListView::IconMode</enum>
+      </property>
+      <property name="itemAlignment">
+       <set>Qt::AlignCenter</set>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>800</width>
+     <height>21</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>File</string>
+    </property>
+    <addaction name="actionAddDocuments"/>
+    <addaction name="actionClear"/>
+    <addaction name="actionClose"/>
+   </widget>
+   <widget class="QMenu" name="menuEdit">
+    <property name="title">
+     <string>Edit</string>
+    </property>
+    <addaction name="actionUndo"/>
+    <addaction name="actionRedo"/>
+    <addaction name="separator"/>
+    <addaction name="actionCloneSelection"/>
+    <addaction name="actionRemoveSelection"/>
+    <addaction name="actionReplaceSelection"/>
+    <addaction name="actionRestoreRemovedItems"/>
+    <addaction name="separator"/>
+    <addaction name="actionCut"/>
+    <addaction name="actionCopy"/>
+    <addaction name="actionPaste"/>
+    <addaction name="separator"/>
+    <addaction name="actionRotate_Left"/>
+    <addaction name="actionRotate_Right"/>
+    <addaction name="separator"/>
+    <addaction name="actionGroup"/>
+    <addaction name="actionUngroup"/>
+   </widget>
+   <widget class="QMenu" name="menuInsert">
+    <property name="title">
+     <string>Insert</string>
+    </property>
+    <addaction name="actionInsert_PDF"/>
+    <addaction name="actionInsert_Image"/>
+    <addaction name="actionInsert_Empty_Page"/>
+   </widget>
+   <widget class="QMenu" name="menuView">
+    <property name="title">
+     <string>View</string>
+    </property>
+    <addaction name="actionSelect_None"/>
+    <addaction name="actionSelect_All"/>
+    <addaction name="actionSelect_Even"/>
+    <addaction name="actionSelect_Odd"/>
+    <addaction name="actionSelect_Portrait"/>
+    <addaction name="actionSelect_Landscape"/>
+    <addaction name="actionInvert_Selection"/>
+    <addaction name="separator"/>
+    <addaction name="actionZoom_In"/>
+    <addaction name="actionZoom_Out"/>
+   </widget>
+   <widget class="QMenu" name="menuMake">
+    <property name="title">
+     <string>Make</string>
+    </property>
+    <addaction name="actionUnited_Document"/>
+    <addaction name="actionSeparate_to_Multiple_Documents"/>
+    <addaction name="actionSeparate_to_Multiple_Documents_Grouped"/>
+   </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title">
+     <string>Help</string>
+    </property>
+    <addaction name="actionGet_Source"/>
+    <addaction name="actionBecomeASponsor"/>
+    <addaction name="actionAbout"/>
+    <addaction name="actionPrepare_Icon_Theme"/>
+   </widget>
+   <widget class="QMenu" name="menuToolbars">
+    <property name="title">
+     <string>Toolbars</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menuRegroup">
+    <property name="title">
+     <string>Regroup</string>
+    </property>
+    <addaction name="actionRegroup_Even_Odd"/>
+    <addaction name="actionRegroup_by_Page_Pairs"/>
+    <addaction name="actionRegroup_by_Outline"/>
+    <addaction name="actionRegroup_by_Alternating_Pages"/>
+    <addaction name="actionRegroup_by_Alternating_Pages_Reversed_Order"/>
+   </widget>
+   <addaction name="menuFile"/>
+   <addaction name="menuEdit"/>
+   <addaction name="menuInsert"/>
+   <addaction name="menuRegroup"/>
+   <addaction name="menuView"/>
+   <addaction name="menuMake"/>
+   <addaction name="menuToolbars"/>
+   <addaction name="menuHelp"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionAddDocuments">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/open.svg</normaloff>:/pdfpagemaster/resources/open.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Add Documents...</string>
+   </property>
+   <property name="toolTip">
+    <string>Add Documents</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+O</string>
+   </property>
+  </action>
+  <action name="actionClose">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/close.svg</normaloff>:/pdfpagemaster/resources/close.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Close</string>
+   </property>
+   <property name="shortcut">
+    <string>Alt+F4</string>
+   </property>
+  </action>
+  <action name="actionCloneSelection">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/clone-selection.svg</normaloff>:/pdfpagemaster/resources/clone-selection.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Clone Selection</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+L</string>
+   </property>
+  </action>
+  <action name="actionRemoveSelection">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/remove-selection.svg</normaloff>:/pdfpagemaster/resources/remove-selection.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Remove Selection</string>
+   </property>
+   <property name="shortcut">
+    <string>Del</string>
+   </property>
+  </action>
+  <action name="actionRestoreRemovedItems">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/restore-removed-items.svg</normaloff>:/pdfpagemaster/resources/restore-removed-items.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Restore Removed Items</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+R</string>
+   </property>
+  </action>
+  <action name="actionInsert_PDF">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/insert-page-from-pdf.svg</normaloff>:/pdfpagemaster/resources/insert-page-from-pdf.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Insert PDF</string>
+   </property>
+   <property name="toolTip">
+    <string>Insert PDF</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+I</string>
+   </property>
+  </action>
+  <action name="actionInsert_Image">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/insert-image.svg</normaloff>:/pdfpagemaster/resources/insert-image.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Insert Image</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Alt+I</string>
+   </property>
+  </action>
+  <action name="actionInsert_Empty_Page">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/insert-empty-page.svg</normaloff>:/pdfpagemaster/resources/insert-empty-page.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Insert Empty Page</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+I</string>
+   </property>
+  </action>
+  <action name="actionCut">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/cut.svg</normaloff>:/pdfpagemaster/resources/cut.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Cut</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+X</string>
+   </property>
+  </action>
+  <action name="actionCopy">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/copy.svg</normaloff>:/pdfpagemaster/resources/copy.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Copy</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+C</string>
+   </property>
+  </action>
+  <action name="actionPaste">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/paste.svg</normaloff>:/pdfpagemaster/resources/paste.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Paste</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+V</string>
+   </property>
+  </action>
+  <action name="actionReplaceSelection">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/replace-selection.svg</normaloff>:/pdfpagemaster/resources/replace-selection.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Replace Selection</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Alt+R</string>
+   </property>
+  </action>
+  <action name="actionSelect_None">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/select-none.svg</normaloff>:/pdfpagemaster/resources/select-none.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Select None</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+N</string>
+   </property>
+  </action>
+  <action name="actionSelect_All">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/select-all.svg</normaloff>:/pdfpagemaster/resources/select-all.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Select All</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+A</string>
+   </property>
+  </action>
+  <action name="actionSelect_Even">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/select-even.svg</normaloff>:/pdfpagemaster/resources/select-even.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Select Even</string>
+   </property>
+   <property name="shortcut">
+    <string>F9</string>
+   </property>
+  </action>
+  <action name="actionSelect_Odd">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/select-odd.svg</normaloff>:/pdfpagemaster/resources/select-odd.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Select Odd</string>
+   </property>
+   <property name="shortcut">
+    <string>F10</string>
+   </property>
+  </action>
+  <action name="actionSelect_Portrait">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/select-portrait.svg</normaloff>:/pdfpagemaster/resources/select-portrait.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Select Portrait</string>
+   </property>
+   <property name="shortcut">
+    <string>F11</string>
+   </property>
+  </action>
+  <action name="actionSelect_Landscape">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/select-landscape.svg</normaloff>:/pdfpagemaster/resources/select-landscape.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Select Landscape</string>
+   </property>
+   <property name="shortcut">
+    <string>F12</string>
+   </property>
+  </action>
+  <action name="actionRotate_Right">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/rotate-right.svg</normaloff>:/pdfpagemaster/resources/rotate-right.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Rotate Right</string>
+   </property>
+   <property name="shortcut">
+    <string>F4</string>
+   </property>
+  </action>
+  <action name="actionRotate_Left">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/rotate-left.svg</normaloff>:/pdfpagemaster/resources/rotate-left.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Rotate Left</string>
+   </property>
+   <property name="shortcut">
+    <string>Shift+F4</string>
+   </property>
+  </action>
+  <action name="actionZoom_In">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/zoom-in.svg</normaloff>:/pdfpagemaster/resources/zoom-in.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Zoom In</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl++</string>
+   </property>
+  </action>
+  <action name="actionZoom_Out">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/zoom-out.svg</normaloff>:/pdfpagemaster/resources/zoom-out.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Zoom Out</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+-</string>
+   </property>
+  </action>
+  <action name="actionGet_Source">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/get-source.svg</normaloff>:/pdfpagemaster/resources/get-source.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Get Source</string>
+   </property>
+  </action>
+  <action name="actionAbout">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/about.svg</normaloff>:/pdfpagemaster/resources/about.svg</iconset>
+   </property>
+   <property name="text">
+    <string>About...</string>
+   </property>
+   <property name="shortcut">
+    <string>F1</string>
+   </property>
+  </action>
+  <action name="actionUnited_Document">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/make-united-document.svg</normaloff>:/pdfpagemaster/resources/make-united-document.svg</iconset>
+   </property>
+   <property name="text">
+    <string>United Document...</string>
+   </property>
+   <property name="shortcut">
+    <string>F5</string>
+   </property>
+  </action>
+  <action name="actionSeparate_to_Multiple_Documents">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/make-separated-document.svg</normaloff>:/pdfpagemaster/resources/make-separated-document.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Separate to Multiple Documents...</string>
+   </property>
+   <property name="shortcut">
+    <string>F6</string>
+   </property>
+  </action>
+  <action name="actionSeparate_to_Multiple_Documents_Grouped">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/make-separated-document-from-groups.svg</normaloff>:/pdfpagemaster/resources/make-separated-document-from-groups.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Separate to Multiple Documents (Grouped)...</string>
+   </property>
+   <property name="shortcut">
+    <string>F7</string>
+   </property>
+  </action>
+  <action name="actionGroup">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/group.svg</normaloff>:/pdfpagemaster/resources/group.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Group</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+G</string>
+   </property>
+  </action>
+  <action name="actionUngroup">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/ungroup.svg</normaloff>:/pdfpagemaster/resources/ungroup.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Ungroup</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+G</string>
+   </property>
+  </action>
+  <action name="actionClear">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/clear.svg</normaloff>:/pdfpagemaster/resources/clear.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Clear</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+W</string>
+   </property>
+  </action>
+  <action name="actionRegroup_Even_Odd">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/regroup-even-odd.svg</normaloff>:/pdfpagemaster/resources/regroup-even-odd.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Regroup by Even/Odd Pages</string>
+   </property>
+  </action>
+  <action name="actionRegroup_by_Page_Pairs">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/regroup-pairs.svg</normaloff>:/pdfpagemaster/resources/regroup-pairs.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Regroup by Page Pairs</string>
+   </property>
+  </action>
+  <action name="actionRegroup_by_Outline">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/regroup-outline.svg</normaloff>:/pdfpagemaster/resources/regroup-outline.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Regroup by Outline</string>
+   </property>
+  </action>
+  <action name="actionRegroup_by_Alternating_Pages">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/regroup-alternating.svg</normaloff>:/pdfpagemaster/resources/regroup-alternating.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Regroup by Alternating Pages</string>
+   </property>
+  </action>
+  <action name="actionRegroup_by_Alternating_Pages_Reversed_Order">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/regroup-alternating-reversed.svg</normaloff>:/pdfpagemaster/resources/regroup-alternating-reversed.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Regroup by Alternating Pages (Reversed Order)</string>
+   </property>
+  </action>
+  <action name="actionInvert_Selection">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/invert-selection.svg</normaloff>:/pdfpagemaster/resources/invert-selection.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Invert Selection</string>
+   </property>
+  </action>
+  <action name="actionUndo">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/undo.svg</normaloff>:/pdfpagemaster/resources/undo.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Undo</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Z</string>
+   </property>
+  </action>
+  <action name="actionRedo">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/redo.svg</normaloff>:/pdfpagemaster/resources/redo.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Redo</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Y</string>
+   </property>
+  </action>
+  <action name="actionPrepare_Icon_Theme">
+   <property name="text">
+    <string>Prepare Icon Theme</string>
+   </property>
+  </action>
+  <action name="actionBecomeASponsor">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/wallet.svg</normaloff>:/pdfpagemaster/resources/wallet.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Become a Sponsor</string>
+   </property>
+  </action>
+ </widget>
+ <resources>
+  <include location="resources.qrc"/>
+ </resources>
+ <connections/>
+</ui>

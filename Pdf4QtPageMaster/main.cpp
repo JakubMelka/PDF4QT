@@ -1,4 +1,4 @@
-//    Copyright (C) 2021-2024 Jakub Melka
+//    Copyright (C) 2021 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -15,8 +15,8 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "pdfviewermainwindow.h"
 #include "pdfconstants.h"
+#include "mainwindow.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
@@ -27,9 +27,9 @@ int main(int argc, char *argv[])
     QApplication application(argc, argv);
 
     QCoreApplication::setOrganizationName("MelkaJ");
-    QCoreApplication::setApplicationName("PDF4QT Viewer");
+    QCoreApplication::setApplicationName("PDF4QT PageMaster");
     QCoreApplication::setApplicationVersion(pdf::PDF_LIBRARY_VERSION);
-    QApplication::setApplicationDisplayName(QApplication::translate("Application", "PDF4QT Viewer"));
+    QApplication::setApplicationDisplayName(QApplication::translate("Application", "PDF4QT PageMaster"));
     QCommandLineParser parser;
     parser.setApplicationDescription(QCoreApplication::applicationName());
     parser.addHelpOption();
@@ -40,14 +40,8 @@ int main(int argc, char *argv[])
     QIcon appIcon(":/app-icon.svg");
     QApplication::setWindowIcon(appIcon);
 
-    pdfviewer::PDFViewerMainWindow mainWindow;
+    pdfpagemaster::MainWindow mainWindow(nullptr);
     mainWindow.show();
-
-    QStringList arguments = application.arguments();
-    if (arguments.size() > 1)
-    {
-        mainWindow.getProgramController()->openDocument(arguments[1]);
-    }
 
     return application.exec();
 }

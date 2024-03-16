@@ -15,19 +15,35 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-add_executable(Pdf4QtViewer
+add_executable(Pdf4QtDiff
+    aboutdialog.cpp
+    aboutdialog.h
+    differencesdockwidget.cpp
+    differencesdockwidget.h
     main.cpp
+    mainwindow.cpp
+    mainwindow.h
+    settingsdockwidget.cpp
+    settingsdockwidget.h
+    utils.cpp
+    utils.h
+    aboutdialog.ui
+    differencesdockwidget.ui
+    mainwindow.ui
+    settingsdockwidget.ui
+    resources.qrc
     icon.rc
     app.qrc
+    settings.h
 )
 
-target_link_libraries(Pdf4QtViewer PRIVATE Pdf4QtLibCore Pdf4QtLibWidgets Pdf4QtLibGui Qt6::Core Qt6::Gui Qt6::Widgets)
+target_link_libraries(Pdf4QtDiff PRIVATE Pdf4QtLibCore Pdf4QtLibWidgets Qt6::Core Qt6::Gui Qt6::Widgets)
 
-set_target_properties(Pdf4QtViewer PROPERTIES
+set_target_properties(Pdf4QtDiff PROPERTIES
     WIN32_EXECUTABLE ON
     MACOSX_BUNDLE ON
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_LIB_DIR}
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
 )
 
-install(TARGETS Pdf4QtViewer RUNTIME DESTINATION ${PDF4QT_INSTALL_BIN_DIR} LIBRARY DESTINATION ${PDF4QT_INSTALL_LIB_DIR})
+install(TARGETS Pdf4QtDiff RUNTIME DESTINATION ${PDF4QT_INSTALL_BIN_DIR} LIBRARY DESTINATION ${PDF4QT_INSTALL_LIB_DIR})

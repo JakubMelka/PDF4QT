@@ -1,44 +1,43 @@
-//    Copyright (C) 2021-2024 Jakub Melka
+//    Copyright (C) 2019-2020 Jakub Melka
 //
-//    This file is part of PDF4QT.
+//    This file is part of Pdf4Qt.
 //
-//    PDF4QT is free software: you can redistribute it and/or modify
+//    Pdf4Qt is free software: you can redistribute it and/or modify
 //    it under the terms of the GNU Lesser General Public License as published by
 //    the Free Software Foundation, either version 3 of the License, or
-//    with the written consent of the copyright owner, any later version.
+//    (at your option) any later version.
 //
-//    PDF4QT is distributed in the hope that it will be useful,
+//    Pdf4Qt is distributed in the hope that it will be useful,
 //    but WITHOUT ANY WARRANTY; without even the implied warranty of
 //    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 //    GNU Lesser General Public License for more details.
 //
 //    You should have received a copy of the GNU Lesser General Public License
-//    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
+//    along with Pdf4Qt.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfviewermainwindow.h"
-#include "pdfconstants.h"
 
+#include <QResource>
 #include <QApplication>
 #include <QCommandLineParser>
 
 int main(int argc, char *argv[])
 {
     QApplication::setAttribute(Qt::AA_CompressHighFrequencyEvents, true);
+    QApplication::setAttribute(Qt::AA_DisableHighDpiScaling, true);
+    QApplication::setAttribute(Qt::AA_DontCheckOpenGLContextThreadAffinity, true);
     QApplication application(argc, argv);
 
     QCoreApplication::setOrganizationName("MelkaJ");
-    QCoreApplication::setApplicationName("PDF4QT Viewer");
-    QCoreApplication::setApplicationVersion(pdf::PDF_LIBRARY_VERSION);
-    QApplication::setApplicationDisplayName(QApplication::translate("Application", "PDF4QT Viewer"));
+    QCoreApplication::setApplicationName("PDF4QT Editor");
+    QCoreApplication::setApplicationVersion("1.0.0");
+    QApplication::setApplicationDisplayName(QApplication::translate("Application", "PDF4QT Editor"));
     QCommandLineParser parser;
     parser.setApplicationDescription(QCoreApplication::applicationName());
     parser.addHelpOption();
     parser.addVersionOption();
     parser.addPositionalArgument("file", "The PDF file to open.");
     parser.process(application);
-
-    QIcon appIcon(":/app-icon.svg");
-    QApplication::setWindowIcon(appIcon);
 
     pdfviewer::PDFViewerMainWindow mainWindow;
     mainWindow.show();

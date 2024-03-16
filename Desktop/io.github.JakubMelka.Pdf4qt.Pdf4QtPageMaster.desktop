@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=PDF4QT PageMaster
+Comment=Organize, merge, split, and duplicate pages in PDF files
+Exec=Pdf4QtPageMaster
+Icon=io.github.JakubMelka.Pdf4qt.Pdf4QtPageMaster
+Terminal=false
+Categories=Office;
+MimeType=application/pdf;
