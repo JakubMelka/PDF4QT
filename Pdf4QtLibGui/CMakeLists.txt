@@ -84,7 +84,7 @@ include(GenerateExportHeader)
 GENERATE_EXPORT_HEADER(Pdf4QtLibGui
                        EXPORT_MACRO_NAME
                        PDF4QTLIBGUILIBSHARED_EXPORT
-                       EXPORT_FILE_NAME "${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR}/Pdf4QtLibGui_export.h")
+                       EXPORT_FILE_NAME "${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR}/pdf4qtlibgui_export.h")
 
 target_link_libraries(Pdf4QtLibGui PRIVATE Pdf4QtLibCore Pdf4QtLibWidgets Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport Qt6::TextToSpeech Qt6::Xml Qt6::Svg)
 target_include_directories(Pdf4QtLibGui INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
