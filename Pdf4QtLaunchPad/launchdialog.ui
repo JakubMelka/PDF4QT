@@ -13,29 +13,8 @@
   <property name="windowTitle">
    <string>Launch Application</string>
   </property>
-  <layout class="QGridLayout" name="gridLayout">
-   <item row="0" column="0">
-    <widget class="LaunchApplicationWidget" name="appEditorWidget" native="true"/>
-   </item>
-   <item row="0" column="1">
-    <widget class="LaunchApplicationWidget" name="appViewerWidget" native="true"/>
-   </item>
-   <item row="1" column="0">
-    <widget class="LaunchApplicationWidget" name="appDiffWidget" native="true"/>
-   </item>
-   <item row="1" column="1">
-    <widget class="LaunchApplicationWidget" name="appPageMasterWidget" native="true"/>
-   </item>
-  </layout>
+  <layout class="QGridLayout" name="gridLayout"/>
  </widget>
- <customwidgets>
-  <customwidget>
-   <class>LaunchApplicationWidget</class>
-   <extends>QWidget</extends>
-   <header>launchapplicationwidget.h</header>
-   <container>1</container>
-  </customwidget>
- </customwidgets>
  <resources/>
  <connections/>
 </ui>
