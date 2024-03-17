@@ -1,0 +1,9 @@
+<RCC>
+    <qresource prefix="/">
+        <file>app-icon.svg</file>
+		<file alias="app-editor.svg">../Pdf4QtEditor/app-icon.svg</file>
+		<file alias="app-viewer.svg">../Pdf4QtViewer/app-icon.svg</file>
+		<file alias="app-diff.svg">../Pdf4QtDiff/app-icon.svg</file>
+		<file alias="app-pagemaster.svg">../Pdf4QtPageMaster/app-icon.svg</file>
+    </qresource>
+</RCC>

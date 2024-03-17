@@ -136,6 +136,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_subdirectory(Pdf4QtViewer)
     add_subdirectory(Pdf4QtPageMaster)
     add_subdirectory(Pdf4QtDiff)
+    add_subdirectory(Pdf4QtLaunchPad)
     add_subdirectory(WixInstaller)
 endif()
 
