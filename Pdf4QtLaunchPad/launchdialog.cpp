@@ -22,6 +22,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QProcess>
+#include <QMessageBox>
 
 LaunchDialog::LaunchDialog(QWidget* parent)
     : QDialog(parent, Qt::WindowStaysOnTopHint | Qt::Window | Qt::Dialog)
@@ -79,26 +80,38 @@ LaunchDialog::~LaunchDialog()
 
 void LaunchDialog::startEditor()
 {
-    startProgram("./Pdf4QtEditor");
+    startProgram("Pdf4QtEditor");
 }
 
 void LaunchDialog::startViewer()
 {
-    startProgram("./Pdf4QtViewer");
+    startProgram("Pdf4QtViewer");
 }
 
 void LaunchDialog::startPageMaster()
 {
-    startProgram("./Pdf4QtPageMaster");
+    startProgram("Pdf4QtPageMaster");
 }
 
 void LaunchDialog::startDiff()
 {
-    startProgram("./Pdf4QtDiff");
+    startProgram("Pdf4QtDiff");
 }
 
 void LaunchDialog::startProgram(const QString& program)
 {
+#ifndef Q_OS_WIN
+    QString appDir = qgetenv("APPDIR");
+    QString internalToolPath = appDir.isEmpty() ? QString("./%1").arg(program)
+                                                : QString("%1/usr/bin/%2").arg(appDir, program);
+
+    qint64 pid = 0;
+    if (!QProcess::startDetached(internalToolPath, {}, QString(), &pid))
+    {
+        QMessageBox::critical(this, tr("Error"), tr("Failed to start process '%1'").arg(internalToolPath));
+    }
+#else
     QProcess::startDetached(program);
+#endif
     close();
 }
