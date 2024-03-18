@@ -79,22 +79,22 @@ LaunchDialog::~LaunchDialog()
 
 void LaunchDialog::startEditor()
 {
-    startProgram("Pdf4QtEditor");
+    startProgram("./Pdf4QtEditor");
 }
 
 void LaunchDialog::startViewer()
 {
-    startProgram("Pdf4QtViewer");
+    startProgram("./Pdf4QtViewer");
 }
 
 void LaunchDialog::startPageMaster()
 {
-    startProgram("Pdf4QtPageMaster");
+    startProgram("./Pdf4QtPageMaster");
 }
 
 void LaunchDialog::startDiff()
 {
-    startProgram("Pdf4QtDiff");
+    startProgram("./Pdf4QtDiff");
 }
 
 void LaunchDialog::startProgram(const QString& program)
