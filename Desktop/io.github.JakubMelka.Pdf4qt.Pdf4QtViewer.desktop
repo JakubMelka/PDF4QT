@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=PDF4QT Viewer
+Comment=View and navigate PDF documents
+Exec=Pdf4QtViewer
+Icon=io.github.JakubMelka.Pdf4qt.Pdf4QtViewer
+Terminal=false
+Categories=Office;
+MimeType=application/pdf;

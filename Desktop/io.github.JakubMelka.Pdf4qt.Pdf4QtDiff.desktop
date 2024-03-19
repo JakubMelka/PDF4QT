@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=PDF4QT Diff
+Comment=Compare PDF documents
+Exec=Pdf4QtDiff
+Icon=io.github.JakubMelka.Pdf4qt.Pdf4QtDiff
+Terminal=false
+Categories=Office;
+MimeType=application/pdf;

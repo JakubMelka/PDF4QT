@@ -15,21 +15,27 @@
 //    You should have received a copy of the GNU Lesser General Public License
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-#include "pdfviewermainwindow.h"
+#include "pdfeditormainwindow.h"
 #include "pdfconstants.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
 
+#include "pdfdbgheap.h"
+
 int main(int argc, char *argv[])
 {
+#if defined(PDF4QT_USE_DBG_HEAP)
+    _CrtSetDbgFlag( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
+#endif
+
     QApplication::setAttribute(Qt::AA_CompressHighFrequencyEvents, true);
     QApplication application(argc, argv);
 
     QCoreApplication::setOrganizationName("MelkaJ");
-    QCoreApplication::setApplicationName("PDF4QT Viewer");
+    QCoreApplication::setApplicationName("PDF4QT Editor");
     QCoreApplication::setApplicationVersion(pdf::PDF_LIBRARY_VERSION);
-    QApplication::setApplicationDisplayName(QApplication::translate("Application", "PDF4QT Viewer"));
+    QApplication::setApplicationDisplayName(QApplication::translate("Application", "PDF4QT Editor"));
     QCommandLineParser parser;
     parser.setApplicationDescription(QCoreApplication::applicationName());
     parser.addHelpOption();
@@ -40,7 +46,7 @@ int main(int argc, char *argv[])
     QIcon appIcon(":/app-icon.svg");
     QApplication::setWindowIcon(appIcon);
 
-    pdfviewer::PDFViewerMainWindow mainWindow;
+    pdfviewer::PDFEditorMainWindow mainWindow;
     mainWindow.show();
 
     QStringList arguments = application.arguments();

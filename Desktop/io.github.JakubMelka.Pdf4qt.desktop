@@ -1,9 +1,9 @@
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=PDF4QT Viewer Profi
-Comment=Edit and modify PDF files
-Exec=Pdf4QtViewerProfi
+Name=PDF4QT LaunchPad
+Comment=Launch PDF applications
+Exec=Pdf4QtLaunchPad
 Icon=io.github.JakubMelka.Pdf4qt
 Terminal=false
 Categories=Office;

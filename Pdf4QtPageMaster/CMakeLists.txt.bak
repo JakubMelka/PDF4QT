@@ -15,19 +15,36 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-add_executable(Pdf4QtViewer
+add_executable(Pdf4QtPageMaster
+    aboutdialog.cpp
+    aboutdialog.h
+    assembleoutputsettingsdialog.cpp
+    assembleoutputsettingsdialog.h
     main.cpp
+    mainwindow.cpp
+    mainwindow.h
+    pageitemdelegate.cpp
+    pageitemdelegate.h
+    pageitemmodel.cpp
+    pageitemmodel.h
+    selectoutlinetoregroupdialog.cpp
+    selectoutlinetoregroupdialog.h
+    aboutdialog.ui
+    assembleoutputsettingsdialog.ui
+    mainwindow.ui
+    selectoutlinetoregroupdialog.ui
+    resources.qrc
     icon.rc
     app.qrc
 )
 
-target_link_libraries(Pdf4QtViewer PRIVATE Pdf4QtLibCore Pdf4QtLibWidgets Pdf4QtLibGui Qt6::Core Qt6::Gui Qt6::Widgets)
+target_link_libraries(Pdf4QtPageMaster PRIVATE Pdf4QtLibCore Pdf4QtLibWidgets Qt6::Core Qt6::Gui Qt6::Widgets)
 
-set_target_properties(Pdf4QtViewer PROPERTIES
+set_target_properties(Pdf4QtPageMaster PROPERTIES
     WIN32_EXECUTABLE ON
     MACOSX_BUNDLE ON
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_LIB_DIR}
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
 )
 
-install(TARGETS Pdf4QtViewer RUNTIME DESTINATION ${PDF4QT_INSTALL_BIN_DIR} LIBRARY DESTINATION ${PDF4QT_INSTALL_LIB_DIR})
+install(TARGETS Pdf4QtPageMaster RUNTIME DESTINATION ${PDF4QT_INSTALL_BIN_DIR} LIBRARY DESTINATION ${PDF4QT_INSTALL_LIB_DIR})

@@ -213,7 +213,7 @@
   <Fragment>
     <ComponentGroup Id="PDF4QT_ViewerProfi">
       <Component Id="cmp188606497BACB312973D307393C8D3AF" Directory="INSTALLFOLDER" Guid="{52D3CF62-F556-4E7A-BCEB-75E5E65ED786}">
-        <File Id="fil382C8CB744D292C33773197891A6A24E" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtViewerProfi.exe">
+        <File Id="fil382C8CB744D292C33773197891A6A24E" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtEditor.exe">
           <Shortcut Id="PDF4QT_ViewerProfi_Shortcut" Directory="ProgramMenuDir" Name="PDF4QT Viewer Profi" Description="Advanced PDF viewer/editor" WorkingDirectory="INSTALLFOLDER" Icon="PDF4QT_VP_Icon.exe" IconIndex="0" Advertise="yes"/>
         </File>
         <ProgId Id='default_profi.pdf' Description='PDF Document'>
@@ -226,13 +226,13 @@
   </Fragment>
 
   <Fragment>
-    <Icon Id="PDF4QT_VP_Icon.exe" SourceFile="$(var.MyInstallDir)\Pdf4QtViewerProfi.exe"/>
+    <Icon Id="PDF4QT_VP_Icon.exe" SourceFile="$(var.MyInstallDir)\Pdf4QtEditor.exe"/>
   </Fragment>
 
   <Fragment>
     <ComponentGroup Id="PDF4QT_ViewerLite">
       <Component Id="cmp891B7ED2D028329F4330A2C46EF56E40" Directory="INSTALLFOLDER" Guid="{2D222775-6DA7-43E6-B212-3A142622190C}">
-        <File Id="fil84879C1A606C2A34C05AE592C1DC0E90" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtViewerLite.exe">
+        <File Id="fil84879C1A606C2A34C05AE592C1DC0E90" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtViewer.exe">
           <Shortcut Id="PDF4QT_ViewerLite_Shortcut" Directory="ProgramMenuDir" Name="PDF4QT Viewer Lite" Description="Simple PDF viewer" WorkingDirectory="INSTALLFOLDER" Icon="PDF4QT_VL_Icon.exe" IconIndex="0" Advertise="yes"/>
         </File>
         <ProgId Id='default_lite.pdf' Description='PDF Document'>
@@ -245,13 +245,13 @@
   </Fragment>
 
   <Fragment>
-    <Icon Id="PDF4QT_VL_Icon.exe" SourceFile="$(var.MyInstallDir)\Pdf4QtViewerLite.exe"/>
+    <Icon Id="PDF4QT_VL_Icon.exe" SourceFile="$(var.MyInstallDir)\Pdf4QtViewer.exe"/>
   </Fragment>
 
   <Fragment>
     <ComponentGroup Id="PDF4QT_DocPageOrganizer">
       <Component Id="cmp8323DF5465210B8C0ACBA71BACE6D2C9" Directory="INSTALLFOLDER" Guid="{9D248BEE-BA78-4050-B362-0694B11AA326}">
-        <File Id="fil82A5A2280AE5FAD2BDA0C3AD486F406A" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtDocPageOrganizer.exe">
+        <File Id="fil82A5A2280AE5FAD2BDA0C3AD486F406A" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtPageMaster.exe">
           <Shortcut Id="PDF4QT_DPO_Shortcut" Directory="ProgramMenuDir" Name="PDF4QT DocPage Organizer" Description="PDF Document page organizer" WorkingDirectory="INSTALLFOLDER" Icon="PDF4QT_DPO_Icon.exe" IconIndex="0" Advertise="yes"/>
         </File>
       </Component>
@@ -259,13 +259,13 @@
   </Fragment>
 
   <Fragment>
-    <Icon Id="PDF4QT_DPO_Icon.exe" SourceFile="$(var.MyInstallDir)\Pdf4QtDocPageOrganizer.exe"/>
+    <Icon Id="PDF4QT_DPO_Icon.exe" SourceFile="$(var.MyInstallDir)\Pdf4QtPageMaster.exe"/>
   </Fragment>
 
   <Fragment>
     <ComponentGroup Id="PDF4QT_DocDiff">
       <Component Id="cmpF7C26D935DF63326446EC8C73E470F3A" Directory="INSTALLFOLDER" Guid="{067D40E9-4FAE-472D-BCC3-B92A23CA0028}">
-        <File Id="fil71267885AEBCC05676DCDCB1DC20FB06" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtDocDiff.exe">
+        <File Id="fil71267885AEBCC05676DCDCB1DC20FB06" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtDiff.exe">
           <Shortcut Id="PDF4QT_DD_Shortcut" Directory="ProgramMenuDir" Name="PDF4QT DocDiff" Description="Compare two similar PDF documents" WorkingDirectory="INSTALLFOLDER" Icon="PDF4QT_DD_Icon.exe" IconIndex="0" Advertise="yes"/>
         </File>
       </Component>
@@ -273,7 +273,7 @@
   </Fragment>
 
   <Fragment>
-    <Icon Id="PDF4QT_DD_Icon.exe" SourceFile="$(var.MyInstallDir)\Pdf4QtDocDiff.exe"/>
+    <Icon Id="PDF4QT_DD_Icon.exe" SourceFile="$(var.MyInstallDir)\Pdf4QtDiff.exe"/>
   </Fragment>
 
   <Fragment>

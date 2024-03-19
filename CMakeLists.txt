@@ -130,12 +130,13 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_subdirectory(PdfExampleGenerator)
     add_subdirectory(PdfTool)
     add_subdirectory(UnitTests)
+    add_subdirectory(Pdf4QtLibGui)
+    add_subdirectory(Pdf4QtEditorPlugins)
+    add_subdirectory(Pdf4QtEditor)
     add_subdirectory(Pdf4QtViewer)
-    add_subdirectory(Pdf4QtViewerPlugins)
-    add_subdirectory(Pdf4QtViewerProfi)
-    add_subdirectory(Pdf4QtViewerLite)
-    add_subdirectory(Pdf4QtDocPageOrganizer)
-    add_subdirectory(Pdf4QtDocDiff)
+    add_subdirectory(Pdf4QtPageMaster)
+    add_subdirectory(Pdf4QtDiff)
+    add_subdirectory(Pdf4QtLaunchPad)
     add_subdirectory(WixInstaller)
 endif()
 
@@ -143,10 +144,25 @@ message("CMAKE_PREFIX_PATH = " ${CMAKE_PREFIX_PATH})
 message("CMAKE_TOOLCHAIN_FILE = " ${CMAKE_TOOLCHAIN_FILE})
 
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
-    install(FILES Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDocDiff.desktop Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDocPageOrganizer.desktop Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtViewerLite.desktop Desktop/io.github.JakubMelka.Pdf4qt.desktop DESTINATION ${PDF4QT_INSTALL_SHARE_DIR}/applications)
-    install(FILES Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDocDiff.svg Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDocPageOrganizer.svg Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtViewerLite.svg Desktop/io.github.JakubMelka.Pdf4qt.svg DESTINATION ${PDF4QT_INSTALL_SHARE_DIR}/icons/hicolor/scalable/apps)
+    install(FILES Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDiff.desktop
+                  Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtPageMaster.desktop
+                  Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtViewer.desktop
+                  Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtEditor.desktop
+                  Desktop/io.github.JakubMelka.Pdf4qt.desktop
+            DESTINATION ${PDF4QT_INSTALL_SHARE_DIR}/applications)
+    install(FILES Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDiff.svg
+                  Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtPageMaster.svg
+                  Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtViewer.svg
+                  Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtEditor.svg
+                  Desktop/io.github.JakubMelka.Pdf4qt.svg
+                  DESTINATION ${PDF4QT_INSTALL_SHARE_DIR}/icons/hicolor/scalable/apps)
     install(FILES Desktop/io.github.JakubMelka.Pdf4qt.appdata.xml DESTINATION ${PDF4QT_INSTALL_SHARE_DIR}/metainfo)
-    install(FILES Desktop/128x128/io.github.JakubMelka.Pdf4qt.Pdf4QtDocDiff.png Desktop/128x128/io.github.JakubMelka.Pdf4qt.Pdf4QtDocPageOrganizer.png Desktop/128x128/io.github.JakubMelka.Pdf4qt.Pdf4QtViewerLite.png Desktop/128x128/io.github.JakubMelka.Pdf4qt.png DESTINATION ${PDF4QT_INSTALL_SHARE_DIR}/icons/hicolor/128x128/apps)
+    install(FILES Desktop/128x128/io.github.JakubMelka.Pdf4qt.Pdf4QtDiff.png
+                  Desktop/128x128/io.github.JakubMelka.Pdf4qt.Pdf4QtPageMaster.png
+                  Desktop/128x128/io.github.JakubMelka.Pdf4qt.Pdf4QtViewer.png
+                  Desktop/128x128/io.github.JakubMelka.Pdf4qt.Pdf4QtEditor.png
+                  Desktop/128x128/io.github.JakubMelka.Pdf4qt.png
+            DESTINATION ${PDF4QT_INSTALL_SHARE_DIR}/icons/hicolor/128x128/apps)
 
     configure_file(make-package.sh.in make-package.sh)
 endif()

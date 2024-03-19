@@ -1,4 +1,4 @@
-#    Copyright (C) 2022-2024 Jakub Melka
+#    Copyright (C) 2024 Jakub Melka
 #
 #    This file is part of PDF4QT.
 #
@@ -15,19 +15,21 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
-add_executable(Pdf4QtViewer
+add_executable(Pdf4QtLaunchPad
     main.cpp
     icon.rc
     app.qrc
+    launchapplicationwidget.h launchapplicationwidget.cpp launchapplicationwidget.ui
+    launchdialog.h launchdialog.cpp launchdialog.ui
 )
 
-target_link_libraries(Pdf4QtViewer PRIVATE Pdf4QtLibCore Pdf4QtLibWidgets Pdf4QtLibGui Qt6::Core Qt6::Gui Qt6::Widgets)
+target_link_libraries(Pdf4QtLaunchPad PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
 
-set_target_properties(Pdf4QtViewer PROPERTIES
+set_target_properties(Pdf4QtLaunchPad PROPERTIES
     WIN32_EXECUTABLE ON
     MACOSX_BUNDLE ON
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_LIB_DIR}
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
 )
 
-install(TARGETS Pdf4QtViewer RUNTIME DESTINATION ${PDF4QT_INSTALL_BIN_DIR} LIBRARY DESTINATION ${PDF4QT_INSTALL_LIB_DIR})
+install(TARGETS Pdf4QtLaunchPad RUNTIME DESTINATION ${PDF4QT_INSTALL_BIN_DIR} LIBRARY DESTINATION ${PDF4QT_INSTALL_LIB_DIR})
