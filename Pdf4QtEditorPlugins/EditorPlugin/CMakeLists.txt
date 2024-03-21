@@ -20,7 +20,7 @@ add_library(EditorPlugin SHARED
     icons.qrc
 )
 
-target_link_libraries(EditorPlugin PRIVATE Pdf4QtLibCore Pdf4QtLibWidgets Qt6::Core Qt6::Gui Qt6::Widgets Qt6::OpenGLWidgets Qt6::Xml)
+target_link_libraries(EditorPlugin PRIVATE Pdf4QtLibCore Pdf4QtLibWidgets Qt6::Core Qt6::Gui Qt6::Widgets)
 
 set_target_properties(EditorPlugin PROPERTIES
                       VERSION ${PDF4QT_VERSION}
