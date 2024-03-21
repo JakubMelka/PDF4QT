@@ -95,6 +95,10 @@ The [Release page](https://github.com/JakubMelka/PDF4QT/releases) lists binaries
 
 A [pdf4qt-git](https://aur.archlinux.org/packages/pdf4qt-git) package is available in the AUR.
 
+### Linux
+
+PDF4QT can be installed via `flatpak`: https://flathub.org/apps/io.github.JakubMelka.Pdf4qt
+
 ## 7. COMPILING
 
 This software can be compiled on both Windows and Linux. A compiler supporting the C++20 standard is needed.
