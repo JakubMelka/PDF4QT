@@ -1,4 +1,4 @@
-//    Copyright (C) 2019-2022 Jakub Melka
+//    Copyright (C) 2019-2024 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -91,6 +91,23 @@ static constexpr std::array S_DEFAULT_CJK_FONTS =
     PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeKorea, false, "Gulim" },
     PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeKorea, false, "Dotum" },
     PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeKorea, true, "Batang" },
+};
+
+struct PDF_Font_Replacement
+{
+    const char* origFont;
+    const char* replaceFont;
+};
+
+static constexpr std::array S_FONT_REPLACEMENTS
+{
+    PDF_Font_Replacement{"Futura", "Calibri"},
+    PDF_Font_Replacement{"Utopia-Bold", "Georgia"},
+    PDF_Font_Replacement{"Utopia-BoldItalic", "Georgia"},
+    PDF_Font_Replacement{"Utopia-Italic", "Georgia"},
+    PDF_Font_Replacement{"Utopia-Semibold", "Georgia"},
+    PDF_Font_Replacement{"Utopia-SemiboldItalic", "Georgia"},
+    PDF_Font_Replacement{"Utopia", "Georgia"},
 };
 
 /// Storage class for system fonts
@@ -245,6 +262,22 @@ QByteArray PDFSystemFontInfoStorage::loadFont(const CIDSystemInfo* cidSystemInfo
                     {
                         return fontData;
                     }
+                }
+            }
+        }
+    }
+
+    if (fontData.isEmpty())
+    {
+        for (const PDF_Font_Replacement& fontReplacement : S_FONT_REPLACEMENTS)
+        {
+            if (fontName.contains(QLatin1String(fontReplacement.origFont)))
+            {
+                fontData = loadFontImpl(descriptor, QString(fontReplacement.replaceFont), StandardFontType::Invalid, reporter);
+
+                if (!fontData.isEmpty())
+                {
+                    return fontData;
                 }
             }
         }
