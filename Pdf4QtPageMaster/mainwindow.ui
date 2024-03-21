@@ -59,7 +59,7 @@
    </property>
    <widget class="QMenu" name="menuFile">
     <property name="title">
-     <string>File</string>
+     <string>&amp;File</string>
     </property>
     <addaction name="actionAddDocuments"/>
     <addaction name="actionClear"/>
@@ -67,7 +67,7 @@
    </widget>
    <widget class="QMenu" name="menuEdit">
     <property name="title">
-     <string>Edit</string>
+     <string>&amp;Edit</string>
     </property>
     <addaction name="actionUndo"/>
     <addaction name="actionRedo"/>
@@ -89,7 +89,7 @@
    </widget>
    <widget class="QMenu" name="menuInsert">
     <property name="title">
-     <string>Insert</string>
+     <string>&amp;Insert</string>
     </property>
     <addaction name="actionInsert_PDF"/>
     <addaction name="actionInsert_Image"/>
@@ -97,7 +97,7 @@
    </widget>
    <widget class="QMenu" name="menuView">
     <property name="title">
-     <string>View</string>
+     <string>&amp;View</string>
     </property>
     <addaction name="actionSelect_None"/>
     <addaction name="actionSelect_All"/>
@@ -112,7 +112,7 @@
    </widget>
    <widget class="QMenu" name="menuMake">
     <property name="title">
-     <string>Make</string>
+     <string>&amp;Make</string>
     </property>
     <addaction name="actionUnited_Document"/>
     <addaction name="actionSeparate_to_Multiple_Documents"/>
@@ -120,7 +120,7 @@
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
-     <string>Help</string>
+     <string>&amp;Help</string>
     </property>
     <addaction name="actionGet_Source"/>
     <addaction name="actionBecomeASponsor"/>
@@ -129,12 +129,12 @@
    </widget>
    <widget class="QMenu" name="menuToolbars">
     <property name="title">
-     <string>Toolbars</string>
+     <string>&amp;Toolbars</string>
     </property>
    </widget>
    <widget class="QMenu" name="menuRegroup">
     <property name="title">
-     <string>Regroup</string>
+     <string>&amp;Regroup</string>
     </property>
     <addaction name="actionRegroup_Even_Odd"/>
     <addaction name="actionRegroup_by_Page_Pairs"/>
@@ -158,7 +158,7 @@
      <normaloff>:/pdfpagemaster/resources/open.svg</normaloff>:/pdfpagemaster/resources/open.svg</iconset>
    </property>
    <property name="text">
-    <string>Add Documents...</string>
+    <string>&amp;Add Documents...</string>
    </property>
    <property name="toolTip">
     <string>Add Documents</string>
@@ -173,7 +173,7 @@
      <normaloff>:/pdfpagemaster/resources/close.svg</normaloff>:/pdfpagemaster/resources/close.svg</iconset>
    </property>
    <property name="text">
-    <string>Close</string>
+    <string>C&amp;lose</string>
    </property>
    <property name="shortcut">
     <string>Alt+F4</string>
@@ -185,7 +185,7 @@
      <normaloff>:/pdfpagemaster/resources/clone-selection.svg</normaloff>:/pdfpagemaster/resources/clone-selection.svg</iconset>
    </property>
    <property name="text">
-    <string>Clone Selection</string>
+    <string>Clone &amp;Selection</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+L</string>
@@ -197,7 +197,7 @@
      <normaloff>:/pdfpagemaster/resources/remove-selection.svg</normaloff>:/pdfpagemaster/resources/remove-selection.svg</iconset>
    </property>
    <property name="text">
-    <string>Remove Selection</string>
+    <string>Re&amp;move Selection</string>
    </property>
    <property name="shortcut">
     <string>Del</string>
@@ -209,7 +209,7 @@
      <normaloff>:/pdfpagemaster/resources/restore-removed-items.svg</normaloff>:/pdfpagemaster/resources/restore-removed-items.svg</iconset>
    </property>
    <property name="text">
-    <string>Restore Removed Items</string>
+    <string>Restore Removed &amp;Items</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+Shift+R</string>
@@ -221,7 +221,7 @@
      <normaloff>:/pdfpagemaster/resources/insert-page-from-pdf.svg</normaloff>:/pdfpagemaster/resources/insert-page-from-pdf.svg</iconset>
    </property>
    <property name="text">
-    <string>Insert PDF</string>
+    <string>Insert &amp;PDF</string>
    </property>
    <property name="toolTip">
     <string>Insert PDF</string>
@@ -236,7 +236,7 @@
      <normaloff>:/pdfpagemaster/resources/insert-image.svg</normaloff>:/pdfpagemaster/resources/insert-image.svg</iconset>
    </property>
    <property name="text">
-    <string>Insert Image</string>
+    <string>&amp;Insert Image</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+Alt+I</string>
@@ -248,7 +248,7 @@
      <normaloff>:/pdfpagemaster/resources/insert-empty-page.svg</normaloff>:/pdfpagemaster/resources/insert-empty-page.svg</iconset>
    </property>
    <property name="text">
-    <string>Insert Empty Page</string>
+    <string>Insert &amp;Empty Page</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+Shift+I</string>
@@ -260,7 +260,7 @@
      <normaloff>:/pdfpagemaster/resources/cut.svg</normaloff>:/pdfpagemaster/resources/cut.svg</iconset>
    </property>
    <property name="text">
-    <string>Cut</string>
+    <string>Cu&amp;t</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+X</string>
@@ -272,7 +272,7 @@
      <normaloff>:/pdfpagemaster/resources/copy.svg</normaloff>:/pdfpagemaster/resources/copy.svg</iconset>
    </property>
    <property name="text">
-    <string>Copy</string>
+    <string>&amp;Copy</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+C</string>
@@ -284,7 +284,7 @@
      <normaloff>:/pdfpagemaster/resources/paste.svg</normaloff>:/pdfpagemaster/resources/paste.svg</iconset>
    </property>
    <property name="text">
-    <string>Paste</string>
+    <string>&amp;Paste</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+V</string>
@@ -296,7 +296,7 @@
      <normaloff>:/pdfpagemaster/resources/replace-selection.svg</normaloff>:/pdfpagemaster/resources/replace-selection.svg</iconset>
    </property>
    <property name="text">
-    <string>Replace Selection</string>
+    <string>Repl&amp;ace Selection</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+Alt+R</string>
@@ -308,7 +308,7 @@
      <normaloff>:/pdfpagemaster/resources/select-none.svg</normaloff>:/pdfpagemaster/resources/select-none.svg</iconset>
    </property>
    <property name="text">
-    <string>Select None</string>
+    <string>Select &amp;None</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+N</string>
@@ -320,7 +320,7 @@
      <normaloff>:/pdfpagemaster/resources/select-all.svg</normaloff>:/pdfpagemaster/resources/select-all.svg</iconset>
    </property>
    <property name="text">
-    <string>Select All</string>
+    <string>Select &amp;All</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+A</string>
@@ -332,7 +332,7 @@
      <normaloff>:/pdfpagemaster/resources/select-even.svg</normaloff>:/pdfpagemaster/resources/select-even.svg</iconset>
    </property>
    <property name="text">
-    <string>Select Even</string>
+    <string>Select &amp;Even</string>
    </property>
    <property name="shortcut">
     <string>F9</string>
@@ -344,7 +344,7 @@
      <normaloff>:/pdfpagemaster/resources/select-odd.svg</normaloff>:/pdfpagemaster/resources/select-odd.svg</iconset>
    </property>
    <property name="text">
-    <string>Select Odd</string>
+    <string>Select &amp;Odd</string>
    </property>
    <property name="shortcut">
     <string>F10</string>
@@ -356,7 +356,7 @@
      <normaloff>:/pdfpagemaster/resources/select-portrait.svg</normaloff>:/pdfpagemaster/resources/select-portrait.svg</iconset>
    </property>
    <property name="text">
-    <string>Select Portrait</string>
+    <string>Select &amp;Portrait</string>
    </property>
    <property name="shortcut">
     <string>F11</string>
@@ -368,7 +368,7 @@
      <normaloff>:/pdfpagemaster/resources/select-landscape.svg</normaloff>:/pdfpagemaster/resources/select-landscape.svg</iconset>
    </property>
    <property name="text">
-    <string>Select Landscape</string>
+    <string>Select &amp;Landscape</string>
    </property>
    <property name="shortcut">
     <string>F12</string>
@@ -380,7 +380,7 @@
      <normaloff>:/pdfpagemaster/resources/rotate-right.svg</normaloff>:/pdfpagemaster/resources/rotate-right.svg</iconset>
    </property>
    <property name="text">
-    <string>Rotate Right</string>
+    <string>Rotate &amp;Right</string>
    </property>
    <property name="shortcut">
     <string>F4</string>
@@ -392,7 +392,7 @@
      <normaloff>:/pdfpagemaster/resources/rotate-left.svg</normaloff>:/pdfpagemaster/resources/rotate-left.svg</iconset>
    </property>
    <property name="text">
-    <string>Rotate Left</string>
+    <string>Rotate &amp;Left</string>
    </property>
    <property name="shortcut">
     <string>Shift+F4</string>
@@ -404,7 +404,7 @@
      <normaloff>:/pdfpagemaster/resources/zoom-in.svg</normaloff>:/pdfpagemaster/resources/zoom-in.svg</iconset>
    </property>
    <property name="text">
-    <string>Zoom In</string>
+    <string>&amp;Zoom In</string>
    </property>
    <property name="shortcut">
     <string>Ctrl++</string>
@@ -416,7 +416,7 @@
      <normaloff>:/pdfpagemaster/resources/zoom-out.svg</normaloff>:/pdfpagemaster/resources/zoom-out.svg</iconset>
    </property>
    <property name="text">
-    <string>Zoom Out</string>
+    <string>Zoo&amp;m Out</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+-</string>
@@ -428,7 +428,7 @@
      <normaloff>:/pdfpagemaster/resources/get-source.svg</normaloff>:/pdfpagemaster/resources/get-source.svg</iconset>
    </property>
    <property name="text">
-    <string>Get Source</string>
+    <string>&amp;Get Source</string>
    </property>
   </action>
   <action name="actionAbout">
@@ -437,7 +437,7 @@
      <normaloff>:/pdfpagemaster/resources/about.svg</normaloff>:/pdfpagemaster/resources/about.svg</iconset>
    </property>
    <property name="text">
-    <string>About...</string>
+    <string>&amp;About...</string>
    </property>
    <property name="shortcut">
     <string>F1</string>
@@ -449,7 +449,7 @@
      <normaloff>:/pdfpagemaster/resources/make-united-document.svg</normaloff>:/pdfpagemaster/resources/make-united-document.svg</iconset>
    </property>
    <property name="text">
-    <string>United Document...</string>
+    <string>&amp;United Document...</string>
    </property>
    <property name="shortcut">
     <string>F5</string>
@@ -461,7 +461,7 @@
      <normaloff>:/pdfpagemaster/resources/make-separated-document.svg</normaloff>:/pdfpagemaster/resources/make-separated-document.svg</iconset>
    </property>
    <property name="text">
-    <string>Separate to Multiple Documents...</string>
+    <string>&amp;Separate to Multiple Documents...</string>
    </property>
    <property name="shortcut">
     <string>F6</string>
@@ -473,7 +473,7 @@
      <normaloff>:/pdfpagemaster/resources/make-separated-document-from-groups.svg</normaloff>:/pdfpagemaster/resources/make-separated-document-from-groups.svg</iconset>
    </property>
    <property name="text">
-    <string>Separate to Multiple Documents (Grouped)...</string>
+    <string>Separate to Multiple Documents (&amp;Grouped)...</string>
    </property>
    <property name="shortcut">
     <string>F7</string>
@@ -485,7 +485,7 @@
      <normaloff>:/pdfpagemaster/resources/group.svg</normaloff>:/pdfpagemaster/resources/group.svg</iconset>
    </property>
    <property name="text">
-    <string>Group</string>
+    <string>&amp;Group</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+G</string>
@@ -497,7 +497,7 @@
      <normaloff>:/pdfpagemaster/resources/ungroup.svg</normaloff>:/pdfpagemaster/resources/ungroup.svg</iconset>
    </property>
    <property name="text">
-    <string>Ungroup</string>
+    <string>U&amp;ngroup</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+Shift+G</string>
@@ -509,7 +509,7 @@
      <normaloff>:/pdfpagemaster/resources/clear.svg</normaloff>:/pdfpagemaster/resources/clear.svg</iconset>
    </property>
    <property name="text">
-    <string>Clear</string>
+    <string>&amp;Clear</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+W</string>
@@ -521,7 +521,7 @@
      <normaloff>:/pdfpagemaster/resources/regroup-even-odd.svg</normaloff>:/pdfpagemaster/resources/regroup-even-odd.svg</iconset>
    </property>
    <property name="text">
-    <string>Regroup by Even/Odd Pages</string>
+    <string>Regroup by &amp;Even/Odd Pages</string>
    </property>
   </action>
   <action name="actionRegroup_by_Page_Pairs">
@@ -530,7 +530,7 @@
      <normaloff>:/pdfpagemaster/resources/regroup-pairs.svg</normaloff>:/pdfpagemaster/resources/regroup-pairs.svg</iconset>
    </property>
    <property name="text">
-    <string>Regroup by Page Pairs</string>
+    <string>Regroup by &amp;Page Pairs</string>
    </property>
   </action>
   <action name="actionRegroup_by_Outline">
@@ -539,7 +539,7 @@
      <normaloff>:/pdfpagemaster/resources/regroup-outline.svg</normaloff>:/pdfpagemaster/resources/regroup-outline.svg</iconset>
    </property>
    <property name="text">
-    <string>Regroup by Outline</string>
+    <string>Regroup by &amp;Outline</string>
    </property>
   </action>
   <action name="actionRegroup_by_Alternating_Pages">
@@ -548,7 +548,7 @@
      <normaloff>:/pdfpagemaster/resources/regroup-alternating.svg</normaloff>:/pdfpagemaster/resources/regroup-alternating.svg</iconset>
    </property>
    <property name="text">
-    <string>Regroup by Alternating Pages</string>
+    <string>Regroup by &amp;Alternating Pages</string>
    </property>
   </action>
   <action name="actionRegroup_by_Alternating_Pages_Reversed_Order">
@@ -557,7 +557,7 @@
      <normaloff>:/pdfpagemaster/resources/regroup-alternating-reversed.svg</normaloff>:/pdfpagemaster/resources/regroup-alternating-reversed.svg</iconset>
    </property>
    <property name="text">
-    <string>Regroup by Alternating Pages (Reversed Order)</string>
+    <string>Regroup by Alternating Pages (&amp;Reversed Order)</string>
    </property>
   </action>
   <action name="actionInvert_Selection">
@@ -566,7 +566,7 @@
      <normaloff>:/pdfpagemaster/resources/invert-selection.svg</normaloff>:/pdfpagemaster/resources/invert-selection.svg</iconset>
    </property>
    <property name="text">
-    <string>Invert Selection</string>
+    <string>&amp;Invert Selection</string>
    </property>
   </action>
   <action name="actionUndo">
@@ -575,7 +575,7 @@
      <normaloff>:/pdfpagemaster/resources/undo.svg</normaloff>:/pdfpagemaster/resources/undo.svg</iconset>
    </property>
    <property name="text">
-    <string>Undo</string>
+    <string>&amp;Undo</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+Z</string>
@@ -587,7 +587,7 @@
      <normaloff>:/pdfpagemaster/resources/redo.svg</normaloff>:/pdfpagemaster/resources/redo.svg</iconset>
    </property>
    <property name="text">
-    <string>Redo</string>
+    <string>Re&amp;do</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+Y</string>
@@ -595,7 +595,7 @@
   </action>
   <action name="actionPrepare_Icon_Theme">
    <property name="text">
-    <string>Prepare Icon Theme</string>
+    <string>&amp;Prepare Icon Theme</string>
    </property>
   </action>
   <action name="actionBecomeASponsor">
@@ -604,7 +604,7 @@
      <normaloff>:/pdfpagemaster/resources/wallet.svg</normaloff>:/pdfpagemaster/resources/wallet.svg</iconset>
    </property>
    <property name="text">
-    <string>Become a Sponsor</string>
+    <string>Become a &amp;Sponsor</string>
    </property>
   </action>
  </widget>

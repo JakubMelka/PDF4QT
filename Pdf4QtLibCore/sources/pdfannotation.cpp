@@ -2921,7 +2921,7 @@ void PDFStampAnnotation::draw(AnnotationDrawParameters& parameters) const
     QPainter& painter = *parameters.painter;
     painter.setCompositionMode(getCompositionMode());
 
-    QString text = getText(m_stamp);
+    QString text = getText(m_stamp, false);
     QColor color(Qt::red);
 
     switch (m_stamp)
@@ -3009,66 +3009,80 @@ void PDFStampAnnotation::draw(AnnotationDrawParameters& parameters) const
     parameters.boundingRectangle.adjust(-penWidth, -penWidth, penWidth, penWidth);
 }
 
-QString PDFStampAnnotation::getText(Stamp stamp)
+QString PDFStampAnnotation::getText(Stamp stamp, bool isActionText)
 {
     QString text;
 
     switch (stamp)
     {
         case Stamp::Approved:
-            text = PDFTranslationContext::tr("APPROVED");
+            text = isActionText ? PDFTranslationContext::tr("&Approved")
+                                : PDFTranslationContext::tr("APPROVED");
             break;
 
         case Stamp::AsIs:
-            text = PDFTranslationContext::tr("AS IS");
+            text = isActionText ? PDFTranslationContext::tr("As &Is")
+                                : PDFTranslationContext::tr("AS IS");
             break;
 
         case Stamp::Confidential:
-            text = PDFTranslationContext::tr("CONFIDENTIAL");
+            text = isActionText ? PDFTranslationContext::tr("&Confidential")
+                                : PDFTranslationContext::tr("CONFIDENTIAL");
             break;
 
         case Stamp::Departmental:
-            text = PDFTranslationContext::tr("DEPARTMENTAL");
+            text = isActionText ? PDFTranslationContext::tr("&Departmental")
+                                : PDFTranslationContext::tr("DEPARTMENTAL");
             break;
 
         case Stamp::Draft:
-            text = PDFTranslationContext::tr("DRAFT");
+            text = isActionText ? PDFTranslationContext::tr("Dra&ft")
+                                : PDFTranslationContext::tr("DRAFT");
             break;
 
         case Stamp::Experimental:
-            text = PDFTranslationContext::tr("EXPERIMENTAL");
+            text = isActionText ? PDFTranslationContext::tr("&Experimental")
+                                : PDFTranslationContext::tr("EXPERIMENTAL");
             break;
 
         case Stamp::Expired:
-            text = PDFTranslationContext::tr("EXPIRED");
+            text = isActionText ? PDFTranslationContext::tr("E&xpired")
+                                : PDFTranslationContext::tr("EXPIRED");
             break;
 
         case Stamp::Final:
-            text = PDFTranslationContext::tr("FINAL");
+            text = isActionText ? PDFTranslationContext::tr("Fina&l")
+                                : PDFTranslationContext::tr("FINAL");
             break;
 
         case Stamp::ForComment:
-            text = PDFTranslationContext::tr("FOR COMMENT");
+            text = isActionText ? PDFTranslationContext::tr("For Co&mment")
+                                : PDFTranslationContext::tr("FOR COMMENT");
             break;
 
         case Stamp::ForPublicRelease:
-            text = PDFTranslationContext::tr("FOR PUBLIC RELEASE");
+            text = isActionText ? PDFTranslationContext::tr("For P&ublic Release")
+                                : PDFTranslationContext::tr("FOR PUBLIC RELEASE");
             break;
 
         case Stamp::NotApproved:
-            text = PDFTranslationContext::tr("NOT APPROVED");
+            text = isActionText ? PDFTranslationContext::tr("Not A&pproved")
+                                : PDFTranslationContext::tr("NOT APPROVED");
             break;
 
         case Stamp::NotForPublicRelease:
-            text = PDFTranslationContext::tr("NOT FOR PUBLIC RELEASE");
+            text = isActionText ? PDFTranslationContext::tr("N&ot For Public Release")
+                                : PDFTranslationContext::tr("NOT FOR PUBLIC RELEASE");
             break;
 
         case Stamp::Sold:
-            text = PDFTranslationContext::tr("SOLD");
+            text = isActionText ? PDFTranslationContext::tr("&Sold")
+                                : PDFTranslationContext::tr("SOLD");
             break;
 
         case Stamp::TopSecret:
-            text = PDFTranslationContext::tr("TOP SECRET");
+            text = isActionText ? PDFTranslationContext::tr("&Top Secret")
+                                : PDFTranslationContext::tr("TOP SECRET");
             break;
 
         default:

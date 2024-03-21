@@ -145,7 +145,7 @@ MainWindow::MainWindow(QWidget* parent) :
     m_iconTheme.setPrefix(":/pdfpagemaster/resources/");
     m_iconTheme.loadTheme();
 
-    QToolBar* mainToolbar = addToolBar(tr("Main"));
+    QToolBar* mainToolbar = addToolBar(tr("&Main"));
     mainToolbar->setObjectName("main_toolbar");
     mainToolbar->addAction(ui->actionAddDocuments);
     mainToolbar->addSeparator();
@@ -156,19 +156,19 @@ MainWindow::MainWindow(QWidget* parent) :
     mainToolbar->addActions({ ui->actionCut, ui->actionCopy, ui->actionPaste });
     mainToolbar->addSeparator();
     mainToolbar->addActions({ ui->actionGroup, ui->actionUngroup });
-    QToolBar* insertToolbar = addToolBar(tr("Insert"));
+    QToolBar* insertToolbar = addToolBar(tr("&Insert"));
     insertToolbar->setObjectName("insert_toolbar");
     insertToolbar->addActions({ ui->actionInsert_PDF, ui->actionInsert_Image, ui->actionInsert_Empty_Page });
-    QToolBar* selectToolbar = addToolBar(tr("Select"));
+    QToolBar* selectToolbar = addToolBar(tr("&Select"));
     selectToolbar->setObjectName("select_toolbar");
     selectToolbar->addActions({ ui->actionSelect_None, ui->actionSelect_All, ui->actionSelect_Even, ui->actionSelect_Odd, ui->actionSelect_Portrait, ui->actionSelect_Landscape, ui->actionInvert_Selection });
-    QToolBar* regroupToolbar = addToolBar(tr("Regroup"));
+    QToolBar* regroupToolbar = addToolBar(tr("&Regroup"));
     regroupToolbar->setObjectName("regroup_toolbar");
     regroupToolbar->addActions({ ui->actionRegroup_Even_Odd, ui->actionRegroup_by_Page_Pairs, ui->actionRegroup_by_Outline, ui->actionRegroup_by_Alternating_Pages, ui->actionRegroup_by_Alternating_Pages_Reversed_Order });
-    QToolBar* zoomToolbar = addToolBar(tr("Zoom"));
+    QToolBar* zoomToolbar = addToolBar(tr("&Zoom"));
     zoomToolbar->setObjectName("zoom_toolbar");
     zoomToolbar->addActions({ ui->actionZoom_In, ui->actionZoom_Out });
-    QToolBar* makeToolbar = addToolBar(tr("Make"));
+    QToolBar* makeToolbar = addToolBar(tr("Ma&ke"));
     makeToolbar->setObjectName("make_toolbar");
     makeToolbar->addActions({ ui->actionUnited_Document, ui->actionSeparate_to_Multiple_Documents, ui->actionSeparate_to_Multiple_Documents_Grouped });
 
@@ -209,6 +209,10 @@ MainWindow::MainWindow(QWidget* parent) :
 
     loadSettings();
     updateActions();
+
+#ifndef NDEBUG
+    pdf::PDFWidgetUtils::checkMenuAccessibility(this);
+#endif
 }
 
 MainWindow::~MainWindow()

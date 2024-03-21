@@ -50,11 +50,11 @@ void RedactPlugin::setWidget(pdf::PDFWidget* widget)
 
     BaseClass::setWidget(widget);
 
-    m_actionRedactRectangle = new QAction(QIcon(":/pdfplugins/redactplugin/redact-rectangle.svg"), tr("Redact Rectangle"), this);
-    m_actionRedactText = new QAction(QIcon(":/pdfplugins/redactplugin/redact-text.svg"), tr("Redact Text"), this);
-    m_actionRedactTextSelection = new QAction(QIcon(":/pdfplugins/redactplugin/redact-text-selection.svg"), tr("Redact Text Selection"), this);
-    m_actionRedactPage = new QAction(QIcon(":/pdfplugins/redactplugin/redact-page.svg"), tr("Redact Page(s)"), this);
-    m_actionCreateRedactedDocument = new QAction(QIcon(":/pdfplugins/redactplugin/redact-create-document.svg"), tr("Create Redacted Document"), this);
+    m_actionRedactRectangle = new QAction(QIcon(":/pdfplugins/redactplugin/redact-rectangle.svg"), tr("Redact &Rectangle"), this);
+    m_actionRedactText = new QAction(QIcon(":/pdfplugins/redactplugin/redact-text.svg"), tr("Redact &Text"), this);
+    m_actionRedactTextSelection = new QAction(QIcon(":/pdfplugins/redactplugin/redact-text-selection.svg"), tr("Redact Text &Selection"), this);
+    m_actionRedactPage = new QAction(QIcon(":/pdfplugins/redactplugin/redact-page.svg"), tr("Redact &Page(s)"), this);
+    m_actionCreateRedactedDocument = new QAction(QIcon(":/pdfplugins/redactplugin/redact-create-document.svg"), tr("Create Redacted &Document"), this);
 
     m_actionRedactRectangle->setObjectName("redactplugin_RedactRectangle");
     m_actionRedactText->setObjectName("redactplugin_RedactText");
@@ -92,6 +92,11 @@ void RedactPlugin::setDocument(const pdf::PDFModifiedDocument& document)
 std::vector<QAction*> RedactPlugin::getActions() const
 {
     return { m_actionRedactRectangle, m_actionRedactText, m_actionRedactTextSelection, m_actionRedactPage, m_actionCreateRedactedDocument };
+}
+
+QString RedactPlugin::getPluginMenuName() const
+{
+    return tr("Redac&t");
 }
 
 void RedactPlugin::updateActions()

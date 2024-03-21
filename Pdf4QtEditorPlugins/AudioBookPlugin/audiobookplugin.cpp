@@ -67,61 +67,61 @@ void AudioBookPlugin::setWidget(pdf::PDFWidget* widget)
 
     BaseClass::setWidget(widget);
 
-    m_actionCreateTextStream = new QAction(QIcon(":/pdfplugins/audiobook/create-text-stream.svg"), tr("Create Text Stream for Audio Book"), this);
+    m_actionCreateTextStream = new QAction(QIcon(":/pdfplugins/audiobook/create-text-stream.svg"), tr("&Create Text Stream for Audio Book"), this);
     m_actionCreateTextStream->setObjectName("actionAudioBook_CreateTextStream");
     connect(m_actionCreateTextStream, &QAction::triggered, this, &AudioBookPlugin::onCreateTextStreamTriggered);
 
-    m_actionSynchronizeFromTableToGraphics = new QAction(QIcon(":/pdfplugins/audiobook/synchronize-from-table-to-graphics.svg"), tr("Synchronize Selection from Table to Graphics"), this);
+    m_actionSynchronizeFromTableToGraphics = new QAction(QIcon(":/pdfplugins/audiobook/synchronize-from-table-to-graphics.svg"), tr("Synchronize Selection from &Table to Graphics"), this);
     m_actionSynchronizeFromTableToGraphics->setObjectName("actionAudioBook_SynchronizeFromTableToGraphics");
     m_actionSynchronizeFromTableToGraphics->setCheckable(true);
     m_actionSynchronizeFromTableToGraphics->setChecked(true);
 
-    m_actionSynchronizeFromGraphicsToTable = new QAction(QIcon(":/pdfplugins/audiobook/synchronize-from-graphics-to-table.svg"), tr("Synchronize Selection from Graphics to Table"), this);
+    m_actionSynchronizeFromGraphicsToTable = new QAction(QIcon(":/pdfplugins/audiobook/synchronize-from-graphics-to-table.svg"), tr("Synchronize Selection from &Graphics to Table"), this);
     m_actionSynchronizeFromGraphicsToTable->setObjectName("actionAudioBook_SynchronizeFromGraphicsToTable");
     m_actionSynchronizeFromGraphicsToTable->setCheckable(true);
     m_actionSynchronizeFromGraphicsToTable->setChecked(true);
 
-    m_actionActivateSelection = new QAction(QIcon(":/pdfplugins/audiobook/activate-selection.svg"), tr("Activate Selection"), this);
+    m_actionActivateSelection = new QAction(QIcon(":/pdfplugins/audiobook/activate-selection.svg"), tr("&Activate Selection"), this);
     m_actionActivateSelection->setObjectName("actionAudioBook_ActivateSelection");
     connect(m_actionActivateSelection, &QAction::triggered, this, &AudioBookPlugin::onActivateSelection);
 
-    m_actionDeactivateSelection = new QAction(QIcon(":/pdfplugins/audiobook/deactivate-selection.svg"), tr("Deactivate Selection"), this);
+    m_actionDeactivateSelection = new QAction(QIcon(":/pdfplugins/audiobook/deactivate-selection.svg"), tr("&Deactivate Selection"), this);
     m_actionDeactivateSelection->setObjectName("actionAudioBook_DeactivateSelection");
     connect(m_actionDeactivateSelection, &QAction::triggered, this, &AudioBookPlugin::onDeactivateSelection);
 
-    m_actionSelectByRectangle = new QAction(QIcon(":/pdfplugins/audiobook/select-by-rectangle.svg"), tr("Select by Rectangle"), this);
+    m_actionSelectByRectangle = new QAction(QIcon(":/pdfplugins/audiobook/select-by-rectangle.svg"), tr("Select by &Rectangle"), this);
     m_actionSelectByRectangle->setObjectName("actionAudioBook_SelectByRectangle");
     connect(m_actionSelectByRectangle, &QAction::triggered, this, &AudioBookPlugin::onSelectByRectangle);
 
-    m_actionSelectByContainedText = new QAction(QIcon(":/pdfplugins/audiobook/select-by-contained-text.svg"), tr("Select by Contained Text"), this);
+    m_actionSelectByContainedText = new QAction(QIcon(":/pdfplugins/audiobook/select-by-contained-text.svg"), tr("Select by Contained &Text"), this);
     m_actionSelectByContainedText->setObjectName("actionAudioBook_SelectByContainedText");
     connect(m_actionSelectByContainedText, &QAction::triggered, this, &AudioBookPlugin::onSelectByContainedText);
 
-    m_actionSelectByRegularExpression = new QAction(QIcon(":/pdfplugins/audiobook/select-by-regular-expression.svg"), tr("Select by Regular Expression"), this);
+    m_actionSelectByRegularExpression = new QAction(QIcon(":/pdfplugins/audiobook/select-by-regular-expression.svg"), tr("Select by Regular &Expression"), this);
     m_actionSelectByRegularExpression->setObjectName("actionAudioBook_SelectByRegularExpression");
     connect(m_actionSelectByRegularExpression, &QAction::triggered, this, &AudioBookPlugin::onSelectByRegularExpression);
 
-    m_actionSelectByPageList = new QAction(QIcon(":/pdfplugins/audiobook/select-by-page-list.svg"), tr("Select by Page List"), this);
+    m_actionSelectByPageList = new QAction(QIcon(":/pdfplugins/audiobook/select-by-page-list.svg"), tr("Select by Page &List"), this);
     m_actionSelectByPageList->setObjectName("actionAudioBook_SelectByPageList");
     connect(m_actionSelectByPageList, &QAction::triggered, this, &AudioBookPlugin::onSelectByPageList);
 
-    m_actionRestoreOriginalText = new QAction(QIcon(":/pdfplugins/audiobook/restore-original-text.svg"), tr("Restore Original Text"), this);
+    m_actionRestoreOriginalText = new QAction(QIcon(":/pdfplugins/audiobook/restore-original-text.svg"), tr("Restore &Original Text"), this);
     m_actionRestoreOriginalText->setObjectName("actionAudioBook_RestoreOriginalText");
     connect(m_actionRestoreOriginalText, &QAction::triggered, this, &AudioBookPlugin::onRestoreOriginalText);
 
-    m_actionMoveSelectionUp = new QAction(QIcon(":/pdfplugins/audiobook/move-selection-up.svg"), tr("Move Selection Up"), this);
+    m_actionMoveSelectionUp = new QAction(QIcon(":/pdfplugins/audiobook/move-selection-up.svg"), tr("Move Selection &Up"), this);
     m_actionMoveSelectionUp->setObjectName("actionAudioBook_MoveSelectionUp");
     connect(m_actionMoveSelectionUp, &QAction::triggered, this, &AudioBookPlugin::onMoveSelectionUp);
 
-    m_actionMoveSelectionDown = new QAction(QIcon(":/pdfplugins/audiobook/move-selection-down.svg"), tr("Move Selection Down"), this);
+    m_actionMoveSelectionDown = new QAction(QIcon(":/pdfplugins/audiobook/move-selection-down.svg"), tr("Move Selection &Down"), this);
     m_actionMoveSelectionDown->setObjectName("actionAudioBook_MoveSelectionDown");
     connect(m_actionMoveSelectionDown, &QAction::triggered, this, &AudioBookPlugin::onMoveSelectionDown);
 
-    m_actionCreateAudioBook = new QAction(QIcon(":/pdfplugins/audiobook/create-audio-book.svg"), tr("Create Audio Book"), this);
+    m_actionCreateAudioBook = new QAction(QIcon(":/pdfplugins/audiobook/create-audio-book.svg"), tr("Create Audio &Book"), this);
     m_actionCreateAudioBook->setObjectName("actionAudioBook_CreateAudioBook");
     connect(m_actionCreateAudioBook, &QAction::triggered, this, &AudioBookPlugin::onCreateAudioBook);
 
-    m_actionClear = new QAction(QIcon(":/pdfplugins/audiobook/clear.svg"), tr("Clear Text Stream"), this);
+    m_actionClear = new QAction(QIcon(":/pdfplugins/audiobook/clear.svg"), tr("Clear Te&xt Stream"), this);
     m_actionClear->setObjectName("actionAudioBook_Clear");
     connect(m_actionClear, &QAction::triggered, this, &AudioBookPlugin::onClear);
 
@@ -157,7 +157,12 @@ std::vector<QAction*> AudioBookPlugin::getActions() const
              m_actionSynchronizeFromTableToGraphics,
              m_actionSynchronizeFromGraphicsToTable,
              m_actionCreateAudioBook,
-             m_actionClear };
+            m_actionClear };
+}
+
+QString AudioBookPlugin::getPluginMenuName() const
+{
+    return tr("&Audio Book");
 }
 
 void AudioBookPlugin::drawPage(QPainter* painter,

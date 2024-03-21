@@ -79,13 +79,13 @@ void PDFRecentFileManager::update()
         if (i < m_recentFiles.size())
         {
             recentFileAction->setData(m_recentFiles[i]);
-            recentFileAction->setText(m_recentFiles[i]);
+            recentFileAction->setText(tr("(&%1) %2").arg(i + 1).arg(m_recentFiles[i]));
             recentFileAction->setVisible(true);
         }
         else
         {
             recentFileAction->setData(QVariant());
-            recentFileAction->setText(tr("Recent file dummy %1").arg(i + 1));
+            recentFileAction->setText(tr("Recent file dummy &%1").arg(i + 1));
             recentFileAction->setVisible(false);
         }
     }

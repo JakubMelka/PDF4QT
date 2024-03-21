@@ -212,7 +212,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     setFocusProxy(m_programController->getPdfWidget());
 
     m_sidebarWidget = new PDFSidebarWidget(m_programController->getPdfWidget()->getDrawWidgetProxy(), m_programController->getTextToSpeech(), m_programController->getCertificateStore(), m_programController->getBookmarkManager(), m_programController->getSettings(), false, this);
-    m_sidebarDockWidget = new QDockWidget(tr("Sidebar"), this);
+    m_sidebarDockWidget = new QDockWidget(tr("&Sidebar"), this);
     m_sidebarDockWidget->setObjectName("SidebarDockWidget");
     m_sidebarDockWidget->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     m_sidebarDockWidget->setWidget(m_sidebarWidget);
@@ -241,6 +241,10 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
 
     m_actionManager->styleActions();
     m_programController->initActionComboBox(actionComboBox);
+
+#ifndef NDEBUG
+    pdf::PDFWidgetUtils::checkMenuAccessibility(this);
+#endif
 }
 
 PDFViewerMainWindow::~PDFViewerMainWindow()

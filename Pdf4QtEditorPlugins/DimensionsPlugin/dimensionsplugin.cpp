@@ -42,14 +42,14 @@ void DimensionsPlugin::setWidget(pdf::PDFWidget* widget)
 
     BaseClass::setWidget(widget);
 
-    QAction* horizontalDimensionAction = new QAction(QIcon(":/pdfplugins/dimensiontool/linear-horizontal.svg"), tr("Horizontal Dimension"), this);
-    QAction* verticalDimensionAction = new QAction(QIcon(":/pdfplugins/dimensiontool/linear-vertical.svg"), tr("Vertical Dimension"), this);
-    QAction* linearDimensionAction = new QAction(QIcon(":/pdfplugins/dimensiontool/linear.svg"), tr("Linear Dimension"), this);
-    QAction* perimeterDimensionAction = new QAction(QIcon(":/pdfplugins/dimensiontool/perimeter.svg"), tr("Perimeter"), this);
-    QAction* rectanglePerimeterDimensionAction = new QAction(QIcon(":/pdfplugins/dimensiontool/rectangle-perimeter.svg"), tr("Rectangle Perimeter"), this);
-    QAction* areaDimensionAction = new QAction(QIcon(":/pdfplugins/dimensiontool/area.svg"), tr("Area"), this);
-    QAction* rectangleAreaDimensionAction = new QAction(QIcon(":/pdfplugins/dimensiontool/rectangle-area.svg"), tr("Rectangle Area"), this);
-    QAction* angleAction = new QAction(QIcon(":/pdfplugins/dimensiontool/angle.svg"), tr("Angle"), this);
+    QAction* horizontalDimensionAction = new QAction(QIcon(":/pdfplugins/dimensiontool/linear-horizontal.svg"), tr("&Horizontal Dimension"), this);
+    QAction* verticalDimensionAction = new QAction(QIcon(":/pdfplugins/dimensiontool/linear-vertical.svg"), tr("&Vertical Dimension"), this);
+    QAction* linearDimensionAction = new QAction(QIcon(":/pdfplugins/dimensiontool/linear.svg"), tr("&Linear Dimension"), this);
+    QAction* perimeterDimensionAction = new QAction(QIcon(":/pdfplugins/dimensiontool/perimeter.svg"), tr("&Perimeter"), this);
+    QAction* rectanglePerimeterDimensionAction = new QAction(QIcon(":/pdfplugins/dimensiontool/rectangle-perimeter.svg"), tr("&Rectangle Perimeter"), this);
+    QAction* areaDimensionAction = new QAction(QIcon(":/pdfplugins/dimensiontool/area.svg"), tr("&Area"), this);
+    QAction* rectangleAreaDimensionAction = new QAction(QIcon(":/pdfplugins/dimensiontool/rectangle-area.svg"), tr("R&ectangle Area"), this);
+    QAction* angleAction = new QAction(QIcon(":/pdfplugins/dimensiontool/angle.svg"), tr("An&gle"), this);
 
     horizontalDimensionAction->setObjectName("dimensiontool_LinearHorizontalAction");
     verticalDimensionAction->setObjectName("dimensiontool_LinearVerticalAction");
@@ -85,9 +85,9 @@ void DimensionsPlugin::setWidget(pdf::PDFWidget* widget)
         connect(tool, &DimensionTool::dimensionCreated, this, &DimensionsPlugin::onDimensionCreated);
     }
 
-    m_showDimensionsAction = new QAction(QIcon(":/pdfplugins/dimensiontool/show-dimensions.svg"), tr("Show Dimensions"), this);
-    m_clearDimensionsAction = new QAction(QIcon(":/pdfplugins/dimensiontool/clear-dimensions.svg"), tr("Clear Dimensions"), this);
-    m_settingsAction = new QAction(QIcon(":/pdfplugins/dimensiontool/settings.svg"), tr("Settings"), this);
+    m_showDimensionsAction = new QAction(QIcon(":/pdfplugins/dimensiontool/show-dimensions.svg"), tr("&Show Dimensions"), this);
+    m_clearDimensionsAction = new QAction(QIcon(":/pdfplugins/dimensiontool/clear-dimensions.svg"), tr("&Clear Dimensions"), this);
+    m_settingsAction = new QAction(QIcon(":/pdfplugins/dimensiontool/settings.svg"), tr("Se&ttings"), this);
 
     m_showDimensionsAction->setCheckable(true);
     m_showDimensionsAction->setChecked(true);
@@ -139,6 +139,10 @@ std::vector<QAction*> DimensionsPlugin::getActions() const
     return result;
 }
 
+QString DimensionsPlugin::getPluginMenuName() const
+{
+    return tr("&Dimensions");
+}
 
 void DimensionsPlugin::drawPage(QPainter* painter,
                                 pdf::PDFInteger pageIndex,

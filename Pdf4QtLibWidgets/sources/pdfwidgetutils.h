@@ -88,6 +88,14 @@ public:
             convertActionForDarkTheme(action, iconSize, devicePixelRatioF);
         }
     }
+
+    /// Checks menu accessibility for all descendants of the specified widget.
+    /// \param widget The widget whose descendants are to be checked.
+    static void checkMenuAccessibility(QWidget* widget);
+
+    /// Checks menu accessibility for the specified menu.
+    /// \param menu The menu to be checked for accessibility.
+    static void checkMenuAccessibility(QMenu* menu);
 };
 
 } // namespace pdf

@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #172: access keys are missing from most menu items/action text strings
  - Issue #168: When opening a PDF file or merging some PDF files, stamp will disappear.
  - Issue #164: Taskbar icon not shown in linux mint.
  - Issue #163: Unable to render probably valid PDF

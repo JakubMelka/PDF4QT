@@ -283,7 +283,7 @@ void PDFActionManager::initActions(QSize iconSize, bool initializeStampActions)
 
         auto createCreateStampAction = [this](Action actionType, pdf::Stamp stamp)
         {
-            QString text = pdf::PDFStampAnnotation::getText(stamp);
+            QString text = pdf::PDFStampAnnotation::getText(stamp, true);
             QAction* action = new QAction(text, this);
             action->setObjectName(QString("actionCreateStamp_%1").arg(int(stamp)));
             action->setData(int(stamp));
@@ -2222,7 +2222,7 @@ void PDFProgramController::loadPlugins()
             QToolBar* toolBar = m_mainWindow->addToolBar(plugin.first.name);
             toolBar->setObjectName(QString("Plugin_Toolbar_%1").arg(plugin.first.name));
             m_mainWindowInterface->adjustToolbar(toolBar);
-            QMenu* menu = m_mainWindowInterface->addToolMenu(plugin.first.name);
+            QMenu* menu = m_mainWindowInterface->addToolMenu(plugin.second->getPluginMenuName());
             for (QAction* action : actions)
             {
                 if (!action)

@@ -658,7 +658,7 @@ PDFObjectEditorAnnotationsModel::PDFObjectEditorAnnotationsModel(QObject* parent
         PDFObjectFactory factory;
         factory << stampType;
 
-        stampNameEnumItems.emplace_back(PDFStampAnnotation::getText(stampType), stampIndex++, factory.takeObject());
+        stampNameEnumItems.emplace_back(PDFStampAnnotation::getText(stampType, false), stampIndex++, factory.takeObject());
     }
     m_attributes.back().enumItems = qMove(stampNameEnumItems);
 

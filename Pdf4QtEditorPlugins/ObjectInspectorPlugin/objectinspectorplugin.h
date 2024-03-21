@@ -40,6 +40,7 @@ public:
     virtual void setCMSManager(pdf::PDFCMSManager* manager) override;
     virtual void setDocument(const pdf::PDFModifiedDocument& document) override;
     virtual std::vector<QAction*> getActions() const override;
+    virtual QString getPluginMenuName() const override;
 
 private:
     void onObjectInspectorTriggered();

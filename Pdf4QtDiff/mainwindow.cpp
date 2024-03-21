@@ -125,7 +125,7 @@ MainWindow::MainWindow(QWidget* parent) :
     actionGroup->addAction(ui->actionView_Overlay);
     ui->actionView_Differences->setChecked(true);
 
-    QToolBar* mainToolbar = addToolBar(tr("Main"));
+    QToolBar* mainToolbar = addToolBar(tr("&Main"));
     mainToolbar->setObjectName("main_toolbar");
     mainToolbar->addActions({ ui->actionOpen_Left, ui->actionOpen_Right });
     mainToolbar->addSeparator();
@@ -133,11 +133,11 @@ MainWindow::MainWindow(QWidget* parent) :
     mainToolbar->addAction(ui->actionCreate_Compare_Report);
     mainToolbar->addAction(ui->actionSave_Differences_to_XML);
 
-    QToolBar* differencesToolbar = addToolBar(tr("Differences"));
+    QToolBar* differencesToolbar = addToolBar(tr("&Differences"));
     differencesToolbar->setObjectName("differences_toolbar");
     differencesToolbar->addActions({ ui->actionPrevious_Difference, ui->actionNext_Difference });
 
-    QToolBar* viewToolbar = addToolBar(tr("View"));
+    QToolBar* viewToolbar = addToolBar(tr("&View"));
     viewToolbar->setObjectName("view_toolbar");
     viewToolbar->addActions({ ui->actionView_Differences, ui->actionView_Left, ui->actionView_Right, ui->actionView_Overlay });
     viewToolbar->addSeparator();
@@ -188,6 +188,10 @@ MainWindow::MainWindow(QWidget* parent) :
     loadSettings();
     updateAll(false);
     updateOverlayTransparency();
+
+#ifndef NDEBUG
+    pdf::PDFWidgetUtils::checkMenuAccessibility(this);
+#endif
 }
 
 MainWindow::~MainWindow()

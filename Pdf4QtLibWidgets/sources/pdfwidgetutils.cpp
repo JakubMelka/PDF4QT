@@ -18,11 +18,17 @@
 #include "pdfwidgetutils.h"
 #include "pdfcolorconvertor.h"
 
+#include <map>
+#include <set>
+
+#include <QMenu>
+#include <QAction>
 #include <QDialog>
 #include <QLayout>
 #include <QPainter>
 #include <QPixmap>
 #include <QGroupBox>
+#include <QMessageBox>
 #include <QApplication>
 
 #include "pdfdbgheap.h"
@@ -208,6 +214,75 @@ QIcon PDFWidgetUtils::convertIconForDarkTheme(QIcon icon, QSize iconSize, qreal 
     pixmap = QPixmap::fromImage(image);
 
     return QIcon(pixmap);
+}
+
+void PDFWidgetUtils::checkMenuAccessibility(QWidget* widget)
+{
+    QList<QMenu*> menus = widget->findChildren<QMenu*>();
+
+    for (QMenu* menu : menus)
+    {
+        checkMenuAccessibility(menu);
+    }
+}
+
+void PDFWidgetUtils::checkMenuAccessibility(QMenu* menu)
+{
+    QStringList actionsDuplicities;
+    QStringList actionsWithNoAmpersands;
+    std::map<QChar, std::set<QAction*>> actions;
+
+    for (QAction* action : menu->actions())
+    {
+        if (action->isSeparator())
+        {
+            continue;
+        }
+
+        if (QMenu* submenu = action->menu())
+        {
+            checkMenuAccessibility(submenu);
+        }
+
+        QString text = action->text();
+        int i = text.indexOf(QChar('&'));
+
+        if (i == -1)
+        {
+            actionsWithNoAmpersands << text;
+        }
+        else
+        {
+            QString accesibilityChar = text.mid(i + 1, 1);
+            if (accesibilityChar.size() == 1)
+            {
+                actions[accesibilityChar.front().toUpper()].insert(action);
+            }
+        }
+    }
+
+    for (const auto& actionItem : actions)
+    {
+        if (actionItem.second.size() > 1)
+        {
+            QStringList actionTexts;
+            for (QAction* action : actionItem.second)
+            {
+                actionTexts << action->text();
+            }
+
+            actionsDuplicities << QString("'%1': Duplicities = '%2'").arg(QString(actionItem.first), actionTexts.join("', '"));
+        }
+    }
+
+    QStringList errors;
+    errors.append(std::move(actionsDuplicities));
+    errors.append(std::move(actionsWithNoAmpersands));
+
+    if (!errors.isEmpty())
+    {
+        QMessageBox::warning(nullptr, "Accesibility Check", errors.join("<br>"));
+    }
 }
 
 } // namespace pdf

@@ -1119,7 +1119,7 @@ public:
     void setStamp(const Stamp& stamp);
     void setIntent(const StampIntent& intent);
 
-    static QString getText(Stamp stamp);
+    static QString getText(Stamp stamp, bool isActionText);
 
 private:
     friend PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObjectReference reference);

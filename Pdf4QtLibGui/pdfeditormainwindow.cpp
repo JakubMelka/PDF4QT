@@ -1,4 +1,4 @@
-//    Copyright (C) 2019-2022 Jakub Melka
+//    Copyright (C) 2019-2024 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -63,7 +63,6 @@
 #include <QtPrintSupport/QPrinter>
 #include <QtPrintSupport/QPrintDialog>
 #include <QtConcurrent/QtConcurrent>
-#include <QPluginLoader>
 #include <QToolButton>
 #include <QActionGroup>
 
@@ -278,7 +277,7 @@ PDFEditorMainWindow::PDFEditorMainWindow(QWidget* parent) :
     setFocusProxy(m_programController->getPdfWidget());
 
     m_sidebarWidget = new PDFSidebarWidget(m_programController->getPdfWidget()->getDrawWidgetProxy(), m_programController->getTextToSpeech(), m_programController->getCertificateStore(), m_programController->getBookmarkManager(), m_programController->getSettings(), true, this);
-    m_sidebarDockWidget = new QDockWidget(tr("Sidebar"), this);
+    m_sidebarDockWidget = new QDockWidget(tr("&Sidebar"), this);
     m_sidebarDockWidget->setObjectName("SidebarDockWidget");
     m_sidebarDockWidget->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     m_sidebarDockWidget->setWidget(m_sidebarWidget);
@@ -296,7 +295,7 @@ PDFEditorMainWindow::PDFEditorMainWindow(QWidget* parent) :
     m_advancedFindDockWidget->hide();
     QAction* toggleAdvancedFindAction = m_advancedFindDockWidget->toggleViewAction();
     toggleAdvancedFindAction->setObjectName("actionAdvancedFind");
-    toggleAdvancedFindAction->setText(tr("Advanced Find..."));
+    toggleAdvancedFindAction->setText(tr("Ad&vanced Find..."));
     toggleAdvancedFindAction->setShortcut(QKeySequence("Ctrl+Shift+F"));
     toggleAdvancedFindAction->setIcon(QIcon(":/resources/find-advanced.svg"));
     ui->menuEdit->insertAction(nullptr, toggleAdvancedFindAction);
@@ -324,6 +323,10 @@ PDFEditorMainWindow::PDFEditorMainWindow(QWidget* parent) :
 
     m_actionManager->styleActions();
     m_programController->initActionComboBox(actionComboBox);
+
+#ifndef NDEBUG
+    pdf::PDFWidgetUtils::checkMenuAccessibility(this);
+#endif
 }
 
 PDFEditorMainWindow::~PDFEditorMainWindow()

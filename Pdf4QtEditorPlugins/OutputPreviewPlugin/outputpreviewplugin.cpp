@@ -39,9 +39,9 @@ void OutputPreviewPlugin::setWidget(pdf::PDFWidget* widget)
 
     BaseClass::setWidget(widget);
 
-    m_outputPreviewAction = new QAction(QIcon(":/pdfplugins/outputpreview/preview.svg"), tr("Output Preview"), this);
+    m_outputPreviewAction = new QAction(QIcon(":/pdfplugins/outputpreview/preview.svg"), tr("&Output Preview"), this);
     m_outputPreviewAction->setObjectName("actionOutputPreview_OutputPreview");
-    m_inkCoverageAction = new QAction(QIcon(":/pdfplugins/outputpreview/ink-coverage.svg"), tr("Ink Coverage"), this);
+    m_inkCoverageAction = new QAction(QIcon(":/pdfplugins/outputpreview/ink-coverage.svg"), tr("&Ink Coverage"), this);
     m_inkCoverageAction->setObjectName("actionOutputPreview_InkCoverage");
 
     connect(m_outputPreviewAction, &QAction::triggered, this, &OutputPreviewPlugin::onOutputPreviewTriggered);
@@ -63,6 +63,11 @@ void OutputPreviewPlugin::setDocument(const pdf::PDFModifiedDocument& document)
 std::vector<QAction*> OutputPreviewPlugin::getActions() const
 {
     return { m_outputPreviewAction, m_inkCoverageAction };
+}
+
+QString OutputPreviewPlugin::getPluginMenuName() const
+{
+    return tr("Output Previe&w");
 }
 
 void OutputPreviewPlugin::onOutputPreviewTriggered()

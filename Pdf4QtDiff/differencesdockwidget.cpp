@@ -95,6 +95,8 @@ DifferencesDockWidget::DifferencesDockWidget(QWidget* parent,
     connect(diffNavigator, &pdf::PDFDiffResultNavigator::selectionChanged, this, &DifferencesDockWidget::onSelectionChanged);
     connect(ui->differencesTreeWidget, &QTreeWidget::currentItemChanged, this, &DifferencesDockWidget::onCurrentItemChanged);
 
+    toggleViewAction()->setText(tr("Differen&ces"));
+
     setMinimumWidth(pdf::PDFWidgetUtils::scaleDPI_x(this, 120));
 }
 

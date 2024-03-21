@@ -31,7 +31,7 @@
    </property>
    <widget class="QMenu" name="menuFile">
     <property name="title">
-     <string>File</string>
+     <string>&amp;File</string>
     </property>
     <addaction name="actionOpen_Left"/>
     <addaction name="actionOpen_Right"/>
@@ -39,7 +39,7 @@
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
-     <string>Help</string>
+     <string>&amp;Help</string>
     </property>
     <addaction name="actionGet_Source"/>
     <addaction name="actionBecomeASponsor"/>
@@ -47,12 +47,12 @@
    </widget>
    <widget class="QMenu" name="menuToolbars">
     <property name="title">
-     <string>Toolbars</string>
+     <string>&amp;Toolbars</string>
     </property>
    </widget>
    <widget class="QMenu" name="menuCompare">
     <property name="title">
-     <string>Compare</string>
+     <string>&amp;Compare</string>
     </property>
     <addaction name="actionCompare"/>
     <addaction name="actionCreate_Compare_Report"/>
@@ -60,11 +60,11 @@
    </widget>
    <widget class="QMenu" name="menuView">
     <property name="title">
-     <string>View</string>
+     <string>&amp;View</string>
     </property>
     <widget class="QMenu" name="menuView_2">
      <property name="title">
-      <string>View</string>
+      <string>&amp;View</string>
      </property>
      <addaction name="actionView_Differences"/>
      <addaction name="actionView_Left"/>
@@ -73,7 +73,7 @@
     </widget>
     <widget class="QMenu" name="menuFilter">
      <property name="title">
-      <string>Filter</string>
+      <string>&amp;Filter</string>
      </property>
      <addaction name="actionFilter_Text"/>
      <addaction name="actionFilter_Vector_Graphics"/>
@@ -105,7 +105,7 @@
      <normaloff>:/pdfdiff/resources/get-source.svg</normaloff>:/pdfdiff/resources/get-source.svg</iconset>
    </property>
    <property name="text">
-    <string>Get Source</string>
+    <string>&amp;Get Source</string>
    </property>
   </action>
   <action name="actionAbout">
@@ -114,7 +114,7 @@
      <normaloff>:/pdfdiff/resources/about.svg</normaloff>:/pdfdiff/resources/about.svg</iconset>
    </property>
    <property name="text">
-    <string>About...</string>
+    <string>&amp;About...</string>
    </property>
    <property name="shortcut">
     <string>F1</string>
@@ -126,7 +126,7 @@
      <normaloff>:/pdfdiff/resources/open-left.svg</normaloff>:/pdfdiff/resources/open-left.svg</iconset>
    </property>
    <property name="text">
-    <string>Open Left...</string>
+    <string>Open &amp;Left...</string>
    </property>
   </action>
   <action name="actionOpen_Right">
@@ -135,7 +135,7 @@
      <normaloff>:/pdfdiff/resources/open-right.svg</normaloff>:/pdfdiff/resources/open-right.svg</iconset>
    </property>
    <property name="text">
-    <string>Open Right...</string>
+    <string>Open &amp;Right...</string>
    </property>
   </action>
   <action name="actionCompare">
@@ -144,7 +144,7 @@
      <normaloff>:/pdfdiff/resources/compare.svg</normaloff>:/pdfdiff/resources/compare.svg</iconset>
    </property>
    <property name="text">
-    <string>Compare</string>
+    <string>&amp;Compare</string>
    </property>
    <property name="shortcut">
     <string>F5</string>
@@ -156,7 +156,7 @@
      <normaloff>:/pdfdiff/resources/close.svg</normaloff>:/pdfdiff/resources/close.svg</iconset>
    </property>
    <property name="text">
-    <string>Close</string>
+    <string>&amp;Close</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+F4</string>
@@ -168,7 +168,7 @@
      <normaloff>:/pdfdiff/resources/prev-diff.svg</normaloff>:/pdfdiff/resources/prev-diff.svg</iconset>
    </property>
    <property name="text">
-    <string>Previous Difference</string>
+    <string>&amp;Previous Difference</string>
    </property>
    <property name="shortcut">
     <string>Shift+F6</string>
@@ -180,7 +180,7 @@
      <normaloff>:/pdfdiff/resources/next-diff.svg</normaloff>:/pdfdiff/resources/next-diff.svg</iconset>
    </property>
    <property name="text">
-    <string>Next Difference</string>
+    <string>&amp;Next Difference</string>
    </property>
    <property name="shortcut">
     <string>F6</string>
@@ -192,7 +192,7 @@
      <normaloff>:/pdfdiff/resources/create-compare-report.svg</normaloff>:/pdfdiff/resources/create-compare-report.svg</iconset>
    </property>
    <property name="text">
-    <string>Create Compare Report...</string>
+    <string>Create Compare &amp;Report...</string>
    </property>
   </action>
   <action name="actionFilter_Text">
@@ -204,7 +204,7 @@
      <normaloff>:/pdfdiff/resources/filter-text.svg</normaloff>:/pdfdiff/resources/filter-text.svg</iconset>
    </property>
    <property name="text">
-    <string>Filter Text</string>
+    <string>Filter &amp;Text</string>
    </property>
   </action>
   <action name="actionFilter_Vector_Graphics">
@@ -216,7 +216,7 @@
      <normaloff>:/pdfdiff/resources/filter-vector-graphics.svg</normaloff>:/pdfdiff/resources/filter-vector-graphics.svg</iconset>
    </property>
    <property name="text">
-    <string>Filter Vector Graphics</string>
+    <string>Filter &amp;Vector Graphics</string>
    </property>
   </action>
   <action name="actionFilter_Images">
@@ -228,7 +228,7 @@
      <normaloff>:/pdfdiff/resources/filter-images.svg</normaloff>:/pdfdiff/resources/filter-images.svg</iconset>
    </property>
    <property name="text">
-    <string>Filter Images</string>
+    <string>Filter &amp;Images</string>
    </property>
   </action>
   <action name="actionFilter_Shading">
@@ -240,7 +240,7 @@
      <normaloff>:/pdfdiff/resources/filter-shading.svg</normaloff>:/pdfdiff/resources/filter-shading.svg</iconset>
    </property>
    <property name="text">
-    <string>Filter Shading</string>
+    <string>Filter &amp;Shading</string>
    </property>
   </action>
   <action name="actionFilter_Page_Movement">
@@ -252,7 +252,7 @@
      <normaloff>:/pdfdiff/resources/filter-page-movement.svg</normaloff>:/pdfdiff/resources/filter-page-movement.svg</iconset>
    </property>
    <property name="text">
-    <string>Filter Page Movement</string>
+    <string>Filter &amp;Page Movement</string>
    </property>
   </action>
   <action name="actionView_Differences">
@@ -264,7 +264,7 @@
      <normaloff>:/pdfdiff/resources/view-differences.svg</normaloff>:/pdfdiff/resources/view-differences.svg</iconset>
    </property>
    <property name="text">
-    <string>View Differences</string>
+    <string>View &amp;Differences</string>
    </property>
   </action>
   <action name="actionView_Left">
@@ -276,7 +276,7 @@
      <normaloff>:/pdfdiff/resources/view-left.svg</normaloff>:/pdfdiff/resources/view-left.svg</iconset>
    </property>
    <property name="text">
-    <string>View Left</string>
+    <string>View &amp;Left</string>
    </property>
   </action>
   <action name="actionView_Right">
@@ -288,7 +288,7 @@
      <normaloff>:/pdfdiff/resources/view-right.svg</normaloff>:/pdfdiff/resources/view-right.svg</iconset>
    </property>
    <property name="text">
-    <string>View Right</string>
+    <string>View &amp;Right</string>
    </property>
   </action>
   <action name="actionView_Overlay">
@@ -300,7 +300,7 @@
      <normaloff>:/pdfdiff/resources/view-overlay.svg</normaloff>:/pdfdiff/resources/view-overlay.svg</iconset>
    </property>
    <property name="text">
-    <string>View Overlay</string>
+    <string>View &amp;Overlay</string>
    </property>
   </action>
   <action name="actionShow_Pages_with_Differences">
@@ -312,7 +312,7 @@
      <normaloff>:/pdfdiff/resources/show-p-with-diff.svg</normaloff>:/pdfdiff/resources/show-p-with-diff.svg</iconset>
    </property>
    <property name="text">
-    <string>Show Pages with Differences</string>
+    <string>&amp;Show Pages with Differences</string>
    </property>
    <property name="toolTip">
     <string>Show Pages with Differences</string>
@@ -324,7 +324,7 @@
      <normaloff>:/pdfdiff/resources/save-diff-to-xml.svg</normaloff>:/pdfdiff/resources/save-diff-to-xml.svg</iconset>
    </property>
    <property name="text">
-    <string>Save Differences to XML...</string>
+    <string>Save Differences to &amp;XML...</string>
    </property>
   </action>
   <action name="actionSynchronize_View_with_Differences">
@@ -336,7 +336,7 @@
      <normaloff>:/pdfdiff/resources/synchronize-view.svg</normaloff>:/pdfdiff/resources/synchronize-view.svg</iconset>
    </property>
    <property name="text">
-    <string>Synchronize View with Differences</string>
+    <string>S&amp;ynchronize View with Differences</string>
    </property>
   </action>
   <action name="actionDisplay_Differences">
@@ -348,7 +348,7 @@
      <normaloff>:/pdfdiff/resources/display-differences.svg</normaloff>:/pdfdiff/resources/display-differences.svg</iconset>
    </property>
    <property name="text">
-    <string>Display Differences</string>
+    <string>Display &amp;Differences</string>
    </property>
   </action>
   <action name="actionDisplay_Markers">
@@ -360,7 +360,7 @@
      <normaloff>:/pdfdiff/resources/display-markers.svg</normaloff>:/pdfdiff/resources/display-markers.svg</iconset>
    </property>
    <property name="text">
-    <string>Display Markers</string>
+    <string>Display &amp;Markers</string>
    </property>
   </action>
   <action name="actionBecomeASponsor">
@@ -369,7 +369,7 @@
      <normaloff>:/pdfdiff/resources/wallet.svg</normaloff>:/pdfdiff/resources/wallet.svg</iconset>
    </property>
    <property name="text">
-    <string>Become a Sponsor</string>
+    <string>Become a &amp;Sponsor</string>
    </property>
   </action>
  </widget>

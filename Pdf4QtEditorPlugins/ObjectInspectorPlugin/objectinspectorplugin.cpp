@@ -43,13 +43,13 @@ void ObjectInspectorPlugin::setWidget(pdf::PDFWidget* widget)
 
     BaseClass::setWidget(widget);
 
-    m_objectInspectorAction = new QAction(QIcon(":/pdfplugins/objectinspector/object-inspector.svg"), tr("Object Inspector"), this);
+    m_objectInspectorAction = new QAction(QIcon(":/pdfplugins/objectinspector/object-inspector.svg"), tr("Object &Inspector"), this);
     m_objectInspectorAction->setCheckable(false);
     m_objectInspectorAction->setObjectName("actionObjectInspector_ObjectInspector");
 
     connect(m_objectInspectorAction, &QAction::triggered, this, &ObjectInspectorPlugin::onObjectInspectorTriggered);
 
-    m_objectStatisticsAction = new QAction(QIcon(":/pdfplugins/objectinspector/object-statistics.svg"), tr("Object Statistics"), this);
+    m_objectStatisticsAction = new QAction(QIcon(":/pdfplugins/objectinspector/object-statistics.svg"), tr("Object &Statistics"), this);
     m_objectStatisticsAction->setCheckable(false);
     m_objectStatisticsAction->setObjectName("actionObjectInspector_ObjectStatistics");
 
@@ -76,6 +76,11 @@ void ObjectInspectorPlugin::setDocument(const pdf::PDFModifiedDocument& document
 std::vector<QAction*> ObjectInspectorPlugin::getActions() const
 {
     return { m_objectInspectorAction, m_objectStatisticsAction };
+}
+
+QString ObjectInspectorPlugin::getPluginMenuName() const
+{
+    return tr("Object &Inspector");
 }
 
 void ObjectInspectorPlugin::onObjectInspectorTriggered()

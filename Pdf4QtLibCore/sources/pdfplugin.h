@@ -81,6 +81,7 @@ public:
     virtual void setCMSManager(PDFCMSManager* manager);
     virtual void setDocument(const PDFModifiedDocument& document);
     virtual std::vector<QAction*> getActions() const;
+    virtual QString getPluginMenuName() const = 0;
 
 protected:
     IPluginDataExchange* m_dataExchangeInterface;

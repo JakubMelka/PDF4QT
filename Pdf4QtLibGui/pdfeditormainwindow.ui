@@ -25,7 +25,7 @@
    </property>
    <widget class="QMenu" name="menuFile">
     <property name="title">
-     <string>File</string>
+     <string>&amp;File</string>
     </property>
     <addaction name="actionOpen"/>
     <addaction name="actionClose"/>
@@ -44,11 +44,11 @@
    </widget>
    <widget class="QMenu" name="menuGoTo">
     <property name="title">
-     <string>Go To</string>
+     <string>&amp;Go To</string>
     </property>
     <widget class="QMenu" name="menuBookmarkSettings">
      <property name="title">
-      <string>Bookmark Settings</string>
+      <string>Book&amp;mark Settings</string>
      </property>
      <addaction name="actionBookmarkExport"/>
      <addaction name="actionBookmarkImport"/>
@@ -68,11 +68,11 @@
    </widget>
    <widget class="QMenu" name="menuView">
     <property name="title">
-     <string>View</string>
+     <string>&amp;View</string>
     </property>
     <widget class="QMenu" name="menuPage_Layout">
      <property name="title">
-      <string>Page Layout</string>
+      <string>Page La&amp;yout</string>
      </property>
      <addaction name="actionPageLayoutSinglePage"/>
      <addaction name="actionPageLayoutContinuous"/>
@@ -83,7 +83,7 @@
     </widget>
     <widget class="QMenu" name="menuRendering_Options">
      <property name="title">
-      <string>Rendering Options</string>
+      <string>Re&amp;ndering Options</string>
      </property>
      <addaction name="actionRenderOptionAntialiasing"/>
      <addaction name="actionRenderOptionTextAntialiasing"/>
@@ -113,7 +113,7 @@
    </widget>
    <widget class="QMenu" name="menuTools">
     <property name="title">
-     <string>Tools</string>
+     <string>&amp;Tools</string>
     </property>
     <addaction name="actionMagnifier"/>
     <addaction name="actionScreenshot"/>
@@ -128,7 +128,7 @@
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
-     <string>Help</string>
+     <string>&amp;Help</string>
     </property>
     <addaction name="actionGetSource"/>
     <addaction name="actionBecomeASponsor"/>
@@ -136,14 +136,14 @@
    </widget>
    <widget class="QMenu" name="menuDeveloper">
     <property name="title">
-     <string>Developer</string>
+     <string>&amp;Developer</string>
     </property>
     <addaction name="actionShow_Text_Blocks"/>
     <addaction name="actionShow_Text_Lines"/>
    </widget>
    <widget class="QMenu" name="menuEdit">
     <property name="title">
-     <string>Edit</string>
+     <string>&amp;Edit</string>
     </property>
     <addaction name="actionUndo"/>
     <addaction name="actionRedo"/>
@@ -167,11 +167,11 @@
    </widget>
    <widget class="QMenu" name="menuInsert">
     <property name="title">
-     <string>Insert</string>
+     <string>&amp;Insert</string>
     </property>
     <widget class="QMenu" name="menuSticky_Note">
      <property name="title">
-      <string>Sticky Note</string>
+      <string>Sticky &amp;Note</string>
      </property>
      <addaction name="actionStickyNoteComment"/>
      <addaction name="actionStickyNoteHelp"/>
@@ -183,12 +183,12 @@
     </widget>
     <widget class="QMenu" name="menuStamp">
      <property name="title">
-      <string>Stamp</string>
+      <string>&amp;Stamp</string>
      </property>
     </widget>
     <widget class="QMenu" name="menuTextHighlight">
      <property name="title">
-      <string>Text Higlight</string>
+      <string>Text Hi&amp;ghlight</string>
      </property>
      <addaction name="actionCreateTextHighlight"/>
      <addaction name="actionCreateTextUnderline"/>
@@ -230,29 +230,29 @@
   <widget class="QStatusBar" name="statusBar"/>
   <action name="actionOpen">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/open.svg</normaloff>:/resources/open.svg</iconset>
    </property>
    <property name="text">
-    <string>Open...</string>
+    <string>&amp;Open...</string>
    </property>
   </action>
   <action name="actionClose">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/close.svg</normaloff>:/resources/close.svg</iconset>
    </property>
    <property name="text">
-    <string>Close</string>
+    <string>&amp;Close</string>
    </property>
   </action>
   <action name="actionQuit">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/quit.svg</normaloff>:/resources/quit.svg</iconset>
    </property>
    <property name="text">
-    <string>Quit</string>
+    <string>&amp;Quit</string>
    </property>
   </action>
   <action name="actionPageLayoutSinglePage">
@@ -260,6 +260,9 @@
     <bool>true</bool>
    </property>
    <property name="text">
+    <string>&amp;Single Page</string>
+   </property>
+   <property name="toolTip">
     <string>Single Page</string>
    </property>
    <property name="shortcut">
@@ -271,6 +274,9 @@
     <bool>true</bool>
    </property>
    <property name="text">
+    <string>&amp;Continuous</string>
+   </property>
+   <property name="toolTip">
     <string>Continuous</string>
    </property>
    <property name="shortcut">
@@ -282,6 +288,9 @@
     <bool>true</bool>
    </property>
    <property name="text">
+    <string>Two &amp;Pages</string>
+   </property>
+   <property name="toolTip">
     <string>Two Pages</string>
    </property>
    <property name="shortcut">
@@ -293,6 +302,9 @@
     <bool>true</bool>
    </property>
    <property name="text">
+    <string>&amp;Two columns</string>
+   </property>
+   <property name="toolTip">
     <string>Two columns</string>
    </property>
    <property name="shortcut">
@@ -304,7 +316,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>First page on right side</string>
+    <string>&amp;First page on right side</string>
    </property>
    <property name="toolTip">
     <string>First page on right side</string>
@@ -315,11 +327,11 @@
   </action>
   <action name="actionRendering_Errors">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/rendering-errors.svg</normaloff>:/resources/rendering-errors.svg</iconset>
    </property>
    <property name="text">
-    <string>Rendering Errors...</string>
+    <string>&amp;Rendering Errors...</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+E</string>
@@ -330,6 +342,9 @@
     <bool>true</bool>
    </property>
    <property name="text">
+    <string>&amp;Antialiasing</string>
+   </property>
+   <property name="toolTip">
     <string>Antialiasing</string>
    </property>
   </action>
@@ -338,6 +353,9 @@
     <bool>true</bool>
    </property>
    <property name="text">
+    <string>&amp;Text Antialiasing</string>
+   </property>
+   <property name="toolTip">
     <string>Text Antialiasing</string>
    </property>
   </action>
@@ -346,6 +364,9 @@
     <bool>true</bool>
    </property>
    <property name="text">
+    <string>&amp;Smooth Pictures</string>
+   </property>
+   <property name="toolTip">
     <string>Smooth Pictures</string>
    </property>
   </action>
@@ -354,16 +375,19 @@
     <bool>true</bool>
    </property>
    <property name="text">
+    <string>&amp;Ignore Optional Content Settings</string>
+   </property>
+   <property name="toolTip">
     <string>Ignore Optional Content Settings</string>
    </property>
   </action>
   <action name="actionOptions">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/settings.svg</normaloff>:/resources/settings.svg</iconset>
    </property>
    <property name="text">
-    <string>Options...</string>
+    <string>&amp;Options...</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+K</string>
@@ -371,52 +395,52 @@
   </action>
   <action name="actionResetToFactorySettings">
    <property name="text">
-    <string>Reset to Factory Settings</string>
+    <string>Reset to &amp;Factory Settings</string>
    </property>
   </action>
   <action name="actionZoom_In">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/zoom-in.svg</normaloff>:/resources/zoom-in.svg</iconset>
    </property>
    <property name="text">
-    <string>Zoom In</string>
+    <string>&amp;Zoom In</string>
    </property>
   </action>
   <action name="actionZoom_Out">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/zoom-out.svg</normaloff>:/resources/zoom-out.svg</iconset>
    </property>
    <property name="text">
-    <string>Zoom Out</string>
+    <string>Zoom &amp;Out</string>
    </property>
   </action>
   <action name="actionAbout">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/book.svg</normaloff>:/resources/book.svg</iconset>
    </property>
    <property name="text">
-    <string>About...</string>
+    <string>&amp;About...</string>
    </property>
   </action>
   <action name="actionFitPage">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/zoom-fit.svg</normaloff>:/resources/zoom-fit.svg</iconset>
    </property>
    <property name="text">
-    <string>Fit Page</string>
+    <string>Fit &amp;Page</string>
    </property>
   </action>
   <action name="actionFitWidth">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/zoom-fit-horizontal.svg</normaloff>:/resources/zoom-fit-horizontal.svg</iconset>
    </property>
    <property name="text">
-    <string>Fit Width</string>
+    <string>Fit &amp;Width</string>
    </property>
    <property name="shortcut">
     <string>W</string>
@@ -424,11 +448,11 @@
   </action>
   <action name="actionFitHeight">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/zoom-fit-vertical.svg</normaloff>:/resources/zoom-fit-vertical.svg</iconset>
    </property>
    <property name="text">
-    <string>Fit Height</string>
+    <string>&amp;Fit Height</string>
    </property>
    <property name="shortcut">
     <string>H</string>
@@ -436,20 +460,20 @@
   </action>
   <action name="actionProperties">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/info.svg</normaloff>:/resources/info.svg</iconset>
    </property>
    <property name="text">
-    <string>Properties...</string>
+    <string>Prope&amp;rties...</string>
    </property>
   </action>
   <action name="actionSend_by_E_Mail">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/send-mail.svg</normaloff>:/resources/send-mail.svg</iconset>
    </property>
    <property name="text">
-    <string>Send by E-Mail...</string>
+    <string>Send by &amp;E-Mail...</string>
    </property>
   </action>
   <action name="actionShow_Text_Blocks">
@@ -457,7 +481,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Show Text Blocks</string>
+    <string>Show Text &amp;Blocks</string>
    </property>
   </action>
   <action name="actionShow_Text_Lines">
@@ -465,34 +489,34 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Show Text Lines</string>
+    <string>Show Text &amp;Lines</string>
    </property>
   </action>
   <action name="actionFind">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/find.svg</normaloff>:/resources/find.svg</iconset>
    </property>
    <property name="text">
-    <string>Find</string>
+    <string>&amp;Find</string>
    </property>
   </action>
   <action name="actionFindPrevious">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/find-previous.svg</normaloff>:/resources/find-previous.svg</iconset>
    </property>
    <property name="text">
-    <string>Find Previous</string>
+    <string>Fin&amp;d Previous</string>
    </property>
   </action>
   <action name="actionFindNext">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/find-next.svg</normaloff>:/resources/find-next.svg</iconset>
    </property>
    <property name="text">
-    <string>Find Next</string>
+    <string>Fi&amp;nd Next</string>
    </property>
   </action>
   <action name="actionSelectText">
@@ -500,11 +524,11 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/select-text.svg</normaloff>:/resources/select-text.svg</iconset>
    </property>
    <property name="text">
-    <string>Select text</string>
+    <string>Select te&amp;xt</string>
    </property>
   </action>
   <action name="actionSelectTable">
@@ -512,38 +536,38 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/select-table.svg</normaloff>:/resources/select-table.svg</iconset>
    </property>
    <property name="text">
-    <string>Select table</string>
+    <string>Select &amp;table</string>
    </property>
   </action>
   <action name="actionSelectTextAll">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/select-all-text.svg</normaloff>:/resources/select-all-text.svg</iconset>
    </property>
    <property name="text">
-    <string>Select All</string>
+    <string>Select &amp;All</string>
    </property>
   </action>
   <action name="actionDeselectText">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/deselect-text.svg</normaloff>:/resources/deselect-text.svg</iconset>
    </property>
    <property name="text">
-    <string>Deselect</string>
+    <string>Dese&amp;lect</string>
    </property>
   </action>
   <action name="actionCopyText">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/copy-text.svg</normaloff>:/resources/copy-text.svg</iconset>
    </property>
    <property name="text">
-    <string>Copy text</string>
+    <string>&amp;Copy text</string>
    </property>
   </action>
   <action name="actionColorInvert">
@@ -551,11 +575,11 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/invert-colors.svg</normaloff>:/resources/invert-colors.svg</iconset>
    </property>
    <property name="text">
-    <string>Color | Inverted</string>
+    <string>Color | &amp;Inverted</string>
    </property>
   </action>
   <action name="actionColorGrayscale">
@@ -563,11 +587,11 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/invert-colors.svg</normaloff>:/resources/invert-colors.svg</iconset>
    </property>
    <property name="text">
-    <string>Color | Grayscale</string>
+    <string>Color | &amp;Grayscale</string>
    </property>
   </action>
   <action name="actionColorHighContrast">
@@ -575,11 +599,11 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/invert-colors.svg</normaloff>:/resources/invert-colors.svg</iconset>
    </property>
    <property name="text">
-    <string>Color | High Contrast</string>
+    <string>Color | &amp;High Contrast</string>
    </property>
   </action>
   <action name="actionColorBitonal">
@@ -587,11 +611,11 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/invert-colors.svg</normaloff>:/resources/invert-colors.svg</iconset>
    </property>
    <property name="text">
-    <string>Color | Monochromatic</string>
+    <string>Color | &amp;Monochromatic</string>
    </property>
   </action>
   <action name="actionColorCustom">
@@ -599,43 +623,43 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/invert-colors.svg</normaloff>:/resources/invert-colors.svg</iconset>
    </property>
    <property name="text">
-    <string>Color | Custom</string>
+    <string>Color | &amp;Custom</string>
    </property>
   </action>
   <action name="actionRotateRight">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/rotate-right.svg</normaloff>:/resources/rotate-right.svg</iconset>
    </property>
    <property name="text">
-    <string>Rotate Right</string>
+    <string>Rotate &amp;Right</string>
    </property>
   </action>
   <action name="actionRotateLeft">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/rotate-left.svg</normaloff>:/resources/rotate-left.svg</iconset>
    </property>
    <property name="text">
-    <string>Rotate Left</string>
+    <string>Rotate &amp;Left</string>
    </property>
   </action>
   <action name="actionPrint">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/print.svg</normaloff>:/resources/print.svg</iconset>
    </property>
    <property name="text">
-    <string>Print...</string>
+    <string>&amp;Print...</string>
    </property>
   </action>
   <action name="actionRender_to_Images">
    <property name="text">
-    <string>Render to Images...</string>
+    <string>Render to &amp;Images...</string>
    </property>
   </action>
   <action name="actionMagnifier">
@@ -643,11 +667,11 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/magnifier.svg</normaloff>:/resources/magnifier.svg</iconset>
    </property>
    <property name="text">
-    <string>Magnifier</string>
+    <string>&amp;Magnifier</string>
    </property>
    <property name="toolTip">
     <string>Magnifier Tool</string>
@@ -658,11 +682,11 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/screenshot-tool.svg</normaloff>:/resources/screenshot-tool.svg</iconset>
    </property>
    <property name="text">
-    <string>Screenshot</string>
+    <string>&amp;Screenshot</string>
    </property>
   </action>
   <action name="actionExtractImage">
@@ -670,11 +694,11 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/extract-image.svg</normaloff>:/resources/extract-image.svg</iconset>
    </property>
    <property name="text">
-    <string>Extract Image</string>
+    <string>&amp;Extract Image</string>
    </property>
   </action>
   <action name="actionRenderOptionDisplayAnnotations">
@@ -682,34 +706,37 @@
     <bool>true</bool>
    </property>
    <property name="text">
+    <string>&amp;Display Annotations</string>
+   </property>
+   <property name="toolTip">
     <string>Display Annotations</string>
    </property>
   </action>
   <action name="actionUndo">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/undo.svg</normaloff>:/resources/undo.svg</iconset>
    </property>
    <property name="text">
-    <string>Undo</string>
+    <string>&amp;Undo</string>
    </property>
   </action>
   <action name="actionRedo">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/redo.svg</normaloff>:/resources/redo.svg</iconset>
    </property>
    <property name="text">
-    <string>Redo</string>
+    <string>&amp;Redo</string>
    </property>
   </action>
   <action name="actionOptimize">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/optimize.svg</normaloff>:/resources/optimize.svg</iconset>
    </property>
    <property name="text">
-    <string>Optimize...</string>
+    <string>&amp;Optimize...</string>
    </property>
    <property name="statusTip">
     <string>Optimizes document to reduce file size.</string>
@@ -717,7 +744,7 @@
   </action>
   <action name="actionSave_As">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/save-as.svg</normaloff>:/resources/save-as.svg</iconset>
    </property>
    <property name="text">
@@ -726,11 +753,11 @@
   </action>
   <action name="actionSave">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/save.svg</normaloff>:/resources/save.svg</iconset>
    </property>
    <property name="text">
-    <string>Save</string>
+    <string>&amp;Save</string>
    </property>
   </action>
   <action name="actionStickyNoteComment">
@@ -738,7 +765,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Comment</string>
+    <string>&amp;Comment</string>
    </property>
   </action>
   <action name="actionStickyNoteHelp">
@@ -746,7 +773,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Help</string>
+    <string>&amp;Help</string>
    </property>
   </action>
   <action name="actionStickyNoteInsert">
@@ -754,7 +781,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Insert</string>
+    <string>&amp;Insert</string>
    </property>
   </action>
   <action name="actionStickyNoteKey">
@@ -762,7 +789,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Key</string>
+    <string>&amp;Key</string>
    </property>
   </action>
   <action name="actionStickyNoteNewParagraph">
@@ -770,7 +797,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>New Paragraph</string>
+    <string>&amp;New Paragraph</string>
    </property>
   </action>
   <action name="actionStickyNoteNote">
@@ -778,7 +805,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Note</string>
+    <string>No&amp;te</string>
    </property>
   </action>
   <action name="actionStickyNoteParagraph">
@@ -786,7 +813,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Paragraph</string>
+    <string>&amp;Paragraph</string>
    </property>
   </action>
   <action name="actionCreateHyperlink">
@@ -794,11 +821,11 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/hyperlink.svg</normaloff>:/resources/hyperlink.svg</iconset>
    </property>
    <property name="text">
-    <string>Hyperlink</string>
+    <string>&amp;Hyperlink</string>
    </property>
   </action>
   <action name="actionInlineText">
@@ -806,11 +833,11 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/annot-inline-text.svg</normaloff>:/resources/annot-inline-text.svg</iconset>
    </property>
    <property name="text">
-    <string>Inline text</string>
+    <string>&amp;Inline text</string>
    </property>
   </action>
   <action name="actionCreateStraightLine">
@@ -818,11 +845,11 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/annot-straight-line.svg</normaloff>:/resources/annot-straight-line.svg</iconset>
    </property>
    <property name="text">
-    <string>Straight Line</string>
+    <string>Str&amp;aight Line</string>
    </property>
   </action>
   <action name="actionCreatePolyline">
@@ -830,11 +857,11 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/annot-polyline.svg</normaloff>:/resources/annot-polyline.svg</iconset>
    </property>
    <property name="text">
-    <string>Polyline</string>
+    <string>Pol&amp;yline</string>
    </property>
   </action>
   <action name="actionCreateRectangle">
@@ -842,11 +869,11 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/annot-rectangle.svg</normaloff>:/resources/annot-rectangle.svg</iconset>
    </property>
    <property name="text">
-    <string>Rectangle</string>
+    <string>&amp;Rectangle</string>
    </property>
   </action>
   <action name="actionCreatePolygon">
@@ -854,11 +881,11 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/annot-polygon.svg</normaloff>:/resources/annot-polygon.svg</iconset>
    </property>
    <property name="text">
-    <string>Polygon</string>
+    <string>&amp;Polygon</string>
    </property>
   </action>
   <action name="actionCreateEllipse">
@@ -866,11 +893,11 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/annot-ellipse.svg</normaloff>:/resources/annot-ellipse.svg</iconset>
    </property>
    <property name="text">
-    <string>Ellipse</string>
+    <string>&amp;Ellipse</string>
    </property>
   </action>
   <action name="actionCreateFreehandCurve">
@@ -878,11 +905,11 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/annot-freehand-curve.svg</normaloff>:/resources/annot-freehand-curve.svg</iconset>
    </property>
    <property name="text">
-    <string>Freehand Curve</string>
+    <string>&amp;Freehand Curve</string>
    </property>
   </action>
   <action name="actionCreateTextHighlight">
@@ -890,11 +917,11 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/highlight.svg</normaloff>:/resources/highlight.svg</iconset>
    </property>
    <property name="text">
-    <string>Highlight</string>
+    <string>&amp;Highlight</string>
    </property>
   </action>
   <action name="actionCreateTextUnderline">
@@ -902,11 +929,11 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/underline.svg</normaloff>:/resources/underline.svg</iconset>
    </property>
    <property name="text">
-    <string>Underline</string>
+    <string>&amp;Underline</string>
    </property>
   </action>
   <action name="actionCreateTextStrikeout">
@@ -914,11 +941,11 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/strikeout.svg</normaloff>:/resources/strikeout.svg</iconset>
    </property>
    <property name="text">
-    <string>Strikeout</string>
+    <string>Stri&amp;keout</string>
    </property>
   </action>
   <action name="actionCreateTextSquiggly">
@@ -926,101 +953,101 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/squiggly.svg</normaloff>:/resources/squiggly.svg</iconset>
    </property>
    <property name="text">
-    <string>Squiggly</string>
+    <string>&amp;Squiggly</string>
    </property>
   </action>
   <action name="actionGoToDocumentStart">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/previous-start.svg</normaloff>:/resources/previous-start.svg</iconset>
    </property>
    <property name="text">
-    <string>Go to document start</string>
+    <string>Go to document &amp;start</string>
    </property>
   </action>
   <action name="actionGoToDocumentEnd">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/next-end.svg</normaloff>:/resources/next-end.svg</iconset>
    </property>
    <property name="text">
-    <string>Go to document end</string>
+    <string>Go to document &amp;end</string>
    </property>
   </action>
   <action name="actionGoToNextPage">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/next-page.svg</normaloff>:/resources/next-page.svg</iconset>
    </property>
    <property name="text">
-    <string>Go to next page</string>
+    <string>Go to &amp;next page</string>
    </property>
   </action>
   <action name="actionGoToPreviousPage">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/previous-page.svg</normaloff>:/resources/previous-page.svg</iconset>
    </property>
    <property name="text">
-    <string>Go to previous page</string>
+    <string>Go to &amp;previous page</string>
    </property>
   </action>
   <action name="actionGoToNextLine">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/next.svg</normaloff>:/resources/next.svg</iconset>
    </property>
    <property name="text">
-    <string>Go to next line</string>
+    <string>Go &amp;to next line</string>
    </property>
   </action>
   <action name="actionGoToPreviousLine">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/previous.svg</normaloff>:/resources/previous.svg</iconset>
    </property>
    <property name="text">
-    <string>Go to previous line</string>
+    <string>Go t&amp;o previous line</string>
    </property>
   </action>
   <action name="actionGetSource">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/web.svg</normaloff>:/resources/web.svg</iconset>
    </property>
    <property name="text">
-    <string>Get Source</string>
+    <string>&amp;Get Source</string>
    </property>
   </action>
   <action name="actionEncryption">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/encryption.svg</normaloff>:/resources/encryption.svg</iconset>
    </property>
    <property name="text">
-    <string>Encryption...</string>
+    <string>&amp;Encryption...</string>
    </property>
   </action>
   <action name="actionCertificateManager">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/certificate-manager.svg</normaloff>:/resources/certificate-manager.svg</iconset>
    </property>
    <property name="text">
-    <string>Certificates...</string>
+    <string>&amp;Certificates...</string>
    </property>
   </action>
   <action name="actionSanitize">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/sanitize-document.svg</normaloff>:/resources/sanitize-document.svg</iconset>
    </property>
    <property name="text">
-    <string>Sanitize...</string>
+    <string>&amp;Sanitize...</string>
    </property>
    <property name="toolTip">
     <string>Sanitize document to remove sensitive information.</string>
@@ -1031,7 +1058,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Automatic Document Refresh</string>
+    <string>Automatic &amp;Document Refresh</string>
    </property>
    <property name="statusTip">
     <string>Automatically reloads the document if a change made by an external program is detected.</string>
@@ -1039,20 +1066,20 @@
   </action>
   <action name="actionBecomeASponsor">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/wallet.svg</normaloff>:/resources/wallet.svg</iconset>
    </property>
    <property name="text">
-    <string>Become a Sponsor</string>
+    <string>Become a &amp;Sponsor</string>
    </property>
   </action>
   <action name="actionCreateBitonalDocument">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/create-bitonal-document.svg</normaloff>:/resources/create-bitonal-document.svg</iconset>
    </property>
    <property name="text">
-    <string>Create Bitonal Document...</string>
+    <string>Create &amp;Bitonal Document...</string>
    </property>
    <property name="toolTip">
     <string>Create Bitonal Document</string>
@@ -1063,11 +1090,11 @@
   </action>
   <action name="actionBookmarkPage">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/bookmark.svg</normaloff>:/resources/bookmark.svg</iconset>
    </property>
    <property name="text">
-    <string>Bookmark Page</string>
+    <string>&amp;Bookmark Page</string>
    </property>
    <property name="toolTip">
     <string>Bookmark Page</string>
@@ -1078,11 +1105,11 @@
   </action>
   <action name="actionGotoNextBookmark">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/bookmark-next.svg</normaloff>:/resources/bookmark-next.svg</iconset>
    </property>
    <property name="text">
-    <string>Go to Next Bookmark</string>
+    <string>&amp;Go to Next Bookmark</string>
    </property>
    <property name="toolTip">
     <string>Go to Next Bookmark</string>
@@ -1093,11 +1120,11 @@
   </action>
   <action name="actionGotoPreviousBookmark">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/bookmark-previous.svg</normaloff>:/resources/bookmark-previous.svg</iconset>
    </property>
    <property name="text">
-    <string>Go to Previous Bookmark</string>
+    <string>Go to Previous Boo&amp;kmark</string>
    </property>
    <property name="toolTip">
     <string>Go to Previous Bookmark</string>
@@ -1108,11 +1135,11 @@
   </action>
   <action name="actionBookmarkExport">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/bookmark.svg</normaloff>:/resources/bookmark.svg</iconset>
    </property>
    <property name="text">
-    <string>Export Bookmarks</string>
+    <string>&amp;Export Bookmarks</string>
    </property>
    <property name="toolTip">
     <string>Export Bookmarks</string>
@@ -1123,11 +1150,11 @@
   </action>
   <action name="actionBookmarkImport">
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/bookmark.svg</normaloff>:/resources/bookmark.svg</iconset>
    </property>
    <property name="text">
-    <string>Import Bookmarks</string>
+    <string>&amp;Import Bookmarks</string>
    </property>
    <property name="toolTip">
     <string>Import Bookmarks</string>
@@ -1141,11 +1168,11 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="pdf4qtviewer.qrc">
+    <iconset resource="pdf4qtlibgui.qrc">
      <normaloff>:/resources/bookmark.svg</normaloff>:/resources/bookmark.svg</iconset>
    </property>
    <property name="text">
-    <string>Generate Bookmarks Automatically</string>
+    <string>&amp;Generate Bookmarks Automatically</string>
    </property>
    <property name="toolTip">
     <string>Generate Bookmarks Automatically</string>
@@ -1159,6 +1186,9 @@
     <bool>true</bool>
    </property>
    <property name="text">
+    <string>Display &amp;Render Times</string>
+   </property>
+   <property name="toolTip">
     <string>Display Render Times</string>
    </property>
    <property name="menuRole">
@@ -1168,7 +1198,7 @@
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <resources>
-  <include location="pdf4qtviewer.qrc"/>
+  <include location="pdf4qtlibgui.qrc"/>
  </resources>
  <connections/>
 </ui>

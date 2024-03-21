@@ -45,6 +45,8 @@ SettingsDockWidget::SettingsDockWidget(Settings* settings, QWidget* parent) :
     }
 
     connect(ui->transparencySlider, &QSlider::valueChanged, this, &SettingsDockWidget::transparencySliderChanged);
+
+    toggleViewAction()->setText(tr("S&ettings"));
 }
 
 SettingsDockWidget::~SettingsDockWidget()
