@@ -79,7 +79,7 @@ Several third-party libraries are used.
 ## 5. CONTRIBUTIONS
 
 If you want to contribute to this project, it is required, that you (contributor)
-fill and digitally sign document [Contributor License Agreement](CLA/Contributor_License_Agreement.pdf),
+fill and digitally sign document [Contribution License Agreement](CLA/Contribution_Licence_Agreement.pdf),
 because I want to have a freedom to do whatever I want with my library, without obligation
 to someone else. But I would strongly prefer, if you want to contribute, to contribute
 in a form of testing, consultation, giving advices etc. I would like to write this library
