@@ -1,4 +1,4 @@
-//    Copyright (C) 2023 Jakub Melka
+//    Copyright (C) 2023-2024 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -61,11 +61,14 @@ void PDFPageContentEditorProcessor::performInterceptInstruction(Operator current
         {
             if (m_contentElementText && !m_contentElementText->isEmpty())
             {
+                m_contentElementText->setTextPath(std::move(m_textPath));
+                m_contentElementText->setBoundingBox(m_textBoundingRect);
                 m_content.addContentElement(std::move(m_contentElementText));
             }
             m_contentElementText.reset();
 
             m_textBoundingRect = QRectF();
+            m_textPath = QPainterPath();
         }
     }
 }
@@ -87,6 +90,7 @@ void PDFPageContentEditorProcessor::performPathPainting(const QPainterPath& path
         QPainterPath mappedPath = getCurrentWorldMatrix().map(path);
         QRectF boundingRect = mappedPath.boundingRect();
         m_textBoundingRect = m_textBoundingRect.united(boundingRect);
+        m_textPath.addPath(mappedPath);
     }
     else
     {
@@ -122,8 +126,9 @@ bool PDFPageContentEditorProcessor::performOriginalImagePainting(const PDFImage&
 {
     Q_UNUSED(image);
 
+    QRectF boundingBox = getCurrentWorldMatrix().mapRect(QRectF(0.0, 0.0, 1.0, 1.0));
     PDFObject imageObject = PDFObject::createStream(std::make_shared<PDFStream>(*stream));
-    m_content.addContentImage(*getGraphicState(), std::move(imageObject), QImage());
+    m_content.addContentImage(*getGraphicState(), std::move(imageObject), QImage(), boundingBox);
 
     return false;
 }
@@ -419,9 +424,9 @@ void PDFEditedPageContent::addContentPath(PDFPageContentProcessorState state, QP
     m_contentElements.emplace_back(new PDFEditedPageContentElementPath(std::move(state), std::move(path), strokePath, fillPath));
 }
 
-void PDFEditedPageContent::addContentImage(PDFPageContentProcessorState state, PDFObject imageObject, QImage image)
+void PDFEditedPageContent::addContentImage(PDFPageContentProcessorState state, PDFObject imageObject, QImage image, QRectF boundingBox)
 {
-    m_contentElements.emplace_back(new PDFEditedPageContentElementImage(std::move(state), std::move(imageObject), std::move(image)));
+    m_contentElements.emplace_back(new PDFEditedPageContentElementImage(std::move(state), std::move(imageObject), std::move(image), boundingBox));
 }
 
 void PDFEditedPageContent::addContentElement(std::unique_ptr<PDFEditedPageContentElement> element)
@@ -510,10 +515,11 @@ void PDFEditedPageContentElementPath::setFillPath(bool newFillPath)
     m_fillPath = newFillPath;
 }
 
-PDFEditedPageContentElementImage::PDFEditedPageContentElementImage(PDFPageContentProcessorState state, PDFObject imageObject, QImage image) :
+PDFEditedPageContentElementImage::PDFEditedPageContentElementImage(PDFPageContentProcessorState state, PDFObject imageObject, QImage image, QRectF boundingBox) :
     PDFEditedPageContentElement(std::move(state)),
     m_imageObject(std::move(imageObject)),
-    m_image(std::move(image))
+    m_image(std::move(image)),
+    m_boundingBox(boundingBox)
 {
 
 }
@@ -525,7 +531,12 @@ PDFEditedPageContentElement::Type PDFEditedPageContentElementImage::getType() co
 
 PDFEditedPageContentElementImage* PDFEditedPageContentElementImage::clone() const
 {
-    return new PDFEditedPageContentElementImage(getState(), getImageObject(), getImage());
+    return new PDFEditedPageContentElementImage(getState(), getImageObject(), getImage(), getBoundingBox());
+}
+
+QRectF PDFEditedPageContentElementImage::getBoundingBox() const
+{
+    return m_boundingBox;
 }
 
 PDFObject PDFEditedPageContentElementImage::getImageObject() const
@@ -554,9 +565,14 @@ PDFEditedPageContentElementText::PDFEditedPageContentElementText(PDFPageContentP
 
 }
 
-PDFEditedPageContentElementText::PDFEditedPageContentElementText(PDFPageContentProcessorState state, std::vector<Item> items) :
+PDFEditedPageContentElementText::PDFEditedPageContentElementText(PDFPageContentProcessorState state,
+                                                                 std::vector<Item> items,
+                                                                 QPainterPath textPath,
+                                                                 QRectF boundingBox) :
     PDFEditedPageContentElement(state),
-    m_items(std::move(items))
+    m_items(std::move(items)),
+    m_boundingBox(boundingBox),
+    m_textPath(std::move(textPath))
 {
 
 }
@@ -568,7 +584,7 @@ PDFEditedPageContentElement::Type PDFEditedPageContentElementText::getType() con
 
 PDFEditedPageContentElementText* PDFEditedPageContentElementText::clone() const
 {
-    return new PDFEditedPageContentElementText(getState(), getItems());
+    return new PDFEditedPageContentElementText(getState(), getItems(), getTextPath(), getBoundingBox());
 }
 
 void PDFEditedPageContentElementText::addItem(Item item)
@@ -584,6 +600,26 @@ const std::vector<PDFEditedPageContentElementText::Item>& PDFEditedPageContentEl
 void PDFEditedPageContentElementText::setItems(const std::vector<Item>& newItems)
 {
     m_items = newItems;
+}
+
+QRectF PDFEditedPageContentElementText::getBoundingBox() const
+{
+    return m_boundingBox;
+}
+
+void PDFEditedPageContentElementText::setBoundingBox(const QRectF& newBoundingBox)
+{
+    m_boundingBox = newBoundingBox;
+}
+
+QPainterPath PDFEditedPageContentElementText::getTextPath() const
+{
+    return m_textPath;
+}
+
+void PDFEditedPageContentElementText::setTextPath(QPainterPath newTextPath)
+{
+    m_textPath = newTextPath;
 }
 
 }   // namespace pdf

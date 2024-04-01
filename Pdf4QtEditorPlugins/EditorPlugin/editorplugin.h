@@ -47,6 +47,7 @@ public:
     virtual void setWidget(pdf::PDFWidget* widget) override;
     virtual void setDocument(const pdf::PDFModifiedDocument& document) override;
     virtual std::vector<QAction*> getActions() const override;
+    virtual QString getPluginMenuName() const override;
 
 private:
     void onSceneChanged(bool graphicsOnly);

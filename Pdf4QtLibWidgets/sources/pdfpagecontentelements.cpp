@@ -2552,8 +2552,52 @@ PDFPageContentElementEdited* PDFPageContentElementEdited::clone() const
     return new PDFPageContentElementEdited(m_element.get());
 }
 
-void PDFPageContentElementEdited::drawPage(QPainter* painter, PDFInteger pageIndex, const PDFPrecompiledPage* compiledPage, PDFTextLayoutGetter& layoutGetter, const QTransform& pagePointToDevicePointMatrix, QList<PDFRenderError>& errors) const
+void PDFPageContentElementEdited::drawPage(QPainter* painter,
+                                           PDFInteger pageIndex,
+                                           const PDFPrecompiledPage* compiledPage,
+                                           PDFTextLayoutGetter& layoutGetter,
+                                           const QTransform& pagePointToDevicePointMatrix,
+                                           QList<PDFRenderError>& errors) const
 {
+    PDFPainterStateGuard guard(painter);
+
+    Q_UNUSED(pageIndex);
+    Q_UNUSED(compiledPage);
+    Q_UNUSED(layoutGetter);
+    Q_UNUSED(errors);
+
+    QRectF rect = getBoundingBox();
+    painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
+    painter->setPen(Qt::SolidLine);
+    painter->setBrush(Qt::NoBrush);
+    painter->setFont(QApplication::font());
+    painter->setRenderHint(QPainter::Antialiasing);
+    painter->setClipRect(rect, Qt::IntersectClip);
+
+    if (const PDFEditedPageContentElementImage* imageElement = m_element->asImage())
+    {
+        painter->translate(rect.bottomLeft());
+        painter->scale(1.0, -1.0);
+
+        QImage image = imageElement->getImage();
+        painter->drawImage(rect, image);
+    }
+
+    if (const PDFEditedPageContentElementPath* pathElement = m_element->asPath())
+    {
+        const PDFPageContentProcessorState& state = m_element->getState();
+        painter->setPen(pdf::PDFPainterHelper::createPenFromState(&state, state.getAlphaStroking()));
+        painter->setBrush(pdf::PDFPainterHelper::createBrushFromState(&state, state.getAlphaFilling()));
+        painter->setTransform(pathElement->getState().getCurrentTransformationMatrix(), true);
+        painter->drawPath(pathElement->getPath());
+    }
+
+    if (const PDFEditedPageContentElementText* textElement = m_element->asText())
+    {
+        const PDFPageContentProcessorState& state = m_element->getState();
+        painter->setBrush(pdf::PDFPainterHelper::createBrushFromState(&state, state.getAlphaFilling()));
+        painter->fillPath(textElement->getTextPath(), painter->brush());
+    }
 }
 
 uint PDFPageContentElementEdited::getManipulationMode(const QPointF& point, PDFReal snapPointDistanceThreshold) const
@@ -2572,15 +2616,32 @@ void PDFPageContentElementEdited::performManipulation(uint mode, const QPointF& 
 
 QRectF PDFPageContentElementEdited::getBoundingBox() const
 {
-    return m_element->getState()
+    return m_element->getBoundingBox();
 }
 
 void PDFPageContentElementEdited::setSize(QSizeF size)
 {
+    Q_UNUSED(size);
 }
 
 QString PDFPageContentElementEdited::getDescription() const
 {
+    if (m_element->asImage())
+    {
+        return formatDescription(PDFTranslationContext::tr("Image"));
+    }
+
+    if (m_element->asText())
+    {
+        return formatDescription(PDFTranslationContext::tr("Text"));
+    }
+
+    if (m_element->asPath())
+    {
+        return formatDescription(PDFTranslationContext::tr("Path"));
+    }
+
+    return formatDescription(PDFTranslationContext::tr("Unknown"));
 }
 
 }   // namespace pdf

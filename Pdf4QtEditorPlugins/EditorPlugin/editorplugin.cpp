@@ -50,20 +50,20 @@ void EditorPlugin::setWidget(pdf::PDFWidget* widget)
 
     BaseClass::setWidget(widget);
 
-    QAction* activateAction = new QAction(QIcon(":/pdfplugins/editorplugin/activate.svg"), tr("Edit page content"), this);
-    QAction* createTextAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-text.svg"), tr("Create Text Label"), this);
-    QAction* createFreehandCurveAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-freehand-curve.svg"), tr("Create Freehand Curve"), this);
-    QAction* createAcceptMarkAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-yes-mark.svg"), tr("Create Accept Mark"), this);
-    QAction* createRejectMarkAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-no-mark.svg"), tr("Create Reject Mark"), this);
-    QAction* createRectangleAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-rectangle.svg"), tr("Create Rectangle"), this);
-    QAction* createRoundedRectangleAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-rounded-rectangle.svg"), tr("Create Rounded Rectangle"), this);
-    QAction* createHorizontalLineAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-horizontal-line.svg"), tr("Create Horizontal Line"), this);
-    QAction* createVerticalLineAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-vertical-line.svg"), tr("Create Vertical Line"), this);
-    QAction* createLineAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-line.svg"), tr("Create Line"), this);
-    QAction* createDotAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-dot.svg"), tr("Create Dot"), this);
-    QAction* createSvgImageAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-svg-image.svg"), tr("Create SVG Image"), this);
-    QAction* clearAction = new QAction(QIcon(":/pdfplugins/editorplugin/clear.svg"), tr("Clear All Graphics"), this);
-    QAction* certificatesAction = new QAction(QIcon(":/pdfplugins/editorplugin/certificates.svg"), tr("Certificates Manager"), this);
+    QAction* activateAction = new QAction(QIcon(":/pdfplugins/editorplugin/activate.svg"), tr("&Edit page content"), this);
+    QAction* createTextAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-text.svg"), tr("Create &Text Label"), this);
+    QAction* createFreehandCurveAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-freehand-curve.svg"), tr("Create &Freehand Curve"), this);
+    QAction* createAcceptMarkAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-yes-mark.svg"), tr("Create &Accept Mark"), this);
+    QAction* createRejectMarkAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-no-mark.svg"), tr("Create &Reject Mark"), this);
+    QAction* createRectangleAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-rectangle.svg"), tr("Create R&ectangle"), this);
+    QAction* createRoundedRectangleAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-rounded-rectangle.svg"), tr("&Create Rounded Rectangle"), this);
+    QAction* createHorizontalLineAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-horizontal-line.svg"), tr("Create &Horizontal Line"), this);
+    QAction* createVerticalLineAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-vertical-line.svg"), tr("Create &Vertical Line"), this);
+    QAction* createLineAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-line.svg"), tr("Create L&ine"), this);
+    QAction* createDotAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-dot.svg"), tr("Create &Dot"), this);
+    QAction* createSvgImageAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-svg-image.svg"), tr("Create &SVG Image"), this);
+    QAction* clearAction = new QAction(QIcon(":/pdfplugins/editorplugin/clear.svg"), tr("Clear A&ll Graphics"), this);
+    QAction* certificatesAction = new QAction(QIcon(":/pdfplugins/editorplugin/certificates.svg"), tr("Certificates &Manager"), this);
 
     activateAction->setObjectName("editortool_activateAction");
     createTextAction->setObjectName("editortool_createTextAction");
@@ -173,6 +173,11 @@ std::vector<QAction*> EditorPlugin::getActions() const
     result.push_back(m_actions[Activate]);
 
     return result;
+}
+
+QString EditorPlugin::getPluginMenuName() const
+{
+    return tr("Edi&tor");
 }
 
 void EditorPlugin::onSceneChanged(bool graphicsOnly)
@@ -458,27 +463,13 @@ void EditorPlugin::updateEditedPages()
         m_editedPageContent[pageIndex] = processor.takeEditedPageContent();
 
         size_t elementCount = m_editedPageContent[pageIndex].getElementCount();
-        for (size_t i = 0; i <elementCount; ++i)
+        for (size_t i = 0; i < elementCount; ++i)
         {
             pdf::PDFEditedPageContentElement* element = m_editedPageContent[pageIndex].getElement(i);
-
+            pdf::PDFPageContentElementEdited* editedElement = new pdf::PDFPageContentElementEdited(element);
+            editedElement->setPageIndex(pageIndex);
+            m_scene.addElement(editedElement);
         }
-/*
-        std::vector<pdf::PDFEditedPageContent::ContentTextInfo> textInfos = m_editedPageContent[pageIndex].getTextInfos();
-        for (const pdf::PDFEditedPageContent::ContentTextInfo& textInfo : textInfos)
-        {
-            if (textInfo.boundingRectangle.isEmpty())
-            {
-                continue;
-            }
-
-            pdf::PDFPageContentElementEditedContentTextBox* textBox = new pdf::PDFPageContentElementEditedContentTextBox();
-            textBox->setPageIndex(pageIndex);
-            textBox->setRectangle(textInfo.boundingRectangle);
-            textBox->setContentId(textInfo.id);
-
-            m_scene.addElement(textBox);
-        }*/
     }
 }
 

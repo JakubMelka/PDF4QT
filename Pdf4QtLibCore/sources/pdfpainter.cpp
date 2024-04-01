@@ -114,56 +114,12 @@ bool PDFPainterBase::isContentSuppressedByOC(PDFObjectReference ocgOrOcmd)
 
 QPen PDFPainterBase::getCurrentPenImpl() const
 {
-    const PDFPageContentProcessorState* graphicState = getGraphicState();
-    QColor color = graphicState->getStrokeColor();
-    if (color.isValid())
-    {
-        color.setAlphaF(getEffectiveStrokingAlpha());
-        const PDFReal lineWidth = graphicState->getLineWidth();
-        Qt::PenCapStyle penCapStyle = graphicState->getLineCapStyle();
-        Qt::PenJoinStyle penJoinStyle = graphicState->getLineJoinStyle();
-        const PDFLineDashPattern& lineDashPattern = graphicState->getLineDashPattern();
-        const PDFReal mitterLimit = graphicState->getMitterLimit();
-
-        QPen pen(color);
-
-        pen.setWidthF(lineWidth);
-        pen.setCapStyle(penCapStyle);
-        pen.setJoinStyle(penJoinStyle);
-        pen.setMiterLimit(mitterLimit);
-
-        if (lineDashPattern.isSolid())
-        {
-            pen.setStyle(Qt::SolidLine);
-        }
-        else
-        {
-            pen.setStyle(Qt::CustomDashLine);
-            pen.setDashPattern(lineDashPattern.createForQPen(pen.widthF()));
-            pen.setDashOffset(lineDashPattern.getDashOffset());
-        }
-
-        return pen;
-    }
-    else
-    {
-        return QPen(Qt::NoPen);
-    }
+    return PDFPainterHelper::createPenFromState(getGraphicState(), getEffectiveStrokingAlpha());
 }
 
 QBrush PDFPainterBase::getCurrentBrushImpl() const
 {
-    const PDFPageContentProcessorState* graphicState = getGraphicState();
-    QColor color = graphicState->getFillColor();
-    if (color.isValid())
-    {
-        color.setAlphaF(getEffectiveFillingAlpha());
-        return QBrush(color, Qt::SolidPattern);
-    }
-    else
-    {
-        return QBrush(Qt::NoBrush);
-    }
+    return PDFPainterHelper::createBrushFromState(getGraphicState(), getEffectiveFillingAlpha());
 }
 
 PDFReal PDFPainterBase::getEffectiveStrokingAlpha() const

@@ -16,6 +16,7 @@
 //    along with PDF4QT. If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfpainterutils.h"
+#include "pdfpagecontentprocessor.h"
 
 #include <QPainterPath>
 #include <QFontMetrics>
@@ -64,5 +65,56 @@ QRect PDFPainterHelper::drawBubble(QPainter* painter, QPoint point, QColor color
     return rectangle;
 }
 
+QPen PDFPainterHelper::createPenFromState(const PDFPageContentProcessorState* graphicState, double alpha)
+{
+    QColor color = graphicState->getStrokeColor();
+    if (color.isValid())
+    {
+        color.setAlphaF(alpha);
+        const PDFReal lineWidth = graphicState->getLineWidth();
+        Qt::PenCapStyle penCapStyle = graphicState->getLineCapStyle();
+        Qt::PenJoinStyle penJoinStyle = graphicState->getLineJoinStyle();
+        const PDFLineDashPattern& lineDashPattern = graphicState->getLineDashPattern();
+        const PDFReal mitterLimit = graphicState->getMitterLimit();
+
+        QPen pen(color);
+
+        pen.setWidthF(lineWidth);
+        pen.setCapStyle(penCapStyle);
+        pen.setJoinStyle(penJoinStyle);
+        pen.setMiterLimit(mitterLimit);
+
+        if (lineDashPattern.isSolid())
+        {
+            pen.setStyle(Qt::SolidLine);
+        }
+        else
+        {
+            pen.setStyle(Qt::CustomDashLine);
+            pen.setDashPattern(lineDashPattern.createForQPen(pen.widthF()));
+            pen.setDashOffset(lineDashPattern.getDashOffset());
+        }
+
+        return pen;
+    }
+    else
+    {
+        return QPen(Qt::NoPen);
+    }
+}
+
+QBrush PDFPainterHelper::createBrushFromState(const PDFPageContentProcessorState* graphicState, double alpha)
+{
+    QColor color = graphicState->getFillColor();
+    if (color.isValid())
+    {
+        color.setAlphaF(alpha);
+        return QBrush(color, Qt::SolidPattern);
+    }
+    else
+    {
+        return QBrush(Qt::NoBrush);
+    }
+}
 
 }   // namespace pdf

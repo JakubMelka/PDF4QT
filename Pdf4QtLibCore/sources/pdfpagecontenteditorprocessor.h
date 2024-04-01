@@ -29,7 +29,7 @@ class PDFEditedPageContentElementPath;
 class PDFEditedPageContentElementText;
 class PDFEditedPageContentElementImage;
 
-class PDFEditedPageContentElement
+class PDF4QTLIBCORESHARED_EXPORT PDFEditedPageContentElement
 {
 public:
     PDFEditedPageContentElement() = default;
@@ -64,7 +64,7 @@ protected:
     PDFPageContentProcessorState m_state;
 };
 
-class PDFEditedPageContentElementPath : public PDFEditedPageContentElement
+class PDF4QTLIBCORESHARED_EXPORT PDFEditedPageContentElementPath : public PDFEditedPageContentElement
 {
 public:
     PDFEditedPageContentElementPath(PDFPageContentProcessorState state, QPainterPath path, bool strokePath, bool fillPath);
@@ -91,16 +91,17 @@ private:
     bool m_fillPath;
 };
 
-class PDFEditedPageContentElementImage : public PDFEditedPageContentElement
+class PDF4QTLIBCORESHARED_EXPORT PDFEditedPageContentElementImage : public PDFEditedPageContentElement
 {
 public:
-    PDFEditedPageContentElementImage(PDFPageContentProcessorState state, PDFObject imageObject, QImage image);
+    PDFEditedPageContentElementImage(PDFPageContentProcessorState state, PDFObject imageObject, QImage image, QRectF boundingBox);
     virtual ~PDFEditedPageContentElementImage() = default;
 
     virtual Type getType() const override;
     virtual PDFEditedPageContentElementImage* clone() const override;
     virtual PDFEditedPageContentElementImage* asImage() override { return this; }
     virtual const PDFEditedPageContentElementImage* asImage() const override { return this; }
+    virtual QRectF getBoundingBox() const override;
 
     PDFObject getImageObject() const;
     void setImageObject(const PDFObject& newImageObject);
@@ -111,9 +112,10 @@ public:
 private:
     PDFObject m_imageObject;
     QImage m_image;
+    QRectF m_boundingBox;
 };
 
-class PDFEditedPageContentElementText : public PDFEditedPageContentElement
+class PDF4QTLIBCORESHARED_EXPORT PDFEditedPageContentElementText : public PDFEditedPageContentElement
 {
 public:
 
@@ -127,13 +129,17 @@ public:
     };
 
     PDFEditedPageContentElementText(PDFPageContentProcessorState state);
-    PDFEditedPageContentElementText(PDFPageContentProcessorState state, std::vector<Item> items);
+    PDFEditedPageContentElementText(PDFPageContentProcessorState state,
+                                    std::vector<Item> items,
+                                    QPainterPath textPath,
+                                    QRectF boundingBox);
     virtual ~PDFEditedPageContentElementText() = default;
 
     virtual Type getType() const override;
     virtual PDFEditedPageContentElementText* clone() const override;
     virtual PDFEditedPageContentElementText* asText() override { return this; }
     virtual const PDFEditedPageContentElementText* asText() const override { return this; }
+    virtual QRectF getBoundingBox() const override;
 
     void addItem(Item item);
     const std::vector<Item>& getItems() const;
@@ -141,11 +147,18 @@ public:
 
     bool isEmpty() const { return m_items.empty(); }
 
+    void setBoundingBox(const QRectF& newBoundingBox);
+
+    QPainterPath getTextPath() const;
+    void setTextPath(QPainterPath newTextPath);
+
 private:
     std::vector<Item> m_items;
+    QRectF m_boundingBox;
+    QPainterPath m_textPath;
 };
 
-class PDFEditedPageContent
+class PDF4QTLIBCORESHARED_EXPORT PDFEditedPageContent
 {
 public:
     PDFEditedPageContent() = default;
@@ -159,7 +172,7 @@ public:
     static QString getOperandName(PDFPageContentProcessor::Operator operatorValue, int operandIndex);
 
     void addContentPath(PDFPageContentProcessorState state, QPainterPath path, bool strokePath, bool fillPath);
-    void addContentImage(PDFPageContentProcessorState state, PDFObject imageObject, QImage image);
+    void addContentImage(PDFPageContentProcessorState state, PDFObject imageObject, QImage image, QRectF boundingBox);
     void addContentClipping(PDFPageContentProcessorState state, QPainterPath path);
     void addContentElement(std::unique_ptr<PDFEditedPageContentElement> element);
 
@@ -205,6 +218,7 @@ private:
     QRectF m_textBoundingRect;
     std::stack<QPainterPath> m_clippingPaths;
     std::unique_ptr<PDFEditedPageContentElementText> m_contentElementText;
+    QPainterPath m_textPath;
 };
 
 }   // namespace pdf
