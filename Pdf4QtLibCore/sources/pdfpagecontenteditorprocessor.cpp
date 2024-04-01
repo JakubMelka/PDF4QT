@@ -46,7 +46,7 @@ void PDFPageContentEditorProcessor::performInterceptInstruction(Operator current
                                                                 ProcessOrder processOrder,
                                                                 const QByteArray& operatorAsText)
 {
-    Q_UNUSED(operatorAsText);
+    BaseClass::performInterceptInstruction(currentOperator, processOrder, operatorAsText);
 
     if (processOrder == ProcessOrder::BeforeOperation)
     {
@@ -75,19 +75,16 @@ void PDFPageContentEditorProcessor::performInterceptInstruction(Operator current
 
 void PDFPageContentEditorProcessor::performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule)
 {
+    BaseClass::performPathPainting(path, stroke, fill, text, fillRule);
+
     if (path.isEmpty())
     {
         return;
     }
 
-    Q_UNUSED(fillRule);
-    Q_UNUSED(stroke);
-    Q_UNUSED(fill);
-    Q_UNUSED(text);
-
     if (text)
     {
-        QPainterPath mappedPath = getCurrentWorldMatrix().map(path);
+        QPainterPath mappedPath = getGraphicState()->getCurrentTransformationMatrix().map(path);
         QRectF boundingRect = mappedPath.boundingRect();
         m_textBoundingRect = m_textBoundingRect.united(boundingRect);
         m_textPath.addPath(mappedPath);
@@ -100,6 +97,8 @@ void PDFPageContentEditorProcessor::performPathPainting(const QPainterPath& path
 
 void PDFPageContentEditorProcessor::performUpdateGraphicsState(const PDFPageContentProcessorState& state)
 {
+    BaseClass::performUpdateGraphicsState(state);
+
     if (isTextProcessing() && m_contentElementText)
     {
         PDFEditedPageContentElementText::Item item;
@@ -112,6 +111,8 @@ void PDFPageContentEditorProcessor::performUpdateGraphicsState(const PDFPageCont
 
 void PDFPageContentEditorProcessor::performProcessTextSequence(const TextSequence& textSequence, ProcessOrder order)
 {
+    BaseClass::performProcessTextSequence(textSequence, order);
+
     if (order == ProcessOrder::BeforeOperation)
     {
         PDFEditedPageContentElementText::Item item;
@@ -124,7 +125,7 @@ void PDFPageContentEditorProcessor::performProcessTextSequence(const TextSequenc
 
 bool PDFPageContentEditorProcessor::performOriginalImagePainting(const PDFImage& image, const PDFStream* stream)
 {
-    Q_UNUSED(image);
+    BaseClass::performOriginalImagePainting(image, stream);
 
     QRectF boundingBox = getCurrentWorldMatrix().mapRect(QRectF(0.0, 0.0, 1.0, 1.0));
     PDFObject imageObject = PDFObject::createStream(std::make_shared<PDFStream>(*stream));
@@ -135,6 +136,8 @@ bool PDFPageContentEditorProcessor::performOriginalImagePainting(const PDFImage&
 
 void PDFPageContentEditorProcessor::performImagePainting(const QImage& image)
 {
+    BaseClass::performImagePainting(image);
+
     PDFEditedPageContentElement* backElement = m_content.getBackElement();
     Q_ASSERT(backElement);
 
@@ -144,6 +147,8 @@ void PDFPageContentEditorProcessor::performImagePainting(const QImage& image)
 
 void PDFPageContentEditorProcessor::performSaveGraphicState(ProcessOrder order)
 {
+    BaseClass::performSaveGraphicState(order);
+
     if (order == ProcessOrder::BeforeOperation)
     {
         m_clippingPaths.push(m_clippingPaths.top());
@@ -152,6 +157,8 @@ void PDFPageContentEditorProcessor::performSaveGraphicState(ProcessOrder order)
 
 void PDFPageContentEditorProcessor::performRestoreGraphicState(ProcessOrder order)
 {
+    BaseClass::performRestoreGraphicState(order);
+
     if (order == ProcessOrder::AfterOperation)
     {
         m_clippingPaths.pop();
@@ -160,7 +167,7 @@ void PDFPageContentEditorProcessor::performRestoreGraphicState(ProcessOrder orde
 
 void PDFPageContentEditorProcessor::performClipping(const QPainterPath& path, Qt::FillRule fillRule)
 {
-    Q_UNUSED(fillRule);
+    BaseClass::performClipping(path, fillRule);
 
     if (m_clippingPaths.top().isEmpty())
     {
