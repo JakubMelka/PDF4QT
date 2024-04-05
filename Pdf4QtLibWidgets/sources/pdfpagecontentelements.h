@@ -369,6 +369,8 @@ public:
     virtual void setSize(QSizeF size) override;
     virtual QString getDescription() const override;
 
+    const PDFEditedPageContentElement* getElement() const { return m_element.get(); }
+
 private:
     std::unique_ptr<PDFEditedPageContentElement> m_element;
 };

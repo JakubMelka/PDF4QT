@@ -2605,6 +2605,11 @@ uint PDFPageContentElementEdited::getManipulationMode(const QPointF& point, PDFR
     Q_UNUSED(point);
     Q_UNUSED(snapPointDistanceThreshold);
 
+    if (getBoundingBox().contains(point))
+    {
+        return Select;
+    }
+
     return None;
 }
 

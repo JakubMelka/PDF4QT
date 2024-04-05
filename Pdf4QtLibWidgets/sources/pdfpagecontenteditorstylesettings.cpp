@@ -20,6 +20,7 @@
 
 #include "pdfwidgetutils.h"
 #include "pdfpagecontentelements.h"
+#include "pdfpagecontenteditorediteditemsettings.h"
 
 #include <QFontDialog>
 #include <QColorDialog>
@@ -38,7 +39,7 @@ PDFPageContentEditorStyleSettings::PDFPageContentEditorStyleSettings(QWidget* pa
 {
     ui->setupUi(this);
 
-    for (QString colorName : QColor::colorNames())
+    for (const QString& colorName : QColor::colorNames())
     {
         QColor color(colorName);
         QIcon icon = getIconForColor(color);
@@ -263,59 +264,87 @@ bool PDFPageContentEditorStyleSettings::showEditElementStyleDialog(QWidget* pare
     dialog.setWindowTitle(tr("Edit Item"));
     dialog.setLayout(new QVBoxLayout());
 
-    QTextEdit* textEdit = nullptr;
-    PDFPageContentStyledElement* styledElement = dynamic_cast<PDFPageContentStyledElement*>(element);
-    PDFPageContentElementTextBox* textElement = dynamic_cast<PDFPageContentElementTextBox*>(element);
-    if (textElement)
+    PDFPageContentEditorStyleSettings* appearanceWidget = nullptr;
+    PDFPageContentElementEdited* editedElement = dynamic_cast<PDFPageContentElementEdited*>(element);
+    if (editedElement)
     {
-        QGroupBox* contentGroupBox = new QGroupBox(&dialog);
-        textEdit = new QTextEdit(textElement->getText(), contentGroupBox);
-        textEdit->setFont(textElement->getFont());
-        textEdit->setAlignment(textElement->getAlignment());
-        textEdit->setTextColor(textElement->getPen().color());
-        contentGroupBox->setTitle(tr("Content"));
-        contentGroupBox->setLayout(new QVBoxLayout());
-        contentGroupBox->layout()->addWidget(textEdit);
-        dialog.layout()->addWidget(contentGroupBox);
-    }
+        PDFPageContentEditorEditedItemSettings* widget = new PDFPageContentEditorEditedItemSettings(&dialog);
+        dialog.layout()->addWidget(widget);
 
-    PDFPageContentEditorStyleSettings* appearanceWidget = new PDFPageContentEditorStyleSettings(&dialog);
-    appearanceWidget->loadFromElement(element, true);
-    if (textEdit)
-    {
-        connect(appearanceWidget, &PDFPageContentEditorStyleSettings::alignmentChanged, textEdit, &QTextEdit::setAlignment);
-        connect(appearanceWidget, &PDFPageContentEditorStyleSettings::fontChanged, textEdit, &QTextEdit::setFont);
-        connect(appearanceWidget, &PDFPageContentEditorStyleSettings::penChanged, textEdit, [textEdit](const QPen& pen) { textEdit->setTextColor(pen.color()); });
-    }
+        QDialogButtonBox* dialogButtonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+        connect(dialogButtonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+        connect(dialogButtonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+        dialog.layout()->addWidget(dialogButtonBox);
 
-    QGroupBox* appearanceGroupBox = new QGroupBox(&dialog);
-    appearanceGroupBox->setTitle(tr("Appearance"));
-    appearanceGroupBox->setLayout(new QVBoxLayout());
-    appearanceGroupBox->layout()->addWidget(appearanceWidget);
-    dialog.layout()->addWidget(appearanceGroupBox);
+        pdf::PDFWidgetUtils::style(&dialog);
 
-    QDialogButtonBox* dialogButtonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-    connect(dialogButtonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(dialogButtonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    dialog.layout()->addWidget(dialogButtonBox);
+        widget->loadFromElement(editedElement);
 
-    if (dialog.exec() == QDialog::Accepted)
-    {
-        if (styledElement)
+        if (dialog.exec() == QDialog::Accepted)
         {
-            styledElement->setPen(appearanceWidget->getPen());
-            styledElement->setBrush(appearanceWidget->getBrush());
+
         }
+    }
+    else
+    {
+        QTextEdit* textEdit = nullptr;
+        PDFPageContentStyledElement* styledElement = dynamic_cast<PDFPageContentStyledElement*>(element);
+        PDFPageContentElementTextBox* textElement = dynamic_cast<PDFPageContentElementTextBox*>(element);
 
         if (textElement)
         {
-            textElement->setText(textEdit->toPlainText());
-            textElement->setFont(appearanceWidget->getFont());
-            textElement->setAlignment(appearanceWidget->getAlignment());
-            textElement->setAngle(appearanceWidget->getTextAngle());
+            QGroupBox* contentGroupBox = new QGroupBox(&dialog);
+            textEdit = new QTextEdit(textElement->getText(), contentGroupBox);
+            textEdit->setFont(textElement->getFont());
+            textEdit->setAlignment(textElement->getAlignment());
+            textEdit->setTextColor(textElement->getPen().color());
+            contentGroupBox->setTitle(tr("Content"));
+            contentGroupBox->setLayout(new QVBoxLayout());
+            contentGroupBox->layout()->addWidget(textEdit);
+            dialog.layout()->addWidget(contentGroupBox);
         }
 
-        return true;
+        appearanceWidget = new PDFPageContentEditorStyleSettings(&dialog);
+        appearanceWidget->loadFromElement(element, true);
+
+        if (textEdit)
+        {
+            connect(appearanceWidget, &PDFPageContentEditorStyleSettings::alignmentChanged, textEdit, &QTextEdit::setAlignment);
+            connect(appearanceWidget, &PDFPageContentEditorStyleSettings::fontChanged, textEdit, &QTextEdit::setFont);
+            connect(appearanceWidget, &PDFPageContentEditorStyleSettings::penChanged, textEdit, [textEdit](const QPen& pen) { textEdit->setTextColor(pen.color()); });
+        }
+
+        QGroupBox* appearanceGroupBox = new QGroupBox(&dialog);
+        appearanceGroupBox->setTitle(tr("Appearance"));
+        appearanceGroupBox->setLayout(new QVBoxLayout());
+        appearanceGroupBox->layout()->addWidget(appearanceWidget);
+        dialog.layout()->addWidget(appearanceGroupBox);
+
+        QDialogButtonBox* dialogButtonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+        connect(dialogButtonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+        connect(dialogButtonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+        dialog.layout()->addWidget(dialogButtonBox);
+
+        pdf::PDFWidgetUtils::style(&dialog);
+
+        if (dialog.exec() == QDialog::Accepted)
+        {
+            if (styledElement)
+            {
+                styledElement->setPen(appearanceWidget->getPen());
+                styledElement->setBrush(appearanceWidget->getBrush());
+            }
+
+            if (textElement)
+            {
+                textElement->setText(textEdit->toPlainText());
+                textElement->setFont(appearanceWidget->getFont());
+                textElement->setAlignment(appearanceWidget->getAlignment());
+                textElement->setAngle(appearanceWidget->getTextAngle());
+            }
+
+            return true;
+        }
     }
 
     return false;
