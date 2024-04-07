@@ -22,6 +22,11 @@
 #include "pdfpagecontenteditorprocessor.h"
 #include "pdfwidgetutils.h"
 
+#include <QDir>
+#include <QFileDialog>
+#include <QImageReader>
+#include <QStandardPaths>
+
 namespace pdf
 {
 
@@ -30,6 +35,7 @@ PDFPageContentEditorEditedItemSettings::PDFPageContentEditorEditedItemSettings(Q
     ui(new Ui::PDFPageContentEditorEditedItemSettings)
 {
     ui->setupUi(this);
+    connect(ui->loadImageButton, &QPushButton::clicked, this, &PDFPageContentEditorEditedItemSettings::selectImage);
 }
 
 PDFPageContentEditorEditedItemSettings::~PDFPageContentEditorEditedItemSettings()
@@ -48,15 +54,98 @@ void PDFPageContentEditorEditedItemSettings::loadFromElement(PDFPageContentEleme
 
     if (const PDFEditedPageContentElementImage* imageElement = contentElement->asImage())
     {
-        QSize imageSize = QSize(200, 200);
-
-        QImage image = imageElement->getImage();
-        image.setDevicePixelRatio(this->devicePixelRatioF());
-        image = image.scaled(imageSize * this->devicePixelRatioF(), Qt::KeepAspectRatio);
-
         ui->tabWidget->addTab(ui->imageTab, tr("Image"));
-        ui->imageLabel->setPixmap(QPixmap::fromImage(image));
-        ui->imageLabel->setFixedSize(PDFWidgetUtils::scaleDPI(this, imageSize));
+        m_image = imageElement->getImage();
+        setImage(imageElement->getImage());
+    }
+}
+
+void PDFPageContentEditorEditedItemSettings::saveToElement(PDFPageContentElementEdited* editedElement)
+{
+    if (PDFEditedPageContentElementImage* imageElement = editedElement->getElement()->asImage())
+    {
+        imageElement->setImage(m_image);
+        imageElement->setImageObject(PDFObject());
+    }
+}
+
+static int PDF_gcd(int a, int b)
+{
+    if (b == 0)
+    {
+        return a;
+    }
+
+    return PDF_gcd(b, a % b);
+}
+
+void PDFPageContentEditorEditedItemSettings::setImage(QImage image)
+{
+    QSize imageSize = QSize(200, 200);
+
+    int width = image.width();
+    int height = image.height();
+
+    int n = width;
+    int d = height;
+
+    int divisor = PDF_gcd(n, d);
+    if (divisor > 1)
+    {
+        n /= divisor;
+        d /= divisor;
+    }
+
+    ui->imageWidthEdit->setText(QString("%1 px").arg(width));
+    ui->imageHeightEdit->setText(QString("%1 px").arg(height));
+    ui->imageRatioEdit->setText(QString("%1 : %2").arg(n).arg(d));
+
+    image.setDevicePixelRatio(this->devicePixelRatioF());
+    image = image.scaled(imageSize * this->devicePixelRatioF(), Qt::KeepAspectRatio);
+
+    ui->imageLabel->setPixmap(QPixmap::fromImage(image));
+    ui->imageLabel->setFixedSize(PDFWidgetUtils::scaleDPI(this, imageSize));
+}
+
+void PDFPageContentEditorEditedItemSettings::selectImage()
+{
+    QString imageDirectory;
+
+    QStringList pictureDirectiories = QStandardPaths::standardLocations(QStandardPaths::PicturesLocation);
+    if (!pictureDirectiories.isEmpty())
+    {
+        imageDirectory = pictureDirectiories.last();
+    }
+    else
+    {
+        imageDirectory = QDir::currentPath();
+    }
+
+    QList<QByteArray> mimeTypes = QImageReader::supportedMimeTypes();
+    QStringList mimeTypeFilters;
+    for (const QByteArray& mimeType : mimeTypes)
+    {
+        mimeTypeFilters.append(mimeType);
+    }
+
+    QFileDialog dialog(this, tr("Select Image"));
+    dialog.setDirectory(imageDirectory);
+    dialog.setMimeTypeFilters(mimeTypeFilters);
+    dialog.selectMimeTypeFilter("image/svg+xml");
+    dialog.setAcceptMode(QFileDialog::AcceptOpen);
+    dialog.setFileMode(QFileDialog::ExistingFile);
+
+    if (dialog.exec() == QFileDialog::Accepted)
+    {
+        QString fileName = dialog.selectedFiles().constFirst();
+        QImageReader reader(fileName);
+        QImage image = reader.read();
+
+        if (!image.isNull())
+        {
+            setImage(image);
+            m_image = std::move(image);
+        }
     }
 }
 

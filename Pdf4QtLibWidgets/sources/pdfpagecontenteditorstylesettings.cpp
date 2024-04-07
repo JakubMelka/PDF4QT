@@ -282,7 +282,7 @@ bool PDFPageContentEditorStyleSettings::showEditElementStyleDialog(QWidget* pare
 
         if (dialog.exec() == QDialog::Accepted)
         {
-
+            widget->saveToElement(editedElement);
         }
     }
     else

@@ -37,9 +37,14 @@ public:
     virtual ~PDFPageContentEditorEditedItemSettings() override;
 
     void loadFromElement(PDFPageContentElementEdited* editedElement);
+    void saveToElement(PDFPageContentElementEdited* editedElement);
 
 private:
+    void setImage(QImage image);
+    void selectImage();
+
     Ui::PDFPageContentEditorEditedItemSettings* ui;
+    QImage m_image;
 };
 
 }   // namespace pdf

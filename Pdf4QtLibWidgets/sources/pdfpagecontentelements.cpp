@@ -2579,8 +2579,11 @@ void PDFPageContentElementEdited::drawPage(QPainter* painter,
         painter->translate(rect.bottomLeft());
         painter->scale(1.0, -1.0);
 
+        QRect transformedRect(0.0, 0.0, rect.width(), rect.height());
+
         QImage image = imageElement->getImage();
-        painter->drawImage(rect, image);
+        painter->fillRect(transformedRect, Qt::white);
+        painter->drawImage(transformedRect, image);
     }
 
     if (const PDFEditedPageContentElementPath* pathElement = m_element->asPath())

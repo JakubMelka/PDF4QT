@@ -370,6 +370,7 @@ public:
     virtual QString getDescription() const override;
 
     const PDFEditedPageContentElement* getElement() const { return m_element.get(); }
+    PDFEditedPageContentElement* getElement() { return m_element.get(); }
 
 private:
     std::unique_ptr<PDFEditedPageContentElement> m_element;
