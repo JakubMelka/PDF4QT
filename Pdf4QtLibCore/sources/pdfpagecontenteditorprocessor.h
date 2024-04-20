@@ -152,6 +152,8 @@ public:
     QPainterPath getTextPath() const;
     void setTextPath(QPainterPath newTextPath);
 
+    QString getItemsAsText() const;
+
 private:
     std::vector<Item> m_items;
     QRectF m_boundingBox;

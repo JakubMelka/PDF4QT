@@ -120,7 +120,7 @@ int PDFToolInfoFonts::execute(const PDFToolOptions& options)
 
                         try
                         {
-                            if (pdf::PDFFontPointer font = pdf::PDFFont::createFont(object, &document))
+                            if (pdf::PDFFontPointer font = pdf::PDFFont::createFont(object, fontsDictionary->getKey(i).getString(), &document))
                             {
                                 pdf::PDFRenderErrorReporterDummy dummyReporter;
                                 pdf::PDFRealizedFontPointer realizedFont = pdf::PDFRealizedFont::createRealizedFont(font, 8.0, &dummyReporter);

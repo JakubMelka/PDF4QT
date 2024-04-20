@@ -17,6 +17,8 @@
 
 #include "pdfpagecontenteditorprocessor.h"
 
+#include <QStringBuilder>
+
 namespace pdf
 {
 
@@ -627,6 +629,110 @@ QPainterPath PDFEditedPageContentElementText::getTextPath() const
 void PDFEditedPageContentElementText::setTextPath(QPainterPath newTextPath)
 {
     m_textPath = newTextPath;
+}
+
+QString PDFEditedPageContentElementText::getItemsAsText() const
+{
+    QString text;
+
+    PDFPageContentProcessorState state = getState();
+    state.setStateFlags(PDFPageContentProcessorState::StateFlags());
+
+    for (const Item& item : getItems())
+    {
+        if (item.isText)
+        {
+            for (const TextSequenceItem& textItem : item.textSequence.items)
+            {
+                if (textItem.isCharacter())
+                {
+                    if (!textItem.character.isNull())
+                    {
+                        text += QString(textItem.character).toHtmlEscaped();
+                    }
+                    else if (textItem.isAdvance())
+                    {
+                        text += QString("<space advance=\"%1\"/>").arg(textItem.advance);
+                    }
+                    else if (textItem.cid != 0)
+                    {
+                        text += QString("<character cid=\"%1\"/>").arg(textItem.cid);
+                    }
+                }
+            }
+        }
+        else if (item.isUpdateGraphicState)
+        {
+            PDFPageContentProcessorState newState = state;
+            newState.setStateFlags(PDFPageContentProcessorState::StateFlags());
+
+            newState.setState(item.state);
+            PDFPageContentProcessorState::StateFlags flags = newState.getStateFlags();
+
+            if (flags.testFlag(PDFPageContentProcessorState::StateTextRenderingMode))
+            {
+                text += QString("<tr v=\"%1\"/>").arg(int(newState.getTextRenderingMode()));
+            }
+
+            if (flags.testFlag(PDFPageContentProcessorState::StateTextRise))
+            {
+                text += QString("<ts v=\"%1\"/>").arg(newState.getTextRise());
+            }
+
+            if (flags.testFlag(PDFPageContentProcessorState::StateTextCharacterSpacing))
+            {
+                text += QString("<tc v=\"%1\"/>").arg(newState.getTextCharacterSpacing());
+            }
+
+            if (flags.testFlag(PDFPageContentProcessorState::StateTextWordSpacing))
+            {
+                text += QString("<tw v=\"%1\"/>").arg(newState.getTextWordSpacing());
+            }
+
+            if (flags.testFlag(PDFPageContentProcessorState::StateTextLeading))
+            {
+                text += QString("<tl v=\"%1\"/>").arg(newState.getTextLeading());
+            }
+
+            if (flags.testFlag(PDFPageContentProcessorState::StateTextHorizontalScaling))
+            {
+                text += QString("<tz v=\"%1\"/>").arg(newState.getTextHorizontalScaling());
+            }
+
+            if (flags.testFlag(PDFPageContentProcessorState::StateTextKnockout))
+            {
+                text += QString("<tk v=\"%1\"/>").arg(newState.getTextKnockout());
+            }
+
+            if (flags.testFlag(PDFPageContentProcessorState::StateTextFont) ||
+                flags.testFlag(PDFPageContentProcessorState::StateTextFontSize))
+            {
+                text += QString("<tf font=\"%1\" size=\"%2\"/>").arg(newState.getTextFont()->getFontId()).arg(newState.getTextFontSize());
+            }
+
+            if (flags.testFlag(PDFPageContentProcessorState::StateTextMatrix))
+            {
+                QTransform transform = newState.getTextMatrix();
+
+                qreal x = transform.dx();
+                qreal y = transform.dy();
+
+                if (transform.isTranslating())
+                {
+                    text += QString("<tpos x=\"%1\" y=\"%2\"/>").arg(x).arg(y);
+                }
+                else
+                {
+                    text += QString("<tmatrix m11=\"%1\" m12=\"%2\" m21=\"%3\" m22=\"%4\" x=\"%5\" y=\"%6\"/>").arg(transform.m11()).arg(transform.m12()).arg(transform.m21()).arg(transform.m22()).arg(x).arg(y);
+                }
+            }
+
+            state = newState;
+            state.setStateFlags(PDFPageContentProcessorState::StateFlags());
+        }
+    }
+
+    return text;
 }
 
 }   // namespace pdf

@@ -156,6 +156,8 @@ public:
 
     using StateFlags = PDFFlags<StateFlag>;
 
+    void setState(const PDFPageContentProcessorState& state);
+
     const QTransform& getCurrentTransformationMatrix() const { return m_currentTransformationMatrix; }
     void setCurrentTransformationMatrix(const QTransform& currentTransformationMatrix);
 

@@ -117,4 +117,59 @@ QBrush PDFPainterHelper::createBrushFromState(const PDFPageContentProcessorState
     }
 }
 
+PDFTransformationDecomposition PDFPainterHelper::decomposeTransform(const QTransform& transform)
+{
+    PDFTransformationDecomposition result;
+
+    const qreal m11 = transform.m11();
+    const qreal m12 = transform.m12();
+    const qreal m21 = transform.m21();
+    const qreal m22 = transform.m22();
+
+    const qreal dx = transform.dx();
+    const qreal dy = transform.dy();
+
+    const qreal sx = std::sqrt(m11 * m11 + m21 * m21);
+    const qreal phi = std::atan2(m21, m11);
+    const qreal msy = m12 * std::cos(phi) + m22 * std::sin(phi);
+    const qreal sy = -m12 * std::sin(phi) + m22 * std::cos(phi);
+
+    result.rotationAngle = phi;
+    result.scaleX = sx;
+    result.scaleY = sy;
+
+    if (!qFuzzyIsNull(sy))
+    {
+        result.shearFactor = msy / sy;
+    }
+    else
+    {
+        result.shearFactor = 0.0;
+    }
+
+    result.translateX = dx;
+    result.translateY = dy;
+
+    return result;
+}
+
+QTransform PDFPainterHelper::composeTransform(const PDFTransformationDecomposition& decomposition)
+{
+    const qreal s = std::sin(decomposition.rotationAngle);
+    const qreal c = std::cos(decomposition.rotationAngle);
+
+    const qreal m = decomposition.shearFactor;
+    const qreal sx = decomposition.scaleX;
+    const qreal sy = decomposition.scaleY;
+    const qreal dx = decomposition.translateX;
+    const qreal dy = decomposition.translateY;
+
+    const qreal m11 = sx * c;
+    const qreal m12 = sy * m * c - sy * s;
+    const qreal m21 = sx * s;
+    const qreal m22 = sy * m * s + sy * c;
+
+    return QTransform(m11, m12, m21, m22, dx, dy);
+}
+
 }   // namespace pdf

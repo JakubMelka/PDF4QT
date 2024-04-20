@@ -2749,7 +2749,7 @@ void PDFPageContentProcessor::operatorTextSetFontAndFontSize(PDFOperandName font
         {
             try
             {
-                PDFFontPointer font = m_fontCache->getFont(m_fontDictionary->get(fontName.name));
+                PDFFontPointer font = m_fontCache->getFont(m_fontDictionary->get(fontName.name), fontName.name);
 
                 m_graphicState.setTextFont(qMove(font));
                 m_graphicState.setTextFontSize(fontSize);
@@ -3504,45 +3504,50 @@ PDFPageContentProcessorState::~PDFPageContentProcessorState()
 
 PDFPageContentProcessorState& PDFPageContentProcessorState::operator=(const PDFPageContentProcessorState& other)
 {
-    setCurrentTransformationMatrix(other.getCurrentTransformationMatrix());
-    setStrokeColorSpace(other.m_strokeColorSpace);
-    setFillColorSpace(other.m_fillColorSpace);
-    setStrokeColor(other.getStrokeColor(), other.getStrokeColorOriginal());
-    setFillColor(other.getFillColor(), other.getFillColorOriginal());
-    setLineWidth(other.getLineWidth());
-    setLineCapStyle(other.getLineCapStyle());
-    setLineJoinStyle(other.getLineJoinStyle());
-    setMitterLimit(other.getMitterLimit());
-    setLineDashPattern(other.getLineDashPattern());
-    setRenderingIntentName(other.getRenderingIntentName());
-    setFlatness(other.getFlatness());
-    setSmoothness(other.getSmoothness());
-    setTextCharacterSpacing(other.getTextCharacterSpacing());
-    setTextWordSpacing(other.getTextWordSpacing());
-    setTextHorizontalScaling(other.getTextHorizontalScaling());
-    setTextLeading(other.getTextLeading());
-    setTextFont(other.getTextFont());
-    setTextFontSize(other.getTextFontSize());
-    setTextRenderingMode(other.getTextRenderingMode());
-    setTextRise(other.getTextRise());
-    setTextKnockout(other.getTextKnockout());
-    setTextMatrix(other.getTextMatrix());
-    setTextLineMatrix(other.getTextLineMatrix());
-    setAlphaStroking(other.getAlphaStroking());
-    setAlphaFilling(other.getAlphaFilling());
-    setBlendMode(other.getBlendMode());
-    setRenderingIntent(other.getRenderingIntent());
-    setOverprintMode(other.getOverprintMode());
-    setAlphaIsShape(other.getAlphaIsShape());
-    setStrokeAdjustment(other.getStrokeAdjustment());
-    setSoftMask(other.getSoftMask());
-    setBlackPointCompensationMode(other.getBlackPointCompensationMode());
-    setBlackGenerationFunction(other.getBlackGenerationFunction());
-    setUndercolorRemovalFunction(other.getUndercolorRemovalFunction());
-    setTransferFunction(other.getTransferFunction());
-    setHalftone(other.getHalftone());
-    setHalftoneOrigin(other.getHalftoneOrigin());
+    setState(other);
     return *this;
+}
+
+void PDFPageContentProcessorState::setState(const PDFPageContentProcessorState& state)
+{
+    setCurrentTransformationMatrix(state.getCurrentTransformationMatrix());
+    setStrokeColorSpace(state.m_strokeColorSpace);
+    setFillColorSpace(state.m_fillColorSpace);
+    setStrokeColor(state.getStrokeColor(), state.getStrokeColorOriginal());
+    setFillColor(state.getFillColor(), state.getFillColorOriginal());
+    setLineWidth(state.getLineWidth());
+    setLineCapStyle(state.getLineCapStyle());
+    setLineJoinStyle(state.getLineJoinStyle());
+    setMitterLimit(state.getMitterLimit());
+    setLineDashPattern(state.getLineDashPattern());
+    setRenderingIntentName(state.getRenderingIntentName());
+    setFlatness(state.getFlatness());
+    setSmoothness(state.getSmoothness());
+    setTextCharacterSpacing(state.getTextCharacterSpacing());
+    setTextWordSpacing(state.getTextWordSpacing());
+    setTextHorizontalScaling(state.getTextHorizontalScaling());
+    setTextLeading(state.getTextLeading());
+    setTextFont(state.getTextFont());
+    setTextFontSize(state.getTextFontSize());
+    setTextRenderingMode(state.getTextRenderingMode());
+    setTextRise(state.getTextRise());
+    setTextKnockout(state.getTextKnockout());
+    setTextMatrix(state.getTextMatrix());
+    setTextLineMatrix(state.getTextLineMatrix());
+    setAlphaStroking(state.getAlphaStroking());
+    setAlphaFilling(state.getAlphaFilling());
+    setBlendMode(state.getBlendMode());
+    setRenderingIntent(state.getRenderingIntent());
+    setOverprintMode(state.getOverprintMode());
+    setAlphaIsShape(state.getAlphaIsShape());
+    setStrokeAdjustment(state.getStrokeAdjustment());
+    setSoftMask(state.getSoftMask());
+    setBlackPointCompensationMode(state.getBlackPointCompensationMode());
+    setBlackGenerationFunction(state.getBlackGenerationFunction());
+    setUndercolorRemovalFunction(state.getUndercolorRemovalFunction());
+    setTransferFunction(state.getTransferFunction());
+    setHalftone(state.getHalftone());
+    setHalftoneOrigin(state.getHalftoneOrigin());
 }
 
 void PDFPageContentProcessorState::setCurrentTransformationMatrix(const QTransform& currentTransformationMatrix)

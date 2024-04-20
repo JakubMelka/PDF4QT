@@ -21,6 +21,7 @@
 #include "pdfpagecontentelements.h"
 #include "pdfpagecontenteditorprocessor.h"
 #include "pdfwidgetutils.h"
+#include "pdfpainterutils.h"
 
 #include <QDir>
 #include <QFileDialog>
@@ -58,6 +59,25 @@ void PDFPageContentEditorEditedItemSettings::loadFromElement(PDFPageContentEleme
         m_image = imageElement->getImage();
         setImage(imageElement->getImage());
     }
+
+    if (PDFEditedPageContentElementText* textElement = editedElement->getElement()->asText())
+    {
+        ui->tabWidget->addTab(ui->textTab, tr("Text"));
+        QString text = textElement->getItemsAsText();
+        ui->plainTextEdit->setPlainText(text);
+    }
+
+    QTransform matrix = editedElement->getElement()->getState().getCurrentTransformationMatrix();
+    PDFTransformationDecomposition decomposedTransformation = PDFPainterHelper::decomposeTransform(matrix);
+
+    ui->rotationAngleEdit->setValue(qRadiansToDegrees(decomposedTransformation.rotationAngle));
+    ui->scaleInXEdit->setValue(decomposedTransformation.scaleX);
+    ui->scaleInYEdit->setValue(decomposedTransformation.scaleY);
+    ui->shearFactorEdit->setValue(decomposedTransformation.shearFactor);
+    ui->translateInXEdit->setValue(decomposedTransformation.translateX);
+    ui->translateInYEdit->setValue(decomposedTransformation.translateY);
+
+    ui->tabWidget->addTab(ui->transformationTab, tr("Transformation"));
 }
 
 void PDFPageContentEditorEditedItemSettings::saveToElement(PDFPageContentElementEdited* editedElement)

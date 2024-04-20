@@ -45,6 +45,16 @@ private:
     QPainter* m_painter;
 };
 
+struct PDFTransformationDecomposition
+{
+    double rotationAngle = 0.0;
+    double shearFactor = 0.0;
+    double scaleX = 0.0;
+    double scaleY = 0.0;
+    double translateX = 0.0;
+    double translateY = 0.0;
+};
+
 class PDF4QTLIBCORESHARED_EXPORT PDFPainterHelper
 {
 public:
@@ -62,6 +72,12 @@ public:
 
     /// Creates brush from painter graphicState
     static QBrush createBrushFromState(const PDFPageContentProcessorState* graphicState, double alpha);
+
+    /// Decompose transform
+    static PDFTransformationDecomposition decomposeTransform(const QTransform& transform);
+
+    /// Compose transform
+    static QTransform composeTransform(const PDFTransformationDecomposition& decomposition);
 };
 
 }   // namespace pdf
