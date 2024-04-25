@@ -67,7 +67,7 @@ void PDFPageContentEditorEditedItemSettings::loadFromElement(PDFPageContentEleme
         ui->plainTextEdit->setPlainText(text);
     }
 
-    QTransform matrix = editedElement->getElement()->getState().getCurrentTransformationMatrix();
+    QTransform matrix = editedElement->getElement()->getTransform();
     PDFTransformationDecomposition decomposedTransformation = PDFPainterHelper::decomposeTransform(matrix);
 
     ui->rotationAngleEdit->setValue(qRadiansToDegrees(decomposedTransformation.rotationAngle));
@@ -87,6 +87,17 @@ void PDFPageContentEditorEditedItemSettings::saveToElement(PDFPageContentElement
         imageElement->setImage(m_image);
         imageElement->setImageObject(PDFObject());
     }
+
+    PDFTransformationDecomposition decomposedTransformation;
+    decomposedTransformation.rotationAngle = ui->rotationAngleEdit->value();
+    decomposedTransformation.shearFactor = ui->shearFactorEdit->value();
+    decomposedTransformation.scaleX = ui->scaleInXEdit->value();
+    decomposedTransformation.scaleY = ui->scaleInYEdit->value();
+    decomposedTransformation.translateX = ui->translateInXEdit->value();
+    decomposedTransformation.translateY = ui->translateInYEdit->value();
+
+    QTransform transform = PDFPainterHelper::composeTransform(decomposedTransformation);
+    editedElement->getElement()->setTransform(transform);
 }
 
 static int PDF_gcd(int a, int b)

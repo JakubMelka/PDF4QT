@@ -33,7 +33,7 @@ class PDF4QTLIBCORESHARED_EXPORT PDFEditedPageContentElement
 {
 public:
     PDFEditedPageContentElement() = default;
-    PDFEditedPageContentElement(PDFPageContentProcessorState state);
+    PDFEditedPageContentElement(PDFPageContentProcessorState state, QTransform transform);
     virtual ~PDFEditedPageContentElement() = default;
 
     enum class Type
@@ -60,14 +60,22 @@ public:
 
     virtual QRectF getBoundingBox() const = 0;
 
+    QTransform getTransform() const;
+    void setTransform(const QTransform& newTransform);
+
 protected:
     PDFPageContentProcessorState m_state;
+    QTransform m_transform;
 };
 
 class PDF4QTLIBCORESHARED_EXPORT PDFEditedPageContentElementPath : public PDFEditedPageContentElement
 {
 public:
-    PDFEditedPageContentElementPath(PDFPageContentProcessorState state, QPainterPath path, bool strokePath, bool fillPath);
+    PDFEditedPageContentElementPath(PDFPageContentProcessorState state,
+                                    QPainterPath path,
+                                    bool strokePath,
+                                    bool fillPath,
+                                    QTransform transform);
     virtual ~PDFEditedPageContentElementPath() = default;
 
     virtual Type getType() const override;
@@ -94,7 +102,10 @@ private:
 class PDF4QTLIBCORESHARED_EXPORT PDFEditedPageContentElementImage : public PDFEditedPageContentElement
 {
 public:
-    PDFEditedPageContentElementImage(PDFPageContentProcessorState state, PDFObject imageObject, QImage image, QRectF boundingBox);
+    PDFEditedPageContentElementImage(PDFPageContentProcessorState state,
+                                     PDFObject imageObject,
+                                     QImage image,
+                                     QTransform transform);
     virtual ~PDFEditedPageContentElementImage() = default;
 
     virtual Type getType() const override;
@@ -112,7 +123,6 @@ public:
 private:
     PDFObject m_imageObject;
     QImage m_image;
-    QRectF m_boundingBox;
 };
 
 class PDF4QTLIBCORESHARED_EXPORT PDFEditedPageContentElementText : public PDFEditedPageContentElement
@@ -128,11 +138,11 @@ public:
         PDFPageContentProcessorState state;
     };
 
-    PDFEditedPageContentElementText(PDFPageContentProcessorState state);
+    PDFEditedPageContentElementText(PDFPageContentProcessorState state, QTransform transform);
     PDFEditedPageContentElementText(PDFPageContentProcessorState state,
                                     std::vector<Item> items,
                                     QPainterPath textPath,
-                                    QRectF boundingBox);
+                                    QTransform transform);
     virtual ~PDFEditedPageContentElementText() = default;
 
     virtual Type getType() const override;
@@ -147,8 +157,6 @@ public:
 
     bool isEmpty() const { return m_items.empty(); }
 
-    void setBoundingBox(const QRectF& newBoundingBox);
-
     QPainterPath getTextPath() const;
     void setTextPath(QPainterPath newTextPath);
 
@@ -156,7 +164,6 @@ public:
 
 private:
     std::vector<Item> m_items;
-    QRectF m_boundingBox;
     QPainterPath m_textPath;
 };
 
@@ -174,7 +181,7 @@ public:
     static QString getOperandName(PDFPageContentProcessor::Operator operatorValue, int operandIndex);
 
     void addContentPath(PDFPageContentProcessorState state, QPainterPath path, bool strokePath, bool fillPath);
-    void addContentImage(PDFPageContentProcessorState state, PDFObject imageObject, QImage image, QRectF boundingBox);
+    void addContentImage(PDFPageContentProcessorState state, PDFObject imageObject, QImage image);
     void addContentClipping(PDFPageContentProcessorState state, QPainterPath path);
     void addContentElement(std::unique_ptr<PDFEditedPageContentElement> element);
 

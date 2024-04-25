@@ -489,8 +489,8 @@ private:
 };
 
 class PDF4QTLIBWIDGETSSHARED_EXPORT PDFPageContentScene : public QObject,
-                                                   public IDocumentDrawInterface,
-                                                   public IDrawWidgetInputInterface
+                                                          public IDocumentDrawInterface,
+                                                          public IDrawWidgetInputInterface
 {
     Q_OBJECT
 

@@ -2549,7 +2549,10 @@ PDFPageContentElementEdited::~PDFPageContentElementEdited()
 
 PDFPageContentElementEdited* PDFPageContentElementEdited::clone() const
 {
-    return new PDFPageContentElementEdited(m_element.get());
+    PDFPageContentElementEdited* copy = new PDFPageContentElementEdited(m_element.get());
+    copy->setElementId(getElementId());
+    copy->setPageIndex(getPageIndex());
+    return copy;
 }
 
 void PDFPageContentElementEdited::drawPage(QPainter* painter,
@@ -2566,16 +2569,18 @@ void PDFPageContentElementEdited::drawPage(QPainter* painter,
     Q_UNUSED(layoutGetter);
     Q_UNUSED(errors);
 
-    QRectF rect = getBoundingBox();
+    QRectF clipRect = m_element->getBoundingBox();
     painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
     painter->setPen(Qt::SolidLine);
     painter->setBrush(Qt::NoBrush);
     painter->setFont(QApplication::font());
     painter->setRenderHint(QPainter::Antialiasing);
-    painter->setClipRect(rect, Qt::IntersectClip);
+    painter->setClipRect(clipRect, Qt::IntersectClip);
+    painter->setTransform(m_element->getTransform(), true);
 
     if (const PDFEditedPageContentElementImage* imageElement = m_element->asImage())
     {
+        QRectF rect(0, 0, 1, 1);
         painter->translate(rect.bottomLeft());
         painter->scale(1.0, -1.0);
 
@@ -2591,7 +2596,6 @@ void PDFPageContentElementEdited::drawPage(QPainter* painter,
         const PDFPageContentProcessorState& state = m_element->getState();
         painter->setPen(pdf::PDFPainterHelper::createPenFromState(&state, state.getAlphaStroking()));
         painter->setBrush(pdf::PDFPainterHelper::createBrushFromState(&state, state.getAlphaFilling()));
-        painter->setTransform(pathElement->getState().getCurrentTransformationMatrix(), true);
         painter->drawPath(pathElement->getPath());
     }
 
@@ -2610,7 +2614,7 @@ uint PDFPageContentElementEdited::getManipulationMode(const QPointF& point, PDFR
 
     if (getBoundingBox().contains(point))
     {
-        return Select;
+        return Translate;
     }
 
     return None;
@@ -2618,8 +2622,23 @@ uint PDFPageContentElementEdited::getManipulationMode(const QPointF& point, PDFR
 
 void PDFPageContentElementEdited::performManipulation(uint mode, const QPointF& offset)
 {
-    Q_UNUSED(mode);
-    Q_UNUSED(offset);
+    switch (mode)
+    {
+    case None:
+        break;
+
+    case Translate:
+    {
+        QTransform transform = m_element->getTransform();
+        QTransform updatedTransform(transform.m11(), transform.m12(), transform.m21(), transform.m22(), transform.dx() + offset.x(), transform.dy() + offset.y());
+        m_element->setTransform(updatedTransform);
+        break;
+    }
+
+    default:
+        Q_ASSERT(false);
+        break;
+    }
 }
 
 QRectF PDFPageContentElementEdited::getBoundingBox() const
