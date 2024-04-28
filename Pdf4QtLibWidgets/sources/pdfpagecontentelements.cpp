@@ -333,6 +333,7 @@ PDFPageContentScene::PDFPageContentScene(QObject* parent) :
     QObject(parent),
     m_firstFreeId(1),
     m_isActive(false),
+    m_isPageContentDrawSuppressed(false),
     m_widget(nullptr),
     m_manipulator(this, nullptr)
 {
@@ -642,6 +643,11 @@ int PDFPageContentScene::getInputPriority() const
     return ToolPriority + 1;
 }
 
+bool PDFPageContentScene::isPageContentDrawSuppressed() const
+{
+    return isActive() && m_isPageContentDrawSuppressed;
+}
+
 void PDFPageContentScene::drawElements(QPainter* painter,
                                        PDFInteger pageIndex,
                                        PDFTextLayoutGetter& layoutGetter,
@@ -821,6 +827,11 @@ void PDFPageContentScene::onSelectionChanged()
 {
     Q_EMIT sceneChanged(true);
     Q_EMIT selectionChanged();
+}
+
+void PDFPageContentScene::setIsPageContentDrawSuppressed(bool newIsPageContentDrawSuppressed)
+{
+    m_isPageContentDrawSuppressed = newIsPageContentDrawSuppressed;
 }
 
 PDFWidget* PDFPageContentScene::widget() const

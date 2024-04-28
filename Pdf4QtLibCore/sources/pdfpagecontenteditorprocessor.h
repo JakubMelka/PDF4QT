@@ -190,8 +190,38 @@ public:
 
     PDFEditedPageContentElement* getBackElement() const;
 
+    PDFDictionary getFontDictionary() const;
+    void setFontDictionary(const PDFDictionary& newFontDictionary);
+
+    PDFDictionary getXObjectDictionary() const;
+    void setXObjectDictionary(const PDFDictionary& newXobjectDictionary);
+
 private:
     std::vector<std::unique_ptr<PDFEditedPageContentElement>> m_contentElements;
+    PDFDictionary m_fontDictionary;
+    PDFDictionary m_xobjectDictionary;
+};
+
+class PDF4QTLIBCORESHARED_EXPORT PDFPageContentEditorContentStreamBuilder
+{
+public:
+    PDFPageContentEditorContentStreamBuilder();
+
+    void writeStateDifference(const PDFPageContentProcessorState& state);
+    void writeElement(const PDFEditedPageContentElement* element);
+
+    const QByteArray& getOutputContent() const;
+
+private:
+    void writePainterPath(QDataStream& stream,
+                          const QPainterPath& path,
+                          bool isStroking,
+                          bool isFilling);
+
+    PDFDictionary m_fontDictionary;
+    PDFDictionary m_xobjectDictionary;
+    QByteArray m_outputContent;
+    PDFPageContentProcessorState m_currentState;
 };
 
 class PDF4QTLIBCORESHARED_EXPORT PDFPageContentEditorProcessor : public PDFPageContentProcessor

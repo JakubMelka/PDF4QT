@@ -32,6 +32,9 @@ PDFPageContentEditorProcessor::PDFPageContentEditorProcessor(const PDFPage* page
     BaseClass(page, document, fontCache, CMS, optionalContentActivity, pagePointToDevicePointMatrix, meshQualitySettings)
 {
     m_clippingPaths.push(QPainterPath());
+
+    m_content.setFontDictionary(*getFontDictionary());
+    m_content.setXObjectDictionary(*getXObjectDictionary());
 }
 
 const PDFEditedPageContent& PDFPageContentEditorProcessor::getEditedPageContent() const
@@ -451,6 +454,26 @@ PDFEditedPageContentElement* PDFEditedPageContent::getBackElement() const
     return m_contentElements.back().get();
 }
 
+PDFDictionary PDFEditedPageContent::getFontDictionary() const
+{
+    return m_fontDictionary;
+}
+
+void PDFEditedPageContent::setFontDictionary(const PDFDictionary& newFontDictionary)
+{
+    m_fontDictionary = newFontDictionary;
+}
+
+PDFDictionary PDFEditedPageContent::getXObjectDictionary() const
+{
+    return m_xobjectDictionary;
+}
+
+void PDFEditedPageContent::setXObjectDictionary(const PDFDictionary& newXobjectDictionary)
+{
+    m_xobjectDictionary = newXobjectDictionary;
+}
+
 PDFEditedPageContentElement::PDFEditedPageContentElement(PDFPageContentProcessorState state, QTransform transform) :
     m_state(std::move(state)),
     m_transform(transform)
@@ -735,6 +758,104 @@ QString PDFEditedPageContentElementText::getItemsAsText() const
     }
 
     return text;
+}
+
+void PDFPageContentEditorContentStreamBuilder::writeStateDifference(const PDFPageContentProcessorState& state)
+{
+
+}
+
+void PDFPageContentEditorContentStreamBuilder::writeElement(const PDFEditedPageContentElement* element)
+{
+    PDFPageContentProcessorState state = element->getState();
+    state.setCurrentTransformationMatrix(element->getTransform());
+    writeStateDifference(state);
+
+    QDataStream stream(&m_outputContent, QDataStream::WriteOnly);
+
+    if (const PDFEditedPageContentElementImage* imageElement = element->asImage())
+    {
+        QImage image = imageElement->getImage();
+        PDFObject imageObject = imageElement->getImageObject();
+    }
+
+    if (const PDFEditedPageContentElementPath* pathElement = element->asPath())
+    {
+        const bool isStroking = pathElement->getStrokePath();
+        const bool isFilling = pathElement->getFillPath();
+
+        writePainterPath(stream, pathElement->getPath(), isStroking, isFilling);
+    }
+
+    stream << Qt::endl;
+}
+
+void PDFPageContentEditorContentStreamBuilder::writePainterPath(QDataStream& stream,
+                                                                const QPainterPath& path,
+                                                                bool isStroking,
+                                                                bool isFilling)
+{
+    const int elementCount = path.elementCount();
+
+    for (int i = 0; i < elementCount; ++i)
+    {
+        QPainterPath::Element element = path.elementAt(i);
+
+        switch (element.type)
+        {
+        case QPainterPath::MoveToElement:
+            stream << element.x << " " << element.y << " m" << Qt::endl;
+            break;
+        case QPainterPath::LineToElement:
+            stream << element.x << " " << element.y << " l" << Qt::endl;
+            break;
+        case QPainterPath::CurveToElement:
+            stream << element.x << " " << element.y << " c" << Qt::endl;
+            break;
+        case QPainterPath::CurveToDataElement:
+            stream << element.x << " " << element.y << " ";
+            break;
+        default:
+            break;
+        }
+    }
+
+    if (isStroking && !isFilling)
+    {
+        stream << "S" << Qt::endl;
+    }
+    else if (isStroking || isFilling)
+    {
+        switch (path.fillRule())
+        {
+        case Qt::OddEvenFill:
+            if (isFilling && isStroking)
+            {
+                stream << "B*" << Qt::endl;
+            }
+            else
+            {
+                stream << "f*" << Qt::endl;
+            }
+            break;
+        case Qt::WindingFill:
+            if (isFilling && isStroking)
+            {
+                stream << "B" << Qt::endl;
+            }
+            else
+            {
+                stream << "f" << Qt::endl;
+            }
+            break;
+        default:
+            break;
+        }
+    }
+    else
+    {
+        stream << "n" << Qt::endl;
+    }
 }
 
 }   // namespace pdf

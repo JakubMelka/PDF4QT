@@ -59,6 +59,10 @@ public:
     /// \param painter Painter
     /// \param rect Draw rectangle (usually viewport rectangle of the pdf widget)
     virtual void drawPostRendering(QPainter* painter, QRect rect) const;
+
+    /// Returns true if drawing of the page content should be suppressed.
+    /// This is used for special purposes, such as rendering edited page content.
+    virtual bool isPageContentDrawSuppressed() const;
 };
 
 /// Input interface for handling events. Implementations should react on these events,

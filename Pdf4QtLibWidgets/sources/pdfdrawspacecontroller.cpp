@@ -809,8 +809,18 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
 
                 const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(item.pageIndex);
                 QTransform matrix = QTransform(createPagePointToDevicePointMatrix(page, placedRect)) * baseMatrix;
-                compiledPage->draw(painter, page->getCropBox(), matrix, features, groupInfo.transparency);
                 PDFTextLayoutGetter layoutGetter = m_textLayoutCompiler->getTextLayoutLazy(item.pageIndex);
+
+                bool isPageContentDrawSuppressed = false;
+                for (IDocumentDrawInterface* drawInterface : m_drawInterfaces)
+                {
+                    isPageContentDrawSuppressed = isPageContentDrawSuppressed || drawInterface->isPageContentDrawSuppressed();
+                }
+
+                if (!isPageContentDrawSuppressed)
+                {
+                    compiledPage->draw(painter, page->getCropBox(), matrix, features, groupInfo.transparency);
+                }
 
                 // Draw text blocks/text lines, if it is enabled
                 if (features.testFlag(PDFRenderer::DebugTextBlocks))
@@ -1627,6 +1637,11 @@ void IDocumentDrawInterface::drawPostRendering(QPainter* painter, QRect rect) co
 {
     Q_UNUSED(painter);
     Q_UNUSED(rect);
+}
+
+bool IDocumentDrawInterface::isPageContentDrawSuppressed() const
+{
+    return false;
 }
 
 }   // namespace pdf

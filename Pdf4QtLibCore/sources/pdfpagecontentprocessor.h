@@ -742,6 +742,14 @@ protected:
     /// Process form using form stream
     void processForm(const PDFStream* stream);
 
+    const PDFDictionary* getColorSpaceDictionary() const { return m_colorSpaceDictionary; }
+    const PDFDictionary* getFontDictionary() const { return m_fontDictionary; }
+    const PDFDictionary* getXObjectDictionary() const { return m_xobjectDictionary; }
+    const PDFDictionary* getExtendedGraphicStateDictionary() const { return m_extendedGraphicStateDictionary; }
+    const PDFDictionary* getPropertiesDictionary() const { return m_propertiesDictionary; }
+    const PDFDictionary* getShadingDictionary() const { return m_shadingDictionary; }
+    const PDFDictionary* getPatternDictionary() const { return m_patternDictionary; }
+
 private:
     /// Initializes the resources dictionaries
     void initDictionaries(const PDFObject& resourcesObject);

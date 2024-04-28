@@ -561,6 +561,7 @@ public:
     virtual QString getTooltip() const override;
     virtual const std::optional<QCursor>& getCursor() const override;
     virtual int getInputPriority() const override;
+    virtual bool isPageContentDrawSuppressed() const;
 
     virtual void drawPage(QPainter* painter,
                           PDFInteger pageIndex,
@@ -578,6 +579,8 @@ public:
                       const QTransform& pagePointToDevicePointMatrix,
                       const PDFPrecompiledPage* compiledPage,
                       QList<PDFRenderError>& errors) const;
+
+    void setIsPageContentDrawSuppressed(bool newIsPageContentDrawSuppressed);
 
 signals:
     /// This signal is emitted when scene has changed (including graphics)
@@ -637,6 +640,7 @@ private:
 
     PDFInteger m_firstFreeId;
     bool m_isActive;
+    bool m_isPageContentDrawSuppressed;
     PDFWidget* m_widget;
     std::vector<std::unique_ptr<PDFPageContentElement>> m_elements;
     std::optional<QCursor> m_cursor;

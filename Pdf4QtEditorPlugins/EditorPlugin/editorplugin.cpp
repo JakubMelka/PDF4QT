@@ -1,4 +1,4 @@
-//    Copyright (C) 2023 Jakub Melka
+//    Copyright (C) 2023-2024 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -41,7 +41,7 @@ EditorPlugin::EditorPlugin() :
     m_scene(nullptr),
     m_sceneSelectionChangeEnabled(true)
 {
-
+    m_scene.setIsPageContentDrawSuppressed(true);
 }
 
 void EditorPlugin::setWidget(pdf::PDFWidget* widget)
