@@ -88,6 +88,11 @@ void PDFPageContentEditorEditedItemSettings::saveToElement(PDFPageContentElement
         imageElement->setImageObject(PDFObject());
     }
 
+    if (PDFEditedPageContentElementText* textElement = editedElement->getElement()->asText())
+    {
+        textElement->setItemsAsText(ui->plainTextEdit->toPlainText());
+    }
+
     PDFTransformationDecomposition decomposedTransformation;
     decomposedTransformation.rotationAngle = ui->rotationAngleEdit->value();
     decomposedTransformation.shearFactor = ui->shearFactorEdit->value();

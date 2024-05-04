@@ -18,6 +18,7 @@
 #include "pdfpagecontenteditorprocessor.h"
 
 #include <QStringBuilder>
+#include <QXmlStreamReader>
 
 namespace pdf
 {
@@ -67,6 +68,7 @@ void PDFPageContentEditorProcessor::performInterceptInstruction(Operator current
             if (m_contentElementText && !m_contentElementText->isEmpty())
             {
                 m_contentElementText->setTextPath(std::move(m_textPath));
+                m_contentElementText->setItemsAsText(PDFEditedPageContentElementText::createItemsAsText(m_contentElementText->getState(), m_contentElementText->getItems()));
                 m_content.addContentElement(std::move(m_contentElementText));
             }
             m_contentElementText.reset();
@@ -608,10 +610,12 @@ PDFEditedPageContentElementText::PDFEditedPageContentElementText(PDFPageContentP
 PDFEditedPageContentElementText::PDFEditedPageContentElementText(PDFPageContentProcessorState state,
                                                                  std::vector<Item> items,
                                                                  QPainterPath textPath,
-                                                                 QTransform transform) :
+                                                                 QTransform transform,
+                                                                 QString itemsAsText) :
     PDFEditedPageContentElement(state, transform),
     m_items(std::move(items)),
-    m_textPath(std::move(textPath))
+    m_textPath(std::move(textPath)),
+    m_itemsAsText(itemsAsText)
 {
 
 }
@@ -623,7 +627,7 @@ PDFEditedPageContentElement::Type PDFEditedPageContentElementText::getType() con
 
 PDFEditedPageContentElementText* PDFEditedPageContentElementText::clone() const
 {
-    return new PDFEditedPageContentElementText(getState(), getItems(), getTextPath(), getTransform());
+    return new PDFEditedPageContentElementText(getState(), getItems(), getTextPath(), getTransform(), getItemsAsText());
 }
 
 void PDFEditedPageContentElementText::addItem(Item item)
@@ -656,14 +660,15 @@ void PDFEditedPageContentElementText::setTextPath(QPainterPath newTextPath)
     m_textPath = newTextPath;
 }
 
-QString PDFEditedPageContentElementText::getItemsAsText() const
+QString PDFEditedPageContentElementText::createItemsAsText(const PDFPageContentProcessorState& initialState,
+                                                           const std::vector<Item>& items)
 {
     QString text;
 
-    PDFPageContentProcessorState state = getState();
+    PDFPageContentProcessorState state = initialState;
     state.setStateFlags(PDFPageContentProcessorState::StateFlags());
 
-    for (const Item& item : getItems())
+    for (const Item& item : items)
     {
         if (item.isText)
         {
@@ -760,6 +765,16 @@ QString PDFEditedPageContentElementText::getItemsAsText() const
     return text;
 }
 
+QString PDFEditedPageContentElementText::getItemsAsText() const
+{
+    return m_itemsAsText;
+}
+
+void PDFEditedPageContentElementText::setItemsAsText(const QString& newItemsAsText)
+{
+    m_itemsAsText = newItemsAsText;
+}
+
 void PDFPageContentEditorContentStreamBuilder::writeStateDifference(const PDFPageContentProcessorState& state)
 {
 
@@ -771,12 +786,14 @@ void PDFPageContentEditorContentStreamBuilder::writeElement(const PDFEditedPageC
     state.setCurrentTransformationMatrix(element->getTransform());
     writeStateDifference(state);
 
-    QDataStream stream(&m_outputContent, QDataStream::WriteOnly);
+    QTextStream stream(&m_outputContent, QDataStream::WriteOnly);
 
     if (const PDFEditedPageContentElementImage* imageElement = element->asImage())
     {
         QImage image = imageElement->getImage();
         PDFObject imageObject = imageElement->getImageObject();
+
+
     }
 
     if (const PDFEditedPageContentElementPath* pathElement = element->asPath())
@@ -787,10 +804,20 @@ void PDFPageContentEditorContentStreamBuilder::writeElement(const PDFEditedPageC
         writePainterPath(stream, pathElement->getPath(), isStroking, isFilling);
     }
 
+    if (const PDFEditedPageContentElementText* textElement = element->asText())
+    {
+        QString text = textElement->getItemsAsText();
+
+        if (!text.isEmpty())
+        {
+            writeText(stream, text);
+        }
+    }
+
     stream << Qt::endl;
 }
 
-void PDFPageContentEditorContentStreamBuilder::writePainterPath(QDataStream& stream,
+void PDFPageContentEditorContentStreamBuilder::writePainterPath(QTextStream& stream,
                                                                 const QPainterPath& path,
                                                                 bool isStroking,
                                                                 bool isFilling)
@@ -856,6 +883,219 @@ void PDFPageContentEditorContentStreamBuilder::writePainterPath(QDataStream& str
     {
         stream << "n" << Qt::endl;
     }
+}
+
+void PDFPageContentEditorContentStreamBuilder::writeText(QTextStream& stream, const QString& text)
+{
+    stream << "q BT" << Qt::endl;
+
+    QXmlStreamReader reader(text);
+
+    auto isCommand = [&reader](const char* tag) -> bool
+    {
+        QString tagString = reader.name().toString();
+        QXmlStreamAttributes attributes = reader.attributes();
+        return tagString == "tr" && attributes.size() == 1 && attributes.hasAttribute("v");
+    };
+
+    while (!reader.atEnd() && !reader.hasError())
+    {
+        reader.readNext();
+
+        if (reader.isStartElement())
+        {
+            QXmlStreamAttributes attributes = reader.attributes();
+
+            if (isCommand("tr"))
+            {
+                const QXmlStreamAttribute& attribute = attributes.front();
+                bool ok = false;
+                const int textRenderingMode = attribute.value().toInt(&ok);
+                if (!ok || textRenderingMode < 0 || textRenderingMode > 7)
+                {
+                    addError(PDFTranslationContext::tr("Invalid rendering mode '%1'. Valid values are 0-7.").arg(textRenderingMode));
+                }
+                else
+                {
+                    stream << textRenderingMode << " Tr" << Qt::endl;
+                }
+            }
+            else if (isCommand("ts"))
+            {
+                const QXmlStreamAttribute& attribute = attributes.front();
+                bool ok = false;
+                const double textRise = attribute.value().toDouble(&ok);
+
+                if (!ok)
+                {
+                    addError(PDFTranslationContext::tr("Cannot convert text '%1' to number.").arg(attribute.value().toString()));
+                }
+                else
+                {
+                    stream << textRise << " Ts" << Qt::endl;
+                }
+            }
+            else if (isCommand("tc"))
+            {
+                const QXmlStreamAttribute& attribute = attributes.front();
+                bool ok = false;
+                const double textCharacterSpacing = attribute.value().toDouble(&ok);
+
+                if (!ok)
+                {
+                    addError(PDFTranslationContext::tr("Cannot convert text '%1' to number.").arg(attribute.value().toString()));
+                }
+                else
+                {
+                    stream << textCharacterSpacing << " Tc" << Qt::endl;
+                }
+            }
+            else if (isCommand("tw"))
+            {
+                const QXmlStreamAttribute& attribute = attributes.front();
+                bool ok = false;
+                const double textWordSpacing = attribute.value().toDouble(&ok);
+
+                if (!ok)
+                {
+                    addError(PDFTranslationContext::tr("Cannot convert text '%1' to number.").arg(attribute.value().toString()));
+                }
+                else
+                {
+                    stream << textWordSpacing << " Tw" << Qt::endl;
+                }
+            }
+            else if (isCommand("tl"))
+            {
+                const QXmlStreamAttribute& attribute = attributes.front();
+                bool ok = false;
+                const double textLeading = attribute.value().toDouble(&ok);
+
+                if (!ok)
+                {
+                    addError(PDFTranslationContext::tr("Cannot convert text '%1' to number.").arg(attribute.value().toString()));
+                }
+                else
+                {
+                    stream << textLeading << " TL" << Qt::endl;
+                }
+            }
+            else if (isCommand("tz"))
+            {
+                const QXmlStreamAttribute& attribute = attributes.front();
+                bool ok = false;
+                const PDFReal textScaling = attribute.value().toDouble(&ok);
+
+                if (!ok)
+                {
+                    addError(PDFTranslationContext::tr("Cannot convert text '%1' to number.").arg(attribute.value().toString()));
+                }
+                else
+                {
+                    stream << textScaling << " Tz" << Qt::endl;
+                }
+            }
+            else if (reader.name().toString() == "tf")
+            {
+                if (attributes.hasAttribute("font") && attributes.hasAttribute("size"))
+                {
+                    bool ok = false;
+                    QString v1 = attributes.value("font").toString();
+                    PDFReal v2 = attributes.value("size").toDouble(&ok);
+
+                    if (!ok)
+                    {
+                        addError(PDFTranslationContext::tr("Cannot convert text '%1' to number.").arg(attributes.value("size").toString()));
+                    }
+                    else
+                    {
+                        stream << "/" << v1 << " " << v2 << " Tf" << Qt::endl;
+                    }
+                }
+                else
+                {
+                    addError(PDFTranslationContext::tr("Text font command requires two attributes - font and size."));
+                }
+            }
+            else if (reader.name().toString() == "tpos")
+            {
+                if (attributes.hasAttribute("x") && attributes.hasAttribute("y"))
+                {
+                    bool ok1 = false;
+                    bool ok2 = false;
+                    PDFReal v1 = attributes.value("x").toDouble(&ok1);
+                    PDFReal v2 = attributes.value("y").toDouble(&ok2);
+
+                    if (!ok1)
+                    {
+                        addError(PDFTranslationContext::tr("Cannot convert text '%1' to number.").arg(attributes.value("x").toString()));
+                    }
+                    else if (!ok2)
+                    {
+                        addError(PDFTranslationContext::tr("Cannot convert text '%1' to number.").arg(attributes.value("y").toString()));
+                    }
+                    else
+                    {
+                        stream << v1 << " " << v2 << " Td" << Qt::endl;
+                    }
+                }
+                else
+                {
+                    addError(PDFTranslationContext::tr("Text translation command requires two attributes - x and y."));
+                }
+            }
+            else if (reader.name().toString() == "tmatrix")
+            {
+                if (attributes.hasAttribute("m11") && attributes.hasAttribute("m12") &&
+                    attributes.hasAttribute("m21") && attributes.hasAttribute("m22") &&
+                    attributes.hasAttribute("x") && attributes.hasAttribute("y"))
+                {
+                    bool ok1 = false;
+                    bool ok2 = false;
+                    bool ok3 = false;
+                    bool ok4 = false;
+                    bool ok5 = false;
+                    bool ok6 = false;
+                    PDFReal m11 = attributes.value("m11").toDouble(&ok1);
+                    PDFReal m12 = attributes.value("m12").toDouble(&ok2);
+                    PDFReal m21 = attributes.value("m21").toDouble(&ok3);
+                    PDFReal m22 = attributes.value("m22").toDouble(&ok4);
+                    PDFReal x = attributes.value("x").toDouble(&ok5);
+                    PDFReal y = attributes.value("y").toDouble(&ok6);
+
+                    if (!ok1 || !ok2 || !ok3 || !ok4 || !ok5 | !ok6)
+                    {
+                        addError(PDFTranslationContext::tr("Invalid text matrix parameters."));
+                    }
+
+                    else
+                    {
+                        stream << m11 << " " << m12 << " " << m21 << " " << m22 << " " << x << " " << y << " Tm" << Qt::endl;
+                    }
+                }
+                else
+                {
+                    addError(PDFTranslationContext::tr("Set text matrix command requires six elements - m11, m12, m21, m22, x, y."));
+                }
+            }
+            else
+            {
+                addError(PDFTranslationContext::tr("Invalid command '%1'.").arg(reader.name().toString()));
+            }
+        }
+
+        if (reader.isCharacters())
+        {
+            QString characters = reader.text().toString();
+        }
+    }
+
+    stream << "ET Q" << Qt::endl;
+}
+
+void PDFPageContentEditorContentStreamBuilder::addError(const QString& error)
+{
+
 }
 
 }   // namespace pdf

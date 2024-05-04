@@ -142,7 +142,8 @@ public:
     PDFEditedPageContentElementText(PDFPageContentProcessorState state,
                                     std::vector<Item> items,
                                     QPainterPath textPath,
-                                    QTransform transform);
+                                    QTransform transform,
+                                    QString itemsAsText);
     virtual ~PDFEditedPageContentElementText() = default;
 
     virtual Type getType() const override;
@@ -160,11 +161,16 @@ public:
     QPainterPath getTextPath() const;
     void setTextPath(QPainterPath newTextPath);
 
+    static QString createItemsAsText(const PDFPageContentProcessorState& initialState,
+                                     const std::vector<Item>& items);
+
     QString getItemsAsText() const;
+    void setItemsAsText(const QString& newItemsAsText);
 
 private:
     std::vector<Item> m_items;
     QPainterPath m_textPath;
+    QString m_itemsAsText;
 };
 
 class PDF4QTLIBCORESHARED_EXPORT PDFEditedPageContent
@@ -213,10 +219,13 @@ public:
     const QByteArray& getOutputContent() const;
 
 private:
-    void writePainterPath(QDataStream& stream,
+    void writePainterPath(QTextStream& stream,
                           const QPainterPath& path,
                           bool isStroking,
                           bool isFilling);
+    void writeText(QTextStream& stream, const QString& text);
+
+    void addError(const QString& error);
 
     PDFDictionary m_fontDictionary;
     PDFDictionary m_xobjectDictionary;
