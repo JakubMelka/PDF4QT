@@ -291,6 +291,13 @@ private:
     IRealizedFontImpl* m_impl;
 };
 
+struct PDFEncodedText
+{
+    QByteArray encodedText;
+    QString errorString;
+    bool isValid = false;
+};
+
 /// Base  class representing font in the PDF file
 class PDF4QTLIBCORESHARED_EXPORT PDFFont
 {
@@ -335,6 +342,9 @@ public:
     /// Returns font id from the font dictionary
     QByteArray getFontId() const;
 
+    /// Encodes text into font encoding
+    virtual PDFEncodedText encodeText(const QString& text) const;
+
 protected:
     CIDSystemInfo m_CIDSystemInfo;
     FontDescriptor m_fontDescriptor;
@@ -367,6 +377,8 @@ public:
 
     /// Returns the glyph advance (or zero, if glyph advance is invalid)
     PDFInteger getGlyphAdvance(size_t index) const;
+
+    virtual PDFEncodedText encodeText(const QString& text) const override;
 
     virtual void dumpFontToTreeItem(ITreeFactory* treeFactory) const override;
 
@@ -556,8 +568,14 @@ public:
     /// Converts byte array to array of CIDs
     std::vector<CID> interpret(const QByteArray& byteArray) const;
 
+    /// Encodes character to byte array
+    QByteArray encode(CID cid) const;
+
     /// Converts CID to QChar, use only on ToUnicode CMaps
     QChar getToUnicode(CID cid) const;
+
+    /// Converts QChar to CID, use only on ToUnicode CMaps
+    CID getFromUnicode(QChar character) const;
 
 private:
 

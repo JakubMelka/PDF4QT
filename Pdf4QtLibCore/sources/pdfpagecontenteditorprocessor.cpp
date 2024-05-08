@@ -16,6 +16,7 @@
 //    along with PDF4QT. If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfpagecontenteditorprocessor.h"
+#include "pdfdocumentbuilder.h"
 
 #include <QStringBuilder>
 #include <QXmlStreamReader>
@@ -890,6 +891,7 @@ void PDFPageContentEditorContentStreamBuilder::writeText(QTextStream& stream, co
     stream << "q BT" << Qt::endl;
 
     QXmlStreamReader reader(text);
+    m_textFont = m_currentState.getTextFont();
 
     auto isCommand = [&reader](const char* tag) -> bool
     {
@@ -1009,6 +1011,7 @@ void PDFPageContentEditorContentStreamBuilder::writeText(QTextStream& stream, co
                     }
                     else
                     {
+                        v1 = selectFont(v1);
                         stream << "/" << v1 << " " << v2 << " Tf" << Qt::endl;
                     }
                 }
@@ -1087,10 +1090,75 @@ void PDFPageContentEditorContentStreamBuilder::writeText(QTextStream& stream, co
         if (reader.isCharacters())
         {
             QString characters = reader.text().toString();
+
+            if (m_textFont)
+            {
+                PDFEncodedText encodedText = m_textFont->encodeText(characters);
+
+                if (!encodedText.encodedText.isEmpty())
+                {
+                    stream << "<" << encodedText.encodedText.toHex() << "> Tj" << Qt::endl;
+                }
+
+                if (!encodedText.isValid)
+                {
+                    addError(PDFTranslationContext::tr("Error during converting text to font encoding. Some characters were not converted: '%1'.").arg(encodedText.errorString));
+                }
+            }
+            else
+            {
+                addError(PDFTranslationContext::tr("Text font not defined!"));
+            }
         }
     }
 
     stream << "ET Q" << Qt::endl;
+}
+
+QByteArray PDFPageContentEditorContentStreamBuilder::selectFont(const QByteArray& font)
+{
+    m_textFont = nullptr;
+
+    PDFObject fontObject = m_fontDictionary.get(font);
+    if (!fontObject.isNull())
+    {
+        try
+        {
+            m_textFont = PDFFont::createFont(fontObject, font, m_document);
+        }
+        catch (const PDFException&)
+        {
+            addError(PDFTranslationContext::tr("Font '%1' is invalid.").arg(QString::fromLatin1(font)));
+        }
+    }
+
+    if (!m_textFont)
+    {
+        QByteArray defaultFontKey = "PDF4QT_DefFnt";
+        if (!m_fontDictionary.hasKey(defaultFontKey))
+        {
+            PDFObjectFactory defaultFontFactory;
+
+            defaultFontFactory.beginDictionary();
+            defaultFontFactory.beginDictionaryItem("Type");
+            defaultFontFactory << WrapName("Font");
+            defaultFontFactory.endDictionaryItem();
+            defaultFontFactory.beginDictionaryItem("Subtype");
+            defaultFontFactory << WrapName("Type1");
+            defaultFontFactory.endDictionaryItem();
+            defaultFontFactory.beginDictionaryItem("BaseFont");
+            defaultFontFactory << WrapName("Helvetica");
+            defaultFontFactory.endDictionaryItem();
+            defaultFontFactory.beginDictionaryItem("Encoding");
+            defaultFontFactory << WrapName("WinAnsiEncoding");
+            defaultFontFactory.endDictionaryItem();
+            defaultFontFactory.endDictionary();
+
+            m_fontDictionary.setEntry(PDFInplaceOrMemoryString(defaultFontKey), defaultFontFactory.takeObject());
+        }
+
+        m_textFont = PDFFont::createFont(fontObject, font, m_document);
+    }
 }
 
 void PDFPageContentEditorContentStreamBuilder::addError(const QString& error)

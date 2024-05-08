@@ -225,12 +225,15 @@ private:
                           bool isFilling);
     void writeText(QTextStream& stream, const QString& text);
 
+    QByteArray selectFont(const QByteArray& font);
     void addError(const QString& error);
 
+    PDFDocument* m_document = nullptr;
     PDFDictionary m_fontDictionary;
     PDFDictionary m_xobjectDictionary;
     QByteArray m_outputContent;
     PDFPageContentProcessorState m_currentState;
+    PDFFontPointer m_textFont;
 };
 
 class PDF4QTLIBCORESHARED_EXPORT PDFPageContentEditorProcessor : public PDFPageContentProcessor

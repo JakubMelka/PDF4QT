@@ -1290,6 +1290,47 @@ QByteArray PDFFont::getFontId() const
     return m_fontId;
 }
 
+PDFEncodedText PDFFont::encodeText(const QString& text) const
+{
+    PDFEncodedText result;
+    result.isValid = true;
+
+    const PDFFontCMap* cmap = getCMap();
+    const PDFFontCMap* toUnicode = getToUnicode();
+
+    if (!cmap || !toUnicode)
+    {
+        result.errorString = PDFTranslationContext::tr("Invalid font encoding.");
+        return result;
+    }
+
+    for (const QChar& character : text)
+    {
+        CID cid = toUnicode->getFromUnicode(character);
+        if (cid != CID())
+        {
+            QByteArray encoded = cmap->encode(cid);
+            if (!encoded.isEmpty())
+            {
+                result.encodedText.append(encoded);
+                result.errorString += "_";
+            }
+            else
+            {
+                result.isValid = false;
+                result.errorString += character;
+            }
+        }
+        else
+        {
+            result.isValid = false;
+            result.errorString += character;
+        }
+    }
+
+    return result;
+}
+
 PDFFontPointer PDFFont::createFont(const PDFObject& object, QByteArray fontId, const PDFDocument* document)
 {
     const PDFObject& dereferencedFontDictionary = document->getObject(object);
@@ -1929,6 +1970,44 @@ PDFInteger PDFSimpleFont::getGlyphAdvance(size_t index) const
     return 0;
 }
 
+PDFEncodedText PDFSimpleFont::encodeText(const QString& text) const
+{
+    PDFEncodedText result;
+    result.isValid = true;
+
+    const encoding::EncodingTable* encodingTable = getEncoding();
+
+    for (const QChar& character : text)
+    {
+        ushort unicode = character.unicode();
+        unsigned char converted = 0;
+
+        bool isFound = false;
+        for (size_t i = 0; i < encodingTable->size(); ++i)
+        {
+            if (unicode == (*encodingTable)[static_cast<unsigned char>(i)])
+            {
+                isFound = true;
+                converted = static_cast<unsigned char>(i);
+                break;
+            }
+        }
+
+        if (isFound)
+        {
+            result.encodedText.append(static_cast<char>(converted));
+            result.errorString += "_";
+        }
+        else
+        {
+            result.isValid = false;
+            result.errorString += character;
+        }
+    }
+
+    return result;
+}
+
 void PDFSimpleFont::dumpFontToTreeItem(ITreeFactory* treeFactory) const
 {
     BaseClass::dumpFontToTreeItem(treeFactory);
@@ -2496,6 +2575,35 @@ std::vector<CID> PDFFontCMap::interpret(const QByteArray& byteArray) const
     return result;
 }
 
+QByteArray PDFFontCMap::encode(CID cid) const
+{
+    QByteArray byteArray;
+
+    for (const auto& entry : m_entries)
+    {
+        unsigned int minPossibleValue = entry.from + entry.cid;
+        unsigned int maxPossibleValue = entry.to + entry.cid;
+
+        if (cid >= minPossibleValue && cid <= maxPossibleValue)
+        {
+            // Calculate the original value from cid
+            unsigned int value = cid - entry.cid + entry.from;
+
+            byteArray.reserve(entry.byteCount);
+
+            // Construct byte array for this value based on the entry's byteCount
+            for (int i = entry.byteCount - 1; i >= 0; --i)
+            {
+                byteArray.append(static_cast<char>((value >> (8 * i)) & 0xFF));
+            }
+
+            break;
+        }
+    }
+
+    return byteArray;
+}
+
 QChar PDFFontCMap::getToUnicode(CID cid) const
 {
     if (isValid())
@@ -2510,6 +2618,29 @@ QChar PDFFontCMap::getToUnicode(CID cid) const
     }
 
     return QChar();
+}
+
+CID PDFFontCMap::getFromUnicode(QChar character) const
+{
+    if (!character.isNull())
+    {
+        char16_t ucs4 = character.unicode();
+        const CID unicodeCID = ucs4;
+
+        for (const Entry& entry : m_entries)
+        {
+            const CID minUnicodeCID = entry.cid;
+            const CID maxUnicodeCID = (entry.to - entry.from) + entry.cid;
+
+            if (unicodeCID >= minUnicodeCID && unicodeCID <= maxUnicodeCID)
+            {
+                const CID cid = unicodeCID + entry.from - entry.cid;
+                return cid;
+            }
+        }
+    }
+
+    return CID();
 }
 
 PDFFontCMap::PDFFontCMap(Entries&& entries, bool vertical) :
