@@ -776,25 +776,271 @@ void PDFEditedPageContentElementText::setItemsAsText(const QString& newItemsAsTe
     m_itemsAsText = newItemsAsText;
 }
 
-void PDFPageContentEditorContentStreamBuilder::writeStateDifference(const PDFPageContentProcessorState& state)
+void PDFPageContentEditorContentStreamBuilder::writeStateDifference(QTextStream& stream, const PDFPageContentProcessorState& state)
 {
+    m_currentState.setState(state);
 
+    auto stateFlags = m_currentState.getStateFlags();
+
+    if (stateFlags.testFlag(PDFPageContentProcessorState::StateCurrentTransformationMatrix))
+    {
+        QTransform transform = m_currentState.getCurrentTransformationMatrix();
+
+        PDFReal m11 = transform.m11();
+        PDFReal m12 = transform.m12();
+        PDFReal m21 = transform.m21();
+        PDFReal m22 = transform.m22();
+        PDFReal x = transform.dx();
+        PDFReal y = transform.dy();
+
+        stream << m11 << " " << m12 << " " << m21 << " " << m22 << " " << x << " " << y << " cm" << Qt::endl;
+    }
+
+    if (stateFlags.testFlag(PDFPageContentProcessorState::StateLineWidth))
+    {
+        stream << m_currentState.getLineWidth() << " w" << Qt::endl;
+    }
+
+    if (stateFlags.testFlag(PDFPageContentProcessorState::StateLineCapStyle))
+    {
+        stream << PDFPageContentProcessor::convertPenCapStyleToLineCap(m_currentState.getLineCapStyle()) << " J" << Qt::endl;
+    }
+
+    if (stateFlags.testFlag(PDFPageContentProcessorState::StateLineJoinStyle))
+    {
+        stream << PDFPageContentProcessor::convertPenJoinStyleToLineJoin(m_currentState.getLineJoinStyle()) << " j" << Qt::endl;
+    }
+
+    if (stateFlags.testFlag(PDFPageContentProcessorState::StateMitterLimit))
+    {
+        stream << m_currentState.getMitterLimit() << " M" << Qt::endl;
+    }
+
+    if (stateFlags.testFlag(PDFPageContentProcessorState::StateLineDashPattern))
+    {
+        const PDFLineDashPattern& dashPattern = m_currentState.getLineDashPattern();
+
+        if (dashPattern.isSolid())
+        {
+            stream << "[] 0 d" << Qt::endl;
+        }
+        else
+        {
+            stream << "[ ";
+
+            for (PDFReal arrayItem : dashPattern.getDashArray())
+            {
+                stream << arrayItem << " ";
+            }
+
+            stream << " ] " << dashPattern.getDashOffset() << " d";
+        }
+    }
+
+    if (stateFlags.testFlag(PDFPageContentProcessorState::StateRenderingIntent))
+    {
+        switch (m_currentState.getRenderingIntent())
+        {
+        case pdf::RenderingIntent::Perceptual:
+            stream << "/Perceptual ri" << Qt::endl;
+            break;
+        case pdf::RenderingIntent::AbsoluteColorimetric:
+            stream << "/AbsoluteColorimetric ri" << Qt::endl;
+            break;
+        case pdf::RenderingIntent::RelativeColorimetric:
+            stream << "/RelativeColorimetric ri" << Qt::endl;
+            break;
+        case pdf::RenderingIntent::Saturation:
+            stream << "/Saturation ri" << Qt::endl;
+            break;
+
+        default:
+            break;
+        }
+    }
+
+    if (stateFlags.testFlag(PDFPageContentProcessorState::StateMitterLimit))
+    {
+        stream << m_currentState.getMitterLimit() << " M" << Qt::endl;
+    }
+
+    if (stateFlags.testFlag(PDFPageContentProcessorState::StateFlatness))
+    {
+        stream << m_currentState.getFlatness() << " i" << Qt::endl;
+    }
+
+    if (stateFlags.testFlag(PDFPageContentProcessorState::StateStrokeColor) ||
+        stateFlags.testFlag(PDFPageContentProcessorState::StateStrokeColorSpace))
+    {
+        QColor color = m_currentState.getStrokeColor();
+        const PDFAbstractColorSpace* strokeColorSpace = m_currentState.getStrokeColorSpace();
+        if (strokeColorSpace && strokeColorSpace->getColorSpace() == PDFAbstractColorSpace::ColorSpace::DeviceGray)
+        {
+            stream << qGray(color.rgb()) / 255.0 << " G" << Qt::endl;
+        }
+        else if (strokeColorSpace && strokeColorSpace->getColorSpace() == PDFAbstractColorSpace::ColorSpace::DeviceCMYK)
+        {
+            const PDFColor& color = m_currentState.getStrokeColorOriginal();
+            if (color.size() >= 4)
+            {
+                stream << color[0] << " " << color[1] << " " << color[2] << " " << color[3] << " K";
+            }
+        }
+        else
+        {
+            stream << color.redF() << " " << color.greenF() << " " << color.blueF() << " RG";
+        }
+    }
+
+    if (stateFlags.testFlag(PDFPageContentProcessorState::StateFillColor) ||
+        stateFlags.testFlag(PDFPageContentProcessorState::StateFillColorSpace))
+    {
+        QColor color = m_currentState.getFillColor();
+        const PDFAbstractColorSpace* fillColorSpace = m_currentState.getFillColorSpace();
+        if (fillColorSpace && fillColorSpace->getColorSpace() == PDFAbstractColorSpace::ColorSpace::DeviceGray)
+        {
+            stream << qGray(color.rgb()) / 255.0 << " G" << Qt::endl;
+        }
+        else if (fillColorSpace && fillColorSpace->getColorSpace() == PDFAbstractColorSpace::ColorSpace::DeviceCMYK)
+        {
+            const PDFColor& color = m_currentState.getFillColorOriginal();
+            if (color.size() >= 4)
+            {
+                stream << color[0] << " " << color[1] << " " << color[2] << " " << color[3] << " K";
+            }
+        }
+        else
+        {
+            stream << color.redF() << " " << color.greenF() << " " << color.blueF() << " RG";
+        }
+    }
+
+    m_currentState.setStateFlags(PDFPageContentProcessorState::StateFlags());
+
+
+    PDFObjectFactory stateDictionary;
+    stateDictionary.beginDictionary();
+
+    if (stateFlags.testFlag(PDFPageContentProcessorState::StateSmoothness))
+    {
+        stateDictionary.beginDictionaryItem("SM");
+        stateDictionary << m_currentState.getSmoothness();
+        stateDictionary.endDictionaryItem();
+    }
+
+    if (stateFlags.testFlag(PDFPageContentProcessorState::StateAlphaStroking))
+    {
+        stateDictionary.beginDictionaryItem("CA");
+        stateDictionary << m_currentState.getAlphaStroking();
+        stateDictionary.endDictionaryItem();
+    }
+
+    if (stateFlags.testFlag(PDFPageContentProcessorState::StateAlphaFilling))
+    {
+        stateDictionary.beginDictionaryItem("ca");
+        stateDictionary << m_currentState.getAlphaFilling();
+        stateDictionary.endDictionaryItem();
+    }
+
+    if (stateFlags.testFlag(PDFPageContentProcessorState::StateAlphaIsShape))
+    {
+        stateDictionary.beginDictionaryItem("AIS");
+        stateDictionary << m_currentState.getAlphaIsShape();
+        stateDictionary.endDictionaryItem();
+    }
+
+    if (stateFlags.testFlag(PDFPageContentProcessorState::StateTextKnockout))
+    {
+        stateDictionary.beginDictionaryItem("TK");
+        stateDictionary << m_currentState.getTextKnockout();
+        stateDictionary.endDictionaryItem();
+    }
+
+    if (stateFlags.testFlag(PDFPageContentProcessorState::StateStrokeAdjustment))
+    {
+        stateDictionary.beginDictionaryItem("SA");
+        stateDictionary << m_currentState.getStrokeAdjustment();
+        stateDictionary.endDictionaryItem();
+    }
+
+    if (stateFlags.testFlag(PDFPageContentProcessorState::StateBlendMode))
+    {
+        QString blendModeName = PDFBlendModeInfo::getBlendModeName(m_currentState.getBlendMode());
+
+        stateDictionary.beginDictionaryItem("BM");
+        stateDictionary << WrapName(blendModeName);
+        stateDictionary.endDictionaryItem();
+    }
+
+    if (stateFlags.testFlag(PDFPageContentProcessorState::StateOverprint))
+    {
+        PDFOverprintMode overprintMode = m_currentState.getOverprintMode();
+
+        stateDictionary.beginDictionaryItem("OPM");
+        stateDictionary << overprintMode.overprintMode;
+        stateDictionary.endDictionaryItem();
+
+        stateDictionary.beginDictionaryItem("OP");
+        stateDictionary << overprintMode.overprintStroking;
+        stateDictionary.endDictionaryItem();
+
+        stateDictionary.beginDictionaryItem("op");
+        stateDictionary << overprintMode.overprintFilling;
+        stateDictionary.endDictionaryItem();
+    }
+
+    stateDictionary.endDictionary();
+    PDFObject stateObject = stateDictionary.takeObject();
+
+    const PDFDictionary* dictionary = m_document->getDictionaryFromObject(stateObject);
+    if (dictionary && dictionary->getCount() > 0)
+    {
+        // Apply state
+        QByteArray key;
+
+        for (size_t i = 0; i < m_graphicStateDictionary.getCount(); ++i)
+        {
+            const PDFDictionary* currentDictionary = m_document->getDictionaryFromObject(m_graphicStateDictionary.getValue(i));
+            if (*currentDictionary == *dictionary)
+            {
+                key = m_graphicStateDictionary.getKey(i).getString();
+                break;
+            }
+        }
+
+        if (key.isEmpty())
+        {
+            int i = 0;
+            while (true)
+            {
+                QByteArray currentKey = QString("s%1").arg(++i).toLatin1();
+                if (!m_graphicStateDictionary.hasKey(currentKey))
+                {
+                    m_graphicStateDictionary.addEntry(currentKey, std::move(stateObject));
+                    key = currentKey;
+                    break;
+                }
+            }
+        }
+
+        stream << "/" << key << " gs" << Qt::endl;
+    }
 }
 
 void PDFPageContentEditorContentStreamBuilder::writeElement(const PDFEditedPageContentElement* element)
 {
     PDFPageContentProcessorState state = element->getState();
     state.setCurrentTransformationMatrix(element->getTransform());
-    writeStateDifference(state);
 
     QTextStream stream(&m_outputContent, QDataStream::WriteOnly);
+    writeStateDifference(stream, state);
 
     if (const PDFEditedPageContentElementImage* imageElement = element->asImage())
     {
         QImage image = imageElement->getImage();
         PDFObject imageObject = imageElement->getImageObject();
 
-
+        writeImage(image);
     }
 
     if (const PDFEditedPageContentElementPath* pathElement = element->asPath())
@@ -1002,7 +1248,7 @@ void PDFPageContentEditorContentStreamBuilder::writeText(QTextStream& stream, co
                 if (attributes.hasAttribute("font") && attributes.hasAttribute("size"))
                 {
                     bool ok = false;
-                    QString v1 = attributes.value("font").toString();
+                    QByteArray v1 = attributes.value("font").toString().toLatin1();
                     PDFReal v2 = attributes.value("size").toDouble(&ok);
 
                     if (!ok)

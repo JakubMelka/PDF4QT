@@ -905,7 +905,7 @@ private:
     /// \param lineCap PDF Line cap style (see PDF Reference 1.7, values can be 0, 1, and 2)
     static Qt::PenCapStyle convertLineCapToPenCapStyle(PDFInteger lineCap);
 
-    /// Convers Qt's pen cap style to PDF's line cap style (defined in the PDF Reference)
+    /// Converts Qt's pen cap style to PDF's line cap style (defined in the PDF Reference)
     /// \param penCapStyle Qt's pen cap style to be converted
     static PDFInteger convertPenCapStyleToLineCap(Qt::PenCapStyle penCapStyle);
 
@@ -914,7 +914,7 @@ private:
     /// \param lineJoin PDF Line join style (see PDF Reference 1.7, values can be 0, 1, and 2)
     static Qt::PenJoinStyle convertLineJoinToPenJoinStyle(PDFInteger lineJoin);
 
-    /// Convers Qt's pen join style to PDF's line join style (defined in the PDF Reference)
+    /// Converts Qt's pen join style to PDF's line join style (defined in the PDF Reference)
     /// \param penJoinStyle Qt's pen join style to be converted
     static PDFInteger convertPenJoinStyleToLineJoin(Qt::PenJoinStyle penJoinStyle);
 

@@ -213,7 +213,7 @@ class PDF4QTLIBCORESHARED_EXPORT PDFPageContentEditorContentStreamBuilder
 public:
     PDFPageContentEditorContentStreamBuilder();
 
-    void writeStateDifference(const PDFPageContentProcessorState& state);
+    void writeStateDifference(QTextStream& stream, const PDFPageContentProcessorState& state);
     void writeElement(const PDFEditedPageContentElement* element);
 
     const QByteArray& getOutputContent() const;
@@ -231,6 +231,7 @@ private:
     PDFDocument* m_document = nullptr;
     PDFDictionary m_fontDictionary;
     PDFDictionary m_xobjectDictionary;
+    PDFDictionary m_graphicStateDictionary;
     QByteArray m_outputContent;
     PDFPageContentProcessorState m_currentState;
     PDFFontPointer m_textFont;
