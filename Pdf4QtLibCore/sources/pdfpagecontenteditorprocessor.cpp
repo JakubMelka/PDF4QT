@@ -17,6 +17,8 @@
 
 #include "pdfpagecontenteditorprocessor.h"
 #include "pdfdocumentbuilder.h"
+#include "pdfobject.h"
+#include "pdfstreamfilters.h"
 
 #include <QStringBuilder>
 #include <QXmlStreamReader>
@@ -968,7 +970,7 @@ void PDFPageContentEditorContentStreamBuilder::writeStateDifference(QTextStream&
         QString blendModeName = PDFBlendModeInfo::getBlendModeName(m_currentState.getBlendMode());
 
         stateDictionary.beginDictionaryItem("BM");
-        stateDictionary << WrapName(blendModeName);
+        stateDictionary << WrapName(blendModeName.toLatin1());
         stateDictionary.endDictionaryItem();
     }
 
@@ -1016,7 +1018,7 @@ void PDFPageContentEditorContentStreamBuilder::writeStateDifference(QTextStream&
                 QByteArray currentKey = QString("s%1").arg(++i).toLatin1();
                 if (!m_graphicStateDictionary.hasKey(currentKey))
                 {
-                    m_graphicStateDictionary.addEntry(currentKey, std::move(stateObject));
+                    m_graphicStateDictionary.addEntry(PDFInplaceOrMemoryString(currentKey), std::move(stateObject));
                     key = currentKey;
                     break;
                 }
@@ -1038,9 +1040,8 @@ void PDFPageContentEditorContentStreamBuilder::writeElement(const PDFEditedPageC
     if (const PDFEditedPageContentElementImage* imageElement = element->asImage())
     {
         QImage image = imageElement->getImage();
-        PDFObject imageObject = imageElement->getImageObject();
 
-        writeImage(image);
+        writeImage(stream, image);
     }
 
     if (const PDFEditedPageContentElementPath* pathElement = element->asPath())
@@ -1361,6 +1362,45 @@ void PDFPageContentEditorContentStreamBuilder::writeText(QTextStream& stream, co
     stream << "ET Q" << Qt::endl;
 }
 
+void PDFPageContentEditorContentStreamBuilder::writeImage(QTextStream& stream, const QImage& image)
+{
+    QByteArray key;
+
+    int i = 0;
+    while (true)
+    {
+        QByteArray currentKey = QString("Im%1").arg(++i).toLatin1();
+        if (!m_xobjectDictionary.hasKey(currentKey))
+        {
+            PDFArray array;
+            array.appendItem(PDFObject::createName("FlateDecode"));
+
+            QImage codedImage = image;
+            codedImage = codedImage.convertToFormat(QImage::Format_ARGB32);
+
+            QByteArray decodedStream(reinterpret_cast<const char*>(image.constBits()), image.sizeInBytes());
+
+            // Compress the content stream
+            QByteArray compressedData = PDFFlateDecodeFilter::compress(decodedStream);
+            PDFDictionary imageDictionary;
+            imageDictionary.setEntry(PDFInplaceOrMemoryString("Subtitle"), PDFObject::createName("Image"));
+            imageDictionary.setEntry(PDFInplaceOrMemoryString("Width"), PDFObject::createInteger(image.width()));
+            imageDictionary.setEntry(PDFInplaceOrMemoryString("Height"), PDFObject::createInteger(image.height()));
+            imageDictionary.setEntry(PDFInplaceOrMemoryString("ColorSpace"), PDFObject::createName("DeviceRGB"));
+            imageDictionary.setEntry(PDFInplaceOrMemoryString("BitsPerComponent"), PDFObject::createInteger(8));
+            imageDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(compressedData.size()));
+            imageDictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(std::make_shared<PDFArray>(qMove(array))));
+            PDFObject imageObject = PDFObject::createStream(std::make_shared<PDFStream>(qMove(imageDictionary), qMove(compressedData)));
+
+            m_xobjectDictionary.addEntry(PDFInplaceOrMemoryString(currentKey), std::move(imageObject));
+            key = currentKey;
+            break;
+        }
+    }
+
+    stream << "/" << key << " Do" << Qt::endl;
+}
+
 QByteArray PDFPageContentEditorContentStreamBuilder::selectFont(const QByteArray& font)
 {
     m_textFont = nullptr;
@@ -1404,12 +1444,15 @@ QByteArray PDFPageContentEditorContentStreamBuilder::selectFont(const QByteArray
         }
 
         m_textFont = PDFFont::createFont(fontObject, font, m_document);
+        return defaultFontKey;
     }
+
+    return font;
 }
 
 void PDFPageContentEditorContentStreamBuilder::addError(const QString& error)
 {
-
+    m_errors << error;
 }
 
 }   // namespace pdf

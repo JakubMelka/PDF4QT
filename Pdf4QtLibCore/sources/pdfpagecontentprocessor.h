@@ -504,6 +504,26 @@ public:
     /// Returns true, if we are in a text processing
     bool isTextProcessing() const;
 
+
+    /// Converts PDF line cap to Qt's pen cap style. Function always succeeds,
+    /// if invalid \p lineCap occurs, then some valid pen cap style is returned.
+    /// \param lineCap PDF Line cap style (see PDF Reference 1.7, values can be 0, 1, and 2)
+    static Qt::PenCapStyle convertLineCapToPenCapStyle(PDFInteger lineCap);
+
+    /// Converts Qt's pen cap style to PDF's line cap style (defined in the PDF Reference)
+    /// \param penCapStyle Qt's pen cap style to be converted
+    static PDFInteger convertPenCapStyleToLineCap(Qt::PenCapStyle penCapStyle);
+
+    /// Converts PDF line join to Qt's pen join style. Function always succeeds,
+    /// if invalid \p lineJoin occurs, then some valid pen join style is returned.
+    /// \param lineJoin PDF Line join style (see PDF Reference 1.7, values can be 0, 1, and 2)
+    static Qt::PenJoinStyle convertLineJoinToPenJoinStyle(PDFInteger lineJoin);
+
+    /// Converts Qt's pen join style to PDF's line join style (defined in the PDF Reference)
+    /// \param penJoinStyle Qt's pen join style to be converted
+    static PDFInteger convertPenJoinStyleToLineJoin(Qt::PenJoinStyle penJoinStyle);
+
+
 protected:
 
     struct PDFTransparencyGroup
@@ -899,24 +919,6 @@ private:
             throw PDFRendererException(RenderErrorType::Error, PDFTranslationContext::tr("Invalid color component count. Provided %1, required %2.").arg(operandCount).arg(colorSpaceComponentCount));
         }
     }
-
-    /// Converts PDF line cap to Qt's pen cap style. Function always succeeds,
-    /// if invalid \p lineCap occurs, then some valid pen cap style is returned.
-    /// \param lineCap PDF Line cap style (see PDF Reference 1.7, values can be 0, 1, and 2)
-    static Qt::PenCapStyle convertLineCapToPenCapStyle(PDFInteger lineCap);
-
-    /// Converts Qt's pen cap style to PDF's line cap style (defined in the PDF Reference)
-    /// \param penCapStyle Qt's pen cap style to be converted
-    static PDFInteger convertPenCapStyleToLineCap(Qt::PenCapStyle penCapStyle);
-
-    /// Converts PDF line join to Qt's pen join style. Function always succeeds,
-    /// if invalid \p lineJoin occurs, then some valid pen join style is returned.
-    /// \param lineJoin PDF Line join style (see PDF Reference 1.7, values can be 0, 1, and 2)
-    static Qt::PenJoinStyle convertLineJoinToPenJoinStyle(PDFInteger lineJoin);
-
-    /// Converts Qt's pen join style to PDF's line join style (defined in the PDF Reference)
-    /// \param penJoinStyle Qt's pen join style to be converted
-    static PDFInteger convertPenJoinStyleToLineJoin(Qt::PenJoinStyle penJoinStyle);
 
     // General graphic state        w, J, j, M, d, ri, i, gs
     void operatorSetLineWidth(PDFReal lineWidth);           ///< w, sets the line width

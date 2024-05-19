@@ -225,6 +225,8 @@ private:
                           bool isFilling);
     void writeText(QTextStream& stream, const QString& text);
 
+    void writeImage(QTextStream& stream, const QImage& image);
+
     QByteArray selectFont(const QByteArray& font);
     void addError(const QString& error);
 
@@ -235,6 +237,7 @@ private:
     QByteArray m_outputContent;
     PDFPageContentProcessorState m_currentState;
     PDFFontPointer m_textFont;
+    QStringList m_errors;
 };
 
 class PDF4QTLIBCORESHARED_EXPORT PDFPageContentEditorProcessor : public PDFPageContentProcessor
