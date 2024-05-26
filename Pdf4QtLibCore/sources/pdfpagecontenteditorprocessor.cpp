@@ -778,6 +778,11 @@ void PDFEditedPageContentElementText::setItemsAsText(const QString& newItemsAsTe
     m_itemsAsText = newItemsAsText;
 }
 
+PDFPageContentEditorContentStreamBuilder::PDFPageContentEditorContentStreamBuilder()
+{
+
+}
+
 void PDFPageContentEditorContentStreamBuilder::writeStateDifference(QTextStream& stream, const PDFPageContentProcessorState& state)
 {
     m_currentState.setState(state);
@@ -1063,6 +1068,11 @@ void PDFPageContentEditorContentStreamBuilder::writeElement(const PDFEditedPageC
     }
 
     stream << Qt::endl;
+}
+
+const QByteArray& PDFPageContentEditorContentStreamBuilder::getOutputContent() const
+{
+    return m_outputContent;
 }
 
 void PDFPageContentEditorContentStreamBuilder::writePainterPath(QTextStream& stream,
@@ -1453,6 +1463,11 @@ QByteArray PDFPageContentEditorContentStreamBuilder::selectFont(const QByteArray
 void PDFPageContentEditorContentStreamBuilder::addError(const QString& error)
 {
     m_errors << error;
+}
+
+void PDFPageContentEditorContentStreamBuilder::setFontDictionary(const PDFDictionary& newFontDictionary)
+{
+    m_fontDictionary = newFontDictionary;
 }
 
 }   // namespace pdf

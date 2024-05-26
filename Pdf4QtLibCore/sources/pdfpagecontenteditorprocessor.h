@@ -218,6 +218,15 @@ public:
 
     const QByteArray& getOutputContent() const;
 
+    const PDFDictionary& getFontDictionary() const { return m_fontDictionary; }
+    const PDFDictionary& getXObjectDictionary() const { return m_xobjectDictionary; }
+    const PDFDictionary& getGraphicStateDictionary() const { return m_graphicStateDictionary; }
+
+    void setFontDictionary(const PDFDictionary& newFontDictionary);
+
+    const QStringList& getErrors() const { return m_errors; }
+    void clearErrors() { m_errors.clear(); }
+
 private:
     void writePainterPath(QTextStream& stream,
                           const QPainterPath& path,

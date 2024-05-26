@@ -49,6 +49,8 @@ public:
     virtual std::vector<QAction*> getActions() const override;
     virtual QString getPluginMenuName() const override;
 
+    bool save();
+
 private:
     void onSceneChanged(bool graphicsOnly);
     void onSceneSelectionChanged();

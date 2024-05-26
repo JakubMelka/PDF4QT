@@ -23,6 +23,8 @@
 #include "pdfdocumentbuilder.h"
 #include "pdfcertificatemanagerdialog.h"
 #include "pdfdocumentwriter.h"
+#include "pdfpagecontenteditorprocessor.h"
+#include "pdfstreamfilters.h"
 
 #include <QAction>
 #include <QToolButton>
@@ -178,6 +180,138 @@ std::vector<QAction*> EditorPlugin::getActions() const
 QString EditorPlugin::getPluginMenuName() const
 {
     return tr("Edi&tor");
+}
+
+bool EditorPlugin::save()
+{
+    if (QMessageBox::question(m_dataExchangeInterface->getMainWindow(), tr("Confirm Changes"), tr("The changes to the page content will be written to the document. Do you want to continue?"), QMessageBox::Yes, QMessageBox::No) == QMessageBox::Yes)
+    {
+        pdf::PDFDocumentModifier modifier(m_document);
+
+        std::set<pdf::PDFInteger> pageIndices = m_scene.getPageIndices();
+        auto elementsByPage = m_scene.getElementsByPage();
+        for (pdf::PDFInteger pageIndex : pageIndices)
+        {
+            if (m_editedPageContent.count(pageIndex) == 0)
+            {
+                continue;
+            }
+
+            const pdf::PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
+            const pdf::PDFEditedPageContent& editedPageContent = m_editedPageContent.at(pageIndex);
+
+            pdf::PDFPageContentEditorContentStreamBuilder contentStreamBuilder;
+            contentStreamBuilder.setFontDictionary(editedPageContent.getFontDictionary());
+
+            auto it = elementsByPage.find(pageIndex);
+            if (it != elementsByPage.cend())
+            {
+                for (const pdf::PDFPageContentElement* element : it->second)
+                {
+                    const pdf::PDFPageContentElementEdited* editedElement = element->asElementEdited();
+
+                    if (editedElement)
+                    {
+                        contentStreamBuilder.writeElement(editedElement->getElement());
+                    }
+                    else
+                    {
+                        // TODO: Implement other elements
+                    }
+                }
+            }
+
+            QStringList errors = contentStreamBuilder.getErrors();
+            contentStreamBuilder.clearErrors();
+
+            if (!errors.empty())
+            {
+                const int errorCount = errors.size();
+                if (errors.size() > 3)
+                {
+                    errors.resize(3);
+                }
+
+                QString message = tr("Errors (%2) occured while creating content stream on page %3.<br>%1").arg(errors.join("<br>")).arg(errorCount).arg(pageIndex + 1);
+                if (QMessageBox::question(m_dataExchangeInterface->getMainWindow(), tr("Error"), message, QMessageBox::Abort, QMessageBox::Ignore) == QMessageBox::Abort)
+                {
+                    return false;
+                }
+            }
+
+            pdf::PDFDocumentBuilder* builder = modifier.getBuilder();
+
+            pdf::PDFDictionary fontDictionary = contentStreamBuilder.getFontDictionary();
+            pdf::PDFDictionary xobjectDictionary = contentStreamBuilder.getXObjectDictionary();
+            pdf::PDFDictionary graphicStateDictionary = contentStreamBuilder.getGraphicStateDictionary();
+
+            builder->replaceObjectsByReferences(fontDictionary);
+            builder->replaceObjectsByReferences(xobjectDictionary);
+            builder->replaceObjectsByReferences(graphicStateDictionary);
+
+            pdf::PDFArray array;
+            array.appendItem(pdf::PDFObject::createName("FlateDecode"));
+
+            // Compress the content stream
+            QByteArray compressedData = pdf::PDFFlateDecodeFilter::compress(contentStreamBuilder.getOutputContent());
+            pdf::PDFDictionary contentDictionary;
+            contentDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Length"), pdf::PDFObject::createInteger(compressedData.size()));
+            contentDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Filter"), pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(qMove(array))));
+            pdf::PDFObject contentObject = pdf::PDFObject::createStream(std::make_shared<pdf::PDFStream>(qMove(contentDictionary), qMove(compressedData)));
+
+            pdf::PDFObject pageObject = builder->getObjectByReference(page->getPageReference());
+
+            pdf::PDFObjectFactory factory;
+            factory.beginDictionary();
+            factory.beginDictionaryItem("Resources");
+            factory.beginDictionary();
+
+            if (!fontDictionary.isEmpty())
+            {
+                factory.beginDictionaryItem("Font");
+                factory << fontDictionary;
+                factory.endDictionaryItem();
+            }
+
+            if (!xobjectDictionary.isEmpty())
+            {
+                factory.beginDictionaryItem("XObject");
+                factory << xobjectDictionary;
+                factory.endDictionaryItem();
+            }
+
+            if (!graphicStateDictionary.isEmpty())
+            {
+                factory.beginDictionaryItem("ExtGState");
+                factory << graphicStateDictionary;
+                factory.endDictionaryItem();
+            }
+
+            factory.endDictionary();
+            factory.endDictionaryItem();
+
+            factory.beginDictionaryItem("Content");
+            factory << builder->addObject(std::move(contentObject));
+            factory.endDictionaryItem();
+
+            factory.endDictionary();
+
+            pageObject = pdf::PDFObjectManipulator::merge(pageObject, factory.takeObject(), pdf::PDFObjectManipulator::RemoveNullObjects);
+            builder->setObject(page->getPageReference(), std::move(pageObject));
+
+            modifier.markReset();
+        }
+
+        m_scene.clear();
+        m_editedPageContent.clear();
+
+        if (modifier.finalize())
+        {
+            Q_EMIT m_widget->getToolManager()->documentModified(pdf::PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+        }
+    }
+
+    return true;
 }
 
 void EditorPlugin::onSceneChanged(bool graphicsOnly)

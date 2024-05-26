@@ -427,6 +427,8 @@ public:
     /// Removes null objects from dictionary
     void removeNullObjects();
 
+    bool isEmpty() const { return getCount() == 0; }
+
     /// Optimizes the dictionary for memory consumption
     virtual void optimize() override;
 

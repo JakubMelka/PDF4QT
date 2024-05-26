@@ -904,6 +904,18 @@ std::set<PDFInteger> PDFPageContentScene::getPageIndices() const
     return result;
 }
 
+std::map<PDFInteger, std::vector<const PDFPageContentElement*>> PDFPageContentScene::getElementsByPage() const
+{
+    std::map<PDFInteger, std::vector<const PDFPageContentElement*>> result;
+
+    for (const auto& elementHandle : m_elements)
+    {
+        result[elementHandle->getPageIndex()].push_back(elementHandle.get());
+    }
+
+    return result;
+}
+
 QRectF PDFPageContentScene::getBoundingBox(PDFInteger pageIndex) const
 {
     QRectF rect;

@@ -38,6 +38,7 @@ class PDFWidget;
 class PDFDocument;
 class PDFPageContentScene;
 class PDFEditedPageContentElement;
+class PDFPageContentElementEdited;
 
 class PDF4QTLIBWIDGETSSHARED_EXPORT PDFPageContentElement
 { 
@@ -103,6 +104,8 @@ public:
         Pt1,
         Pt2
     };
+
+    virtual const PDFPageContentElementEdited* asElementEdited() const { return nullptr; }
 
 protected:
     uint getRectangleManipulationMode(const QRectF& rectangle,
@@ -368,6 +371,7 @@ public:
     virtual QRectF getBoundingBox() const override;
     virtual void setSize(QSizeF size) override;
     virtual QString getDescription() const override;
+    virtual const PDFPageContentElementEdited* asElementEdited() const { return this; }
 
     const PDFEditedPageContentElement* getElement() const { return m_element.get(); }
     PDFEditedPageContentElement* getElement() { return m_element.get(); }
@@ -531,6 +535,8 @@ public:
 
     /// Returns set of involved pages
     std::set<PDFInteger> getPageIndices() const;
+
+    std::map<PDFInteger, std::vector<const PDFPageContentElement*>> getElementsByPage() const;
 
     /// Returns bounding box of elements on page
     QRectF getBoundingBox(PDFInteger pageIndex) const;
