@@ -22,6 +22,8 @@
 
 #include <memory>
 
+class QXmlStreamReader;
+
 namespace pdf
 {
 
@@ -211,7 +213,7 @@ private:
 class PDF4QTLIBCORESHARED_EXPORT PDFPageContentEditorContentStreamBuilder
 {
 public:
-    PDFPageContentEditorContentStreamBuilder();
+    PDFPageContentEditorContentStreamBuilder(PDFDocument* document);
 
     void writeStateDifference(QTextStream& stream, const PDFPageContentProcessorState& state);
     void writeElement(const PDFEditedPageContentElement* element);
@@ -232,7 +234,9 @@ private:
                           const QPainterPath& path,
                           bool isStroking,
                           bool isFilling);
+
     void writeText(QTextStream& stream, const QString& text);
+    void writeTextCommand(QTextStream& stream, const QXmlStreamReader& reader);
 
     void writeImage(QTextStream& stream, const QImage& image);
 

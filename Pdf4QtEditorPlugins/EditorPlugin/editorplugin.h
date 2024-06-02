@@ -103,6 +103,7 @@ private:
     };
 
     void setActive(bool active);
+    void onSetActive(bool active);
 
     void updateActions();
     void updateGraphics();

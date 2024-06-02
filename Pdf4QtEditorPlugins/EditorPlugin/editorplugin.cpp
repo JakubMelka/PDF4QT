@@ -151,7 +151,7 @@ void EditorPlugin::setWidget(pdf::PDFWidget* widget)
     connect(&m_scene, &pdf::PDFPageContentScene::selectionChanged, this, &EditorPlugin::onSceneSelectionChanged);
     connect(&m_scene, &pdf::PDFPageContentScene::editElementRequest, this, &EditorPlugin::onSceneEditElement);
     connect(clearAction, &QAction::triggered, &m_scene, &pdf::PDFPageContentScene::clear);
-    connect(activateAction, &QAction::triggered, this, &EditorPlugin::setActive);
+    connect(activateAction, &QAction::triggered, this, &EditorPlugin::onSetActive);
     connect(m_widget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::drawSpaceChanged, this, &EditorPlugin::onDrawSpaceChanged);
 
     updateActions();
@@ -200,7 +200,7 @@ bool EditorPlugin::save()
             const pdf::PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
             const pdf::PDFEditedPageContent& editedPageContent = m_editedPageContent.at(pageIndex);
 
-            pdf::PDFPageContentEditorContentStreamBuilder contentStreamBuilder;
+            pdf::PDFPageContentEditorContentStreamBuilder contentStreamBuilder(m_document);
             contentStreamBuilder.setFontDictionary(editedPageContent.getFontDictionary());
 
             auto it = elementsByPage.find(pageIndex);
@@ -475,6 +475,17 @@ void EditorPlugin::setActive(bool active)
         m_actions[Activate]->setChecked(active);
         updateActions();
     }
+}
+
+void EditorPlugin::onSetActive(bool active)
+{
+    if (!active && !save())
+    {
+        updateActions();
+        return;
+    }
+
+    setActive(active);
 }
 
 void EditorPlugin::updateActions()
