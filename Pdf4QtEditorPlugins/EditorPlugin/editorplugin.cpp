@@ -25,6 +25,7 @@
 #include "pdfdocumentwriter.h"
 #include "pdfpagecontenteditorprocessor.h"
 #include "pdfstreamfilters.h"
+#include "pdfoptimizer.h"
 
 #include <QAction>
 #include <QToolButton>
@@ -41,7 +42,8 @@ EditorPlugin::EditorPlugin() :
     m_tools({ }),
     m_editorWidget(nullptr),
     m_scene(nullptr),
-    m_sceneSelectionChangeEnabled(true)
+    m_sceneSelectionChangeEnabled(true),
+    m_isSaving(false)
 {
     m_scene.setIsPageContentDrawSuppressed(true);
 }
@@ -184,6 +186,8 @@ QString EditorPlugin::getPluginMenuName() const
 
 bool EditorPlugin::save()
 {
+    pdf::PDFTemporaryValueChange guard(&m_isSaving, true);
+
     if (QMessageBox::question(m_dataExchangeInterface->getMainWindow(), tr("Confirm Changes"), tr("The changes to the page content will be written to the document. Do you want to continue?"), QMessageBox::Yes, QMessageBox::No) == QMessageBox::Yes)
     {
         pdf::PDFDocumentModifier modifier(m_document);
@@ -290,7 +294,7 @@ bool EditorPlugin::save()
             factory.endDictionary();
             factory.endDictionaryItem();
 
-            factory.beginDictionaryItem("Content");
+            factory.beginDictionaryItem("Contents");
             factory << builder->addObject(std::move(contentObject));
             factory.endDictionaryItem();
 
@@ -307,7 +311,17 @@ bool EditorPlugin::save()
 
         if (modifier.finalize())
         {
-            Q_EMIT m_widget->getToolManager()->documentModified(pdf::PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+            pdf::PDFDocument document = *modifier.getDocument();
+            pdf::PDFOptimizer optimizer(pdf::PDFOptimizer::DereferenceSimpleObjects |
+                                        pdf::PDFOptimizer::RemoveNullObjects |
+                                        pdf::PDFOptimizer::RemoveUnusedObjects |
+                                        pdf::PDFOptimizer::MergeIdenticalObjects |
+                                        pdf::PDFOptimizer::ShrinkObjectStorage, nullptr);
+            optimizer.setDocument(&document);
+            optimizer.optimize();
+            document = optimizer.takeOptimizedDocument();
+
+            Q_EMIT m_widget->getToolManager()->documentModified(pdf::PDFModifiedDocument(pdf::PDFDocumentPointer(new pdf::PDFDocument(std::move(document))), nullptr, modifier.getFlags()));
         }
     }
 
@@ -578,9 +592,9 @@ void EditorPlugin::updateDockWidget()
 
 void EditorPlugin::updateEditedPages()
 {
-    if (!m_scene.isActive())
+    if (!m_scene.isActive() || m_isSaving)
     {
-        // Editor is not active
+        // Editor is not active or we are saving the document
         return;
     }
 

@@ -68,15 +68,18 @@ void PDFPageContentEditorProcessor::performInterceptInstruction(Operator current
     {
         if (currentOperator == Operator::TextEnd && !isTextProcessing())
         {
-            if (m_contentElementText && !m_contentElementText->isEmpty())
+            if (m_contentElementText)
             {
-                m_contentElementText->setTextPath(std::move(m_textPath));
-                m_contentElementText->setItemsAsText(PDFEditedPageContentElementText::createItemsAsText(m_contentElementText->getState(), m_contentElementText->getItems()));
-                m_content.addContentElement(std::move(m_contentElementText));
+                m_contentElementText->optimize();
+
+                if (!m_contentElementText->isEmpty())
+                {
+                    m_contentElementText->setTextPath(std::move(m_textPath));
+                    m_contentElementText->setItemsAsText(PDFEditedPageContentElementText::createItemsAsText(m_contentElementText->getState(), m_contentElementText->getItems()));
+                    m_content.addContentElement(std::move(m_contentElementText));
+                }
             }
             m_contentElementText.reset();
-
-            m_textBoundingRect = QRectF();
             m_textPath = QPainterPath();
         }
     }
@@ -93,10 +96,7 @@ void PDFPageContentEditorProcessor::performPathPainting(const QPainterPath& path
 
     if (text)
     {
-        QPainterPath mappedPath = getGraphicState()->getCurrentTransformationMatrix().map(path);
-        QRectF boundingRect = mappedPath.boundingRect();
-        m_textBoundingRect = m_textBoundingRect.united(boundingRect);
-        m_textPath.addPath(mappedPath);
+        m_textPath.addPath(path);
     }
     else
     {
@@ -778,6 +778,14 @@ void PDFEditedPageContentElementText::setItemsAsText(const QString& newItemsAsTe
     m_itemsAsText = newItemsAsText;
 }
 
+void PDFEditedPageContentElementText::optimize()
+{
+    while (!m_items.empty() && !m_items.back().isText)
+    {
+        m_items.pop_back();
+    }
+}
+
 PDFPageContentEditorContentStreamBuilder::PDFPageContentEditorContentStreamBuilder(PDFDocument* document) :
     m_document(document)
 {
@@ -786,12 +794,28 @@ PDFPageContentEditorContentStreamBuilder::PDFPageContentEditorContentStreamBuild
 
 void PDFPageContentEditorContentStreamBuilder::writeStateDifference(QTextStream& stream, const PDFPageContentProcessorState& state)
 {
+    PDFPageContentProcessorState oldState = m_currentState;
     m_currentState.setState(state);
 
     auto stateFlags = m_currentState.getStateFlags();
 
     if (stateFlags.testFlag(PDFPageContentProcessorState::StateCurrentTransformationMatrix))
     {
+        QTransform oldTransform = oldState.getCurrentTransformationMatrix();
+
+        if (!oldTransform.isIdentity() && oldTransform.isInvertible())
+        {
+            oldTransform = oldTransform.inverted();
+            PDFReal old_m11 = oldTransform.m11();
+            PDFReal old_m12 = oldTransform.m12();
+            PDFReal old_m21 = oldTransform.m21();
+            PDFReal old_m22 = oldTransform.m22();
+            PDFReal old_x = oldTransform.dx();
+            PDFReal old_y = oldTransform.dy();
+
+            stream << old_m11 << " " << old_m12 << " " << old_m21 << " " << old_m22 << " " << old_x << " " << old_y << " cm" << Qt::endl;
+        }
+
         QTransform transform = m_currentState.getCurrentTransformationMatrix();
 
         PDFReal m11 = transform.m11();
@@ -841,7 +865,7 @@ void PDFPageContentEditorContentStreamBuilder::writeStateDifference(QTextStream&
                 stream << arrayItem << " ";
             }
 
-            stream << " ] " << dashPattern.getDashOffset() << " d";
+            stream << " ] " << dashPattern.getDashOffset() << " d" << Qt::endl;
         }
     }
 
@@ -888,15 +912,15 @@ void PDFPageContentEditorContentStreamBuilder::writeStateDifference(QTextStream&
         }
         else if (strokeColorSpace && strokeColorSpace->getColorSpace() == PDFAbstractColorSpace::ColorSpace::DeviceCMYK)
         {
-            const PDFColor& color = m_currentState.getStrokeColorOriginal();
-            if (color.size() >= 4)
+            const PDFColor& strokeColorOriginal = m_currentState.getStrokeColorOriginal();
+            if (strokeColorOriginal.size() >= 4)
             {
-                stream << color[0] << " " << color[1] << " " << color[2] << " " << color[3] << " K";
+                stream << strokeColorOriginal[0] << " " << strokeColorOriginal[1] << " " << strokeColorOriginal[2] << " " << strokeColorOriginal[3] << " K" << Qt::endl;
             }
         }
         else
         {
-            stream << color.redF() << " " << color.greenF() << " " << color.blueF() << " RG";
+            stream << color.redF() << " " << color.greenF() << " " << color.blueF() << " RG" << Qt::endl;
         }
     }
 
@@ -911,15 +935,15 @@ void PDFPageContentEditorContentStreamBuilder::writeStateDifference(QTextStream&
         }
         else if (fillColorSpace && fillColorSpace->getColorSpace() == PDFAbstractColorSpace::ColorSpace::DeviceCMYK)
         {
-            const PDFColor& color = m_currentState.getFillColorOriginal();
-            if (color.size() >= 4)
+            const PDFColor& fillColor = m_currentState.getFillColorOriginal();
+            if (fillColor.size() >= 4)
             {
-                stream << color[0] << " " << color[1] << " " << color[2] << " " << color[3] << " K";
+                stream << fillColor[0] << " " << fillColor[1] << " " << fillColor[2] << " " << fillColor[3] << " K" << Qt::endl;
             }
         }
         else
         {
-            stream << color.redF() << " " << color.greenF() << " " << color.blueF() << " RG";
+            stream << color.redF() << " " << color.greenF() << " " << color.blueF() << " RG" << Qt::endl;
         }
     }
 
@@ -1040,7 +1064,7 @@ void PDFPageContentEditorContentStreamBuilder::writeElement(const PDFEditedPageC
     PDFPageContentProcessorState state = element->getState();
     state.setCurrentTransformationMatrix(element->getTransform());
 
-    QTextStream stream(&m_outputContent, QDataStream::WriteOnly);
+    QTextStream stream(&m_outputContent, QDataStream::WriteOnly | QDataStream::Append);
     writeStateDifference(stream, state);
 
     if (const PDFEditedPageContentElementImage* imageElement = element->asImage())

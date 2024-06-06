@@ -169,6 +169,8 @@ public:
     QString getItemsAsText() const;
     void setItemsAsText(const QString& newItemsAsText);
 
+    void optimize();
+
 private:
     std::vector<Item> m_items;
     QPainterPath m_textPath;
@@ -283,7 +285,6 @@ protected:
 
 private:
     PDFEditedPageContent m_content;
-    QRectF m_textBoundingRect;
     std::stack<QPainterPath> m_clippingPaths;
     std::unique_ptr<PDFEditedPageContentElementText> m_contentElementText;
     QPainterPath m_textPath;

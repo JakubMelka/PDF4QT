@@ -121,6 +121,7 @@ private:
     pdf::PDFPageContentScene m_scene;
     std::map<pdf::PDFInteger, pdf::PDFEditedPageContent> m_editedPageContent;
     bool m_sceneSelectionChangeEnabled;
+    bool m_isSaving;
 };
 
 }   // namespace pdfplugin
