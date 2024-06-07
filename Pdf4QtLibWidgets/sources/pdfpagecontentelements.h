@@ -1,4 +1,4 @@
-//    Copyright (C) 2022 Jakub Melka
+//    Copyright (C) 2022-2024 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -39,6 +39,12 @@ class PDFDocument;
 class PDFPageContentScene;
 class PDFEditedPageContentElement;
 class PDFPageContentElementEdited;
+class PDFPageContentElementRectangle;
+class PDFPageContentElementLine;
+class PDFPageContentElementDot;
+class PDFPageContentElementFreehandCurve;
+class PDFPageContentImageElement;
+class PDFPageContentElementTextBox;
 
 class PDF4QTLIBWIDGETSSHARED_EXPORT PDFPageContentElement
 { 
@@ -106,6 +112,12 @@ public:
     };
 
     virtual const PDFPageContentElementEdited* asElementEdited() const { return nullptr; }
+    virtual const PDFPageContentElementRectangle* asElementRectangle() const { return nullptr; }
+    virtual const PDFPageContentElementLine* asElementLine() const { return nullptr; }
+    virtual const PDFPageContentElementDot* asElementDot() const { return nullptr ; }
+    virtual const PDFPageContentElementFreehandCurve* asElementFreehandCurve() const { return nullptr; }
+    virtual const PDFPageContentImageElement* asElementImage() const { return nullptr; }
+    virtual const PDFPageContentElementTextBox* asElementTextBox() const { return nullptr; }
 
 protected:
     uint getRectangleManipulationMode(const QRectF& rectangle,
@@ -168,6 +180,7 @@ public:
     virtual QRectF getBoundingBox() const override;
     virtual void setSize(QSizeF size) override;
     virtual QString getDescription() const override;
+    virtual const PDFPageContentElementRectangle* asElementRectangle() const override { return this; }
 
 private:
     bool m_rounded = false;
@@ -202,6 +215,7 @@ public:
     virtual QRectF getBoundingBox() const override;
     virtual void setSize(QSizeF size) override;
     virtual QString getDescription() const override;
+    virtual const PDFPageContentElementLine* asElementLine() const override { return this; }
 
     LineGeometry getGeometry() const;
     void setGeometry(LineGeometry newGeometry);
@@ -235,6 +249,7 @@ public:
     virtual QRectF getBoundingBox() const override;
     virtual void setSize(QSizeF size) override;
     virtual QString getDescription() const override;
+    virtual const PDFPageContentElementDot* asElementDot() const override { return this; }
 
     QPointF getPoint() const;
     void setPoint(QPointF newPoint);
@@ -264,6 +279,7 @@ public:
     virtual QRectF getBoundingBox() const override;
     virtual void setSize(QSizeF size);
     virtual QString getDescription() const override;
+    virtual const PDFPageContentElementFreehandCurve* asElementFreehandCurve() const override { return this; }
 
     QPainterPath getCurve() const;
     void setCurve(QPainterPath newCurve);
@@ -299,6 +315,7 @@ public:
     virtual QRectF getBoundingBox() const override;
     virtual void setSize(QSizeF size);
     virtual QString getDescription() const override;
+    virtual const PDFPageContentImageElement* asElementImage() const override { return this; }
 
     const QByteArray& getContent() const;
     void setContent(const QByteArray& newContent);
@@ -337,6 +354,7 @@ public:
     virtual QRectF getBoundingBox() const override;
     virtual void setSize(QSizeF size) override;
     virtual QString getDescription() const override;
+    virtual const PDFPageContentElementTextBox* asElementTextBox() const override { return this; }
 
     const QString& getText() const;
     void setText(const QString& newText);

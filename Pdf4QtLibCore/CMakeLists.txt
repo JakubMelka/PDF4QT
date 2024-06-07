@@ -150,6 +150,8 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfblpainter.cpp
     sources/pdfpagecontenteditorprocessor.h
     sources/pdfpagecontenteditorprocessor.cpp
+    sources/pdfpagecontenteditorcontentstreambuilder.h
+    sources/pdfpagecontenteditorcontentstreambuilder.cpp
 )
 
 include(GenerateExportHeader)

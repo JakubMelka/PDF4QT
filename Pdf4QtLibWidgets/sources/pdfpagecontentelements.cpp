@@ -384,6 +384,7 @@ void PDFPageContentScene::clear()
     {
         m_manipulator.reset();
         m_elements.clear();
+        m_firstFreeId = 1;
         Q_EMIT sceneChanged(false);
     }
 }

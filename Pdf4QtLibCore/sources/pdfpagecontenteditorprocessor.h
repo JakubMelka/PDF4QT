@@ -1,4 +1,4 @@
-//    Copyright (C) 2023 Jakub Melka
+//    Copyright (C) 2023-2024 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -210,49 +210,6 @@ private:
     std::vector<std::unique_ptr<PDFEditedPageContentElement>> m_contentElements;
     PDFDictionary m_fontDictionary;
     PDFDictionary m_xobjectDictionary;
-};
-
-class PDF4QTLIBCORESHARED_EXPORT PDFPageContentEditorContentStreamBuilder
-{
-public:
-    PDFPageContentEditorContentStreamBuilder(PDFDocument* document);
-
-    void writeStateDifference(QTextStream& stream, const PDFPageContentProcessorState& state);
-    void writeElement(const PDFEditedPageContentElement* element);
-
-    const QByteArray& getOutputContent() const;
-
-    const PDFDictionary& getFontDictionary() const { return m_fontDictionary; }
-    const PDFDictionary& getXObjectDictionary() const { return m_xobjectDictionary; }
-    const PDFDictionary& getGraphicStateDictionary() const { return m_graphicStateDictionary; }
-
-    void setFontDictionary(const PDFDictionary& newFontDictionary);
-
-    const QStringList& getErrors() const { return m_errors; }
-    void clearErrors() { m_errors.clear(); }
-
-private:
-    void writePainterPath(QTextStream& stream,
-                          const QPainterPath& path,
-                          bool isStroking,
-                          bool isFilling);
-
-    void writeText(QTextStream& stream, const QString& text);
-    void writeTextCommand(QTextStream& stream, const QXmlStreamReader& reader);
-
-    void writeImage(QTextStream& stream, const QImage& image);
-
-    QByteArray selectFont(const QByteArray& font);
-    void addError(const QString& error);
-
-    PDFDocument* m_document = nullptr;
-    PDFDictionary m_fontDictionary;
-    PDFDictionary m_xobjectDictionary;
-    PDFDictionary m_graphicStateDictionary;
-    QByteArray m_outputContent;
-    PDFPageContentProcessorState m_currentState;
-    PDFFontPointer m_textFont;
-    QStringList m_errors;
 };
 
 class PDF4QTLIBCORESHARED_EXPORT PDFPageContentEditorProcessor : public PDFPageContentProcessor

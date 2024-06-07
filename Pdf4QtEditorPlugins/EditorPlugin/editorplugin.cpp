@@ -24,6 +24,7 @@
 #include "pdfcertificatemanagerdialog.h"
 #include "pdfdocumentwriter.h"
 #include "pdfpagecontenteditorprocessor.h"
+#include "pdfpagecontenteditorcontentstreambuilder.h"
 #include "pdfstreamfilters.h"
 #include "pdfoptimizer.h"
 
@@ -213,14 +214,52 @@ bool EditorPlugin::save()
                 for (const pdf::PDFPageContentElement* element : it->second)
                 {
                     const pdf::PDFPageContentElementEdited* editedElement = element->asElementEdited();
+                    const pdf::PDFPageContentElementRectangle* elementRectangle = element->asElementRectangle();
+                    const pdf::PDFPageContentElementLine* elementLine = element->asElementLine();
+                    const pdf::PDFPageContentElementDot* elementDot = element->asElementDot();
+                    const pdf::PDFPageContentElementFreehandCurve* elementFreehandCurve = element->asElementFreehandCurve();
+                    const pdf::PDFPageContentImageElement* elementImage = element->asElementImage();
+                    const pdf::PDFPageContentElementTextBox* elementTextBox = element->asElementTextBox();
 
                     if (editedElement)
                     {
-                        contentStreamBuilder.writeElement(editedElement->getElement());
+                        contentStreamBuilder.writeEditedElement(editedElement->getElement());
                     }
-                    else
+
+                    if (elementRectangle)
                     {
-                        // TODO: Implement other elements
+                        QRectF rect = elementRectangle->getRectangle();
+
+                        QPainterPath path;
+                        if (elementRectangle->isRounded())
+                        {
+                            qreal radius = qMin(rect.width(), rect.height()) * 0.25;
+                            path.addRoundedRect(rect, radius, radius, Qt::AbsoluteSize);
+                        }
+                        else
+                        {
+                            path.addRect(rect);
+                        }
+
+                        const bool stroke = elementRectangle->getPen().style() != Qt::NoPen;
+                        const bool fill = elementRectangle->getBrush().style() != Qt::NoBrush;
+                        contentStreamBuilder.writeStyledPath(path, elementRectangle->getPen(), elementRectangle->getBrush(), stroke, fill);
+                    }
+
+                    if (elementLine)
+                    {
+                        QLineF line = elementLine->getLine();
+                        QPainterPath path;
+                        path.moveTo(line.p1());
+                        path.lineTo(line.p2());
+
+                        contentStreamBuilder.writeStyledPath(path, elementLine->getPen(), elementLine->getBrush(), true, false);
+                    }
+
+                    if (elementFreehandCurve)
+                    {
+                        QPainterPath path = elementFreehandCurve->getCurve();
+                        contentStreamBuilder.writeStyledPath(path, elementFreehandCurve->getPen(), elementFreehandCurve->getBrush(), true, false);
                     }
                 }
             }
