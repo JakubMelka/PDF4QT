@@ -55,6 +55,7 @@ public:
     virtual PDFPageContentElement* clone() const = 0;
 
     virtual void drawPage(QPainter* painter,
+                          const PDFPageContentScene* scene,
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
@@ -167,6 +168,7 @@ public:
     void setRectangle(const QRectF& newRectangle);
 
     virtual void drawPage(QPainter* painter,
+                          const PDFPageContentScene* scene,
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
@@ -202,6 +204,7 @@ public:
     };
 
     virtual void drawPage(QPainter* painter,
+                          const PDFPageContentScene* scene,
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
@@ -236,6 +239,7 @@ public:
     virtual PDFPageContentElementDot* clone() const override;
 
     virtual void drawPage(QPainter* painter,
+                          const PDFPageContentScene* scene,
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
@@ -266,6 +270,7 @@ public:
     virtual PDFPageContentElementFreehandCurve* clone() const override;
 
     virtual void drawPage(QPainter* painter,
+                          const PDFPageContentScene* scene,
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
@@ -302,6 +307,7 @@ public:
     virtual PDFPageContentImageElement* clone() const override;
 
     virtual void drawPage(QPainter* painter,
+                          const PDFPageContentScene* scene,
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
@@ -341,6 +347,7 @@ public:
     void setRectangle(const QRectF& newRectangle) { m_rectangle = newRectangle; }
 
     virtual void drawPage(QPainter* painter,
+                          const PDFPageContentScene* scene,
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
@@ -383,7 +390,13 @@ public:
     virtual ~PDFPageContentElementEdited();
 
     virtual PDFPageContentElementEdited* clone() const override;
-    virtual void drawPage(QPainter* painter, PDFInteger pageIndex, const PDFPrecompiledPage* compiledPage, PDFTextLayoutGetter& layoutGetter, const QTransform& pagePointToDevicePointMatrix, QList<PDFRenderError>& errors) const override;
+    virtual void drawPage(QPainter* painter,
+                          const PDFPageContentScene* scene,
+                          PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QTransform& pagePointToDevicePointMatrix,
+                          QList<PDFRenderError>& errors) const override;
     virtual uint getManipulationMode(const QPointF& point, PDFReal snapPointDistanceThreshold) const override;
     virtual void performManipulation(uint mode, const QPointF& offset) override;
     virtual QRectF getBoundingBox() const override;

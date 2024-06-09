@@ -789,5 +789,4 @@ void PDFEditedPageContentElementText::optimize()
     }
 }
 
-
 }   // namespace pdf

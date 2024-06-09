@@ -193,7 +193,12 @@ bool EditorPlugin::save()
     {
         pdf::PDFDocumentModifier modifier(m_document);
 
-        std::set<pdf::PDFInteger> pageIndices = m_scene.getPageIndices();
+        std::set<pdf::PDFInteger> pageIndices;
+        for (const auto& item : m_editedPageContent)
+        {
+            pageIndices.insert(item.first);
+        }
+
         auto elementsByPage = m_scene.getElementsByPage();
         for (pdf::PDFInteger pageIndex : pageIndices)
         {
@@ -220,6 +225,8 @@ bool EditorPlugin::save()
                     const pdf::PDFPageContentElementFreehandCurve* elementFreehandCurve = element->asElementFreehandCurve();
                     const pdf::PDFPageContentImageElement* elementImage = element->asElementImage();
                     const pdf::PDFPageContentElementTextBox* elementTextBox = element->asElementTextBox();
+
+                    // TODO: Impelement all things
 
                     if (editedElement)
                     {

@@ -357,15 +357,37 @@ void PDFPageContentEditorContentStreamBuilder::writePainterPath(QTextStream& str
         case QPainterPath::MoveToElement:
             stream << element.x << " " << element.y << " m" << Qt::endl;
             break;
+
         case QPainterPath::LineToElement:
             stream << element.x << " " << element.y << " l" << Qt::endl;
             break;
+
         case QPainterPath::CurveToElement:
-            stream << element.x << " " << element.y << " c" << Qt::endl;
+            stream << element.x << " " << element.y << " ";
+            ++i;
+
+            while (i < elementCount)
+            {
+                QPainterPath::Element currentElement = path.elementAt(i);
+
+                if (currentElement.type == QPainterPath::CurveToDataElement)
+                {
+                    ++i;
+                    stream << currentElement.x << " " << currentElement.y << " ";
+                }
+                else
+                {
+                    --i;
+                    break;
+                }
+            }
+            stream << " c" << Qt::endl;
             break;
+
         case QPainterPath::CurveToDataElement:
             stream << element.x << " " << element.y << " ";
             break;
+
         default:
             break;
         }

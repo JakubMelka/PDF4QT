@@ -166,7 +166,7 @@ void PDFCreatePCElementRectangleTool::drawPage(QPainter* painter,
     m_element->setPageIndex(pageIndex);
     m_element->setRectangle(rectangle);
 
-    m_element->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+    m_element->drawPage(painter, m_scene, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
 }
 
 const PDFPageContentElement* PDFCreatePCElementRectangleTool::getElement() const
@@ -262,7 +262,7 @@ void PDFCreatePCElementLineTool::drawPage(QPainter* painter,
         m_element->setLine(line);
     }
 
-    m_element->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+    m_element->drawPage(painter, m_scene, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
 }
 
 const PDFPageContentElement* PDFCreatePCElementLineTool::getElement() const
@@ -366,7 +366,7 @@ void PDFCreatePCElementImageTool::drawPage(QPainter* painter,
         painter->drawRect(rectangle);
     }
 
-    m_element->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+    m_element->drawPage(painter, m_scene, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
 }
 
 const PDFPageContentElement* PDFCreatePCElementImageTool::getElement() const
@@ -556,7 +556,7 @@ void PDFCreatePCElementFreehandCurveTool::drawPage(QPainter* painter,
         return;
     }
 
-    m_element->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+    m_element->drawPage(painter, m_scene, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
 }
 
 const PDFPageContentElement* PDFCreatePCElementFreehandCurveTool::getElement() const
