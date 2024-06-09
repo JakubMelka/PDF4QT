@@ -19,6 +19,7 @@
 #include "pdfdocumentbuilder.h"
 #include "pdfobject.h"
 #include "pdfstreamfilters.h"
+#include "pdfpainterutils.h"
 
 #include <QStringBuilder>
 #include <QXmlStreamReader>
@@ -171,19 +172,19 @@ void PDFPageContentEditorContentStreamBuilder::writeStateDifference(QTextStream&
         const PDFAbstractColorSpace* fillColorSpace = m_currentState.getFillColorSpace();
         if (fillColorSpace && fillColorSpace->getColorSpace() == PDFAbstractColorSpace::ColorSpace::DeviceGray)
         {
-            stream << qGray(color.rgb()) / 255.0 << " G" << Qt::endl;
+            stream << qGray(color.rgb()) / 255.0 << " g" << Qt::endl;
         }
         else if (fillColorSpace && fillColorSpace->getColorSpace() == PDFAbstractColorSpace::ColorSpace::DeviceCMYK)
         {
             const PDFColor& fillColor = m_currentState.getFillColorOriginal();
             if (fillColor.size() >= 4)
             {
-                stream << fillColor[0] << " " << fillColor[1] << " " << fillColor[2] << " " << fillColor[3] << " K" << Qt::endl;
+                stream << fillColor[0] << " " << fillColor[1] << " " << fillColor[2] << " " << fillColor[3] << " k" << Qt::endl;
             }
         }
         else
         {
-            stream << color.redF() << " " << color.greenF() << " " << color.blueF() << " RG" << Qt::endl;
+            stream << color.redF() << " " << color.greenF() << " " << color.blueF() << " rg" << Qt::endl;
         }
     }
 
@@ -779,7 +780,8 @@ void PDFPageContentEditorContentStreamBuilder::writeStyledPath(const QPainterPat
     PDFPageContentProcessorState newState = m_currentState;
     newState.setCurrentTransformationMatrix(QTransform());
 
-    // TODO: Write pen/brush
+    PDFPainterHelper::applyPenToGraphicState(&newState, pen);
+    PDFPainterHelper::applyBrushToGraphicState(&newState, brush);
 
     QTextStream stream(&m_outputContent, QDataStream::WriteOnly | QDataStream::Append);
     writeStateDifference(stream, newState);

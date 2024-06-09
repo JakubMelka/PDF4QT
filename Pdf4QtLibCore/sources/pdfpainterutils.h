@@ -73,6 +73,9 @@ public:
     /// Creates brush from painter graphicState
     static QBrush createBrushFromState(const PDFPageContentProcessorState* graphicState, double alpha);
 
+    static void applyPenToGraphicState(PDFPageContentProcessorState* graphicState, const QPen& pen);
+    static void applyBrushToGraphicState(PDFPageContentProcessorState* graphicState, const QBrush& brush);
+
     /// Decompose transform
     static PDFTransformationDecomposition decomposeTransform(const QTransform& transform);
 

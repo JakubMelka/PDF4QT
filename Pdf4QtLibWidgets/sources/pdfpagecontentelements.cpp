@@ -2618,8 +2618,10 @@ void PDFPageContentElementEdited::drawPage(QPainter* painter,
     if (const PDFEditedPageContentElementPath* pathElement = m_element->asPath())
     {
         const PDFPageContentProcessorState& state = m_element->getState();
-        painter->setPen(pdf::PDFPainterHelper::createPenFromState(&state, state.getAlphaStroking()));
-        painter->setBrush(pdf::PDFPainterHelper::createBrushFromState(&state, state.getAlphaFilling()));
+        QPen pen = pdf::PDFPainterHelper::createPenFromState(&state, state.getAlphaStroking());
+        QBrush brush = pdf::PDFPainterHelper::createBrushFromState(&state, state.getAlphaFilling());
+        painter->setPen(pathElement->getStrokePath() ? pen : QPen(Qt::NoPen));
+        painter->setBrush(pathElement->getFillPath() ? brush : QBrush(Qt::NoBrush));
         painter->drawPath(pathElement->getPath());
     }
 

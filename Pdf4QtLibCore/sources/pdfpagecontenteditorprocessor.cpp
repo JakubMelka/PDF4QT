@@ -31,8 +31,15 @@ PDFPageContentEditorProcessor::PDFPageContentEditorProcessor(const PDFPage* page
 {
     m_clippingPaths.push(QPainterPath());
 
-    m_content.setFontDictionary(*getFontDictionary());
-    m_content.setXObjectDictionary(*getXObjectDictionary());
+    if (auto fontDictionary = getFontDictionary())
+    {
+        m_content.setFontDictionary(*fontDictionary);
+    }
+
+    if (auto xObjectDictionary = getXObjectDictionary())
+    {
+        m_content.setXObjectDictionary(*xObjectDictionary);
+    }
 }
 
 const PDFEditedPageContent& PDFPageContentEditorProcessor::getEditedPageContent() const
@@ -430,12 +437,14 @@ QString PDFEditedPageContent::getOperandName(PDFPageContentProcessor::Operator o
 
 void PDFEditedPageContent::addContentPath(PDFPageContentProcessorState state, QPainterPath path, bool strokePath, bool fillPath)
 {
-    m_contentElements.emplace_back(new PDFEditedPageContentElementPath(std::move(state), std::move(path), strokePath, fillPath, state.getCurrentTransformationMatrix()));
+    QTransform transform = state.getCurrentTransformationMatrix();
+    m_contentElements.emplace_back(new PDFEditedPageContentElementPath(std::move(state), std::move(path), strokePath, fillPath, transform));
 }
 
 void PDFEditedPageContent::addContentImage(PDFPageContentProcessorState state, PDFObject imageObject, QImage image)
 {
-    m_contentElements.emplace_back(new PDFEditedPageContentElementImage(std::move(state), std::move(imageObject), std::move(image), state.getCurrentTransformationMatrix()));
+    QTransform transform = state.getCurrentTransformationMatrix();
+    m_contentElements.emplace_back(new PDFEditedPageContentElementImage(std::move(state), std::move(imageObject), std::move(image), transform));
 }
 
 void PDFEditedPageContent::addContentElement(std::unique_ptr<PDFEditedPageContentElement> element)

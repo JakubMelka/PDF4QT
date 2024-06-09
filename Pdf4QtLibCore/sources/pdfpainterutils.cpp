@@ -117,6 +117,58 @@ QBrush PDFPainterHelper::createBrushFromState(const PDFPageContentProcessorState
     }
 }
 
+void PDFPainterHelper::applyPenToGraphicState(PDFPageContentProcessorState* graphicState, const QPen& pen)
+{
+    if (pen.style() != Qt::NoPen)
+    {
+        graphicState->setLineWidth(pen.widthF());
+        graphicState->setLineCapStyle(pen.capStyle());
+        graphicState->setLineJoinStyle(pen.joinStyle());
+        graphicState->setMitterLimit(pen.miterLimit());
+
+        QColor color = pen.color();
+
+        graphicState->setAlphaStroking(color.alphaF());
+
+        const PDFAbstractColorSpace* strokeColorSpace = graphicState->getStrokeColorSpace();
+        if (!strokeColorSpace || strokeColorSpace->getColorSpace() != PDFAbstractColorSpace::ColorSpace::DeviceRGB)
+        {
+            graphicState->setStrokeColorSpace(QSharedPointer<PDFAbstractColorSpace>(new PDFDeviceRGBColorSpace()));
+        }
+        graphicState->setStrokeColor(color, PDFColor(color.redF(), color.greenF(), color.blueF()));
+
+        if (pen.style() == Qt::SolidLine)
+        {
+            graphicState->setLineDashPattern(PDFLineDashPattern());
+        }
+        else
+        {
+            // TODO: Line Dash Pattern
+            /*
+            pen.setStyle(Qt::CustomDashLine);
+            pen.setDashPattern(lineDashPattern.createForQPen(pen.widthF()));
+            pen.setDashOffset(lineDashPattern.getDashOffset());*/
+        }
+    }
+}
+
+void PDFPainterHelper::applyBrushToGraphicState(PDFPageContentProcessorState* graphicState, const QBrush& brush)
+{
+    if (brush.style() != Qt::NoBrush)
+    {
+        QColor color = brush.color();
+
+        graphicState->setAlphaFilling(color.alphaF());
+
+        const PDFAbstractColorSpace* fillColorSpace = graphicState->getFillColorSpace();
+        if (!fillColorSpace || fillColorSpace->getColorSpace() != PDFAbstractColorSpace::ColorSpace::DeviceRGB)
+        {
+            graphicState->setFillColorSpace(QSharedPointer<PDFAbstractColorSpace>(new PDFDeviceRGBColorSpace()));
+        }
+        graphicState->setFillColor(color, PDFColor(color.redF(), color.greenF(), color.blueF()));
+    }
+}
+
 PDFTransformationDecomposition PDFPainterHelper::decomposeTransform(const QTransform& transform)
 {
     PDFTransformationDecomposition result;
