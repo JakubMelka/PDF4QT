@@ -63,6 +63,7 @@ private:
     void onFontChanged(const QFont& font);
     void onAlignmentChanged(Qt::Alignment alignment);
     void onTextAngleChanged(pdf::PDFReal angle);
+    void onSceneEditSingleElement(pdf::PDFInteger elementId);
 
     enum Action
     {

@@ -642,6 +642,7 @@ void SignaturePlugin::updateDockWidget()
     m_editorWidget->setScene(&m_scene);
     connect(m_editorWidget, &pdf::PDFPageContentEditorWidget::operationTriggered, &m_scene, &pdf::PDFPageContentScene::performOperation);
     connect(m_editorWidget, &pdf::PDFPageContentEditorWidget::itemSelectionChangedByUser, this, &SignaturePlugin::onWidgetSelectionChanged);
+    connect(m_editorWidget, &pdf::PDFPageContentEditorWidget::editElementRequest, this, &SignaturePlugin::onSceneEditSingleElement);
 
     m_editorWidget->getToolButtonForOperation(static_cast<int>(pdf::PDFPageContentElementManipulator::Operation::AlignTop))->setIcon(QIcon(":/resources/pce-align-top.svg"));
     m_editorWidget->getToolButtonForOperation(static_cast<int>(pdf::PDFPageContentElementManipulator::Operation::AlignCenterVertically))->setIcon(QIcon(":/resources/pce-align-v-center.svg"));
@@ -670,6 +671,11 @@ void SignaturePlugin::updateDockWidget()
     connect(m_editorWidget, &pdf::PDFPageContentEditorWidget::fontChanged, this, &SignaturePlugin::onFontChanged);
     connect(m_editorWidget, &pdf::PDFPageContentEditorWidget::alignmentChanged, this, &SignaturePlugin::onAlignmentChanged);
     connect(m_editorWidget, &pdf::PDFPageContentEditorWidget::textAngleChanged, this, &SignaturePlugin::onTextAngleChanged);
+}
+
+void SignaturePlugin::onSceneEditSingleElement(pdf::PDFInteger elementId)
+{
+    onSceneEditElement({ elementId });
 }
 
 }

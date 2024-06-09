@@ -463,6 +463,11 @@ void EditorPlugin::onSceneEditElement(const std::set<pdf::PDFInteger>& elements)
     }
 }
 
+void EditorPlugin::onSceneEditSingleElement(pdf::PDFInteger elementId)
+{
+    onSceneEditElement({ elementId });
+}
+
 void EditorPlugin::onPenChanged(const QPen& pen)
 {
     if (pdf::PDFCreatePCElementTool* activeTool = qobject_cast<pdf::PDFCreatePCElementTool*>(getActiveTool()))
@@ -606,6 +611,7 @@ void EditorPlugin::updateDockWidget()
     m_editorWidget->setScene(&m_scene);
     connect(m_editorWidget, &pdf::PDFPageContentEditorWidget::operationTriggered, &m_scene, &pdf::PDFPageContentScene::performOperation);
     connect(m_editorWidget, &pdf::PDFPageContentEditorWidget::itemSelectionChangedByUser, this, &EditorPlugin::onWidgetSelectionChanged);
+    connect(m_editorWidget, &pdf::PDFPageContentEditorWidget::editElementRequest, this, &EditorPlugin::onSceneEditSingleElement);
 
     m_editorWidget->getToolButtonForOperation(static_cast<int>(pdf::PDFPageContentElementManipulator::Operation::AlignTop))->setIcon(QIcon(":/resources/pce-align-top.svg"));
     m_editorWidget->getToolButtonForOperation(static_cast<int>(pdf::PDFPageContentElementManipulator::Operation::AlignCenterVertically))->setIcon(QIcon(":/resources/pce-align-v-center.svg"));

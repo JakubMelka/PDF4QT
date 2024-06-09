@@ -27,6 +27,7 @@
 #include <set>
 
 class QToolButton;
+class QListWidgetItem;
 
 namespace Ui
 {
@@ -74,11 +75,13 @@ signals:
     void fontChanged(const QFont& font);
     void alignmentChanged(Qt::Alignment alignment);
     void textAngleChanged(pdf::PDFReal angle);
+    void editElementRequest(pdf::PDFInteger elementId);
 
 private:
     void onActionTriggerRequest(QObject* actionObject);
     void onActionChanged();
     void onItemSelectionChanged();
+    void onItemDoubleClicked(QListWidgetItem* item);
 
     Ui::PDFPageContentEditorWidget* ui;
     PDFPageContentEditorStyleSettings* m_settingsWidget;

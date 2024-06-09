@@ -530,7 +530,7 @@ PDFEditedPageContentElementPath* PDFEditedPageContentElementPath::clone() const
 
 QRectF PDFEditedPageContentElementPath::getBoundingBox() const
 {
-    QPainterPath mappedPath = getState().getCurrentTransformationMatrix().map(m_path);
+    QPainterPath mappedPath = getTransform().map(m_path);
     return mappedPath.boundingRect();
 }
 
