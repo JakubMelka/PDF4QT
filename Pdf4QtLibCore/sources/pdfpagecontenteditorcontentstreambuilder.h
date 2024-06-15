@@ -29,7 +29,6 @@ class PDF4QTLIBCORESHARED_EXPORT PDFPageContentEditorContentStreamBuilder
 public:
     PDFPageContentEditorContentStreamBuilder(PDFDocument* document);
 
-    void writeStateDifference(QTextStream& stream, const PDFPageContentProcessorState& state);
     void writeEditedElement(const PDFEditedPageContentElement* element);
 
     const QByteArray& getOutputContent() const;
@@ -49,7 +48,11 @@ public:
                          bool isStroking,
                          bool isFilling);
 
+    void writeImage(const QImage& image, const QRectF& rectangle);
+
 private:
+    void writeStateDifference(QTextStream& stream, const PDFPageContentProcessorState& state);
+
     void writePainterPath(QTextStream& stream,
                           const QPainterPath& path,
                           bool isStroking,

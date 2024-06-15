@@ -226,7 +226,7 @@ bool EditorPlugin::save()
                     const pdf::PDFPageContentImageElement* elementImage = element->asElementImage();
                     const pdf::PDFPageContentElementTextBox* elementTextBox = element->asElementTextBox();
 
-                    // TODO: Impelement all things
+                    // TODO: Implement all things
 
                     if (editedElement)
                     {
@@ -263,10 +263,34 @@ bool EditorPlugin::save()
                         contentStreamBuilder.writeStyledPath(path, elementLine->getPen(), elementLine->getBrush(), true, false);
                     }
 
+                    if (elementDot)
+                    {
+                        QPen pen = elementDot->getPen();
+                        const qreal radius = pen.widthF() * 0.5;
+
+                        QPainterPath path;
+                        path.addEllipse(elementDot->getPoint(), radius, radius);
+
+                        contentStreamBuilder.writeStyledPath(path, Qt::NoPen, QBrush(pen.color()), false, true);
+                    }
+
                     if (elementFreehandCurve)
                     {
                         QPainterPath path = elementFreehandCurve->getCurve();
                         contentStreamBuilder.writeStyledPath(path, elementFreehandCurve->getPen(), elementFreehandCurve->getBrush(), true, false);
+                    }
+
+                    if (elementImage)
+                    {
+                        QImage image = elementImage->getImage();
+                        if (!image.isNull())
+                        {
+                            contentStreamBuilder.writeImage(image, elementImage->getRectangle());
+                        }
+                        else
+                        {
+                            // It is probably an SVG image
+                        }
                     }
                 }
             }

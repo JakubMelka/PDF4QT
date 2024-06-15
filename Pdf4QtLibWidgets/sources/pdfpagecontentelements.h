@@ -329,6 +329,9 @@ public:
     const QRectF& getRectangle() const;
     void setRectangle(const QRectF& newRectangle);
 
+    const QSvgRenderer* getRenderer() const { return m_renderer.get(); }
+    const QImage& getImage() const { return m_image; }
+
 private:
     QRectF m_rectangle;
     QByteArray m_content;

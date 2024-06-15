@@ -30,6 +30,7 @@
 #include <QSvgRenderer>
 #include <QApplication>
 #include <QImageReader>
+#include <QXmlStreamReader>
 
 namespace pdf
 {
@@ -1257,7 +1258,22 @@ void PDFPageContentImageElement::setContent(const QByteArray& newContent)
     if (m_content != newContent)
     {
         m_content = newContent;
-        if (!m_renderer->load(m_content))
+
+        m_renderer = std::make_unique<QSvgRenderer>();
+
+        QXmlStreamReader xml(m_content);
+        while (!xml.atEnd() && !xml.hasError())
+        {
+            xml.readNext();
+        }
+
+        bool isSvgLoaded = false;
+        if (!xml.hasError())
+        {
+            isSvgLoaded = m_renderer->load(m_content);
+        }
+
+        if (!isSvgLoaded)
         {
             QByteArray imageData = m_content;
             QBuffer buffer(&imageData);

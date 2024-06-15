@@ -709,16 +709,17 @@ void PDFPageContentEditorContentStreamBuilder::writeImage(QTextStream& stream, c
             array.appendItem(PDFObject::createName("FlateDecode"));
 
             QImage codedImage = image;
-            codedImage = codedImage.convertToFormat(QImage::Format_ARGB32);
+            codedImage = codedImage.convertToFormat(QImage::Format_RGB888);
 
             QByteArray decodedStream(reinterpret_cast<const char*>(image.constBits()), image.sizeInBytes());
 
             // Compress the content stream
             QByteArray compressedData = PDFFlateDecodeFilter::compress(decodedStream);
             PDFDictionary imageDictionary;
-            imageDictionary.setEntry(PDFInplaceOrMemoryString("Subtitle"), PDFObject::createName("Image"));
+            imageDictionary.setEntry(PDFInplaceOrMemoryString("Subtype"), PDFObject::createName("Image"));
             imageDictionary.setEntry(PDFInplaceOrMemoryString("Width"), PDFObject::createInteger(image.width()));
             imageDictionary.setEntry(PDFInplaceOrMemoryString("Height"), PDFObject::createInteger(image.height()));
+            imageDictionary.setEntry(PDFInplaceOrMemoryString("Predictor"), PDFObject::createInteger(1));
             imageDictionary.setEntry(PDFInplaceOrMemoryString("ColorSpace"), PDFObject::createName("DeviceRGB"));
             imageDictionary.setEntry(PDFInplaceOrMemoryString("BitsPerComponent"), PDFObject::createInteger(8));
             imageDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(compressedData.size()));
@@ -809,6 +810,28 @@ void PDFPageContentEditorContentStreamBuilder::writeStyledPath(const QPainterPat
     writeStateDifference(stream, newState);
 
     writePainterPath(stream, path, isStroking, isFilling);
+}
+
+void PDFPageContentEditorContentStreamBuilder::writeImage(const QImage& image,
+                                                          const QRectF& rectangle)
+{
+    QTextStream stream(&m_outputContent, QDataStream::WriteOnly | QDataStream::Append);
+    stream << "q" << Qt::endl;
+
+    QTransform imageTransform(rectangle.width(), 0, 0, -rectangle.height(), rectangle.left(), rectangle.bottom());
+
+    PDFReal m11 = imageTransform.m11();
+    PDFReal m12 = imageTransform.m12();
+    PDFReal m21 = imageTransform.m21();
+    PDFReal m22 = imageTransform.m22();
+    PDFReal x = imageTransform.dx();
+    PDFReal y = imageTransform.dy();
+
+    stream << m11 << " " << m12 << " " << m21 << " " << m22 << " " << x << " " << y << " cm" << Qt::endl;
+
+    writeImage(stream, image);
+
+    stream << "Q" << Qt::endl;
 }
 
 }   // namespace pdf
