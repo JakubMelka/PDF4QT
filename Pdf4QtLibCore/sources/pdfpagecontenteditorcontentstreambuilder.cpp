@@ -21,6 +21,7 @@
 #include "pdfstreamfilters.h"
 #include "pdfpainterutils.h"
 
+#include <QBuffer>
 #include <QStringBuilder>
 #include <QXmlStreamReader>
 
@@ -711,7 +712,21 @@ void PDFPageContentEditorContentStreamBuilder::writeImage(QTextStream& stream, c
             QImage codedImage = image;
             codedImage = codedImage.convertToFormat(QImage::Format_RGB888);
 
-            QByteArray decodedStream(reinterpret_cast<const char*>(image.constBits()), image.sizeInBytes());
+            QByteArray decodedStream;
+            QBuffer buffer(&decodedStream);
+            if (buffer.open(QIODevice::WriteOnly))
+            {
+                int width = codedImage.width();
+                int bytesPerLine = codedImage.bytesPerLine();
+
+                for (int scanLineIndex = 0; scanLineIndex < codedImage.height(); ++scanLineIndex)
+                {
+                    const uchar* scanline = codedImage.constScanLine(scanLineIndex);
+                    buffer.write((const char*)scanline, qMin(3 * width, bytesPerLine));
+                }
+
+                buffer.close();
+            }
 
             // Compress the content stream
             QByteArray compressedData = PDFFlateDecodeFilter::compress(decodedStream);
@@ -818,7 +833,11 @@ void PDFPageContentEditorContentStreamBuilder::writeImage(const QImage& image,
     QTextStream stream(&m_outputContent, QDataStream::WriteOnly | QDataStream::Append);
     stream << "q" << Qt::endl;
 
-    QTransform imageTransform(rectangle.width(), 0, 0, -rectangle.height(), rectangle.left(), rectangle.bottom());
+    QSizeF rectangleSize = QSizeF(image.size()).scaled(rectangle.size(), Qt::KeepAspectRatio);
+    QRectF transformedRectangle(QPointF(), rectangleSize);
+    transformedRectangle.moveCenter(rectangle.center());
+
+    QTransform imageTransform(transformedRectangle.width(), 0, 0, transformedRectangle.height(), transformedRectangle.left(), transformedRectangle.top());
 
     PDFReal m11 = imageTransform.m11();
     PDFReal m12 = imageTransform.m12();
