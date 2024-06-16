@@ -86,6 +86,9 @@ public:
     /// \param mode Blend mode
     static QPainter::CompositionMode getCompositionModeFromBlendMode(BlendMode mode);
 
+    /// Returns blend mode from QPainter's composition mode.
+    static BlendMode getBlendModeFromCompositionMode(QPainter::CompositionMode mode);
+
     /// Returns blend mode name
     /// \param mode Blend mode
     static QString getBlendModeName(BlendMode mode);

@@ -20,9 +20,31 @@
 
 #include "pdfpagecontenteditorprocessor.h"
 
+#include <QPaintDevice>
+
 namespace pdf
 {
 class PDFPageContentElement;
+class PDFContentEditorPaintEngine;
+class PDFPageContentEditorContentStreamBuilder;
+
+class PDF4QTLIBCORESHARED_EXPORT PDFContentEditorPaintDevice : public QPaintDevice
+{
+public:
+    PDFContentEditorPaintDevice(PDFPageContentEditorContentStreamBuilder* builder, QRectF mediaRect, QRectF mediaRectMM);
+    virtual ~PDFContentEditorPaintDevice() override;
+
+    virtual int devType() const override;
+    virtual QPaintEngine* paintEngine() const override;
+
+protected:
+    virtual int metric(PaintDeviceMetric metric) const override;
+
+private:
+    PDFContentEditorPaintEngine* m_paintEngine;
+    QRectF m_mediaRect;
+    QRectF m_mediaRectMM;
+};
 
 class PDF4QTLIBCORESHARED_EXPORT PDFPageContentEditorContentStreamBuilder
 {
@@ -48,7 +70,15 @@ public:
                          bool isStroking,
                          bool isFilling);
 
+    void writeStyledPath(const QPainterPath& path,
+                         const PDFPageContentProcessorState& state,
+                         bool isStroking,
+                         bool isFilling);
+
     void writeImage(const QImage& image, const QRectF& rectangle);
+    void writeImage(const QImage& image, QTransform transform, const QRectF& rectangle);
+
+    const PDFPageContentProcessorState& getCurrentState() { return m_currentState; }
 
 private:
     bool isNeededToWriteCurrentTransformationMatrix() const;

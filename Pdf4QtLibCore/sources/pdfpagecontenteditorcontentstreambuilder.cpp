@@ -24,9 +24,184 @@
 #include <QBuffer>
 #include <QStringBuilder>
 #include <QXmlStreamReader>
+#include <QPaintEngine>
 
 namespace pdf
 {
+
+class PDFContentEditorPaintEngine : public QPaintEngine
+{
+public:
+    PDFContentEditorPaintEngine(PDFPageContentEditorContentStreamBuilder* builder) :
+        QPaintEngine(PrimitiveTransform | AlphaBlend | PorterDuff | PainterPaths | ConstantOpacity | BlendModes | PaintOutsidePaintEvent),
+        m_builder(builder)
+    {
+
+    }
+
+    virtual Type type() const override { return User; }
+
+    virtual bool begin(QPaintDevice*) override;
+    virtual bool end() override;
+
+    virtual void updateState(const QPaintEngineState& state) override;
+    virtual void drawPixmap(const QRectF& r, const QPixmap& pm, const QRectF& sr) override;
+
+    virtual void drawPath(const QPainterPath& path);
+    virtual void drawPolygon(const QPointF* points, int pointCount, PolygonDrawMode mode);
+
+private:
+    PDFPageContentProcessorState m_state;
+    PDFPageContentEditorContentStreamBuilder* m_builder = nullptr;
+    bool m_isFillActive = false;
+    bool m_isStrokeActive = false;
+};
+
+bool PDFContentEditorPaintEngine::begin(QPaintDevice*)
+{
+    return !isActive();
+}
+
+bool PDFContentEditorPaintEngine::end()
+{
+    return true;
+}
+
+void PDFContentEditorPaintEngine::updateState(const QPaintEngineState& newState)
+{
+    QPaintEngine::DirtyFlags stateFlags = newState.state();
+
+    if (stateFlags.testFlag(QPaintEngine::DirtyPen))
+    {
+        PDFPainterHelper::applyPenToGraphicState(&m_state, newState.pen());
+        m_isStrokeActive = newState.pen().style() != Qt::NoPen;
+    }
+
+    if (stateFlags.testFlag(QPaintEngine::DirtyBrush))
+    {
+        PDFPainterHelper::applyBrushToGraphicState(&m_state, newState.brush());
+        m_isFillActive = newState.brush().style() != Qt::NoBrush;
+    }
+
+    if (stateFlags.testFlag(QPaintEngine::DirtyTransform))
+    {
+        m_state.setCurrentTransformationMatrix(newState.transform());
+    }
+
+    if (stateFlags.testFlag(QPaintEngine::DirtyCompositionMode))
+    {
+        m_state.setBlendMode(PDFBlendModeInfo::getBlendModeFromCompositionMode(newState.compositionMode()));
+    }
+
+    if (stateFlags.testFlag(QPaintEngine::DirtyOpacity))
+    {
+        m_state.setAlphaFilling(newState.opacity());
+        m_state.setAlphaStroking(newState.opacity());
+    }
+}
+
+void PDFContentEditorPaintEngine::drawPixmap(const QRectF& r, const QPixmap& pm, const QRectF& sr)
+{
+    QPixmap pixmap = pm.copy(sr.toRect());
+    m_builder->writeImage(pixmap.toImage(), m_state.getCurrentTransformationMatrix(), r);
+}
+
+void PDFContentEditorPaintEngine::drawPath(const QPainterPath& path)
+{
+    m_builder->writeStyledPath(path, m_state, m_isStrokeActive, m_isFillActive);
+}
+
+void PDFContentEditorPaintEngine::drawPolygon(const QPointF* points,
+                                              int pointCount,
+                                              PolygonDrawMode mode)
+{
+    bool isStroking = m_isStrokeActive;
+    bool isFilling = m_isFillActive && mode != PolylineMode;
+
+    QPolygonF polygon;
+    for (int i = 0; i < pointCount; ++i)
+    {
+        polygon << points[i];
+    }
+
+    QPainterPath path;
+    path.addPolygon(polygon);
+
+    Qt::FillRule fillRule = Qt::OddEvenFill;
+    switch (mode)
+    {
+    case QPaintEngine::OddEvenMode:
+        fillRule = Qt::OddEvenFill;
+        break;
+    case QPaintEngine::WindingMode:
+        fillRule = Qt::WindingFill;
+        break;
+    case QPaintEngine::ConvexMode:
+        break;
+    case QPaintEngine::PolylineMode:
+        break;
+    }
+
+    path.setFillRule(fillRule);
+
+    m_builder->writeStyledPath(path, m_state, isStroking, isFilling);
+}
+
+PDFContentEditorPaintDevice::PDFContentEditorPaintDevice(PDFPageContentEditorContentStreamBuilder* builder, QRectF mediaRect, QRectF mediaRectMM) :
+    m_paintEngine(new PDFContentEditorPaintEngine(builder)),
+    m_mediaRect(mediaRect),
+    m_mediaRectMM(mediaRectMM)
+{
+
+}
+
+int PDFContentEditorPaintDevice::metric(PaintDeviceMetric metric) const
+{
+    switch (metric)
+    {
+    case QPaintDevice::PdmWidth:
+        return m_mediaRect.width();
+    case QPaintDevice::PdmHeight:
+        return m_mediaRect.height();
+    case QPaintDevice::PdmWidthMM:
+        return m_mediaRectMM.width();
+    case QPaintDevice::PdmHeightMM:
+        return m_mediaRectMM.height();
+    case QPaintDevice::PdmNumColors:
+        return INT_MAX;
+    case QPaintDevice::PdmDepth:
+        return 8;
+    case QPaintDevice::PdmDpiX:
+    case QPaintDevice::PdmPhysicalDpiX:
+        return m_mediaRect.width() * 25.4 / m_mediaRectMM.width();
+    case QPaintDevice::PdmDpiY:
+    case QPaintDevice::PdmPhysicalDpiY:
+        return m_mediaRect.height() * 25.4 / m_mediaRectMM.height();
+    case QPaintDevice::PdmDevicePixelRatio:
+    case QPaintDevice::PdmDevicePixelRatioScaled:
+        return 1.0;
+    default:
+        Q_ASSERT(false);
+        break;
+    }
+
+    return 0;
+}
+
+PDFContentEditorPaintDevice::~PDFContentEditorPaintDevice()
+{
+    delete m_paintEngine;
+}
+
+int PDFContentEditorPaintDevice::devType() const
+{
+    return QInternal::Picture;
+}
+
+QPaintEngine* PDFContentEditorPaintDevice::paintEngine() const
+{
+    return m_paintEngine;
+}
 
 PDFPageContentEditorContentStreamBuilder::PDFPageContentEditorContentStreamBuilder(PDFDocument* document) :
     m_document(document)
@@ -818,6 +993,26 @@ void PDFPageContentEditorContentStreamBuilder::writeStyledPath(const QPainterPat
     }
 }
 
+void PDFPageContentEditorContentStreamBuilder::writeStyledPath(const QPainterPath& path, const PDFPageContentProcessorState& state, bool isStroking, bool isFilling)
+{
+    QTextStream stream(&m_outputContent, QDataStream::WriteOnly | QDataStream::Append);
+    writeStateDifference(stream, state);
+
+    bool isNeededToWriteCurrentTransformationMatrix = this->isNeededToWriteCurrentTransformationMatrix();
+    if (isNeededToWriteCurrentTransformationMatrix)
+    {
+        stream << "q" << Qt::endl;
+        writeCurrentTransformationMatrix(stream);
+    }
+
+    writePainterPath(stream, path, isStroking, isFilling);
+
+    if (isNeededToWriteCurrentTransformationMatrix)
+    {
+        stream << "Q" << Qt::endl;
+    }
+}
+
 void PDFPageContentEditorContentStreamBuilder::writeImage(const QImage& image,
                                                           const QRectF& rectangle)
 {
@@ -847,6 +1042,14 @@ void PDFPageContentEditorContentStreamBuilder::writeImage(const QImage& image,
     writeImage(stream, image);
 
     stream << "Q" << Qt::endl;
+}
+
+void PDFPageContentEditorContentStreamBuilder::writeImage(const QImage& image, QTransform transform, const QRectF& rectangle)
+{
+    QTransform oldTransform = m_currentState.getCurrentTransformationMatrix();
+    m_currentState.setCurrentTransformationMatrix(transform);
+    writeImage(image, rectangle);
+    m_currentState.setCurrentTransformationMatrix(oldTransform);
 }
 
 bool PDFPageContentEditorContentStreamBuilder::isNeededToWriteCurrentTransformationMatrix() const

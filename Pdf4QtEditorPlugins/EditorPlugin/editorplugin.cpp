@@ -210,6 +210,9 @@ bool EditorPlugin::save()
             const pdf::PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
             const pdf::PDFEditedPageContent& editedPageContent = m_editedPageContent.at(pageIndex);
 
+            QRectF mediaBox = page->getMediaBox();
+            QRectF mediaBoxMM = page->getMediaBoxMM();
+
             pdf::PDFPageContentEditorContentStreamBuilder contentStreamBuilder(m_document);
             contentStreamBuilder.setFontDictionary(editedPageContent.getFontDictionary());
 
@@ -290,7 +293,23 @@ bool EditorPlugin::save()
                         else
                         {
                             // It is probably an SVG image
+                            pdf::PDFContentEditorPaintDevice paintDevice(&contentStreamBuilder, mediaBox, mediaBoxMM);
+                            QPainter painter(&paintDevice);
+
+                            QList<pdf::PDFRenderError> errors;
+                            pdf::PDFTextLayoutGetter textLayoutGetter(nullptr, pageIndex);
+                            elementImage->drawPage(&painter, &m_scene, pageIndex, nullptr, textLayoutGetter, QTransform(), errors);
                         }
+                    }
+
+                    if (elementTextBox)
+                    {
+                        pdf::PDFContentEditorPaintDevice paintDevice(&contentStreamBuilder, mediaBox, mediaBoxMM);
+                        QPainter painter(&paintDevice);
+
+                        QList<pdf::PDFRenderError> errors;
+                        pdf::PDFTextLayoutGetter textLayoutGetter(nullptr, pageIndex);
+                        elementTextBox->drawPage(&painter, &m_scene, pageIndex, nullptr, textLayoutGetter, QTransform(), errors);
                     }
                 }
             }

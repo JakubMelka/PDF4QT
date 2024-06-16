@@ -168,6 +168,19 @@ QPainter::CompositionMode PDFBlendModeInfo::getCompositionModeFromBlendMode(Blen
     return QPainter::CompositionMode_SourceOver;
 }
 
+BlendMode PDFBlendModeInfo::getBlendModeFromCompositionMode(QPainter::CompositionMode mode)
+{
+    for (BlendMode blendMode : getBlendModes())
+    {
+        if (mode == getCompositionModeFromBlendMode(blendMode))
+        {
+            return blendMode;
+        }
+    }
+
+    return BlendMode::Normal;
+}
+
 QString PDFBlendModeInfo::getBlendModeName(BlendMode mode)
 {
     for (const std::pair<const char*, BlendMode>& info : BLEND_MODE_INFOS)
