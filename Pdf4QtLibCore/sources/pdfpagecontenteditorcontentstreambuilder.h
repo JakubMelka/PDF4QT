@@ -51,6 +51,9 @@ public:
     void writeImage(const QImage& image, const QRectF& rectangle);
 
 private:
+    bool isNeededToWriteCurrentTransformationMatrix() const;
+
+    void writeCurrentTransformationMatrix(QTextStream& stream);
     void writeStateDifference(QTextStream& stream, const PDFPageContentProcessorState& state);
 
     void writePainterPath(QTextStream& stream,

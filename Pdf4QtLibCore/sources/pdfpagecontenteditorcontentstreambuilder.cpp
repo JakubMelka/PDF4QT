@@ -36,39 +36,9 @@ PDFPageContentEditorContentStreamBuilder::PDFPageContentEditorContentStreamBuild
 
 void PDFPageContentEditorContentStreamBuilder::writeStateDifference(QTextStream& stream, const PDFPageContentProcessorState& state)
 {
-    PDFPageContentProcessorState oldState = m_currentState;
     m_currentState.setState(state);
 
     auto stateFlags = m_currentState.getStateFlags();
-
-    if (stateFlags.testFlag(PDFPageContentProcessorState::StateCurrentTransformationMatrix))
-    {
-        QTransform oldTransform = oldState.getCurrentTransformationMatrix();
-
-        if (!oldTransform.isIdentity() && oldTransform.isInvertible())
-        {
-            oldTransform = oldTransform.inverted();
-            PDFReal old_m11 = oldTransform.m11();
-            PDFReal old_m12 = oldTransform.m12();
-            PDFReal old_m21 = oldTransform.m21();
-            PDFReal old_m22 = oldTransform.m22();
-            PDFReal old_x = oldTransform.dx();
-            PDFReal old_y = oldTransform.dy();
-
-            stream << old_m11 << " " << old_m12 << " " << old_m21 << " " << old_m22 << " " << old_x << " " << old_y << " cm" << Qt::endl;
-        }
-
-        QTransform transform = m_currentState.getCurrentTransformationMatrix();
-
-        PDFReal m11 = transform.m11();
-        PDFReal m12 = transform.m12();
-        PDFReal m21 = transform.m21();
-        PDFReal m22 = transform.m22();
-        PDFReal x = transform.dx();
-        PDFReal y = transform.dy();
-
-        stream << m11 << " " << m12 << " " << m21 << " " << m22 << " " << x << " " << y << " cm" << Qt::endl;
-    }
 
     if (stateFlags.testFlag(PDFPageContentProcessorState::StateLineWidth))
     {
@@ -309,6 +279,13 @@ void PDFPageContentEditorContentStreamBuilder::writeEditedElement(const PDFEdite
     QTextStream stream(&m_outputContent, QDataStream::WriteOnly | QDataStream::Append);
     writeStateDifference(stream, state);
 
+    bool isNeededToWriteCurrentTransformationMatrix = this->isNeededToWriteCurrentTransformationMatrix();
+    if (isNeededToWriteCurrentTransformationMatrix)
+    {
+        stream << "q" << Qt::endl;
+        writeCurrentTransformationMatrix(stream);
+    }
+
     if (const PDFEditedPageContentElementImage* imageElement = element->asImage())
     {
         QImage image = imageElement->getImage();
@@ -334,7 +311,10 @@ void PDFPageContentEditorContentStreamBuilder::writeEditedElement(const PDFEdite
         }
     }
 
-    stream << Qt::endl;
+    if (isNeededToWriteCurrentTransformationMatrix)
+    {
+        stream << "Q" << Qt::endl;
+    }
 }
 
 const QByteArray& PDFPageContentEditorContentStreamBuilder::getOutputContent() const
@@ -679,7 +659,6 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
             {
                 addError(PDFTranslationContext::tr("Invalid text matrix parameters."));
             }
-
             else
             {
                 stream << m11 << " " << m12 << " " << m21 << " " << m22 << " " << x << " " << y << " Tm" << Qt::endl;
@@ -824,14 +803,31 @@ void PDFPageContentEditorContentStreamBuilder::writeStyledPath(const QPainterPat
     QTextStream stream(&m_outputContent, QDataStream::WriteOnly | QDataStream::Append);
     writeStateDifference(stream, newState);
 
+    bool isNeededToWriteCurrentTransformationMatrix = this->isNeededToWriteCurrentTransformationMatrix();
+    if (isNeededToWriteCurrentTransformationMatrix)
+    {
+        stream << "q" << Qt::endl;
+        writeCurrentTransformationMatrix(stream);
+    }
+
     writePainterPath(stream, path, isStroking, isFilling);
+
+    if (isNeededToWriteCurrentTransformationMatrix)
+    {
+        stream << "Q" << Qt::endl;
+    }
 }
 
 void PDFPageContentEditorContentStreamBuilder::writeImage(const QImage& image,
                                                           const QRectF& rectangle)
 {
     QTextStream stream(&m_outputContent, QDataStream::WriteOnly | QDataStream::Append);
+
     stream << "q" << Qt::endl;
+    if (isNeededToWriteCurrentTransformationMatrix())
+    {
+        writeCurrentTransformationMatrix(stream);
+    }
 
     QSizeF rectangleSize = QSizeF(image.size()).scaled(rectangle.size(), Qt::KeepAspectRatio);
     QRectF transformedRectangle(QPointF(), rectangleSize);
@@ -851,6 +847,25 @@ void PDFPageContentEditorContentStreamBuilder::writeImage(const QImage& image,
     writeImage(stream, image);
 
     stream << "Q" << Qt::endl;
+}
+
+bool PDFPageContentEditorContentStreamBuilder::isNeededToWriteCurrentTransformationMatrix() const
+{
+    return !m_currentState.getCurrentTransformationMatrix().isIdentity();
+}
+
+void PDFPageContentEditorContentStreamBuilder::writeCurrentTransformationMatrix(QTextStream& stream)
+{
+    QTransform transform = m_currentState.getCurrentTransformationMatrix();
+
+    PDFReal m11 = transform.m11();
+    PDFReal m12 = transform.m12();
+    PDFReal m21 = transform.m21();
+    PDFReal m22 = transform.m22();
+    PDFReal x = transform.dx();
+    PDFReal y = transform.dy();
+
+    stream << m11 << " " << m12 << " " << m21 << " " << m22 << " " << x << " " << y << " cm" << Qt::endl;
 }
 
 }   // namespace pdf
