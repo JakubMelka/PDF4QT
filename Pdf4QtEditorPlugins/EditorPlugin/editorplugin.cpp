@@ -193,6 +193,8 @@ bool EditorPlugin::save()
     {
         pdf::PDFDocumentModifier modifier(m_document);
 
+        pdf::PDFColorConvertor convertor;
+
         std::set<pdf::PDFInteger> pageIndices;
         for (const auto& item : m_editedPageContent)
         {
@@ -228,8 +230,6 @@ bool EditorPlugin::save()
                     const pdf::PDFPageContentElementFreehandCurve* elementFreehandCurve = element->asElementFreehandCurve();
                     const pdf::PDFPageContentImageElement* elementImage = element->asElementImage();
                     const pdf::PDFPageContentElementTextBox* elementTextBox = element->asElementTextBox();
-
-                    // TODO: Implement all things
 
                     if (editedElement)
                     {
@@ -298,7 +298,7 @@ bool EditorPlugin::save()
 
                             QList<pdf::PDFRenderError> errors;
                             pdf::PDFTextLayoutGetter textLayoutGetter(nullptr, pageIndex);
-                            elementImage->drawPage(&painter, &m_scene, pageIndex, nullptr, textLayoutGetter, QTransform(), errors);
+                            elementImage->drawPage(&painter, &m_scene, pageIndex, nullptr, textLayoutGetter, QTransform(), convertor, errors);
                         }
                     }
 
@@ -309,7 +309,7 @@ bool EditorPlugin::save()
 
                         QList<pdf::PDFRenderError> errors;
                         pdf::PDFTextLayoutGetter textLayoutGetter(nullptr, pageIndex);
-                        elementTextBox->drawPage(&painter, &m_scene, pageIndex, nullptr, textLayoutGetter, QTransform(), errors);
+                        elementTextBox->drawPage(&painter, &m_scene, pageIndex, nullptr, textLayoutGetter, QTransform(), convertor, errors);
                     }
                 }
             }

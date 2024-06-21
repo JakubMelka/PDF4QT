@@ -1344,7 +1344,7 @@ void PDFFormFieldComboBoxEditor::draw(AnnotationDrawParameters& parameters, bool
             AnnotationDrawParameters listBoxParameters = parameters;
             listBoxParameters.boundingRectangle = m_listBoxPopupRectangle;
 
-            QColor color = parameters.colorConvertor.convert(Qt::white, true, false);
+            QColor color = parameters.colorConvertor.convert(QColor(Qt::white), true, false);
             listBoxParameters.painter->fillRect(listBoxParameters.boundingRectangle, color);
 
             m_listBox.draw(listBoxParameters, true);
@@ -1751,7 +1751,7 @@ void PDFListBoxPseudowidget::draw(AnnotationDrawParameters& parameters, bool edi
     if (edit)
     {
         pdf::PDFPainterStateGuard guard2(painter);
-        painter->setPen(parameters.colorConvertor.convert(Qt::black, false, true));
+        painter->setPen(parameters.colorConvertor.convert(QColor(Qt::black), false, true));
         painter->setBrush(Qt::NoBrush);
         painter->drawRect(parameters.boundingRectangle);
     }

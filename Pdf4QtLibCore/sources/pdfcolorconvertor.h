@@ -20,6 +20,8 @@
 
 #include "pdfglobal.h"
 
+#include <QPen>
+#include <QBrush>
 #include <QColor>
 #include <QImage>
 
@@ -102,6 +104,9 @@ public:
 
     QColor getBackgroundColor() const;
     QColor getForegroundColor() const;
+
+    QPen convert(const QPen& pen, bool background = false, bool foreground = true) const;
+    QBrush convert(const QBrush& brush, bool background = false, bool foreground = true) const;
 
 private:
     /// Correct lightness using sigmoid function

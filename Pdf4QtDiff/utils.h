@@ -93,6 +93,7 @@ public:
                           const pdf::PDFPrecompiledPage* compiledPage,
                           pdf::PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const pdf::PDFColorConvertor& convertor,
                           QList<pdf::PDFRenderError>& errors) const override;
 
     virtual void drawPostRendering(QPainter* painter, QRect rect) const override;

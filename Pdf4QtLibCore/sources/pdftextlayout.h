@@ -35,6 +35,7 @@ namespace pdf
 class PDFTextLayout;
 class PDFTextLayoutStorage;
 struct PDFCharacterPointer;
+class PDFColorConvertor;
 
 struct PDFTextCharacterInfo
 {
@@ -522,7 +523,7 @@ public:
     /// \param pageIndex Page index
     /// \param textLayoutGetter Text layout getter
     /// \param matrix Matrix which translates from page space to device space
-    void draw(QPainter* painter, PDFInteger pageIndex, PDFTextLayoutGetter& textLayoutGetter, const QTransform& matrix);
+    void draw(QPainter* painter, PDFInteger pageIndex, PDFTextLayoutGetter& textLayoutGetter, const QTransform& matrix, const PDFColorConvertor& convertor);
 
     /// Prepares geometry for text selection drawing, using text layout and matrix.  If current text selection
     /// doesn't contain items from active page, then text layout is not accessed.

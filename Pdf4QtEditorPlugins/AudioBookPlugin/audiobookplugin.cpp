@@ -20,6 +20,7 @@
 #include "pdfwidgettool.h"
 #include "pdfutils.h"
 #include "pdfwidgetutils.h"
+#include "pdfcms.h"
 #include "audiobookcreator.h"
 
 #include <QAction>
@@ -170,6 +171,7 @@ void AudioBookPlugin::drawPage(QPainter* painter,
                                const pdf::PDFPrecompiledPage* compiledPage,
                                pdf::PDFTextLayoutGetter& layoutGetter,
                                const QTransform& pagePointToDevicePointMatrix,
+                               const pdf::PDFColorConvertor& convertor,
                                QList<pdf::PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -208,8 +210,8 @@ void AudioBookPlugin::drawPage(QPainter* painter,
         fillColor.setAlphaF(0.2f);
 
         pen.setColor(strokeColor);
-        painter->setPen(pen);
-        painter->setBrush(QBrush(fillColor));
+        painter->setPen(convertor.convert(pen));
+        painter->setBrush(convertor.convert(QBrush(fillColor)));
 
         QPainterPath path;
         path.addRect(boundingRect);

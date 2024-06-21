@@ -18,6 +18,7 @@
 #include "pdfadvancedfindwidget.h"
 #include "ui_pdfadvancedfindwidget.h"
 
+#include "pdfcms.h"
 #include "pdfcompiler.h"
 #include "pdfdocument.h"
 #include "pdfdrawspacecontroller.h"
@@ -196,6 +197,7 @@ void PDFAdvancedFindWidget::drawPage(QPainter* painter,
                                      const pdf::PDFPrecompiledPage* compiledPage,
                                      pdf::PDFTextLayoutGetter& layoutGetter,
                                      const QTransform& pagePointToDevicePointMatrix,
+                                     const pdf::PDFColorConvertor& convertor,
                                      QList<pdf::PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -203,7 +205,7 @@ void PDFAdvancedFindWidget::drawPage(QPainter* painter,
 
     const pdf::PDFTextSelection& textSelection = getTextSelection();
     pdf::PDFTextSelectionPainter textSelectionPainter(&textSelection);
-    textSelectionPainter.draw(painter, pageIndex, layoutGetter, pagePointToDevicePointMatrix);
+    textSelectionPainter.draw(painter, pageIndex, layoutGetter, pagePointToDevicePointMatrix, convertor);
 }
 
 void PDFAdvancedFindWidget::performSearch()

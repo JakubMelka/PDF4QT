@@ -461,6 +461,7 @@ void PDFCreateLineTypeTool::drawPage(QPainter* painter,
                                      const PDFPrecompiledPage* compiledPage,
                                      PDFTextLayoutGetter& layoutGetter,
                                      const QTransform& pagePointToDevicePointMatrix,
+                                     const PDFColorConvertor& convertor,
                                      QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(pageIndex);
@@ -468,7 +469,7 @@ void PDFCreateLineTypeTool::drawPage(QPainter* painter,
     Q_UNUSED(layoutGetter);
     Q_UNUSED(errors);
 
-    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, convertor, errors);
 
     if (pageIndex != m_pickTool->getPageIndex())
     {
@@ -485,8 +486,8 @@ void PDFCreateLineTypeTool::drawPage(QPainter* painter,
 
     painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
 
-    QPen pen(m_strokeColor);
-    QBrush brush(m_fillColor, Qt::SolidPattern);
+    QPen pen = convertor.convert(QPen(m_strokeColor));
+    QBrush brush = convertor.convert(QBrush(m_fillColor, Qt::SolidPattern));
     pen.setWidthF(m_penWidth);
     painter->setPen(qMove(pen));
     painter->setBrush(qMove(brush));
@@ -592,9 +593,10 @@ void PDFCreateEllipseTool::drawPage(QPainter* painter,
                                     const PDFPrecompiledPage* compiledPage,
                                     PDFTextLayoutGetter& layoutGetter,
                                     const QTransform& pagePointToDevicePointMatrix,
+                                    const PDFColorConvertor& convertor,
                                     QList<PDFRenderError>& errors) const
 {
-    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, convertor, errors);
 
     if (pageIndex != m_pickTool->getPageIndex())
     {
@@ -611,8 +613,8 @@ void PDFCreateEllipseTool::drawPage(QPainter* painter,
 
     painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
 
-    QPen pen(m_strokeColor);
-    QBrush brush(m_fillColor, Qt::SolidPattern);
+    QPen pen = convertor.convert(QPen(m_strokeColor));
+    QBrush brush = convertor.convert(QBrush(m_fillColor, Qt::SolidPattern));
     pen.setWidthF(m_penWidth);
     painter->setPen(qMove(pen));
     painter->setBrush(qMove(brush));
@@ -672,9 +674,10 @@ void PDFCreateFreehandCurveTool::drawPage(QPainter* painter,
                                           const PDFPrecompiledPage* compiledPage,
                                           PDFTextLayoutGetter& layoutGetter,
                                           const QTransform& pagePointToDevicePointMatrix,
+                                          const PDFColorConvertor& convertor,
                                           QList<PDFRenderError>& errors) const
 {
-    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, convertor, errors);
 
     if (pageIndex != m_pageIndex || m_pickedPoints.empty())
     {
@@ -683,7 +686,7 @@ void PDFCreateFreehandCurveTool::drawPage(QPainter* painter,
 
     painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
 
-    QPen pen(m_strokeColor);
+    QPen pen = convertor.convert(QPen(m_strokeColor));
     pen.setWidthF(m_penWidth);
     painter->setPen(qMove(pen));
     painter->setRenderHint(QPainter::Antialiasing);
@@ -833,6 +836,7 @@ void PDFCreateStampTool::drawPage(QPainter* painter,
                                   const PDFPrecompiledPage* compiledPage,
                                   PDFTextLayoutGetter& layoutGetter,
                                   const QTransform& pagePointToDevicePointMatrix,
+                                  const PDFColorConvertor& convertor,
                                   QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -854,7 +858,7 @@ void PDFCreateStampTool::drawPage(QPainter* painter,
     parameters.painter = painter;
     parameters.annotation = const_cast<PDFStampAnnotation*>(&m_stampAnnotation);
     parameters.key.first = PDFAppeareanceStreams::Appearance::Normal;
-    parameters.colorConvertor = getProxy()->getCMSManager()->getColorConvertor();
+    parameters.colorConvertor = convertor;
     PDFRenderer::applyFeaturesToColorConvertor(getProxy()->getFeatures(), parameters.colorConvertor);
 
     m_stampAnnotation.draw(parameters);
@@ -933,13 +937,15 @@ void PDFCreateHighlightTextTool::drawPage(QPainter* painter,
                                           const PDFPrecompiledPage* compiledPage,
                                           PDFTextLayoutGetter& layoutGetter,
                                           const QTransform& pagePointToDevicePointMatrix,
+                                          const PDFColorConvertor& convertor,
                                           QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
     Q_UNUSED(errors);
+    Q_UNUSED(convertor);
 
     pdf::PDFTextSelectionPainter textSelectionPainter(&m_textSelection);
-    textSelectionPainter.draw(painter, pageIndex, layoutGetter, pagePointToDevicePointMatrix);
+    textSelectionPainter.draw(painter, pageIndex, layoutGetter, pagePointToDevicePointMatrix, convertor);
 }
 
 void PDFCreateHighlightTextTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
@@ -1173,13 +1179,15 @@ void PDFCreateRedactTextTool::drawPage(QPainter* painter,
                                        const PDFPrecompiledPage* compiledPage,
                                        PDFTextLayoutGetter& layoutGetter,
                                        const QTransform& pagePointToDevicePointMatrix,
+                                       const PDFColorConvertor& convertor,
                                        QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
     Q_UNUSED(errors);
+    Q_UNUSED(convertor);
 
     pdf::PDFTextSelectionPainter textSelectionPainter(&m_textSelection);
-    textSelectionPainter.draw(painter, pageIndex, layoutGetter, pagePointToDevicePointMatrix);
+    textSelectionPainter.draw(painter, pageIndex, layoutGetter, pagePointToDevicePointMatrix, convertor);
 }
 
 void PDFCreateRedactTextTool::mousePressEvent(QWidget* widget, QMouseEvent* event)

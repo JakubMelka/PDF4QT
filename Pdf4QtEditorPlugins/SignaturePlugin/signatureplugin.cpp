@@ -288,6 +288,8 @@ void SignaturePlugin::onSignElectronically()
     Q_ASSERT(m_document);
     Q_ASSERT(!m_scene.isEmpty());
 
+    pdf::PDFColorConvertor convertor;
+
     if (QMessageBox::question(m_dataExchangeInterface->getMainWindow(), tr("Confirm Signature"), tr("Document will be signed electronically. Do you want to continue?"), QMessageBox::Yes, QMessageBox::No) == QMessageBox::Yes)
     {
         pdf::PDFDocumentModifier modifier(m_document);
@@ -302,7 +304,7 @@ void SignaturePlugin::onSignElectronically()
             QPainter* painter = pageContentStreamBuilder.begin(page->getPageReference());
             QList<pdf::PDFRenderError> errors;
             pdf::PDFTextLayoutGetter nullGetter(nullptr, pageIndex);
-            m_scene.drawElements(painter, pageIndex, nullGetter, QTransform(), nullptr, errors);
+            m_scene.drawElements(painter, pageIndex, nullGetter, QTransform(), nullptr, convertor, errors);
             pageContentStreamBuilder.end(painter);
             modifier.markPageContentsChanged();
         }
@@ -369,12 +371,13 @@ void SignaturePlugin::onSignDigitally()
             Q_ASSERT(!m_scene.isEmpty());
             const pdf::PDFInteger pageIndex = *m_scene.getPageIndices().begin();
             const pdf::PDFPage* page = catalog->getPage(pageIndex);
+            pdf::PDFColorConvertor convertor;
 
             pdf::PDFContentStreamBuilder contentBuilder(page->getMediaBox().size(), pdf::PDFContentStreamBuilder::CoordinateSystem::PDF);
             QPainter* painter = contentBuilder.begin();
             QList<pdf::PDFRenderError> errors;
             pdf::PDFTextLayoutGetter nullGetter(nullptr, pageIndex);
-            m_scene.drawPage(painter, pageIndex, nullptr, nullGetter, QTransform(), errors);
+            m_scene.drawPage(painter, pageIndex, nullptr, nullGetter, QTransform(), convertor, errors);
             pdf::PDFContentStreamBuilder::ContentStream contentStream = contentBuilder.end(painter);
 
             QRectF boundingRect = m_scene.getBoundingBox(pageIndex);

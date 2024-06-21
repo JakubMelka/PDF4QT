@@ -18,6 +18,7 @@
 #include "dimensionsplugin.h"
 #include "pdfdrawwidget.h"
 #include "pdfwidgetutils.h"
+#include "pdfcms.h"
 #include "settingsdialog.h"
 
 #include <QPainter>
@@ -149,6 +150,7 @@ void DimensionsPlugin::drawPage(QPainter* painter,
                                 const pdf::PDFPrecompiledPage* compiledPage,
                                 pdf::PDFTextLayoutGetter& layoutGetter,
                                 const QTransform& pagePointToDevicePointMatrix,
+                                const pdf::PDFColorConvertor& convertor,
                                 QList<pdf::PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -196,7 +198,7 @@ void DimensionsPlugin::drawPage(QPainter* painter,
                 QPointF unitVector = unitVectorLine.p2() - unitVectorLine.p1();
                 qreal extensionLineSize = pdf::PDFWidgetUtils::scaleDPI_y(painter->device(), 5);
 
-                painter->setPen(Qt::black);
+                painter->setPen(convertor.convert(QColor(Qt::black), false, true));
                 painter->drawLine(line);
 
                 QLineF extensionLineLeft(p1 - unitVector * extensionLineSize, p1 + unitVector * extensionLineSize);
@@ -237,14 +239,14 @@ void DimensionsPlugin::drawPage(QPainter* painter,
 
                 QColor brushColor = Qt::black;
                 brushColor.setAlphaF(0.1f);
-                painter->setPen(qMove(pen));
-                painter->setBrush(QBrush(brushColor, isArea ? Qt::SolidPattern : Qt::DiagCrossPattern));
+                painter->setPen(convertor.convert(pen));
+                painter->setBrush(convertor.convert(QBrush(brushColor, isArea ? Qt::SolidPattern : Qt::DiagCrossPattern)));
 
                 painter->setTransform(QTransform(pagePointToDevicePointMatrix), true);
                 painter->drawPolygon(polygon.data(), int(polygon.size()), Qt::OddEvenFill);
                 painter->restore();
 
-                QPen penPoint(Qt::black);
+                QPen penPoint(convertor.convert(QColor(Qt::black), false, true));
                 penPoint.setCapStyle(Qt::RoundCap);
                 penPoint.setWidthF(pointSize);
                 painter->setPen(penPoint);
@@ -287,7 +289,7 @@ void DimensionsPlugin::drawPage(QPainter* painter,
                 line1.setLength(maxLength);
                 line2.setLength(maxLength);
 
-                QPen pen(Qt::black);
+                QPen pen(convertor.convert(QColor(Qt::black), false, true));
                 pen.setWidthF(lineSize);
                 painter->setPen(qMove(pen));
 
@@ -301,7 +303,7 @@ void DimensionsPlugin::drawPage(QPainter* painter,
                 rect.translate(line1.p1());
                 painter->drawArc(rect, startAngle - angleLength, angleLength);
 
-                QPen penPoint(Qt::black);
+                QPen penPoint(convertor.convert(QColor(Qt::black), false, true));
                 penPoint.setCapStyle(Qt::RoundCap);
                 penPoint.setWidthF(pointSize);
                 painter->setPen(penPoint);

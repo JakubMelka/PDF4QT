@@ -34,6 +34,7 @@ class QSvgRenderer;
 
 namespace pdf
 {
+class PDFCMS;
 class PDFWidget;
 class PDFDocument;
 class PDFPageContentScene;
@@ -60,6 +61,7 @@ public:
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const = 0;
 
     /// Returns manipulation mode. If manipulation mode is zero, then element
@@ -173,6 +175,7 @@ public:
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
     virtual uint getManipulationMode(const QPointF& point,
@@ -209,6 +212,7 @@ public:
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
     virtual uint getManipulationMode(const QPointF& point,
@@ -244,6 +248,7 @@ public:
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
     virtual uint getManipulationMode(const QPointF& point,
@@ -275,6 +280,7 @@ public:
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
     virtual uint getManipulationMode(const QPointF& point,
@@ -312,6 +318,7 @@ public:
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
     virtual uint getManipulationMode(const QPointF& point,
@@ -355,6 +362,7 @@ public:
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
     virtual uint getManipulationMode(const QPointF& point,
@@ -399,6 +407,7 @@ public:
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
     virtual uint getManipulationMode(const QPointF& point, PDFReal snapPointDistanceThreshold) const override;
     virtual void performManipulation(uint mode, const QPointF& offset) override;
@@ -503,6 +512,7 @@ public:
                   const PDFPrecompiledPage* compiledPage,
                   PDFTextLayoutGetter& layoutGetter,
                   const QTransform& pagePointToDevicePointMatrix,
+                  const PDFColorConvertor& convertor,
                   QList<PDFRenderError>& errors) const;
 
     /// Returns bounding box of whole selection
@@ -608,6 +618,7 @@ public:
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
     PDFWidget* widget() const;
@@ -618,6 +629,7 @@ public:
                       PDFTextLayoutGetter& layoutGetter,
                       const QTransform& pagePointToDevicePointMatrix,
                       const PDFPrecompiledPage* compiledPage,
+                      const PDFColorConvertor& convertor,
                       QList<PDFRenderError>& errors) const;
 
     void setIsPageContentDrawSuppressed(bool newIsPageContentDrawSuppressed);

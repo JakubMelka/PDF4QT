@@ -18,6 +18,7 @@
 #include "dimensiontool.h"
 #include "pdfwidgetutils.h"
 #include "pdfdrawwidget.h"
+#include "pdfcms.h"
 
 #include <QPainter>
 
@@ -41,6 +42,7 @@ void DimensionTool::drawPage(QPainter* painter,
                              const pdf::PDFPrecompiledPage* compiledPage,
                              pdf::PDFTextLayoutGetter& layoutGetter,
                              const QTransform& pagePointToDevicePointMatrix,
+                             const pdf::PDFColorConvertor& convertor,
                              QList<pdf::PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -59,7 +61,7 @@ void DimensionTool::drawPage(QPainter* painter,
         return;
     }
 
-    painter->setPen(Qt::black);
+    painter->setPen(convertor.convert(QColor(Qt::black), false, true));
     const std::vector<QPointF>& points = m_pickTool->getPickedPoints();
     for (size_t i = 1; i < points.size(); ++i)
     {
