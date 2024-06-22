@@ -19,8 +19,13 @@
 #define PDFPAGECONTENTEDITOREDITEDITEMSETTINGS_H
 
 #include <QDialog>
+#include <QPen>
+#include <QBrush>
 
-namespace Ui {
+class QComboBox;
+
+namespace Ui
+{
 class PDFPageContentEditorEditedItemSettings;
 }
 
@@ -39,12 +44,45 @@ public:
     void loadFromElement(PDFPageContentElementEdited* editedElement);
     void saveToElement(PDFPageContentElementEdited* editedElement);
 
+    void setPen(const QPen& pen, bool forceUpdate);
+    void setBrush(const QBrush& brush, bool forceUpdate);
+
+    const QPen& getPen() const;
+    const QBrush& getBrush() const;
+
 private:
+    void onSelectPenColorButtonClicked();
+    void onSelectBrushColorButtonClicked();
+    void onPenWidthChanged(double value);
+    void onPenStyleChanged();
+    void onBrushStyleChanged();
+    void onPenColorComboTextChanged();
+    void onPenColorComboIndexChanged();
+    void onBrushColorComboTextChanged();
+    void onBrushColorComboIndexChanged();
+
     void setImage(QImage image);
     void selectImage();
 
+    enum StyleFeature
+    {
+        None = 0,
+        Pen = 1 << 0,
+        PenColor = 1 << 1,
+        Brush = 1 << 2
+    };
+    Q_DECLARE_FLAGS(StyleFeatures, StyleFeature)
+
+    void setColorToComboBox(QComboBox* comboBox, QColor color);
+    QIcon getIconForColor(QColor color) const;
+
+    void setPenColor(QColor color);
+    void setBrushColor(QColor color);
+
     Ui::PDFPageContentEditorEditedItemSettings* ui;
     QImage m_image;
+    QPen m_pen;
+    QBrush m_brush;
 };
 
 }   // namespace pdf

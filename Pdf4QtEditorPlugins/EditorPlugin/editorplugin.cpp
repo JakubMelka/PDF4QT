@@ -49,6 +49,10 @@ EditorPlugin::EditorPlugin() :
     m_scene.setIsPageContentDrawSuppressed(true);
 }
 
+// TODO: When text is edited, old text remains
+// TODO: Color of the text is unchanged
+// TODO: Moznost nastavit fill / stroke bool
+
 void EditorPlugin::setWidget(pdf::PDFWidget* widget)
 {
     Q_ASSERT(!m_widget);
@@ -189,7 +193,14 @@ bool EditorPlugin::save()
 {
     pdf::PDFTemporaryValueChange guard(&m_isSaving, true);
 
-    if (QMessageBox::question(m_dataExchangeInterface->getMainWindow(), tr("Confirm Changes"), tr("The changes to the page content will be written to the document. Do you want to continue?"), QMessageBox::Yes, QMessageBox::No) == QMessageBox::Yes)
+    auto answer = QMessageBox::question(m_dataExchangeInterface->getMainWindow(), tr("Confirm Changes"), tr("The changes to the page content will be written to the document. Do you want to continue?"), QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel, QMessageBox::Cancel);
+
+    if (answer == QMessageBox::Cancel)
+    {
+        return false;
+    }
+
+    if (answer == QMessageBox::Yes)
     {
         pdf::PDFDocumentModifier modifier(m_document);
 
@@ -590,6 +601,7 @@ void EditorPlugin::onSetActive(bool active)
     if (!active && !save())
     {
         updateActions();
+        m_actions[Activate]->setChecked(true);
         return;
     }
 

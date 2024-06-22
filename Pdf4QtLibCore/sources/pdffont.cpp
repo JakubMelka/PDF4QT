@@ -1985,7 +1985,8 @@ PDFEncodedText PDFSimpleFont::encodeText(const QString& text) const
         bool isFound = false;
         for (size_t i = 0; i < encodingTable->size(); ++i)
         {
-            if (unicode == (*encodingTable)[static_cast<unsigned char>(i)])
+            if (unicode == (*encodingTable)[static_cast<unsigned char>(i)] &&
+                m_glyphIndices[i] != GID())
             {
                 isFound = true;
                 converted = static_cast<unsigned char>(i);

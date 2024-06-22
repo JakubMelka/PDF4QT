@@ -98,7 +98,7 @@ struct PDFOverprintMode
 
 /// Represents graphic state of the PDF (holding current graphic state parameters).
 /// Please see PDF Reference 1.7, Chapter 4.3 "Graphic State"
-class PDFPageContentProcessorState
+class PDF4QTLIBCORESHARED_EXPORT PDFPageContentProcessorState
 {
 public:
     explicit PDFPageContentProcessorState();
