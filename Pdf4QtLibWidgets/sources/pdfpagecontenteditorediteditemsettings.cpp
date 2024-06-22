@@ -170,6 +170,11 @@ void PDFPageContentEditorEditedItemSettings::loadFromElement(PDFPageContentEleme
     QPen pen = pdf::PDFPainterHelper::createPenFromState(&graphicState, graphicState.getAlphaStroking());
     QBrush brush = pdf::PDFPainterHelper::createBrushFromState(&graphicState, graphicState.getAlphaFilling());
 
+    if (element->asText())
+    {
+        pen.setColor(brush.color());
+    }
+
     setPen(pen, true);
     setBrush(brush, true);
 }
@@ -247,12 +252,22 @@ void PDFPageContentEditorEditedItemSettings::saveToElement(PDFPageContentElement
     QTransform transform = PDFPainterHelper::composeTransform(decomposedTransformation);
     editedElement->getElement()->setTransform(transform);
 
-    if (editedElement->getElement()->asText() || editedElement->getElement()->asPath())
+    if (editedElement->getElement()->asPath())
     {
         PDFPageContentProcessorState graphicState = editedElement->getElement()->getState();
 
         PDFPainterHelper::applyPenToGraphicState(&graphicState, m_pen);
         PDFPainterHelper::applyBrushToGraphicState(&graphicState, m_brush);
+
+        editedElement->getElement()->setState(graphicState);
+    }
+
+    if (editedElement->getElement()->asText())
+    {
+        PDFPageContentProcessorState graphicState = editedElement->getElement()->getState();
+
+        QBrush brush(m_pen.color(), Qt::SolidPattern);
+        PDFPainterHelper::applyBrushToGraphicState(&graphicState, brush);
 
         editedElement->getElement()->setState(graphicState);
     }
