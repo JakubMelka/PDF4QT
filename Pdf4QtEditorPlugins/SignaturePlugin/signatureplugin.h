@@ -57,6 +57,7 @@ private:
     void onSignElectronically();
     void onSignDigitally();
     void onOpenCertificatesManager();
+    void onSceneActivityChanged();
 
     void onPenChanged(const QPen& pen);
     void onBrushChanged(const QBrush& brush);

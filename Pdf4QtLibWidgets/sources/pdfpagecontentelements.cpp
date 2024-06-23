@@ -870,6 +870,7 @@ void PDFPageContentScene::setActive(bool newIsActive)
         }
 
         Q_EMIT sceneChanged(false);
+        Q_EMIT sceneActiveStateChanged(newIsActive);
     }
 }
 

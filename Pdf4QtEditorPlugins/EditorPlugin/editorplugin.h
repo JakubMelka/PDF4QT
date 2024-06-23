@@ -52,6 +52,7 @@ public:
     bool save();
 
 private:
+    void onSceneActivityChanged();
     void onSceneChanged(bool graphicsOnly);
     void onSceneSelectionChanged();
     void onWidgetSelectionChanged();

@@ -643,6 +643,8 @@ signals:
     /// Request to edit the elements
     void editElementRequest(const std::set<PDFInteger>& elements);
 
+    void sceneActiveStateChanged(bool activated);
+
 private:
 
     struct MouseEventInfo

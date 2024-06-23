@@ -23,6 +23,7 @@
 #include "pdfwidgetannotation.h"
 #include "pdfwidgetformmanager.h"
 #include "pdfblpainter.h"
+#include "pdfpagecontentelements.h"
 
 #include <QPainter>
 #include <QGridLayout>
@@ -145,12 +146,28 @@ void PDFWidget::onPageImageChanged(bool all, const std::vector<PDFInteger>& page
     }
 }
 
+void PDFWidget::onSceneActiveStateChanged(bool)
+{
+    Q_EMIT sceneActivityChanged();
+}
+
 void PDFWidget::removeInputInterface(IDrawWidgetInputInterface* inputInterface)
 {
     auto it = std::find(m_inputInterfaces.begin(), m_inputInterfaces.end(), inputInterface);
     if (it != m_inputInterfaces.end())
     {
         m_inputInterfaces.erase(it);
+    }
+
+    PDFPageContentScene* scene = dynamic_cast<PDFPageContentScene*>(inputInterface);
+    if (scene)
+    {
+        auto itScene = std::find(m_scenes.begin(), m_scenes.end(), inputInterface);
+        if (itScene != m_scenes.end())
+        {
+            m_scenes.erase(itScene);
+            disconnect(scene, &PDFPageContentScene::sceneActiveStateChanged, this, &PDFWidget::onSceneActiveStateChanged);
+        }
     }
 }
 
@@ -160,7 +177,27 @@ void PDFWidget::addInputInterface(IDrawWidgetInputInterface* inputInterface)
     {
         m_inputInterfaces.push_back(inputInterface);
         std::sort(m_inputInterfaces.begin(), m_inputInterfaces.end(), IDrawWidgetInputInterface::Comparator());
+
+        PDFPageContentScene* scene = dynamic_cast<PDFPageContentScene*>(inputInterface);
+        if (scene)
+        {
+            m_scenes.push_back(scene);
+            connect(scene, &PDFPageContentScene::sceneActiveStateChanged, this, &PDFWidget::onSceneActiveStateChanged);
+        }
     }
+}
+
+bool PDFWidget::isAnySceneActive(PDFPageContentScene* sceneToSkip) const
+{
+    for (PDFPageContentScene* scene : m_scenes)
+    {
+        if (scene->isActive() && scene != sceneToSkip)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 PDFWidgetFormManager* PDFWidget::getFormManager() const

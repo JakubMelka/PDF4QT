@@ -158,6 +158,7 @@ void EditorPlugin::setWidget(pdf::PDFWidget* widget)
     connect(clearAction, &QAction::triggered, &m_scene, &pdf::PDFPageContentScene::clear);
     connect(activateAction, &QAction::triggered, this, &EditorPlugin::onSetActive);
     connect(m_widget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::drawSpaceChanged, this, &EditorPlugin::onDrawSpaceChanged);
+    connect(m_widget, &pdf::PDFWidget::sceneActivityChanged, this, &EditorPlugin::onSceneActivityChanged);
 
     updateActions();
 }
@@ -426,6 +427,11 @@ bool EditorPlugin::save()
     return true;
 }
 
+void EditorPlugin::onSceneActivityChanged()
+{
+    updateActions();
+}
+
 void EditorPlugin::onSceneChanged(bool graphicsOnly)
 {
     if (!graphicsOnly)
@@ -591,12 +597,19 @@ void EditorPlugin::setActive(bool active)
 
         m_actions[Activate]->setChecked(active);
         updateActions();
+
+        // If editor is not active, remove the widget
+        if (m_editorWidget && !active)
+        {
+            delete m_editorWidget;
+            m_editorWidget = nullptr;
+        }
     }
 }
 
 void EditorPlugin::onSetActive(bool active)
 {
-    if (!active && !save())
+    if (m_scene.isActive() && !active && !save())
     {
         updateActions();
         m_actions[Activate]->setChecked(true);
@@ -617,6 +630,7 @@ void EditorPlugin::updateActions()
         {
             if (action == m_actions[Activate])
             {
+                action->setEnabled(m_widget && !m_widget->isAnySceneActive(&m_scene));
                 continue;
             }
 

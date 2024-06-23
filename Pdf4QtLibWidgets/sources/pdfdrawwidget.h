@@ -38,6 +38,7 @@ class PDFDrawWidgetProxy;
 class PDFModifiedDocument;
 class PDFWidgetAnnotationManager;
 class IDrawWidgetInputInterface;
+class PDFPageContentScene;
 
 class IDrawWidget
 {
@@ -105,12 +106,17 @@ public:
     void removeInputInterface(IDrawWidgetInputInterface* inputInterface);
     void addInputInterface(IDrawWidgetInputInterface* inputInterface);
 
+    /// Returns true, if any scene is active
+    bool isAnySceneActive(PDFPageContentScene* sceneToSkip) const;
+
 signals:
+    void sceneActivityChanged();
     void pageRenderingErrorsChanged(pdf::PDFInteger pageIndex, int errorsCount);
 
 private:
     void onRenderingError(PDFInteger pageIndex, const QList<PDFRenderError>& errors);
     void onPageImageChanged(bool all, const std::vector<PDFInteger>& pages);
+    void onSceneActiveStateChanged(bool);
 
     const PDFCMSManager* m_cmsManager;
     PDFToolManager* m_toolManager;
@@ -122,6 +128,7 @@ private:
     PDFDrawWidgetProxy* m_proxy;
     PageRenderingErrors m_pageRenderingErrors;
     std::vector<IDrawWidgetInputInterface*> m_inputInterfaces;
+    std::vector<PDFPageContentScene*> m_scenes;
     RendererEngine m_rendererEngine;
 };
 

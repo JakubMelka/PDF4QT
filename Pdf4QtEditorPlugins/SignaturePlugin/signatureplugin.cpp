@@ -162,6 +162,7 @@ void SignaturePlugin::setWidget(pdf::PDFWidget* widget)
     connect(signElectronicallyAction, &QAction::triggered, this, &SignaturePlugin::onSignElectronically);
     connect(signDigitallyAction, &QAction::triggered, this, &SignaturePlugin::onSignDigitally);
     connect(certificatesAction, &QAction::triggered, this, &SignaturePlugin::onOpenCertificatesManager);
+    connect(m_widget, &pdf::PDFWidget::sceneActivityChanged, this, &SignaturePlugin::onSceneActivityChanged);
 
     updateActions();
 }
@@ -508,6 +509,11 @@ void SignaturePlugin::onOpenCertificatesManager()
     dialog.exec();
 }
 
+void SignaturePlugin::onSceneActivityChanged()
+{
+    updateActions();
+}
+
 void SignaturePlugin::onPenChanged(const QPen& pen)
 {
     if (pdf::PDFCreatePCElementTool* activeTool = qobject_cast<pdf::PDFCreatePCElementTool*>(getActiveTool()))
@@ -577,6 +583,13 @@ void SignaturePlugin::setActive(bool active)
 
         m_actions[Activate]->setChecked(active);
         updateActions();
+
+        // If editor is not active, remove the widget
+        if (m_editorWidget && !active)
+        {
+            delete m_editorWidget;
+            m_editorWidget = nullptr;
+        }
     }
 }
 
@@ -589,6 +602,11 @@ void SignaturePlugin::updateActions()
         // Inactive scene - disable all except activate action and certificates
         for (QAction* action : m_actions)
         {
+            if (action == m_actions[Activate])
+            {
+                action->setEnabled(m_widget && !m_widget->isAnySceneActive(&m_scene));
+            }
+
             if (action == m_actions[Activate] ||
                 action == m_actions[Certificates])
             {
