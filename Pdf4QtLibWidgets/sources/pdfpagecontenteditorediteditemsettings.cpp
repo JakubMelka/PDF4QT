@@ -48,14 +48,12 @@ PDFPageContentEditorEditedItemSettings::PDFPageContentEditorEditedItemSettings(Q
         ui->brushColorCombo->addItem(icon, colorName, color);
     }
 
-    ui->penStyleCombo->addItem(tr("None"), int(Qt::NoPen));
     ui->penStyleCombo->addItem(tr("Solid"), int(Qt::SolidLine));
     ui->penStyleCombo->addItem(tr("Dashed"), int(Qt::DashLine));
     ui->penStyleCombo->addItem(tr("Dotted"), int(Qt::DotLine));
     ui->penStyleCombo->addItem(tr("Dash-dot"), int(Qt::DashDotLine));
     ui->penStyleCombo->addItem(tr("Dash-dot-dot"), int(Qt::DashDotDotLine));
-
-    ui->brushStyleCombo->addItem(tr("None"), int(Qt::NoBrush));
+    ui->penStyleCombo->addItem(tr("Custom"), int(Qt::CustomDashLine));
     ui->brushStyleCombo->addItem(tr("Solid"), int(Qt::SolidPattern));
 
     connect(ui->selectPenColorButton, &QToolButton::clicked, this, &PDFPageContentEditorEditedItemSettings::onSelectPenColorButtonClicked);
@@ -137,6 +135,7 @@ void PDFPageContentEditorEditedItemSettings::loadFromElement(PDFPageContentEleme
         features.setFlag(Pen);
         features.setFlag(PenColor);
         features.setFlag(Brush);
+        features.setFlag(StrokeFill);
     }
 
     if (element->asText())
@@ -147,6 +146,7 @@ void PDFPageContentEditorEditedItemSettings::loadFromElement(PDFPageContentEleme
     const bool hasPen = features.testFlag(Pen);
     const bool hasPenColor = features.testFlag(PenColor);
     const bool hasBrush = features.testFlag(Brush);
+    const bool hasStrokeFill = features.testFlag(StrokeFill);
 
     ui->penWidthEdit->setEnabled(hasPen);
     ui->penWidthLabel->setEnabled(hasPen);
@@ -164,6 +164,15 @@ void PDFPageContentEditorEditedItemSettings::loadFromElement(PDFPageContentEleme
     ui->brushColorCombo->setEnabled(hasBrush);
     ui->brushColorLabel->setEnabled(hasBrush);
     ui->selectBrushColorButton->setEnabled(hasBrush);
+
+    ui->strokePathCheckBox->setEnabled(hasStrokeFill);
+    ui->fillPathCheckBox->setEnabled(hasStrokeFill);
+
+    if (const PDFEditedPageContentElementPath* pathElement = element->asPath())
+    {
+        ui->strokePathCheckBox->setChecked(pathElement->getStrokePath());
+        ui->fillPathCheckBox->setChecked(pathElement->getFillPath());
+    }
 
     const PDFPageContentProcessorState& graphicState = element->getState();
 
@@ -239,6 +248,12 @@ void PDFPageContentEditorEditedItemSettings::saveToElement(PDFPageContentElement
     if (PDFEditedPageContentElementText* textElement = editedElement->getElement()->asText())
     {
         textElement->setItemsAsText(ui->plainTextEdit->toPlainText());
+    }
+
+    if (PDFEditedPageContentElementPath* pathElement = editedElement->getElement()->asPath())
+    {
+        pathElement->setStrokePath(ui->strokePathCheckBox->isChecked());
+        pathElement->setFillPath(ui->fillPathCheckBox->isChecked());
     }
 
     PDFTransformationDecomposition decomposedTransformation;

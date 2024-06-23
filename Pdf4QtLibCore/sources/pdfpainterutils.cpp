@@ -143,11 +143,19 @@ void PDFPainterHelper::applyPenToGraphicState(PDFPageContentProcessorState* grap
         }
         else
         {
-            // TODO: Line Dash Pattern
-            /*
-            pen.setStyle(Qt::CustomDashLine);
-            pen.setDashPattern(lineDashPattern.createForQPen(pen.widthF()));
-            pen.setDashOffset(lineDashPattern.getDashOffset());*/
+            PDFLineDashPattern lineDashPattern;
+            QList<qreal> penPattern = pen.dashPattern();
+            PDFReal penWidth = pen.widthF();
+
+            std::vector<PDFReal> dashArray;
+            for (qreal value : penPattern)
+            {
+                dashArray.push_back(value * penWidth);
+            }
+
+            lineDashPattern.setDashArray(std::move(dashArray));
+            lineDashPattern.setDashOffset(pen.dashOffset());
+            graphicState->setLineDashPattern(std::move(lineDashPattern));
         }
     }
 }

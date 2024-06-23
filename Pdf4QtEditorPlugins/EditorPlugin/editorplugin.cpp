@@ -50,8 +50,6 @@ EditorPlugin::EditorPlugin() :
 }
 
 // TODO: When text is edited, old text remains
-// TODO: Color of the text is unchanged
-// TODO: Moznost nastavit fill / stroke bool
 
 void EditorPlugin::setWidget(pdf::PDFWidget* widget)
 {

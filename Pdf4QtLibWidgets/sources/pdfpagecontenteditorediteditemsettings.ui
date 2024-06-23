@@ -139,12 +139,15 @@
        <string>Style</string>
       </attribute>
       <layout class="QGridLayout" name="gridLayout_2">
-       <item row="1" column="1">
-        <widget class="QComboBox" name="penColorCombo">
-         <property name="editable">
-          <bool>true</bool>
+       <item row="4" column="2">
+        <widget class="QToolButton" name="selectBrushColorButton">
+         <property name="text">
+          <string>...</string>
          </property>
         </widget>
+       </item>
+       <item row="3" column="1" colspan="2">
+        <widget class="QComboBox" name="brushStyleCombo"/>
        </item>
        <item row="2" column="0">
         <widget class="QLabel" name="penStyleLabel">
@@ -153,20 +156,10 @@
          </property>
         </widget>
        </item>
-       <item row="0" column="1" colspan="2">
-        <widget class="QDoubleSpinBox" name="penWidthEdit"/>
-       </item>
-       <item row="4" column="0">
-        <widget class="QLabel" name="brushColorLabel">
+       <item row="1" column="0">
+        <widget class="QLabel" name="penColorLabel">
          <property name="text">
-          <string>Brush Color</string>
-         </property>
-        </widget>
-       </item>
-       <item row="4" column="2">
-        <widget class="QToolButton" name="selectBrushColorButton">
-         <property name="text">
-          <string>...</string>
+          <string>Pen Color</string>
          </property>
         </widget>
        </item>
@@ -180,13 +173,6 @@
        <item row="2" column="1" colspan="2">
         <widget class="QComboBox" name="penStyleCombo"/>
        </item>
-       <item row="0" column="0">
-        <widget class="QLabel" name="penWidthLabel">
-         <property name="text">
-          <string>Pen Width</string>
-         </property>
-        </widget>
-       </item>
        <item row="3" column="0">
         <widget class="QLabel" name="brushStyleLabel">
          <property name="text">
@@ -194,24 +180,21 @@
          </property>
         </widget>
        </item>
-       <item row="1" column="0">
-        <widget class="QLabel" name="penColorLabel">
+       <item row="0" column="0">
+        <widget class="QLabel" name="penWidthLabel">
          <property name="text">
-          <string>Pen Color</string>
-         </property>
-        </widget>
-       </item>
-       <item row="3" column="1" colspan="2">
-        <widget class="QComboBox" name="brushStyleCombo"/>
-       </item>
-       <item row="4" column="1">
-        <widget class="QComboBox" name="brushColorCombo">
-         <property name="editable">
-          <bool>true</bool>
+          <string>Pen Width</string>
          </property>
         </widget>
        </item>
        <item row="5" column="0">
+        <widget class="QCheckBox" name="strokePathCheckBox">
+         <property name="text">
+          <string>Stroke path</string>
+         </property>
+        </widget>
+       </item>
+       <item row="7" column="0">
         <spacer name="verticalSpacer_2">
          <property name="orientation">
           <enum>Qt::Vertical</enum>
@@ -223,6 +206,37 @@
           </size>
          </property>
         </spacer>
+       </item>
+       <item row="0" column="1" colspan="2">
+        <widget class="QDoubleSpinBox" name="penWidthEdit"/>
+       </item>
+       <item row="4" column="0">
+        <widget class="QLabel" name="brushColorLabel">
+         <property name="text">
+          <string>Brush Color</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QComboBox" name="penColorCombo">
+         <property name="editable">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
+        <widget class="QComboBox" name="brushColorCombo">
+         <property name="editable">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="0">
+        <widget class="QCheckBox" name="fillPathCheckBox">
+         <property name="text">
+          <string>Fill path</string>
+         </property>
+        </widget>
        </item>
       </layout>
      </widget>

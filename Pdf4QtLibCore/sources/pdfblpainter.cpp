@@ -971,6 +971,14 @@ void PDFBLPaintEngine::setBLPen(BLContext& context, const QPen& pen)
         break;
     }
 
+    case Qt::CustomDashLine:
+    {
+        auto dashPattern = pen.dashPattern();
+        strokeOptions.dashArray.assignData(dashPattern.data(), dashPattern.size());
+        strokeOptions.dashOffset = pen.dashOffset();
+        break;
+    }
+
     default:
         break;
     }

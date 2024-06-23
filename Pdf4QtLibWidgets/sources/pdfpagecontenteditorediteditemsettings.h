@@ -69,7 +69,8 @@ private:
         None = 0,
         Pen = 1 << 0,
         PenColor = 1 << 1,
-        Brush = 1 << 2
+        Brush = 1 << 2,
+        StrokeFill = 1 << 3,
     };
     Q_DECLARE_FLAGS(StyleFeatures, StyleFeature)
 
