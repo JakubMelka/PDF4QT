@@ -1,12 +1,16 @@
 CURRENT:
+ - Issue #182: PDF4QT Document Diff command line cmd line arguments ignored
  - Issue #173: errors loading file Echoplex.pdf
  - Issue #172: access keys are missing from most menu items/action text strings
  - Issue #168: When opening a PDF file or merging some PDF files, stamp will disappear.
+ - Issue #166: Adding images to PDF? 
  - Issue #164: Taskbar icon not shown in linux mint.
  - Issue #163: Unable to render probably valid PDF
  - Issue #161: Can it be possible to trust a certificate like in acrobat? 
  - Issue #159: Offer 4 AppImage one for each App [enhancement] 
  - Issue #123: Alternative software rendering backend (Blend2D)
+ - Issue #42: Is REAL pdf text editing planned ?
+ - Issue #26: Add pictures in PDF files 
 
 V: 1.3.7 10.1.2024
  - Issue #142: Cannot reach the top

@@ -84,6 +84,14 @@ public:
     virtual void showEvent(QShowEvent* event) override;
     virtual void closeEvent(QCloseEvent* event) override;
 
+    void setLeftDocument(pdf::PDFDocument&& newLeftDocument);
+    void setRightDocument(pdf::PDFDocument&& newRightDocument);
+
+    void updateViewDocument();
+
+    bool canPerformOperation(Operation operation) const;
+    void performOperation(Operation operation);
+
 private slots:
     void updateActions();
     void onSelectionChanged(size_t currentIndex);
@@ -100,9 +108,6 @@ private:
     void loadSettings();
     void saveSettings();
 
-    bool canPerformOperation(Operation operation) const;
-    void performOperation(Operation operation);
-
     void setViewDocument(pdf::PDFDocument* document, bool updateCustomPageLayout);
 
     ComparedDocumentMapper::Mode getDocumentViewMode() const;
@@ -115,7 +120,6 @@ private:
 
     void updateAll(bool resetFilters);
     void updateFilteredResult();
-    void updateViewDocument();
     void updateCustomPageLayout();
     void updateOverlayTransparency();
 

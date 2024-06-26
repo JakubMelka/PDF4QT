@@ -458,22 +458,7 @@ void MainWindow::performOperation(Operation operation)
             if (document)
             {
                 clear(true, false);
-                m_leftDocument = std::move(*document);
-
-                const size_t pageCount = m_leftDocument.getCatalog()->getPageCount();
-                if (pageCount > 1)
-                {
-                    m_settingsDockWidget->getLeftPageSelectionEdit()->setText(QString("1-%2").arg(pageCount));
-                }
-                else if (pageCount == 1)
-                {
-                    m_settingsDockWidget->getLeftPageSelectionEdit()->setText("1");
-                }
-                else
-                {
-                    m_settingsDockWidget->getLeftPageSelectionEdit()->clear();
-                }
-
+                setLeftDocument(std::move(*document));
                 updateViewDocument();
             }
 
@@ -489,22 +474,7 @@ void MainWindow::performOperation(Operation operation)
             if (document)
             {
                 clear(false, true);
-                m_rightDocument = std::move(*document);
-
-                const size_t pageCount = m_rightDocument.getCatalog()->getPageCount();
-                if (pageCount > 1)
-                {
-                    m_settingsDockWidget->getRightPageSelectionEdit()->setText(QString("1-%2").arg(pageCount));
-                }
-                else if (pageCount == 1)
-                {
-                    m_settingsDockWidget->getRightPageSelectionEdit()->setText("1");
-                }
-                else
-                {
-                    m_settingsDockWidget->getRightPageSelectionEdit()->clear();
-                }
-
+                setRightDocument(std::move(*document));
                 updateViewDocument();
             }
 
@@ -861,6 +831,44 @@ std::optional<pdf::PDFDocument> MainWindow::openDocument()
     }
 
     return pdf::PDFDocument();
+}
+
+void MainWindow::setRightDocument(pdf::PDFDocument&& newRightDocument)
+{
+    m_rightDocument = newRightDocument;
+
+    const size_t pageCount = m_rightDocument.getCatalog()->getPageCount();
+    if (pageCount > 1)
+    {
+        m_settingsDockWidget->getRightPageSelectionEdit()->setText(QString("1-%2").arg(pageCount));
+    }
+    else if (pageCount == 1)
+    {
+        m_settingsDockWidget->getRightPageSelectionEdit()->setText("1");
+    }
+    else
+    {
+        m_settingsDockWidget->getRightPageSelectionEdit()->clear();
+    }
+}
+
+void MainWindow::setLeftDocument(pdf::PDFDocument&& newLeftDocument)
+{
+    m_leftDocument = newLeftDocument;
+
+    const size_t pageCount = m_leftDocument.getCatalog()->getPageCount();
+    if (pageCount > 1)
+    {
+        m_settingsDockWidget->getLeftPageSelectionEdit()->setText(QString("1-%2").arg(pageCount));
+    }
+    else if (pageCount == 1)
+    {
+        m_settingsDockWidget->getLeftPageSelectionEdit()->setText("1");
+    }
+    else
+    {
+        m_settingsDockWidget->getLeftPageSelectionEdit()->clear();
+    }
 }
 
 void MainWindow::onProgressStarted(pdf::ProgressStartupInfo info)

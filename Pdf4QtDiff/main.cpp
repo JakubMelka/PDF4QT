@@ -16,6 +16,7 @@
 //    along with PDF4QT.  If not, see <https://www.gnu.org/licenses/>.
 
 #include "pdfconstants.h"
+#include "pdfdocumentreader.h"
 #include "mainwindow.h"
 
 #include <QApplication>
@@ -43,6 +44,41 @@ int main(int argc, char *argv[])
 
     pdfdiff::MainWindow mainWindow(nullptr);
     mainWindow.show();
+
+    QStringList positionalArguments = parser.positionalArguments();
+
+    if (positionalArguments.size() >= 1)
+    {
+        bool leftDocumentIsOK = false;
+        bool rightDocumentIsOk = false;
+
+        pdf::PDFDocumentReader reader(nullptr, [](bool* ok) { *ok = false; return QString(); }, true, false);
+        pdf::PDFDocument documentLeft = reader.readFromFile(positionalArguments.front());
+
+        if (reader.getReadingResult() == pdf::PDFDocumentReader::Result::OK)
+        {
+            leftDocumentIsOK = true;
+            mainWindow.setLeftDocument(std::move(documentLeft));
+        }
+
+        if (positionalArguments.size() >= 2)
+        {
+            pdf::PDFDocument documentRight = reader.readFromFile(positionalArguments[1]);
+
+            if (reader.getReadingResult() == pdf::PDFDocumentReader::Result::OK)
+            {
+                rightDocumentIsOk = true;
+                mainWindow.setRightDocument(std::move(documentRight));
+            }
+        }
+
+        mainWindow.updateViewDocument();
+
+        if (leftDocumentIsOK && rightDocumentIsOk && mainWindow.canPerformOperation(pdfdiff::MainWindow::Operation::Compare))
+        {
+            mainWindow.performOperation(pdfdiff::MainWindow::Operation::Compare);
+        }
+    }
 
     return application.exec();
 }
