@@ -528,17 +528,22 @@ void EditorPlugin::onSceneEditElement(const std::set<pdf::PDFInteger>& elements)
         return;
     }
 
-    if (pdf::PDFPageContentEditorStyleSettings::showEditElementStyleDialog(m_dataExchangeInterface->getMainWindow(), element))
+    std::unique_ptr<pdf::PDFPageContentElement> clonedElement(element->clone());
+    if (pdf::PDFPageContentEditorStyleSettings::showEditElementStyleDialog(m_dataExchangeInterface->getMainWindow(), clonedElement.get()))
     {
-        if (element->asElementEdited())
+        if (clonedElement->asElementEdited())
         {
-            pdf::PDFPageContentElementEdited* editedElement = dynamic_cast<pdf::PDFPageContentElementEdited*>(element);
+            pdf::PDFPageContentElementEdited* editedElement = dynamic_cast<pdf::PDFPageContentElementEdited*>(clonedElement.get());
             if (editedElement->getElement()->asText())
             {
-                updateTextElement(editedElement);
+                if (!updateTextElement(editedElement))
+                {
+                    return;
+                }
             }
         }
 
+        m_scene.replaceElement(clonedElement.release());
         updateGraphics();
     }
 }
