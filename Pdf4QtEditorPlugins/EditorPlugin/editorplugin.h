@@ -112,6 +112,11 @@ private:
     void updateDockWidget();
     void updateEditedPages();
 
+    bool updatePageContent(pdf::PDFInteger pageIndex,
+                           const std::vector<const pdf::PDFPageContentElement*>& elements,
+                           pdf::PDFDocumentBuilder* builder);
+    bool updateTextElement(pdf::PDFPageContentElementEdited* element);
+
     void onDrawSpaceChanged();
 
     pdf::PDFWidgetTool* getActiveTool();

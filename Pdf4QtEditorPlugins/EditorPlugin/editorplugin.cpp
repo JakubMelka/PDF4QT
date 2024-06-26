@@ -188,6 +188,191 @@ QString EditorPlugin::getPluginMenuName() const
     return tr("Edi&tor");
 }
 
+bool EditorPlugin::updatePageContent(pdf::PDFInteger pageIndex,
+                                     const std::vector<const pdf::PDFPageContentElement*>& elements,
+                                     pdf::PDFDocumentBuilder* builder)
+{
+    pdf::PDFColorConvertor convertor;
+    const pdf::PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
+    const pdf::PDFEditedPageContent& editedPageContent = m_editedPageContent.at(pageIndex);
+
+    QRectF mediaBox = page->getMediaBox();
+    QRectF mediaBoxMM = page->getMediaBoxMM();
+
+    pdf::PDFPageContentEditorContentStreamBuilder contentStreamBuilder(m_document);
+    contentStreamBuilder.setFontDictionary(editedPageContent.getFontDictionary());
+
+    for (const pdf::PDFPageContentElement* element : elements)
+    {
+        const pdf::PDFPageContentElementEdited* editedElement = element->asElementEdited();
+        const pdf::PDFPageContentElementRectangle* elementRectangle = element->asElementRectangle();
+        const pdf::PDFPageContentElementLine* elementLine = element->asElementLine();
+        const pdf::PDFPageContentElementDot* elementDot = element->asElementDot();
+        const pdf::PDFPageContentElementFreehandCurve* elementFreehandCurve = element->asElementFreehandCurve();
+        const pdf::PDFPageContentImageElement* elementImage = element->asElementImage();
+        const pdf::PDFPageContentElementTextBox* elementTextBox = element->asElementTextBox();
+
+        if (editedElement)
+        {
+            contentStreamBuilder.writeEditedElement(editedElement->getElement());
+        }
+
+        if (elementRectangle)
+        {
+            QRectF rect = elementRectangle->getRectangle();
+
+            QPainterPath path;
+            if (elementRectangle->isRounded())
+            {
+                qreal radius = qMin(rect.width(), rect.height()) * 0.25;
+                path.addRoundedRect(rect, radius, radius, Qt::AbsoluteSize);
+            }
+            else
+            {
+                path.addRect(rect);
+            }
+
+            const bool stroke = elementRectangle->getPen().style() != Qt::NoPen;
+            const bool fill = elementRectangle->getBrush().style() != Qt::NoBrush;
+            contentStreamBuilder.writeStyledPath(path, elementRectangle->getPen(), elementRectangle->getBrush(), stroke, fill);
+        }
+
+        if (elementLine)
+        {
+            QLineF line = elementLine->getLine();
+            QPainterPath path;
+            path.moveTo(line.p1());
+            path.lineTo(line.p2());
+
+            contentStreamBuilder.writeStyledPath(path, elementLine->getPen(), elementLine->getBrush(), true, false);
+        }
+
+        if (elementDot)
+        {
+            QPen pen = elementDot->getPen();
+            const qreal radius = pen.widthF() * 0.5;
+
+            QPainterPath path;
+            path.addEllipse(elementDot->getPoint(), radius, radius);
+
+            contentStreamBuilder.writeStyledPath(path, Qt::NoPen, QBrush(pen.color()), false, true);
+        }
+
+        if (elementFreehandCurve)
+        {
+            QPainterPath path = elementFreehandCurve->getCurve();
+            contentStreamBuilder.writeStyledPath(path, elementFreehandCurve->getPen(), elementFreehandCurve->getBrush(), true, false);
+        }
+
+        if (elementImage)
+        {
+            QImage image = elementImage->getImage();
+            if (!image.isNull())
+            {
+                contentStreamBuilder.writeImage(image, elementImage->getRectangle());
+            }
+            else
+            {
+                // It is probably an SVG image
+                pdf::PDFContentEditorPaintDevice paintDevice(&contentStreamBuilder, mediaBox, mediaBoxMM);
+                QPainter painter(&paintDevice);
+
+                QList<pdf::PDFRenderError> errors;
+                pdf::PDFTextLayoutGetter textLayoutGetter(nullptr, pageIndex);
+                elementImage->drawPage(&painter, &m_scene, pageIndex, nullptr, textLayoutGetter, QTransform(), convertor, errors);
+            }
+        }
+
+        if (elementTextBox)
+        {
+            pdf::PDFContentEditorPaintDevice paintDevice(&contentStreamBuilder, mediaBox, mediaBoxMM);
+            QPainter painter(&paintDevice);
+
+            QList<pdf::PDFRenderError> errors;
+            pdf::PDFTextLayoutGetter textLayoutGetter(nullptr, pageIndex);
+            elementTextBox->drawPage(&painter, &m_scene, pageIndex, nullptr, textLayoutGetter, QTransform(), convertor, errors);
+        }
+    }
+
+    QStringList errors = contentStreamBuilder.getErrors();
+    contentStreamBuilder.clearErrors();
+
+    if (!errors.empty())
+    {
+        const int errorCount = errors.size();
+        if (errors.size() > 3)
+        {
+            errors.resize(3);
+        }
+
+        QString message = tr("Errors (%2) occured while creating content stream on page %3.<br>%1").arg(errors.join("<br>")).arg(errorCount).arg(pageIndex + 1);
+        if (QMessageBox::question(m_dataExchangeInterface->getMainWindow(), tr("Error"), message, QMessageBox::Abort, QMessageBox::Ignore) == QMessageBox::Abort)
+        {
+            return false;
+        }
+    }
+
+    pdf::PDFDictionary fontDictionary = contentStreamBuilder.getFontDictionary();
+    pdf::PDFDictionary xobjectDictionary = contentStreamBuilder.getXObjectDictionary();
+    pdf::PDFDictionary graphicStateDictionary = contentStreamBuilder.getGraphicStateDictionary();
+
+    builder->replaceObjectsByReferences(fontDictionary);
+    builder->replaceObjectsByReferences(xobjectDictionary);
+    builder->replaceObjectsByReferences(graphicStateDictionary);
+
+    pdf::PDFArray array;
+    array.appendItem(pdf::PDFObject::createName("FlateDecode"));
+
+    // Compress the content stream
+    QByteArray compressedData = pdf::PDFFlateDecodeFilter::compress(contentStreamBuilder.getOutputContent());
+    pdf::PDFDictionary contentDictionary;
+    contentDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Length"), pdf::PDFObject::createInteger(compressedData.size()));
+    contentDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Filter"), pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(qMove(array))));
+    pdf::PDFObject contentObject = pdf::PDFObject::createStream(std::make_shared<pdf::PDFStream>(qMove(contentDictionary), qMove(compressedData)));
+
+    pdf::PDFObject pageObject = builder->getObjectByReference(page->getPageReference());
+
+    pdf::PDFObjectFactory factory;
+    factory.beginDictionary();
+    factory.beginDictionaryItem("Resources");
+    factory.beginDictionary();
+
+    if (!fontDictionary.isEmpty())
+    {
+        factory.beginDictionaryItem("Font");
+        factory << fontDictionary;
+        factory.endDictionaryItem();
+    }
+
+    if (!xobjectDictionary.isEmpty())
+    {
+        factory.beginDictionaryItem("XObject");
+        factory << xobjectDictionary;
+        factory.endDictionaryItem();
+    }
+
+    if (!graphicStateDictionary.isEmpty())
+    {
+        factory.beginDictionaryItem("ExtGState");
+        factory << graphicStateDictionary;
+        factory.endDictionaryItem();
+    }
+
+    factory.endDictionary();
+    factory.endDictionaryItem();
+
+    factory.beginDictionaryItem("Contents");
+    factory << builder->addObject(std::move(contentObject));
+    factory.endDictionaryItem();
+
+    factory.endDictionary();
+
+    pageObject = pdf::PDFObjectManipulator::merge(pageObject, factory.takeObject(), pdf::PDFObjectManipulator::RemoveNullObjects);
+    builder->setObject(page->getPageReference(), std::move(pageObject));
+
+    return true;
+}
+
 bool EditorPlugin::save()
 {
     pdf::PDFTemporaryValueChange guard(&m_isSaving, true);
@@ -202,8 +387,7 @@ bool EditorPlugin::save()
     if (answer == QMessageBox::Yes)
     {
         pdf::PDFDocumentModifier modifier(m_document);
-
-        pdf::PDFColorConvertor convertor;
+        pdf::PDFDocumentBuilder* builder = modifier.getBuilder();
 
         std::set<pdf::PDFInteger> pageIndices;
         for (const auto& item : m_editedPageContent)
@@ -211,7 +395,7 @@ bool EditorPlugin::save()
             pageIndices.insert(item.first);
         }
 
-        auto elementsByPage = m_scene.getElementsByPage();
+        std::map<pdf::PDFInteger, std::vector<const pdf::PDFPageContentElement*>> elementsByPage = m_scene.getElementsByPage();
         for (pdf::PDFInteger pageIndex : pageIndices)
         {
             if (m_editedPageContent.count(pageIndex) == 0)
@@ -219,188 +403,17 @@ bool EditorPlugin::save()
                 continue;
             }
 
-            const pdf::PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
-            const pdf::PDFEditedPageContent& editedPageContent = m_editedPageContent.at(pageIndex);
-
-            QRectF mediaBox = page->getMediaBox();
-            QRectF mediaBoxMM = page->getMediaBoxMM();
-
-            pdf::PDFPageContentEditorContentStreamBuilder contentStreamBuilder(m_document);
-            contentStreamBuilder.setFontDictionary(editedPageContent.getFontDictionary());
-
+            std::vector<const pdf::PDFPageContentElement*> elements;
             auto it = elementsByPage.find(pageIndex);
             if (it != elementsByPage.cend())
             {
-                for (const pdf::PDFPageContentElement* element : it->second)
-                {
-                    const pdf::PDFPageContentElementEdited* editedElement = element->asElementEdited();
-                    const pdf::PDFPageContentElementRectangle* elementRectangle = element->asElementRectangle();
-                    const pdf::PDFPageContentElementLine* elementLine = element->asElementLine();
-                    const pdf::PDFPageContentElementDot* elementDot = element->asElementDot();
-                    const pdf::PDFPageContentElementFreehandCurve* elementFreehandCurve = element->asElementFreehandCurve();
-                    const pdf::PDFPageContentImageElement* elementImage = element->asElementImage();
-                    const pdf::PDFPageContentElementTextBox* elementTextBox = element->asElementTextBox();
-
-                    if (editedElement)
-                    {
-                        contentStreamBuilder.writeEditedElement(editedElement->getElement());
-                    }
-
-                    if (elementRectangle)
-                    {
-                        QRectF rect = elementRectangle->getRectangle();
-
-                        QPainterPath path;
-                        if (elementRectangle->isRounded())
-                        {
-                            qreal radius = qMin(rect.width(), rect.height()) * 0.25;
-                            path.addRoundedRect(rect, radius, radius, Qt::AbsoluteSize);
-                        }
-                        else
-                        {
-                            path.addRect(rect);
-                        }
-
-                        const bool stroke = elementRectangle->getPen().style() != Qt::NoPen;
-                        const bool fill = elementRectangle->getBrush().style() != Qt::NoBrush;
-                        contentStreamBuilder.writeStyledPath(path, elementRectangle->getPen(), elementRectangle->getBrush(), stroke, fill);
-                    }
-
-                    if (elementLine)
-                    {
-                        QLineF line = elementLine->getLine();
-                        QPainterPath path;
-                        path.moveTo(line.p1());
-                        path.lineTo(line.p2());
-
-                        contentStreamBuilder.writeStyledPath(path, elementLine->getPen(), elementLine->getBrush(), true, false);
-                    }
-
-                    if (elementDot)
-                    {
-                        QPen pen = elementDot->getPen();
-                        const qreal radius = pen.widthF() * 0.5;
-
-                        QPainterPath path;
-                        path.addEllipse(elementDot->getPoint(), radius, radius);
-
-                        contentStreamBuilder.writeStyledPath(path, Qt::NoPen, QBrush(pen.color()), false, true);
-                    }
-
-                    if (elementFreehandCurve)
-                    {
-                        QPainterPath path = elementFreehandCurve->getCurve();
-                        contentStreamBuilder.writeStyledPath(path, elementFreehandCurve->getPen(), elementFreehandCurve->getBrush(), true, false);
-                    }
-
-                    if (elementImage)
-                    {
-                        QImage image = elementImage->getImage();
-                        if (!image.isNull())
-                        {
-                            contentStreamBuilder.writeImage(image, elementImage->getRectangle());
-                        }
-                        else
-                        {
-                            // It is probably an SVG image
-                            pdf::PDFContentEditorPaintDevice paintDevice(&contentStreamBuilder, mediaBox, mediaBoxMM);
-                            QPainter painter(&paintDevice);
-
-                            QList<pdf::PDFRenderError> errors;
-                            pdf::PDFTextLayoutGetter textLayoutGetter(nullptr, pageIndex);
-                            elementImage->drawPage(&painter, &m_scene, pageIndex, nullptr, textLayoutGetter, QTransform(), convertor, errors);
-                        }
-                    }
-
-                    if (elementTextBox)
-                    {
-                        pdf::PDFContentEditorPaintDevice paintDevice(&contentStreamBuilder, mediaBox, mediaBoxMM);
-                        QPainter painter(&paintDevice);
-
-                        QList<pdf::PDFRenderError> errors;
-                        pdf::PDFTextLayoutGetter textLayoutGetter(nullptr, pageIndex);
-                        elementTextBox->drawPage(&painter, &m_scene, pageIndex, nullptr, textLayoutGetter, QTransform(), convertor, errors);
-                    }
-                }
+                elements = std::move(it->second);
             }
 
-            QStringList errors = contentStreamBuilder.getErrors();
-            contentStreamBuilder.clearErrors();
-
-            if (!errors.empty())
+            if (!updatePageContent(pageIndex, elements, builder))
             {
-                const int errorCount = errors.size();
-                if (errors.size() > 3)
-                {
-                    errors.resize(3);
-                }
-
-                QString message = tr("Errors (%2) occured while creating content stream on page %3.<br>%1").arg(errors.join("<br>")).arg(errorCount).arg(pageIndex + 1);
-                if (QMessageBox::question(m_dataExchangeInterface->getMainWindow(), tr("Error"), message, QMessageBox::Abort, QMessageBox::Ignore) == QMessageBox::Abort)
-                {
-                    return false;
-                }
+                return false;
             }
-
-            pdf::PDFDocumentBuilder* builder = modifier.getBuilder();
-
-            pdf::PDFDictionary fontDictionary = contentStreamBuilder.getFontDictionary();
-            pdf::PDFDictionary xobjectDictionary = contentStreamBuilder.getXObjectDictionary();
-            pdf::PDFDictionary graphicStateDictionary = contentStreamBuilder.getGraphicStateDictionary();
-
-            builder->replaceObjectsByReferences(fontDictionary);
-            builder->replaceObjectsByReferences(xobjectDictionary);
-            builder->replaceObjectsByReferences(graphicStateDictionary);
-
-            pdf::PDFArray array;
-            array.appendItem(pdf::PDFObject::createName("FlateDecode"));
-
-            // Compress the content stream
-            QByteArray compressedData = pdf::PDFFlateDecodeFilter::compress(contentStreamBuilder.getOutputContent());
-            pdf::PDFDictionary contentDictionary;
-            contentDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Length"), pdf::PDFObject::createInteger(compressedData.size()));
-            contentDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Filter"), pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(qMove(array))));
-            pdf::PDFObject contentObject = pdf::PDFObject::createStream(std::make_shared<pdf::PDFStream>(qMove(contentDictionary), qMove(compressedData)));
-
-            pdf::PDFObject pageObject = builder->getObjectByReference(page->getPageReference());
-
-            pdf::PDFObjectFactory factory;
-            factory.beginDictionary();
-            factory.beginDictionaryItem("Resources");
-            factory.beginDictionary();
-
-            if (!fontDictionary.isEmpty())
-            {
-                factory.beginDictionaryItem("Font");
-                factory << fontDictionary;
-                factory.endDictionaryItem();
-            }
-
-            if (!xobjectDictionary.isEmpty())
-            {
-                factory.beginDictionaryItem("XObject");
-                factory << xobjectDictionary;
-                factory.endDictionaryItem();
-            }
-
-            if (!graphicStateDictionary.isEmpty())
-            {
-                factory.beginDictionaryItem("ExtGState");
-                factory << graphicStateDictionary;
-                factory.endDictionaryItem();
-            }
-
-            factory.endDictionary();
-            factory.endDictionaryItem();
-
-            factory.beginDictionaryItem("Contents");
-            factory << builder->addObject(std::move(contentObject));
-            factory.endDictionaryItem();
-
-            factory.endDictionary();
-
-            pageObject = pdf::PDFObjectManipulator::merge(pageObject, factory.takeObject(), pdf::PDFObjectManipulator::RemoveNullObjects);
-            builder->setObject(page->getPageReference(), std::move(pageObject));
 
             modifier.markReset();
         }
@@ -517,6 +530,15 @@ void EditorPlugin::onSceneEditElement(const std::set<pdf::PDFInteger>& elements)
 
     if (pdf::PDFPageContentEditorStyleSettings::showEditElementStyleDialog(m_dataExchangeInterface->getMainWindow(), element))
     {
+        if (element->asElementEdited())
+        {
+            pdf::PDFPageContentElementEdited* editedElement = dynamic_cast<pdf::PDFPageContentElementEdited*>(element);
+            if (editedElement->getElement()->asText())
+            {
+                updateTextElement(editedElement);
+            }
+        }
+
         updateGraphics();
     }
 }
@@ -749,6 +771,55 @@ void EditorPlugin::updateEditedPages()
             m_scene.addElement(editedElement);
         }
     }
+}
+
+bool EditorPlugin::updateTextElement(pdf::PDFPageContentElementEdited* element)
+{
+    pdf::PDFPageContentElementEdited* elementEdited = dynamic_cast<pdf::PDFPageContentElementEdited*>(element);
+    pdf::PDFEditedPageContentElementText* targetTextElement = elementEdited->getElement()->asText();
+
+    if (!targetTextElement)
+    {
+        return false;
+    }
+
+    pdf::PDFDocumentModifier modifier(m_document);
+    pdf::PDFDocumentBuilder* builder = modifier.getBuilder();
+
+    if (!updatePageContent(element->getPageIndex(), { element }, builder))
+    {
+        return false;
+    }
+
+    if (modifier.finalize())
+    {
+        pdf::PDFDocument* document = modifier.getDocument().get();
+
+        const pdf::PDFPage* page = document->getCatalog()->getPage(element->getPageIndex());
+        auto cms = m_widget->getDrawWidgetProxy()->getCMSManager()->getCurrentCMS();
+        pdf::PDFFontCache fontCache(64, 64);
+        pdf::PDFOptionalContentActivity activity(document, pdf::OCUsage::View, nullptr);
+        fontCache.setDocument(pdf::PDFModifiedDocument(document, &activity));
+        pdf::PDFPageContentEditorProcessor processor(page, document, &fontCache, cms.data(), &activity, QTransform(), pdf::PDFMeshQualitySettings());
+
+        QList<pdf::PDFRenderError> errors = processor.processContents();
+        Q_UNUSED(errors);
+
+        pdf::PDFEditedPageContent content = processor.takeEditedPageContent();
+        if (content.getElementCount() == 1)
+        {
+            pdf::PDFEditedPageContentElement* sourceElement = content.getElement(0);
+            pdf::PDFEditedPageContentElementText* sourceElementText = sourceElement->asText();
+            targetTextElement->setState(sourceElementText->getState());
+            targetTextElement->setTextPath(sourceElementText->getTextPath());
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 void EditorPlugin::onDrawSpaceChanged()

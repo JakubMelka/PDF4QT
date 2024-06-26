@@ -36,6 +36,11 @@
 namespace pdf
 {
 
+PDFPageContentElement::~PDFPageContentElement()
+{
+
+}
+
 PDFInteger PDFPageContentElement::getPageIndex() const
 {
     return m_pageIndex;

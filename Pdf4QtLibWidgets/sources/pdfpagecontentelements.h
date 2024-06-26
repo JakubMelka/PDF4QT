@@ -51,7 +51,7 @@ class PDF4QTLIBWIDGETSSHARED_EXPORT PDFPageContentElement
 { 
 public:
     explicit PDFPageContentElement() = default;
-    virtual ~PDFPageContentElement() = default;
+    virtual ~PDFPageContentElement();
 
     virtual PDFPageContentElement* clone() const = 0;
 
