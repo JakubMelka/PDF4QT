@@ -188,6 +188,7 @@ public:
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
 protected:
@@ -265,6 +266,7 @@ public:
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
@@ -360,6 +362,7 @@ public:
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
     virtual void drawPostRendering(QPainter* painter, QRect rect) const override;
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
@@ -428,6 +431,7 @@ public:
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
     virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) override;

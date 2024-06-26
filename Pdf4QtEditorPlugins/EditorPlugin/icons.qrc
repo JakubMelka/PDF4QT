@@ -1,0 +1,19 @@
+<RCC>
+    <qresource prefix="/pdfplugins/editorplugin">
+        <file>accept-mark.svg</file>
+        <file>reject-mark.svg</file>
+        <file>activate.svg</file>
+        <file>clear.svg</file>
+        <file>create-dot.svg</file>
+        <file>create-freehand-curve.svg</file>
+        <file>create-horizontal-line.svg</file>
+        <file>create-line.svg</file>
+        <file>create-no-mark.svg</file>
+        <file>create-rectangle.svg</file>
+        <file>create-rounded-rectangle.svg</file>
+        <file>create-svg-image.svg</file>
+        <file>create-text.svg</file>
+        <file>create-vertical-line.svg</file>
+        <file>create-yes-mark.svg</file>
+    </qresource>
+</RCC>

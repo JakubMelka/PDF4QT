@@ -225,6 +225,20 @@ QColor PDFColorConvertor::getForegroundColor() const
     return m_foregroundColor;
 }
 
+QPen PDFColorConvertor::convert(const QPen& pen, bool background, bool foreground) const
+{
+    QPen newPen = pen;
+    newPen.setColor(convert(pen.color(), background, foreground));
+    return newPen;
+}
+
+QBrush PDFColorConvertor::convert(const QBrush& brush, bool background, bool foreground) const
+{
+    QBrush newBrush = brush;
+    newBrush.setColor(convert(brush.color(), background, foreground));
+    return newBrush;
+}
+
 QColor PDFColorConvertor::getBackgroundColor() const
 {
     return m_backgroundColor;

@@ -302,6 +302,7 @@ void DifferencesDrawInterface::drawPage(QPainter* painter,
                                         const pdf::PDFPrecompiledPage* compiledPage,
                                         pdf::PDFTextLayoutGetter& layoutGetter,
                                         const QTransform& pagePointToDevicePointMatrix,
+                                        const pdf::PDFColorConvertor& convertor,
                                         QList<pdf::PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -329,7 +330,7 @@ void DifferencesDrawInterface::drawPage(QPainter* painter,
                 const auto& item = *it;
                 if (item.first == leftPageIndex)
                 {
-                    QColor color = getColorForIndex(i);
+                    QColor color = convertor.convert(getColorForIndex(i), false, true);
                     drawRectangle(painter, pagePointToDevicePointMatrix, item.second, color);
                     drawMarker(painter, pagePointToDevicePointMatrix, item.second, color, true);
                 }
@@ -352,7 +353,7 @@ void DifferencesDrawInterface::drawPage(QPainter* painter,
                 const auto& item = *it;
                 if (item.first == rightPageIndex)
                 {
-                    QColor color = getColorForIndex(i);
+                    QColor color = convertor.convert(getColorForIndex(i), false, true);
                     drawRectangle(painter, pagePointToDevicePointMatrix, item.second, color);
                     drawMarker(painter, pagePointToDevicePointMatrix, item.second, color, false);
                 }
@@ -388,7 +389,7 @@ void DifferencesDrawInterface::drawPage(QPainter* painter,
                 break;
         }
 
-        QColor color = getColorForIndex(*pageMoveIndex);
+        QColor color = convertor.convert(getColorForIndex(*pageMoveIndex), false, true);
         QPointF targetPoint = pagePointToDevicePointMatrix.map(QPointF(5, 5));
         pdf::PDFPainterHelper::drawBubble(painter, targetPoint.toPoint(), color, text, Qt::AlignRight | Qt::AlignTop);
     }

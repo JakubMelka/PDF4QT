@@ -162,6 +162,7 @@ void SignaturePlugin::setWidget(pdf::PDFWidget* widget)
     connect(signElectronicallyAction, &QAction::triggered, this, &SignaturePlugin::onSignElectronically);
     connect(signDigitallyAction, &QAction::triggered, this, &SignaturePlugin::onSignDigitally);
     connect(certificatesAction, &QAction::triggered, this, &SignaturePlugin::onOpenCertificatesManager);
+    connect(m_widget, &pdf::PDFWidget::sceneActivityChanged, this, &SignaturePlugin::onSceneActivityChanged);
 
     updateActions();
 }
@@ -288,6 +289,8 @@ void SignaturePlugin::onSignElectronically()
     Q_ASSERT(m_document);
     Q_ASSERT(!m_scene.isEmpty());
 
+    pdf::PDFColorConvertor convertor;
+
     if (QMessageBox::question(m_dataExchangeInterface->getMainWindow(), tr("Confirm Signature"), tr("Document will be signed electronically. Do you want to continue?"), QMessageBox::Yes, QMessageBox::No) == QMessageBox::Yes)
     {
         pdf::PDFDocumentModifier modifier(m_document);
@@ -302,7 +305,7 @@ void SignaturePlugin::onSignElectronically()
             QPainter* painter = pageContentStreamBuilder.begin(page->getPageReference());
             QList<pdf::PDFRenderError> errors;
             pdf::PDFTextLayoutGetter nullGetter(nullptr, pageIndex);
-            m_scene.drawElements(painter, pageIndex, nullGetter, QTransform(), nullptr, errors);
+            m_scene.drawElements(painter, pageIndex, nullGetter, QTransform(), nullptr, convertor, errors);
             pageContentStreamBuilder.end(painter);
             modifier.markPageContentsChanged();
         }
@@ -369,12 +372,13 @@ void SignaturePlugin::onSignDigitally()
             Q_ASSERT(!m_scene.isEmpty());
             const pdf::PDFInteger pageIndex = *m_scene.getPageIndices().begin();
             const pdf::PDFPage* page = catalog->getPage(pageIndex);
+            pdf::PDFColorConvertor convertor;
 
             pdf::PDFContentStreamBuilder contentBuilder(page->getMediaBox().size(), pdf::PDFContentStreamBuilder::CoordinateSystem::PDF);
             QPainter* painter = contentBuilder.begin();
             QList<pdf::PDFRenderError> errors;
             pdf::PDFTextLayoutGetter nullGetter(nullptr, pageIndex);
-            m_scene.drawPage(painter, pageIndex, nullptr, nullGetter, QTransform(), errors);
+            m_scene.drawPage(painter, pageIndex, nullptr, nullGetter, QTransform(), convertor, errors);
             pdf::PDFContentStreamBuilder::ContentStream contentStream = contentBuilder.end(painter);
 
             QRectF boundingRect = m_scene.getBoundingBox(pageIndex);
@@ -505,6 +509,11 @@ void SignaturePlugin::onOpenCertificatesManager()
     dialog.exec();
 }
 
+void SignaturePlugin::onSceneActivityChanged()
+{
+    updateActions();
+}
+
 void SignaturePlugin::onPenChanged(const QPen& pen)
 {
     if (pdf::PDFCreatePCElementTool* activeTool = qobject_cast<pdf::PDFCreatePCElementTool*>(getActiveTool()))
@@ -574,6 +583,13 @@ void SignaturePlugin::setActive(bool active)
 
         m_actions[Activate]->setChecked(active);
         updateActions();
+
+        // If editor is not active, remove the widget
+        if (m_editorWidget && !active)
+        {
+            delete m_editorWidget;
+            m_editorWidget = nullptr;
+        }
     }
 }
 
@@ -586,6 +602,11 @@ void SignaturePlugin::updateActions()
         // Inactive scene - disable all except activate action and certificates
         for (QAction* action : m_actions)
         {
+            if (action == m_actions[Activate])
+            {
+                action->setEnabled(m_widget && !m_widget->isAnySceneActive(&m_scene));
+            }
+
             if (action == m_actions[Activate] ||
                 action == m_actions[Certificates])
             {
@@ -642,6 +663,7 @@ void SignaturePlugin::updateDockWidget()
     m_editorWidget->setScene(&m_scene);
     connect(m_editorWidget, &pdf::PDFPageContentEditorWidget::operationTriggered, &m_scene, &pdf::PDFPageContentScene::performOperation);
     connect(m_editorWidget, &pdf::PDFPageContentEditorWidget::itemSelectionChangedByUser, this, &SignaturePlugin::onWidgetSelectionChanged);
+    connect(m_editorWidget, &pdf::PDFPageContentEditorWidget::editElementRequest, this, &SignaturePlugin::onSceneEditSingleElement);
 
     m_editorWidget->getToolButtonForOperation(static_cast<int>(pdf::PDFPageContentElementManipulator::Operation::AlignTop))->setIcon(QIcon(":/resources/pce-align-top.svg"));
     m_editorWidget->getToolButtonForOperation(static_cast<int>(pdf::PDFPageContentElementManipulator::Operation::AlignCenterVertically))->setIcon(QIcon(":/resources/pce-align-v-center.svg"));
@@ -670,6 +692,11 @@ void SignaturePlugin::updateDockWidget()
     connect(m_editorWidget, &pdf::PDFPageContentEditorWidget::fontChanged, this, &SignaturePlugin::onFontChanged);
     connect(m_editorWidget, &pdf::PDFPageContentEditorWidget::alignmentChanged, this, &SignaturePlugin::onAlignmentChanged);
     connect(m_editorWidget, &pdf::PDFPageContentEditorWidget::textAngleChanged, this, &SignaturePlugin::onTextAngleChanged);
+}
+
+void SignaturePlugin::onSceneEditSingleElement(pdf::PDFInteger elementId)
+{
+    onSceneEditElement({ elementId });
 }
 
 }

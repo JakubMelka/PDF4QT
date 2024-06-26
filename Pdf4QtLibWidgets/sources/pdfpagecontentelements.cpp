@@ -21,6 +21,8 @@
 #include "pdfdrawspacecontroller.h"
 #include "pdfwidgetutils.h"
 #include "pdfutils.h"
+#include "pdfcms.h"
+#include "pdfpagecontenteditorprocessor.h"
 
 #include <QBuffer>
 #include <QPainter>
@@ -29,9 +31,15 @@
 #include <QSvgRenderer>
 #include <QApplication>
 #include <QImageReader>
+#include <QXmlStreamReader>
 
 namespace pdf
 {
+
+PDFPageContentElement::~PDFPageContentElement()
+{
+
+}
 
 PDFInteger PDFPageContentElement::getPageIndex() const
 {
@@ -61,6 +69,7 @@ Qt::CursorShape PDFPageContentElement::getCursorShapeForManipulationMode(uint mo
         case Pt1:
         case Pt2:
         case Translate:
+        case Select:
             return Qt::ArrowCursor;
 
         case Top:
@@ -154,6 +163,7 @@ void PDFPageContentElement::performRectangleManipulation(QRectF& rectangle,
     switch (mode)
     {
         case None:
+        case Select:
             break;
 
         case Translate:
@@ -267,15 +277,18 @@ void PDFPageContentElementRectangle::setRectangle(const QRectF& newRectangle)
 }
 
 void PDFPageContentElementRectangle::drawPage(QPainter* painter,
+                                              const pdf::PDFPageContentScene* scene,
                                               PDFInteger pageIndex,
                                               const PDFPrecompiledPage* compiledPage,
                                               PDFTextLayoutGetter& layoutGetter,
                                               const QTransform& pagePointToDevicePointMatrix,
+                                              const PDFColorConvertor& convertor,
                                               QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
     Q_UNUSED(layoutGetter);
     Q_UNUSED(errors);
+    Q_UNUSED(scene);
 
     if (pageIndex != getPageIndex())
     {
@@ -284,8 +297,8 @@ void PDFPageContentElementRectangle::drawPage(QPainter* painter,
 
     PDFPainterStateGuard guard(painter);
     painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
-    painter->setPen(getPen());
-    painter->setBrush(getBrush());
+    painter->setPen(convertor.convert(getPen()));
+    painter->setBrush(convertor.convert(getBrush()));
     painter->setRenderHint(QPainter::Antialiasing);
 
     QRectF rect = getRectangle();
@@ -330,6 +343,7 @@ PDFPageContentScene::PDFPageContentScene(QObject* parent) :
     QObject(parent),
     m_firstFreeId(1),
     m_isActive(false),
+    m_isPageContentDrawSuppressed(false),
     m_widget(nullptr),
     m_manipulator(this, nullptr)
 {
@@ -380,6 +394,7 @@ void PDFPageContentScene::clear()
     {
         m_manipulator.reset();
         m_elements.clear();
+        m_firstFreeId = 1;
         Q_EMIT sceneChanged(false);
     }
 }
@@ -639,11 +654,17 @@ int PDFPageContentScene::getInputPriority() const
     return ToolPriority + 1;
 }
 
+bool PDFPageContentScene::isPageContentDrawSuppressed() const
+{
+    return isActive() && m_isPageContentDrawSuppressed;
+}
+
 void PDFPageContentScene::drawElements(QPainter* painter,
                                        PDFInteger pageIndex,
                                        PDFTextLayoutGetter& layoutGetter,
                                        const QTransform& pagePointToDevicePointMatrix,
                                        const PDFPrecompiledPage* compiledPage,
+                                       const PDFColorConvertor& convertor,
                                        QList<PDFRenderError>& errors) const
 {
     for (const auto& element : m_elements)
@@ -653,7 +674,7 @@ void PDFPageContentScene::drawElements(QPainter* painter,
             continue;
         }
 
-        element->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+        element->drawPage(painter, this, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, convertor, errors);
     }
 }
 
@@ -662,6 +683,7 @@ void PDFPageContentScene::drawPage(QPainter* painter,
                                    const PDFPrecompiledPage* compiledPage,
                                    PDFTextLayoutGetter& layoutGetter,
                                    const QTransform& pagePointToDevicePointMatrix,
+                                   const PDFColorConvertor& convertor,
                                    QList<PDFRenderError>& errors) const
 {
     if (!m_isActive)
@@ -669,8 +691,8 @@ void PDFPageContentScene::drawPage(QPainter* painter,
         return;
     }
 
-    drawElements(painter, pageIndex, layoutGetter, pagePointToDevicePointMatrix, compiledPage, errors);
-    m_manipulator.drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+    drawElements(painter, pageIndex, layoutGetter, pagePointToDevicePointMatrix, compiledPage, convertor, errors);
+    m_manipulator.drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, convertor, errors);
 }
 
 PDFPageContentScene::MouseEventInfo PDFPageContentScene::getMouseEventInfo(QWidget* widget, QPoint point)
@@ -820,6 +842,11 @@ void PDFPageContentScene::onSelectionChanged()
     Q_EMIT selectionChanged();
 }
 
+void PDFPageContentScene::setIsPageContentDrawSuppressed(bool newIsPageContentDrawSuppressed)
+{
+    m_isPageContentDrawSuppressed = newIsPageContentDrawSuppressed;
+}
+
 PDFWidget* PDFPageContentScene::widget() const
 {
     return m_widget;
@@ -848,6 +875,7 @@ void PDFPageContentScene::setActive(bool newIsActive)
         }
 
         Q_EMIT sceneChanged(false);
+        Q_EMIT sceneActiveStateChanged(newIsActive);
     }
 }
 
@@ -885,6 +913,18 @@ std::set<PDFInteger> PDFPageContentScene::getPageIndices() const
     for (const auto& element : m_elements)
     {
         result.insert(element->getPageIndex());
+    }
+
+    return result;
+}
+
+std::map<PDFInteger, std::vector<const PDFPageContentElement*>> PDFPageContentScene::getElementsByPage() const
+{
+    std::map<PDFInteger, std::vector<const PDFPageContentElement*>> result;
+
+    for (const auto& elementHandle : m_elements)
+    {
+        result[elementHandle->getPageIndex()].push_back(elementHandle.get());
     }
 
     return result;
@@ -950,15 +990,18 @@ PDFPageContentElementLine* PDFPageContentElementLine::clone() const
 }
 
 void PDFPageContentElementLine::drawPage(QPainter* painter,
+                                         const pdf::PDFPageContentScene* scene,
                                          PDFInteger pageIndex,
                                          const PDFPrecompiledPage* compiledPage,
                                          PDFTextLayoutGetter& layoutGetter,
                                          const QTransform& pagePointToDevicePointMatrix,
+                                         const PDFColorConvertor& convertor,
                                          QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
     Q_UNUSED(layoutGetter);
     Q_UNUSED(errors);
+    Q_UNUSED(scene);
 
     if (pageIndex != getPageIndex())
     {
@@ -967,8 +1010,8 @@ void PDFPageContentElementLine::drawPage(QPainter* painter,
 
     PDFPainterStateGuard guard(painter);
     painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
-    painter->setPen(getPen());
-    painter->setBrush(getBrush());
+    painter->setPen(convertor.convert(getPen()));
+    painter->setBrush(convertor.convert(getBrush()));
     painter->setRenderHint(QPainter::Antialiasing);
 
     painter->drawLine(getLine());
@@ -1132,15 +1175,18 @@ PDFPageContentImageElement* PDFPageContentImageElement::clone() const
 }
 
 void PDFPageContentImageElement::drawPage(QPainter* painter,
-                                        PDFInteger pageIndex,
-                                        const PDFPrecompiledPage* compiledPage,
-                                        PDFTextLayoutGetter& layoutGetter,
-                                        const QTransform& pagePointToDevicePointMatrix,
-                                        QList<PDFRenderError>& errors) const
+                                          const pdf::PDFPageContentScene* scene,
+                                          PDFInteger pageIndex,
+                                          const PDFPrecompiledPage* compiledPage,
+                                          PDFTextLayoutGetter& layoutGetter,
+                                          const QTransform& pagePointToDevicePointMatrix,
+                                          const PDFColorConvertor& convertor,
+                                          QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
     Q_UNUSED(layoutGetter);
     Q_UNUSED(errors);
+    Q_UNUSED(scene);
 
     if (pageIndex != getPageIndex() || !getRectangle().isValid())
     {
@@ -1185,7 +1231,8 @@ void PDFPageContentImageElement::drawPage(QPainter* painter,
         painter->scale(1.0, -1.0);
         targetRenderBox.moveTopLeft(QPointF(0, 0));
 
-        painter->drawImage(targetRenderBox, m_image);
+        QImage image = convertor.convert(image);
+        painter->drawImage(targetRenderBox, image);
     }
 }
 
@@ -1224,7 +1271,22 @@ void PDFPageContentImageElement::setContent(const QByteArray& newContent)
     if (m_content != newContent)
     {
         m_content = newContent;
-        if (!m_renderer->load(m_content))
+
+        m_renderer = std::make_unique<QSvgRenderer>();
+
+        QXmlStreamReader xml(m_content);
+        while (!xml.atEnd() && !xml.hasError())
+        {
+            xml.readNext();
+        }
+
+        bool isSvgLoaded = false;
+        if (!xml.hasError())
+        {
+            isSvgLoaded = m_renderer->load(m_content);
+        }
+
+        if (!isSvgLoaded)
         {
             QByteArray imageData = m_content;
             QBuffer buffer(&imageData);
@@ -1259,15 +1321,18 @@ PDFPageContentElementDot* PDFPageContentElementDot::clone() const
 }
 
 void PDFPageContentElementDot::drawPage(QPainter* painter,
+                                        const pdf::PDFPageContentScene* scene,
                                         PDFInteger pageIndex,
                                         const PDFPrecompiledPage* compiledPage,
                                         PDFTextLayoutGetter& layoutGetter,
                                         const QTransform& pagePointToDevicePointMatrix,
+                                        const PDFColorConvertor& convertor,
                                         QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
     Q_UNUSED(layoutGetter);
     Q_UNUSED(errors);
+    Q_UNUSED(scene);
 
     if (pageIndex != getPageIndex())
     {
@@ -1277,8 +1342,8 @@ void PDFPageContentElementDot::drawPage(QPainter* painter,
     PDFPainterStateGuard guard(painter);
     painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
     painter->setRenderHint(QPainter::Antialiasing);
-    painter->setPen(getPen());
-    painter->setBrush(getBrush());
+    painter->setPen(convertor.convert(getPen()));
+    painter->setBrush(convertor.convert(getBrush()));
     painter->drawPoint(m_point);
 }
 
@@ -1347,15 +1412,18 @@ PDFPageContentElementFreehandCurve* PDFPageContentElementFreehandCurve::clone() 
 }
 
 void PDFPageContentElementFreehandCurve::drawPage(QPainter* painter,
+                                                  const pdf::PDFPageContentScene* scene,
                                                   PDFInteger pageIndex,
                                                   const PDFPrecompiledPage* compiledPage,
                                                   PDFTextLayoutGetter& layoutGetter,
                                                   const QTransform& pagePointToDevicePointMatrix,
+                                                  const PDFColorConvertor& convertor,
                                                   QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
     Q_UNUSED(layoutGetter);
     Q_UNUSED(errors);
+    Q_UNUSED(scene);
 
     if (pageIndex != getPageIndex())
     {
@@ -1364,8 +1432,8 @@ void PDFPageContentElementFreehandCurve::drawPage(QPainter* painter,
 
     PDFPainterStateGuard guard(painter);
     painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
-    painter->setPen(getPen());
-    painter->setBrush(getBrush());
+    painter->setPen(convertor.convert(getPen()));
+    painter->setBrush(convertor.convert(getBrush()));
     painter->setRenderHint(QPainter::Antialiasing);
 
     painter->drawPath(getCurve());
@@ -2266,6 +2334,7 @@ void PDFPageContentElementManipulator::drawPage(QPainter* painter,
                                                 const PDFPrecompiledPage* compiledPage,
                                                 PDFTextLayoutGetter& layoutGetter,
                                                 const QTransform& pagePointToDevicePointMatrix,
+                                                const PDFColorConvertor& convertor,
                                                 QList<PDFRenderError>& errors) const
 {
     // Draw selection
@@ -2291,8 +2360,8 @@ void PDFPageContentElementManipulator::drawPage(QPainter* painter,
             QBrush brush(Qt::SolidPattern);
             brush.setColor(QColor::fromRgbF(1.0f, 1.0f, 0.0f, 0.2f));
 
-            painter->setPen(std::move(pen));
-            painter->setBrush(std::move(brush));
+            painter->setPen(convertor.convert(pen));
+            painter->setBrush(convertor.convert(brush));
 
             selectionPath = pagePointToDevicePointMatrix.map(selectionPath);
             painter->drawPath(selectionPath);
@@ -2307,7 +2376,7 @@ void PDFPageContentElementManipulator::drawPage(QPainter* painter,
 
         for (const auto& manipulatedElement : m_manipulatedElements)
         {
-            manipulatedElement->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+            manipulatedElement->drawPage(painter, m_scene, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, convertor, errors);
         }
     }
 }
@@ -2372,15 +2441,18 @@ PDFPageContentElementTextBox* PDFPageContentElementTextBox::clone() const
 }
 
 void PDFPageContentElementTextBox::drawPage(QPainter* painter,
+                                            const pdf::PDFPageContentScene* scene,
                                             PDFInteger pageIndex,
                                             const PDFPrecompiledPage* compiledPage,
                                             PDFTextLayoutGetter& layoutGetter,
                                             const QTransform& pagePointToDevicePointMatrix,
+                                            const PDFColorConvertor& convertor,
                                             QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
     Q_UNUSED(layoutGetter);
     Q_UNUSED(errors);
+    Q_UNUSED(scene);
 
     if (pageIndex != getPageIndex())
     {
@@ -2397,8 +2469,8 @@ void PDFPageContentElementTextBox::drawPage(QPainter* painter,
 
     PDFPainterStateGuard guard(painter);
     painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
-    painter->setPen(getPen());
-    painter->setBrush(getBrush());
+    painter->setPen(convertor.convert(getPen()));
+    painter->setBrush(convertor.convert(getBrush()));
     painter->setFont(font);
     painter->setRenderHint(QPainter::Antialiasing);
     painter->setClipRect(rect, Qt::IntersectClip);
@@ -2533,4 +2605,153 @@ void PDFPageContentElementTextBox::setAlignment(const Qt::Alignment& newAlignmen
     m_alignment = newAlignment;
 }
 
+PDFPageContentElementEdited::PDFPageContentElementEdited(const PDFEditedPageContentElement* element) :
+    m_element(element->clone())
+{
+
+}
+
+PDFPageContentElementEdited::~PDFPageContentElementEdited()
+{
+
+}
+
+PDFPageContentElementEdited* PDFPageContentElementEdited::clone() const
+{
+    PDFPageContentElementEdited* copy = new PDFPageContentElementEdited(m_element.get());
+    copy->setElementId(getElementId());
+    copy->setPageIndex(getPageIndex());
+    return copy;
+}
+
+void PDFPageContentElementEdited::drawPage(QPainter* painter,
+                                           const pdf::PDFPageContentScene* scene,
+                                           PDFInteger pageIndex,
+                                           const PDFPrecompiledPage* compiledPage,
+                                           PDFTextLayoutGetter& layoutGetter,
+                                           const QTransform& pagePointToDevicePointMatrix,
+                                           const PDFColorConvertor& convertor,
+                                           QList<PDFRenderError>& errors) const
+{
+    PDFPainterStateGuard guard(painter);
+
+    Q_UNUSED(pageIndex);
+    Q_UNUSED(compiledPage);
+    Q_UNUSED(layoutGetter);
+    Q_UNUSED(errors);
+
+    painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
+    painter->setPen(convertor.convert(QPen(Qt::SolidLine)));
+    painter->setBrush(Qt::NoBrush);
+    painter->setFont(QApplication::font());
+    painter->setRenderHint(QPainter::Antialiasing);
+
+    const pdf::PDFPage* page = scene->getDocument()->getCatalog()->getPage(pageIndex);
+    QRectF mediaBox = page->getMediaBox();
+    if (mediaBox.isValid())
+    {
+        QPainterPath path;
+        path.addPolygon(mediaBox);
+
+        painter->setClipPath(path, Qt::IntersectClip);
+    }
+
+    painter->setTransform(m_element->getTransform(), true);
+
+    if (const PDFEditedPageContentElementImage* imageElement = m_element->asImage())
+    {
+        QRectF rect(0, 0, 1, 1);
+        painter->translate(rect.bottomLeft());
+        painter->scale(1.0, -1.0);
+
+        QRect transformedRect(0.0, 0.0, rect.width(), rect.height());
+
+        QImage image = convertor.convert(imageElement->getImage());
+        painter->fillRect(transformedRect, Qt::white);
+        painter->drawImage(transformedRect, image);
+    }
+
+    if (const PDFEditedPageContentElementPath* pathElement = m_element->asPath())
+    {
+        const PDFPageContentProcessorState& state = m_element->getState();
+        QPen pen = convertor.convert(pdf::PDFPainterHelper::createPenFromState(&state, state.getAlphaStroking()));
+        QBrush brush = convertor.convert(pdf::PDFPainterHelper::createBrushFromState(&state, state.getAlphaFilling()));
+        painter->setPen(pathElement->getStrokePath() ? pen : QPen(Qt::NoPen));
+        painter->setBrush(pathElement->getFillPath() ? brush : QBrush(Qt::NoBrush));
+        painter->drawPath(pathElement->getPath());
+    }
+
+    if (const PDFEditedPageContentElementText* textElement = m_element->asText())
+    {
+        const PDFPageContentProcessorState& state = m_element->getState();
+        painter->setBrush(convertor.convert(pdf::PDFPainterHelper::createBrushFromState(&state, state.getAlphaFilling())));
+        painter->fillPath(textElement->getTextPath(), painter->brush());
+    }
+}
+
+uint PDFPageContentElementEdited::getManipulationMode(const QPointF& point, PDFReal snapPointDistanceThreshold) const
+{
+    Q_UNUSED(point);
+    Q_UNUSED(snapPointDistanceThreshold);
+
+    if (getBoundingBox().contains(point))
+    {
+        return Translate;
+    }
+
+    return None;
+}
+
+void PDFPageContentElementEdited::performManipulation(uint mode, const QPointF& offset)
+{
+    switch (mode)
+    {
+    case None:
+        break;
+
+    case Translate:
+    {
+        QTransform transform = m_element->getTransform();
+        QTransform updatedTransform(transform.m11(), transform.m12(), transform.m21(), transform.m22(), transform.dx() + offset.x(), transform.dy() + offset.y());
+        m_element->setTransform(updatedTransform);
+        break;
+    }
+
+    default:
+        Q_ASSERT(false);
+        break;
+    }
+}
+
+QRectF PDFPageContentElementEdited::getBoundingBox() const
+{
+    return m_element->getBoundingBox();
+}
+
+void PDFPageContentElementEdited::setSize(QSizeF size)
+{
+    Q_UNUSED(size);
+}
+
+QString PDFPageContentElementEdited::getDescription() const
+{
+    if (m_element->asImage())
+    {
+        return formatDescription(PDFTranslationContext::tr("Image"));
+    }
+
+    if (m_element->asText())
+    {
+        return formatDescription(PDFTranslationContext::tr("Text"));
+    }
+
+    if (m_element->asPath())
+    {
+        return formatDescription(PDFTranslationContext::tr("Path"));
+    }
+
+    return formatDescription(PDFTranslationContext::tr("Unknown"));
+}
+
 }   // namespace pdf
+

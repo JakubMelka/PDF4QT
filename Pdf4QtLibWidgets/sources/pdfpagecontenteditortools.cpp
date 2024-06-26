@@ -148,9 +148,10 @@ void PDFCreatePCElementRectangleTool::drawPage(QPainter* painter,
                                                const PDFPrecompiledPage* compiledPage,
                                                PDFTextLayoutGetter& layoutGetter,
                                                const QTransform& pagePointToDevicePointMatrix,
+                                               const PDFColorConvertor& convertor,
                                                QList<PDFRenderError>& errors) const
 {
-    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, convertor, errors);
 
     if (pageIndex != m_pickTool->getPageIndex())
     {
@@ -166,7 +167,7 @@ void PDFCreatePCElementRectangleTool::drawPage(QPainter* painter,
     m_element->setPageIndex(pageIndex);
     m_element->setRectangle(rectangle);
 
-    m_element->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+    m_element->drawPage(painter, m_scene, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, convertor, errors);
 }
 
 const PDFPageContentElement* PDFCreatePCElementRectangleTool::getElement() const
@@ -242,9 +243,10 @@ void PDFCreatePCElementLineTool::drawPage(QPainter* painter,
                                           const PDFPrecompiledPage* compiledPage,
                                           PDFTextLayoutGetter& layoutGetter,
                                           const QTransform& pagePointToDevicePointMatrix,
+                                          const PDFColorConvertor& convertor,
                                           QList<PDFRenderError>& errors) const
 {
-    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, convertor, errors);
 
     if (pageIndex != m_pickTool->getPageIndex() || !m_startPoint)
     {
@@ -262,7 +264,7 @@ void PDFCreatePCElementLineTool::drawPage(QPainter* painter,
         m_element->setLine(line);
     }
 
-    m_element->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+    m_element->drawPage(painter, m_scene, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, convertor, errors);
 }
 
 const PDFPageContentElement* PDFCreatePCElementLineTool::getElement() const
@@ -335,13 +337,14 @@ PDFCreatePCElementImageTool::~PDFCreatePCElementImageTool()
 }
 
 void PDFCreatePCElementImageTool::drawPage(QPainter* painter,
-                                         PDFInteger pageIndex,
-                                         const PDFPrecompiledPage* compiledPage,
-                                         PDFTextLayoutGetter& layoutGetter,
-                                         const QTransform& pagePointToDevicePointMatrix,
-                                         QList<PDFRenderError>& errors) const
+                                           PDFInteger pageIndex,
+                                           const PDFPrecompiledPage* compiledPage,
+                                           PDFTextLayoutGetter& layoutGetter,
+                                           const QTransform& pagePointToDevicePointMatrix,
+                                           const PDFColorConvertor& convertor,
+                                           QList<PDFRenderError>& errors) const
 {
-    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, convertor, errors);
 
     if (pageIndex != m_pickTool->getPageIndex())
     {
@@ -361,12 +364,12 @@ void PDFCreatePCElementImageTool::drawPage(QPainter* painter,
         PDFPainterStateGuard guard(painter);
         painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
         painter->setRenderHint(QPainter::Antialiasing);
-        painter->setPen(Qt::DotLine);
+        painter->setPen(convertor.convert(QPen(Qt::DotLine)));
         painter->setBrush(Qt::NoBrush);
         painter->drawRect(rectangle);
     }
 
-    m_element->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+    m_element->drawPage(painter, m_scene, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, convertor, errors);
 }
 
 const PDFPageContentElement* PDFCreatePCElementImageTool::getElement() const
@@ -486,17 +489,18 @@ void PDFCreatePCElementDotTool::drawPage(QPainter* painter,
                                          const PDFPrecompiledPage* compiledPage,
                                          PDFTextLayoutGetter& layoutGetter,
                                          const QTransform& pagePointToDevicePointMatrix,
+                                         const PDFColorConvertor& convertor,
                                          QList<PDFRenderError>& errors) const
 {
-    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, convertor, errors);
 
     QPointF point = pagePointToDevicePointMatrix.inverted().map(m_pickTool->getSnappedPoint());
 
     PDFPainterStateGuard guard(painter);
     painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
     painter->setRenderHint(QPainter::Antialiasing);
-    painter->setPen(m_element->getPen());
-    painter->setBrush(m_element->getBrush());
+    painter->setPen(convertor.convert(m_element->getPen()));
+    painter->setBrush(convertor.convert(m_element->getBrush()));
     painter->drawPoint(point);
 }
 
@@ -547,16 +551,17 @@ void PDFCreatePCElementFreehandCurveTool::drawPage(QPainter* painter,
                                                    const PDFPrecompiledPage* compiledPage,
                                                    PDFTextLayoutGetter& layoutGetter,
                                                    const QTransform& pagePointToDevicePointMatrix,
+                                                   const PDFColorConvertor& convertor,
                                                    QList<PDFRenderError>& errors) const
 {
-    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, convertor, errors);
 
     if (pageIndex != m_element->getPageIndex() || m_element->isEmpty())
     {
         return;
     }
 
-    m_element->drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+    m_element->drawPage(painter, m_scene, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, convertor, errors);
 }
 
 const PDFPageContentElement* PDFCreatePCElementFreehandCurveTool::getElement() const
@@ -691,9 +696,10 @@ void PDFCreatePCElementTextTool::drawPage(QPainter* painter,
                                           const PDFPrecompiledPage* compiledPage,
                                           PDFTextLayoutGetter& layoutGetter,
                                           const QTransform& pagePointToDevicePointMatrix,
+                                          const PDFColorConvertor& convertor,
                                           QList<PDFRenderError>& errors) const
 {
-    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, convertor, errors);
 
     if (pageIndex != m_element->getPageIndex())
     {
@@ -707,7 +713,7 @@ void PDFCreatePCElementTextTool::drawPage(QPainter* painter,
         parameters.painter = painter;
         parameters.boundingRectangle = m_element->getRectangle();
         parameters.key.first = PDFAppeareanceStreams::Appearance::Normal;
-        parameters.colorConvertor = getProxy()->getCMSManager()->getColorConvertor();
+        parameters.colorConvertor = convertor;
         PDFRenderer::applyFeaturesToColorConvertor(getProxy()->getFeatures(), parameters.colorConvertor);
 
         painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);

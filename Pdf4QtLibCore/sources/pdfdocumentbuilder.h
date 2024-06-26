@@ -133,6 +133,7 @@ public:
     PDFObjectFactory& operator<<(const PDFDestination& destination);
     PDFObjectFactory& operator<<(PageRotation pageRotation);
     PDFObjectFactory& operator<<(PDFFormSubmitFlags flags);
+    PDFObjectFactory& operator<<(PDFDictionary dictionary);
 
     /// Treat containers - write them as array
     template<typename Container, typename ValueType = decltype(*std::begin(std::declval<Container>()))>
@@ -342,6 +343,9 @@ public:
     /// Builds a new document. This function can throw exceptions,
     /// if document being built was invalid.
     PDFDocument build();
+
+    ///  Replaces all objects by references in the dictionary
+    void replaceObjectsByReferences(PDFDictionary& dictionary);
 
     /// If object is reference, the dereference attempt is performed
     /// and object is returned. If it is not a reference, then self

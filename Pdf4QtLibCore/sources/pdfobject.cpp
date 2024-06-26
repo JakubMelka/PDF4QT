@@ -246,8 +246,13 @@ void PDFArray::optimize()
 bool PDFDictionary::equals(const PDFObjectContent* other) const
 {
     Q_ASSERT(dynamic_cast<const PDFDictionary*>(other));
-    const PDFDictionary* otherStream = static_cast<const PDFDictionary*>(other);
-    return m_dictionary == otherStream->m_dictionary;
+    const PDFDictionary* otherDictionary = static_cast<const PDFDictionary*>(other);
+    return m_dictionary == otherDictionary->m_dictionary;
+}
+
+bool PDFDictionary::operator==(const PDFDictionary& other) const
+{
+    return m_dictionary == other.m_dictionary;
 }
 
 const PDFObject& PDFDictionary::get(const QByteArray& key) const

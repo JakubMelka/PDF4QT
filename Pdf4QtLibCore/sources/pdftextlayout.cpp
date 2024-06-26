@@ -18,6 +18,7 @@
 #include "pdftextlayout.h"
 #include "pdfutils.h"
 #include "pdfexecutionpolicy.h"
+#include "pdfcms.h"
 
 #include <QtMath>
 #include <QMutex>
@@ -1509,7 +1510,11 @@ PDFTextLayout PDFTextLayoutStorageGetter::getTextLayoutImpl() const
     return m_storage ? m_storage->getTextLayout(m_pageIndex) : PDFTextLayout();
 }
 
-void PDFTextSelectionPainter::draw(QPainter* painter, PDFInteger pageIndex, PDFTextLayoutGetter& textLayoutGetter, const QTransform& matrix)
+void PDFTextSelectionPainter::draw(QPainter* painter,
+                                   PDFInteger pageIndex,
+                                   PDFTextLayoutGetter& textLayoutGetter,
+                                   const QTransform& matrix,
+                                   const PDFColorConvertor& convertor)
 {
     Q_ASSERT(painter);
 
@@ -1548,8 +1553,8 @@ void PDFTextSelectionPainter::draw(QPainter* painter, PDFInteger pageIndex, PDFT
         QColor brushColor = item.color;
         brushColor.setAlphaF(SELECTION_ALPHA);
 
-        painter->setPen(penColor);
-        painter->setBrush(QBrush(brushColor, Qt::SolidPattern));
+        painter->setPen(convertor.convert(QPen(penColor)));
+        painter->setBrush(convertor.convert(QBrush(brushColor, Qt::SolidPattern)));
         painter->drawPath(path);
     }
 

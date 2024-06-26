@@ -1,0 +1,7 @@
+{
+    "Name" : "Editor",
+    "Author" : "Jakub Melka",
+    "Version" : "1.0.0",
+    "License" : "LGPL v3",
+    "Description" : "Edit content of PDF document."
+}

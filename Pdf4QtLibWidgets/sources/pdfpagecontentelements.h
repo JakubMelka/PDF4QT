@@ -1,4 +1,4 @@
-//    Copyright (C) 2022 Jakub Melka
+//    Copyright (C) 2022-2024 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -34,23 +34,34 @@ class QSvgRenderer;
 
 namespace pdf
 {
+class PDFCMS;
 class PDFWidget;
 class PDFDocument;
 class PDFPageContentScene;
+class PDFEditedPageContentElement;
+class PDFPageContentElementEdited;
+class PDFPageContentElementRectangle;
+class PDFPageContentElementLine;
+class PDFPageContentElementDot;
+class PDFPageContentElementFreehandCurve;
+class PDFPageContentImageElement;
+class PDFPageContentElementTextBox;
 
 class PDF4QTLIBWIDGETSSHARED_EXPORT PDFPageContentElement
 { 
 public:
     explicit PDFPageContentElement() = default;
-    virtual ~PDFPageContentElement() = default;
+    virtual ~PDFPageContentElement();
 
     virtual PDFPageContentElement* clone() const = 0;
 
     virtual void drawPage(QPainter* painter,
+                          const PDFPageContentScene* scene,
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const = 0;
 
     /// Returns manipulation mode. If manipulation mode is zero, then element
@@ -89,6 +100,7 @@ public:
     enum ManipulationModes : uint
     {
         None = 0,
+        Select,
         Translate,
         Top,
         Left,
@@ -101,6 +113,14 @@ public:
         Pt1,
         Pt2
     };
+
+    virtual const PDFPageContentElementEdited* asElementEdited() const { return nullptr; }
+    virtual const PDFPageContentElementRectangle* asElementRectangle() const { return nullptr; }
+    virtual const PDFPageContentElementLine* asElementLine() const { return nullptr; }
+    virtual const PDFPageContentElementDot* asElementDot() const { return nullptr ; }
+    virtual const PDFPageContentElementFreehandCurve* asElementFreehandCurve() const { return nullptr; }
+    virtual const PDFPageContentImageElement* asElementImage() const { return nullptr; }
+    virtual const PDFPageContentElementTextBox* asElementTextBox() const { return nullptr; }
 
 protected:
     uint getRectangleManipulationMode(const QRectF& rectangle,
@@ -150,10 +170,12 @@ public:
     void setRectangle(const QRectF& newRectangle);
 
     virtual void drawPage(QPainter* painter,
+                          const PDFPageContentScene* scene,
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
     virtual uint getManipulationMode(const QPointF& point,
@@ -163,6 +185,7 @@ public:
     virtual QRectF getBoundingBox() const override;
     virtual void setSize(QSizeF size) override;
     virtual QString getDescription() const override;
+    virtual const PDFPageContentElementRectangle* asElementRectangle() const override { return this; }
 
 private:
     bool m_rounded = false;
@@ -184,10 +207,12 @@ public:
     };
 
     virtual void drawPage(QPainter* painter,
+                          const PDFPageContentScene* scene,
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
     virtual uint getManipulationMode(const QPointF& point,
@@ -197,6 +222,7 @@ public:
     virtual QRectF getBoundingBox() const override;
     virtual void setSize(QSizeF size) override;
     virtual QString getDescription() const override;
+    virtual const PDFPageContentElementLine* asElementLine() const override { return this; }
 
     LineGeometry getGeometry() const;
     void setGeometry(LineGeometry newGeometry);
@@ -217,10 +243,12 @@ public:
     virtual PDFPageContentElementDot* clone() const override;
 
     virtual void drawPage(QPainter* painter,
+                          const PDFPageContentScene* scene,
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
     virtual uint getManipulationMode(const QPointF& point,
@@ -230,6 +258,7 @@ public:
     virtual QRectF getBoundingBox() const override;
     virtual void setSize(QSizeF size) override;
     virtual QString getDescription() const override;
+    virtual const PDFPageContentElementDot* asElementDot() const override { return this; }
 
     QPointF getPoint() const;
     void setPoint(QPointF newPoint);
@@ -246,10 +275,12 @@ public:
     virtual PDFPageContentElementFreehandCurve* clone() const override;
 
     virtual void drawPage(QPainter* painter,
+                          const PDFPageContentScene* scene,
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
     virtual uint getManipulationMode(const QPointF& point,
@@ -259,6 +290,7 @@ public:
     virtual QRectF getBoundingBox() const override;
     virtual void setSize(QSizeF size);
     virtual QString getDescription() const override;
+    virtual const PDFPageContentElementFreehandCurve* asElementFreehandCurve() const override { return this; }
 
     QPainterPath getCurve() const;
     void setCurve(QPainterPath newCurve);
@@ -281,10 +313,12 @@ public:
     virtual PDFPageContentImageElement* clone() const override;
 
     virtual void drawPage(QPainter* painter,
+                          const PDFPageContentScene* scene,
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
     virtual uint getManipulationMode(const QPointF& point,
@@ -294,12 +328,16 @@ public:
     virtual QRectF getBoundingBox() const override;
     virtual void setSize(QSizeF size);
     virtual QString getDescription() const override;
+    virtual const PDFPageContentImageElement* asElementImage() const override { return this; }
 
     const QByteArray& getContent() const;
     void setContent(const QByteArray& newContent);
 
     const QRectF& getRectangle() const;
     void setRectangle(const QRectF& newRectangle);
+
+    const QSvgRenderer* getRenderer() const { return m_renderer.get(); }
+    const QImage& getImage() const { return m_image; }
 
 private:
     QRectF m_rectangle;
@@ -319,10 +357,12 @@ public:
     void setRectangle(const QRectF& newRectangle) { m_rectangle = newRectangle; }
 
     virtual void drawPage(QPainter* painter,
+                          const PDFPageContentScene* scene,
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
     virtual uint getManipulationMode(const QPointF& point,
@@ -332,6 +372,7 @@ public:
     virtual QRectF getBoundingBox() const override;
     virtual void setSize(QSizeF size) override;
     virtual QString getDescription() const override;
+    virtual const PDFPageContentElementTextBox* asElementTextBox() const override { return this; }
 
     const QString& getText() const;
     void setText(const QString& newText);
@@ -351,6 +392,35 @@ private:
     QFont m_font;
     PDFReal m_angle = 0.0;
     Qt::Alignment m_alignment = Qt::AlignCenter;
+};
+
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFPageContentElementEdited : public PDFPageContentElement
+{
+public:
+    PDFPageContentElementEdited(const PDFEditedPageContentElement* element);
+    virtual ~PDFPageContentElementEdited();
+
+    virtual PDFPageContentElementEdited* clone() const override;
+    virtual void drawPage(QPainter* painter,
+                          const PDFPageContentScene* scene,
+                          PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
+                          QList<PDFRenderError>& errors) const override;
+    virtual uint getManipulationMode(const QPointF& point, PDFReal snapPointDistanceThreshold) const override;
+    virtual void performManipulation(uint mode, const QPointF& offset) override;
+    virtual QRectF getBoundingBox() const override;
+    virtual void setSize(QSizeF size) override;
+    virtual QString getDescription() const override;
+    virtual const PDFPageContentElementEdited* asElementEdited() const { return this; }
+
+    const PDFEditedPageContentElement* getElement() const { return m_element.get(); }
+    PDFEditedPageContentElement* getElement() { return m_element.get(); }
+
+private:
+    std::unique_ptr<PDFEditedPageContentElement> m_element;
 };
 
 class PDF4QTLIBWIDGETSSHARED_EXPORT PDFPageContentElementManipulator : public QObject
@@ -442,6 +512,7 @@ public:
                   const PDFPrecompiledPage* compiledPage,
                   PDFTextLayoutGetter& layoutGetter,
                   const QTransform& pagePointToDevicePointMatrix,
+                  const PDFColorConvertor& convertor,
                   QList<PDFRenderError>& errors) const;
 
     /// Returns bounding box of whole selection
@@ -466,8 +537,8 @@ private:
 };
 
 class PDF4QTLIBWIDGETSSHARED_EXPORT PDFPageContentScene : public QObject,
-                                                   public IDocumentDrawInterface,
-                                                   public IDrawWidgetInputInterface
+                                                          public IDocumentDrawInterface,
+                                                          public IDrawWidgetInputInterface
 {
     Q_OBJECT
 
@@ -509,6 +580,8 @@ public:
     /// Returns set of involved pages
     std::set<PDFInteger> getPageIndices() const;
 
+    std::map<PDFInteger, std::vector<const PDFPageContentElement*>> getElementsByPage() const;
+
     /// Returns bounding box of elements on page
     QRectF getBoundingBox(PDFInteger pageIndex) const;
 
@@ -538,12 +611,14 @@ public:
     virtual QString getTooltip() const override;
     virtual const std::optional<QCursor>& getCursor() const override;
     virtual int getInputPriority() const override;
+    virtual bool isPageContentDrawSuppressed() const;
 
     virtual void drawPage(QPainter* painter,
                           PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
     PDFWidget* widget() const;
@@ -554,7 +629,10 @@ public:
                       PDFTextLayoutGetter& layoutGetter,
                       const QTransform& pagePointToDevicePointMatrix,
                       const PDFPrecompiledPage* compiledPage,
+                      const PDFColorConvertor& convertor,
                       QList<PDFRenderError>& errors) const;
+
+    void setIsPageContentDrawSuppressed(bool newIsPageContentDrawSuppressed);
 
 signals:
     /// This signal is emitted when scene has changed (including graphics)
@@ -564,6 +642,8 @@ signals:
 
     /// Request to edit the elements
     void editElementRequest(const std::set<PDFInteger>& elements);
+
+    void sceneActiveStateChanged(bool activated);
 
 private:
 
@@ -614,6 +694,7 @@ private:
 
     PDFInteger m_firstFreeId;
     bool m_isActive;
+    bool m_isPageContentDrawSuppressed;
     PDFWidget* m_widget;
     std::vector<std::unique_ptr<PDFPageContentElement>> m_elements;
     std::optional<QCursor> m_cursor;

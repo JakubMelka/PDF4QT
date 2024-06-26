@@ -24,6 +24,7 @@
 
 namespace pdf
 {
+class PDFPageContentProcessorState;
 
 /// RAII wrapper for painter save/restore
 class PDFPainterStateGuard
@@ -44,6 +45,16 @@ private:
     QPainter* m_painter;
 };
 
+struct PDFTransformationDecomposition
+{
+    double rotationAngle = 0.0;
+    double shearFactor = 0.0;
+    double scaleX = 0.0;
+    double scaleY = 0.0;
+    double translateX = 0.0;
+    double translateY = 0.0;
+};
+
 class PDF4QTLIBCORESHARED_EXPORT PDFPainterHelper
 {
 public:
@@ -55,6 +66,21 @@ public:
     /// \param text Text inside the bubble
     /// \param alignment Bubble alignment relative to the bubble position point
     static QRect drawBubble(QPainter* painter, QPoint point, QColor color, QString text, Qt::Alignment alignment);
+
+    /// Creates pen from painter graphicState
+    static QPen createPenFromState(const PDFPageContentProcessorState* graphicState, double alpha);
+
+    /// Creates brush from painter graphicState
+    static QBrush createBrushFromState(const PDFPageContentProcessorState* graphicState, double alpha);
+
+    static void applyPenToGraphicState(PDFPageContentProcessorState* graphicState, const QPen& pen);
+    static void applyBrushToGraphicState(PDFPageContentProcessorState* graphicState, const QBrush& brush);
+
+    /// Decompose transform
+    static PDFTransformationDecomposition decomposeTransform(const QTransform& transform);
+
+    /// Compose transform
+    static QTransform composeTransform(const PDFTransformationDecomposition& decomposition);
 };
 
 }   // namespace pdf

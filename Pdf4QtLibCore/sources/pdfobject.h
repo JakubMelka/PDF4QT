@@ -364,6 +364,8 @@ public:
 
     virtual bool equals(const PDFObjectContent* other) const override;
 
+    bool operator==(const PDFDictionary&other) const;
+
     /// Returns object for the key. If key is not found in the dictionary,
     /// then valid reference to the null object is returned.
     /// \param key Key
@@ -424,6 +426,8 @@ public:
 
     /// Removes null objects from dictionary
     void removeNullObjects();
+
+    bool isEmpty() const { return getCount() == 0; }
 
     /// Optimizes the dictionary for memory consumption
     virtual void optimize() override;

@@ -20,6 +20,7 @@
 #include "pdfcompiler.h"
 #include "pdfwidgetutils.h"
 #include "pdfpainterutils.h"
+#include "pdfcms.h"
 
 #include <QLabel>
 #include <QAction>
@@ -346,6 +347,7 @@ void PDFFindTextTool::drawPage(QPainter* painter,
                                const PDFPrecompiledPage* compiledPage,
                                PDFTextLayoutGetter& layoutGetter,
                                const QTransform& pagePointToDevicePointMatrix,
+                               const PDFColorConvertor& convertor,
                                QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -353,7 +355,7 @@ void PDFFindTextTool::drawPage(QPainter* painter,
 
     const pdf::PDFTextSelection& textSelection = getTextSelection();
     pdf::PDFTextSelectionPainter textSelectionPainter(&textSelection);
-    textSelectionPainter.draw(painter, pageIndex, layoutGetter, pagePointToDevicePointMatrix);
+    textSelectionPainter.draw(painter, pageIndex, layoutGetter, pagePointToDevicePointMatrix, convertor);
 }
 
 void PDFFindTextTool::clearResults()
@@ -713,13 +715,14 @@ void PDFSelectTextTool::drawPage(QPainter* painter,
                                  const PDFPrecompiledPage* compiledPage,
                                  PDFTextLayoutGetter& layoutGetter,
                                  const QTransform& pagePointToDevicePointMatrix,
+                                 const PDFColorConvertor& convertor,
                                  QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
     Q_UNUSED(errors);
 
     pdf::PDFTextSelectionPainter textSelectionPainter(&m_textSelection);
-    textSelectionPainter.draw(painter, pageIndex, layoutGetter, pagePointToDevicePointMatrix);
+    textSelectionPainter.draw(painter, pageIndex, layoutGetter, pagePointToDevicePointMatrix, convertor);
 }
 
 void PDFSelectTextTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
@@ -1305,6 +1308,7 @@ void PDFPickTool::drawPage(QPainter* painter,
                            const PDFPrecompiledPage* compiledPage,
                            PDFTextLayoutGetter& layoutGetter,
                            const QTransform& pagePointToDevicePointMatrix,
+                           const PDFColorConvertor& convertor,
                            QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
@@ -1330,14 +1334,14 @@ void PDFPickTool::drawPage(QPainter* painter,
         QRect selectionRectangle(xMin, yMin, xMax - xMin, yMax - yMin);
         if (selectionRectangle.isValid())
         {
-            painter->fillRect(selectionRectangle, m_selectionRectangleColor);
+            painter->fillRect(selectionRectangle, convertor.convert(m_selectionRectangleColor, false, true));
         }
     }
 
     if (m_mode == Mode::Images && m_snapper.getSnappedImage())
     {
         const PDFSnapper::ViewportSnapImage* snappedImage = m_snapper.getSnappedImage();
-        painter->fillPath(snappedImage->viewportPath, m_selectionRectangleColor);
+        painter->fillPath(snappedImage->viewportPath, convertor.convert(m_selectionRectangleColor, false, true));
     }
 }
 
@@ -1644,9 +1648,10 @@ void PDFSelectTableTool::drawPage(QPainter* painter,
                                   const PDFPrecompiledPage* compiledPage,
                                   PDFTextLayoutGetter& layoutGetter,
                                   const QTransform& pagePointToDevicePointMatrix,
+                                  const PDFColorConvertor& convertor,
                                   QList<PDFRenderError>& errors) const
 {
-    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, convertor, errors);
 
     if (isTablePicked() && pageIndex == m_pageIndex)
     {
@@ -1658,8 +1663,8 @@ void PDFSelectTableTool::drawPage(QPainter* painter,
         QPen pen(Qt::SolidLine);
         pen.setWidthF(lineWidth);
 
-        painter->setPen(std::move(pen));
-        painter->setBrush(QBrush(color));
+        painter->setPen(convertor.convert(pen));
+        painter->setBrush(convertor.convert(QBrush(color)));
         painter->drawRect(rectangle);
 
         for (const PDFReal columnPosition : m_horizontalBreaks)

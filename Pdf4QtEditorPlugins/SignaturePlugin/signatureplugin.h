@@ -57,12 +57,14 @@ private:
     void onSignElectronically();
     void onSignDigitally();
     void onOpenCertificatesManager();
+    void onSceneActivityChanged();
 
     void onPenChanged(const QPen& pen);
     void onBrushChanged(const QBrush& brush);
     void onFontChanged(const QFont& font);
     void onAlignmentChanged(Qt::Alignment alignment);
     void onTextAngleChanged(pdf::PDFReal angle);
+    void onSceneEditSingleElement(pdf::PDFInteger elementId);
 
     enum Action
     {

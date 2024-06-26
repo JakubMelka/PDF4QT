@@ -784,6 +784,11 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
     // Use current paper color (it can be a bit different from white)
     QColor paperColor = getPaperColor();
 
+    // Color management system
+    PDFCMSPointer cms = getCMSManager()->getCurrentCMS();
+    PDFColorConvertor convertor = cms->getColorConvertor();
+    PDFRenderer::applyFeaturesToColorConvertor(features, convertor);
+
     // Iterate trough pages and display them on the painter device
     for (const LayoutItem& item : m_layout.items)
     {
@@ -809,8 +814,18 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
 
                 const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(item.pageIndex);
                 QTransform matrix = QTransform(createPagePointToDevicePointMatrix(page, placedRect)) * baseMatrix;
-                compiledPage->draw(painter, page->getCropBox(), matrix, features, groupInfo.transparency);
                 PDFTextLayoutGetter layoutGetter = m_textLayoutCompiler->getTextLayoutLazy(item.pageIndex);
+
+                bool isPageContentDrawSuppressed = false;
+                for (IDocumentDrawInterface* drawInterface : m_drawInterfaces)
+                {
+                    isPageContentDrawSuppressed = isPageContentDrawSuppressed || drawInterface->isPageContentDrawSuppressed();
+                }
+
+                if (!isPageContentDrawSuppressed)
+                {
+                    compiledPage->draw(painter, page->getCropBox(), matrix, features, groupInfo.transparency);
+                }
 
                 // Draw text blocks/text lines, if it is enabled
                 if (features.testFlag(PDFRenderer::DebugTextBlocks))
@@ -869,7 +884,7 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
                     for (IDocumentDrawInterface* drawInterface : m_drawInterfaces)
                     {
                         painter->save();
-                        drawInterface->drawPage(painter, item.pageIndex, compiledPage, layoutGetter, matrix, drawInterfaceErrors);
+                        drawInterface->drawPage(painter, item.pageIndex, compiledPage, layoutGetter, matrix, convertor, drawInterfaceErrors);
                         painter->restore();
                     }
                 }
@@ -1613,6 +1628,7 @@ void IDocumentDrawInterface::drawPage(QPainter* painter,
                                       const PDFPrecompiledPage* compiledPage,
                                       PDFTextLayoutGetter& layoutGetter,
                                       const QTransform& pagePointToDevicePointMatrix,
+                                      const pdf::PDFColorConvertor& convertor,
                                       QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(painter);
@@ -1620,6 +1636,7 @@ void IDocumentDrawInterface::drawPage(QPainter* painter,
     Q_UNUSED(compiledPage);
     Q_UNUSED(layoutGetter);
     Q_UNUSED(pagePointToDevicePointMatrix);
+    Q_UNUSED(convertor);
     Q_UNUSED(errors);
 }
 
@@ -1627,6 +1644,11 @@ void IDocumentDrawInterface::drawPostRendering(QPainter* painter, QRect rect) co
 {
     Q_UNUSED(painter);
     Q_UNUSED(rect);
+}
+
+bool IDocumentDrawInterface::isPageContentDrawSuppressed() const
+{
+    return false;
 }
 
 }   // namespace pdf

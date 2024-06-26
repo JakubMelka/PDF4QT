@@ -79,6 +79,7 @@ public:
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
     virtual const PDFPageContentElement* getElement() const override;
@@ -113,6 +114,7 @@ public:
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
     virtual const PDFPageContentElement* getElement() const override;
@@ -153,6 +155,7 @@ public:
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
     virtual const PDFPageContentElement* getElement() const override;
@@ -187,6 +190,7 @@ public:
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
     virtual const PDFPageContentElement* getElement() const override;
@@ -219,6 +223,7 @@ public:
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
     virtual const PDFPageContentElement* getElement() const override;
@@ -257,6 +262,7 @@ public:
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
     virtual const PDFPageContentElement* getElement() const override;

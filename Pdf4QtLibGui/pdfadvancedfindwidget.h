@@ -54,6 +54,7 @@ public:
                           const pdf::PDFPrecompiledPage* compiledPage,
                           pdf::PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const pdf::PDFColorConvertor& convertor,
                           QList<pdf::PDFRenderError>& errors) const override;
 
     void setDocument(const pdf::PDFModifiedDocument& document);

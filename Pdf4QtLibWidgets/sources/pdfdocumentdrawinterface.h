@@ -31,6 +31,7 @@ class QWheelEvent;
 
 namespace pdf
 {
+class PDFColorConvertor;
 class PDFPrecompiledPage;
 class PDFTextLayoutGetter;
 
@@ -47,18 +48,24 @@ public:
     /// \param compiledPage Compiled page
     /// \param layoutGetter Layout getter
     /// \param pagePointToDevicePointMatrix Matrix mapping page space to device point space
+    /// \param convertor Color convertor
     /// \param[out] errors Output parameter - rendering errors
     virtual void drawPage(QPainter* painter,
                           pdf::PDFInteger pageIndex,
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const;
 
     /// Performs drawing of additional graphics after all pages are drawn onto the painter.
     /// \param painter Painter
     /// \param rect Draw rectangle (usually viewport rectangle of the pdf widget)
     virtual void drawPostRendering(QPainter* painter, QRect rect) const;
+
+    /// Returns true if drawing of the page content should be suppressed.
+    /// This is used for special purposes, such as rendering edited page content.
+    virtual bool isPageContentDrawSuppressed() const;
 };
 
 /// Input interface for handling events. Implementations should react on these events,

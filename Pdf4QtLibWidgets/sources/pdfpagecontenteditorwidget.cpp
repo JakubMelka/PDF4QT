@@ -85,6 +85,7 @@ PDFPageContentEditorWidget::PDFPageContentEditorWidget(QWidget* parent) :
     connect(&m_actionMapper, &QSignalMapper::mappedObject, this, &PDFPageContentEditorWidget::onActionTriggerRequest);
     connect(&m_operationMapper, &QSignalMapper::mappedInt, this, &PDFPageContentEditorWidget::operationTriggered);
     connect(ui->itemsListWidget->selectionModel(), &QItemSelectionModel::selectionChanged, this, &PDFPageContentEditorWidget::onItemSelectionChanged);
+    connect(ui->itemsListWidget, &QListWidget::itemDoubleClicked, this, &PDFPageContentEditorWidget::onItemDoubleClicked);
 
     connect(m_settingsWidget, &PDFPageContentEditorStyleSettings::penChanged, this, &PDFPageContentEditorWidget::penChanged);
     connect(m_settingsWidget, &PDFPageContentEditorStyleSettings::brushChanged, this, &PDFPageContentEditorWidget::brushChanged);
@@ -223,6 +224,12 @@ void PDFPageContentEditorWidget::onItemSelectionChanged()
     {
         Q_EMIT itemSelectionChangedByUser();
     }
+}
+
+void PDFPageContentEditorWidget::onItemDoubleClicked(QListWidgetItem* item)
+{
+    const PDFInteger elementId = item->data(Qt::UserRole).toLongLong();
+    Q_EMIT editElementRequest(elementId);
 }
 
 PDFPageContentScene* PDFPageContentEditorWidget::scene() const

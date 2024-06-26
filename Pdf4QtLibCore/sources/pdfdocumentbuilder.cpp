@@ -285,6 +285,12 @@ PDFObjectFactory& PDFObjectFactory::operator<<(AnnotationBorderStyle style)
     return *this;
 }
 
+PDFObjectFactory& PDFObjectFactory::operator<<(PDFDictionary dictionary)
+{
+    *this << PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(dictionary)));
+    return *this;
+}
+
 PDFObjectFactory& PDFObjectFactory::operator<<(const QDateTime& dateTime)
 {
     addObject(PDFObject::createString(PDFEncoding::convertDateTimeToString(dateTime)));
@@ -706,6 +712,19 @@ PDFDocument PDFDocumentBuilder::build()
 {
     updateTrailerDictionary(m_storage.getObjects().size());
     return PDFDocument(PDFObjectStorage(m_storage), m_version, QByteArray());
+}
+
+void PDFDocumentBuilder::replaceObjectsByReferences(PDFDictionary& dictionary)
+{
+    for (size_t i = 0; i < dictionary.getCount(); ++i)
+    {
+        const PDFObject& object = dictionary.getValue(i);
+        if (!object.isReference())
+        {
+            auto key = dictionary.getKey(i);
+            dictionary.setEntry(key, PDFObject::createReference(addObject(object)));
+        }
+    }
 }
 
 QByteArray PDFDocumentBuilder::getDecodedStream(const PDFStream* stream) const
