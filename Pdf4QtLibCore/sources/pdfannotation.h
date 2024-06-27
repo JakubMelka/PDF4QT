@@ -1474,6 +1474,7 @@ public:
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const;
 
     /// Set document

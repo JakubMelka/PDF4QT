@@ -55,6 +55,7 @@ public:
                           const PDFPrecompiledPage* compiledPage,
                           PDFTextLayoutGetter& layoutGetter,
                           const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
     /// Returns tooltip generated from annotation

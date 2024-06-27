@@ -164,6 +164,7 @@ public:
     /// \param size Size of the target image
     /// \param features Renderer features
     /// \param annotationManager Annotation manager (can be nullptr)
+    /// \param cms Color management system
     /// \param extraRotation Extra page rotation
     QImage render(PDFInteger pageIndex,
                   const PDFPage* page,
@@ -171,6 +172,7 @@ public:
                   QSize size,
                   PDFRenderer::Features features,
                   const PDFAnnotationManager* annotationManager,
+                  const PDFCMS* cms,
                   PageRotation extraRotation);
 
 private:

@@ -191,7 +191,7 @@ QPixmap PageItemDelegate::getPageImagePixmap(const PageGroupItem* item, QRect re
                         renderer.compile(&compiledPage, pageIndex);
 
                         QSize imageSize = rect.size() * m_dpiScaleRatio;
-                        QImage pageImage = m_rasterizer->render(pageIndex, page, &compiledPage, imageSize, pdf::PDFRenderer::getDefaultFeatures(), nullptr, groupItem.pageAdditionalRotation);
+                        QImage pageImage = m_rasterizer->render(pageIndex, page, &compiledPage, imageSize, pdf::PDFRenderer::getDefaultFeatures(), nullptr, cms.data(), groupItem.pageAdditionalRotation);
                         pixmap = QPixmap::fromImage(qMove(pageImage));
                     }
                 }

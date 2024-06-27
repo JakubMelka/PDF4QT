@@ -241,10 +241,13 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
                              QSize size,
                              PDFRenderer::Features features,
                              const PDFAnnotationManager* annotationManager,
+                             const PDFCMS* cms,
                              PageRotation extraRotation)
 {
     QImage image(size, QImage::Format_ARGB32_Premultiplied);
 
+    PDFColorConvertor convertor = cms->getColorConvertor();
+    PDFRenderer::applyFeaturesToColorConvertor(features, convertor);
     QTransform matrix = PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), size), extraRotation);
 
     if (m_rendererEngine == RendererEngine::Blend2D_MultiThread ||
@@ -259,7 +262,7 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
         {
             QList<PDFRenderError> errors;
             PDFTextLayoutGetter textLayoutGetter(nullptr, pageIndex);
-            annotationManager->drawPage(&painter, pageIndex, compiledPage, textLayoutGetter, matrix, errors);
+            annotationManager->drawPage(&painter, pageIndex, compiledPage, textLayoutGetter, matrix, convertor, errors);
         }
     }
     else
@@ -274,7 +277,7 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
         {
             QList<PDFRenderError> errors;
             PDFTextLayoutGetter textLayoutGetter(nullptr, pageIndex);
-            annotationManager->drawPage(&painter, pageIndex, compiledPage, textLayoutGetter, matrix, errors);
+            annotationManager->drawPage(&painter, pageIndex, compiledPage, textLayoutGetter, matrix, convertor, errors);
         }
     }
 
@@ -381,7 +384,7 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
         pageTimer.restart();
         PDFRasterizer* rasterizer = acquire();
         qint64 pageWaitTime = pageTimer.restart();
-        QImage image = rasterizer->render(pageIndex, page, &precompiledPage, imageSizeGetter(page), m_features, &annotationManager, PageRotation::None);
+        QImage image = rasterizer->render(pageIndex, page, &precompiledPage, imageSizeGetter(page), m_features, &annotationManager, cms.data(), PageRotation::None);
         qint64 pageRenderTime = pageTimer.elapsed();
         release(rasterizer);
 

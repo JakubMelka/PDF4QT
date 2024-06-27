@@ -701,7 +701,7 @@ void PDFWidgetFormManager::updateFormWidgetEditors()
     setFocusToEditor(nullptr);
     clearEditors();
 
-    for (PDFFormWidget widget : getWidgets())
+    for (const PDFFormWidget& widget : getWidgets())
     {
         const PDFFormField* formField = widget.getParent();
         switch (formField->getFieldType())

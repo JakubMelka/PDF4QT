@@ -534,9 +534,10 @@ void PDFWidgetAnnotationManager::drawPage(QPainter* painter,
                                           const PDFPrecompiledPage* compiledPage,
                                           PDFTextLayoutGetter& layoutGetter,
                                           const QTransform& pagePointToDevicePointMatrix,
+                                          const PDFColorConvertor& convertor,
                                           QList<PDFRenderError>& errors) const
 {
-    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, errors);
+    BaseClass::drawPage(painter, pageIndex, compiledPage, layoutGetter, pagePointToDevicePointMatrix, convertor, errors);
 }
 
 }   // namespace pdf

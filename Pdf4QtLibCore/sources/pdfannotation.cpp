@@ -1427,10 +1427,12 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
                                     const PDFPrecompiledPage* compiledPage,
                                     PDFTextLayoutGetter& layoutGetter,
                                     const QTransform& pagePointToDevicePointMatrix,
+                                    const PDFColorConvertor& convertor,
                                     QList<PDFRenderError>& errors) const
 {
     Q_UNUSED(compiledPage);
     Q_UNUSED(layoutGetter);
+    Q_UNUSED(convertor);
 
     const PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
     Q_ASSERT(page);
