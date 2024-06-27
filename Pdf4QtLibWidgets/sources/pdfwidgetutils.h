@@ -60,8 +60,10 @@ public:
     /// Apply style to the widget
     static void style(QWidget* widget);
 
-    /// Vrátí true, pokud je aktuálně nastavená dark theme
-    /// pro aplikaci.
+    /// Overrides automatically detected dark theme / light theme settings
+    static void overrideDarkTheme(bool isDarkTheme);
+
+    /// Returns true if the dark theme is currently set for the application.
     static bool isDarkTheme();
 
     /// Converts an action's icon for use in a dark theme.

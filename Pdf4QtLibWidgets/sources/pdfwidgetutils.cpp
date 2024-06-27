@@ -20,6 +20,7 @@
 
 #include <map>
 #include <set>
+#include <optional>
 
 #include <QMenu>
 #include <QAction>
@@ -30,6 +31,7 @@
 #include <QGroupBox>
 #include <QMessageBox>
 #include <QApplication>
+#include <QStyleHints>
 
 #include "pdfdbgheap.h"
 
@@ -43,6 +45,8 @@ int qt_default_dpi_y() { return 96; }
 
 namespace pdf
 {
+
+std::optional<bool> s_isDarkThemeOverride;
 
 static constexpr bool isScalingNeeded()
 {
@@ -172,13 +176,20 @@ void PDFWidgetUtils::style(QWidget* widget)
     }
 }
 
+void PDFWidgetUtils::overrideDarkTheme(bool isDarkTheme)
+{
+    s_isDarkThemeOverride = isDarkTheme;
+}
+
 bool PDFWidgetUtils::isDarkTheme()
 {
-    QPalette palette = QApplication::palette();
-    QColor backgroundColor = palette.color(QPalette::Window);
-    QColor textColor = palette.color(QPalette::WindowText);
+    if (s_isDarkThemeOverride.has_value())
+    {
+        return s_isDarkThemeOverride.value();
+    }
 
-    return backgroundColor.lightness() < textColor.lightness();
+    Qt::ColorScheme colorScheme = QApplication::styleHints()->colorScheme();
+    return colorScheme == Qt::ColorScheme::Dark;
 }
 
 void PDFWidgetUtils::convertActionForDarkTheme(QAction* action, QSize iconSize, qreal devicePixelRatioF)
