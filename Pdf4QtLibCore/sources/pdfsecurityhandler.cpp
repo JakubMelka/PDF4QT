@@ -1,4 +1,4 @@
-﻿//    Copyright (C) 2019-2022 Jakub Melka
+﻿//    Copyright (C) 2019-2024 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -51,6 +51,8 @@
 
 namespace pdf
 {
+
+static bool s_noDrmMode = false;
 
 template<typename T>
 using openssl_ptr = std::unique_ptr<T, void(*)(T*)>;
@@ -512,6 +514,16 @@ PDFSecurityHandlerPointer PDFSecurityHandler::createSecurityHandler(const PDFObj
     }
 
     return handler;
+}
+
+void PDFSecurityHandler::setNoDRMMode()
+{
+    s_noDrmMode = true;
+}
+
+bool PDFSecurityHandler::isNoDRM()
+{
+    return s_noDrmMode;
 }
 
 void PDFSecurityHandler::fillEncryptionDictionary(PDFObjectFactory& factory, bool publicKeyHandler) const
@@ -1306,9 +1318,10 @@ PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate
                     if (U == m_U)
                     {
                         // We have authorized user access
-                        m_authorizationData.authorizationResult = AuthorizationResult::UserAuthorized;
+                        const AuthorizationResult authorizationResult = isNoDRM() ? AuthorizationResult::OwnerAuthorized : AuthorizationResult::UserAuthorized;
+                        m_authorizationData.authorizationResult = authorizationResult;
                         m_authorizationData.fileEncryptionKey = fileEncryptionKey;
-                        return AuthorizationResult::UserAuthorized;
+                        return authorizationResult;
                     }
                 }
 
@@ -1375,7 +1388,8 @@ PDFSecurityHandler::AuthorizationResult PDFStandardSecurityHandler::authenticate
                         AES_cbc_encrypt(convertByteArrayToUcharPtr(m_UE), convertByteArrayToUcharPtr(m_authorizationData.fileEncryptionKey), m_UE.size(), &key, aesInitializationVector, AES_DECRYPT);
 
                         // We have authorized user access
-                        m_authorizationData.authorizationResult = AuthorizationResult::UserAuthorized;
+                        const AuthorizationResult authorizationResult = isNoDRM() ? AuthorizationResult::OwnerAuthorized : AuthorizationResult::UserAuthorized;
+                        m_authorizationData.authorizationResult = authorizationResult;
                     }
                 }
 
@@ -2524,9 +2538,10 @@ PDFSecurityHandler::AuthorizationResult PDFPublicKeySecurityHandler::authenticat
                             m_permissions = qFromLittleEndian<uint32_t>(decryptedData.data() + 20);
                         }
 
+                        const AuthorizationResult authorizationResult = isNoDRM() ? AuthorizationResult::OwnerAuthorized : AuthorizationResult::UserAuthorized;
                         m_authorizationData.fileEncryptionKey = digestBuffer.left(m_keyLength / 8);
-                        m_authorizationData.authorizationResult = AuthorizationResult::UserAuthorized;
-                        return AuthorizationResult::UserAuthorized;
+                        m_authorizationData.authorizationResult = authorizationResult;
+                        return authorizationResult;
                     }
                 }
             }

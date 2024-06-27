@@ -17,6 +17,7 @@
 
 #include "pdfeditormainwindow.h"
 #include "pdfconstants.h"
+#include "pdfsecurityhandler.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
@@ -36,12 +37,21 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName("PDF4QT Editor");
     QCoreApplication::setApplicationVersion(pdf::PDF_LIBRARY_VERSION);
     QApplication::setApplicationDisplayName(QApplication::translate("Application", "PDF4QT Editor"));
+
+    QCommandLineOption noDrm("no-drm", "Disable DRM settings of documents.");
+
     QCommandLineParser parser;
     parser.setApplicationDescription(QCoreApplication::applicationName());
+    parser.addOption(noDrm);
     parser.addHelpOption();
     parser.addVersionOption();
     parser.addPositionalArgument("file", "The PDF file to open.");
     parser.process(application);
+
+    if (parser.isSet(noDrm))
+    {
+        pdf::PDFSecurityHandler::setNoDRMMode();
+    }
 
     QIcon appIcon(":/app-icon.svg");
     QApplication::setWindowIcon(appIcon);
@@ -49,10 +59,10 @@ int main(int argc, char *argv[])
     pdfviewer::PDFEditorMainWindow mainWindow;
     mainWindow.show();
 
-    QStringList arguments = application.arguments();
-    if (arguments.size() > 1)
+    QStringList arguments = parser.positionalArguments();
+    if (!arguments.isEmpty())
     {
-        mainWindow.getProgramController()->openDocument(arguments[1]);
+        mainWindow.getProgramController()->openDocument(arguments.front());
     }
 
     return application.exec();

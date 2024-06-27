@@ -1,4 +1,4 @@
-//    Copyright (C) 2021 Jakub Melka
+//    Copyright (C) 2021-2024 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -17,6 +17,7 @@
 
 #include "pdfconstants.h"
 #include "pdfdocumentreader.h"
+#include "pdfsecurityhandler.h"
 #include "mainwindow.h"
 
 #include <QApplication>
@@ -31,13 +32,22 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName("PDF4QT Diff");
     QCoreApplication::setApplicationVersion(pdf::PDF_LIBRARY_VERSION);
     QApplication::setApplicationDisplayName(QApplication::translate("Application", "PDF4QT Diff"));
+
+    QCommandLineOption noDrm("no-drm", "Disable DRM settings of documents.");
+
     QCommandLineParser parser;
     parser.setApplicationDescription(QCoreApplication::applicationName());
+    parser.addOption(noDrm);
     parser.addHelpOption();
     parser.addVersionOption();
     parser.addPositionalArgument("file1", "The PDF file to be compared.");
     parser.addPositionalArgument("file2", "The PDF file to be compared.");
     parser.process(application);
+
+    if (parser.isSet(noDrm))
+    {
+        pdf::PDFSecurityHandler::setNoDRMMode();
+    }
 
     QIcon appIcon(":/app-icon.svg");
     QApplication::setWindowIcon(appIcon);

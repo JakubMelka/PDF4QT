@@ -81,7 +81,7 @@ using PDFSecurityHandlerPointer = QSharedPointer<PDFSecurityHandler>;
 
 class PDFStandardSecurityHandler;
 
-class PDFSecurityHandler
+class PDF4QTLIBCORESHARED_EXPORT PDFSecurityHandler
 {
 public:
     explicit PDFSecurityHandler() = default;
@@ -202,6 +202,12 @@ public:
     /// \param encryptionDictionaryObject Encryption dictionary object
     /// \param id First part of the id of the document
     static PDFSecurityHandlerPointer createSecurityHandler(const PDFObject& encryptionDictionaryObject, const QByteArray& id);
+
+    /// Disable DRM mode of documents.
+    static void setNoDRMMode();
+
+    /// Returns true, if no DRM mode is enabled
+    static bool isNoDRM();
 
 protected:
     friend class PDFSecurityHandlerFactory;

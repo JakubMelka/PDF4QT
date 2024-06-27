@@ -1,5 +1,7 @@
 CURRENT:
+ - Issue #183: Option to ignore PDF security settings
  - Issue #182: PDF4QT Document Diff command line cmd line arguments ignored
+ - Issue #181: where is the dark mode?
  - Issue #173: errors loading file Echoplex.pdf
  - Issue #172: access keys are missing from most menu items/action text strings
  - Issue #168: When opening a PDF file or merging some PDF files, stamp will disappear.
