@@ -1245,6 +1245,9 @@ bool PDFTransparencyRenderer::isContentKindSuppressed(ContentKind kind) const
             }
             break;
 
+        case ContentKind::Forms:
+            return false;
+
         default:
             Q_ASSERT(false);
             break;

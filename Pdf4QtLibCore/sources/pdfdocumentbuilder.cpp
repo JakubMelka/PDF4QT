@@ -1284,6 +1284,19 @@ void PDFDocumentBuilder::mergeNames(PDFObjectReference a, PDFObjectReference b)
     const PDFDictionary* aDict = getDictionaryFromObject(aObject);
     const PDFDictionary* bDict = getDictionaryFromObject(bObject);
 
+    PDFDictionary aDictDummy;
+    PDFDictionary bDictDummy;
+
+    if (!aDict)
+    {
+        aDict = &aDictDummy;
+    }
+
+    if (!bDict)
+    {
+        bDict = &bDictDummy;
+    }
+
     // Store keys
     std::set<QByteArray> keys;
     for (size_t i = 0; i < aDict->getCount(); ++i)
