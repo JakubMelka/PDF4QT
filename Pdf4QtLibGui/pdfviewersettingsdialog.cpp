@@ -145,11 +145,6 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     fillColorProfileList(ui->cmsDeviceRGBColorProfileComboBox, cmsManager->getRGBProfiles());
     fillColorProfileList(ui->cmsDeviceCMYKColorProfileComboBox, cmsManager->getCMYKProfiles());
 
-    for (QWidget* widget : { ui->engineInfoLabel, ui->renderingInfoLabel, ui->securityInfoLabel, ui->cmsInfoLabel, ui->colorPostProcessingInfoLabel })
-    {
-        widget->setMinimumWidth(widget->sizeHint().width());
-    }
-
     for (QCheckBox* checkBox : findChildren<QCheckBox*>())
     {
         connect(checkBox, &QCheckBox::clicked, this, &PDFViewerSettingsDialog::saveData);
@@ -188,7 +183,7 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     connect(ui->trustedCertificateStoreTableWidget, &QTableWidget::itemSelectionChanged, this, &PDFViewerSettingsDialog::updateTrustedCertificatesTableActions);
     connect(ui->pluginsTableWidget, &QTableWidget::itemSelectionChanged, this, &PDFViewerSettingsDialog::updatePluginInformation);
 
-    setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(1000, 800)));
+    setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(640, 480)));
     pdf::PDFWidgetUtils::style(this);
 
     ui->optionsPagesWidget->setCurrentRow(0);

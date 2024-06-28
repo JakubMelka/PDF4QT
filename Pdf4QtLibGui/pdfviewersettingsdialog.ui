@@ -56,7 +56,7 @@
            <property name="title">
             <string>Engine Settings</string>
            </property>
-           <layout class="QVBoxLayout" name="engineSettingsGroupBoxLayout">
+           <layout class="QVBoxLayout" name="engineSettingsGroupBoxLayout" stretch="0,0">
             <item>
              <layout class="QGridLayout" name="engineSettingsGridLayout">
               <item row="2" column="0">
@@ -96,27 +96,22 @@
              </layout>
             </item>
             <item>
-             <widget class="QLabel" name="engineInfoLabel">
-              <property name="text">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Select a rendering method tailored to your application's requirements. Software Rendering, utilizing QPainter, is a versatile choice that guarantees compatibility across all platforms. It's particularly useful in scenarios where direct access to hardware acceleration isn't crucial. QPainter, part of the Qt framework, excels in rendering 2D graphics with support for various painting styles, image processing, and intricate graphical transformations, making it an excellent tool for applications that require detailed and sophisticated 2D graphics without relying on hardware acceleration.&lt;/p&gt;&lt;p&gt;On the other hand, for applications that demand high-performance rendering, leveraging the Blend2D library offers a compelling alternative. Blend2D is a high-performance 2D vector graphics engine that utilizes multi-threading to accelerate the rendering process. It does not rely on QPainter or hardware acceleration but instead offers a software-based rendering solution optimized for speed and quality. Blend2D's advanced anti-aliasing techniques ensure crisp and clear image quality, making it suitable for applications where rendering performance and image quality are paramount.&lt;/p&gt;&lt;p&gt;The Prefetch Pages feature is a strategy that can be applied regardless of the rendering method chosen. By pre-rendering pages adjacent to the currently viewed content, this approach minimizes flickering and enhances the smoothness of transitions during scrolling, improving the overall user experience.&lt;/p&gt;&lt;p&gt;When it comes to optimizing the rendering process, the choice of multithreading strategy plays a crucial role. A Single Thread strategy, where rendering tasks are executed sequentially on a single CPU core, might be preferable in environments where simplicity and predictability are key. For more demanding applications, employing a Multi-threading strategy can significantly improve rendering times. Strategies like Load Balanced distribute the workload evenly across CPU cores without delving into content-specific processing, offering a good performance boost. The Maximum Threads strategy takes full advantage of available CPU resources by allocating as many threads as possible to the rendering tasks, achieving optimal performance and minimizing rendering times.&lt;/p&gt;&lt;p&gt;This delineation between using QPainter for software rendering and Blend2D for high-performance, multi-threaded rendering allows developers to choose the most appropriate rendering pathway based on their specific performance requirements and the graphical complexity of their application.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-              </property>
-              <property name="wordWrap">
-               <bool>true</bool>
+             <widget class="QTextBrowser" name="engineHelpTextBrowser">
+              <property name="html">
+               <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Select a rendering method tailored to your application's requirements. Software Rendering, utilizing QPainter, is a versatile choice that guarantees compatibility across all platforms. It's particularly useful in scenarios where direct access to hardware acceleration isn't crucial. QPainter, part of the Qt framework, excels in rendering 2D graphics with support for various painting styles, image processing, and intricate graphical transformations, making it an excellent tool for applications that require detailed and sophisticated 2D graphics without relying on hardware acceleration.&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;On the other hand, for applications that demand high-performance rendering, leveraging the Blend2D library offers a compelling alternative. Blend2D is a high-performance 2D vector graphics engine that utilizes multi-threading to accelerate the rendering process. It does not rely on QPainter or hardware acceleration but instead offers a software-based rendering solution optimized for speed and quality. Blend2D's advanced anti-aliasing techniques ensure crisp and clear image quality, making it suitable for applications where rendering performance and image quality are paramount.&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The Prefetch Pages feature is a strategy that can be applied regardless of the rendering method chosen. By pre-rendering pages adjacent to the currently viewed content, this approach minimizes flickering and enhances the smoothness of transitions during scrolling, improving the overall user experience.&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;When it comes to optimizing the rendering process, the choice of multithreading strategy plays a crucial role. A Single Thread strategy, where rendering tasks are executed sequentially on a single CPU core, might be preferable in environments where simplicity and predictability are key. For more demanding applications, employing a Multi-threading strategy can significantly improve rendering times. Strategies like Load Balanced distribute the workload evenly across CPU cores without delving into content-specific processing, offering a good performance boost. The Maximum Threads strategy takes full advantage of available CPU resources by allocating as many threads as possible to the rendering tasks, achieving optimal performance and minimizing rendering times.&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This delineation between using QPainter for software rendering and Blend2D for high-performance, multi-threaded rendering allows developers to choose the most appropriate rendering pathway based on their specific performance requirements and the graphical complexity of their application.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
              </widget>
-            </item>
-            <item>
-             <spacer name="engineVerticalSpacer">
-              <property name="orientation">
-               <enum>Qt::Vertical</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>20</width>
-                <height>40</height>
-               </size>
-              </property>
-             </spacer>
             </item>
            </layout>
           </widget>
@@ -142,7 +137,7 @@
            <property name="title">
             <string>Rendering Settings</string>
            </property>
-           <layout class="QVBoxLayout" name="renderingSettingsGroupBoxLayout">
+           <layout class="QVBoxLayout" name="renderingSettingsGroupBoxLayout" stretch="0,1">
             <item>
              <layout class="QGridLayout" name="renderingSettingsGridLayout">
               <item row="0" column="1">
@@ -246,27 +241,21 @@
              </layout>
             </item>
             <item>
-             <widget class="QLabel" name="renderingInfoLabel">
-              <property name="text">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The rendering settings control how the rendering engine handles page content and the appearance of displayed graphics. &lt;span style=&quot; font-weight:600;&quot;&gt;Antialiasing&lt;/span&gt; smooths out the appearance of painted shapes, such as rectangles, vector graphics, and lines, but doesn't affect text. &lt;span style=&quot; font-weight:600;&quot;&gt;Text antialiasing&lt;/span&gt;, on the other hand, refines the appearance of text characters, leaving other items untouched. Both &lt;span style=&quot; font-weight:600;&quot;&gt;Antialiasing &lt;/span&gt;and &lt;span style=&quot; font-weight:600;&quot;&gt;Text antialiasing &lt;/span&gt;are relevant only for the software renderer. If you're using a hardware rendering engine like OpenGL, these settings won't have an impact because OpenGL renders images using MSAA antialiasing (if enabled). &lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Smooth pictures&lt;/span&gt; option enables pictures to be transformed into device space coordinates using a high-quality image transformation method. This generally results in better image quality. When disabled, a default fast transformation is used, potentially reducing image quality if the source DPI and device DPI differ. &lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Ignore optional content &lt;/span&gt;ignores all optional content settings and renders everything in the content stream. &lt;span style=&quot; font-weight:600;&quot;&gt;Clip to crop box&lt;/span&gt; restricts the rendering area to the page's crop box, which is usually smaller than the whole page. Graphics outside the crop box aren't drawn, which can be useful for removing printer marks and similar elements. &lt;span style=&quot; font-weight:600;&quot;&gt;Display page compile/draw time&lt;/span&gt; can be handy for debugging, showing the time taken to compile a page (stored in the cache) and the time taken to render the compiled page contents onto the output device. &lt;/p&gt;&lt;p&gt;Using the &lt;span style=&quot; font-weight:600;&quot;&gt;Display annotations&lt;/span&gt; setting, you can enable or disable the display of annotations. If annotations are disabled, the user will not be able to interact with them.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-              </property>
-              <property name="wordWrap">
-               <bool>true</bool>
+             <widget class="QTextBrowser" name="renderingHelpTextBrowser">
+              <property name="html">
+               <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The rendering settings control how the rendering engine handles page content and the appearance of displayed graphics. &lt;span style=&quot; font-weight:600;&quot;&gt;Antialiasing&lt;/span&gt; smooths out the appearance of painted shapes, such as rectangles, vector graphics, and lines, but doesn't affect text. &lt;span style=&quot; font-weight:600;&quot;&gt;Text antialiasing&lt;/span&gt;, on the other hand, refines the appearance of text characters, leaving other items untouched. Both &lt;span style=&quot; font-weight:600;&quot;&gt;Antialiasing &lt;/span&gt;and &lt;span style=&quot; font-weight:600;&quot;&gt;Text antialiasing &lt;/span&gt;are relevant only for the software renderer. If you're using a hardware rendering engine like OpenGL, these settings won't have an impact because OpenGL renders images using MSAA antialiasing (if enabled). &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Smooth pictures&lt;/span&gt; option enables pictures to be transformed into device space coordinates using a high-quality image transformation method. This generally results in better image quality. When disabled, a default fast transformation is used, potentially reducing image quality if the source DPI and device DPI differ. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Ignore optional content &lt;/span&gt;ignores all optional content settings and renders everything in the content stream. &lt;span style=&quot; font-weight:600;&quot;&gt;Clip to crop box&lt;/span&gt; restricts the rendering area to the page's crop box, which is usually smaller than the whole page. Graphics outside the crop box aren't drawn, which can be useful for removing printer marks and similar elements. &lt;span style=&quot; font-weight:600;&quot;&gt;Display page compile/draw time&lt;/span&gt; can be handy for debugging, showing the time taken to compile a page (stored in the cache) and the time taken to render the compiled page contents onto the output device. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Using the &lt;span style=&quot; font-weight:600;&quot;&gt;Display annotations&lt;/span&gt; setting, you can enable or disable the display of annotations. If annotations are disabled, the user will not be able to interact with them. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
              </widget>
-            </item>
-            <item>
-             <spacer name="verticalSpacer">
-              <property name="orientation">
-               <enum>Qt::Vertical</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>20</width>
-                <height>74</height>
-               </size>
-              </property>
-             </spacer>
             </item>
            </layout>
           </widget>
@@ -376,27 +365,21 @@
              </layout>
             </item>
             <item>
-             <widget class="QLabel" name="shadingInfoLabel">
-              <property name="text">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Shading is executed according to mesh quality criteria, involving &lt;span style=&quot; font-weight:600;&quot;&gt;color tolerance&lt;/span&gt; and shape tolerance. If the color of the vertices of a triangle in the mesh is too different (exceeding the set color tolerance), then the mesh is refined, and the triangle is subdivided. Some shadings are defined by patterns, such as &lt;span style=&quot; font-style:italic;&quot;&gt;Coons patch shading&lt;/span&gt; or &lt;span style=&quot; font-style:italic;&quot;&gt;Tensor product patch shading&lt;/span&gt;, which are also taken into consideration during meshing. &lt;/p&gt;&lt;p&gt;The &lt;span style=&quot; font-weight:600;&quot;&gt;Preferred mesh resolution ratio&lt;/span&gt; should be set to optimize the balance between the performance of mesh generation and the quality of the mesh. The optimal triangle size is computed as follows: the total meshing area (typically a page) is multiplied by this ratio to determine the triangle size. For example, if we have an A4 page (210 mm x 297 mm), and the ratio is set to 0.01, then the optimal triangle size is computed as 297 * 0.01 = ~3 mm. &lt;/p&gt;&lt;p&gt;The &lt;span style=&quot; font-weight:600;&quot;&gt;Minimal mesh resolution ratio&lt;/span&gt; is a ratio that determines the minimal triangle size. At this boundary, no triangles are subdivided, regardless of color variation or shape quality. This ratio should be set to a value at which a user can barely recognize patterns on the screen (for example, the triangle size should be &amp;lt; 1 mm). However, this also affects performance, as too many triangles can be generated. &lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Color tolerance&lt;/span&gt; is the threshold at which two colors are recognized as different. The comparison is done component-wise, so if at least one color component exceeds this parameter, the colors are treated as different.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-              </property>
-              <property name="wordWrap">
-               <bool>true</bool>
+             <widget class="QTextBrowser" name="shadingHelpTextBrowser">
+              <property name="html">
+               <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Shading is executed according to mesh quality criteria, involving &lt;span style=&quot; font-weight:600;&quot;&gt;color tolerance&lt;/span&gt; and shape tolerance. If the color of the vertices of a triangle in the mesh is too different (exceeding the set color tolerance), then the mesh is refined, and the triangle is subdivided. Some shadings are defined by patterns, such as &lt;span style=&quot; font-style:italic;&quot;&gt;Coons patch shading&lt;/span&gt; or &lt;span style=&quot; font-style:italic;&quot;&gt;Tensor product patch shading&lt;/span&gt;, which are also taken into consideration during meshing. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The &lt;span style=&quot; font-weight:600;&quot;&gt;Preferred mesh resolution ratio&lt;/span&gt; should be set to optimize the balance between the performance of mesh generation and the quality of the mesh. The optimal triangle size is computed as follows: the total meshing area (typically a page) is multiplied by this ratio to determine the triangle size. For example, if we have an A4 page (210 mm x 297 mm), and the ratio is set to 0.01, then the optimal triangle size is computed as 297 * 0.01 = ~3 mm. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The &lt;span style=&quot; font-weight:600;&quot;&gt;Minimal mesh resolution ratio&lt;/span&gt; is a ratio that determines the minimal triangle size. At this boundary, no triangles are subdivided, regardless of color variation or shape quality. This ratio should be set to a value at which a user can barely recognize patterns on the screen (for example, the triangle size should be &amp;lt; 1 mm). However, this also affects performance, as too many triangles can be generated. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Color tolerance&lt;/span&gt; is the threshold at which two colors are recognized as different. The comparison is done component-wise, so if at least one color component exceeds this parameter, the colors are treated as different. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
              </widget>
-            </item>
-            <item>
-             <spacer name="shadingVerticalSpacer">
-              <property name="orientation">
-               <enum>Qt::Vertical</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>20</width>
-                <height>91</height>
-               </size>
-              </property>
-             </spacer>
             </item>
            </layout>
           </widget>
@@ -422,7 +405,7 @@
            <property name="title">
             <string>Cache Settings</string>
            </property>
-           <layout class="QVBoxLayout" name="cacheGroupBoxLayout">
+           <layout class="QVBoxLayout" name="cacheGroupBoxLayout" stretch="0,1">
             <item>
              <layout class="QGridLayout" name="cacheSettingsGridLayout">
               <item row="1" column="0">
@@ -514,27 +497,20 @@
              </layout>
             </item>
             <item>
-             <widget class="QLabel" name="cacheInfoLabel">
-              <property name="text">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The rendering engine first compiles the page to enable quick drawing and then stores these compiled pages in a cache. These stored pages usually render much quicker than non-cached pages. The &lt;span style=&quot; font-weight:600;&quot;&gt;Compiled Page Cache Size&lt;/span&gt; sets the memory limit for these compiled pages, measured in kilobytes. Ideally, this limit should be at least twice as large as the size of the largest compiled page. If a compiled page exceeds this limit, an error will be displayed during rendering. Setting a higher value for this limit can speed up the rendering engine, but it will consume more operating memory. &lt;/p&gt;&lt;p&gt;There is also a cache for thumbnail images. The &lt;span style=&quot; font-weight:600;&quot;&gt;Thumbnail Image Cache Size&lt;/span&gt; determines the memory space allocated for these images. This value should be set large enough to accommodate all thumbnail images on the screen. The larger this value is, the quicker thumbnails will display, but at the cost of consuming more operating memory. Please note that thumbnails are stored as bitmaps for rapid drawing, not as precompiled pages. &lt;/p&gt;&lt;p&gt;During rendering, fonts are cached as well. There are two levels of cache for fonts: one for general fonts and one for instance-specific fonts (fonts at a specific size). The &lt;span style=&quot; font-weight:600;&quot;&gt;Cached Font Limit&lt;/span&gt; sets the maximum number of fonts that can be stored in the cache. The &lt;span style=&quot; font-weight:600;&quot;&gt;Instanced Font Cache Limit&lt;/span&gt; sets the maximum number of instance-specific fonts that can be stored. If these cache limits are exceeded, fonts are removed from the cache. However, this only happens when no operation in another thread (like compiling pages) is being performed to avoid race conditions.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-              </property>
-              <property name="wordWrap">
-               <bool>true</bool>
+             <widget class="QTextBrowser" name="cacheHelpTextBrowser">
+              <property name="html">
+               <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The rendering engine first compiles the page to enable quick drawing and then stores these compiled pages in a cache. These stored pages usually render much quicker than non-cached pages. The &lt;span style=&quot; font-weight:600;&quot;&gt;Compiled Page Cache Size&lt;/span&gt; sets the memory limit for these compiled pages, measured in kilobytes. Ideally, this limit should be at least twice as large as the size of the largest compiled page. If a compiled page exceeds this limit, an error will be displayed during rendering. Setting a higher value for this limit can speed up the rendering engine, but it will consume more operating memory. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;There is also a cache for thumbnail images. The &lt;span style=&quot; font-weight:600;&quot;&gt;Thumbnail Image Cache Size&lt;/span&gt; determines the memory space allocated for these images. This value should be set large enough to accommodate all thumbnail images on the screen. The larger this value is, the quicker thumbnails will display, but at the cost of consuming more operating memory. Please note that thumbnails are stored as bitmaps for rapid drawing, not as precompiled pages. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;During rendering, fonts are cached as well. There are two levels of cache for fonts: one for general fonts and one for instance-specific fonts (fonts at a specific size). The &lt;span style=&quot; font-weight:600;&quot;&gt;Cached Font Limit&lt;/span&gt; sets the maximum number of fonts that can be stored in the cache. The &lt;span style=&quot; font-weight:600;&quot;&gt;Instanced Font Cache Limit&lt;/span&gt; sets the maximum number of instance-specific fonts that can be stored. If these cache limits are exceeded, fonts are removed from the cache. However, this only happens when no operation in another thread (like compiling pages) is being performed to avoid race conditions. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
              </widget>
-            </item>
-            <item>
-             <spacer name="cachePageVerticalSpacer">
-              <property name="orientation">
-               <enum>Qt::Vertical</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>20</width>
-                <height>74</height>
-               </size>
-              </property>
-             </spacer>
             </item>
            </layout>
           </widget>
@@ -592,7 +568,7 @@
            <property name="title">
             <string>Color management system settings</string>
            </property>
-           <layout class="QVBoxLayout" name="verticalLayout_6">
+           <layout class="QVBoxLayout" name="verticalLayout_6" stretch="0,1">
             <item>
              <layout class="QGridLayout" name="cmsWidgetsLayout" columnstretch="1,1">
               <item row="7" column="1">
@@ -741,27 +717,20 @@
              </layout>
             </item>
             <item>
-             <widget class="QLabel" name="cmsInfoLabel">
-              <property name="text">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The &lt;span style=&quot; font-weight:600;&quot;&gt;Color Management System&lt;/span&gt; governs input and output color profiles and color transformations. This system allows for accurate color representation as defined in the PDF document. For faster color transformations, select 'Generic' to disable this functionality. The &lt;span style=&quot; font-weight:600;&quot;&gt;Rendering Intent&lt;/span&gt; selection influences the way colors are transformed. While rendering intents are often defined within the PDF document's content streams, you have the option to override them by selecting a different intent from 'Auto'. The &lt;span style=&quot; font-weight:600;&quot;&gt;Accuracy&lt;/span&gt; setting determines the precision of the color transformation, with higher accuracy consuming more memory. The &lt;span style=&quot; font-weight:600;&quot;&gt;Black Point Compensation&lt;/span&gt; adjusts for black colors that fall outside the gamut. The &lt;span style=&quot; font-weight:600;&quot;&gt;White Paper Color Transformed&lt;/span&gt; setting affects the color of the underlying white paper - enabling this will transform pure white from the device RGB profile to the output profile. &lt;/p&gt;&lt;p&gt;The &lt;span style=&quot; font-weight:600;&quot;&gt;Output Color Profile&lt;/span&gt; specifies the output (target) rendering profile. This profile should align with the color space that your screen uses to display colors. Additionally, you can set the color spaces for &lt;span style=&quot; font-weight:600;&quot;&gt;gray/RGB/CMYK&lt;/span&gt; device color spaces. These are used to transform gray/RGB/CMYK colors to the output color profile. &lt;/p&gt;&lt;p&gt;A document may contain output intents, which can be used for transforming between color spaces. If the &lt;span style=&quot; font-weight:600;&quot;&gt;Consider Document Output Intents&lt;/span&gt; option is checked, the color management system will verify whether the document contains output intents. If such intents are present, they will be used for color transformation as device color spaces (gray/RGB/CMYK).  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-              </property>
-              <property name="wordWrap">
-               <bool>true</bool>
+             <widget class="QTextBrowser" name="cmsHelpTextBrowser">
+              <property name="html">
+               <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The &lt;span style=&quot; font-weight:600;&quot;&gt;Color Management System&lt;/span&gt; governs input and output color profiles and color transformations. This system allows for accurate color representation as defined in the PDF document. For faster color transformations, select 'Generic' to disable this functionality. The &lt;span style=&quot; font-weight:600;&quot;&gt;Rendering Intent&lt;/span&gt; selection influences the way colors are transformed. While rendering intents are often defined within the PDF document's content streams, you have the option to override them by selecting a different intent from 'Auto'. The &lt;span style=&quot; font-weight:600;&quot;&gt;Accuracy&lt;/span&gt; setting determines the precision of the color transformation, with higher accuracy consuming more memory. The &lt;span style=&quot; font-weight:600;&quot;&gt;Black Point Compensation&lt;/span&gt; adjusts for black colors that fall outside the gamut. The &lt;span style=&quot; font-weight:600;&quot;&gt;White Paper Color Transformed&lt;/span&gt; setting affects the color of the underlying white paper - enabling this will transform pure white from the device RGB profile to the output profile. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The &lt;span style=&quot; font-weight:600;&quot;&gt;Output Color Profile&lt;/span&gt; specifies the output (target) rendering profile. This profile should align with the color space that your screen uses to display colors. Additionally, you can set the color spaces for &lt;span style=&quot; font-weight:600;&quot;&gt;gray/RGB/CMYK&lt;/span&gt; device color spaces. These are used to transform gray/RGB/CMYK colors to the output color profile. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;A document may contain output intents, which can be used for transforming between color spaces. If the &lt;span style=&quot; font-weight:600;&quot;&gt;Consider Document Output Intents&lt;/span&gt; option is checked, the color management system will verify whether the document contains output intents. If such intents are present, they will be used for color transformation as device color spaces (gray/RGB/CMYK). &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
              </widget>
-            </item>
-            <item>
-             <spacer name="cmsVerticalSpacer">
-              <property name="orientation">
-               <enum>Qt::Vertical</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>20</width>
-                <height>59</height>
-               </size>
-              </property>
-             </spacer>
             </item>
            </layout>
           </widget>
@@ -770,12 +739,24 @@
        </widget>
        <widget class="QWidget" name="cmsPostprocessingPage">
         <layout class="QVBoxLayout" name="verticalLayout_10">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
          <item>
-          <widget class="QGroupBox" name="groupBox_2">
+          <widget class="QGroupBox" name="cmsPostprocessingGroupBox">
            <property name="title">
             <string>Color Postprocessing</string>
            </property>
-           <layout class="QVBoxLayout" name="verticalLayout_11">
+           <layout class="QVBoxLayout" name="verticalLayout_11" stretch="0,1">
             <item>
              <layout class="QGridLayout" name="gridLayout_2">
               <item row="1" column="1">
@@ -832,27 +813,20 @@
              </layout>
             </item>
             <item>
-             <widget class="QLabel" name="colorPostProcessingInfoLabel">
-              <property name="text">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Foreground&lt;/span&gt; and &lt;span style=&quot; font-weight:700;&quot;&gt;background&lt;/span&gt; colors refer to a custom colors rendering mode, where two colors are used - the paper is drawn with the background color, and the foreground color is used for text and graphics. By default, the background is black and the foreground is green, which is easy on the eyes. &lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Sigmoid function slope parameter&lt;/span&gt; is a parameter in high contrast color rendering. This rendering mode displays all graphics in high contrast. This parameter affects the degree of contrast. Set the value from 1 to 5 for a small contrast change, from 5 to 10 for a medium contrast change, and more than 10 for very high contrast rendering. &lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Bitonal threshold&lt;/span&gt; is used in the bitonal rendering color mode. It distinguishes between black and white colors. However, the threshold for images is determined automatically. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-              </property>
-              <property name="wordWrap">
-               <bool>true</bool>
+             <widget class="QTextBrowser" name="cmsPPHelpTextBrowser">
+              <property name="html">
+               <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Foreground&lt;/span&gt; and &lt;span style=&quot; font-weight:700;&quot;&gt;background&lt;/span&gt; colors refer to a custom colors rendering mode, where two colors are used - the paper is drawn with the background color, and the foreground color is used for text and graphics. By default, the background is black and the foreground is green, which is easy on the eyes. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Sigmoid function slope parameter&lt;/span&gt; is a parameter in high contrast color rendering. This rendering mode displays all graphics in high contrast. This parameter affects the degree of contrast. Set the value from 1 to 5 for a small contrast change, from 5 to 10 for a medium contrast change, and more than 10 for very high contrast rendering. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Bitonal threshold&lt;/span&gt; is used in the bitonal rendering color mode. It distinguishes between black and white colors. However, the threshold for images is determined automatically. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
              </widget>
-            </item>
-            <item>
-             <spacer name="verticalSpacer_3">
-              <property name="orientation">
-               <enum>Qt::Vertical</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>20</width>
-                <height>40</height>
-               </size>
-              </property>
-             </spacer>
             </item>
            </layout>
           </widget>
@@ -912,27 +886,20 @@
              </layout>
             </item>
             <item>
-             <widget class="QLabel" name="securityInfoLabel">
-              <property name="text">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;If the application launch is permitted, a message box appears after the &lt;span style=&quot; font-weight:600;&quot;&gt;Launch&lt;/span&gt; action is triggered, asking the user if they want to execute an external application. If the user confirms the dialog, the external application executes (for example, using the Windows function &lt;span style=&quot; font-weight:600;&quot;&gt;ShellExecute&lt;/span&gt;). When this option is turned off, no dialog appears and the external application never executes. &lt;/p&gt;&lt;p&gt;If the &lt;span style=&quot; font-weight:600;&quot;&gt;URI link&lt;/span&gt; launch is allowed, a message box appears asking the user if they want to open the URI link. If the user confirms the dialog, the URI link is opened by the default web browser (or default application if the URI links to the file system). &lt;/p&gt;&lt;p&gt;Users should exercise caution with these settings and only confirm execution if the document is safe and comes from a reliable source. Launching external applications and following URI links can pose risks to the user's computer.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-              </property>
-              <property name="wordWrap">
-               <bool>true</bool>
+             <widget class="QTextBrowser" name="securityHelpTextBrowser">
+              <property name="html">
+               <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;If the application launch is permitted, a message box appears after the &lt;span style=&quot; font-weight:600;&quot;&gt;Launch&lt;/span&gt; action is triggered, asking the user if they want to execute an external application. If the user confirms the dialog, the external application executes (for example, using the Windows function &lt;span style=&quot; font-weight:600;&quot;&gt;ShellExecute&lt;/span&gt;). When this option is turned off, no dialog appears and the external application never executes. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;If the &lt;span style=&quot; font-weight:600;&quot;&gt;URI link&lt;/span&gt; launch is allowed, a message box appears asking the user if they want to open the URI link. If the user confirms the dialog, the URI link is opened by the default web browser (or default application if the URI links to the file system). &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Users should exercise caution with these settings and only confirm execution if the document is safe and comes from a reliable source. Launching external applications and following URI links can pose risks to the user's computer. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
              </widget>
-            </item>
-            <item>
-             <spacer name="securityPageSpacer">
-              <property name="orientation">
-               <enum>Qt::Vertical</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>20</width>
-                <height>74</height>
-               </size>
-              </property>
-             </spacer>
             </item>
            </layout>
           </widget>
@@ -958,7 +925,7 @@
            <property name="title">
             <string>UI Settings</string>
            </property>
-           <layout class="QVBoxLayout" name="verticalLayout_4">
+           <layout class="QVBoxLayout" name="verticalLayout_4" stretch="0,1">
             <item>
              <layout class="QGridLayout" name="uiGroupBoxLayout">
               <item row="0" column="0">
@@ -1067,27 +1034,20 @@
              </layout>
             </item>
             <item>
-             <widget class="QLabel" name="uiInfoLabel">
-              <property name="text">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;The 'Maximum count of recent files' setting controls the number of recent files displayed in the menu. When a document is opened, it is added to the top of the recent files list. The list is then truncated from the bottom if the number of recent files exceeds the maximum. &lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Magnifier tool settings&lt;/span&gt; determine the appearance of the magnifier. The magnifier tool enlarges the area under the mouse cursor. You can specify the size of the magnifier (in &lt;span style=&quot; font-weight:600;&quot;&gt;logical&lt;/span&gt; pixels) and its zoom level. &lt;/p&gt;&lt;p&gt;By specifying the &lt;span style=&quot; font-weight:600;&quot;&gt;undo/redo&lt;/span&gt; step count, you control the number of undo/redo steps available during document editing. Setting the maximum undo step count to zero disables the undo/redo function. You can also set a nonzero undo step count and a zero redo step count, which would make only undo actions available, with redo actions disabled. Changes are optimized for memory usage, so each undo/redo step shares unmodified objects with others. This means that, roughly speaking, making 10 modifications to a 50 MB document may consume around 51 MB of memory. Actual memory usage depends on the extent of the changes but is usually minimal as changes typically affect a small number of objects (for example, editing a form field or modifying an annotation).  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-              </property>
-              <property name="wordWrap">
-               <bool>true</bool>
+             <widget class="QTextBrowser" name="uiHelpTextBrowser">
+              <property name="html">
+               <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The 'Maximum count of recent files' setting controls the number of recent files displayed in the menu. When a document is opened, it is added to the top of the recent files list. The list is then truncated from the bottom if the number of recent files exceeds the maximum. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Magnifier tool settings&lt;/span&gt; determine the appearance of the magnifier. The magnifier tool enlarges the area under the mouse cursor. You can specify the size of the magnifier (in &lt;span style=&quot; font-weight:600;&quot;&gt;logical&lt;/span&gt; pixels) and its zoom level. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;By specifying the &lt;span style=&quot; font-weight:600;&quot;&gt;undo/redo&lt;/span&gt; step count, you control the number of undo/redo steps available during document editing. Setting the maximum undo step count to zero disables the undo/redo function. You can also set a nonzero undo step count and a zero redo step count, which would make only undo actions available, with redo actions disabled. Changes are optimized for memory usage, so each undo/redo step shares unmodified objects with others. This means that, roughly speaking, making 10 modifications to a 50 MB document may consume around 51 MB of memory. Actual memory usage depends on the extent of the changes but is usually minimal as changes typically affect a small number of objects (for example, editing a form field or modifying an annotation). &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
              </widget>
-            </item>
-            <item>
-             <spacer name="uiGroupBoxSpacer">
-              <property name="orientation">
-               <enum>Qt::Vertical</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>20</width>
-                <height>402</height>
-               </size>
-              </property>
-             </spacer>
             </item>
            </layout>
           </widget>
@@ -1113,7 +1073,7 @@
            <property name="title">
             <string>Speech Settings</string>
            </property>
-           <layout class="QVBoxLayout" name="speechGroupBoxLayout">
+           <layout class="QVBoxLayout" name="speechGroupBoxLayout" stretch="0,1">
             <item>
              <layout class="QGridLayout" name="speechWidgetsLayout">
               <item row="2" column="0">
@@ -1197,27 +1157,18 @@
              </layout>
             </item>
             <item>
-             <widget class="QLabel" name="speechInfoLabel">
-              <property name="text">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Configure the speech settings to enable the text-to-speech feature for reading documents. While these settings act as defaults for the text-to-speech function, some can be adjusted later on. The 'Pitch' setting can vary from -1.0 to 1.0, with 0.0 serving as the default value. Similarly, the 'Rate' can range from -1.0 to 1.0, with 0.0 denoting a normal speech flow. Lastly, 'Volume' can be adjusted between 0.0 and 1.0.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-              </property>
-              <property name="wordWrap">
-               <bool>true</bool>
+             <widget class="QTextBrowser" name="speechHelpTextBrowser">
+              <property name="html">
+               <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Configure the speech settings to enable the text-to-speech feature for reading documents. While these settings act as defaults for the text-to-speech function, some can be adjusted later on. The 'Pitch' setting can vary from -1.0 to 1.0, with 0.0 serving as the default value. Similarly, the 'Rate' can range from -1.0 to 1.0, with 0.0 denoting a normal speech flow. Lastly, 'Volume' can be adjusted between 0.0 and 1.0. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
              </widget>
-            </item>
-            <item>
-             <spacer name="verticalSpacer_2">
-              <property name="orientation">
-               <enum>Qt::Vertical</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>20</width>
-                <height>288</height>
-               </size>
-              </property>
-             </spacer>
             </item>
            </layout>
           </widget>
@@ -1243,7 +1194,7 @@
            <property name="title">
             <string>Form Settings</string>
            </property>
-           <layout class="QVBoxLayout" name="verticalLayout_7">
+           <layout class="QVBoxLayout" name="verticalLayout_7" stretch="0,1">
             <item>
              <layout class="QGridLayout" name="formWidgetsLayout">
               <item row="0" column="0">
@@ -1277,27 +1228,18 @@
              </layout>
             </item>
             <item>
-             <widget class="QLabel" name="formInfoLabel">
-              <property name="text">
-               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;You can customize the appearance of form fields using the provided settings, including the option to highlight editable fields. You can separately highlight required form fields in red, while other fields can be emphasized in blue.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-              </property>
-              <property name="wordWrap">
-               <bool>true</bool>
+             <widget class="QTextBrowser" name="formHelpTextBrowser">
+              <property name="html">
+               <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;You can customize the appearance of form fields using the provided settings, including the option to highlight editable fields. You can separately highlight required form fields in red, while other fields can be emphasized in blue. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
              </widget>
-            </item>
-            <item>
-             <spacer name="formGroupBoxSpacer">
-              <property name="orientation">
-               <enum>Qt::Vertical</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>20</width>
-                <height>393</height>
-               </size>
-              </property>
-             </spacer>
             </item>
            </layout>
           </widget>
