@@ -373,7 +373,8 @@ PDFProgramController::PDFProgramController(QObject* parent) :
     m_actionComboBox(nullptr),
     m_isBusy(false),
     m_isFactorySettingsBeingRestored(false),
-    m_progress(nullptr)
+    m_progress(nullptr),
+    m_loadAllPlugins(false)
 {
     connect(&m_fileWatcher, &QFileSystemWatcher::fileChanged, this, &PDFProgramController::onFileChanged);
 }
@@ -1616,6 +1617,7 @@ void PDFProgramController::readSettings(Settings settingsFlags)
     {
         // Load allowed plugins
         settings.beginGroup("Plugins");
+        m_loadAllPlugins = !settings.contains("EnabledPlugins");
         m_enabledPlugins = settings.value("EnabledPlugins").toStringList();
         settings.endGroup();
     }
@@ -2190,10 +2192,16 @@ void PDFProgramController::loadPlugins()
             m_plugins.back().pluginFile = availablePlugin;
             m_plugins.back().pluginFileWithPath = pluginFileName;
 
-            if (!m_enabledPlugins.contains(m_plugins.back().name))
+            QString pluginName = m_plugins.back().name;
+            if (!m_enabledPlugins.contains(pluginName) && !m_loadAllPlugins)
             {
                 loader.unload();
                 continue;
+            }
+
+            if (m_loadAllPlugins)
+            {
+                m_enabledPlugins << pluginName;
             }
 
             pdf::PDFPlugin* plugin = qobject_cast<pdf::PDFPlugin*>(loader.instance());
@@ -2203,6 +2211,7 @@ void PDFProgramController::loadPlugins()
             }
         }
     }
+    m_loadAllPlugins = false;
 
     auto comparator = [](const std::pair<pdf::PDFPluginInfo, pdf::PDFPlugin*>& l, const std::pair<pdf::PDFPluginInfo, pdf::PDFPlugin*>& r)
     {
