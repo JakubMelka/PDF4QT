@@ -17,7 +17,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libxcb-cursor0
           sudo apt-get install -y libspeechd2
-    
+          sudo apt-get install -y gnupg wget
+          wget -c "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+          chmod +x appimagetool-x86_64.AppImage
+          sudo mv appimagetool-x86_64.AppImage /usr/local/bin/appimagetool
+
+      - name: Import PGP private key
+        run: |
+          echo "${{ secrets.PGP_PRIVATE_KEY }}" | gpg --batch --import
+          echo "${{ secrets.PGP_PASSPHRASE }}" | gpg --batch --yes --passphrase-fd 0 --pinentry-mode loopback --sign-key "${{ secrets.PGP_KEY_ID }}"
+        env:
+          GNUPGHOME: /home/runner/.gnupg    
+          
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -95,6 +106,10 @@ jobs:
         run: |
           cp install_appimage/usr/share/icons/hicolor/scalable/apps/io.github.JakubMelka.Pdf4qt.svg install_appimage/io.github.JakubMelka.Pdf4qt.svg
           ./deploy.AppImage install_appimage/usr/share/applications/io.github.JakubMelka.Pdf4qt.desktop -appimage -executable-dir=install_appimage/usr/bin -always-overwrite -extra-plugins=iconengines,imageformats,texttospeech
+          
+      - name: Sign AppImage
+        run: |
+          appimagetool --sign --sign-key "${{ secrets.PGP_KEY_ID }}" ./pdf4qt/build/*.AppImage
           
       - name: Upload AppImage package
         uses: actions/upload-artifact@v4
