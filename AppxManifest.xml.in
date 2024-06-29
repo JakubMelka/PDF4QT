@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" IgnorableNamespaces="uap mp">
+  <Identity Name="io.github.JakubMelka.PDF4QT" Publisher="CN=JakubMelka" Version="${PDF4QT_VERSION}.0" />
+  <Properties>
+    <DisplayName>PDF4QT</DisplayName>
+    <PublisherDisplayName>Jakub Melka</PublisherDisplayName>
+    <Logo>assets\logo.png</Logo>
+	<Description>Discover the power and versatility of PDF4QTs suite of applications. These tools are designed to transform the way you interact with PDF documents, offering a comprehensive set of features for viewing, editing, manipulating, and comparing PDFs.</Description>
+  </Properties>
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+  <Applications>
+    <Application Id="Pdf4QtEditor" Executable="Pdf4QtEditor.exe" EntryPoint="windows.fullTrustApplication">
+      <uap:VisualElements DisplayName="PDF4QT Editor"
+						  Description="This program enhances PDF interactions with encryption, document reading, digital signatures, annotation editing, regex text search, PDF editing, page-to-image conversion, and plugins."
+						  BackgroundColor="transparent"
+						  Square150x150Logo="assets\150x150\io.github.JakubMelka.Pdf4qt.Pdf4QtEditor.png"
+						  Square44x44Logo="assets\44x44\io.github.JakubMelka.Pdf4qt.Pdf4QtEditor.png">
+      </uap:VisualElements>
+	  <Extensions>
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name=".pdf">
+            <uap:SupportedFileTypes>
+              <uap:FileType>.pdf</uap:FileType>
+            </uap:SupportedFileTypes>
+			<uap:Logo>assets\logo.png</uap:Logo>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+      </Extensions>
+    </Application>
+	<Application Id="Pdf4QtViewer" Executable="Pdf4QtViewer.exe" EntryPoint="windows.fullTrustApplication">
+      <uap:VisualElements DisplayName="PDF4QT Viewer"
+						  Description="Simplify your viewing experience. This lightweight viewer offers essential viewing functions in a clean, user-friendly interface."
+						  BackgroundColor="transparent"
+						  Square150x150Logo="assets\150x150\io.github.JakubMelka.Pdf4qt.Pdf4QtViewer.png"
+						  Square44x44Logo="assets\44x44\io.github.JakubMelka.Pdf4qt.Pdf4QtViewer.png">
+      </uap:VisualElements>
+    </Application>
+	<Application Id="Pdf4QtPageMaster" Executable="Pdf4QtPageMaster.exe" EntryPoint="windows.fullTrustApplication">
+      <uap:VisualElements DisplayName="PDF4QT PageMaster"
+						  Description="Take control of your documents. Manage whole documents or individual pages with ease. Merge documents into a single file, or split them into multiple ones. You can also move, clone, or add pages with a few clicks, all within an intuitive user interface."
+						  BackgroundColor="transparent"
+						  Square150x150Logo="assets\150x150\io.github.JakubMelka.Pdf4qt.Pdf4QtPageMaster.png"
+						  Square44x44Logo="assets\44x44\io.github.JakubMelka.Pdf4qt.Pdf4QtPageMaster.png">
+      </uap:VisualElements>
+    </Application>
+	<Application Id="Pdf4QtDiff" Executable="Pdf4QtDiff.exe" EntryPoint="windows.fullTrustApplication">
+      <uap:VisualElements DisplayName="PDF4QT PageMaster"
+						  Description="Spot differences effortlessly. This tool allows users to open two documents and receive a detailed list of differences. View these differences in a page-to-page window where they are clearly marked."
+						  BackgroundColor="transparent"
+						  Square150x150Logo="assets\150x150\io.github.JakubMelka.Pdf4qt.Pdf4QtDiff.png"
+						  Square44x44Logo="assets\44x44\io.github.JakubMelka.Pdf4qt.Pdf4QtDiff.png">
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+  
+  <Dependencies>
+  <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.19045.0"  />
+</Dependencies>
+</Package>

@@ -17,7 +17,7 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-set(PDF4QT_VERSION 1.3.7)
+set(PDF4QT_VERSION 1.4.0)
 message(STATUS "Build type - CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 
 project(PDF4QT VERSION ${PDF4QT_VERSION} LANGUAGES CXX)
@@ -144,27 +144,44 @@ message("CMAKE_PREFIX_PATH = " ${CMAKE_PREFIX_PATH})
 message("CMAKE_TOOLCHAIN_FILE = " ${CMAKE_TOOLCHAIN_FILE})
 
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
-    install(FILES Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDiff.desktop
-                  Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtPageMaster.desktop
-                  Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtViewer.desktop
-                  Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtEditor.desktop
-                  Desktop/io.github.JakubMelka.Pdf4qt.desktop
-            DESTINATION ${PDF4QT_INSTALL_SHARE_DIR}/applications)
-    install(FILES Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDiff.svg
-                  Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtPageMaster.svg
-                  Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtViewer.svg
-                  Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtEditor.svg
-                  Desktop/io.github.JakubMelka.Pdf4qt.svg
-                  DESTINATION ${PDF4QT_INSTALL_SHARE_DIR}/icons/hicolor/scalable/apps)
-    install(FILES Desktop/io.github.JakubMelka.Pdf4qt.appdata.xml DESTINATION ${PDF4QT_INSTALL_SHARE_DIR}/metainfo)
-    install(FILES Desktop/128x128/io.github.JakubMelka.Pdf4qt.Pdf4QtDiff.png
-                  Desktop/128x128/io.github.JakubMelka.Pdf4qt.Pdf4QtPageMaster.png
-                  Desktop/128x128/io.github.JakubMelka.Pdf4qt.Pdf4QtViewer.png
-                  Desktop/128x128/io.github.JakubMelka.Pdf4qt.Pdf4QtEditor.png
-                  Desktop/128x128/io.github.JakubMelka.Pdf4qt.png
-            DESTINATION ${PDF4QT_INSTALL_SHARE_DIR}/icons/hicolor/128x128/apps)
+    if(WIN32)
+        install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/Desktop/44x44/
+                RUNTIME DESTINATION ${PDF4QT_INSTALL_BIN_DIR}/assets/44x44
+                FILES_MATCHING
+                PATTERN *.png)
 
-    configure_file(make-package.sh.in make-package.sh)
+        install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/Desktop/150x150/
+                RUNTIME DESTINATION ${PDF4QT_INSTALL_BIN_DIR}/assets/150x150
+                FILES_MATCHING
+                PATTERN *.png)
+
+        configure_file(${CMAKE_CURRENT_SOURCE_DIR}/AppxManifest.xml.in ${CMAKE_CURRENT_BINARY_DIR}/AppxManifest.xml)
+        install(FILES ${CMAKE_CURRENT_BINARY_DIR}/AppxManifest.xml DESTINATION ${PDF4QT_INSTALL_BIN_DIR})
+        install(FILES assets/logo.png DESTINATION ${PDF4QT_INSTALL_BIN_DIR}/assets)
+    else()
+        configure_file(make-package.sh.in make-package.sh)
+
+        install(FILES Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDiff.desktop
+                      Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtPageMaster.desktop
+                      Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtViewer.desktop
+                      Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtEditor.desktop
+                      Desktop/io.github.JakubMelka.Pdf4qt.desktop
+                      DESTINATION ${PDF4QT_INSTALL_SHARE_DIR}/applications)
+        install(FILES Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDiff.svg
+                      Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtPageMaster.svg
+                      Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtViewer.svg
+                      Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtEditor.svg
+                      Desktop/io.github.JakubMelka.Pdf4qt.svg
+                      DESTINATION ${PDF4QT_INSTALL_SHARE_DIR}/icons/hicolor/scalable/apps)
+        install(FILES Desktop/io.github.JakubMelka.Pdf4qt.appdata.xml DESTINATION ${PDF4QT_INSTALL_SHARE_DIR}/metainfo)
+        install(FILES Desktop/128x128/io.github.JakubMelka.Pdf4qt.Pdf4QtDiff.png
+                      Desktop/128x128/io.github.JakubMelka.Pdf4qt.Pdf4QtPageMaster.png
+                      Desktop/128x128/io.github.JakubMelka.Pdf4qt.Pdf4QtViewer.png
+                      Desktop/128x128/io.github.JakubMelka.Pdf4qt.Pdf4QtEditor.png
+                      Desktop/128x128/io.github.JakubMelka.Pdf4qt.png
+                      DESTINATION ${PDF4QT_INSTALL_SHARE_DIR}/icons/hicolor/128x128/apps)
+    endif()
+
 endif()
 
 if(PDF4QT_INSTALL_DEPENDENCIES AND NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
@@ -186,6 +203,7 @@ if(PDF4QT_INSTALL_DEPENDENCIES AND NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
             FILES_MATCHING
             REGEX "(Qt6Core|Qt6Gui|Qt6PrintSupport|Qt6Svg|Qt6TextToSpeech|Qt6Widgets|Qt6Xml|Qt6Multimedia|Qt6Network)\\..*"
             PATTERN "Debug" EXCLUDE
+            PATTERN "*.pdb" EXCLUDE
         )
 
         install(DIRECTORY ${PDF4QT_QT_ROOT}/plugins/platforms/
@@ -194,12 +212,14 @@ if(PDF4QT_INSTALL_DEPENDENCIES AND NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
             PATTERN "qwindows.dll"
             PATTERN "*.so"
             PATTERN "*.dylib"
+            PATTERN "*.pdb" EXCLUDE
         )
 
         install(DIRECTORY ${PDF4QT_QT_ROOT}/plugins/iconengines/
             RUNTIME DESTINATION ${PDF4QT_INSTALL_LIB_DIR}/iconengines/
             FILES_MATCHING
             REGEX "qsvgicon\\..*"
+            PATTERN "*.pdb" EXCLUDE
         )
 
         install(DIRECTORY ${PDF4QT_QT_ROOT}/plugins/imageformats/
@@ -209,6 +229,7 @@ if(PDF4QT_INSTALL_DEPENDENCIES AND NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
             PATTERN "*.so"
             PATTERN "*.dylib"
             REGEX "d\\..*" EXCLUDE
+            PATTERN "*.pdb" EXCLUDE
         )
 
         install(DIRECTORY ${PDF4QT_QT_ROOT}/plugins/styles/
@@ -218,6 +239,7 @@ if(PDF4QT_INSTALL_DEPENDENCIES AND NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
             PATTERN "*.so"
             PATTERN "*.dylib"
             REGEX "d\\..*" EXCLUDE
+            PATTERN "*.pdb" EXCLUDE
         )
 
         install(DIRECTORY ${PDF4QT_QT_ROOT}/plugins/texttospeech/
@@ -227,6 +249,7 @@ if(PDF4QT_INSTALL_DEPENDENCIES AND NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
             PATTERN "*.so"
             PATTERN "*.dylib"
             REGEX "d\\..*" EXCLUDE
+            PATTERN "*.pdb" EXCLUDE
         )
     endif()
 

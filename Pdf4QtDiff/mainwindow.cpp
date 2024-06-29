@@ -652,8 +652,11 @@ void MainWindow::setViewDocument(pdf::PDFDocument* document, bool updateCustomPa
 {
     if (document != m_pdfWidget->getDrawWidgetProxy()->getDocument())
     {
-        m_optionalContentActivity->deleteLater();
-        m_optionalContentActivity = nullptr;
+        if (m_optionalContentActivity)
+        {
+            m_optionalContentActivity->deleteLater();
+            m_optionalContentActivity = nullptr;
+        }
 
         if (document)
         {
