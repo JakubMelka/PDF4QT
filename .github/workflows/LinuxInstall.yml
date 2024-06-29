@@ -1,4 +1,4 @@
-name: LinuxInstall
+name: Linux_AppImage
 
 on:
   create:
@@ -17,17 +17,42 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libxcb-cursor0
           sudo apt-get install -y libspeechd2
-          sudo apt-get install -y gnupg wget
+          sudo apt-get install -y gnupg2 wget
           wget -c "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
           chmod +x appimagetool-x86_64.AppImage
           sudo mv appimagetool-x86_64.AppImage /usr/local/bin/appimagetool
+          
+      - name: Configure GPG
+        run: |
+          mkdir -p ~/.gnupg
+          echo "use-agent" >> ~/.gnupg/gpg.conf
+          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+          echo "allow-preset-passphrase" >> ~/.gnupg/gpg-agent.conf
+          gpgconf --kill gpg-agent
+          echo "GPG configuration complete."
+          chmod 700 ~/.gnupg
 
       - name: Import PGP private key
         run: |
           echo "${{ secrets.PGP_PRIVATE_KEY }}" | gpg --batch --import
-          echo "${{ secrets.PGP_PASSPHRASE }}" | gpg --batch --yes --passphrase-fd 0 --pinentry-mode loopback --sign-key "${{ secrets.PGP_KEY_ID }}"
+          for keygrip in $(gpg --list-secret-keys --with-keygrip "${{ secrets.PGP_KEY_ID }}" | grep Keygrip | awk '{print $3}'); do
+            echo "${{ secrets.PGP_PASSPHRASE }}" | "$(gpgconf --list-dirs libexecdir)"/gpg-preset-passphrase --preset $keygrip
+          done
         env:
           GNUPGHOME: /home/runner/.gnupg    
+          
+      - name: Create Test signature
+        run: |
+          echo "TEST" >> ~/test_with_passphrase.txt
+          echo "TEST" >> ~/test_without_passphrase.txt
+          gpg --batch --yes --verbose --passphrase "${{ secrets.PGP_PASSPHRASE }}" --pinentry-mode loopback --detach-sign --local-user "${{ secrets.PGP_KEY_ID }}" --output ~/test_with_passphrase.txt.sig ~/test_with_passphrase.txt
+          gpg --batch --yes --verbose --pinentry-mode loopback --detach-sign --local-user "${{ secrets.PGP_KEY_ID }}" --output ~/test_without_passphrase.txt.sig ~/test_without_passphrase.txt
+
+      - name: Verify Test signature
+        run: |
+          gpg --batch --yes --verbose --verify ~/test_with_passphrase.txt.sig ~/test_with_passphrase.txt
+          gpg --batch --yes --verbose --verify ~/test_without_passphrase.txt.sig ~/test_without_passphrase.txt
           
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -57,9 +82,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-vcpkg-v2-
 
-      - name: 'VCPKG: Install project dependencies'
+      - name: 'VCPKG: Install Project Dependencies'
         run: |
-          ./vcpkg install tbb openssl lcms zlib openjpeg freetype ijg-libjpeg libpng blend2d
+          ./vcpkg install tbb openssl lcms zlib openjpeg freetype ijg-libjpeg libpng blend2d brotli bzip2 --triplet x64-linux-release
         working-directory: vcpkg
         
       - name: Install Qt
@@ -74,47 +99,48 @@ jobs:
           cache: 'true'
           cache-key-prefix: ${{ runner.os }}-qt-672
 
-      - name: Build project
+      - name: Build Project
         working-directory: pdf4qt
         run: |
-          cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release -DVCPKG_OVERLAY_PORTS=vcpkg/overlays -DPDF4QT_INSTALL_TO_USR=ON
+          cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_VCPKG_BUILD_TYPE=Release -DVCPKG_OVERLAY_PORTS=vcpkg/overlays -DPDF4QT_INSTALL_TO_USR=ON
           cmake --build build -j6
           cmake --install build
-          cp -rp build/install build/install_appimage
           
       - name: 'Linux Deploy Qt'
         working-directory: pdf4qt/build
         run: |
+          cp install/usr/share/icons/hicolor/scalable/apps/io.github.JakubMelka.Pdf4qt.svg install/io.github.JakubMelka.Pdf4qt.svg
           wget -O deploy.AppImage https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage
           chmod +x deploy.AppImage
           ./deploy.AppImage install/usr/share/applications/io.github.JakubMelka.Pdf4qt.desktop -executable-dir=install/usr/bin -extra-plugins=iconengines,imageformats,texttospeech
+          
+      - name: Sign and Repack AppImage
+        working-directory: pdf4qt/build
+        run: |
+          export GPG_TTY=$(tty)
+          echo "${{ secrets.PGP_PASSPHRASE }}" | appimagetool -s --sign-key "${{ secrets.PGP_KEY_ID }}" install/ io.github.JakubMelka.Pdf4qt.AppImage
+          
+      - name: Manual signature
+        run: |
+          gpg --batch --yes --verbose --pinentry-mode loopback --detach-sign --passphrase "${{ secrets.PGP_PASSPHRASE }}" --local-user "${{ secrets.PGP_KEY_ID }}" --output pdf4qt/build/io.github.JakubMelka.Pdf4qt.AppImage.sig pdf4qt/build/io.github.JakubMelka.Pdf4qt.AppImage
 
-      - name: Make DEB package
-        working-directory: pdf4qt/build
+      - name: Verify AppImage Detached Signature
         run: |
-          sh make-package.sh
-           
-      - name: Upload DEB package
-        uses: actions/upload-artifact@v4
-        with:
-          name: ubuntu-deb-package
-          path: ./pdf4qt/build/*.deb
-          retention-days: 30
-          
-      - name: 'Make AppImage'
-        working-directory: pdf4qt/build
-        run: |
-          cp install_appimage/usr/share/icons/hicolor/scalable/apps/io.github.JakubMelka.Pdf4qt.svg install_appimage/io.github.JakubMelka.Pdf4qt.svg
-          ./deploy.AppImage install_appimage/usr/share/applications/io.github.JakubMelka.Pdf4qt.desktop -appimage -executable-dir=install_appimage/usr/bin -always-overwrite -extra-plugins=iconengines,imageformats,texttospeech
-          
-      - name: Sign AppImage
-        run: |
-          appimagetool --sign --sign-key "${{ secrets.PGP_KEY_ID }}" ./pdf4qt/build/*.AppImage
-          
-      - name: Upload AppImage package
+          echo "${{ secrets.PGP_PUBLIC_KEY }}" | gpg --batch --import
+          gpg --verify pdf4qt/build/io.github.JakubMelka.Pdf4qt.AppImage.sig pdf4qt/build/io.github.JakubMelka.Pdf4qt.AppImage
+
+      - name: Upload AppImage Package
         uses: actions/upload-artifact@v4
         with:
           name: ubuntu-appimage
-          path: ./pdf4qt/build/*.AppImage
+          path: ./pdf4qt/build/io.github.JakubMelka.Pdf4qt.AppImage
           retention-days: 30
-         
+          
+      - name: Upload AppImage Signature File
+        uses: actions/upload-artifact@v4
+        with:
+          name: ubuntu-appimage-sig
+          path: ./pdf4qt/build/io.github.JakubMelka.Pdf4qt.AppImage.sig
+          retention-days: 30
+          if-no-files-found: warn
+          compression-level: 0
