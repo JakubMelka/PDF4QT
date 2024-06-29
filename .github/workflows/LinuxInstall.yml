@@ -54,14 +54,14 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
         with:
-          version: '6.6.0'
+          version: '6.7.2'
           host: 'linux'
           target: 'desktop'
           dir: '${{ github.workspace }}/qt/'
           install-deps: 'true'
           modules: 'qtspeech qtmultimedia'
           cache: 'true'
-          cache-key-prefix: ${{ runner.os }}-qt-660
+          cache-key-prefix: ${{ runner.os }}-qt-672
 
       - name: Build project
         working-directory: pdf4qt

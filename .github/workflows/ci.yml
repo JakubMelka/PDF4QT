@@ -25,7 +25,7 @@ jobs:
           ./vcpkg integrate install
         
       - name: 'VCPKG: Cache vcpkg dependencies'
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ./vcpkg/downloads
@@ -42,14 +42,14 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
         with:
-          version: '6.6.0'
+          version: '6.7.2'
           host: 'linux'
           target: 'desktop'
           dir: '${{ github.workspace }}/qt/'
           install-deps: 'true'
           modules: 'qtspeech qtmultimedia'
           cache: 'true'
-          cache-key-prefix: ${{ runner.os }}-qt-660
+          cache-key-prefix: ${{ runner.os }}-qt-672
 
       - name: Build project
         working-directory: pdf4qt
@@ -89,7 +89,7 @@ jobs:
           set "VCPKG_BINARY_SOURCES=clear;files,${env:GITHUB_WORKSPACE}\vcpkg\archives,readwrite"
 
       - name: 'VCPKG: Cache vcpkg dependencies'
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ./vcpkg/downloads
@@ -107,14 +107,14 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
         with:
-          version: '6.6.0'
+          version: '6.7.2'
           host: 'windows'
           target: 'desktop'
           dir: '${{ github.workspace }}/qt/'
           install-deps: 'true'
           modules: 'qtspeech qtmultimedia'
           cache: 'true'
-          cache-key-prefix: ${{ runner.os }}-qt-660
+          cache-key-prefix: ${{ runner.os }}-qt-672
 
       - name: Build project
         working-directory: pdf4qt
@@ -125,7 +125,7 @@ jobs:
           cmake --install build
  
       - name: Upload Windows package
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: 'pdf4qt-${{ runner.os }}.zip'
           path: .\pdf4qt\build\install\usr\bin
