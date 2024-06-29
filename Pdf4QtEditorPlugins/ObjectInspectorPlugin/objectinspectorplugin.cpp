@@ -80,7 +80,7 @@ std::vector<QAction*> ObjectInspectorPlugin::getActions() const
 
 QString ObjectInspectorPlugin::getPluginMenuName() const
 {
-    return tr("Object &Inspector");
+    return tr("O&bject Inspector");
 }
 
 void ObjectInspectorPlugin::onObjectInspectorTriggered()
