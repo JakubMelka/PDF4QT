@@ -37,7 +37,7 @@ jobs:
           ./vcpkg integrate install
         
       - name: 'VCPKG: Cache vcpkg dependencies'
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ./vcpkg/downloads
@@ -84,7 +84,7 @@ jobs:
           sh make-package.sh
            
       - name: Upload DEB package
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ubuntu-deb-package
           path: ./pdf4qt/build/*.deb
@@ -97,7 +97,7 @@ jobs:
           ./deploy.AppImage install_appimage/usr/share/applications/io.github.JakubMelka.Pdf4qt.desktop -appimage -executable-dir=install_appimage/usr/bin -always-overwrite -extra-plugins=iconengines,imageformats,texttospeech
           
       - name: Upload AppImage package
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ubuntu-appimage
           path: ./pdf4qt/build/*.AppImage
