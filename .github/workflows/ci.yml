@@ -64,7 +64,7 @@ jobs:
           sh make-package.sh
           
       - name: Upload DEB package
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ubuntu-deb-package
           path: ./pdf4qt/build/*.deb
