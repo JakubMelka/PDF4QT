@@ -452,6 +452,7 @@ private:
     pdf::PDFProgress* m_progress;
 
     QStringList m_enabledPlugins;
+    bool m_loadAllPlugins;
     pdf::PDFPluginInfos m_plugins;
     std::vector<std::pair<pdf::PDFPluginInfo, pdf::PDFPlugin*>> m_loadedPlugins;
 };

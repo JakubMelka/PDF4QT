@@ -25,7 +25,7 @@ jobs:
           ./vcpkg integrate install
         
       - name: 'VCPKG: Cache vcpkg dependencies'
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ./vcpkg/downloads
@@ -42,19 +42,19 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
         with:
-          version: '6.6.0'
+          version: '6.7.2'
           host: 'linux'
           target: 'desktop'
           dir: '${{ github.workspace }}/qt/'
           install-deps: 'true'
           modules: 'qtspeech qtmultimedia'
           cache: 'true'
-          cache-key-prefix: ${{ runner.os }}-qt-660
+          cache-key-prefix: ${{ runner.os }}-qt-672
 
       - name: Build project
         working-directory: pdf4qt
         run: |
-          cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release
+          cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_VCPKG_BUILD_TYPE=Release
           cmake --build build -j6
           cmake --install build
 
@@ -64,7 +64,7 @@ jobs:
           sh make-package.sh
           
       - name: Upload DEB package
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ubuntu-deb-package
           path: ./pdf4qt/build/*.deb
@@ -89,7 +89,7 @@ jobs:
           set "VCPKG_BINARY_SOURCES=clear;files,${env:GITHUB_WORKSPACE}\vcpkg\archives,readwrite"
 
       - name: 'VCPKG: Cache vcpkg dependencies'
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ./vcpkg/downloads
@@ -107,25 +107,25 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
         with:
-          version: '6.6.0'
+          version: '6.7.2'
           host: 'windows'
           target: 'desktop'
           dir: '${{ github.workspace }}/qt/'
           install-deps: 'true'
           modules: 'qtspeech qtmultimedia'
           cache: 'true'
-          cache-key-prefix: ${{ runner.os }}-qt-660
+          cache-key-prefix: ${{ runner.os }}-qt-672
 
       - name: Build project
         working-directory: pdf4qt
         shell: pwsh
         run: |
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DPDF4QT_INSTALL_QT_DEPENDENCIES=ON -DPDF4QT_INSTALL_DEPENDENCIES=ON -DCMAKE_TOOLCHAIN_FILE="${env:GITHUB_WORKSPACE}\vcpkg\scripts\buildsystems\vcpkg.cmake" -DPDF4QT_QT_ROOT="${env:Qt6_DIR}" -DPDF4QT_INSTALL_MSVC_REDISTRIBUTABLE=ON -DPDF4QT_INSTALL_PREPARE_WIX_INSTALLER=ON -DPDF4QT_INSTALL_TO_USR=ON
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_VCPKG_BUILD_TYPE=Release -DPDF4QT_INSTALL_QT_DEPENDENCIES=ON -DPDF4QT_INSTALL_DEPENDENCIES=ON -DCMAKE_TOOLCHAIN_FILE="${env:GITHUB_WORKSPACE}\vcpkg\scripts\buildsystems\vcpkg.cmake" -DPDF4QT_QT_ROOT="${env:Qt6_DIR}" -DPDF4QT_INSTALL_MSVC_REDISTRIBUTABLE=ON -DPDF4QT_INSTALL_PREPARE_WIX_INSTALLER=ON -DPDF4QT_INSTALL_TO_USR=ON 
           cmake --build build --config Release -j6
           cmake --install build
  
       - name: Upload Windows package
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: 'pdf4qt-${{ runner.os }}.zip'
           path: .\pdf4qt\build\install\usr\bin

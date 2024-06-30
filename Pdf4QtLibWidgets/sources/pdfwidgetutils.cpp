@@ -258,6 +258,11 @@ void PDFWidgetUtils::checkMenuAccessibility(QMenu* menu)
         QString text = action->text();
         int i = text.indexOf(QChar('&'));
 
+        if (text.isEmpty())
+        {
+            continue;
+        }
+
         if (i == -1)
         {
             actionsWithNoAmpersands << text;

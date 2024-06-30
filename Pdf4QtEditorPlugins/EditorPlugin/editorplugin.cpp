@@ -49,8 +49,6 @@ EditorPlugin::EditorPlugin() :
     m_scene.setIsPageContentDrawSuppressed(true);
 }
 
-// TODO: When text is edited, old text remains
-
 void EditorPlugin::setWidget(pdf::PDFWidget* widget)
 {
     Q_ASSERT(!m_widget);
@@ -185,7 +183,7 @@ std::vector<QAction*> EditorPlugin::getActions() const
 
 QString EditorPlugin::getPluginMenuName() const
 {
-    return tr("Edi&tor");
+    return tr("Ed&itor");
 }
 
 bool EditorPlugin::updatePageContent(pdf::PDFInteger pageIndex,
