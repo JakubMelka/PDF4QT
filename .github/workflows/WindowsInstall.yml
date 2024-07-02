@@ -75,10 +75,6 @@ jobs:
         env:
           pdf4qt_version: ${{ env.pdf4qt_version }}
 
-      - name: Install MSIX Packaging Tool
-        run: |
-          winget install "MSIX Packaging Tool"
-        
       - name: Find WiXUIExtension.dll
         id: find_wixui_extension
         shell: pwsh
