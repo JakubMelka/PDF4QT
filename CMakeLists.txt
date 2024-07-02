@@ -175,12 +175,6 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
                       Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtEditor.svg
                       Desktop/io.github.JakubMelka.Pdf4qt.svg
                       DESTINATION ${PDF4QT_INSTALL_SHARE_DIR}/icons/hicolor/scalable/apps)
-        install(FILES Screenshots/s1.png
-                      Screenshots/s2.png
-                      Screenshots/s3.png
-                      Screenshots/s4.png
-                      Screenshots/s5.png
-                      DESTINATION ${PDF4QT_INSTALL_SHARE_DIR}/applications/screenshots)
         install(FILES Desktop/io.github.JakubMelka.Pdf4qt.appdata.xml DESTINATION ${PDF4QT_INSTALL_SHARE_DIR}/metainfo)
         install(FILES Desktop/128x128/io.github.JakubMelka.Pdf4qt.Pdf4QtDiff.png
                       Desktop/128x128/io.github.JakubMelka.Pdf4qt.Pdf4QtPageMaster.png
