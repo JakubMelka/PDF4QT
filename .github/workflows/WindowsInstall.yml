@@ -49,7 +49,6 @@ jobs:
         run: |
           $makeAppxPath = Get-Command MakeAppx.exe | Select-Object -ExpandProperty Definition
           Write-Host "MakeAppx.exe found at: $makeAppxPath"
-          MakeAppx pack /?
         
       - name: 'VCPKG: Set up VCPKG'
         run: |
