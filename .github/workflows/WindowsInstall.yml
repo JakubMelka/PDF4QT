@@ -17,9 +17,40 @@ jobs:
         with:
           path: pdf4qt
       
-      - name: Install Microsoft Windows SDK
-        run: choco install windows-sdk-10-version-2004-all
-
+      - name: Add MakeAppx to PATH
+        shell: pwsh
+        run: |
+          # Define the base path to Windows Kits
+          $basePath = "C:\Program Files (x86)\Windows Kits\10\bin"
+          
+          # Get directories in the base path and sort them by version number
+          $sdkDirs = Get-ChildItem -Path $basePath -Directory | Sort-Object Name -Descending
+          
+          # Find the first directory that contains the MakeAppx.exe
+          $sdkPath = $null
+          foreach ($dir in $sdkDirs) {
+            $path = Join-Path $dir.FullName "x64"
+            if (Test-Path (Join-Path $path "MakeAppx.exe")) {
+              $sdkPath = $path
+              break
+            }
+          }
+          
+          # Add the highest version SDK path to the PATH environment variable
+          if ($sdkPath) {
+            Write-Host "Adding $sdkPath to PATH"
+            [System.Environment]::SetEnvironmentVariable('PATH', $env:PATH + ";$sdkPath", [System.EnvironmentVariableTarget]::Process)
+          } else {
+            Write-Error "MakeAppx.exe not found in any Windows SDK directories"
+          }
+      
+      - name: Verify MakeAppx Path
+        shell: pwsh
+        run: |
+          $makeAppxPath = Get-Command MakeAppx.exe | Select-Object -ExpandProperty Definition
+          Write-Host "MakeAppx.exe found at: $makeAppxPath"
+          MakeAppx /?
+        
       - name: 'VCPKG: Set up VCPKG'
         run: |
           git clone --depth=1 https://github.com/microsoft/vcpkg.git
@@ -53,7 +84,7 @@ jobs:
           target: 'desktop'
           dir: '${{ github.workspace }}/qt/'
           install-deps: 'true'
-          modules: 'qtspeech qtmultimedia'
+          modules: 'qtspeech qtmultimedia qtimageformats'
           cache: 'true'
           cache-key-prefix: ${{ runner.os }}-qt-672
           
