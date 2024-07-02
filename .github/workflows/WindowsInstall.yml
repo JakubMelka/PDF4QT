@@ -96,6 +96,7 @@ jobs:
               echo "MSVC_TOOLSET_VERSION=$toolsetVersion" >> $env:GITHUB_ENV
           } else {
               Write-Error "No MSVC toolset versions found."
+          }
 
       - name: Build project
         working-directory: pdf4qt
