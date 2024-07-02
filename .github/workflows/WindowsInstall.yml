@@ -75,7 +75,9 @@ jobs:
               Write-Host "Found MSVC Redistributable Full Path: $firstRedistDir"
               echo "MSVC_TOOLSET_VERSION=$toolsetVersion" >> $env:GITHUB_ENV
               echo "VCToolsRedistDir=$($firstRedistDir.Parent.Parent.Parent.FullName)" >> $env:GITHUB_ENV
-              Write-Host "VCToolsRedistDir is set to ${{ env.VCToolsRedistDir }}
+              echo "VSCMD_ARG_TGT_ARCH=x64" >> $env::GITHUB_ENV
+              Write-Host "VCToolsRedistDir is set to ${{ env.VCToolsRedistDir }}"
+              Write-Host "Final path should be like ${{ env.VCToolsRedistDir }}/${{ env.VSCMD_ARG_TGT_ARCH}}/Microsoft.VC${{ env.MSVC_TOOLSET_VERSION}}.CRT"
           } else {
               Write-Error "No valid redistributable directories found."
           }
@@ -89,7 +91,7 @@ jobs:
           cmake --install build
         env:
           VCToolsRedistDir: ${{ env.VCToolsRedistDir }}
-          VSCMD_ARG_TGT_ARCH: "x64"
+          VSCMD_ARG_TGT_ARCH: ${{ env.VSCMD_ARG_TGT_ARCH }}
           MSVC_TOOLSET_VERSION: ${{ env.MSVC_TOOLSET_VERSION }}
 
       - name: Read version
