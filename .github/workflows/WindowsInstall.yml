@@ -64,8 +64,9 @@ jobs:
           
       - name: Read version
         id: get_version
+        shell: pwsh
         run: |
-          version=Get-Content -Path ".\pdf4qt\build\version.txt"
+          $version=Get-Content -Path ".\pdf4qt\build\version.txt"
           echo "Version: $version"
           echo "pdf4qt_version=$version" >> $GITHUB_ENV
         env:
