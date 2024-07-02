@@ -14,24 +14,24 @@
       <ComponentGroupRef Id="PDF4QT_Framework" />
       <ComponentRef Id="ProgramMenuDir" />
 
-      <Feature Id="feature_PDF4QT_ViewerProfi" Absent="allow" AllowAdvertise="no" Title="Viewer Profi"  Display="expand" Level="1" Description="Advanced PDF viewer/editor with many functions, such as annotation editing, form filling, signature verification, and many optional plugins.">
-        <ComponentGroupRef Id="PDF4QT_ViewerProfi"/>
+      <Feature Id="feature_PDF4QT_Editor" Absent="allow" AllowAdvertise="no" Title="Editor"  Display="expand" Level="1" Description="Advanced PDF viewer/editor with many functions, such as annotation editing, form filling, signature verification, and many optional plugins.">
+        <ComponentGroupRef Id="PDF4QT_Editor"/>
         
-        <Feature Id="feature_PDF4QT_ViewerProfi_Plugins" Absent="allow" AllowAdvertise="no" Title="Plugin Pack" Level="1" Description="Plugin pack for Viewer Profi. Contains additional editing features, such as audio book conversion, signatures, soft-proofing, dimensions, object inspector, redaction etc.">
-          <ComponentGroupRef Id="PDF4QT_ViewerProfi_Plugins"/>
+        <Feature Id="feature_PDF4QT_Editor_Plugins" Absent="allow" AllowAdvertise="no" Title="Plugin Pack" Level="1" Description="Plugin pack for editor. Contains additional editing features, such as audio book conversion, signatures, soft-proofing, dimensions, object inspector, redaction etc.">
+          <ComponentGroupRef Id="PDF4QT_Editor_Plugins"/>
         </Feature>
       </Feature>
       
-      <Feature Id="feature_PDF4QT_ViewerLite" Absent="allow" AllowAdvertise="no" Title="Viewer Lite" Level="1" Description="Simple PDF viewer with basic functions.">
-        <ComponentGroupRef Id="PDF4QT_ViewerLite"/>
+      <Feature Id="feature_PDF4QT_Viewer" Absent="allow" AllowAdvertise="no" Title="Viewer" Level="1" Description="Simple PDF viewer with basic functions.">
+        <ComponentGroupRef Id="PDF4QT_Viewer"/>
       </Feature>
 
-      <Feature Id="feature_PDF4QT_DocPageOrganizer" Absent="allow" AllowAdvertise="no" Title="DocPage Organizer" Level="1" Description="Document page organizer (split/merge documents, insert/remove/move/clone pages, insert blank pages and images to create a new document).">
-        <ComponentGroupRef Id="PDF4QT_DocPageOrganizer"/>
+      <Feature Id="feature_PDF4QT_PageMaster" Absent="allow" AllowAdvertise="no" Title="PageMaster" Level="1" Description="Document page organizer (split/merge documents, insert/remove/move/clone pages, insert blank pages and images to create a new document).">
+        <ComponentGroupRef Id="PDF4QT_PageMaster"/>
       </Feature>
 
-      <Feature Id="feature_PDF4QT_DocDiff" Absent="allow" AllowAdvertise="no" Title="DocDiff" Level="1" Description="Compare content of two documents.">
-        <ComponentGroupRef Id="PDF4QT_DocDiff"/>
+      <Feature Id="feature_PDF4QT_Diff" Absent="allow" AllowAdvertise="no" Title="Diff" Level="1" Description="Compare content of two documents.">
+        <ComponentGroupRef Id="PDF4QT_Diff"/>
       </Feature>
     </Feature>
 
@@ -69,8 +69,8 @@
         <Component Id="cmpPdf4QtLibWidgets" Directory="INSTALLFOLDER" Guid="{40A714A4-3F2A-41BE-9C70-216FAB048061}">
             <File Id="filPdf4QtLibWidgets" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtLibWidgets.dll" />
         </Component>
-      <Component Id="cmpA99D3E7760DA61048DF14141B017863B" Directory="INSTALLFOLDER" Guid="{7EFA71AF-99EC-40D8-9C07-4B99EB3FAECB}">
-        <File Id="fil0CB615EFFEBF4E5461A1C353B0A551E2" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtViewer.dll" />
+      <Component Id="cmpPdf4QtLibGui" Directory="INSTALLFOLDER" Guid="{A6399A6E-EF73-4699-A723-E72529C248DB}">
+        <File Id="fil0CB615EFFEBF4E5461A1C353B0A551E2" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtLibGui.dll" />
       </Component>
       <Component Id="cmpFC336ADC1B94F4FDF274016576CE9B0E" Directory="INSTALLFOLDER" Guid="{E5C28C55-AC18-4E71-B84E-82745BC0360B}">
         <File Id="filB2658D09DD3F25C5086312C63CF0EC25" KeyPath="yes" Source="$(var.MyInstallDir)\PdfTool.exe" />
@@ -132,8 +132,8 @@
       <Component Id="cmp893EFF82D727F74847CD545558FE34F9" Directory="dir_platforms" Guid="{8A574FB6-B003-45E6-80F2-0989BEE14A63}">
         <File Id="filD985A5747A9613717D389F1D3912E702" KeyPath="yes" Source="$(var.MyInstallDir)\platforms\qwindows.dll" />
       </Component>
-      <Component Id="cmp68D943E1439A6058C3156551EE80749B" Directory="dir_styles" Guid="{61EF162D-B428-4A5C-BE6E-8BB5F8A45BEB}">
-        <File Id="fil5C550A2AFF340D0DC4E7D7A674142A92" KeyPath="yes" Source="$(var.MyInstallDir)\styles\qwindowsvistastyle.dll" />
+      <Component Id="cmp68D943E1439A6058C3156551EE80749B" Directory="dir_styles" Guid="{1A418DAB-7A24-4695-A773-4DC161926350}">
+        <File Id="fil5C550A2AFF340D0DC4E7D7A674142A92" KeyPath="yes" Source="$(var.MyInstallDir)\styles\qmodernwindowsstyle.dll" />
       </Component>
       <Component Id="cmpAF41975820F68671CC4EF8EDCC9B3135" Directory="dir_texttospeech" Guid="{305900CC-4483-4E0F-B611-C32FD9E01021}">
         <File Id="fil06D2402D329F17F0309E6FB70C194C77" KeyPath="yes" Source="$(var.MyInstallDir)\texttospeech\qtexttospeech_sapi.dll" />
@@ -174,12 +174,6 @@
       <Component Id="cQt6Multimedia" Directory="INSTALLFOLDER" Guid="{726B6B8D-04F0-46A2-9716-E6FFCEEB00B7}">
         <File Id="fQt6Multimedia" KeyPath="yes" Source="$(var.MyInstallDir)\Qt6Multimedia.dll" />
       </Component>
-      <Component Id="cQt6OpenGL" Directory="INSTALLFOLDER" Guid="{A9903431-BCCD-483F-A715-921371B27525}">
-        <File Id="fQt6OpenGL" KeyPath="yes" Source="$(var.MyInstallDir)\Qt6OpenGL.dll" />
-      </Component>
-      <Component Id="cQt6OpenGLWidgets" Directory="INSTALLFOLDER" Guid="{C42FEDDA-E7B5-4540-8598-F20031DF8621}">
-        <File Id="fQt6OpenGLWidgets" KeyPath="yes" Source="$(var.MyInstallDir)\Qt6OpenGLWidgets.dll" />
-      </Component>
       <Component Id="copenjp2" Directory="INSTALLFOLDER" Guid="{951B543B-4241-4DF9-962B-2E255A1C1230}">
         <File Id="fopenjp2" KeyPath="yes" Source="$(var.MyInstallDir)\openjp2.dll" />
       </Component>
@@ -211,10 +205,10 @@
   </Fragment>
 
   <Fragment>
-    <ComponentGroup Id="PDF4QT_ViewerProfi">
+    <ComponentGroup Id="PDF4QT_Editor">
       <Component Id="cmp188606497BACB312973D307393C8D3AF" Directory="INSTALLFOLDER" Guid="{52D3CF62-F556-4E7A-BCEB-75E5E65ED786}">
         <File Id="fil382C8CB744D292C33773197891A6A24E" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtEditor.exe">
-          <Shortcut Id="PDF4QT_ViewerProfi_Shortcut" Directory="ProgramMenuDir" Name="PDF4QT Viewer Profi" Description="Advanced PDF viewer/editor" WorkingDirectory="INSTALLFOLDER" Icon="PDF4QT_VP_Icon.exe" IconIndex="0" Advertise="yes"/>
+          <Shortcut Id="PDF4QT_Editor_Shortcut" Directory="ProgramMenuDir" Name="PDF4QT Editor" Description="Advanced PDF editor" WorkingDirectory="INSTALLFOLDER" Icon="PDF4QT_VP_Icon.exe" IconIndex="0" Advertise="yes"/>
         </File>
         <ProgId Id='default_profi.pdf' Description='PDF Document'>
           <Extension Id='pdf' ContentType='application/pdf'>
@@ -230,10 +224,10 @@
   </Fragment>
 
   <Fragment>
-    <ComponentGroup Id="PDF4QT_ViewerLite">
+    <ComponentGroup Id="PDF4QT_Viewer">
       <Component Id="cmp891B7ED2D028329F4330A2C46EF56E40" Directory="INSTALLFOLDER" Guid="{2D222775-6DA7-43E6-B212-3A142622190C}">
         <File Id="fil84879C1A606C2A34C05AE592C1DC0E90" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtViewer.exe">
-          <Shortcut Id="PDF4QT_ViewerLite_Shortcut" Directory="ProgramMenuDir" Name="PDF4QT Viewer Lite" Description="Simple PDF viewer" WorkingDirectory="INSTALLFOLDER" Icon="PDF4QT_VL_Icon.exe" IconIndex="0" Advertise="yes"/>
+          <Shortcut Id="PDF4QT_Viewer_Shortcut" Directory="ProgramMenuDir" Name="PDF4QT Viewer" Description="Simple PDF viewer" WorkingDirectory="INSTALLFOLDER" Icon="PDF4QT_VL_Icon.exe" IconIndex="0" Advertise="yes"/>
         </File>
         <ProgId Id='default_lite.pdf' Description='PDF Document'>
           <Extension Id='pdf' ContentType='application/pdf'>
@@ -249,10 +243,10 @@
   </Fragment>
 
   <Fragment>
-    <ComponentGroup Id="PDF4QT_DocPageOrganizer">
+    <ComponentGroup Id="PDF4QT_PageMaster">
       <Component Id="cmp8323DF5465210B8C0ACBA71BACE6D2C9" Directory="INSTALLFOLDER" Guid="{9D248BEE-BA78-4050-B362-0694B11AA326}">
         <File Id="fil82A5A2280AE5FAD2BDA0C3AD486F406A" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtPageMaster.exe">
-          <Shortcut Id="PDF4QT_DPO_Shortcut" Directory="ProgramMenuDir" Name="PDF4QT DocPage Organizer" Description="PDF Document page organizer" WorkingDirectory="INSTALLFOLDER" Icon="PDF4QT_DPO_Icon.exe" IconIndex="0" Advertise="yes"/>
+          <Shortcut Id="PDF4QT_DPO_Shortcut" Directory="ProgramMenuDir" Name="PDF4QT PageMaster" Description="PDF Document page organizer" WorkingDirectory="INSTALLFOLDER" Icon="PDF4QT_DPO_Icon.exe" IconIndex="0" Advertise="yes"/>
         </File>
       </Component>
     </ComponentGroup>
@@ -263,10 +257,10 @@
   </Fragment>
 
   <Fragment>
-    <ComponentGroup Id="PDF4QT_DocDiff">
+    <ComponentGroup Id="PDF4QT_Diff">
       <Component Id="cmpF7C26D935DF63326446EC8C73E470F3A" Directory="INSTALLFOLDER" Guid="{067D40E9-4FAE-472D-BCC3-B92A23CA0028}">
         <File Id="fil71267885AEBCC05676DCDCB1DC20FB06" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtDiff.exe">
-          <Shortcut Id="PDF4QT_DD_Shortcut" Directory="ProgramMenuDir" Name="PDF4QT DocDiff" Description="Compare two similar PDF documents" WorkingDirectory="INSTALLFOLDER" Icon="PDF4QT_DD_Icon.exe" IconIndex="0" Advertise="yes"/>
+          <Shortcut Id="PDF4QT_DD_Shortcut" Directory="ProgramMenuDir" Name="PDF4QT Diff" Description="Compare two similar PDF documents" WorkingDirectory="INSTALLFOLDER" Icon="PDF4QT_DD_Icon.exe" IconIndex="0" Advertise="yes"/>
         </File>
       </Component>
     </ComponentGroup>
@@ -277,7 +271,7 @@
   </Fragment>
 
   <Fragment>
-    <ComponentGroup Id="PDF4QT_ViewerProfi_Plugins">
+    <ComponentGroup Id="PDF4QT_Editor_Plugins">
       <Component Id="cmpF3C540FEAD14FBC1B56CE4C51B406A28" Directory="dir_pdfplugins" Guid="{06D159D2-0F34-417E-9134-7E9195E697A0}">
         <File Id="fil997E8EDEF5A10B95CDD22A2FBE5C2BB1" KeyPath="yes" Source="$(var.MyInstallDir)\pdfplugins\AudioBookPlugin.dll" />
       </Component>

@@ -16,7 +16,40 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: pdf4qt
-
+      
+      - name: Add MakeAppx to PATH
+        shell: pwsh
+        run: |
+          # Define the base path to Windows Kits
+          $basePath = "C:\Program Files (x86)\Windows Kits\10\bin"
+          
+          # Get directories in the base path and sort them by version number
+          $sdkDirs = Get-ChildItem -Path $basePath -Directory | Sort-Object Name -Descending
+          
+          # Find the first directory that contains the MakeAppx.exe
+          $sdkPath = $null
+          foreach ($dir in $sdkDirs) {
+            $path = Join-Path $dir.FullName "x64"
+            if (Test-Path (Join-Path $path "MakeAppx.exe")) {
+              $sdkPath = $path
+              break
+            }
+          }
+          
+          # Add the highest version SDK path to the PATH environment variable
+          if ($sdkPath) {
+            Write-Host "Adding $sdkPath to PATH"
+            echo "PATH=$env:PATH;$sdkPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          } else {
+            Write-Error "MakeAppx.exe not found in any Windows SDK directories"
+          }
+      
+      - name: Verify MakeAppx Path
+        shell: pwsh
+        run: |
+          $makeAppxPath = Get-Command MakeAppx.exe | Select-Object -ExpandProperty Definition
+          Write-Host "MakeAppx.exe found at: $makeAppxPath"
+        
       - name: 'VCPKG: Set up VCPKG'
         run: |
           git clone --depth=1 https://github.com/microsoft/vcpkg.git
@@ -39,7 +72,7 @@ jobs:
 
       - name: 'VCPKG: Install project dependencies'
         run: |
-          .\vcpkg install tbb openssl lcms zlib openjpeg freetype ijg-libjpeg libpng blend2d --triplet x64-windows
+          .\vcpkg install tbb openssl lcms zlib openjpeg freetype ijg-libjpeg libpng blend2d brotli bzip2 hwloc vcpkg-cmake vcpkg-cmake-config vcpkg-cmake-get-vars --triplet x64-windows
         working-directory: vcpkg
         
       - name: Install Qt
@@ -50,9 +83,33 @@ jobs:
           target: 'desktop'
           dir: '${{ github.workspace }}/qt/'
           install-deps: 'true'
-          modules: 'qtspeech qtmultimedia'
+          modules: 'qtspeech qtmultimedia qtimageformats'
           cache: 'true'
           cache-key-prefix: ${{ runner.os }}-qt-672
+          
+
+      - name: Find VC Redistributable Directories
+        shell: pwsh
+        run: |
+          # Define the base path to the VC redistributable directories
+          $basePath = "C:\Program Files\Microsoft Visual Studio\2022\*\VC\Redist\MSVC"
+          
+          # Find directories that match the pattern for VC redistributables
+          $redistDirs = Get-ChildItem -Path $basePath -Recurse -Directory -Filter "Microsoft.VC*.CRT" | Where-Object { $_.FullName -notmatch "debug_nonredist" }
+          
+          # Extract the toolset version from the directory names
+          if ($redistDirs) {
+              $firstRedistDir = $redistDirs | Select-Object -First 1
+              $toolsetVersion = $firstRedistDir.Name -replace '^Microsoft\.VC(\d+)\.CRT$', '$1'
+              Write-Host "Found MSVC Toolset Version: $toolsetVersion"
+              Write-Host "Found MSVC Redistributable Full Path: $firstRedistDir"
+              echo "MSVC_TOOLSET_VERSION=$toolsetVersion" >> $env:GITHUB_ENV
+              echo "VCToolsRedistDir=$($firstRedistDir.Parent.Parent.Parent.FullName)" >> $env:GITHUB_ENV
+              echo "VSCMD_ARG_TGT_ARCH=x64" >> $env:GITHUB_ENV
+              echo "MSVC_REDISTRIBUTABLES_PATH=$firstRedistDir" >> $env:GITHUB_ENV
+          } else {
+              Write-Error "No valid redistributable directories found."
+          }
 
       - name: Build project
         working-directory: pdf4qt
@@ -61,34 +118,51 @@ jobs:
           cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_VCPKG_BUILD_TYPE=Release -DPDF4QT_INSTALL_QT_DEPENDENCIES=ON -DPDF4QT_INSTALL_DEPENDENCIES=ON -DCMAKE_TOOLCHAIN_FILE="${env:GITHUB_WORKSPACE}\vcpkg\scripts\buildsystems\vcpkg.cmake" -DPDF4QT_QT_ROOT="${env:Qt6_DIR}" -DPDF4QT_INSTALL_MSVC_REDISTRIBUTABLE=ON -DPDF4QT_INSTALL_PREPARE_WIX_INSTALLER=ON -DPDF4QT_INSTALL_TO_USR=ON 
           cmake --build build --config Release -j6
           cmake --install build
-          
+        env:
+          VCToolsRedistDir: ${{ env.VCToolsRedistDir }}
+          VSCMD_ARG_TGT_ARCH: ${{ env.VSCMD_ARG_TGT_ARCH }}
+          MSVC_TOOLSET_VERSION: ${{ env.MSVC_TOOLSET_VERSION }}
+          MSVC_REDISTRIBUTABLES_PATH: ${{ env.MSVC_REDISTRIBUTABLES_PATH }}
+
       - name: Read version
         id: get_version
+        shell: pwsh
         run: |
-          version=$(cat ".\pdf4qt\build\version.txt")
-          echo "Version: $version"
-          echo "pdf4qt_version=$version" >> $GITHUB_ENV
-        env:
-          pdf4qt_version: ${{ env.pdf4qt_version }}
-          
-      - name: Install WiX Toolset
-        run: choco install wix
-          
+          $version = Get-Content -Path ".\pdf4qt\build\version.txt" -Raw
+          $version = $version.Trim()  # Odstraní případné prázdné znaky kolem verze
+          Write-Host "Version: $version"
+          echo "pdf4qt_version=$version" >> $env:GITHUB_ENV
+          echo "msipackagefilename=JakubMelka.PDF4QT_${version}.msi" >> $env:GITHUB_ENV
+          Write-Host "MSI package file name: JakubMelka.PDF4QT_${version}.msi"
+
+      - name: Find WiXUIExtension.dll
+        id: find_wixui_extension
+        shell: pwsh
+        run: |
+          $wixPath = "C:\Program Files (x86)\WiX Toolset v3.*\bin\WiXUIExtension.dll"
+          $wixUIExtensionPath = Get-ChildItem -Path $wixPath -ErrorAction SilentlyContinue | Select-Object -First 1
+      
+          if ($null -ne $wixUIExtensionPath) {
+              Write-Output "Found WiXUIExtension.dll at: $($wixUIExtensionPath.FullName)"
+              echo "wixuiextpath=$($wixUIExtensionPath.FullName)" >> $env:GITHUB_ENV
+          } else {
+              Write-Error "WiXUIExtension.dll not found in the expected path."
+          }
+ 
+      - name: Create MSI Package
+        working-directory: pdf4qt\build\WixInstaller
+        run: |
+          candle -v -d"SolutionDir=." -d"SolutionExt=.sln" -d"SolutionFileName=PDF4QT.sln" -d"SolutionName=PDF4QT" -d"SolutionPath=PDF4QT.sln" -d"Configuration=Release" -d"OutDir=bin\Release\" -d"Platform=x86" -d"ProjectDir=." -d"ProjectExt=.wixproj" -d"ProjectFileName=PDF4QT.wixproj" -d"ProjectName=PDF4QT" -d"ProjectPath=PDF4QT.wixproj" -d"TargetDir=bin\Release\" -d"TargetExt=.msi" -d"TargetFileName=${{ env.msipackagefilename }}" -d"TargetName=PDF4QT" -d"TargetPath=bin\Release\${{ env.msipackagefilename }}" -out obj\Release\ -arch x86 -ext "${{ env.wixuiextpath }}" Product.wxs
+          Light -v -out ${{ github.workspace }}\pdf4qt\build\install\${{ env.msipackagefilename }} -pdbout .\bin\Release\PDF4QT.wixpdb -cultures:null -ext "${{ env.wixuiextpath }}" -contentsfile obj\Release\PDF4QT.wixproj.BindContentsFileListnull.txt -outputsfile obj\Release\PDF4QT.wixproj.BindOutputsFileListnull.txt -builtoutputsfile obj\Release\PDF4QT.wixproj.BindBuiltOutputsFileListnull.txt -wixprojectfile .\PDF4QT.wixproj obj\Release\Product.wixobj
+
       - name: Create MSIX Package
         run: |
           MakeAppx pack /d ".\pdf4qt\build\install\usr\bin" /p ".\pdf4qt\build\install\JakubMelka.PDF4QT_${{ env.pdf4qt_version }}.msix"
         
-      - name: Create MSI Package
-        working-directory: pdf4qt\WixInstaller
-        run: |
-          candle -d"SolutionDir=." -d"SolutionExt=.sln" -d"SolutionFileName=PDF4QT.sln" -d"SolutionName=PDF4QT" -d"SolutionPath=PDF4QT.sln" -d"Configuration=Release" -d"OutDir=bin\Release\" -d"Platform=x86" -d"ProjectDir=." -d"ProjectExt=.wixproj" -d"ProjectFileName=PDF4QT.wixproj" -d"ProjectName=PDF4QT" -d"ProjectPath=PDF4QT.wixproj" -d"TargetDir=bin\Release\" -d"TargetExt=.msi" -d"TargetFileName=PDF4QT.msi" -d"TargetName=PDF4QT" -d"TargetPath=bin\Release\PDF4QT.msi" -out obj\Release\ -arch x86 -ext "C:\Program Files (x86)\WiX Toolset v3.11\bin\\WixUIExtension.dll" Product.wxs
-          Light -out .\pdf4qt\build\install\PDF4QT.msi -pdbout .\bin\Release\PDF4QT.wixpdb -cultures:null -ext "C:\Program Files (x86)\WiX Toolset v3.11\bin\\WixUIExtension.dll" -contentsfile obj\Release\PDF4QT.wixproj.BindContentsFileListnull.txt -outputsfile obj\Release\PDF4QT.wixproj.BindOutputsFileListnull.txt -builtoutputsfile obj\Release\PDF4QT.wixproj.BindBuiltOutputsFileListnull.txt -wixprojectfile .\PDF4QT.wixproj obj\Release\Product.wixobj
-
- 
       - name: Upload ZIP directory
         uses: actions/upload-artifact@v4
         with:
-          name: 'pdf4qt-${{ runner.os }}.zip'
+          name: 'PDF4QT-${{ runner.os }}-${{ env.pdf4qt_version }}.zip'
           path: .\pdf4qt\build\install\usr\bin
           retention-days: 30
 
@@ -102,6 +176,6 @@ jobs:
       - name: Upload MSI package
         uses: actions/upload-artifact@v4
         with:
-          name: 'JakubMelka.PDF4QT_${{ env.pdf4qt_version }}.msi'
-          path: .\pdf4qt\build\install\PDF4QT.msi
+          name: '${{ env.msipackagefilename }}'
+          path: .\pdf4qt\build\install\${{ env.msipackagefilename }}
           retention-days: 30

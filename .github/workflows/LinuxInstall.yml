@@ -1,7 +1,7 @@
 name: Linux_AppImage
 
 on:
-  create:
+  push:
     tags:
       - 'v*'
 
@@ -18,6 +18,7 @@ jobs:
           sudo apt-get install -y libxcb-cursor0
           sudo apt-get install -y libspeechd2
           sudo apt-get install -y gnupg2 wget
+          sudo apt-get install -y appstream
           wget -c "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
           chmod +x appimagetool-x86_64.AppImage
           sudo mv appimagetool-x86_64.AppImage /usr/local/bin/appimagetool
@@ -106,6 +107,16 @@ jobs:
           cmake --build build -j6
           cmake --install build
           
+      - name: Read version
+        id: get_version
+        run: |
+          version=$(cat "pdf4qt/build/version.txt")
+          echo "Version: $version"
+          echo "appimagefilename=PDF4QT-$version-x86_64.AppImage" >> $GITHUB_ENV
+          echo "AppImage file name: PDF4QT-$version-x86_64.AppImage"
+        env:
+          appimagefilename: ${{ env.appimagefilename }}
+          
       - name: 'Linux Deploy Qt'
         working-directory: pdf4qt/build
         run: |
@@ -117,30 +128,30 @@ jobs:
       - name: Sign and Repack AppImage
         working-directory: pdf4qt/build
         run: |
-          export GPG_TTY=$(tty)
-          echo "${{ secrets.PGP_PASSPHRASE }}" | appimagetool -s --sign-key "${{ secrets.PGP_KEY_ID }}" install/ io.github.JakubMelka.Pdf4qt.AppImage
+          appimagetool -s --sign-key "${{ secrets.PGP_KEY_ID }}" install/ ${{ env.appimagefilename }}
           
       - name: Manual signature
         run: |
-          gpg --batch --yes --verbose --pinentry-mode loopback --detach-sign --passphrase "${{ secrets.PGP_PASSPHRASE }}" --local-user "${{ secrets.PGP_KEY_ID }}" --output pdf4qt/build/io.github.JakubMelka.Pdf4qt.AppImage.sig pdf4qt/build/io.github.JakubMelka.Pdf4qt.AppImage
+          gpg --batch --yes --verbose --pinentry-mode loopback --detach-sign --passphrase "${{ secrets.PGP_PASSPHRASE }}" --local-user "${{ secrets.PGP_KEY_ID }}" --output pdf4qt/build/${{ env.appimagefilename }}.sig pdf4qt/build/${{ env.appimagefilename }}
 
       - name: Verify AppImage Detached Signature
         run: |
           echo "${{ secrets.PGP_PUBLIC_KEY }}" | gpg --batch --import
-          gpg --verify pdf4qt/build/io.github.JakubMelka.Pdf4qt.AppImage.sig pdf4qt/build/io.github.JakubMelka.Pdf4qt.AppImage
+          gpg --verify pdf4qt/build/${{ env.appimagefilename }}.sig pdf4qt/build/${{ env.appimagefilename }}
 
       - name: Upload AppImage Package
         uses: actions/upload-artifact@v4
         with:
-          name: ubuntu-appimage
-          path: ./pdf4qt/build/io.github.JakubMelka.Pdf4qt.AppImage
+          name: ${{ env.appimagefilename }}
+          path: ./pdf4qt/build/${{ env.appimagefilename }}
           retention-days: 30
+          compression-level: 0
           
       - name: Upload AppImage Signature File
         uses: actions/upload-artifact@v4
         with:
-          name: ubuntu-appimage-sig
-          path: ./pdf4qt/build/io.github.JakubMelka.Pdf4qt.AppImage.sig
+          name: ${{ env.appimagefilename }}.sig
+          path: ./pdf4qt/build/${{ env.appimagefilename }}.sig
           retention-days: 30
           if-no-files-found: warn
           compression-level: 0
