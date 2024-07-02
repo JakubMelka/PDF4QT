@@ -39,7 +39,7 @@ jobs:
           # Add the highest version SDK path to the PATH environment variable
           if ($sdkPath) {
             Write-Host "Adding $sdkPath to PATH"
-            [System.Environment]::SetEnvironmentVariable('PATH', $env:PATH + ";$sdkPath", [System.EnvironmentVariableTarget]::Process)
+            echo "PATH=$env:PATH;$sdkPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           } else {
             Write-Error "MakeAppx.exe not found in any Windows SDK directories"
           }
