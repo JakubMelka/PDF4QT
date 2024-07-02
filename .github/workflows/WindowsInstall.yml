@@ -61,19 +61,19 @@ jobs:
           cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_VCPKG_BUILD_TYPE=Release -DPDF4QT_INSTALL_QT_DEPENDENCIES=ON -DPDF4QT_INSTALL_DEPENDENCIES=ON -DCMAKE_TOOLCHAIN_FILE="${env:GITHUB_WORKSPACE}\vcpkg\scripts\buildsystems\vcpkg.cmake" -DPDF4QT_QT_ROOT="${env:Qt6_DIR}" -DPDF4QT_INSTALL_MSVC_REDISTRIBUTABLE=ON -DPDF4QT_INSTALL_PREPARE_WIX_INSTALLER=ON -DPDF4QT_INSTALL_TO_USR=ON 
           cmake --build build --config Release -j6
           cmake --install build
-          
+
       - name: Read version
         id: get_version
         shell: pwsh
         run: |
-          $version=Get-Content -Path ".\pdf4qt\build\version.txt"
-          echo "Version: $version"
-          echo "pdf4qt_version=$version" >> $GITHUB_ENV
+          $version = Get-Content -Path ".\pdf4qt\build\version.txt" -Raw
+          Write-Host "Version: $version"
+          echo "pdf4qt_version=$version" >> $env:GITHUB_ENV
         env:
           pdf4qt_version: ${{ env.pdf4qt_version }}
-          
+
       - name: Install WiX Toolset
-        run: choco install wix
+        run: choco install wixtoolset
         
       - name: Find WiXUIExtension.dll
         id: find_wixui_extension
