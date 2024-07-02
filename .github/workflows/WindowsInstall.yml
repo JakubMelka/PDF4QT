@@ -61,41 +61,23 @@ jobs:
       - name: Find VC Redistributable Directories
         shell: pwsh
         run: |
-          # Define the base path using wildcards to locate the redistributables
-          $basePath = "C:\Program Files\Microsoft Visual Studio\2022\*\VC\Redist\MSVC\*\x64\Microsoft.VC*.CRT"
+          # Define the base path to the VC redistributable directories
+          $basePath = "C:\Program Files\Microsoft Visual Studio\2022\*\VC\Redist\MSVC"
           
-          # Find directories that match the pattern
-          $redistDirs = Get-ChildItem -Path $basePath -Directory | Where-Object { $_.FullName -notmatch "debug_nonredist" }
+          # Find directories that match the pattern for VC redistributables
+          $redistDirs = Get-ChildItem -Path $basePath -Recurse -Directory -Filter "Microsoft.VC*.CRT" | Where-Object { $_.FullName -notmatch "debug_nonredist" }
           
-          # Output the found directories and set the first one in an environment variable
+          # Extract the toolset version from the directory names
           if ($redistDirs) {
-              Write-Host "Found redistributable directories:"
               $firstRedistDir = $redistDirs | Select-Object -First 1
-              Write-Host $firstRedistDir.FullName
-              echo "VCToolsRedistDir=$($firstRedistDir.Parent.FullName)" >> $env:GITHUB_ENV
-          } else {
-              Write-Host "No redistributable directories found."
-          }
-          
-      - name: Find MSVC Toolset Version
-        shell: pwsh
-        run: |
-          # Define the base path to Visual Studio installations
-          $basePath = "C:\Program Files\Microsoft Visual Studio\2022\*\VC\Tools\MSVC"
-      
-          # Get directories that match the base path
-          $toolsetDirs = Get-ChildItem -Path $basePath -Directory
-      
-          # Find the latest toolset version
-          $latestToolsetVersion = $toolsetDirs | Sort-Object Name -Descending | Select-Object -First 1
-      
-          # Extract the toolset version number from the directory name
-          if ($latestToolsetVersion) {
-              $toolsetVersion = $latestToolsetVersion.Name
+              $toolsetVersion = $firstRedistDir.Name -replace '^Microsoft\.VC(\d+)\.CRT$', '$1'
               Write-Host "Found MSVC Toolset Version: $toolsetVersion"
+              Write-Host "Found MSVC Redistributable Full Path: $firstRedistDir"
               echo "MSVC_TOOLSET_VERSION=$toolsetVersion" >> $env:GITHUB_ENV
+              echo "VCToolsRedistDir=$($firstRedistDir.Parent.Parent.Parent.FullName)" >> $env:GITHUB_ENV
+              Write-Host "VCToolsRedistDir is set to ${{ env.VCToolsRedistDir }}
           } else {
-              Write-Error "No MSVC toolset versions found."
+              Write-Error "No valid redistributable directories found."
           }
 
       - name: Build project
