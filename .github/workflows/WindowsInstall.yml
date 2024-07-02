@@ -16,6 +16,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: pdf4qt
+      
+      - name: Install Microsoft Windows SDK
+        run: choco install windows-sdk-10-version-2004-all
 
       - name: 'VCPKG: Set up VCPKG'
         run: |
