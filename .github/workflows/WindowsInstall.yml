@@ -72,8 +72,9 @@ jobs:
         env:
           pdf4qt_version: ${{ env.pdf4qt_version }}
 
-      - name: Install WiX Toolset
-        run: choco install wixtoolset
+      - name: Install MSIX Packaging Tool
+        run: |
+          winget install "MSIX Packaging Tool"
         
       - name: Find WiXUIExtension.dll
         id: find_wixui_extension
@@ -91,17 +92,17 @@ jobs:
         env:
           wixuiextpath: ${{ env.wixuiextpath }}
           
-      - name: Create MSIX Package
-        run: |
-          MakeAppx pack /d ".\pdf4qt\build\install\usr\bin" /p ".\pdf4qt\build\install\JakubMelka.PDF4QT_${{ env.pdf4qt_version }}.msix"
-        
       - name: Create MSI Package
         working-directory: pdf4qt\WixInstaller
         run: |
           candle -d"SolutionDir=." -d"SolutionExt=.sln" -d"SolutionFileName=PDF4QT.sln" -d"SolutionName=PDF4QT" -d"SolutionPath=PDF4QT.sln" -d"Configuration=Release" -d"OutDir=bin\Release\" -d"Platform=x86" -d"ProjectDir=." -d"ProjectExt=.wixproj" -d"ProjectFileName=PDF4QT.wixproj" -d"ProjectName=PDF4QT" -d"ProjectPath=PDF4QT.wixproj" -d"TargetDir=bin\Release\" -d"TargetExt=.msi" -d"TargetFileName=PDF4QT.msi" -d"TargetName=PDF4QT" -d"TargetPath=bin\Release\PDF4QT.msi" -out obj\Release\ -arch x86 -ext "${{ env.wixuiextpath }}" Product.wxs
           Light -out .\pdf4qt\build\install\PDF4QT.msi -pdbout .\bin\Release\PDF4QT.wixpdb -cultures:null -ext "${{ env.wixuiextpath }}" -contentsfile obj\Release\PDF4QT.wixproj.BindContentsFileListnull.txt -outputsfile obj\Release\PDF4QT.wixproj.BindOutputsFileListnull.txt -builtoutputsfile obj\Release\PDF4QT.wixproj.BindBuiltOutputsFileListnull.txt -wixprojectfile .\PDF4QT.wixproj obj\Release\Product.wixobj
 
- 
+          
+      - name: Create MSIX Package
+        run: |
+          MakeAppx pack /d ".\pdf4qt\build\install\usr\bin" /p ".\pdf4qt\build\install\JakubMelka.PDF4QT_${{ env.pdf4qt_version }}.msix"
+        
       - name: Upload ZIP directory
         uses: actions/upload-artifact@v4
         with:
