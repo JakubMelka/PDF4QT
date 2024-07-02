@@ -1,7 +1,7 @@
 name: Windows_MSI
 
 on:
-  create:
+  push:
     tags:
       - 'v*'
 
