@@ -112,7 +112,7 @@ jobs:
           version=$(cat "pdf4qt/build/version.txt")
           echo "Version: $version"
           echo "appimagefilename=PDF4QT-$version-x86_64.AppImage" >> $GITHUB_ENV
-          echo "AppImage file name: ${{ env.appimagefilename }}"
+          echo "AppImage file name: PDF4QT-$version-x86_64.AppImage"
         env:
           appimagefilename: ${{ env.appimagefilename }}
           
