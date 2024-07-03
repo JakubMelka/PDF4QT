@@ -566,11 +566,12 @@ QTransform PDFTextEditPseudowidget::createTextBoxTransformMatrix(bool edit) cons
     matrix.translate(m_widgetRect.left(), m_widgetRect.bottom());
     matrix.scale(1.0, -1.0);
 
+    const qreal textBoxHeight = m_widgetRect.height();
     if (edit && !isComb() && m_textLayout.isValidCursorPosition(m_positionCursor))
     {
-        // Jakub Melka: we must scroll the control, so cursor is always
-        // visible in the widget area. If we are not editing, this not the
-        // case, because we always show the text from the beginning.
+        // Jakub Melka: We must scroll the control so the cursor is always
+        // visible in the widget area. If we are not editing, this is not the
+        // case because we always show the text from the beginning.
 
         const QTextLine line = m_textLayout.lineForTextPosition(m_positionCursor);
         if (line.isValid())
@@ -586,27 +587,30 @@ QTransform PDFTextEditPseudowidget::createTextBoxTransformMatrix(bool edit) cons
             const qreal lineSpacing = line.leadingIncluded() ? line.height() : line.leading() + line.height();
             const qreal lineBottom = lineSpacing * (line.lineNumber() + 1);
 
-            if (lineBottom >= m_widgetRect.height())
+            if (lineBottom > textBoxHeight)
             {
-                const qreal delta = lineBottom - m_widgetRect.height();
+                const qreal delta = lineBottom - textBoxHeight;
                 matrix.translate(0.0, -delta);
             }
         }
     }
-
-    if (!isMultiline() && !isComb())
+    else if (!isMultiline() && !isComb())
     {
         // If text is single line, then adjust text position to the vertical center
         QTextLine textLine = m_textLayout.lineAt(0);
         if (textLine.isValid())
         {
             const qreal lineSpacing = textLine.leadingIncluded() ? textLine.height() : textLine.leading() + textLine.height();
-            const qreal textBoxHeight = m_widgetRect.height();
 
             if (lineSpacing < textBoxHeight)
             {
                 const qreal delta = (textBoxHeight - lineSpacing) * 0.5;
                 matrix.translate(0.0, delta);
+            }
+            else if (lineSpacing > textBoxHeight)
+            {
+                const qreal delta = lineSpacing - textBoxHeight;
+                matrix.translate(0.0, -delta);
             }
         }
     }
