@@ -168,6 +168,7 @@ jobs:
           name: 'JakubMelka.PDF4QT_${{ env.pdf4qt_version }}.msix'
           path: .\pdf4qt\build\install\JakubMelka.PDF4QT_${{ env.pdf4qt_version }}.msix
           retention-days: 30
+          compression-level: 0
           
       - name: Upload MSI package
         uses: actions/upload-artifact@v4
@@ -175,3 +176,4 @@ jobs:
           name: '${{ env.msipackagefilename }}'
           path: .\pdf4qt\build\install\${{ env.msipackagefilename }}
           retention-days: 30
+          compression-level: 0
