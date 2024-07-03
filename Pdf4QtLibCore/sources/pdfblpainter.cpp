@@ -693,28 +693,9 @@ void PDFBLPaintEngine::drawPixmap(const QRectF& r, const QPixmap& pm, const QRec
 
 void PDFBLPaintEngine::drawTextItem(const QPointF& p, const QTextItem& textItem)
 {
-    if (m_currentRawFont.isValid())
-    {
-        QString text = textItem.text();
-        QList<quint32> glyphIndices = m_currentRawFont.glyphIndexesForString(text);
-        QList<QPointF> glyphPositions = m_currentRawFont.advancesForGlyphIndexes(glyphIndices);
-
-        QPointF currentPosition = p;
-        QPainterPath path;
-        for (int i = 0; i < glyphIndices.size(); ++i)
-        {
-            QPainterPath glyphPath = m_currentRawFont.pathForGlyph(glyphIndices[i]);
-            glyphPath.translate(currentPosition);
-            path.addPath(glyphPath);
-            currentPosition += glyphPositions[i];
-        }
-
-        m_blContext->save();
-        setFillRule(path.fillRule());
-        m_blContext->setFillStyle(BLRgba32(m_currentPen.color().rgba()));
-        drawPathImpl(path, false, true, true);
-        m_blContext->restore();
-    }
+    // We will call the base implementation, which will
+    // create paths from text and draw these paths.
+    QPaintEngine::drawTextItem(p, textItem);
 }
 
 void PDFBLPaintEngine::drawTiledPixmap(const QRectF& r, const QPixmap& pixmap, const QPointF& s)
