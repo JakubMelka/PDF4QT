@@ -4,67 +4,105 @@ on:
   workflow_dispatch:
 
 jobs:
-  fetch-artifacts:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Install tools
+        run: |
+          sudo apt-get install gh
+          sudo apt-get install jq
       
-    - name: Install tools
-      run: |
-        sudo apt-get install gh
-        sudo apt-get install jq
+      - name: Get latest run ID for Linux_AppImage
+        id: get_linux_run_id
+        run: |
+          latest_run=$(gh run list --workflow=Linux_AppImage --json databaseId,conclusion --jq '.[0]')
+          linux_run_id=$(echo $latest_run | jq -r .databaseId)
+          echo "linux_run_id=$linux_run_id" >> $GITHUB_ENV
+          conclusion=$(echo $latest_run | jq -r .conclusion)
+          if [ "$conclusion" != "success" ]; then
+            echo "Latest Linux_AppImage workflow run failed."
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
+      
+      - name: Get latest run ID for Windows_MSI
+        id: get_windows_run_id
+        run: |
+          latest_run=$(gh run list --workflow=Windows_MSI --json databaseId,conclusion --jq '.[0]')
+          windows_run_id=$(echo $latest_run | jq -r .databaseId)
+          echo "windows_run_id=$windows_run_id" >> $GITHUB_ENV
+          conclusion=$(echo $latest_run | jq -r .conclusion)
+          if [ "$conclusion" != "success" ]; then
+            echo "Latest Windows_MSI workflow run failed."
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
+      
+      - name: Download Linux_AppImage artifact
+        run: |
+          mkdir -p artifacts
+          echo "Downloading artifacts from run ID: ${{ env.linux_run_id }}..."
+          gh run download ${{ env.linux_run_id }} -D artifacts
+          echo "Artifacts downloaded to artifacts directory."
+        env:
+          GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
+      
+      - name: Download Windows_MSI artifact
+        run: |
+          mkdir -p artifacts
+          echo "Downloading artifacts from run ID: ${{ env.windows_run_id }}..."
+          gh run download ${{ env.windows_run_id }} -D artifacts
+          echo "Artifacts downloaded to artifacts directory."
+        env:
+          GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
+          
+      - name: Read version
+        id: get_version
+        run: |
+          version=$(grep -oP 'set\(PDF4QT_VERSION \K[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' "CMakeLists.txt")
+          echo "Version: $version"
+          echo "pdf4qt_version=$version" >> $GITHUB_ENV
+          
+      - name: Rezip zip file
+        id: rezip_zip_file
+        run: |
+          cd artifacts/PDF4QT-Windows-${{ env.pdf4qt_version }}.zip
+          zip -r ../PDF4QT-Windows-${{ env.pdf4qt_version }}.zip.backup *
 
-    - name: Get latest run ID for Linux_AppImage
-      id: get_linux_run_id
-      run: |
-        latest_run=$(gh run list --workflow=Linux_AppImage --json databaseId,conclusion --jq '.[0]')
-        linux_run_id=$(echo $latest_run | jq -r .databaseId)
-        echo "linux_run_id=$linux_run_id" >> $GITHUB_ENV
-        conclusion=$(echo $latest_run | jq -r .conclusion)
-        if [ "$conclusion" != "success" ]; then
-          echo "Latest Linux_AppImage workflow run failed."
-          exit 1
-        fi
-      env:
-        GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
+      - name: Rename zip archive
+        run: |
+          rm -rf artifacts/PDF4QT-Windows-${{ env.pdf4qt_version }}.zip/
+          mv artifacts/PDF4QT-Windows-${{ env.pdf4qt_version }}.zip.backup artifacts/PDF4QT-Windows-${{ env.pdf4qt_version }}.zip
+          
+      - name: Correct file paths
+        run: |
+          find artifacts -mindepth 2 -type f -exec sh -c 'mv "$1" "artifacts/$(basename "$1")_moved"' _ {} \;
+          find artifacts -type d -empty -delete     
+          for f in artifacts/*_moved; do
+            mv "$f" "${f/_moved/}"
+          done
 
-    - name: Get latest run ID for Windows_MSI
-      id: get_windows_run_id
-      run: |
-        latest_run=$(gh run list --workflow=Windows_MSI --json databaseId,conclusion --jq '.[0]')
-        windows_run_id=$(echo $latest_run | jq -r .databaseId)
-        echo "windows_run_id=$windows_run_id" >> $GITHUB_ENV
-        conclusion=$(echo $latest_run | jq -r .conclusion)
-        if [ "$conclusion" != "success" ]; then
-          echo "Latest Windows_MSI workflow run failed."
-          exit 1
-        fi
-      env:
-        GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
+      - name: List all files recursively
+        run: |
+          echo "Listing all files in artifacts:"
+          find artifacts -type f -print
 
-    - name: Download Linux_AppImage artifact
-      run: |
-        mkdir -p artifacts/linux
-        gh run download ${{ env.linux_run_id }} --name Linux_AppImage -D artifacts/linux/
-
-    - name: Download Windows_MSI artifact
-      run: |
-        mkdir -p artifacts/windows
-        gh run download ${{ env.windows_run_id }} --name Windows_MSI -D artifacts/windows/
-
-    - name: Create Release Draft
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
-      with:
-        tag_name: '' 
-        release_name: "Release Draft"
-        draft: true
-        prerelease: false
-        generate_release_notes: true
-        files: |
-          artifacts/linux/*
-          artifacts/windows/*
+      - name: Create Release Draft
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: 'v${{ env.pdf4qt_version }}' 
+          name: "Release of PDF4QT ${{ env.pdf4qt_version }} (Draft)"
+          draft: true
+          prerelease: false
+          generate_release_notes: true
+          token: ${{ secrets.MY_GITHUB_TOKEN }}
+          fail_on_unmatched_files: true
+          files: |
+            artifacts/*
