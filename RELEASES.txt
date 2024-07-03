@@ -1,5 +1,6 @@
 CURRENT:
  - Issue #190: PageMaster crash + black bubbles instead of bubbles with correct color
+ - Issue #184: Form field font size too large
  - Issue #183: Option to ignore PDF security settings
  - Issue #182: PDF4QT Document Diff command line cmd line arguments ignored
  - Issue #181: where is the dark mode?
