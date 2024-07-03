@@ -1,0 +1,66 @@
+name: Create_Release_Draft
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fetch-artifacts:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+      
+    - name: Install tools
+      run: |
+        sudo apt-get install gh
+        sudo apt-get install jq
+
+    - name: Get latest run ID for Linux_AppImage
+      id: get_linux_run_id
+      run: |
+        latest_run=$(gh run list --workflow=Linux_AppImage --json databaseId,conclusion --jq '.[0]')
+        linux_run_id=$(echo $latest_run | jq -r .databaseId)
+        echo "linux_run_id=$linux_run_id" >> $GITHUB_ENV
+        conclusion=$(echo $latest_run | jq -r .conclusion)
+        if [ "$conclusion" != "success" ]; then
+          echo "Latest Linux_AppImage workflow run failed."
+          exit 1
+        fi
+
+    - name: Get latest run ID for Windows_MSI
+      id: get_windows_run_id
+      run: |
+        latest_run=$(gh run list --workflow=Windows_MSI --json databaseId,conclusion --jq '.[0]')
+        windows_run_id=$(echo $latest_run | jq -r .databaseId)
+        echo "windows_run_id=$windows_run_id" >> $GITHUB_ENV
+        conclusion=$(echo $latest_run | jq -r .conclusion)
+        if [ "$conclusion" != "success" ]; then
+          echo "Latest Windows_MSI workflow run failed."
+          exit 1
+        fi
+
+    - name: Download Linux_AppImage artifact
+      run: |
+        mkdir -p artifacts/linux
+        gh run download ${{ env.linux_run_id }} --name Linux_AppImage -D artifacts/linux/
+
+    - name: Download Windows_MSI artifact
+      run: |
+        mkdir -p artifacts/windows
+        gh run download ${{ env.windows_run_id }} --name Windows_MSI -D artifacts/windows/
+
+    - name: Create Release Draft
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
+      with:
+        tag_name: '' 
+        release_name: "Release Draft"
+        draft: true
+        prerelease: false
+        generate_release_notes: true
+        files: |
+          artifacts/linux/*
+          artifacts/windows/*
