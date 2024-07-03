@@ -27,6 +27,8 @@ jobs:
           echo "Latest Linux_AppImage workflow run failed."
           exit 1
         fi
+      env:
+        GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
 
     - name: Get latest run ID for Windows_MSI
       id: get_windows_run_id
@@ -39,6 +41,8 @@ jobs:
           echo "Latest Windows_MSI workflow run failed."
           exit 1
         fi
+      env:
+        GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
 
     - name: Download Linux_AppImage artifact
       run: |
