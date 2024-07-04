@@ -1,10 +1,13 @@
 CURRENT:
+
+V: 1.4.0.0 4.7.2024
  - Issue #190: PageMaster crash + black bubbles instead of bubbles with correct color
  - Issue #184: Form field font size too large
  - Issue #183: Option to ignore PDF security settings
  - Issue #182: PDF4QT Document Diff command line cmd line arguments ignored
  - Issue #181: where is the dark mode?
  - Issue #180: PDF4QT editor and options windows higher than desktop
+ - Issue #174: Support for Linux seems to be very limited
  - Issue #173: errors loading file Echoplex.pdf
  - Issue #172: access keys are missing from most menu items/action text strings
  - Issue #168: When opening a PDF file or merging some PDF files, stamp will disappear.
