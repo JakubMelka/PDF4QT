@@ -45,7 +45,49 @@ jobs:
         run: |
           $makeAppxPath = Get-Command MakeAppx.exe | Select-Object -ExpandProperty Definition
           Write-Host "MakeAppx.exe found at: $makeAppxPath"
-        
+          
+      - name: Setup Variables and Install Keylocker KSP
+        shell: pwsh
+        if: vars.SIGN_MSI == 'true'
+        run: |
+          # Decode the base64-encoded certificate
+          $certificateBase64 = '${{ secrets.SM_CLIENT_CERT_FILE_B64 }}'
+          $certificateBytes = [Convert]::FromBase64String($certificateBase64)
+          $certPath = "$env:GITHUB_WORKSPACE\JM_AuthCert.p12"
+          
+          # Write the certificate to a file
+          [System.IO.File]::WriteAllBytes("$env:GITHUB_WORKSPACE\JM_AuthCert.p12", $certificateBytes)
+          
+          # Compute the hash of the certificate file
+          $hash = Get-FileHash -Path $certPath -Algorithm SHA256
+          Write-Host "Authorization certificate hash: $($hash.Hash)"
+          
+          # Set GitHub Actions outputs
+          echo "KEYPAIR_NAME=gt-standard-keypair" >> $env:GITHUB_OUTPUT
+          echo "CERTIFICATE_NAME=gt-certificate" >> $env:GITHUB_OUTPUT
+          
+          # Set environment variables
+          echo "SM_HOST=${{ secrets.SM_HOST }}" >> "$env:GITHUB_ENV"
+          echo "SM_API_KEY=${{ secrets.SM_API_KEY }}" >> "$env:GITHUB_ENV"
+          echo "SM_CLIENT_CERT_FILE=$certpath" >> "$env:GITHUB_ENV"
+          echo "SM_CLIENT_CERT_PASSWORD=${{ secrets.SM_CLIENT_CERT_PASSWORD }}" >> "$env:GITHUB_ENV"
+          
+          # Add paths to PATH environment variable
+          echo "C:\Program Files (x86)\Windows Kits\10\App Certification Kit" >> $env:GITHUB_PATH
+          echo "C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.8 Tools" >> $env:GITHUB_PATH
+          echo "C:\Program Files\DigiCert\DigiCert Keylocker Tools" >> $env:GITHUB_PATH
+          
+          # Download and install the Keylocker tools
+          curl -X GET  https://one.digicert.com/signingmanager/api-ui/v1/releases/Keylockertools-windows-x64.msi/download -H "x-api-key:${{ secrets.SM_API_KEY }}" -o Keylockertools-windows-x64.msi 
+          msiexec /i Keylockertools-windows-x64.msi /quiet /qn
+          
+      - name: Certificates Sync   
+        shell: pwsh
+        if: vars.SIGN_MSI == 'true'
+        run: |
+          # Sync certificates
+          smctl windows certsync
+          
       - name: 'VCPKG: Set up VCPKG'
         run: |
           git clone --depth=1 https://github.com/microsoft/vcpkg.git
@@ -89,9 +131,10 @@ jobs:
         run: |
           # Define the base path to the VC redistributable directories
           $basePath = "C:\Program Files\Microsoft Visual Studio\2022\*\VC\Redist\MSVC"
+          $arch = "x64"
           
           # Find directories that match the pattern for VC redistributables
-          $redistDirs = Get-ChildItem -Path $basePath -Recurse -Directory -Filter "Microsoft.VC*.CRT" | Where-Object { $_.FullName -notmatch "debug_nonredist" }
+          $redistDirs = Get-ChildItem -Path $basePath -Recurse -Directory -Filter "Microsoft.VC*.CRT" | Where-Object { $_.FullName -notmatch "debug_nonredist" -and $_.FullName -match "\\$arch\\" -and $_.FullName -notmatch "onecore" }
           
           # Extract the toolset version from the directory names
           if ($redistDirs) {
@@ -101,7 +144,7 @@ jobs:
               Write-Host "Found MSVC Redistributable Full Path: $firstRedistDir"
               echo "MSVC_TOOLSET_VERSION=$toolsetVersion" >> $env:GITHUB_ENV
               echo "VCToolsRedistDir=$($firstRedistDir.Parent.Parent.Parent.FullName)" >> $env:GITHUB_ENV
-              echo "VSCMD_ARG_TGT_ARCH=x64" >> $env:GITHUB_ENV
+              echo "VSCMD_ARG_TGT_ARCH=$arch" >> $env:GITHUB_ENV
               echo "MSVC_REDISTRIBUTABLES_PATH=$firstRedistDir" >> $env:GITHUB_ENV
           } else {
               Write-Error "No valid redistributable directories found."
@@ -150,10 +193,24 @@ jobs:
         run: |
           candle -v -d"SolutionDir=." -d"SolutionExt=.sln" -d"SolutionFileName=PDF4QT.sln" -d"SolutionName=PDF4QT" -d"SolutionPath=PDF4QT.sln" -d"Configuration=Release" -d"OutDir=bin\Release\" -d"Platform=x86" -d"ProjectDir=." -d"ProjectExt=.wixproj" -d"ProjectFileName=PDF4QT.wixproj" -d"ProjectName=PDF4QT" -d"ProjectPath=PDF4QT.wixproj" -d"TargetDir=bin\Release\" -d"TargetExt=.msi" -d"TargetFileName=${{ env.msipackagefilename }}" -d"TargetName=PDF4QT" -d"TargetPath=bin\Release\${{ env.msipackagefilename }}" -out obj\Release\ -arch x86 -ext "${{ env.wixuiextpath }}" Product.wxs
           Light -v -out ${{ github.workspace }}\pdf4qt\build\install\${{ env.msipackagefilename }} -pdbout .\bin\Release\PDF4QT.wixpdb -cultures:null -ext "${{ env.wixuiextpath }}" -contentsfile obj\Release\PDF4QT.wixproj.BindContentsFileListnull.txt -outputsfile obj\Release\PDF4QT.wixproj.BindOutputsFileListnull.txt -builtoutputsfile obj\Release\PDF4QT.wixproj.BindBuiltOutputsFileListnull.txt -wixprojectfile .\PDF4QT.wixproj obj\Release\Product.wixobj
+          
+      - name: Sign MSI Package
+        shell: pwsh
+        if: vars.SIGN_MSI == 'true'     
+        run: |
+          signtool.exe sign /sha1 ${{ secrets.SM_CODE_SIGNING_CERT_SHA1_HASH }} /tr http://timestamp.digicert.com /td SHA256 /fd SHA256 "${{ github.workspace }}\pdf4qt\build\install\${{ env.msipackagefilename }}"        
+          signtool.exe verify /v /pa "${{ github.workspace }}\pdf4qt\build\install\${{ env.msipackagefilename }}"
 
       - name: Create MSIX Package
         run: |
           MakeAppx pack /d ".\pdf4qt\build\install\usr\bin" /p ".\pdf4qt\build\install\JakubMelka.PDF4QT_${{ env.pdf4qt_version }}.msix"
+          
+      - name: Sign MSIX Package
+        shell: pwsh
+        if: vars.SIGN_MSI == 'true'     
+        run: |
+          signtool.exe sign /sha1 ${{ secrets.SM_CODE_SIGNING_CERT_SHA1_HASH }} /tr http://timestamp.digicert.com /td SHA256 /fd SHA256 ".\pdf4qt\build\install\JakubMelka.PDF4QT_${{ env.pdf4qt_version }}.msix"        
+          signtool.exe verify /v /pa ".\pdf4qt\build\install\JakubMelka.PDF4QT_${{ env.pdf4qt_version }}.msix"
         
       - name: Upload ZIP directory
         uses: actions/upload-artifact@v4
