@@ -57,89 +57,89 @@
 
   <Fragment>
     <ComponentGroup Id="PDF4QT_Framework">
-      <Component Id="cmp9F6DED952E5836E703990F81D1E8FBA1" Directory="INSTALLFOLDER" Guid="{66259284-4454-4AD2-92D4-AEED3D27A0EC}">
-        <File Id="fil4B32DD093E5D748C6DB9C5E48F8BF8E5" KeyPath="yes" Source="$(var.MyInstallDir)\libcrypto-3-x64.dll" />
+      <Component Id="cmplibcrypto" Directory="INSTALLFOLDER" Guid="{66259284-4454-4AD2-92D4-AEED3D27A0EC}">
+        <File Id="fillibcrypto" KeyPath="yes" Source="$(var.MyInstallDir)\libcrypto-3-x64.dll" />
       </Component>
-      <Component Id="cmp2B0BBC8908FE104E7FE849B6C9361904" Directory="INSTALLFOLDER" Guid="{B0309455-5073-465A-B3C4-83CEAE720761}">
-        <File Id="filCC63CF9D6F210D0049D050EB06297019" KeyPath="yes" Source="$(var.MyInstallDir)\libssl-3-x64.dll" />
+      <Component Id="cmplibssl" Directory="INSTALLFOLDER" Guid="{B0309455-5073-465A-B3C4-83CEAE720761}">
+        <File Id="fillibssl" KeyPath="yes" Source="$(var.MyInstallDir)\libssl-3-x64.dll" />
       </Component>
       <Component Id="cmpPdf4QtLibCore" Directory="INSTALLFOLDER" Guid="{C8CFFAE9-F913-4103-BD46-A8299E42938E}">
         <File Id="filPdf4QtLibCore" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtLibCore.dll" />
       </Component>
-        <Component Id="cmpPdf4QtLibWidgets" Directory="INSTALLFOLDER" Guid="{40A714A4-3F2A-41BE-9C70-216FAB048061}">
-            <File Id="filPdf4QtLibWidgets" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtLibWidgets.dll" />
-        </Component>
+      <Component Id="cmpPdf4QtLibWidgets" Directory="INSTALLFOLDER" Guid="{40A714A4-3F2A-41BE-9C70-216FAB048061}">
+        <File Id="filPdf4QtLibWidgets" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtLibWidgets.dll" />
+      </Component>
       <Component Id="cmpPdf4QtLibGui" Directory="INSTALLFOLDER" Guid="{A6399A6E-EF73-4699-A723-E72529C248DB}">
-        <File Id="fil0CB615EFFEBF4E5461A1C353B0A551E2" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtLibGui.dll" />
+        <File Id="filPdf4QtLibGui" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtLibGui.dll" />
       </Component>
-      <Component Id="cmpFC336ADC1B94F4FDF274016576CE9B0E" Directory="INSTALLFOLDER" Guid="{E5C28C55-AC18-4E71-B84E-82745BC0360B}">
-        <File Id="filB2658D09DD3F25C5086312C63CF0EC25" KeyPath="yes" Source="$(var.MyInstallDir)\PdfTool.exe" />
+      <Component Id="cmpPdfTool" Directory="INSTALLFOLDER" Guid="{E5C28C55-AC18-4E71-B84E-82745BC0360B}">
+        <File Id="filPdfTool" KeyPath="yes" Source="$(var.MyInstallDir)\PdfTool.exe" />
       </Component>
-      <Component Id="cmpF0FEC7B047A9EF88B91034625A4B72D5" Directory="INSTALLFOLDER" Guid="{D8024726-7864-42BE-9E38-DFF782AC5C97}">
-                <File Id="filDC95499FD8CAC724929CA0787CEF1B2A" KeyPath="yes" Source="$(var.MyInstallDir)\Qt6Core.dll" />
+      <Component Id="cmpQt6Core" Directory="INSTALLFOLDER" Guid="{D8024726-7864-42BE-9E38-DFF782AC5C97}">
+        <File Id="filQt6Core" KeyPath="yes" Source="$(var.MyInstallDir)\Qt6Core.dll" />
       </Component>
-      <Component Id="cmp050DF4770B1929CBEAE0CFBB356D2D69" Directory="INSTALLFOLDER" Guid="{E881017F-DF56-440F-B5AA-6D6A01ECCC42}">
-                <File Id="filBCC4B05880EF2A800D781C7B7940965A" KeyPath="yes" Source="$(var.MyInstallDir)\Qt6Gui.dll" />
+      <Component Id="cmpQt6Gui" Directory="INSTALLFOLDER" Guid="{E881017F-DF56-440F-B5AA-6D6A01ECCC42}">
+                <File Id="filQt6Gui" KeyPath="yes" Source="$(var.MyInstallDir)\Qt6Gui.dll" />
       </Component>
-      <Component Id="cmp2976DEFCAE8108C105050DAB5A3D3A48" Directory="INSTALLFOLDER" Guid="{69DD98CF-191F-4E16-9475-7201CF05630D}">
-                <File Id="fil6DD6F1AE79FEDC9E52E0749631111421" KeyPath="yes" Source="$(var.MyInstallDir)\Qt6Network.dll" />
+      <Component Id="cmpQt6Network" Directory="INSTALLFOLDER" Guid="{69DD98CF-191F-4E16-9475-7201CF05630D}">
+                <File Id="filQt6Network" KeyPath="yes" Source="$(var.MyInstallDir)\Qt6Network.dll" />
       </Component>
-      <Component Id="cmpC13D7C1424C0CFB6E95228856D95D3D9" Directory="INSTALLFOLDER" Guid="{C8045343-5FD3-4349-B4E6-B770F4D28381}">
-                <File Id="fil2CA384D87C1BB95F8A238BBA31619E88" KeyPath="yes" Source="$(var.MyInstallDir)\Qt6PrintSupport.dll" />
+      <Component Id="cmpQt6PrintSupport" Directory="INSTALLFOLDER" Guid="{C8045343-5FD3-4349-B4E6-B770F4D28381}">
+                <File Id="filQt6PrintSupport" KeyPath="yes" Source="$(var.MyInstallDir)\Qt6PrintSupport.dll" />
       </Component>
-      <Component Id="cmp4B93CB96FAE49543B866F795FE91BFEC" Directory="INSTALLFOLDER" Guid="{8324FA84-C4A4-47E8-849B-62D5FD5F2B4A}">
-                <File Id="fil5F8A2BE13AA960438448DF87A4072AAB" KeyPath="yes" Source="$(var.MyInstallDir)\Qt6Svg.dll" />
+      <Component Id="cmpQt6Svg" Directory="INSTALLFOLDER" Guid="{8324FA84-C4A4-47E8-849B-62D5FD5F2B4A}">
+                <File Id="filQt6Svg" KeyPath="yes" Source="$(var.MyInstallDir)\Qt6Svg.dll" />
       </Component>
-      <Component Id="cmp3AD372C0B04F2ABE9AC2727A7081AB26" Directory="INSTALLFOLDER" Guid="{82AAD343-207F-4812-BC7E-0F17D9F6B8CD}">
-                <File Id="fil5173D52970E73A7538E9BBBFAE7B99E7" KeyPath="yes" Source="$(var.MyInstallDir)\Qt6TextToSpeech.dll" />
+      <Component Id="cmpQt6TextToSpeech" Directory="INSTALLFOLDER" Guid="{82AAD343-207F-4812-BC7E-0F17D9F6B8CD}">
+                <File Id="filQt6TextToSpeech" KeyPath="yes" Source="$(var.MyInstallDir)\Qt6TextToSpeech.dll" />
       </Component>
-      <Component Id="cmp5B6C586D52A908C25B5737846082756D" Directory="INSTALLFOLDER" Guid="{C686E727-51FF-4A40-A7FE-E1A2130FDAAF}">
-                <File Id="fil78D8BEDD274D38919549601FD4207964" KeyPath="yes" Source="$(var.MyInstallDir)\Qt6Widgets.dll" />
+      <Component Id="cmpQt6Widgets" Directory="INSTALLFOLDER" Guid="{C686E727-51FF-4A40-A7FE-E1A2130FDAAF}">
+                <File Id="filQt6Widgets" KeyPath="yes" Source="$(var.MyInstallDir)\Qt6Widgets.dll" />
       </Component>
-      <Component Id="cmp068E3E76B6D48D83E1D7057FDB790B6F" Directory="INSTALLFOLDER" Guid="{686836FB-9324-4849-AEFC-3AC5575BE2EC}">
-                <File Id="fil4ED97731700A4540C059B2EB501F71CF" KeyPath="yes" Source="$(var.MyInstallDir)\Qt6Xml.dll" />
+      <Component Id="cmpQt6Xml" Directory="INSTALLFOLDER" Guid="{686836FB-9324-4849-AEFC-3AC5575BE2EC}">
+                <File Id="filQt6Xml" KeyPath="yes" Source="$(var.MyInstallDir)\Qt6Xml.dll" />
       </Component>
-      <Component Id="cmp2C0364AAE5A0954DAEB83F9E188A2BB3" Directory="dir_iconengines" Guid="{2A149233-0A00-466A-A962-D28D3D5DE53C}">
-        <File Id="fil29E77D886B32E2F1B916B9E3F0195C26" KeyPath="yes" Source="$(var.MyInstallDir)\iconengines\qsvgicon.dll" />
+      <Component Id="cmpqsvgicon" Directory="dir_iconengines" Guid="{2A149233-0A00-466A-A962-D28D3D5DE53C}">
+        <File Id="filqsvgicon" KeyPath="yes" Source="$(var.MyInstallDir)\iconengines\qsvgicon.dll" />
       </Component>
-      <Component Id="cmp0152BE011DF4E67C4512C9D0A8C60888" Directory="dir_imageformats" Guid="{33659C3C-A04E-47C3-855B-EB3771F210F3}">
-        <File Id="fil649B275EC6B658A61A105D64DC8168EB" KeyPath="yes" Source="$(var.MyInstallDir)\imageformats\qgif.dll" />
+      <Component Id="cmpqgif" Directory="dir_imageformats" Guid="{33659C3C-A04E-47C3-855B-EB3771F210F3}">
+        <File Id="filqgif" KeyPath="yes" Source="$(var.MyInstallDir)\imageformats\qgif.dll" />
       </Component>
-      <Component Id="cmpF6EE55E5CE3C50150CCFDFF6EEE08175" Directory="dir_imageformats" Guid="{A8B580B2-FF02-4C3F-8226-FC8888D0F088}">
-        <File Id="filE37408FDA282BFA5631B76510BAEB1A1" KeyPath="yes" Source="$(var.MyInstallDir)\imageformats\qicns.dll" />
+      <Component Id="cmpqicns" Directory="dir_imageformats" Guid="{A8B580B2-FF02-4C3F-8226-FC8888D0F088}">
+        <File Id="filqicns" KeyPath="yes" Source="$(var.MyInstallDir)\imageformats\qicns.dll" />
       </Component>
-      <Component Id="cmpEA51558A16DBE53D741665F43C7DAC68" Directory="dir_imageformats" Guid="{97AB6FB0-A714-42DC-810D-4276F0C81398}">
-        <File Id="filC526DE84AB9A38B170F8A4FFA2283989" KeyPath="yes" Source="$(var.MyInstallDir)\imageformats\qico.dll" />
+      <Component Id="cmpqico" Directory="dir_imageformats" Guid="{97AB6FB0-A714-42DC-810D-4276F0C81398}">
+        <File Id="filqico" KeyPath="yes" Source="$(var.MyInstallDir)\imageformats\qico.dll" />
       </Component>
-      <Component Id="cmp70839222F8B2AA4D47956200F3CC955D" Directory="dir_imageformats" Guid="{71C0EF13-5693-4CEC-B690-92872DECAC76}">
-        <File Id="filAB0DEB5CDCE9F61F77AB7C327EAE0453" KeyPath="yes" Source="$(var.MyInstallDir)\imageformats\qjpeg.dll" />
+      <Component Id="cmpqjpeg" Directory="dir_imageformats" Guid="{71C0EF13-5693-4CEC-B690-92872DECAC76}">
+        <File Id="filqjpeg" KeyPath="yes" Source="$(var.MyInstallDir)\imageformats\qjpeg.dll" />
       </Component>
-      <Component Id="cmp06640857364709607F282497EA5EAF8F" Directory="dir_imageformats" Guid="{A036D6FA-5473-40BC-BE2A-3698830A5E11}">
-        <File Id="fil188DB6C9B8A091F12E6335E9E0DF2134" KeyPath="yes" Source="$(var.MyInstallDir)\imageformats\qsvg.dll" />
+      <Component Id="cmpqsvg" Directory="dir_imageformats" Guid="{A036D6FA-5473-40BC-BE2A-3698830A5E11}">
+        <File Id="filqsvg" KeyPath="yes" Source="$(var.MyInstallDir)\imageformats\qsvg.dll" />
       </Component>
-      <Component Id="cmpF2F9646DBF1F8E70AE64D949F1E82C52" Directory="dir_imageformats" Guid="{28B2A1D2-DD40-4ADE-9ECF-AC2226D7331A}">
-        <File Id="fil8CD039DE3BBC3BF2E9A4E962AE3E1F88" KeyPath="yes" Source="$(var.MyInstallDir)\imageformats\qtga.dll" />
+      <Component Id="cmpqtga" Directory="dir_imageformats" Guid="{28B2A1D2-DD40-4ADE-9ECF-AC2226D7331A}">
+        <File Id="filqtga" KeyPath="yes" Source="$(var.MyInstallDir)\imageformats\qtga.dll" />
       </Component>
-      <Component Id="cmp9AA3D7DCAA0D712359805A379B9D55F4" Directory="dir_imageformats" Guid="{E934CB6B-D99D-42AC-86BC-61CB8B88EB6A}">
-        <File Id="fil8A6BE62770349947A54EFE2E6D7DD270" KeyPath="yes" Source="$(var.MyInstallDir)\imageformats\qtiff.dll" />
+      <Component Id="cmpqtiff" Directory="dir_imageformats" Guid="{E934CB6B-D99D-42AC-86BC-61CB8B88EB6A}">
+        <File Id="filqtiff" KeyPath="yes" Source="$(var.MyInstallDir)\imageformats\qtiff.dll" />
       </Component>
-      <Component Id="cmpE83561BCC57177869AD16B94D4FF1656" Directory="dir_imageformats" Guid="{EE55D0FD-5843-4F0B-952A-9B22757C461A}">
-        <File Id="filEB2D852577201BB9F619AA814A00692F" KeyPath="yes" Source="$(var.MyInstallDir)\imageformats\qwebp.dll" />
+      <Component Id="cmpqwebp" Directory="dir_imageformats" Guid="{EE55D0FD-5843-4F0B-952A-9B22757C461A}">
+        <File Id="filqwebp" KeyPath="yes" Source="$(var.MyInstallDir)\imageformats\qwebp.dll" />
       </Component>
       <Component Id="cqwbmp" Directory="dir_imageformats" Guid="{7DAD6CB3-5245-479B-A715-E2AEFDD473A7}">
         <File Id="fqwbmp" KeyPath="yes" Source="$(var.MyInstallDir)\imageformats\qwbmp.dll" />
       </Component>
-      <Component Id="cmp893EFF82D727F74847CD545558FE34F9" Directory="dir_platforms" Guid="{8A574FB6-B003-45E6-80F2-0989BEE14A63}">
-        <File Id="filD985A5747A9613717D389F1D3912E702" KeyPath="yes" Source="$(var.MyInstallDir)\platforms\qwindows.dll" />
+      <Component Id="cmpqwindows" Directory="dir_platforms" Guid="{8A574FB6-B003-45E6-80F2-0989BEE14A63}">
+        <File Id="filqwindows" KeyPath="yes" Source="$(var.MyInstallDir)\platforms\qwindows.dll" />
       </Component>
-      <Component Id="cmp68D943E1439A6058C3156551EE80749B" Directory="dir_styles" Guid="{1A418DAB-7A24-4695-A773-4DC161926350}">
-        <File Id="fil5C550A2AFF340D0DC4E7D7A674142A92" KeyPath="yes" Source="$(var.MyInstallDir)\styles\qmodernwindowsstyle.dll" />
+      <Component Id="cmpqmodernwindowsstyle" Directory="dir_styles" Guid="{1A418DAB-7A24-4695-A773-4DC161926350}">
+        <File Id="filqmodernwindowsstyle" KeyPath="yes" Source="$(var.MyInstallDir)\styles\qmodernwindowsstyle.dll" />
       </Component>
-      <Component Id="cmpAF41975820F68671CC4EF8EDCC9B3135" Directory="dir_texttospeech" Guid="{305900CC-4483-4E0F-B611-C32FD9E01021}">
-        <File Id="fil06D2402D329F17F0309E6FB70C194C77" KeyPath="yes" Source="$(var.MyInstallDir)\texttospeech\qtexttospeech_sapi.dll" />
+      <Component Id="cmpqtexttospeech_sapi" Directory="dir_texttospeech" Guid="{305900CC-4483-4E0F-B611-C32FD9E01021}">
+        <File Id="filqtexttospeech_sapi" KeyPath="yes" Source="$(var.MyInstallDir)\texttospeech\qtexttospeech_sapi.dll" />
       </Component>
-      <Component Id="cqtexttospeech_winrt" Directory="dir_texttospeech" Guid="{2C0A052A-969F-4583-9DE2-86D1D6F60F56}">
-        <File Id="fqtexttospeech_winrt" KeyPath="yes" Source="$(var.MyInstallDir)\texttospeech\qtexttospeech_winrt.dll" />
+      <Component Id="cmpqtexttospeech_winrt" Directory="dir_texttospeech" Guid="{2C0A052A-969F-4583-9DE2-86D1D6F60F56}">
+        <File Id="filqtexttospeech_winrt" KeyPath="yes" Source="$(var.MyInstallDir)\texttospeech\qtexttospeech_winrt.dll" />
       </Component>
       <Component Id="vcredist1" Directory="INSTALLFOLDER" Guid="{737E5322-B760-4B1B-BCB9-04A590449A91}">
         <File Id="fvcredist1" KeyPath="yes" Source="$(var.MyInstallDir)\concrt140.dll" />
@@ -201,18 +201,21 @@
       <Component Id="cbz2" Directory="INSTALLFOLDER" Guid="{0FA00203-CBBC-43D5-8E72-990267E18A16}">
         <File Id="fbz2" KeyPath="yes" Source="$(var.MyInstallDir)\bz2.dll" />
       </Component>
+      <Component Id="cmpblend2d" Directory="INSTALLFOLDER" Guid="{19BEFD18-FEA7-4130-82EE-D460DC4C28BC}">
+        <File Id="filblend2d" KeyPath="yes" Source="$(var.MyInstallDir)\blend2d.dll" />
+      </Component>
     </ComponentGroup>
   </Fragment>
 
   <Fragment>
     <ComponentGroup Id="PDF4QT_Editor">
-      <Component Id="cmp188606497BACB312973D307393C8D3AF" Directory="INSTALLFOLDER" Guid="{52D3CF62-F556-4E7A-BCEB-75E5E65ED786}">
-        <File Id="fil382C8CB744D292C33773197891A6A24E" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtEditor.exe">
+      <Component Id="cmpPdf4QtEditor" Directory="INSTALLFOLDER" Guid="{52D3CF62-F556-4E7A-BCEB-75E5E65ED786}">
+        <File Id="filPdf4QtEditor" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtEditor.exe">
           <Shortcut Id="PDF4QT_Editor_Shortcut" Directory="ProgramMenuDir" Name="PDF4QT Editor" Description="Advanced PDF editor" WorkingDirectory="INSTALLFOLDER" Icon="PDF4QT_VP_Icon.exe" IconIndex="0" Advertise="yes"/>
         </File>
-        <ProgId Id='default_profi.pdf' Description='PDF Document'>
+        <ProgId Id='pdf4qt_default_editor.pdf' Description='PDF Document'>
           <Extension Id='pdf' ContentType='application/pdf'>
-            <Verb Id='open' Command='Open' TargetFile='fil382C8CB744D292C33773197891A6A24E' Argument='"%1"' />
+            <Verb Id='open' Command='Open' TargetFile='filPdf4QtEditor' Argument='"%1"' />
           </Extension>
         </ProgId>
       </Component>
@@ -225,13 +228,13 @@
 
   <Fragment>
     <ComponentGroup Id="PDF4QT_Viewer">
-      <Component Id="cmp891B7ED2D028329F4330A2C46EF56E40" Directory="INSTALLFOLDER" Guid="{2D222775-6DA7-43E6-B212-3A142622190C}">
-        <File Id="fil84879C1A606C2A34C05AE592C1DC0E90" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtViewer.exe">
+      <Component Id="cmpPdf4QtViewer" Directory="INSTALLFOLDER" Guid="{2D222775-6DA7-43E6-B212-3A142622190C}">
+        <File Id="filPdf4QtViewer" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtViewer.exe">
           <Shortcut Id="PDF4QT_Viewer_Shortcut" Directory="ProgramMenuDir" Name="PDF4QT Viewer" Description="Simple PDF viewer" WorkingDirectory="INSTALLFOLDER" Icon="PDF4QT_VL_Icon.exe" IconIndex="0" Advertise="yes"/>
         </File>
-        <ProgId Id='default_lite.pdf' Description='PDF Document'>
+        <ProgId Id='pdf4qt_default_viewer.pdf' Description='PDF Document'>
           <Extension Id='pdf' ContentType='application/pdf'>
-            <Verb Id='open' Command='Open' TargetFile='fil84879C1A606C2A34C05AE592C1DC0E90' Argument='"%1"' />
+            <Verb Id='open' Command='Open' TargetFile='filPdf4QtViewer' Argument='"%1"' />
           </Extension>
         </ProgId>
       </Component>
@@ -244,8 +247,8 @@
 
   <Fragment>
     <ComponentGroup Id="PDF4QT_PageMaster">
-      <Component Id="cmp8323DF5465210B8C0ACBA71BACE6D2C9" Directory="INSTALLFOLDER" Guid="{9D248BEE-BA78-4050-B362-0694B11AA326}">
-        <File Id="fil82A5A2280AE5FAD2BDA0C3AD486F406A" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtPageMaster.exe">
+      <Component Id="cmpPdf4QtPageMaster" Directory="INSTALLFOLDER" Guid="{9D248BEE-BA78-4050-B362-0694B11AA326}">
+        <File Id="filPdf4QtPageMaster" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtPageMaster.exe">
           <Shortcut Id="PDF4QT_DPO_Shortcut" Directory="ProgramMenuDir" Name="PDF4QT PageMaster" Description="PDF Document page organizer" WorkingDirectory="INSTALLFOLDER" Icon="PDF4QT_DPO_Icon.exe" IconIndex="0" Advertise="yes"/>
         </File>
       </Component>
@@ -258,8 +261,8 @@
 
   <Fragment>
     <ComponentGroup Id="PDF4QT_Diff">
-      <Component Id="cmpF7C26D935DF63326446EC8C73E470F3A" Directory="INSTALLFOLDER" Guid="{067D40E9-4FAE-472D-BCC3-B92A23CA0028}">
-        <File Id="fil71267885AEBCC05676DCDCB1DC20FB06" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtDiff.exe">
+      <Component Id="cmpPdf4QtDiff" Directory="INSTALLFOLDER" Guid="{067D40E9-4FAE-472D-BCC3-B92A23CA0028}">
+        <File Id="filPdf4QtDiff" KeyPath="yes" Source="$(var.MyInstallDir)\Pdf4QtDiff.exe">
           <Shortcut Id="PDF4QT_DD_Shortcut" Directory="ProgramMenuDir" Name="PDF4QT Diff" Description="Compare two similar PDF documents" WorkingDirectory="INSTALLFOLDER" Icon="PDF4QT_DD_Icon.exe" IconIndex="0" Advertise="yes"/>
         </File>
       </Component>
@@ -272,26 +275,29 @@
 
   <Fragment>
     <ComponentGroup Id="PDF4QT_Editor_Plugins">
-      <Component Id="cmpF3C540FEAD14FBC1B56CE4C51B406A28" Directory="dir_pdfplugins" Guid="{06D159D2-0F34-417E-9134-7E9195E697A0}">
-        <File Id="fil997E8EDEF5A10B95CDD22A2FBE5C2BB1" KeyPath="yes" Source="$(var.MyInstallDir)\pdfplugins\AudioBookPlugin.dll" />
+      <Component Id="cmpAudioBookPlugin" Directory="dir_pdfplugins" Guid="{06D159D2-0F34-417E-9134-7E9195E697A0}">
+        <File Id="filAudioBookPlugin" KeyPath="yes" Source="$(var.MyInstallDir)\pdfplugins\AudioBookPlugin.dll" />
       </Component>
-      <Component Id="cmpF9D15999CE76257F81B3657786ECD7FC" Directory="dir_pdfplugins" Guid="{0D422903-CBDD-47CF-B7A9-6C829BD64717}">
-        <File Id="filA4EB847149AD9797EC4690DF431D965A" KeyPath="yes" Source="$(var.MyInstallDir)\pdfplugins\DimensionsPlugin.dll" />
+      <Component Id="cmpDimensionsPlugin" Directory="dir_pdfplugins" Guid="{0D422903-CBDD-47CF-B7A9-6C829BD64717}">
+        <File Id="filDimensionsPlugin" KeyPath="yes" Source="$(var.MyInstallDir)\pdfplugins\DimensionsPlugin.dll" />
       </Component>
-      <Component Id="cmpD017EA235D1054DA8923D79D2DA71AE2" Directory="dir_pdfplugins" Guid="{9058F5AB-6248-406D-8634-5657552DA6D2}">
-        <File Id="fil0BC208AC84C3193B6D965C718BDE3216" KeyPath="yes" Source="$(var.MyInstallDir)\pdfplugins\ObjectInspectorPlugin.dll" />
+      <Component Id="cmpObjectInspectorPlugin" Directory="dir_pdfplugins" Guid="{9058F5AB-6248-406D-8634-5657552DA6D2}">
+        <File Id="filObjectInspectorPlugin" KeyPath="yes" Source="$(var.MyInstallDir)\pdfplugins\ObjectInspectorPlugin.dll" />
       </Component>
-      <Component Id="cmpB8D18490C7E0DD17CE3F6AD04A29272B" Directory="dir_pdfplugins" Guid="{054CE9AB-A1FA-45E2-A75E-1D4DDE76D156}">
-        <File Id="fil498E762C3D8146E6796E82F7D241B3C2" KeyPath="yes" Source="$(var.MyInstallDir)\pdfplugins\OutputPreviewPlugin.dll" />
+      <Component Id="cmpOutputPreviewPlugin" Directory="dir_pdfplugins" Guid="{054CE9AB-A1FA-45E2-A75E-1D4DDE76D156}">
+        <File Id="filOutputPreviewPlugin" KeyPath="yes" Source="$(var.MyInstallDir)\pdfplugins\OutputPreviewPlugin.dll" />
       </Component>
-      <Component Id="cmpA01525CA78D9C8444D9294D1794F9DF7" Directory="dir_pdfplugins" Guid="{2B85C746-062F-4D93-9978-0E1206FF20C4}">
-        <File Id="filEF3ACEBCEC22112A274E8FA8A5BB901B" KeyPath="yes" Source="$(var.MyInstallDir)\pdfplugins\RedactPlugin.dll" />
+      <Component Id="cmpRedactPlugin" Directory="dir_pdfplugins" Guid="{2B85C746-062F-4D93-9978-0E1206FF20C4}">
+        <File Id="filRedactPlugin" KeyPath="yes" Source="$(var.MyInstallDir)\pdfplugins\RedactPlugin.dll" />
       </Component>
-      <Component Id="cmpB575C63D30CE3C077C592568D6098685" Directory="dir_pdfplugins" Guid="{421A01AF-BB7F-467C-A3C6-ED9F41BABC02}">
-        <File Id="fil8609396BCF21562397E229247EDC4CCF" KeyPath="yes" Source="$(var.MyInstallDir)\pdfplugins\SoftProofingPlugin.dll" />
+      <Component Id="cmpSoftProofingPlugin" Directory="dir_pdfplugins" Guid="{421A01AF-BB7F-467C-A3C6-ED9F41BABC02}">
+        <File Id="filSoftProofingPlugin" KeyPath="yes" Source="$(var.MyInstallDir)\pdfplugins\SoftProofingPlugin.dll" />
       </Component>
       <Component Id="cmpSignaturePlugin" Directory="dir_pdfplugins" Guid="{BC0EA59D-3E89-402C-BB0A-93869214AB19}">
         <File Id="filSignaturePlugin" KeyPath="yes" Source="$(var.MyInstallDir)\pdfplugins\SignaturePlugin.dll" />
+      </Component>
+      <Component Id="cmpEditorPlugin" Directory="dir_pdfplugins" Guid="{FE5DC1D1-3320-43A7-BD4F-DCFB2A9DE039}">
+        <File Id="filEditorPlugin" KeyPath="yes" Source="$(var.MyInstallDir)\pdfplugins\EditorPlugin.dll" />
       </Component>
     </ComponentGroup>
   </Fragment>
