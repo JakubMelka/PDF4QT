@@ -89,9 +89,10 @@ jobs:
         run: |
           # Define the base path to the VC redistributable directories
           $basePath = "C:\Program Files\Microsoft Visual Studio\2022\*\VC\Redist\MSVC"
+          $arch = "x64"
           
           # Find directories that match the pattern for VC redistributables
-          $redistDirs = Get-ChildItem -Path $basePath -Recurse -Directory -Filter "Microsoft.VC*.CRT" | Where-Object { $_.FullName -notmatch "debug_nonredist" }
+          $redistDirs = Get-ChildItem -Path $basePath -Recurse -Directory -Filter "Microsoft.VC*.CRT" | Where-Object { $_.FullName -notmatch "debug_nonredist" -and $_.FullName -match "\\$arch\\" -and $_.FullName -notmatch "onecore" }
           
           # Extract the toolset version from the directory names
           if ($redistDirs) {
@@ -101,7 +102,7 @@ jobs:
               Write-Host "Found MSVC Redistributable Full Path: $firstRedistDir"
               echo "MSVC_TOOLSET_VERSION=$toolsetVersion" >> $env:GITHUB_ENV
               echo "VCToolsRedistDir=$($firstRedistDir.Parent.Parent.Parent.FullName)" >> $env:GITHUB_ENV
-              echo "VSCMD_ARG_TGT_ARCH=x64" >> $env:GITHUB_ENV
+              echo "VSCMD_ARG_TGT_ARCH=$arch" >> $env:GITHUB_ENV
               echo "MSVC_REDISTRIBUTABLES_PATH=$firstRedistDir" >> $env:GITHUB_ENV
           } else {
               Write-Error "No valid redistributable directories found."
