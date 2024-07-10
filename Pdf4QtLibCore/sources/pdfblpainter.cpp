@@ -302,7 +302,7 @@ void PDFBLPaintEngine::updateState(const QPaintEngineState& updatedState)
     if (updatedState.state().testFlag(QPaintEngine::DirtyTransform))
     {
         m_currentTransform = updatedState.transform();
-        m_blContext->setMatrix(getBLMatrix(updatedState.transform()));
+        m_blContext->setTransform(getBLMatrix(updatedState.transform()));
     }
 
     if (updatedState.state().testFlag(QPaintEngine::DirtyFont))
@@ -580,7 +580,7 @@ void PDFBLPaintEngine::drawPathImpl(const QPainterPath& path, bool enableStroke,
                 if (!fillPath.isEmpty())
                 {
                     m_blContext->save();
-                    m_blContext->resetMatrix();
+                    m_blContext->resetTransform();
                     m_blContext->fillPath(getBLPath(fillPath));
                     m_blContext->restore();
                 }
@@ -596,7 +596,7 @@ void PDFBLPaintEngine::drawPathImpl(const QPainterPath& path, bool enableStroke,
                 if (!finalTransformedStrokedPath.isEmpty())
                 {
                     m_blContext->save();
-                    m_blContext->resetMatrix();
+                    m_blContext->resetTransform();
                     setBLBrush(m_blContext.value(), m_currentPen.brush());
                     m_blContext->fillPath(getBLPath(finalTransformedStrokedPath));
                     m_blContext->restore();
@@ -1183,10 +1183,10 @@ void PDFBLPaintEngine::updateClipping(std::optional<QRegion> clipRegion,
 
     if (m_clipSingleRect)
     {
-        BLMatrix2D matrix = m_blContext->userMatrix();
-        m_blContext->resetMatrix();
+        BLMatrix2D matrix = m_blContext->userTransform();
+        m_blContext->resetTransform();
         m_blContext->clipToRect(getBLRect(m_finalClipPath->boundingRect()));
-        m_blContext->setMatrix(matrix);
+        m_blContext->setTransform(matrix);
     }
     else
     {

@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #185: Latest git fails to build in linux
 
 V: 1.4.0.0 4.7.2024
  - Issue #190: PageMaster crash + black bubbles instead of bubbles with correct color
