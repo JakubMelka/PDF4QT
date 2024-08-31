@@ -40,7 +40,6 @@ of third party libraries.
 Software have following features (the list is not complete):
 
 - [x] multithreading support
-- [x] hardware accelerated rendering
 - [x] encryption
 - [x] color management
 - [x] optional content handling
@@ -100,6 +99,7 @@ A [pdf4qt-git](https://aur.archlinux.org/packages/pdf4qt-git) package is availab
 For other Linux distributions, there are two options available. A Flatpak package can be accessed at [Flathub](https://flathub.org/apps/io.github.JakubMelka.Pdf4qt).
 Alternatively, an AppImage is available in the Releases section. The AppImage format is designed to work on nearly all Linux systems.
 Historically, a .deb package was also offered, but it has been discontinued due to compatibility issues with some Linux distributions.
+The executable names are: Pdf4QtEditor, Pdf4QtDiff, Pdf4QtLaunchPad, Pdf4QtPageMaster, Pdf4QtViewer, and PdfTool.
 
 ## 7. COMPILING
 
