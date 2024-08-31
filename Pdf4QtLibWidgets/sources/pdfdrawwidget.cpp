@@ -551,7 +551,7 @@ void PDFDrawWidget::wheelEvent(QWheelEvent* event)
         const PDFReal zoom = m_widget->getDrawWidgetProxy()->getZoom();
         const PDFReal zoomStep = std::pow(PDFDrawWidgetProxy::ZOOM_STEP, static_cast<PDFReal>(angleDeltaY) / static_cast<PDFReal>(QWheelEvent::DefaultDeltasPerStep));
         const PDFReal newZoom = zoom * zoomStep;
-        proxy->zoom(newZoom);
+        proxy->zoom(newZoom, event->position());
     }
     else
     {

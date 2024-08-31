@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #207: Zoom to Cursor (Zoom Anchoring) 
  - Issue #185: Latest git fails to build in linux
 
 V: 1.4.0.0 4.7.2024

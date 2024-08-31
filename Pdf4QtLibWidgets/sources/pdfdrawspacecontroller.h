@@ -254,7 +254,8 @@ public:
     /// Sets the zoom. Tries to preserve current offsets (so the current visible
     /// area will be visible after the zoom).
     /// \param zoom New zoom
-    void zoom(PDFReal zoom);
+    /// \param widgetPosition Position of the mouse during zooming
+    void zoom(PDFReal zoom, std::optional<QPointF> widgetPosition = std::nullopt);
 
     enum class ZoomHint
     {

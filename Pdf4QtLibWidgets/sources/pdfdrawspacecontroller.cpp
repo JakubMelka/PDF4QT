@@ -1231,21 +1231,41 @@ QPoint PDFDrawWidgetProxy::scrollByPixels(QPoint offset)
     return QPoint(m_horizontalOffset - oldHorizontalOffset, m_verticalOffset - oldVerticalOffset);
 }
 
-void PDFDrawWidgetProxy::zoom(PDFReal zoom)
+void PDFDrawWidgetProxy::zoom(PDFReal zoom, std::optional<QPointF> widgetPosition)
 {
     const PDFReal clampedZoom = qBound(MIN_ZOOM, zoom, MAX_ZOOM);
     if (m_zoom != clampedZoom)
     {
-        const PDFReal oldHorizontalOffsetMM = m_horizontalOffset * m_pixelToDeviceSpaceUnit;
-        const PDFReal oldVerticalOffsetMM = m_verticalOffset * m_pixelToDeviceSpaceUnit;
+        if (widgetPosition.has_value())
+        {
+            QPointF point = widgetPosition.value();
 
-        m_zoom = clampedZoom;
+            const PDFReal posX = (m_horizontalOffset - point.x()) * m_pixelToDeviceSpaceUnit;
+            const PDFReal posY = (m_verticalOffset - point.y()) * m_pixelToDeviceSpaceUnit;
 
-        update();
+            m_zoom = clampedZoom;
 
-        // Try to restore offsets, so we are in the same place
-        setHorizontalOffset(oldHorizontalOffsetMM * m_deviceSpaceUnitToPixel);
-        setVerticalOffset(oldVerticalOffsetMM * m_deviceSpaceUnitToPixel);
+            update();
+
+            const PDFReal hp = posX / m_pixelToDeviceSpaceUnit + point.x();
+            const PDFReal vp = posY / m_pixelToDeviceSpaceUnit + point.y();
+
+            setHorizontalOffset(hp);
+            setVerticalOffset(vp);
+        }
+        else
+        {
+            const PDFReal oldHorizontalOffsetMM = m_horizontalOffset * m_pixelToDeviceSpaceUnit;
+            const PDFReal oldVerticalOffsetMM = m_verticalOffset * m_pixelToDeviceSpaceUnit;
+
+            m_zoom = clampedZoom;
+
+            update();
+
+            // Try to restore offsets, so we are in the same place
+            setHorizontalOffset(oldHorizontalOffsetMM * m_deviceSpaceUnitToPixel);
+            setVerticalOffset(oldVerticalOffsetMM * m_deviceSpaceUnitToPixel);
+        }
     }
 }
 
