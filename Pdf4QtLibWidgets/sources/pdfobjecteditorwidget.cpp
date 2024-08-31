@@ -935,6 +935,11 @@ void PDFObjectEditorMappedColorAdapter::setValue(PDFObject object)
         const PDFReal blue = qBound(0.0, colors[2], 1.0);
         color = QColor::fromRgbF(red, green, blue);
     }
+    else if (colors.size() == 1)
+    {
+        const PDFReal gray = qBound(0.0, colors[0], 1.0);
+        color = QColor::fromRgbF(gray, gray, gray);
+    }
 
     int index = m_comboBox->findData(color);
     if (index != -1)
