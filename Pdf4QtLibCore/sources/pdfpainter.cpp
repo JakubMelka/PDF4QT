@@ -683,13 +683,6 @@ void PDFPrecompiledPage::addClip(QPainterPath path)
 
 void PDFPrecompiledPage::addImage(QImage image)
 {
-    // Convert the image into format Format_ARGB32_Premultiplied for fast drawing.
-    // If this format is used, then no image conversion is performed while drawing.
-    if (image.format() != QImage::Format_ARGB32_Premultiplied)
-    {
-        image.convertTo(QImage::Format_ARGB32_Premultiplied);
-    }
-
     m_instructions.emplace_back(InstructionType::DrawImage, m_images.size());
     m_images.emplace_back(qMove(image));
 }

@@ -112,6 +112,8 @@ public:
     const PDFImageData& getImageData() const { return m_imageData; }
     const PDFImageData& getSoftMaskData() const { return m_softMask; }
 
+    static bool canBeConvertedToMonochromatic(const QImage& image);
+
 private:
     PDFImageData m_imageData;
     PDFImageData m_softMask;

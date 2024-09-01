@@ -790,6 +790,32 @@ QImage PDFImage::getImage(const PDFCMS* cms,
     return QImage();
 }
 
+bool PDFImage::canBeConvertedToMonochromatic(const QImage& image)
+{
+    for (int y = 0; y < image.height(); ++y)
+    {
+        for (int x = 0; x < image.width(); ++x)
+        {
+            QRgb pixel = image.pixel(x, y);
+            int red = qRed(pixel);
+            int green = qGreen(pixel);
+            int blue = qBlue(pixel);
+            int alpha = qAlpha(pixel);
+
+            if (alpha != 255)
+            {
+                return false;
+            }
+
+            // Zkontrolujte, zda jsou kanály stejné (odstín šedi) a zda jsou pouze 0 (černá) nebo 255 (bílá)
+            if ((red != green || green != blue) || (red != 0 && red != 255)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 OPJ_SIZE_T PDFJPEG2000ImageData::read(void* p_buffer, OPJ_SIZE_T p_nb_bytes, void* p_user_data)
 {
     PDFJPEG2000ImageData* data = reinterpret_cast<PDFJPEG2000ImageData*>(p_user_data);

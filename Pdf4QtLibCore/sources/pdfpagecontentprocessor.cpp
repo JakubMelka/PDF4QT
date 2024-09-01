@@ -3021,6 +3021,11 @@ void PDFPageContentProcessor::paintXObjectImage(const PDFStream* stream)
 
             if (!image.isNull())
             {
+                if (PDFImage::canBeConvertedToMonochromatic(image))
+                {
+                    image.convertTo(QImage::Format_Mono);
+                }
+
                 performImagePainting(image);
             }
             else

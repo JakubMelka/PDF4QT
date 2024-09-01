@@ -4,6 +4,7 @@ CURRENT:
  - Issue #205: Editor cannot create white, whitesmoke or transparent annotations
  - Issue #202: Certain raster content not rendered
  - Issue #185: Latest git fails to build in linux
+ - Issue #165: Insert > Inline Text latency issues on Flatpak and Appimage packages 
 
 V: 1.4.0.0 4.7.2024
  - Issue #190: PageMaster crash + black bubbles instead of bubbles with correct color
