@@ -322,11 +322,7 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
                 const unsigned int imageHeight = imageData.getHeight();
 
                 QImage alphaMask = createAlphaMask(softMask);
-                if (alphaMask.size() != image.size())
-                {
-                    // Scale the alpha mask, if it is masked
-                    alphaMask = alphaMask.scaled(image.size());
-                }
+                QSize targetSize = getLargerSizeByArea(alphaMask.size(), image.size());
 
                 QMutex exceptionMutex;
                 std::optional<PDFException> exception;
@@ -347,7 +343,6 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
                         const double max = reader.max();
                         const double coefficient = 1.0 / max;
                         unsigned char* outputLine = image.scanLine(i);
-                        unsigned char* alphaLine = alphaMask.scanLine(i);
 
                         std::vector<float> inputColors(imageWidth * componentCount, 0.0f);
                         std::vector<unsigned char> outputColors(imageWidth * 3, 0);
@@ -379,7 +374,7 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
                             *outputLine++ = *transformedLine++;
                             *outputLine++ = *transformedLine++;
                             *outputLine++ = *transformedLine++;
-                            *outputLine++ = *alphaLine++;
+                            *outputLine++ = 255;
                         }
                     }
                     catch (const PDFException &lineException)
@@ -399,6 +394,18 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
                 {
                     throw *exception;
                 }
+
+                if (image.size() != targetSize)
+                {
+                    image = image.scaled(targetSize);
+                }
+
+                if (alphaMask.size() != targetSize)
+                {
+                    alphaMask = alphaMask.scaled(targetSize);
+                }
+
+                image.setAlphaChannel(alphaMask);
 
                 return image;
             }
@@ -1030,6 +1037,21 @@ bool PDFAbstractColorSpace::transform(const PDFAbstractColorSpace* source,
     }
 
     return true;
+}
+
+QSize PDFAbstractColorSpace::getLargerSizeByArea(QSize s1, QSize s2)
+{
+    int area1 = s1.width() * s1.height();
+    int area2 = s2.width() * s2.height();
+
+    if (area1 > area2)
+    {
+        return s1;
+    }
+    else
+    {
+        return s2;
+    }
 }
 
 PDFColorSpacePointer PDFAbstractColorSpace::createColorSpaceImpl(const PDFDictionary* colorSpaceDictionary,
@@ -1947,11 +1969,7 @@ QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData,
                 color.resize(1);
 
                 QImage alphaMask = createAlphaMask(softMask);
-                if (alphaMask.size() != image.size())
-                {
-                    // Scale the alpha mask, if it is masked
-                    alphaMask = alphaMask.scaled(image.size());
-                }
+                QSize targetSize = getLargerSizeByArea(alphaMask.size(), image.size());
 
                 for (unsigned int i = 0, rowCount = imageData.getHeight(); i < rowCount; ++i)
                 {
@@ -1963,7 +1981,6 @@ QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData,
 
                     reader.seek(i * imageData.getStride());
                     unsigned char* outputLine = image.scanLine(i);
-                    unsigned char* alphaLine = alphaMask.scanLine(i);
 
                     for (unsigned int j = 0; j < imageData.getWidth(); ++j)
                     {
@@ -1976,9 +1993,21 @@ QImage PDFIndexedColorSpace::getImage(const PDFImageData& imageData,
                         *outputLine++ = qRed(rgb);
                         *outputLine++ = qGreen(rgb);
                         *outputLine++ = qBlue(rgb);
-                        *outputLine++ = *alphaLine++;
+                        *outputLine++ = 255;
                     }
                 }
+
+                if (image.size() != targetSize)
+                {
+                    image = image.scaled(targetSize);
+                }
+
+                if (alphaMask.size() != targetSize)
+                {
+                    alphaMask = alphaMask.scaled(targetSize);
+                }
+
+                image.setAlphaChannel(alphaMask);
 
                 return image;
             }

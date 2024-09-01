@@ -456,6 +456,8 @@ public:
                           PDFRenderErrorReporter* reporter);
 
 protected:
+    static QSize getLargerSizeByArea(QSize s1, QSize s2);
+
     /// Clips the color component to range [0, 1]
     static constexpr PDFColorComponent clip01(PDFColorComponent component) { return qBound<PDFColorComponent>(PDFColorComponent(0.0), component, PDFColorComponent(1.0)); }
 
