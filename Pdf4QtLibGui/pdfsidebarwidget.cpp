@@ -553,12 +553,8 @@ void PDFSidebarWidget::updateSignatures(const std::vector<pdf::PDFSignatureVerif
                 certRoot->setIcon(0, infoIcon);
 
                 pdf::PDFCertificateInfo::KeyUsageFlags keyUsageFlags = currentCertificateInfo.getKeyUsage();
-                if (keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageCertSign) ||
-                    keyUsageFlags.testFlag(pdf::PDFCertificateInfo::KeyUsageDigitalSignature))
-                {
-                    m_certificateInfos.push_back(currentCertificateInfo);
-                    certRoot->setData(0, Qt::UserRole, QVariant(static_cast<qint64>(m_certificateInfos.size() - 1)));
-                }
+                m_certificateInfos.push_back(currentCertificateInfo);
+                certRoot->setData(0, Qt::UserRole, QVariant(static_cast<qint64>(m_certificateInfos.size() - 1)));
 
                 auto addName = [certRoot, &currentCertificateInfo, &infoIcon](pdf::PDFCertificateInfo::NameEntry nameEntry, QString caption)
                 {
