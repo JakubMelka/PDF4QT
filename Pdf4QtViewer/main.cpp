@@ -18,6 +18,7 @@
 #include "pdfviewermainwindow.h"
 #include "pdfconstants.h"
 #include "pdfsecurityhandler.h"
+#include "pdfwidgetutils.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
@@ -33,10 +34,14 @@ int main(int argc, char *argv[])
     QApplication::setApplicationDisplayName(QApplication::translate("Application", "PDF4QT Viewer"));
 
     QCommandLineOption noDrm("no-drm", "Disable DRM settings of documents.");
+    QCommandLineOption lightGui("theme-light", "Use a light theme for the GUI.");
+    QCommandLineOption darkGui("theme-dark", "Use a dark theme for the GUI.");
 
     QCommandLineParser parser;
     parser.setApplicationDescription(QCoreApplication::applicationName());
     parser.addOption(noDrm);
+    parser.addOption(lightGui);
+    parser.addOption(darkGui);
     parser.addHelpOption();
     parser.addVersionOption();
     parser.addPositionalArgument("file", "The PDF file to open.");
@@ -45,6 +50,16 @@ int main(int argc, char *argv[])
     if (parser.isSet(noDrm))
     {
         pdf::PDFSecurityHandler::setNoDRMMode();
+    }
+
+    if (parser.isSet(lightGui))
+    {
+        pdf::PDFWidgetUtils::setDarkTheme(false);
+    }
+
+    if (parser.isSet(darkGui))
+    {
+        pdf::PDFWidgetUtils::setDarkTheme(true);
     }
 
     QIcon appIcon(":/app-icon.svg");

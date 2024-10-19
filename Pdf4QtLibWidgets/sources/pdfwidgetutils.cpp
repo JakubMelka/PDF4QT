@@ -46,8 +46,6 @@ int qt_default_dpi_y() { return 96; }
 namespace pdf
 {
 
-std::optional<bool> s_isDarkThemeOverride;
-
 static constexpr bool isScalingNeeded()
 {
     return QT_VERSION_MAJOR < 6;
@@ -176,18 +174,13 @@ void PDFWidgetUtils::style(QWidget* widget)
     }
 }
 
-void PDFWidgetUtils::overrideDarkTheme(bool isDarkTheme)
+void PDFWidgetUtils::setDarkTheme(bool isDarkTheme)
 {
-    s_isDarkThemeOverride = isDarkTheme;
+    QApplication::styleHints()->setColorScheme(isDarkTheme ? Qt::ColorScheme::Dark : Qt::ColorScheme::Light);
 }
 
 bool PDFWidgetUtils::isDarkTheme()
 {
-    if (s_isDarkThemeOverride.has_value())
-    {
-        return s_isDarkThemeOverride.value();
-    }
-
     Qt::ColorScheme colorScheme = QApplication::styleHints()->colorScheme();
     return colorScheme == Qt::ColorScheme::Dark;
 }
