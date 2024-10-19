@@ -116,14 +116,14 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
         with:
-          version: '6.7.2'
+          version: '6.8.0'
           host: 'windows'
           target: 'desktop'
           dir: '${{ github.workspace }}/qt/'
           install-deps: 'true'
           modules: 'qtspeech qtmultimedia qtimageformats'
           cache: 'true'
-          cache-key-prefix: ${{ runner.os }}-qt-672
+          cache-key-prefix: ${{ runner.os }}-qt-680
           
 
       - name: Find VC Redistributable Directories
