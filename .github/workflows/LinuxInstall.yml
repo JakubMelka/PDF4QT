@@ -15,6 +15,7 @@ jobs:
           sudo apt-get install -y libspeechd2
           sudo apt-get install -y gnupg2 wget
           sudo apt-get install -y appstream
+          sudo apt-get install -y libcups2 libcups2-dev
           wget -c "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
           chmod +x appimagetool-x86_64.AppImage
           sudo mv appimagetool-x86_64.AppImage /usr/local/bin/appimagetool
