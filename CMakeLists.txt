@@ -146,6 +146,18 @@ else()
     set(PDF4QT_INSTALL_INCLUDE_DIR ${CMAKE_INSTALL_INCLUDEDIR})
 endif()
 
+if(PDF4QT_LINUX)
+    set(PDF4QT_PLUGINS_DIR ${PDF4QT_INSTALL_LIB_DIR}/pdf4qt)
+else()
+    set(PDF4QT_PLUGINS_DIR ${PDF4QT_INSTALL_LIB_DIR}/pdfplugins)
+endif()
+
+# Relative paths are used by the config
+cmake_path(RELATIVE_PATH PDF4QT_PLUGINS_DIR
+           BASE_DIRECTORY "${PDF4QT_INSTALL_BIN_DIR}"
+           OUTPUT_VARIABLE PDF4QT_PLUGINS_RELATIVE_PATH)
+configure_file(config.h.cmake config.h)
+
 add_subdirectory(Pdf4QtLibCore)
 
 if(PDF4QT_INSTALL_INCLUDE)
