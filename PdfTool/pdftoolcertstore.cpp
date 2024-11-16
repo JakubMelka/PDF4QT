@@ -63,10 +63,13 @@ int PDFToolCertStore::execute(const PDFToolOptions& options)
     {
         pdf::PDFCertificateEntries systemCertificates = pdf::PDFCertificateStore::getSystemCertificates();
         certificates.insert(certificates.end(), std::make_move_iterator(systemCertificates.begin()), std::make_move_iterator(systemCertificates.end()));
+
+        pdf::PDFCertificateEntries aatlCertificates = pdf::PDFCertificateStore::getAATLCertificates();
+        certificates.insert(certificates.end(), std::make_move_iterator(aatlCertificates.begin()), std::make_move_iterator(aatlCertificates.end()));
     }
 
     PDFOutputFormatter formatter(options.outputStyle);
-    formatter.beginDocument("cert-store", PDFToolTranslationContext::tr("Certificates used in signature verification"));
+    formatter.beginDocument("cert-store", PDFToolTranslationContext::tr("Certificates used in the signature verification"));
     formatter.endl();
 
     formatter.beginTable("certificate-list", PDFToolTranslationContext::tr("Certificates"));

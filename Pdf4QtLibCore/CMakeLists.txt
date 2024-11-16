@@ -144,6 +144,7 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfwidgetsnapshot.cpp
     sources/pdfwidgetsnapshot.h
     cmaps.qrc
+    aatl.qrc
     sources/pdfcertificatestore.h
     sources/pdfcertificatestore.cpp
     sources/pdfblpainter.h

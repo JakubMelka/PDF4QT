@@ -34,12 +34,14 @@
 #include <openssl/rsaerr.h>
 #include <openssl/ts.h>
 #include <openssl/tserr.h>
+#include <openssl/pem.h>
 
 #include <QDir>
 #include <QFileInfo>
 #include <QLockFile>
 #include <QDataStream>
 #include <QStandardPaths>
+#include <QDomDocument>
 
 #include "pdfdbgheap.h"
 
@@ -466,6 +468,70 @@ void PDFCertificateStore::createDirectoryForDefaultUserCertificatesStore()
     QFileInfo fileInfo(getDefaultCertificateStoreFileName());
     QString path = fileInfo.path();
     QDir().mkpath(path);
+}
+
+PDFCertificateEntries PDFCertificateStore::getAATLCertificates()
+{
+    PDFCertificateEntries result;
+
+    QFile aatlFile(":/aatl/SecuritySettings.xml");
+    if (aatlFile.open(QFile::ReadOnly))
+    {
+        QString errorMessage;
+        QDomDocument aatlDocument;
+        if (aatlDocument.setContent(&aatlFile, &errorMessage))
+        {
+            // Najdeme kořenový element
+            QDomElement root = aatlDocument.documentElement();
+
+            // Seek path "SecuritySettings/TrustedIdentities/Identity/Certificate"
+            QDomNodeList identities = root.firstChildElement("TrustedIdentities").elementsByTagName("Identity");
+
+            for (int i = 0; i < identities.count(); ++i)
+            {
+                QDomNode identityNode = identities.at(i);
+                QDomElement certificateElement = identityNode.firstChildElement("Certificate");
+
+                if (!certificateElement.isNull())
+                {
+                    QString text = certificateElement.text();
+                    QString pemFormattedText = QString("-----BEGIN CERTIFICATE-----\n%1\n-----END CERTIFICATE-----").arg(text);
+                    QByteArray certificateData = pemFormattedText.toLatin1();
+
+                    // Read PEM certificate to the OpenSSL X509
+                    BIO* bio = BIO_new_mem_buf(certificateData.constData(), certificateData.size());
+                    X509* cert = PEM_read_bio_X509(bio, nullptr, nullptr, nullptr);
+                    BIO_free(bio);
+
+                    if (!cert)
+                    {
+                        continue;
+                    }
+
+                    // Převést certifikát na DER
+                    int len = i2d_X509(cert, nullptr);
+                    QByteArray derData(len, 0);
+                    unsigned char *derPtr = reinterpret_cast<unsigned char*>(derData.data());
+                    i2d_X509(cert, &derPtr);
+
+                    X509_free(cert);
+
+                    std::optional<PDFCertificateInfo> info = PDFCertificateInfo::getCertificateInfo(derData);
+                    if (info)
+                    {
+                        PDFCertificateEntry entry;
+                        entry.type = PDFCertificateEntry::EntryType::AATL;
+                        entry.info = qMove(*info);
+                        result.emplace_back(qMove(entry));
+                    }
+                }
+            }
+        }
+
+        aatlFile.close();
+    }
+
+    return result;
 }
 
 }   // namespace pdf

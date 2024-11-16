@@ -1720,6 +1720,22 @@ void pdf::PDFPublicKeySignatureHandler::addTrustedCertificates(X509_STORE* store
         }
     }
 #endif
+
+    if (m_parameters.useSystemCertificateStore)
+    {
+        PDFCertificateEntries aatlCertificates = PDFCertificateStore::getAATLCertificates();
+        for (const PDFCertificateEntry& entry : aatlCertificates)
+        {
+            QByteArray certificateData = entry.info.getCertificateData();
+            const unsigned char* pointer = convertByteArrayToUcharPtr(certificateData);
+            X509* certificate = d2i_X509(nullptr, &pointer, certificateData.size());
+            if (certificate)
+            {
+                X509_STORE_add_cert(store, certificate);
+                X509_free(certificate);
+            }
+        }
+    }
 }
 
 #if defined(PDF4QT_COMPILER_MINGW) || defined(PDF4QT_COMPILER_GCC)

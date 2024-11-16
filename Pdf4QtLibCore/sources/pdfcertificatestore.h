@@ -170,6 +170,7 @@ struct PDFCertificateEntry
     {
         User,       ///< Certificate has been added manually by the user
         System,     ///< System certificate
+        AATL,       ///< Trusted list
     };
 
     void serialize(QDataStream& stream) const;
@@ -237,6 +238,9 @@ public:
 
     /// Creates default directory for certificate store
     void createDirectoryForDefaultUserCertificatesStore();
+
+    /// Returns a list of aatl certificates
+    static PDFCertificateEntries getAATLCertificates();
 
     /// Returns a list of system certificates
     static PDFCertificateEntries getSystemCertificates();
