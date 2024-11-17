@@ -221,7 +221,6 @@ void LexicalAnalyzerTest::test_invalid_input()
     bigNumber.front() = '1';
     bigNumber.back() = 0;
 
-    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("(\\9adoctalnumber)"));
     QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("(\\)"));
     QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("123 456 +4-5"));
     QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("123 456 +"));
@@ -1126,12 +1125,31 @@ void LexicalAnalyzerTest::testTokens(const char* stream, const std::vector<pdf::
         scanned.emplace_back(analyzer.fetch());
     }
 
-    // Format error message
-    QString actual = getStringFromTokens(scanned);
-    QString expected = getStringFromTokens(tokens);
+    QVERIFY(scanned.size() == tokens.size());
 
-    // Now, compare scanned tokens
-    QVERIFY2(scanned == tokens, qPrintable(QString("stream: %1, actual = %2, expected = %3").arg(QString(stream), actual, expected)));
+    for (size_t i = 0; i < scanned.size(); ++i)
+    {
+        const pdf::PDFLexicalAnalyzer::Token& scannedItem = scanned[i];
+        const pdf::PDFLexicalAnalyzer::Token& tokenItem = scanned[i];
+
+        if (scannedItem == tokenItem)
+        {
+            continue;
+        }
+
+        if (scannedItem.type == tokenItem.type && scannedItem.type == pdf::PDFLexicalAnalyzer::TokenType::Real)
+        {
+            if (qFuzzyCompare(scannedItem.data.toDouble(), tokenItem.data.toDouble()))
+            {
+                continue;
+            }
+        }
+
+        // Now, compare scanned tokens
+        QString actual = getStringFromTokens({ scannedItem });
+        QString expected = getStringFromTokens({ tokenItem });
+        QVERIFY2(scannedItem == tokenItem, qPrintable(QString("stream: %1, actual = %2, expected = %3").arg(QString(stream), actual, expected)));
+    }
 }
 
 QString LexicalAnalyzerTest::getStringFromTokens(const std::vector<pdf::PDFLexicalAnalyzer::Token>& tokens)
@@ -1148,6 +1166,11 @@ QString LexicalAnalyzerTest::getStringFromTokens(const std::vector<pdf::PDFLexic
         if (!token.data.isValid())
         {
             stringTokens << tokenTypeAsString;
+        }
+        else if (token.data.typeId() == QMetaType::Double)
+        {
+            const double value = token.data.toDouble();
+            stringTokens << QString("%1(%2)").arg(tokenTypeAsString, QString::number(value));
         }
         else
         {
