@@ -1,0 +1,36 @@
+name: Linux_Flatpak
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build_ubuntu:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - name: Setup Flatpak
+        run: |
+          sudo apt update
+          sudo apt install -y flatpak-builder flatpak
+
+      - name: Add Flatpak repository
+        run: |
+          flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Build Flatpak
+        run: |
+          flatpak-builder --repo=repo --sandbox --force-clean  build-dir io.github.JakubMelka.Pdf4qt.json 
+
+      - name: Build Flatpak Package
+          flatpak build-bundle repo ./pdf4qt/Flatpak/io.github.JakubMelka.Pdf4qt.flatpak io.github.JakubMelka.Pdf4qt
+
+      - name: Upload Flatpak Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: io.github.JakubMelka.Pdf4qt.flatpak
+          path: ./io.github.JakubMelka.Pdf4qt.flatpak
+          retention-days: 30
+          compression-level: 0
