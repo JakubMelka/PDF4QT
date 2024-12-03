@@ -13,6 +13,7 @@ jobs:
           sudo apt update
           sudo apt install -y appstream
           sudo apt install -y appstream-util
+          sudo apt install -y appstream-compose
           sudo apt install -y flatpak-builder flatpak
 
       - name: Add Flatpak repository
