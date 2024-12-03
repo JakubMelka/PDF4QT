@@ -25,6 +25,7 @@ jobs:
           flatpak-builder --repo=repo --sandbox --force-clean  build-dir io.github.JakubMelka.Pdf4qt.json 
 
       - name: Build Flatpak Package
+        run: |
           flatpak build-bundle repo ./pdf4qt/Flatpak/io.github.JakubMelka.Pdf4qt.flatpak io.github.JakubMelka.Pdf4qt
 
       - name: Upload Flatpak Package
