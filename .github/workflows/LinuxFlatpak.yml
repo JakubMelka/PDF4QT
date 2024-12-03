@@ -22,7 +22,7 @@ jobs:
 
       - name: Build Flatpak
         run: |
-          flatpak-builder --repo=repo --sandbox --force-clean  build-dir ./pdf4qt/Flatpak/io.github.JakubMelka.Pdf4qt.json 
+          flatpak-builder --repo=repo --sandbox --force-clean  build-dir ./Flatpak/io.github.JakubMelka.Pdf4qt.json 
 
       - name: Build Flatpak Package
         run: |
