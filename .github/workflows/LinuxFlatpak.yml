@@ -19,8 +19,8 @@ jobs:
           
       - name: Install KDE SDK and Runtime
         run: |
-          sudo flatpak install -y flathub org.kde.Sdk/6.8
-          sudo flatpak install -y flathub org.kde.Platform/6.8
+          sudo flatpak install -y flathub org.kde.Sdk/x86_64/6.8
+          sudo flatpak install -y flathub org.kde.Platform/x86_64/6.8
           
       - name: Checkout repository
         uses: actions/checkout@v3
