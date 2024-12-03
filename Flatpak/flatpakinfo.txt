@@ -1,0 +1,9 @@
+flatpak-builder --sandbox --force-clean  build-dir io.github.JakubMelka.Pdf4qt.json 
+
+
+flatpak-builder --repo=repo --sandbox --force-clean  build-dir io.github.JakubMelka.Pdf4qt.json 
+
+flatpak build-bundle repo io.github.JakubMelka.Pdf4qt.flatpak io.github.JakubMelka.Pdf4qt
+
+
+

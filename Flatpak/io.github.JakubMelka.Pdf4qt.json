@@ -1,0 +1,167 @@
+{
+    "app-id": "io.github.JakubMelka.Pdf4qt",
+    "runtime": "org.kde.Sdk",
+    "runtime-version": "6.8",
+    "sdk": "org.kde.Sdk",
+    "command": "Pdf4QtLaunchPad",
+    "finish-args": [
+        "--socket=fallback-x11",
+        "--socket=wayland",
+        "--device=dri",
+        "--share=ipc"
+    ],
+    "cleanup": [
+        "/pdf4qt",
+        "/vcpkg"
+    ],
+    "build-options": {
+      "env": {
+        "PKG_CONFIG_PATH": "/app/lib64/pkgconfig:/app/lib/pkgconfig"
+      }
+    },
+    "modules": [
+        {
+            "name": "tbb",
+            "buildsystem": "cmake-ninja",
+            "builddir": true,
+            "config-opts": [
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DTBB_TEST=OFF",
+                "-DTBB_EXAMPLES=OFF"
+            ],
+            "sources": [
+                {
+                    "type": "git",
+                    "url": "https://github.com/uxlfoundation/oneTBB.git",
+                    "commit": "d3b0a80d02501b2304de6afb940465f465482a6b"
+                }
+            ]
+        },
+        {
+            "name": "lcms2",
+            "buildsystem": "cmake-ninja",
+            "builddir": true,
+            "config-opts": [
+                "-DCMAKE_BUILD_TYPE=Release"
+            ],
+            "sources": [
+                {
+                    "type": "git",
+                    "url": "https://github.com/JakubMelka/Little-CMS.git",
+                    "commit": "c70dfeb34f2bcdc64358b353de19e372503cf3fa"
+                }
+            ]
+        },
+        {
+            "name": "zlib",
+            "buildsystem": "cmake-ninja",
+            "config-opts": [
+                "-DCMAKE_BUILD_TYPE=Release"
+            ],
+            "sources": [
+                {
+                    "type": "git",
+                    "url": "https://github.com/madler/zlib.git",
+                    "tag": "v1.3.1",
+                    "commit": "51b7f2abdade71cd9bb0e7a373ef2610ec6f9daf"
+                }
+            ]
+        },
+        {
+            "name": "openjpeg",
+            "buildsystem": "cmake-ninja",
+            "config-opts": [
+                "-DCMAKE_BUILD_TYPE=Release"
+            ],
+            "sources": [
+                {
+                    "type": "git",
+                    "url": "https://github.com/uclouvain/openjpeg.git",
+                    "tag": "v2.5.2",
+                    "commit": "39e8c50a2f9bdcf36810ee3d41bcbf1cc78968ae"
+                }
+            ]
+        },
+        {
+            "name": "freetype",
+            "buildsystem": "cmake-ninja",
+            "builddir": true,
+            "config-opts": [
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DBUILD_SHARED_LIBS=true"
+            ],
+            "sources": [
+                {
+                    "type": "git",
+                    "url": "https://github.com/freetype/freetype.git",
+                    "tag": "VER-2-13-3",
+                    "commit": "42608f77f20749dd6ddc9e0536788eaad70ea4b5"
+                }
+            ]
+        },
+        {
+            "name": "libjpegturbo",
+            "buildsystem": "cmake-ninja",
+            "config-opts": [
+                "-DCMAKE_BUILD_TYPE=Release"
+            ],
+            "sources": [
+                {
+                    "type": "git",
+                    "url": "https://github.com/libjpeg-turbo/libjpeg-turbo.git",
+                    "tag": "3.0.90",
+                    "commit": "a9f7490cda6f6840ff3662b4d67ce0a91de5c9a5"
+                }
+            ]
+        },
+        {
+            "name": "asmjit",
+            "buildsystem": "cmake-ninja",
+            "config-opts": [
+                "-DCMAKE_BUILD_TYPE=Release"
+            ],
+            "sources": [
+                {
+                    "type": "git",
+                    "url": "https://github.com/asmjit/asmjit.git",
+                    "commit": "7bed2b0e1427fab185eea2da8ab4b9fb5b1f45a9"
+                }
+            ]
+        },
+        {
+            "name": "blend2d",
+            "buildsystem": "cmake-ninja",
+            "config-opts": [
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DBLEND2D_EXTERNAL_ASMJIT=ON"
+            ],
+            "sources": [
+                {
+                    "type": "git",
+                    "url": "https://github.com/blend2d/blend2d.git",
+                    "commit": "7eb92c2946fb35c23c09dbdc6e98d835679d7f82"
+                }
+            ]
+        },
+        {
+            "name": "pdf4qt",
+            "buildsystem": "cmake-ninja",
+            "builddir": true,
+            "config-opts": [
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DPDF4QT_INSTALL_QT_DEPENDENCIES=OFF",
+                "-DPDF4QT_INSTALL_DEPENDENCIES=OFF",
+                "-DPDF4QT_INSTALL_TO_USR=OFF",
+                "-DCMAKE_VERBOSE_MAKEFILE=OFF"
+            ],
+            "sources": [
+                {
+                    "type": "git",
+                    "url": "https://github.com/JakubMelka/PDF4QT.git",
+                    "commit": "70b4291505877a5c0077b7d10c81478686d48640"
+                }
+            ]
+        }
+    ]
+}
+
