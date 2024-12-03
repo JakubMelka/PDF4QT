@@ -15,7 +15,7 @@ jobs:
 
       - name: Add Flatpak repository
         run: |
-          flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
           
       - name: Checkout repository
         uses: actions/checkout@v3
