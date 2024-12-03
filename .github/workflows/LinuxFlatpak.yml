@@ -22,11 +22,11 @@ jobs:
 
       - name: Build Flatpak
         run: |
-          flatpak-builder --repo=repo --sandbox --force-clean  build-dir io.github.JakubMelka.Pdf4qt.json 
+          flatpak-builder --repo=repo --sandbox --force-clean  build-dir ./pdf4qt/Flatpak/io.github.JakubMelka.Pdf4qt.json 
 
       - name: Build Flatpak Package
         run: |
-          flatpak build-bundle repo ./pdf4qt/Flatpak/io.github.JakubMelka.Pdf4qt.flatpak io.github.JakubMelka.Pdf4qt
+          flatpak build-bundle repo io.github.JakubMelka.Pdf4qt.flatpak io.github.JakubMelka.Pdf4qt
 
       - name: Upload Flatpak Package
         uses: actions/upload-artifact@v4
