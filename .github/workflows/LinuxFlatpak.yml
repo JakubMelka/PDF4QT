@@ -10,8 +10,8 @@ jobs:
     steps:
       - name: Setup Flatpak
         run: |
+          sudo add-apt-repository ppa:alexlarsson/flatpak
           sudo apt update
-          sudo apt upgrade -y
           sudo apt install -y appstream flatpak-builder flatpak
 
       - name: Add Flatpak repository
