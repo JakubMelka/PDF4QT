@@ -11,7 +11,7 @@ jobs:
       - name: Install Dependencies
         run: |
            sudo apt update
-           sudo apt install -y ninja-build libglib2.0-dev libxml2-dev libyaml-dev gettext libarchive-dev gperf pkg-config libstemmer-dev python3-dev python3-pip libcurl4-openssl-dev libsystemd-dev gobject-introspection libgirepository1.0-dev
+           sudo apt install -y ninja-build libglib2.0-dev libxml2-dev libyaml-dev gettext libarchive-dev gperf pkg-config libstemmer-dev python3-dev python3-pip libcurl4-openssl-dev libsystemd-dev gobject-introspection libgirepository1.0-dev itstool
            sudo pip3 install meson
     
       - name: Install AppStream
