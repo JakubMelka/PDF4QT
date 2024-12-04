@@ -11,7 +11,7 @@ jobs:
       - name: Setup Flatpak
         run: |
           sudo apt update
-          sudo apt install -y flatpak-builder flatpak
+          sudo apt install -y appstream flatpak-builder flatpak
 
       - name: Add Flatpak repository
         run: |
@@ -21,9 +21,15 @@ jobs:
         run: |
           sudo flatpak install -y flathub org.kde.Sdk/x86_64/6.8 org.kde.Platform/x86_64/6.8
           
-      - name: List Flatpak Installed Packages
+      - name: List Flatpak Installed Packages and Version
         run: |
+          flatpak --version
+          appstreamcli --version
           flatpak list
+          
+      - name: Fix Missing appstream-compose
+        run: |
+          sudo ln -s $(which appstreamcli) /usr/bin/appstream-compose || true
           
       - name: Checkout repository
         uses: actions/checkout@v3
