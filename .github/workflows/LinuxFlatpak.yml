@@ -22,6 +22,7 @@ jobs:
            sudo ninja -C build install
            
       - name: Verify AppStream Version
+        run: |
            appstreamcli --version
     
       - name: Setup Flatpak
