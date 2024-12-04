@@ -11,9 +11,6 @@ jobs:
       - name: Setup Flatpak
         run: |
           sudo apt update
-          sudo apt install -y appstream
-          sudo apt install -y appstream-util
-          sudo apt install -y appstream-compose
           sudo apt install -y flatpak-builder flatpak
 
       - name: Add Flatpak repository
@@ -22,8 +19,11 @@ jobs:
           
       - name: Install KDE SDK and Runtime
         run: |
-          sudo flatpak install -y flathub org.kde.Sdk/x86_64/6.8
-          sudo flatpak install -y flathub org.kde.Platform/x86_64/6.8
+          sudo flatpak install -y flathub org.kde.Sdk org.kde.Platform
+          
+      - name: List Flatpak Installed Packages
+        run: |
+          flatpak list
           
       - name: Checkout repository
         uses: actions/checkout@v3
