@@ -11,6 +11,7 @@ jobs:
       - name: Setup Flatpak
         run: |
           sudo apt update
+          sudo apt upgrade -y
           sudo apt install -y appstream flatpak-builder flatpak
 
       - name: Add Flatpak repository
@@ -26,11 +27,7 @@ jobs:
           flatpak --version
           appstreamcli --version
           flatpak list
-          
-      - name: Fix Missing appstream-compose
-        run: |
-          sudo ln -s $(which appstreamcli) /usr/bin/appstream-compose || true
-          
+
       - name: Checkout repository
         uses: actions/checkout@v3
 
