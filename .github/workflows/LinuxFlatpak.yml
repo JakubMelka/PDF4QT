@@ -11,8 +11,8 @@ jobs:
       - name: Install Dependencies
         run: |
            sudo apt update
-           sudo apt upgrade -y
-           sudo apt install -y meson ninja-build libglib2.0-dev libxml2-dev libyaml-dev gettext libarchive-dev gperf pkg-config libstemmer-dev python3-dev python3-pip
+           sudo apt install -y ninja-build libglib2.0-dev libxml2-dev libyaml-dev gettext libarchive-dev gperf pkg-config libstemmer-dev python3-dev python3-pip
+           sudo pip3 install meson
     
       - name: Install AppStream
         run: |
