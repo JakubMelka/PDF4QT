@@ -19,7 +19,7 @@ jobs:
           
       - name: Install KDE SDK and Runtime
         run: |
-          sudo flatpak install -y flathub org.kde.Sdk org.kde.Platform
+          sudo flatpak install -y flathub org.kde.Sdk/x86_64/6.8 org.kde.Platform/x86_64/6.8
           
       - name: List Flatpak Installed Packages
         run: |
