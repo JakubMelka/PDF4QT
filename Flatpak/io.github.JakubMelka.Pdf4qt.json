@@ -3,7 +3,7 @@
     "runtime": "org.kde.Sdk",
     "runtime-version": "6.8",
     "sdk": "org.kde.Sdk",
-    "command": "Pdf4QtLaunchPad",
+    "command": "Pdf4QtEditor",
     "finish-args": [
         "--socket=fallback-x11",
         "--socket=wayland",
@@ -11,8 +11,6 @@
         "--share=ipc"
     ],
     "cleanup": [
-        "/pdf4qt",
-        "/vcpkg"
     ],
     "build-options": {
       "env": {
@@ -71,7 +69,8 @@
             "name": "openjpeg",
             "buildsystem": "cmake-ninja",
             "config-opts": [
-                "-DCMAKE_BUILD_TYPE=Release"
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DBUILD_CODEC=OFF"
             ],
             "sources": [
                 {
@@ -79,38 +78,6 @@
                     "url": "https://github.com/uclouvain/openjpeg.git",
                     "tag": "v2.5.2",
                     "commit": "39e8c50a2f9bdcf36810ee3d41bcbf1cc78968ae"
-                }
-            ]
-        },
-        {
-            "name": "freetype",
-            "buildsystem": "cmake-ninja",
-            "builddir": true,
-            "config-opts": [
-                "-DCMAKE_BUILD_TYPE=Release",
-                "-DBUILD_SHARED_LIBS=true"
-            ],
-            "sources": [
-                {
-                    "type": "git",
-                    "url": "https://github.com/freetype/freetype.git",
-                    "tag": "VER-2-13-3",
-                    "commit": "42608f77f20749dd6ddc9e0536788eaad70ea4b5"
-                }
-            ]
-        },
-        {
-            "name": "libjpegturbo",
-            "buildsystem": "cmake-ninja",
-            "config-opts": [
-                "-DCMAKE_BUILD_TYPE=Release"
-            ],
-            "sources": [
-                {
-                    "type": "git",
-                    "url": "https://github.com/libjpeg-turbo/libjpeg-turbo.git",
-                    "tag": "3.0.90",
-                    "commit": "a9f7490cda6f6840ff3662b4d67ce0a91de5c9a5"
                 }
             ]
         },

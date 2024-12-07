@@ -5,9 +5,27 @@ on:
 
 jobs:
   build_ubuntu:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     steps:
+      - name: Install Dependencies
+        run: |
+           sudo apt update
+           sudo apt install -y ninja-build libglib2.0-dev libxml2-dev libyaml-dev gettext libarchive-dev gperf pkg-config libstemmer-dev python3-dev python3-pip libcurl4-openssl-dev libsystemd-dev gobject-introspection libgirepository1.0-dev itstool xsltproc
+           sudo pip3 install meson
+    
+      - name: Install AppStream
+        run: |
+           git clone https://github.com/ximion/appstream.git
+           cd appstream
+           meson build
+           ninja -C build
+           sudo ninja -C build install
+           
+      - name: Verify AppStream Version
+        run: |
+           appstreamcli --version
+    
       - name: Setup Flatpak
         run: |
           sudo apt update
@@ -15,14 +33,24 @@ jobs:
 
       - name: Add Flatpak repository
         run: |
-          flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
           
+      - name: Install KDE SDK and Runtime
+        run: |
+          sudo flatpak install -y flathub org.kde.Sdk/x86_64/6.8 org.kde.Platform/x86_64/6.8
+          
+      - name: List Flatpak Installed Packages and Version
+        run: |
+          flatpak --version
+          appstreamcli --version
+          flatpak list
+
       - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Build Flatpak
         run: |
-          flatpak-builder --repo=repo --sandbox --force-clean  build-dir ./pdf4qt/Flatpak/io.github.JakubMelka.Pdf4qt.json 
+          flatpak-builder --repo=repo --sandbox --force-clean  build-dir ./Flatpak/io.github.JakubMelka.Pdf4qt.json 
 
       - name: Build Flatpak Package
         run: |

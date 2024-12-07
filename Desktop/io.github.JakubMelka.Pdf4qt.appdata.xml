@@ -38,10 +38,12 @@
     <release version="1.0.0" date="2021-09-19"/>
   </releases>
   <screenshots>
-    <screenshot><caption>Browse PDF files easily and efficiently</caption><image>https://jakubmelka.github.io/assets/flatpak/profi-default.png</image></screenshot>
+    <screenshot default="true"><caption>Edit content of PDF documents</caption><image>https://jakubmelka.github.io/assets/flatpak/profi-editor.png</image></screenshot>
+	<screenshot><caption>Browse PDF files easily and efficiently</caption><image>https://jakubmelka.github.io/assets/flatpak/profi-default.png</image></screenshot>
     <screenshot><caption>Utilize the 'magnifying glass' feature to zoom in on specific sections of the page</caption><image>https://jakubmelka.github.io/assets/flatpak/profi-magnifier.png</image></screenshot>
     <screenshot><caption>Display statistics for various content types within the PDF file</caption><image>https://jakubmelka.github.io/assets/flatpak/profi-object-statistics.png</image></screenshot>
     <screenshot><caption>View the document details</caption><image>https://jakubmelka.github.io/assets/flatpak/profi-properties.png</image></screenshot>
     <screenshot><caption>List of add-ons available for the PDF editor</caption><image>https://jakubmelka.github.io/assets/flatpak/profi-addons.png</image></screenshot>
+	<screenshot><caption>Search PDF documents using regular expressions</caption><image>https://jakubmelka.github.io/assets/flatpak/profi-search-regex.png</image></screenshot>
   </screenshots>
 </component>
