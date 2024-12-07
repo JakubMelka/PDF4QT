@@ -38,7 +38,7 @@
     <release version="1.0.0" date="2021-09-19"/>
   </releases>
   <screenshots>
-    <screenshot default="true"><caption>Edit content of PDF documents</caption><image>https://jakubmelka.github.io/assets/flatpak/profi-editor.png</image></screenshot>
+    <screenshot type="default"><caption>Edit content of PDF documents</caption><image>https://jakubmelka.github.io/assets/flatpak/profi-editor.png</image></screenshot>
 	<screenshot><caption>Browse PDF files easily and efficiently</caption><image>https://jakubmelka.github.io/assets/flatpak/profi-default.png</image></screenshot>
     <screenshot><caption>Utilize the 'magnifying glass' feature to zoom in on specific sections of the page</caption><image>https://jakubmelka.github.io/assets/flatpak/profi-magnifier.png</image></screenshot>
     <screenshot><caption>Display statistics for various content types within the PDF file</caption><image>https://jakubmelka.github.io/assets/flatpak/profi-object-statistics.png</image></screenshot>
