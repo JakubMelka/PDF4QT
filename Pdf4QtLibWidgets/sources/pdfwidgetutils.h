@@ -60,8 +60,10 @@ public:
     /// Apply style to the widget
     static void style(QWidget* widget);
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
     /// Overrides automatically detected dark theme / light theme settings
     static void setDarkTheme(bool isDarkTheme);
+#endif
 
     /// Returns true if the dark theme is currently set for the application.
     static bool isDarkTheme();

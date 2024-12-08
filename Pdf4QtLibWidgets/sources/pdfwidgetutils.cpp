@@ -174,10 +174,12 @@ void PDFWidgetUtils::style(QWidget* widget)
     }
 }
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
 void PDFWidgetUtils::setDarkTheme(bool isDarkTheme)
 {
     QApplication::styleHints()->setColorScheme(isDarkTheme ? Qt::ColorScheme::Dark : Qt::ColorScheme::Light);
 }
+#endif
 
 bool PDFWidgetUtils::isDarkTheme()
 {

@@ -34,14 +34,18 @@ int main(int argc, char *argv[])
     QApplication::setApplicationDisplayName(QApplication::translate("Application", "PDF4QT Viewer"));
 
     QCommandLineOption noDrm("no-drm", "Disable DRM settings of documents.");
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
     QCommandLineOption lightGui("theme-light", "Use a light theme for the GUI.");
     QCommandLineOption darkGui("theme-dark", "Use a dark theme for the GUI.");
+#endif
 
     QCommandLineParser parser;
     parser.setApplicationDescription(QCoreApplication::applicationName());
     parser.addOption(noDrm);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
     parser.addOption(lightGui);
     parser.addOption(darkGui);
+#endif
     parser.addHelpOption();
     parser.addVersionOption();
     parser.addPositionalArgument("file", "The PDF file to open.");
@@ -52,6 +56,7 @@ int main(int argc, char *argv[])
         pdf::PDFSecurityHandler::setNoDRMMode();
     }
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
     if (parser.isSet(lightGui))
     {
         pdf::PDFWidgetUtils::setDarkTheme(false);
@@ -61,6 +66,7 @@ int main(int argc, char *argv[])
     {
         pdf::PDFWidgetUtils::setDarkTheme(true);
     }
+#endif
 
     QIcon appIcon(":/app-icon.svg");
     QApplication::setWindowIcon(appIcon);
