@@ -52,15 +52,7 @@ int main(int argc, char *argv[])
         pdf::PDFSecurityHandler::setNoDRMMode();
     }
 
-    if (parser.isSet(lightGui))
-    {
-        pdf::PDFWidgetUtils::setDarkTheme(false);
-    }
-
-    if (parser.isSet(darkGui))
-    {
-        pdf::PDFWidgetUtils::setDarkTheme(true);
-    }
+    pdf::PDFWidgetUtils::setDarkTheme(parser.isSet(lightGui), parser.isSet(darkGui));
 
     QIcon appIcon(":/app-icon.svg");
     QApplication::setWindowIcon(appIcon);

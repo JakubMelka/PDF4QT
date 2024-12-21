@@ -4,6 +4,7 @@ CURRENT:
  - Issue #206: Name of the executable / command
  - Issue #205: Editor cannot create white, whitesmoke or transparent annotations
  - Issue #202: Certain raster content not rendered
+ - Issue #200: Icons under dark theme on Arch/KDE is broken 
  - Issue #185: Latest git fails to build in linux
  - Issue #165: Insert > Inline Text latency issues on Flatpak and Appimage packages 
 

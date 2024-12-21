@@ -187,6 +187,17 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
     ui->signatureTreeWidget->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(ui->signatureTreeWidget, &QTreeWidget::customContextMenuRequested, this, &PDFSidebarWidget::onSignatureCustomContextMenuRequested);
 
+    if (pdf::PDFWidgetUtils::isDarkTheme())
+    {
+        for (QToolButton* pushButton : findChildren<QToolButton*>())
+        {
+            QIcon icon = pushButton->icon();
+            QSize iconSize = pushButton->iconSize();
+            QIcon iconDark = pdf::PDFWidgetUtils::convertIconForDarkTheme(icon, iconSize, pushButton->devicePixelRatioF());
+            pushButton->setIcon(iconDark);
+        }
+    }
+
     selectPage(Invalid);
     updateButtons();
 }

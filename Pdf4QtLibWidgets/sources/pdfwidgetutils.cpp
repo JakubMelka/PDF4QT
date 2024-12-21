@@ -32,6 +32,7 @@
 #include <QMessageBox>
 #include <QApplication>
 #include <QStyleHints>
+#include <QStyleFactory>
 
 #include "pdfdbgheap.h"
 
@@ -174,9 +175,81 @@ void PDFWidgetUtils::style(QWidget* widget)
     }
 }
 
-void PDFWidgetUtils::setDarkTheme(bool isDarkTheme)
+void PDFWidgetUtils::setDarkTheme(bool isLightTheme, bool isDarkTheme)
 {
-    QApplication::styleHints()->setColorScheme(isDarkTheme ? Qt::ColorScheme::Dark : Qt::ColorScheme::Light);
+    if (isLightTheme)
+    {
+        QApplication::styleHints()->setColorScheme(Qt::ColorScheme::Light);
+    }
+
+    if (isDarkTheme)
+    {
+        QApplication::styleHints()->setColorScheme(Qt::ColorScheme::Dark);
+    }
+
+    if (PDFWidgetUtils::isDarkTheme())
+    {
+        QPalette darkPalette = QApplication::palette();
+
+#ifdef Q_OS_WIN
+        QApplication::setStyle(QStyleFactory::create("Fusion"));
+
+        // Basic colors
+        darkPalette.setColor(QPalette::WindowText, QColor(220, 220, 220));
+        darkPalette.setColor(QPalette::Button, QColor(53, 53, 53));
+        darkPalette.setColor(QPalette::Light, QColor(70, 70, 70));
+        darkPalette.setColor(QPalette::Midlight, QColor(60, 60, 60));
+        darkPalette.setColor(QPalette::Dark, QColor(35, 35, 35));
+        darkPalette.setColor(QPalette::Mid, QColor(40, 40, 40));
+
+        // Texts
+        darkPalette.setColor(QPalette::Text, QColor(220, 220, 220));
+        darkPalette.setColor(QPalette::BrightText, Qt::red);
+        darkPalette.setColor(QPalette::ButtonText, QColor(220, 220, 220));
+
+        // Background
+        darkPalette.setColor(QPalette::Base, QColor(42, 42, 42));
+        darkPalette.setColor(QPalette::Window, QColor(53, 53, 53));
+        darkPalette.setColor(QPalette::Shadow, QColor(20, 20, 20));
+
+        // Highlight
+        darkPalette.setColor(QPalette::Highlight, QColor(42, 130, 218));    // Barva výběru
+        darkPalette.setColor(QPalette::HighlightedText, Qt::black);         // Text ve výběru
+
+        // Links
+        darkPalette.setColor(QPalette::Link, QColor(42, 130, 218));         // Odkazy
+        darkPalette.setColor(QPalette::LinkVisited, QColor(100, 100, 150)); // Navštívené odkazy
+
+        // Alternative background
+        darkPalette.setColor(QPalette::AlternateBase, QColor(66, 66, 66));  // Např. střídavé řádky v tabulce
+
+        // Special roles
+        darkPalette.setColor(QPalette::NoRole, QColor(0, 0, 0, 0));
+
+        // Help
+        darkPalette.setColor(QPalette::ToolTipBase, QColor(53, 53, 53));
+        darkPalette.setColor(QPalette::ToolTipText, QColor(220, 220, 220));
+
+        for (int i = 0; i < QPalette::NColorRoles; ++i)
+        {
+            QColor disabledColor = darkPalette.color(QPalette::Disabled, static_cast<QPalette::ColorRole>(i));
+            disabledColor = disabledColor.darker(200);
+            darkPalette.setColor(QPalette::Disabled, static_cast<QPalette::ColorRole>(i), disabledColor);
+
+            QColor currentColor = darkPalette.color(QPalette::Current, static_cast<QPalette::ColorRole>(i));
+            currentColor = currentColor.lighter(150);
+            darkPalette.setColor(QPalette::Current, static_cast<QPalette::ColorRole>(i), currentColor);
+        }
+#endif
+
+        // Placeholder text (Qt 5.12+)
+        darkPalette.setColor(QPalette::PlaceholderText, QColor(150, 150, 150));
+
+        // Accents (Qt 6.5+)
+        darkPalette.setColor(QPalette::Accent, QColor(42, 130, 218));
+
+        QApplication::setPalette(darkPalette);
+    }
 }
 
 bool PDFWidgetUtils::isDarkTheme()
