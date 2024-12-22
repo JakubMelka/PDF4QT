@@ -583,6 +583,35 @@ void PageItemModel::rotateRight(const QModelIndexList& list)
     Q_EMIT dataChanged(index(rowMin, 0, QModelIndex()), index(rowMax, 0, QModelIndex()));
 }
 
+void PageItemModel::regroupReversed(const QModelIndexList& list)
+{
+    if (list.empty())
+    {
+        return;
+    }
+
+    Modifier modifier(this);
+
+    std::vector<PageGroupItem> pageGroupItems = m_pageGroupItems;
+    std::vector<PageGroupItem::GroupItem> extractedItems = extractItems(pageGroupItems, list);
+    std::reverse(extractedItems.begin(), extractedItems.end());
+
+    if (!extractedItems.empty())
+    {
+        PageGroupItem item;
+        item.groups = std::move(extractedItems);
+        updateItemCaptionAndTags(item);
+        pageGroupItems.emplace_back(std::move(item));
+    }
+
+    if (pageGroupItems != m_pageGroupItems)
+    {
+        beginResetModel();
+        m_pageGroupItems = std::move(pageGroupItems);
+        endResetModel();
+    }
+}
+
 PageItemModel::SelectionInfo PageItemModel::getSelectionInfo(const QModelIndexList& list) const
 {
     SelectionInfo info;

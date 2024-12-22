@@ -190,6 +190,7 @@ public:
 
     SelectionInfo getSelectionInfo(const QModelIndexList& list) const;
 
+    void regroupReversed(const QModelIndexList& list);
     void regroupEvenOdd(const QModelIndexList& list);
     void regroupPaired(const QModelIndexList& list);
     void regroupOutline(const QModelIndexList& list, const std::vector<pdf::PDFInteger>& indices);

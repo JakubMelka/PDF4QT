@@ -94,6 +94,7 @@ public:
         RegroupOutline,
         RegroupAlternatingPages,
         RegroupAlternatingPagesReversed,
+        RegroupReversed,
 
         GetSource,
         BecomeSponsor,

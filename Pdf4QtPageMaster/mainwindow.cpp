@@ -95,6 +95,7 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->actionAbout->setData(int(Operation::About));
     ui->actionInvert_Selection->setData(int(Operation::InvertSelection));
     ui->actionRegroup_Even_Odd->setData(int(Operation::RegroupEvenOdd));
+    ui->actionRegroup_Reverse->setData(int(Operation::RegroupReversed));
     ui->actionRegroup_by_Page_Pairs->setData(int(Operation::RegroupPaired));
     ui->actionRegroup_by_Outline->setData(int(Operation::RegroupOutline));
     ui->actionRegroup_by_Alternating_Pages->setData(int(Operation::RegroupAlternatingPages));
@@ -164,7 +165,7 @@ MainWindow::MainWindow(QWidget* parent) :
     selectToolbar->addActions({ ui->actionSelect_None, ui->actionSelect_All, ui->actionSelect_Even, ui->actionSelect_Odd, ui->actionSelect_Portrait, ui->actionSelect_Landscape, ui->actionInvert_Selection });
     QToolBar* regroupToolbar = addToolBar(tr("&Regroup"));
     regroupToolbar->setObjectName("regroup_toolbar");
-    regroupToolbar->addActions({ ui->actionRegroup_Even_Odd, ui->actionRegroup_by_Page_Pairs, ui->actionRegroup_by_Outline, ui->actionRegroup_by_Alternating_Pages, ui->actionRegroup_by_Alternating_Pages_Reversed_Order });
+    regroupToolbar->addActions({ ui->actionRegroup_Even_Odd, ui->actionRegroup_by_Page_Pairs, ui->actionRegroup_by_Outline, ui->actionRegroup_by_Alternating_Pages, ui->actionRegroup_by_Alternating_Pages_Reversed_Order, ui->actionRegroup_Reverse });
     QToolBar* zoomToolbar = addToolBar(tr("&Zoom"));
     zoomToolbar->setObjectName("zoom_toolbar");
     zoomToolbar->addActions({ ui->actionZoom_In, ui->actionZoom_Out });
@@ -290,6 +291,7 @@ void MainWindow::onWorkspaceCustomContextMenuRequested(const QPoint& point)
     regroupMenu->addAction(ui->actionRegroup_by_Alternating_Pages_Reversed_Order);
     regroupMenu->addAction(ui->actionRegroup_by_Page_Pairs);
     regroupMenu->addAction(ui->actionRegroup_by_Outline);
+    regroupMenu->addAction(ui->actionRegroup_Reverse);
     contextMenu->addSeparator();
     contextMenu->addAction(ui->actionGroup);
     contextMenu->addAction(ui->actionUngroup);
@@ -484,6 +486,9 @@ bool MainWindow::canPerformOperation(Operation operation) const
             PageItemModel::SelectionInfo info = m_model->getSelectionInfo(selection);
             return info.isDocumentOnly();
         }
+
+        case Operation::RegroupReversed:
+            return !isModelEmpty && !selection.isEmpty();
 
         case Operation::RegroupPaired:
             return !isModelEmpty && !selection.isEmpty();
@@ -905,6 +910,13 @@ void MainWindow::performOperation(Operation operation)
 
                 ui->documentItemsView->selectionModel()->select(selection, QItemSelectionModel::Toggle);
             }
+            break;
+        }
+
+        case Operation::RegroupReversed:
+        {
+            QModelIndexList indexes = ui->documentItemsView->selectionModel()->selection().indexes();
+            m_model->regroupReversed(indexes);
             break;
         }
 

@@ -21,28 +21,28 @@
     <item>
      <widget class="QListView" name="documentItemsView">
       <property name="contextMenuPolicy">
-       <enum>Qt::CustomContextMenu</enum>
+       <enum>Qt::ContextMenuPolicy::CustomContextMenu</enum>
       </property>
       <property name="dragEnabled">
        <bool>true</bool>
       </property>
       <property name="dragDropMode">
-       <enum>QAbstractItemView::DragDrop</enum>
+       <enum>QAbstractItemView::DragDropMode::DragDrop</enum>
       </property>
       <property name="defaultDropAction">
-       <enum>Qt::MoveAction</enum>
+       <enum>Qt::DropAction::MoveAction</enum>
       </property>
       <property name="selectionMode">
-       <enum>QAbstractItemView::ExtendedSelection</enum>
+       <enum>QAbstractItemView::SelectionMode::ExtendedSelection</enum>
       </property>
       <property name="flow">
-       <enum>QListView::LeftToRight</enum>
+       <enum>QListView::Flow::LeftToRight</enum>
       </property>
       <property name="viewMode">
-       <enum>QListView::IconMode</enum>
+       <enum>QListView::ViewMode::IconMode</enum>
       </property>
       <property name="itemAlignment">
-       <set>Qt::AlignCenter</set>
+       <set>Qt::AlignmentFlag::AlignCenter</set>
       </property>
      </widget>
     </item>
@@ -54,7 +54,7 @@
      <x>0</x>
      <y>0</y>
      <width>800</width>
-     <height>21</height>
+     <height>22</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -141,6 +141,7 @@
     <addaction name="actionRegroup_by_Outline"/>
     <addaction name="actionRegroup_by_Alternating_Pages"/>
     <addaction name="actionRegroup_by_Alternating_Pages_Reversed_Order"/>
+    <addaction name="actionRegroup_Reverse"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
@@ -522,6 +523,15 @@
    </property>
    <property name="text">
     <string>Regroup by &amp;Even/Odd Pages</string>
+   </property>
+  </action>
+  <action name="actionRegroup_Reverse">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/regroup-reverse.svg</normaloff>:/pdfpagemaster/resources/regroup-reverse.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Regroup by Re&amp;verse</string>
    </property>
   </action>
   <action name="actionRegroup_by_Page_Pairs">
