@@ -1231,7 +1231,7 @@ void PDFPageContentImageElement::drawPage(QPainter* painter,
         painter->scale(1.0, -1.0);
         targetRenderBox.moveTopLeft(QPointF(0, 0));
 
-        QImage image = convertor.convert(image);
+        QImage image = convertor.convert(m_image);
         painter->drawImage(targetRenderBox, image);
     }
 }

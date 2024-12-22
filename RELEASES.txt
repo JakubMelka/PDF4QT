@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #229: Can't add picture to PDF
  - Issue #228: [feature] reverse pages order 
  - Issue #222: UnitTests fails several tests
  - Issue #207: Zoom to Cursor (Zoom Anchoring) 
