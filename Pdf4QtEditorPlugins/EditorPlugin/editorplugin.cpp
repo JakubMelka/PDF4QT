@@ -68,7 +68,6 @@ void EditorPlugin::setWidget(pdf::PDFWidget* widget)
     QAction* createDotAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-dot.svg"), tr("Create &Dot"), this);
     QAction* createSvgImageAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-svg-image.svg"), tr("Create &SVG Image"), this);
     QAction* clearAction = new QAction(QIcon(":/pdfplugins/editorplugin/clear.svg"), tr("Clear A&ll Graphics"), this);
-    QAction* certificatesAction = new QAction(QIcon(":/pdfplugins/editorplugin/certificates.svg"), tr("Certificates &Manager"), this);
 
     activateAction->setObjectName("editortool_activateAction");
     createTextAction->setObjectName("editortool_createTextAction");
@@ -83,7 +82,6 @@ void EditorPlugin::setWidget(pdf::PDFWidget* widget)
     createDotAction->setObjectName("editortool_createDotAction");
     createSvgImageAction->setObjectName("editortool_createSvgImageAction");
     clearAction->setObjectName("editortool_clearAction");
-    certificatesAction->setObjectName("editortool_certificatesAction");
 
     activateAction->setCheckable(true);
     createTextAction->setCheckable(true);
