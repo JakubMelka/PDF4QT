@@ -23,6 +23,7 @@
 #include "pdfannotation.h"
 
 class QActionGroup;
+class QColorDialog;
 
 namespace pdf
 {
@@ -307,8 +308,10 @@ protected:
 
 private:
     void onActionTriggered(QAction* action);
+    void onColorChanged(const QColor& color);
     void updateCursor();
     void setSelection(pdf::PDFTextSelection&& textSelection);
+    void updateInitialColor();
 
     struct SelectionInfo
     {
@@ -318,9 +321,11 @@ private:
 
     PDFToolManager* m_toolManager;
     QActionGroup* m_actionGroup;
+    QColorDialog* m_colorDialog;
     AnnotationType m_type;
     pdf::PDFTextSelection m_textSelection;
     SelectionInfo m_selectionInfo;
+    QColor m_color;
     bool m_isCursorOverText;
 };
 

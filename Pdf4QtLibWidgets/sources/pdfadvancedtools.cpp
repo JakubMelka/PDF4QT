@@ -22,9 +22,11 @@
 #include "pdfcompiler.h"
 #include "pdfwidgetformmanager.h"
 #include "pdfwidgetannotation.h"
+#include "pdfwidgetutils.h"
 
 #include <QActionGroup>
 #include <QInputDialog>
+#include <QColorDialog>
 #include <QKeyEvent>
 
 #include "pdfdbgheap.h"
@@ -924,12 +926,14 @@ PDFCreateHighlightTextTool::PDFCreateHighlightTextTool(PDFDrawWidgetProxy* proxy
     BaseClass(proxy, parent),
     m_toolManager(toolManager),
     m_actionGroup(actionGroup),
+    m_colorDialog(nullptr),
     m_type(AnnotationType::Highlight),
     m_isCursorOverText(false)
 {
     connect(m_actionGroup, &QActionGroup::triggered, this, &PDFCreateHighlightTextTool::onActionTriggered);
 
     updateActions();
+    updateInitialColor();
 }
 
 void PDFCreateHighlightTextTool::drawPage(QPainter* painter,
@@ -988,7 +992,7 @@ void PDFCreateHighlightTextTool::mouseReleaseEvent(QWidget* widget, QMouseEvent*
                 // Jakub Melka: handle the selection
                 PDFTextLayoutGetter textLayoutGetter = getProxy()->getTextLayoutCompiler()->getTextLayoutLazy(pageIndex);
                 PDFTextLayout textLayout = textLayoutGetter;
-                setSelection(textLayout.createTextSelection(pageIndex, m_selectionInfo.selectionStartPoint, pagePoint));
+                setSelection(textLayout.createTextSelection(pageIndex, m_selectionInfo.selectionStartPoint, pagePoint, m_color));
 
                 QPolygonF quadrilaterals;
                 PDFTextSelectionPainter textSelectionPainter(&m_textSelection);
@@ -1003,21 +1007,21 @@ void PDFCreateHighlightTextTool::mouseReleaseEvent(QWidget* widget, QMouseEvent*
                     switch (m_type)
                     {
                         case AnnotationType::Highlight:
-                            annotationReference = modifier.getBuilder()->createAnnotationHighlight(page, quadrilaterals, Qt::yellow);
+                            annotationReference = modifier.getBuilder()->createAnnotationHighlight(page, quadrilaterals, m_color);
                             modifier.getBuilder()->setAnnotationOpacity(annotationReference, 0.2);
                             modifier.getBuilder()->updateAnnotationAppearanceStreams(annotationReference);
                             break;
 
                         case AnnotationType::Underline:
-                            annotationReference = modifier.getBuilder()->createAnnotationUnderline(page, quadrilaterals, Qt::black);
+                            annotationReference = modifier.getBuilder()->createAnnotationUnderline(page, quadrilaterals, m_color);
                             break;
 
                         case AnnotationType::Squiggly:
-                            annotationReference = modifier.getBuilder()->createAnnotationSquiggly(page, quadrilaterals, Qt::red);
+                            annotationReference = modifier.getBuilder()->createAnnotationSquiggly(page, quadrilaterals, m_color);
                             break;
 
                         case AnnotationType::StrikeOut:
-                            annotationReference = modifier.getBuilder()->createAnnotationStrikeout(page, quadrilaterals, Qt::red);
+                            annotationReference = modifier.getBuilder()->createAnnotationStrikeout(page, quadrilaterals, m_color);
                             break;
 
                         default:
@@ -1057,7 +1061,7 @@ void PDFCreateHighlightTextTool::mouseMoveEvent(QWidget* widget, QMouseEvent* ev
         if (m_selectionInfo.pageIndex == pageIndex)
         {
             // Jakub Melka: handle the selection
-            setSelection(textLayout.createTextSelection(pageIndex, m_selectionInfo.selectionStartPoint, pagePoint));
+            setSelection(textLayout.createTextSelection(pageIndex, m_selectionInfo.selectionStartPoint, pagePoint, m_color));
         }
         else
         {
@@ -1094,17 +1098,44 @@ void PDFCreateHighlightTextTool::setActiveImpl(bool active)
     {
         // Just clear the text selection
         setSelection(PDFTextSelection());
+
+        delete m_colorDialog;
+        m_colorDialog = nullptr;
+    }
+    else
+    {
+        m_colorDialog = new QColorDialog(m_color, getProxy()->getWidget());
+        m_colorDialog->setWindowTitle(tr("Select Color"));
+        m_colorDialog->setOption(QColorDialog::ShowAlphaChannel, false);
+        m_colorDialog->setOption(QColorDialog::NoButtons, true);
+        m_colorDialog->setOption(QColorDialog::DontUseNativeDialog, true);
+        m_colorDialog->setOption(QColorDialog::NoEyeDropperButton, true);
+        m_colorDialog->setWindowFlag(Qt::Tool);
+        m_colorDialog->move(pdf::PDFWidgetUtils::scaleDPI_x(m_colorDialog, 50), pdf::PDFWidgetUtils::scaleDPI_y(m_colorDialog, 50));
+        connect(m_colorDialog, &QColorDialog::currentColorChanged, this, &PDFCreateHighlightTextTool::onColorChanged);
+        m_colorDialog->show();
     }
 }
 
 void PDFCreateHighlightTextTool::onActionTriggered(QAction* action)
 {
-    setActive(action && action->isChecked());
-
     if (action)
     {
-        m_type = static_cast<AnnotationType>(action->data().toInt());
+        AnnotationType type = static_cast<AnnotationType>(action->data().toInt());
+
+        if (m_type != type)
+        {
+            m_type = type;
+            updateInitialColor();
+        }
     }
+
+    setActive(action && action->isChecked());
+}
+
+void PDFCreateHighlightTextTool::onColorChanged(const QColor& color)
+{
+    m_color = color;
 }
 
 void PDFCreateHighlightTextTool::updateCursor()
@@ -1128,6 +1159,33 @@ void PDFCreateHighlightTextTool::setSelection(PDFTextSelection&& textSelection)
     {
         m_textSelection = qMove(textSelection);
         Q_EMIT getProxy()->repaintNeeded();
+    }
+}
+
+void PDFCreateHighlightTextTool::updateInitialColor()
+{
+    switch (m_type)
+    {
+    case AnnotationType::Highlight:
+        m_color = Qt::yellow;
+        break;
+
+    case AnnotationType::Underline:
+        m_color = Qt::black;
+        break;
+
+    case AnnotationType::Squiggly:
+        m_color = Qt::red;
+        break;
+
+    case AnnotationType::StrikeOut:
+        m_color = Qt::red;
+        break;
+    }
+
+    if (m_colorDialog)
+    {
+        m_colorDialog->setCurrentColor(m_color);
     }
 }
 
