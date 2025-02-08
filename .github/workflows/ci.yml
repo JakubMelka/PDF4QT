@@ -17,10 +17,11 @@ jobs:
         with:
           path: pdf4qt
           
-      - name: Install CUPS
+      - name: Install Dependencies
         run: |
           sudo apt update
-          sudo apt install libcups2 libcups2-dev
+          sudo apt install -y libcups2 libcups2-dev
+          sudo apt install -y libfontconfig1-dev
           
       - name: 'VCPKG: Set up VCPKG'
         run: |
