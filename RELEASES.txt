@@ -12,6 +12,9 @@ CURRENT:
  - Issue #165: Insert > Inline Text latency issues on Flatpak and Appimage packages 
  - Issue #161: Can it be possible to trust a certificate like in acrobat?
 
+SPONSORSHIP:
+ Big thanks to pjhfggij and all others for sponsorship!
+
 V: 1.4.0.0 4.7.2024
  - Issue #190: PageMaster crash + black bubbles instead of bubbles with correct color
  - Issue #184: Form field font size too large
