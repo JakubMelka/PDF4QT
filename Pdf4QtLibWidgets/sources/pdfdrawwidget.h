@@ -18,6 +18,7 @@
 #ifndef PDFDRAWWIDGET_H
 #define PDFDRAWWIDGET_H
 
+#include "pdfsignaturehandler.h"
 #include "pdfwidgetsglobal.h"
 #include "pdfglobal.h"
 #include "pdfrenderer.h"
@@ -73,7 +74,7 @@ public:
     /// in that case, widget contents are cleared. Optional content activity can be nullptr,
     /// if this occurs, no content is suppressed.
     /// \param document Document
-    void setDocument(const PDFModifiedDocument& document);
+    void setDocument(const PDFModifiedDocument& document, std::vector<PDFSignatureVerificationResult> signatureVerificationResult);
 
     /// Update rendering engine according the settings
     /// \param engine Engine type

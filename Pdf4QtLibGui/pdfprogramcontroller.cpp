@@ -1744,7 +1744,7 @@ void PDFProgramController::onFileChanged(const QString& fileName)
         QByteArray hash = pdf::PDFDocumentReader::hash(data);
         if (m_pdfDocument && m_pdfDocument->getSourceDataHash() != hash)
         {
-            auto queryPassword = [this](bool* ok)
+            auto queryPassword = [](bool* ok)
             {
                 *ok = false;
                 return QString();
@@ -1879,7 +1879,7 @@ void PDFProgramController::onDocumentReadingFinished()
             m_pdfDocument = qMove(result.document);
             m_signatures = qMove(result.signatures);
             pdf::PDFModifiedDocument document(m_pdfDocument.data(), m_optionalContentActivity);
-            setDocument(document, true);
+            setDocument(document, m_signatures, true);
 
             if (m_formManager)
             {
@@ -1951,17 +1951,17 @@ void PDFProgramController::onDocumentModified(pdf::PDFModifiedDocument document)
 
     m_pdfDocument = document;
     document.setOptionalContentActivity(m_optionalContentActivity);
-    setDocument(document, false);
+    setDocument(document, {}, false);
 }
 
 void PDFProgramController::onDocumentUndoRedo(pdf::PDFModifiedDocument document)
 {
     m_pdfDocument = document;
     document.setOptionalContentActivity(m_optionalContentActivity);
-    setDocument(document, false);
+    setDocument(document, {}, false);
 }
 
-void PDFProgramController::setDocument(pdf::PDFModifiedDocument document, bool isCurrentSaved)
+void PDFProgramController::setDocument(pdf::PDFModifiedDocument document, std::vector<pdf::PDFSignatureVerificationResult> signatureVerificationResult, bool isCurrentSaved)
 {
     if (document.hasReset())
     {
@@ -2021,7 +2021,7 @@ void PDFProgramController::setDocument(pdf::PDFModifiedDocument document, bool i
         m_undoRedoManager->setIsCurrentSaved(isCurrentSaved);
     }
 
-    m_pdfWidget->setDocument(document);
+    m_pdfWidget->setDocument(document, std::move(signatureVerificationResult));
     m_mainWindowInterface->setDocument(document);
     m_CMSManager->setDocument(document);
 
@@ -2065,7 +2065,7 @@ void PDFProgramController::closeDocument()
     }
 
     m_signatures.clear();
-    setDocument(pdf::PDFModifiedDocument(), true);
+    setDocument(pdf::PDFModifiedDocument(), {}, true);
     m_pdfDocument.reset();
     updateActionsAvailability();
     updateTitle();

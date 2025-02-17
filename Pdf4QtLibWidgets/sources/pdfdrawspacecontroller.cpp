@@ -487,7 +487,7 @@ PDFDrawWidgetProxy::~PDFDrawWidgetProxy()
 
 }
 
-void PDFDrawWidgetProxy::setDocument(const PDFModifiedDocument& document)
+void PDFDrawWidgetProxy::setDocument(const PDFModifiedDocument& document, std::vector<PDFSignatureVerificationResult> signatureVerificationResult)
 {
     if (getDocument() != document)
     {
@@ -509,6 +509,8 @@ void PDFDrawWidgetProxy::setDocument(const PDFModifiedDocument& document)
             m_cacheClearTimer->start(CACHE_CLEAR_TIMEOUT);
         }
     }
+
+    m_signatureVerificationResult = std::move(signatureVerificationResult);
 }
 
 void PDFDrawWidgetProxy::init(PDFWidget* widget)

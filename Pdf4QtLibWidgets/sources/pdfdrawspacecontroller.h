@@ -18,6 +18,7 @@
 #ifndef PDFDRAWSPACECONTROLLER_H
 #define PDFDRAWSPACECONTROLLER_H
 
+#include "pdfsignaturehandler.h"
 #include "pdfwidgetsglobal.h"
 #include "pdfglobal.h"
 #include "pdfdocument.h"
@@ -190,7 +191,7 @@ public:
     /// in that case, draw space is cleared. Optional content activity can be nullptr,
     /// in that case, no content is suppressed.
     /// \param document Document
-    void setDocument(const PDFModifiedDocument& document);
+    void setDocument(const PDFModifiedDocument& document, std::vector<PDFSignatureVerificationResult> signatureVerificationResult);
 
     void init(PDFWidget* widget);
 
@@ -374,6 +375,7 @@ public:
     void setGroupTransparency(PDFInteger groupIndex, bool drawPaper = true, PDFReal transparency = 1.0);
     
     PDFWidgetAnnotationManager* getAnnotationManager() const;
+    const std::vector<PDFSignatureVerificationResult>& getSignatureVerificationResult() const { return m_signatureVerificationResult; }
 
 signals:
     void drawSpaceChanged();
@@ -540,6 +542,9 @@ private:
     /// can be rendered with transparency or without paper
     /// as overlay.
     std::map<PDFInteger, GroupInfo> m_groupInfos;
+
+    /// Signature verification results
+    std::vector<PDFSignatureVerificationResult> m_signatureVerificationResult;
 };
 
 }   // namespace pdf

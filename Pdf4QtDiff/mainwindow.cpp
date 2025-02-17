@@ -666,11 +666,11 @@ void MainWindow::setViewDocument(pdf::PDFDocument* document, bool updateCustomPa
         if (document)
         {
             pdf::PDFModifiedDocument modifiedDocument(document, m_optionalContentActivity);
-            m_pdfWidget->setDocument(modifiedDocument);
+            m_pdfWidget->setDocument(modifiedDocument, {});
         }
         else
         {
-            m_pdfWidget->setDocument(pdf::PDFModifiedDocument());
+            m_pdfWidget->setDocument(pdf::PDFModifiedDocument(), {});
         }
     }
 

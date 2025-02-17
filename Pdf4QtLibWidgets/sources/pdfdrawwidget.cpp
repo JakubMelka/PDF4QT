@@ -86,9 +86,9 @@ bool PDFWidget::focusNextPrevChild(bool next)
     return QWidget::focusNextPrevChild(next);
 }
 
-void PDFWidget::setDocument(const PDFModifiedDocument& document)
+void PDFWidget::setDocument(const PDFModifiedDocument& document, std::vector<PDFSignatureVerificationResult> signatureVerificationResult)
 {
-    m_proxy->setDocument(document);
+    m_proxy->setDocument(document, std::move(signatureVerificationResult));
     m_pageRenderingErrors.clear();
     m_drawWidget->getWidget()->update();
 }

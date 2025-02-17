@@ -10,6 +10,7 @@ CURRENT:
  - Issue #200: Icons under dark theme on Arch/KDE is broken 
  - Issue #185: Latest git fails to build in linux
  - Issue #165: Insert > Inline Text latency issues on Flatpak and Appimage packages 
+ - Issue #161: Can it be possible to trust a certificate like in acrobat?
 
 V: 1.4.0.0 4.7.2024
  - Issue #190: PageMaster crash + black bubbles instead of bubbles with correct color

@@ -248,6 +248,179 @@ private:
     PDFTextEditPseudowidget m_textEdit;
 };
 
+/// Editor for signatures
+class PDFFormFieldSignatureEditor : public PDFFormFieldWidgetEditor
+{
+    Q_DECLARE_TR_FUNCTIONS(pdf::PDFFormFieldSignatureEditor)
+
+private:
+    using BaseClass = PDFFormFieldWidgetEditor;
+
+public:
+    explicit PDFFormFieldSignatureEditor(PDFWidgetFormManager* formManager, PDFFormWidget formWidget);
+    virtual ~PDFFormFieldSignatureEditor() = default;
+
+    virtual bool isEditorDrawEnabled() const override;
+    virtual void draw(AnnotationDrawParameters& parameters, bool edit) const override;
+};
+
+PDFFormFieldSignatureEditor::PDFFormFieldSignatureEditor(PDFWidgetFormManager* formManager, PDFFormWidget formWidget) :
+    BaseClass(formManager, formWidget)
+{
+
+}
+
+bool PDFFormFieldSignatureEditor::isEditorDrawEnabled() const
+{
+    PDFDrawWidgetProxy* proxy = m_formManager->getProxy();
+
+    if (proxy)
+    {
+        const std::vector<PDFSignatureVerificationResult>& signatureVerificationResult = proxy->getSignatureVerificationResult();
+        QString qualifiedName = m_formWidget.getParent()->getName(PDFFormField::NameType::FullyQualified);
+
+        for (const PDFSignatureVerificationResult& result : signatureVerificationResult)
+        {
+            if (result.getSignatureFieldQualifiedName() == qualifiedName)
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+void PDFFormFieldSignatureEditor::draw(AnnotationDrawParameters& parameters, bool edit) const
+{
+    PDFPainterStateGuard guard(parameters.painter);
+    PDFDrawWidgetProxy* proxy = m_formManager->getProxy();
+    const PDFSignatureVerificationResult* verificationResult = nullptr;
+
+    Q_UNUSED(edit);
+
+    if (proxy)
+    {
+        const std::vector<PDFSignatureVerificationResult>& signatureVerificationResult = proxy->getSignatureVerificationResult();
+        QString qualifiedName = m_formWidget.getParent()->getName(PDFFormField::NameType::FullyQualified);
+
+        for (const PDFSignatureVerificationResult& result : signatureVerificationResult)
+        {
+            if (result.getSignatureFieldQualifiedName() == qualifiedName)
+            {
+                verificationResult = &result;
+                break;
+            }
+        }
+    }
+
+    bool isValid = false;
+    QString text = tr("Signature Unknown");
+
+    if (verificationResult)
+    {
+        if (verificationResult->isValid())
+        {
+            isValid = true;
+            text = tr("Signature Valid");
+        }
+        else
+        {
+            isValid = false;
+            text = tr("Signature Invalid");
+        }
+    }
+
+    QColor foregroundColor = parameters.colorConvertor.convert(QColor(Qt::black), false, true);
+    parameters.painter->setPen(foregroundColor);
+    parameters.painter->setBrush(parameters.colorConvertor.convert(QColor(Qt::white), true, false));
+
+    QRectF rect = m_formManager->getWidgetRectangle(m_formWidget);
+    parameters.boundingRectangle = rect;
+    parameters.painter->drawRect(rect);
+
+    QRectF textRect = rect;
+    textRect.setHeight(rect.height() * 0.25);
+    textRect.setWidth(rect.width() * 0.95);
+    textRect.translate((rect.width() - textRect.width()) * 0.5, rect.height() * 0.75);
+
+    QPainterPath path;
+    path.addText(0, 0, parameters.painter->font(), text);
+    QSizeF textSize = path.boundingRect().size();
+    qreal factor = qMin(textRect.width() / textSize.width(), textRect.height() / textSize.height());
+
+    QTransform matrix;
+    matrix.scale(factor, -factor);
+    path = matrix.map(path);
+    path.translate(textRect.center() - path.boundingRect().center());
+
+    parameters.painter->fillPath(path, foregroundColor);
+
+    QPainterPath mark;
+    if (isValid)
+    {
+        parameters.painter->setBrush(Qt::darkGreen);
+        parameters.painter->setPen(Qt::NoPen);
+
+        QPolygonF checkmark;
+        checkmark << QPointF(40, 120)
+                  << QPointF(70, 150)
+                  << QPointF(160, 40)
+                  << QPointF(140, 20)
+                  << QPointF(70, 120)
+                  << QPointF(50, 100);
+
+        mark.addPolygon(checkmark);
+    }
+    else
+    {
+        parameters.painter->setBrush(Qt::darkRed);
+        parameters.painter->setPen(Qt::NoPen);
+
+        const double halfThickness = 10.0;
+        const double halfLength = 50.0;
+
+        QPolygonF checkmark;
+        checkmark << QPointF(-halfLength, -halfThickness)
+                  << QPointF(-halfLength, +halfThickness)
+                  << QPointF(+halfLength, +halfThickness)
+                  << QPointF(+halfLength, -halfThickness)
+                  << QPointF(-halfLength, -halfThickness);
+
+        mark.addPolygon(checkmark);
+
+        checkmark.clear();
+        checkmark << QPointF(-halfThickness, -halfLength)
+                  << QPointF(-halfThickness, +halfLength)
+                  << QPointF(+halfThickness, +halfLength)
+                  << QPointF(+halfThickness, -halfLength)
+                  << QPointF(-halfThickness, -halfLength);
+        mark.addPolygon(checkmark);
+        mark.setFillRule(Qt::WindingFill);
+
+        QTransform transform;
+        transform.rotate(45.0);
+        mark = transform.map(mark);
+    }
+
+    QRectF markRect = rect;
+    markRect.setHeight(rect.height() - textRect.height());
+    QPointF markCenter = markRect.center();
+    markRect.setHeight(markRect.height() * 0.75);
+    markRect.setWidth(markRect.width() * 0.75);
+    markRect.moveCenter(markCenter);
+
+    QRectF markSymbolRect = mark.boundingRect();
+    qreal symbolFactor = qMin(markRect.width() / markSymbolRect.width(), markRect.height() / markSymbolRect.height());
+
+    QTransform markTransform;
+    markTransform.scale(symbolFactor, -symbolFactor);
+    mark = markTransform.map(mark);
+    mark.translate(markRect.center() - mark.boundingRect().center());
+
+    parameters.painter->drawPath(mark);
+}
+
 /// Editor for combo boxes
 class PDFFormFieldComboBoxEditor : public PDFFormFieldWidgetEditor
 {
@@ -761,8 +934,10 @@ void PDFWidgetFormManager::updateFormWidgetEditors()
             }
 
             case PDFFormField::FieldType::Signature:
-                // Signature fields doesn't have editor
+            {
+                m_widgetEditors.push_back(new PDFFormFieldSignatureEditor(this, widget));
                 break;
+            }
 
             default:
                 Q_ASSERT(false);

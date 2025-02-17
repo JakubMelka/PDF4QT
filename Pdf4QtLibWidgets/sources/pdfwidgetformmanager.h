@@ -144,6 +144,8 @@ public:
     PDFWidgetAnnotationManager* getAnnotationManager() const;
     void setAnnotationManager(PDFWidgetAnnotationManager* annotationManager);
 
+    PDFDrawWidgetProxy* getProxy() const { return m_proxy; }
+
 protected:
     virtual void updateFieldValues() override;
     virtual void onDocumentReset() override;
