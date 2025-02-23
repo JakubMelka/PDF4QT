@@ -1454,7 +1454,6 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
         const PDFCMSPointer cms = m_cmsManager->getCurrentCMS();
         m_fontCache->setCacheShrinkEnabled(&fontCacheLock, false);
 
-        const PageAnnotation* annotationDrawnByEditor = nullptr;
         for (const PageAnnotation& annotation : annotations.annotations)
         {
             // If annotation draw is not enabled, then skip it
@@ -1463,19 +1462,7 @@ void PDFAnnotationManager::drawPage(QPainter* painter,
                 continue;
             }
 
-            if (isAnnotationDrawnByEditor(annotation))
-            {
-                Q_ASSERT(!annotationDrawnByEditor);
-                annotationDrawnByEditor = &annotation;
-                continue;
-            }
-
-            drawAnnotation(annotation, pagePointToDevicePointMatrix, page, cms.data(), false, errors, painter);
-        }
-
-        if (annotationDrawnByEditor)
-        {
-            drawAnnotation(*annotationDrawnByEditor, pagePointToDevicePointMatrix, page, cms.data(), true, errors, painter);
+            drawAnnotation(annotation, pagePointToDevicePointMatrix, page, cms.data(), isAnnotationDrawnByEditor(annotation), errors, painter);
         }
 
         m_fontCache->setCacheShrinkEnabled(&fontCacheLock, true);

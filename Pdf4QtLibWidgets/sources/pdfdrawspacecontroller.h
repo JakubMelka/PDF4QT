@@ -382,7 +382,7 @@ signals:
     void pageLayoutChanged();
     void renderingError(pdf::PDFInteger pageIndex, const QList<pdf::PDFRenderError>& errors);
     void repaintNeeded();
-    void pageImageChanged(bool all, const std::vector<PDFInteger>& pages);
+    void pageImageChanged(bool all, const std::vector<pdf::PDFInteger>& pages);
     void textLayoutChanged();
 
 private:
