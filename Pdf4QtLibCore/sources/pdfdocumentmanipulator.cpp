@@ -37,6 +37,7 @@ PDFOperationResult PDFDocumentManipulator::assemble(const AssembledPages& pages)
     try
     {
         classify(pages);
+        const PDFDocument* singleDocument = nullptr;
 
         pdf::PDFDocumentBuilder documentBuilder;
         if (m_flags.testFlag(SingleDocument))
@@ -56,7 +57,8 @@ PDFOperationResult PDFDocumentManipulator::assemble(const AssembledPages& pages)
                 throw PDFException(tr("Invalid document."));
             }
 
-            documentBuilder.setDocument(m_documents.at(documentIndex));
+            singleDocument = m_documents.at(documentIndex);
+            documentBuilder.setDocument(singleDocument);
         }
         else
         {
@@ -72,9 +74,13 @@ PDFOperationResult PDFDocumentManipulator::assemble(const AssembledPages& pages)
 
         // Correct page tree (invalid parents are present)
         documentBuilder.flattenPageTree();
-        if (!m_flags.testFlag(SingleDocument) || m_flags.testFlag(RemovedPages))
+        if (!m_flags.testFlag(SingleDocument))
         {
             documentBuilder.removeOutline();
+        }
+
+        if (!m_flags.testFlag(SingleDocument) || m_flags.testFlag(RemovedPages))
+        {
             documentBuilder.removeThreads();
             documentBuilder.removeDocumentActions();
             documentBuilder.removeStructureTree();
@@ -85,6 +91,10 @@ PDFOperationResult PDFDocumentManipulator::assemble(const AssembledPages& pages)
         if (!m_flags.testFlag(SingleDocument))
         {
             addOutlineAndDocumentParts(documentBuilder, pages, adjustedPages);
+        }
+        else if (m_flags.testFlag(RemovedPages) && singleDocument)
+        {
+            filterOutline(documentBuilder, singleDocument, adjustedPages);
         }
 
         pdf::PDFDocument mergedDocument = documentBuilder.build();
@@ -485,6 +495,46 @@ void PDFDocumentManipulator::finalizeDocument(PDFDocument* document)
         }
     }
     m_assembledDocument = finalBuilder.build();
+}
+
+void PDFDocumentManipulator::filterOutline(PDFDocumentBuilder& documentBuilder,
+                                           const PDFDocument* singleDocument,
+                                           const std::vector<PDFObjectReference>& adjustedPages)
+{
+    QSharedPointer<PDFOutlineItem> outline = singleDocument->getCatalog()->getOutlineRootPtr();
+    if (outline)
+    {
+        outline = outline->clone();
+        std::set<PDFObjectReference> adjustedPagesSet(adjustedPages.cbegin(), adjustedPages.cend());
+
+        std::function<void(QSharedPointer<PDFOutlineItem>&)> filter = [&adjustedPagesSet](QSharedPointer<PDFOutlineItem>& item)
+        {
+            for (size_t i = 0; i < item->getChildCount();)
+            {
+                bool shouldRemove = false;
+                const PDFOutlineItem* childItem = item->getChild(i);
+                const PDFAction* action = childItem->getAction();
+                const PDFActionGoTo* actionGoTo = dynamic_cast<const PDFActionGoTo*>(action);
+                if (actionGoTo)
+                {
+                    const PDFObjectReference pageReference = actionGoTo->getDestination().getPageReference();
+                    shouldRemove = !adjustedPagesSet.count(pageReference);
+                }
+
+                if (shouldRemove)
+                {
+                    item->removeChild(i);
+                }
+                else
+                {
+                    ++i;
+                }
+            }
+        };
+
+        filter(outline);
+        documentBuilder.setOutline(outline.data());
+    }
 }
 
 void PDFDocumentManipulator::addOutlineAndDocumentParts(PDFDocumentBuilder& documentBuilder,

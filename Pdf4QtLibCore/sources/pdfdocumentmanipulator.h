@@ -145,6 +145,9 @@ private:
     void addOutlineAndDocumentParts(PDFDocumentBuilder& documentBuilder,
                                     const AssembledPages& pages,
                                     const std::vector<PDFObjectReference>& adjustedPages);
+    void filterOutline(PDFDocumentBuilder& documentBuilder,
+                       const PDFDocument* singleDocument,
+                       const std::vector<PDFObjectReference>& adjustedPages);
 
     std::map<PDFInteger, const PDFDocument*> m_documents;
     std::map<PDFInteger, QImage> m_images;
