@@ -184,7 +184,7 @@
         <File Id="flegacy" KeyPath="yes" Source="$(var.MyInstallDir)\legacy.dll" />
       </Component>
       <Component Id="clcms2" Directory="INSTALLFOLDER" Guid="{039142EE-1542-46C5-B0C4-338221920946}">
-        <File Id="flcms2" KeyPath="yes" Source="$(var.MyInstallDir)\lcms2.dll" />
+        <File Id="flcms2" KeyPath="yes" Source="$(var.MyInstallDir)\lcms2-2.dll" />
       </Component>
       <Component Id="cfreetype" Directory="INSTALLFOLDER" Guid="{5848291F-6C7A-45B4-A98D-2DEFE546CB8D}">
         <File Id="ffreetype" KeyPath="yes" Source="$(var.MyInstallDir)\freetype.dll" />
