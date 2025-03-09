@@ -204,6 +204,9 @@
       <Component Id="cmpblend2d" Directory="INSTALLFOLDER" Guid="{19BEFD18-FEA7-4130-82EE-D460DC4C28BC}">
         <File Id="filblend2d" KeyPath="yes" Source="$(var.MyInstallDir)\blend2d.dll" />
       </Component>
+      <Component Id="cmpasmjit" Directory="INSTALLFOLDER" Guid="{E0C3FFC2-930D-4DD3-817F-C96ECDC49A40}">
+        <File Id="filasmjit" KeyPath="yes" Source="$(var.MyInstallDir)\asmjit.dll" />
+      </Component>
     </ComponentGroup>
   </Fragment>
 
