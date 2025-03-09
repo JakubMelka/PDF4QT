@@ -11,16 +11,7 @@ jobs:
       - name: Install Dependencies
         run: |
            sudo apt update
-           sudo apt install -y ninja-build libglib2.0-dev libxml2-dev libyaml-dev gettext libarchive-dev gperf pkg-config libstemmer-dev python3-dev python3-pip libcurl4-openssl-dev libsystemd-dev gobject-introspection libgirepository1.0-dev itstool xsltproc
-           sudo pip3 install meson
-    
-      - name: Install AppStream
-        run: |
-           git clone https://github.com/ximion/appstream.git
-           cd appstream
-           meson build
-           ninja -C build
-           sudo ninja -C build install
+           sudo apt install -y appstream
            
       - name: Verify AppStream Version
         run: |
