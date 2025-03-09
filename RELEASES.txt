@@ -1,4 +1,6 @@
 CURRENT:
+
+V: 1.5.0.0 9.3.2025
  - Issue #244: PageMaster: united one document after remove pages leads to lose the outline
  - Issue #236: Highligting - Allow color selection and intensity [Enhancement]
  - Issue #229: Can't add picture to PDF
