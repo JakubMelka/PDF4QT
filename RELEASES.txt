@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #248: update version and year in Help > About page
 
 V: 1.5.0.0 9.3.2025
  - Issue #244: PageMaster: united one document after remove pages leads to lose the outline
