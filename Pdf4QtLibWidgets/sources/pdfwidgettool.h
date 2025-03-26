@@ -368,6 +368,7 @@ public:
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
+    virtual void keyPressEvent(QWidget* widget, QKeyEvent* event) override;
 
     QPointF getSnappedPoint() const;
     PDFInteger getPageIndex() const { return m_pageIndex; }
@@ -408,6 +409,7 @@ private:
     std::vector<QPointF> m_pickedPoints;
     bool m_drawSelectionRectangle;
     QColor m_selectionRectangleColor;
+    bool m_hideLargeCross;
 };
 
 /// Tool for selection of table in document. Rows and columns

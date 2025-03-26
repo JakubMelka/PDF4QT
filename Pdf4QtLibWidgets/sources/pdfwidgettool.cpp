@@ -216,11 +216,13 @@ PDFWidgetTool* PDFWidgetTool::getTopToolstackTool() const
 void PDFWidgetTool::addTool(PDFWidgetTool* tool)
 {
     tool->setActive(isActive());
+    connect(tool, &PDFWidgetTool::messageDisplayRequest, this, &PDFWidgetTool::messageDisplayRequest);
     m_toolStack.push_back(tool);
 }
 
 void PDFWidgetTool::removeTool()
 {
+    disconnect(m_toolStack.back(), &PDFWidgetTool::messageDisplayRequest, this, &PDFWidgetTool::messageDisplayRequest);
     m_toolStack.back()->setActive(false);
     m_toolStack.pop_back();
 }
@@ -1272,7 +1274,8 @@ PDFPickTool::PDFPickTool(PDFDrawWidgetProxy* proxy, PDFPickTool::Mode mode, QObj
     m_mode(mode),
     m_pageIndex(-1),
     m_drawSelectionRectangle(true),
-    m_selectionRectangleColor(Qt::blue)
+    m_selectionRectangleColor(Qt::blue),
+    m_hideLargeCross(false)
 {
     switch (m_mode)
     {
@@ -1362,10 +1365,21 @@ void PDFPickTool::drawPostRendering(QPainter* painter, QRect rect) const
         QPoint vtop = snappedPoint;
         QPoint vbottom = snappedPoint;
 
-        hleft.setX(0);
-        hright.setX(rect.width());
-        vtop.setY(0);
-        vbottom.setY(rect.height());
+        if (!m_hideLargeCross)
+        {
+            hleft.setX(0);
+            hright.setX(rect.width());
+            vtop.setY(0);
+            vbottom.setY(rect.height());
+        }
+        else
+        {
+            const int markSize = PDFWidgetUtils::scaleDPI_x(getProxy()->getWidget(), 4);
+            hleft.setX(hleft.x() - markSize);
+            hright.setX(hright.x() + markSize);
+            vtop.setY(vtop.y() - markSize);
+            vbottom.setY(vbottom.y() + markSize);
+        }
 
         painter->setPen(Qt::black);
         painter->drawLine(hleft, hright);
@@ -1494,6 +1508,19 @@ void PDFPickTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
     }
 }
 
+void PDFPickTool::keyPressEvent(QWidget* widget, QKeyEvent* event)
+{
+    if (event->key() == Qt::Key_C)
+    {
+        m_hideLargeCross = !m_hideLargeCross;
+        Q_EMIT getProxy()->repaintNeeded();
+        event->accept();
+        return;
+    }
+
+    BaseClass::keyPressEvent(widget, event);
+}
+
 QPointF PDFPickTool::getSnappedPoint() const
 {
     return m_snapper.getSnappedPoint();
@@ -1514,6 +1541,8 @@ void PDFPickTool::setActiveImpl(bool active)
     if (active)
     {
         buildSnapData();
+
+        Q_EMIT messageDisplayRequest(tr("Use key 'C' to show/hide large cross."), 15000);
     }
     else
     {
