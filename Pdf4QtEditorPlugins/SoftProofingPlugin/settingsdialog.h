@@ -18,7 +18,6 @@
 #ifndef SETTINGSDIALOG_H
 #define SETTINGSDIALOG_H
 
-#include "softproofingplugin.h"
 #include "pdfcms.h"
 
 #include <QDialog>

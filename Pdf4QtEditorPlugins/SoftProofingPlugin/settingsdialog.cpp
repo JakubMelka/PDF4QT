@@ -42,7 +42,7 @@ SettingsDialog::SettingsDialog(QWidget* parent, const pdf::PDFCMSSettings& setti
     ui->cmsProofingColorProfileComboBox->setCurrentIndex(ui->cmsProofingColorProfileComboBox->findData(m_settings.softProofingProfile));
     ui->outOfGamutColorEdit->setText(m_settings.outOfGamutColor.name(QColor::HexRgb));
 
-    setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(320, 160)));
+    setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(320, 240)));
     pdf::PDFWidgetUtils::style(this);
 }
 

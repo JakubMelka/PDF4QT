@@ -1,4 +1,4 @@
-//    Copyright (C) 2020-2021 Jakub Melka
+//    Copyright (C) 2020-2025 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -37,7 +37,7 @@ SettingsDialog::SettingsDialog(QWidget* parent, DimensionUnit& lengthUnit, Dimen
     initComboBox(m_areaUnits, m_areaUnit, ui->areasComboBox);
     initComboBox(m_angleUnits, m_angleUnit, ui->anglesComboBox);
 
-    setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(320, 160)));
+    setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(320, 240)));
     pdf::PDFWidgetUtils::style(this);
 }
 
