@@ -1,4 +1,4 @@
-//    Copyright (C) 2019-2022 Jakub Melka
+//    Copyright (C) 2019-2025 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -108,6 +108,10 @@ void PDFViewerSettings::readSettings(QSettings& settings, const pdf::PDFCMSSetti
     m_settings.m_autoGenerateBookmarks = settings.value("autoGenerateBookmarks", defaultSettings.m_autoGenerateBookmarks).toBool();
     settings.endGroup();
 
+    settings.beginGroup("ColorScheme");
+    m_settings.m_colorScheme = static_cast<ColorScheme>(settings.value("colorScheme", int(defaultSettings.m_colorScheme)).toInt());
+    settings.endGroup();
+
     Q_EMIT settingsChanged();
 }
 
@@ -180,6 +184,10 @@ void PDFViewerSettings::writeSettings(QSettings& settings)
     settings.beginGroup("Bookmarks");
     settings.setValue("autoGenerateBookmarks", m_settings.m_autoGenerateBookmarks);
     settings.endGroup();
+
+    settings.beginGroup("ColorScheme");
+    settings.setValue("colorScheme", int(m_settings.m_colorScheme));
+    settings.endGroup();
 }
 
 QString PDFViewerSettings::getDirectory() const
@@ -251,6 +259,30 @@ void PDFViewerSettings::setColorTolerance(pdf::PDFReal colorTolerance)
     }
 }
 
+void PDFViewerSettings::setColorScheme(ColorScheme colorScheme)
+{
+    if (m_settings.m_colorScheme != colorScheme)
+    {
+        m_settings.m_colorScheme = colorScheme;
+        Q_EMIT settingsChanged();
+    }
+}
+
+PDFViewerSettings::ColorScheme PDFViewerSettings::getColorSchemeStatic()
+{
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
+    settings.beginGroup("ColorScheme");
+    const ColorScheme colorScheme = static_cast<ColorScheme>(settings.value("colorScheme", int(AutoScheme)).toInt());
+    settings.endGroup();
+
+    return colorScheme;
+}
+
+PDFViewerSettings::ColorScheme PDFViewerSettings::getColorScheme() const
+{
+    return m_settings.m_colorScheme;
+}
+
 PDFViewerSettings::Settings::Settings() :
     m_features(pdf::PDFRenderer::getDefaultFeatures()),
     m_rendererEngine(pdf::RendererEngine::Blend2D_MultiThread),
@@ -278,7 +310,8 @@ PDFViewerSettings::Settings::Settings() :
     m_signatureTreatWarningsAsErrors(false),
     m_signatureIgnoreCertificateValidityTime(false),
     m_signatureUseSystemStore(true),
-    m_autoGenerateBookmarks(true)
+    m_autoGenerateBookmarks(true),
+    m_colorScheme(AutoScheme)
 {
 
 }

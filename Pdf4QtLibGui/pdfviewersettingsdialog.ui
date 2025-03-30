@@ -25,10 +25,10 @@
         </sizepolicy>
        </property>
        <property name="selectionBehavior">
-        <enum>QAbstractItemView::SelectRows</enum>
+        <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
        </property>
        <property name="viewMode">
-        <enum>QListView::ListMode</enum>
+        <enum>QListView::ViewMode::ListMode</enum>
        </property>
       </widget>
      </item>
@@ -308,7 +308,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <item row="0" column="1">
                <widget class="QDoubleSpinBox" name="preferredMeshResolutionEdit">
                 <property name="correctionMode">
-                 <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
+                 <enum>QAbstractSpinBox::CorrectionMode::CorrectToNearestValue</enum>
                 </property>
                 <property name="decimals">
                  <number>3</number>
@@ -327,7 +327,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <item row="1" column="1">
                <widget class="QDoubleSpinBox" name="minimalMeshResolutionEdit">
                 <property name="correctionMode">
-                 <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
+                 <enum>QAbstractSpinBox::CorrectionMode::CorrectToNearestValue</enum>
                 </property>
                 <property name="decimals">
                  <number>3</number>
@@ -346,7 +346,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <item row="2" column="1">
                <widget class="QDoubleSpinBox" name="colorToleranceEdit">
                 <property name="correctionMode">
-                 <enum>QAbstractSpinBox::CorrectToNearestValue</enum>
+                 <enum>QAbstractSpinBox::CorrectionMode::CorrectToNearestValue</enum>
                 </property>
                 <property name="decimals">
                  <number>3</number>
@@ -425,7 +425,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <item row="2" column="1">
                <widget class="QSpinBox" name="cachedFontLimitEdit">
                 <property name="buttonSymbols">
-                 <enum>QAbstractSpinBox::PlusMinus</enum>
+                 <enum>QAbstractSpinBox::ButtonSymbols::PlusMinus</enum>
                 </property>
                 <property name="minimum">
                  <number>4</number>
@@ -438,7 +438,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <item row="0" column="1">
                <widget class="QSpinBox" name="compiledPageCacheSizeEdit">
                 <property name="buttonSymbols">
-                 <enum>QAbstractSpinBox::PlusMinus</enum>
+                 <enum>QAbstractSpinBox::ButtonSymbols::PlusMinus</enum>
                 </property>
                 <property name="suffix">
                  <string> kB</string>
@@ -540,7 +540,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
             <item>
              <widget class="QTableWidget" name="shortcutsTableWidget">
               <property name="editTriggers">
-               <set>QAbstractItemView::AllEditTriggers</set>
+               <set>QAbstractItemView::EditTrigger::AllEditTriggers</set>
               </property>
              </widget>
             </item>
@@ -928,76 +928,45 @@ li.checked::marker { content: &quot;\2612&quot;; }
            <layout class="QVBoxLayout" name="verticalLayout_4" stretch="0,1">
             <item>
              <layout class="QGridLayout" name="uiGroupBoxLayout">
-              <item row="0" column="0">
-               <widget class="QLabel" name="maximumRecentFileCountLabel">
-                <property name="text">
-                 <string>Maximum count of recent files</string>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="0">
-               <widget class="QLabel" name="magnifierSizeLabel">
-                <property name="text">
-                 <string>Magnifier size</string>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="1">
+              <item row="1" column="1">
                <widget class="QSpinBox" name="maximumRecentFileCountEdit"/>
               </item>
-              <item row="3" column="1">
-               <widget class="QSpinBox" name="maximumUndoStepsEdit">
-                <property name="maximum">
-                 <number>20</number>
-                </property>
-               </widget>
-              </item>
-              <item row="3" column="0">
-               <widget class="QLabel" name="maximumUndoStepsLabel">
-                <property name="text">
-                 <string>Maximum undo steps</string>
-                </property>
-               </widget>
-              </item>
-              <item row="4" column="1">
-               <widget class="QSpinBox" name="maximumRedoStepsEdit">
-                <property name="maximum">
-                 <number>20</number>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="1">
-               <widget class="QDoubleSpinBox" name="magnifierZoomEdit">
-                <property name="minimum">
-                 <double>1.000000000000000</double>
-                </property>
-                <property name="maximum">
-                 <double>10.000000000000000</double>
-                </property>
-               </widget>
-              </item>
-              <item row="4" column="0">
-               <widget class="QLabel" name="maximumRedoStepsLabel">
-                <property name="text">
-                 <string>Maximum redo steps</string>
-                </property>
-               </widget>
-              </item>
-              <item row="6" column="1">
+              <item row="7" column="1">
                <widget class="QCheckBox" name="developerModeCheckBox">
                 <property name="text">
                  <string>Enable</string>
                 </property>
                </widget>
               </item>
-              <item row="6" column="0">
-               <widget class="QLabel" name="developerModeLabel">
+              <item row="5" column="0">
+               <widget class="QLabel" name="maximumRedoStepsLabel">
                 <property name="text">
-                 <string>Developer mode</string>
+                 <string>Maximum redo steps</string>
                 </property>
                </widget>
               </item>
-              <item row="1" column="1">
+              <item row="2" column="0">
+               <widget class="QLabel" name="magnifierSizeLabel">
+                <property name="text">
+                 <string>Magnifier size</string>
+                </property>
+               </widget>
+              </item>
+              <item row="6" column="0">
+               <widget class="QLabel" name="logicalPixelZoomLabel">
+                <property name="text">
+                 <string>Use logical pixels when zooming</string>
+                </property>
+               </widget>
+              </item>
+              <item row="6" column="1">
+               <widget class="QCheckBox" name="logicalPixelZoomCheckBox">
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
                <widget class="QSpinBox" name="magnifierSizeEdit">
                 <property name="suffix">
                  <string>px</string>
@@ -1010,7 +979,31 @@ li.checked::marker { content: &quot;\2612&quot;; }
                 </property>
                </widget>
               </item>
-              <item row="2" column="0">
+              <item row="3" column="1">
+               <widget class="QDoubleSpinBox" name="magnifierZoomEdit">
+                <property name="minimum">
+                 <double>1.000000000000000</double>
+                </property>
+                <property name="maximum">
+                 <double>10.000000000000000</double>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="1">
+               <widget class="QSpinBox" name="maximumUndoStepsEdit">
+                <property name="maximum">
+                 <number>20</number>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="0">
+               <widget class="QLabel" name="maximumUndoStepsLabel">
+                <property name="text">
+                 <string>Maximum undo steps</string>
+                </property>
+               </widget>
+              </item>
+              <item row="3" column="0">
                <widget class="QLabel" name="magnifierZoomLabel">
                 <property name="text">
                  <string>Magnifier zoom</string>
@@ -1018,16 +1011,33 @@ li.checked::marker { content: &quot;\2612&quot;; }
                </widget>
               </item>
               <item row="5" column="1">
-               <widget class="QCheckBox" name="logicalPixelZoomCheckBox">
-                <property name="text">
-                 <string>Enable</string>
+               <widget class="QSpinBox" name="maximumRedoStepsEdit">
+                <property name="maximum">
+                 <number>20</number>
                 </property>
                </widget>
               </item>
-              <item row="5" column="0">
-               <widget class="QLabel" name="logicalPixelZoomLabel">
+              <item row="1" column="0">
+               <widget class="QLabel" name="maximumRecentFileCountLabel">
                 <property name="text">
-                 <string>Use logical pixels when zooming</string>
+                 <string>Maximum count of recent files</string>
+                </property>
+               </widget>
+              </item>
+              <item row="7" column="0">
+               <widget class="QLabel" name="developerModeLabel">
+                <property name="text">
+                 <string>Developer mode</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="QComboBox" name="colorSchemeCombo"/>
+              </item>
+              <item row="0" column="0">
+               <widget class="QLabel" name="colorSchemeLabel">
+                <property name="text">
+                 <string>Color Scheme (GUI)</string>
                 </property>
                </widget>
               </item>
@@ -1329,7 +1339,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
             <item>
              <widget class="Line" name="line">
               <property name="orientation">
-               <enum>Qt::Horizontal</enum>
+               <enum>Qt::Orientation::Horizontal</enum>
               </property>
              </widget>
             </item>
@@ -1343,7 +1353,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
             <item>
              <widget class="QTableWidget" name="trustedCertificateStoreTableWidget">
               <property name="selectionBehavior">
-               <enum>QAbstractItemView::SelectRows</enum>
+               <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
               </property>
              </widget>
             </item>
@@ -1352,7 +1362,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
               <item>
                <spacer name="trustedCertificateStoreButtonsSpacer">
                 <property name="orientation">
-                 <enum>Qt::Horizontal</enum>
+                 <enum>Qt::Orientation::Horizontal</enum>
                 </property>
                 <property name="sizeHint" stdset="0">
                  <size>
@@ -1374,7 +1384,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
             <item>
              <widget class="Line" name="line_2">
               <property name="orientation">
-               <enum>Qt::Horizontal</enum>
+               <enum>Qt::Orientation::Horizontal</enum>
               </property>
              </widget>
             </item>
@@ -1416,24 +1426,24 @@ li.checked::marker { content: &quot;\2612&quot;; }
             <item>
              <widget class="QTableWidget" name="pluginsTableWidget">
               <property name="selectionMode">
-               <enum>QAbstractItemView::SingleSelection</enum>
+               <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
               </property>
               <property name="selectionBehavior">
-               <enum>QAbstractItemView::SelectRows</enum>
+               <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
               </property>
              </widget>
             </item>
             <item>
              <widget class="Line" name="line_3">
               <property name="orientation">
-               <enum>Qt::Horizontal</enum>
+               <enum>Qt::Orientation::Horizontal</enum>
               </property>
              </widget>
             </item>
             <item>
              <widget class="QLabel" name="pluginDescriptionLabel">
               <property name="alignment">
-               <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+               <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set>
               </property>
               <property name="wordWrap">
                <bool>true</bool>
@@ -1452,10 +1462,10 @@ li.checked::marker { content: &quot;\2612&quot;; }
    <item>
     <widget class="QDialogButtonBox" name="buttonBox">
      <property name="orientation">
-      <enum>Qt::Horizontal</enum>
+      <enum>Qt::Orientation::Horizontal</enum>
      </property>
      <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+      <set>QDialogButtonBox::StandardButton::Cancel|QDialogButtonBox::StandardButton::Ok</set>
      </property>
     </widget>
    </item>

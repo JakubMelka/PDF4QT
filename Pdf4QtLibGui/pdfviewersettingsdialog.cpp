@@ -1,4 +1,4 @@
-//    Copyright (C) 2019-2022 Jakub Melka
+//    Copyright (C) 2019-2025 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -132,6 +132,11 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     ui->cmsColorAdaptationXYZComboBox->addItem(tr("CAT97 matrix"), int (pdf::PDFCMSSettings::ColorAdaptationXYZ::CAT97));
     ui->cmsColorAdaptationXYZComboBox->addItem(tr("CAT02 matrix"), int (pdf::PDFCMSSettings::ColorAdaptationXYZ::CAT02));
     ui->cmsColorAdaptationXYZComboBox->addItem(tr("Bradford method"), int (pdf::PDFCMSSettings::ColorAdaptationXYZ::Bradford));
+
+    // UI Color Schemes
+    ui->colorSchemeCombo->addItem(tr("Automatic (or via command line)"), static_cast<int>(PDFViewerSettings::AutoScheme));
+    ui->colorSchemeCombo->addItem(tr("Light scheme"), static_cast<int>(PDFViewerSettings::LightScheme));
+    ui->colorSchemeCombo->addItem(tr("Dark scheme"), static_cast<int>(PDFViewerSettings::DarkScheme));
 
     auto fillColorProfileList = [](QComboBox* comboBox, const pdf::PDFColorProfileIdentifiers& identifiers)
     {
@@ -305,6 +310,7 @@ void PDFViewerSettingsDialog::loadData()
     ui->maximumRedoStepsEdit->setValue(m_settings.m_maximumRedoSteps);
     ui->developerModeCheckBox->setChecked(m_settings.m_allowDeveloperMode);
     ui->logicalPixelZoomCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::LogicalSizeZooming));
+    ui->colorSchemeCombo->setCurrentIndex(ui->colorSchemeCombo->findData(static_cast<int>(m_settings.m_colorScheme)));
 
     // CMS
     ui->cmsTypeComboBox->setCurrentIndex(ui->cmsTypeComboBox->findData(int(m_cmsSettings.system)));
@@ -396,7 +402,11 @@ void PDFViewerSettingsDialog::saveData()
 
     QObject* sender = this->sender();
 
-    if (sender == ui->renderingEngineComboBox)
+    if (sender == ui->colorSchemeCombo)
+    {
+        m_settings.m_colorScheme = static_cast<PDFViewerSettings::ColorScheme>(ui->colorSchemeCombo->currentData().toInt());
+    }
+    else if (sender == ui->renderingEngineComboBox)
     {
         m_settings.m_rendererEngine = static_cast<pdf::RendererEngine>(ui->renderingEngineComboBox->currentData().toInt());
     }

@@ -1,4 +1,4 @@
-//    Copyright (C) 2019-2021 Jakub Melka
+//    Copyright (C) 2019-2025 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -18,6 +18,7 @@
 #ifndef PDFVIEWERSETTINGS_H
 #define PDFVIEWERSETTINGS_H
 
+#include "pdfviewerglobal.h"
 #include "pdfglobal.h"
 #include "pdfrenderer.h"
 #include "pdfcms.h"
@@ -31,7 +32,7 @@ class QSettings;
 namespace pdfviewer
 {
 
-class PDFViewerSettings : public QObject
+class PDF4QTLIBGUILIBSHARED_EXPORT PDFViewerSettings : public QObject
 {
     Q_OBJECT
 
@@ -41,6 +42,13 @@ public:
     {
 
     }
+
+    enum ColorScheme
+    {
+        AutoScheme,
+        LightScheme,
+        DarkScheme
+    };
 
     struct Settings
     {
@@ -94,6 +102,9 @@ public:
 
         // Bookmarks settings
         bool m_autoGenerateBookmarks;
+
+        // UI Dark/Light mode settings
+        ColorScheme m_colorScheme;
     };
 
     const Settings& getSettings() const { return m_settings; }
@@ -131,6 +142,11 @@ public:
     void setColorManagementSystemSettings(const pdf::PDFCMSSettings& settings) { m_colorManagementSystemSettings = settings; }
 
     pdf::PDFExecutionPolicy::Strategy getMultithreadingStrategy() const { return m_settings.m_multithreadingStrategy; }
+
+    ColorScheme getColorScheme() const;
+    void setColorScheme(ColorScheme colorScheme);
+
+    static ColorScheme getColorSchemeStatic();
 
 signals:
     void settingsChanged();

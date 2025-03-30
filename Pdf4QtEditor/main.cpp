@@ -19,7 +19,9 @@
 #include "pdfconstants.h"
 #include "pdfsecurityhandler.h"
 #include "pdfwidgetutils.h"
+#include "pdfviewersettings.h"
 
+#include <QSettings>
 #include <QApplication>
 #include <QCommandLineParser>
 
@@ -58,7 +60,30 @@ int main(int argc, char *argv[])
         pdf::PDFSecurityHandler::setNoDRMMode();
     }
 
-    pdf::PDFWidgetUtils::setDarkTheme(parser.isSet(lightGui), parser.isSet(darkGui));
+    bool isLightGui = false;
+    bool isDarkGui = false;
+    const pdfviewer::PDFViewerSettings::ColorScheme colorScheme = pdfviewer::PDFViewerSettings::getColorSchemeStatic();
+    switch (colorScheme)
+    {
+        case pdfviewer::PDFViewerSettings::AutoScheme:
+            isLightGui = parser.isSet(lightGui);
+            isDarkGui = parser.isSet(darkGui);
+            break;
+
+        case pdfviewer::PDFViewerSettings::LightScheme:
+            isLightGui = true;
+            break;
+
+        case pdfviewer::PDFViewerSettings::DarkScheme:
+            isDarkGui = true;
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    pdf::PDFWidgetUtils::setDarkTheme(isLightGui, isDarkGui);
 
     QIcon appIcon(":/app-icon.svg");
     QApplication::setWindowIcon(appIcon);
