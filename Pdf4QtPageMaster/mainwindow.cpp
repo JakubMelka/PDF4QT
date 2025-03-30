@@ -900,16 +900,9 @@ void MainWindow::performOperation(Operation operation)
 
         case Operation::InvertSelection:
         {
-            QModelIndex rootIndex = ui->documentItemsView->rootIndex();
-
-            if (rootIndex.isValid())
-            {
-                QModelIndex firstIndex = rootIndex.model()->index(0, 0, rootIndex);
-                QModelIndex lastIndex = rootIndex.model()->index(rootIndex.model()->rowCount() - 1, 0, rootIndex);
-                QItemSelection selection(firstIndex, lastIndex);
-
-                ui->documentItemsView->selectionModel()->select(selection, QItemSelectionModel::Toggle);
-            }
+            QItemSelection selection = ui->documentItemsView->selectionModel()->selection();
+            ui->documentItemsView->selectAll();
+            ui->documentItemsView->selectionModel()->select(selection, QItemSelectionModel::Deselect);
             break;
         }
 

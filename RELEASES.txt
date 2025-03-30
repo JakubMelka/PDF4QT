@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #255: PDF4QT Page Master invert selection does not work
  - Issue #254: Unit Settings default window size too small
  - Issue #248: update version and year in Help > About page
  - Issue #247: option to hide cross when adding annotations
