@@ -8,11 +8,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install Dependencies
-        run: |
-           sudo apt update
-           sudo apt install -y appstream
-           
       - name: Verify AppStream Version
         run: |
            appstreamcli --version
@@ -33,11 +28,16 @@ jobs:
       - name: List Flatpak Installed Packages and Version
         run: |
           flatpak --version
-          appstreamcli --version
           flatpak list
 
       - name: Checkout repository
         uses: actions/checkout@v3
+
+      - name: Inject Git commit hash into Flatpak manifest
+        run: |
+          COMMIT_HASH=$(git rev-parse HEAD)
+          echo "Current commit hash: $COMMIT_HASH"
+          sed -i "s/PDF4QT_LAST_COMMIT/$COMMIT_HASH/g" ./Flatpak/io.github.JakubMelka.Pdf4qt.json
 
       - name: Build Flatpak
         run: |
