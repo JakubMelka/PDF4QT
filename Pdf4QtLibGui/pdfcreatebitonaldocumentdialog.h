@@ -27,7 +27,9 @@
 
 #include <QDialog>
 #include <QFuture>
+#include <QSvgRenderer>
 #include <QFutureWatcher>
+#include <QStyledItemDelegate>
 
 namespace Ui
 {
@@ -108,6 +110,34 @@ private:
 
     pdf::PDFImageConversion::ConversionMethod m_conversionMethod = pdf::PDFImageConversion::ConversionMethod::Automatic;
     int m_manualThreshold = 128;
+};
+
+class ImagePreviewDelegate : public QStyledItemDelegate
+{
+    Q_OBJECT
+public:
+    ImagePreviewDelegate(std::vector<PDFCreateBitonalDocumentDialog::ImageConversionInfo>* imageConversionInfos, QObject* parent);
+
+    virtual void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override;
+
+    virtual bool editorEvent(QEvent* event,
+                             QAbstractItemModel* model,
+                             const QStyleOptionViewItem& option,
+                             const QModelIndex& index) override;
+
+    virtual bool helpEvent(QHelpEvent* event,
+                           QAbstractItemView* view,
+                           const QStyleOptionViewItem& option,
+                           const QModelIndex& index) override;
+
+private:
+    static constexpr QSize s_iconSize = QSize(24, 24);
+
+    QRect getMarkRect(const QStyleOptionViewItem& option) const;
+
+    std::vector<PDFCreateBitonalDocumentDialog::ImageConversionInfo>* m_imageConversionInfos;
+    mutable QSvgRenderer m_yesRenderer;
+    mutable QSvgRenderer m_noRenderer;
 };
 
 }   // namespace pdfviewer

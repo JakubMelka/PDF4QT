@@ -101,106 +101,6 @@ void PDFCreateBitonalDocumentPreviewWidget::setImage(QImage image)
     update();
 }
 
-class ImagePreviewDelegate : public QStyledItemDelegate
-{
-public:
-    ImagePreviewDelegate(std::vector<PDFCreateBitonalDocumentDialog::ImageConversionInfo>* imageConversionInfos, QObject* parent) :
-        QStyledItemDelegate(parent),
-        m_imageConversionInfos(imageConversionInfos)
-    {
-        m_yesRenderer.load(QString(":/resources/result-ok.svg"));
-        m_noRenderer.load(QString(":/resources/result-error.svg"));
-    }
-
-    virtual void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override
-    {
-        QStyledItemDelegate::paint(painter, option, index);
-
-        QRect markRect = getMarkRect(option);
-
-        if (index.isValid())
-        {
-            const PDFCreateBitonalDocumentDialog::ImageConversionInfo& info = m_imageConversionInfos->at(index.row());
-            if (info.conversionEnabled)
-            {
-                m_yesRenderer.render(painter, markRect);
-            }
-            else
-            {
-                m_noRenderer.render(painter, markRect);
-            }
-        }
-    }
-
-    virtual bool editorEvent(QEvent* event,
-                             QAbstractItemModel* model,
-                             const QStyleOptionViewItem& option,
-                             const QModelIndex& index)
-    {
-        Q_UNUSED(model);
-        Q_UNUSED(index);
-
-        if (event->type() == QEvent::MouseButtonPress && index.isValid())
-        {
-            QMouseEvent* mouseEvent = dynamic_cast<QMouseEvent*>(event);
-            if (mouseEvent && mouseEvent->button() == Qt::LeftButton)
-            {
-                // Do we click on yes/no mark?
-                QRectF markRect = getMarkRect(option);
-                if (markRect.contains(mouseEvent->position()))
-                {
-                    PDFCreateBitonalDocumentDialog::ImageConversionInfo& info = m_imageConversionInfos->at(index.row());
-                    info.conversionEnabled = !info.conversionEnabled;
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    virtual bool helpEvent(QHelpEvent* event,
-                           QAbstractItemView* view,
-                           const QStyleOptionViewItem& option,
-                           const QModelIndex& index) override
-    {
-        Q_UNUSED(index);
-
-        if (!event || !view)
-        {
-            return false;
-        }
-
-        if (event->type() == QEvent::ToolTip)
-        {
-            // Are we hovering over yes/no mark?
-            QRectF markRect = getMarkRect(option);
-            if (markRect.contains(event->pos()))
-            {
-                event->accept();
-                QToolTip::showText(event->globalPos(), tr("Toggle this icon to switch image conversion to bitonal format on or off."), view);
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-private:
-    static constexpr QSize s_iconSize = QSize(24, 24);
-
-    QRect getMarkRect(const QStyleOptionViewItem& option) const
-    {
-        QSize markSize = pdf::PDFWidgetUtils::scaleDPI(option.widget, s_iconSize);
-        QRect markRect(option.rect.left(), option.rect.top(), markSize.width(), markSize.height());
-        return markRect;
-    }
-
-    std::vector<PDFCreateBitonalDocumentDialog::ImageConversionInfo>* m_imageConversionInfos;
-    mutable QSvgRenderer m_yesRenderer;
-    mutable QSvgRenderer m_noRenderer;
-};
-
 PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDocument* document,
                                                                const pdf::PDFCMS* cms,
                                                                pdf::PDFProgress* progress,
@@ -504,6 +404,89 @@ std::optional<pdf::PDFImage> PDFCreateBitonalDocumentDialog::getImageFromReferen
     }
 
     return pdfImage;
+}
+
+ImagePreviewDelegate::ImagePreviewDelegate(std::vector<PDFCreateBitonalDocumentDialog::ImageConversionInfo>* imageConversionInfos, QObject *parent) :
+    QStyledItemDelegate(parent),
+    m_imageConversionInfos(imageConversionInfos)
+{
+    m_yesRenderer.load(QString(":/resources/result-ok.svg"));
+    m_noRenderer.load(QString(":/resources/result-error.svg"));
+}
+
+void ImagePreviewDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const
+{
+    QStyledItemDelegate::paint(painter, option, index);
+
+    QRect markRect = getMarkRect(option);
+
+    if (index.isValid())
+    {
+        const PDFCreateBitonalDocumentDialog::ImageConversionInfo& info = m_imageConversionInfos->at(index.row());
+        if (info.conversionEnabled)
+        {
+            m_yesRenderer.render(painter, markRect);
+        }
+        else
+        {
+            m_noRenderer.render(painter, markRect);
+        }
+    }
+}
+
+bool ImagePreviewDelegate::editorEvent(QEvent* event, QAbstractItemModel* model, const QStyleOptionViewItem& option, const QModelIndex& index)
+{
+    Q_UNUSED(model);
+    Q_UNUSED(index);
+
+    if (event->type() == QEvent::MouseButtonPress && index.isValid())
+    {
+        QMouseEvent* mouseEvent = dynamic_cast<QMouseEvent*>(event);
+        if (mouseEvent && mouseEvent->button() == Qt::LeftButton)
+        {
+            // Do we click on yes/no mark?
+            QRectF markRect = getMarkRect(option);
+            if (markRect.contains(mouseEvent->position()))
+            {
+                PDFCreateBitonalDocumentDialog::ImageConversionInfo& info = m_imageConversionInfos->at(index.row());
+                info.conversionEnabled = !info.conversionEnabled;
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+bool ImagePreviewDelegate::helpEvent(QHelpEvent* event, QAbstractItemView* view, const QStyleOptionViewItem& option, const QModelIndex& index)
+{
+    Q_UNUSED(index);
+
+    if (!event || !view)
+    {
+        return false;
+    }
+
+    if (event->type() == QEvent::ToolTip)
+    {
+        // Are we hovering over yes/no mark?
+        QRectF markRect = getMarkRect(option);
+        if (markRect.contains(event->pos()))
+        {
+            event->accept();
+            QToolTip::showText(event->globalPos(), tr("Toggle this icon to switch image conversion to bitonal format on or off."), view);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+QRect ImagePreviewDelegate::getMarkRect(const QStyleOptionViewItem& option) const
+{
+    QSize markSize = pdf::PDFWidgetUtils::scaleDPI(option.widget, s_iconSize);
+    QRect markRect(option.rect.left(), option.rect.top(), markSize.width(), markSize.height());
+    return markRect;
 }
 
 }   // namespace pdfviewer
