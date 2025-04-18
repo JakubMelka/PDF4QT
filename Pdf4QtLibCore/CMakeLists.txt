@@ -157,6 +157,9 @@ add_library(Pdf4QtLibCore SHARED
 
 include(GenerateExportHeader)
 
+# Workaround to suppress CLANG error on unused private field
+set_source_files_properties(sources/pdfdocumentwriter.cpp PROPERTIES COMPILE_FLAGS "-Wno-unused-private-field")
+
 GENERATE_EXPORT_HEADER(Pdf4QtLibCore
                        EXPORT_MACRO_NAME
                        PDF4QTLIBCORESHARED_EXPORT
