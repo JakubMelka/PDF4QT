@@ -129,10 +129,33 @@ void PDFApplicationTranslator::setLanguage(ELanguage newLanguage)
     m_language = newLanguage;
 }
 
-QString PDFApplicationTranslator::loadLanguageKeyFromSettings()
+void PDFApplicationTranslator::saveSettings(QSettings& settings, ELanguage language)
 {
     QMetaEnum metaEnum = QMetaEnum::fromType<ELanguage>();
+
+    settings.beginGroup("Language");
+    settings.setValue("language", metaEnum.valueToKey(language));
+    settings.endGroup();
+}
+
+PDFApplicationTranslator::ELanguage PDFApplicationTranslator::loadSettings(QSettings& settings)
+{
+    QMetaEnum metaEnum = QMetaEnum::fromType<ELanguage>();
+    std::string languageKeyString = loadLanguageKeyFromSettings(settings).toStdString();
+    std::optional<quint64> value = metaEnum.keyToValue(languageKeyString.c_str());
+    return static_cast<ELanguage>(value.value_or(E_LANGUAGE_AUTOMATIC_SELECTION));
+}
+
+QString PDFApplicationTranslator::loadLanguageKeyFromSettings()
+{
     QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
+    return loadLanguageKeyFromSettings(settings);
+}
+
+QString PDFApplicationTranslator::loadLanguageKeyFromSettings(QSettings& settings)
+{
+    QMetaEnum metaEnum = QMetaEnum::fromType<ELanguage>();
+
     settings.beginGroup("Language");
     QString languageKey = settings.value("language", metaEnum.valueToKey(E_LANGUAGE_AUTOMATIC_SELECTION)).toString();
     settings.endGroup();

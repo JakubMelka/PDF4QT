@@ -112,6 +112,9 @@ void PDFViewerSettings::readSettings(QSettings& settings, const pdf::PDFCMSSetti
     m_settings.m_colorScheme = static_cast<ColorScheme>(settings.value("colorScheme", int(defaultSettings.m_colorScheme)).toInt());
     settings.endGroup();
 
+    // Language
+    m_settings.m_language = pdf::PDFApplicationTranslator::loadSettings(settings);
+
     Q_EMIT settingsChanged();
 }
 
@@ -188,6 +191,8 @@ void PDFViewerSettings::writeSettings(QSettings& settings)
     settings.beginGroup("ColorScheme");
     settings.setValue("colorScheme", int(m_settings.m_colorScheme));
     settings.endGroup();
+
+    pdf::PDFApplicationTranslator::saveSettings(settings, m_settings.m_language);
 }
 
 QString PDFViewerSettings::getDirectory() const
@@ -311,7 +316,8 @@ PDFViewerSettings::Settings::Settings() :
     m_signatureIgnoreCertificateValidityTime(false),
     m_signatureUseSystemStore(true),
     m_autoGenerateBookmarks(true),
-    m_colorScheme(AutoScheme)
+    m_colorScheme(AutoScheme),
+    m_language(pdf::PDFApplicationTranslator::E_LANGUAGE_AUTOMATIC_SELECTION)
 {
 
 }

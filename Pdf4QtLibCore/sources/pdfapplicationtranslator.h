@@ -22,6 +22,8 @@
 
 #include <QTranslator>
 
+class QSettings;
+
 namespace pdf
 {
 
@@ -53,7 +55,12 @@ public:
     ELanguage getLanguage() const;
     void setLanguage(ELanguage newLanguage);
 
+    static ELanguage loadSettings(QSettings& settings);
+    static void saveSettings(QSettings& settings, ELanguage language);
+
 private:
+    static QString loadLanguageKeyFromSettings(QSettings& settings);
+
     QString loadLanguageKeyFromSettings();
     QString getLanguageFileName() const;
 

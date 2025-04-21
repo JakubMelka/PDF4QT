@@ -24,6 +24,7 @@
 #include "pdfcms.h"
 #include "pdfexecutionpolicy.h"
 #include "pdfform.h"
+#include "pdfapplicationtranslator.h"
 
 #include <QObject>
 
@@ -105,6 +106,9 @@ public:
 
         // UI Dark/Light mode settings
         ColorScheme m_colorScheme;
+
+        // Language
+        pdf::PDFApplicationTranslator::ELanguage m_language;
     };
 
     const Settings& getSettings() const { return m_settings; }

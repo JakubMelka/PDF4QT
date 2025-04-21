@@ -5528,14 +5528,14 @@
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="645"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="861"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="882"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="937"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="965"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1227"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1234"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1305"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1312"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1326"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1333"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="948"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1007"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1237"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1244"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1315"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1322"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1336"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1343"/>
         <source>Enable</source>
         <translation type="unfinished"></translation>
     </message>
@@ -5853,52 +5853,57 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="944"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="934"/>
         <source>Maximum redo steps</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="951"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="976"/>
         <source>Magnifier size</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="958"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="969"/>
         <source>Use logical pixels when zooming</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="972"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1014"/>
         <source>px</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1002"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="993"/>
         <source>Maximum undo steps</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1009"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="962"/>
         <source>Magnifier zoom</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1023"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1000"/>
         <source>Maximum count of recent files</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1030"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1040"/>
         <source>Developer mode</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1040"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1030"/>
         <source>Color Scheme (GUI)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1049"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1047"/>
+        <source>Language</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1059"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -5912,42 +5917,42 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1084"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1094"/>
         <source>Speech Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1092"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1102"/>
         <source>Voice</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1099"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1109"/>
         <source>Pitch</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1106"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1116"/>
         <source>Volume</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1113"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1123"/>
         <source>Rate</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1120"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1130"/>
         <source>Voice synthetiser</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1127"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1137"/>
         <source>Locale</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1172"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1182"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -5959,22 +5964,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1205"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1215"/>
         <source>Form Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1213"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1223"/>
         <source>Highlight form fields</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1220"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1230"/>
         <source>Highlight required form fields</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1243"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1253"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -5986,47 +5991,47 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1276"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1286"/>
         <source>Digital Signature Verification</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1284"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1294"/>
         <source>Ignore expired certificates</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1291"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1301"/>
         <source>Signature verification</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1298"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1308"/>
         <source>Strict mode</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1319"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1329"/>
         <source>Use system certificate store</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1349"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1359"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Trusted certificate store&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1378"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1388"/>
         <source>Remove</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1394"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1404"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;These are the settings for digital signature verification. Digital signatures are verified as strictly as possible to prevent any malicious content or signature manipulation. Verification can also be disabled, if not required. When &lt;span style=&quot; font-weight:600;&quot;&gt;Strict mode&lt;/span&gt; is enabled, every warning is treated as an error. You have the option to ignore the certificate expiration date, but this should only be done if you fully understand the potential risks involved. Verification uses a list of trusted certificates. System certificates can be added to this list, and you can also manage your own list of trusted certificates.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1423"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1433"/>
         <source>Plugins</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14481,87 +14486,117 @@ Page %2: %3</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="654"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="142"/>
+        <source>Automatic detection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="143"/>
+        <source>English</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="144"/>
+        <source>German</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="145"/>
+        <source>Korean</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="146"/>
+        <source>Spanish</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="147"/>
+        <source>Czech</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="667"/>
         <source>Type</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="654"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="667"/>
         <source>Certificate</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="654"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="667"/>
         <source>Organization</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="654"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="667"/>
         <source>Valid from</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="654"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="667"/>
         <source>Valid to</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="662"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="675"/>
         <source>User</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="666"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="679"/>
         <source>System</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="706"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="719"/>
         <source>Action</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="706"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="719"/>
         <source>Shortcut</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="735"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="748"/>
         <source>Error</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="735"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="748"/>
         <source>Shortcut &apos;%1&apos; is invalid for action %2.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="758"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="771"/>
         <source>Active</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="758"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="771"/>
         <source>Name</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="758"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="771"/>
         <source>Author</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="758"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="771"/>
         <source>Version</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="758"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="771"/>
         <source>License</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="872"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="885"/>
         <source>Select color profile directory</source>
         <translation type="unfinished"></translation>
     </message>

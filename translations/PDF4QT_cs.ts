@@ -55,7 +55,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="53"/>
         <source>Overwrite existing files</source>
-        <translation type="unfinished"></translation>
+        <translation>Přepsat existující soubory</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="60"/>
@@ -65,12 +65,12 @@
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="67"/>
         <source>Generate into directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Vytvořit v adresáři</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="74"/>
         <source>Outline Mode</source>
-        <translation type="unfinished"></translation>
+        <translation>Režim obsahu</translation>
     </message>
 </context>
 <context>
@@ -78,7 +78,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiotextstreameditordockwidget.ui" line="14"/>
         <source>Text Stream for Audio Book</source>
-        <translation type="unfinished"></translation>
+        <translation>Proud textu pro audioknihu</translation>
     </message>
 </context>
 <context>
@@ -86,52 +86,52 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="14"/>
         <source>Create Redacted Document</source>
-        <translation type="unfinished"></translation>
+        <translation>Vytvořit redigovaný dokument</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="20"/>
         <source>Redacted document</source>
-        <translation type="unfinished"></translation>
+        <translation>Redigovaný dokument</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="26"/>
         <source>Output file name</source>
-        <translation type="unfinished"></translation>
+        <translation>Výstupní soubor</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="36"/>
         <source>...</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="46"/>
         <source>Appearance</source>
-        <translation type="unfinished"></translation>
+        <translation>Vzhled</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="52"/>
         <source>Fill redacted area with color:</source>
-        <translation type="unfinished"></translation>
+        <translation>Vyplnit redigovanou plochu barvou:</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="68"/>
         <source>Options</source>
-        <translation type="unfinished"></translation>
+        <translation>Možnosti</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="74"/>
         <source>Copy document title into redacted document</source>
-        <translation type="unfinished"></translation>
+        <translation>Kopírovat nadpis dokumentu do redigovaného dokumentu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="84"/>
         <source>Copy document metadata into redacted document</source>
-        <translation type="unfinished"></translation>
+        <translation>Kopírovat metadata dokumentu do redigovaného dokumentu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="94"/>
         <source>Copy outline into redacted document</source>
-        <translation type="unfinished"></translation>
+        <translation>Kopírovat obsah do redigovaného dokumentu</translation>
     </message>
 </context>
 <context>
@@ -147,12 +147,12 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="283"/>
         <source>pt</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="284"/>
         <source>in</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="285"/>
@@ -162,37 +162,37 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="286"/>
         <source>cm</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="295"/>
         <source>sq. pt</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="296"/>
         <source>sq. in</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="297"/>
         <source>sq. mm</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="298"/>
         <source>sq. cm</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="307"/>
         <source>°</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="308"/>
         <source>rad</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
 </context>
 <context>
@@ -205,7 +205,7 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="53"/>
         <source>Remove</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Smazat</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="60"/>
@@ -240,7 +240,7 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="126"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Jméno</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="133"/>
@@ -275,7 +275,7 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="230"/>
         <source>File</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Soubor</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="238"/>
@@ -404,17 +404,17 @@
     <message>
         <location filename="../Pdf4QtLaunchPad/launchapplicationwidget.ui" line="14"/>
         <source>Form</source>
-        <translation type="unfinished">Formulář</translation>
+        <translation>Formulář</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchapplicationwidget.ui" line="59"/>
         <source>Title</source>
-        <translation type="unfinished"></translation>
+        <translation>Titulek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchapplicationwidget.ui" line="66"/>
         <source>TextLabel</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
 </context>
 <context>
@@ -422,57 +422,57 @@
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.ui" line="14"/>
         <source>Launch Application</source>
-        <translation type="unfinished"></translation>
+        <translation>Spustit Aplikaci</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="55"/>
         <source>Editor</source>
-        <translation type="unfinished"></translation>
+        <translation>Editor</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="56"/>
         <source>Viewer</source>
-        <translation type="unfinished"></translation>
+        <translation>Prohlížeč</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="57"/>
         <source>Diff</source>
-        <translation type="unfinished"></translation>
+        <translation>Porovnávač</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="58"/>
         <source>PageMaster</source>
-        <translation type="unfinished"></translation>
+        <translation>Úprava Stránek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="60"/>
         <source>Go beyond basic browsing. This tool packs a punch with a host of advanced features, including encryption, document reading, digital signature verification, annotation editing, and even support for searching text using regular expressions. Turn pages into images, and enhance your PDF interactions with multiple available plugins.</source>
-        <translation type="unfinished"></translation>
+        <translation>Tento nástroj nabízí širokou škálu pokročilých funkcí, včetně šifrování, čtení dokumentů, ověřování digitálních podpisů, úprav anotací a dokonce i podpory vyhledávání textu pomocí regulárních výrazů. Převádějte stránky na obrázky a vylepšete práci s PDF díky množství dostupných pluginů.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="61"/>
         <source>Simplify your viewing experience. This lightweight viewer offers essential viewing functions in a clean, user-friendly interface.</source>
-        <translation type="unfinished"></translation>
+        <translation>Tento jednoduchý prohlížeč nabízí základní funkce prohlížení v přehledném a uživatelsky přívětivém rozhraní.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="62"/>
         <source>Spot differences effortlessly. This tool allows users to open two documents and receive a detailed list of differences. View these differences in a page-to-page window where they are clearly marked. Save these differences into an XML file for future reference.</source>
-        <translation type="unfinished"></translation>
+        <translation>Tento nástroj umožňuje otevřít dva dokumenty a získat podrobný seznam rozdílů. Rozdíly jsou přehledně zvýrazněny v okně se zobrazením strana po straně. Výsledky lze uložit do XML souboru pro pozdější použití.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="63"/>
         <source>Take control of your documents. Manage whole documents or individual pages with ease. Merge documents into a single file, or split them into multiple ones. You can also move, clone, or add pages with a few clicks, all within an intuitive user interface.</source>
-        <translation type="unfinished"></translation>
+        <translation>Spravujte celé dokumenty nebo jednotlivé stránky s lehkostí. Sloučte více dokumentů do jednoho souboru, nebo je rozdělte na několik částí. Stránky můžete také přesouvat, kopírovat nebo přidávat několika kliknutími – vše v přehledném a intuitivním rozhraní.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="111"/>
         <source>Error</source>
-        <translation type="unfinished">Chyba</translation>
+        <translation>Chyba</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="111"/>
         <source>Failed to start process &apos;%1&apos;</source>
-        <translation type="unfinished"></translation>
+        <translation>Nepodařilo se spustit proces &apos;%1&apos;</translation>
     </message>
 </context>
 <context>
@@ -490,7 +490,7 @@
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="74"/>
         <source>File</source>
-        <translation type="unfinished"></translation>
+        <translation>Soubor</translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="85"/>
@@ -501,142 +501,142 @@
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="88"/>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="168"/>
         <source>Ctrl+O</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="93"/>
         <source>Clear</source>
-        <translation type="unfinished">Vyčistit</translation>
+        <translation>Vyčistit</translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="96"/>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="516"/>
         <source>Ctrl+W</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="101"/>
         <source>Add JBIG2 image</source>
-        <translation type="unfinished"></translation>
+        <translation>Přidat JBIG2 obrázek</translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="104"/>
         <source>Ctrl+J</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.cpp" line="39"/>
         <location filename="../JBIG2_Viewer/mainwindow.cpp" line="111"/>
         <location filename="../JBIG2_Viewer/mainwindow.cpp" line="120"/>
         <source>Error</source>
-        <translation type="unfinished">Chyba</translation>
+        <translation>Chyba</translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.cpp" line="44"/>
         <location filename="../JBIG2_Viewer/mainwindow.cpp" line="81"/>
         <source>Open image</source>
-        <translation type="unfinished"></translation>
+        <translation>Otevřít obrázek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="17"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="14"/>
         <source>Workspace</source>
-        <translation type="unfinished"></translation>
+        <translation>Pracovní prostor</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="62"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="34"/>
         <source>&amp;File</source>
-        <translation>Soubor</translation>
+        <translation>&amp;Soubor</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="70"/>
         <source>&amp;Edit</source>
-        <translation>Úpravy</translation>
+        <translation>&amp;Úpravy</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="92"/>
         <source>&amp;Insert</source>
-        <translation type="unfinished"></translation>
+        <translation>Vloži&amp;t</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="100"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="63"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="67"/>
         <source>&amp;View</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Zobrazit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="115"/>
         <source>&amp;Make</source>
-        <translation type="unfinished"></translation>
+        <translation>V&amp;ytvořit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="123"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="42"/>
         <source>&amp;Help</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Nápověda</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="132"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="50"/>
         <source>&amp;Toolbars</source>
-        <translation type="unfinished"></translation>
+        <translation>Lišty nástro&amp;jů</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="137"/>
         <source>&amp;Regroup</source>
-        <translation type="unfinished"></translation>
+        <translation>Přes&amp;kupit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="162"/>
         <source>&amp;Add Documents...</source>
-        <translation type="unfinished"></translation>
+        <translation>Přidat dokum&amp;enty...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="165"/>
         <source>Add Documents</source>
-        <translation type="unfinished"></translation>
+        <translation>Přidat dokumenty</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="177"/>
         <source>C&amp;lose</source>
-        <translation type="unfinished"></translation>
+        <translation>Za&amp;vřít</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="180"/>
         <source>Alt+F4</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="189"/>
         <source>Clone &amp;Selection</source>
-        <translation type="unfinished"></translation>
+        <translation>Zdvojit &amp;Selekci</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="192"/>
         <source>Ctrl+L</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="201"/>
         <source>Re&amp;move Selection</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Odstranit Selekci</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="204"/>
         <source>Del</source>
-        <translation type="unfinished"></translation>
+        <translation>Delete</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="213"/>
         <source>Restore Removed &amp;Items</source>
-        <translation type="unfinished"></translation>
+        <translation>O&amp;bnovit Smazané Položky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="216"/>
         <source>Ctrl+Shift+R</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="225"/>
@@ -646,12 +646,12 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="228"/>
         <source>Insert PDF</source>
-        <translation type="unfinished"></translation>
+        <translation>Vložit PDF</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="231"/>
         <source>Ctrl+I</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="240"/>
@@ -661,7 +661,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="243"/>
         <source>Ctrl+Alt+I</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="252"/>
@@ -671,37 +671,37 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="255"/>
         <source>Ctrl+Shift+I</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="264"/>
         <source>Cu&amp;t</source>
-        <translation type="unfinished"></translation>
+        <translation>Vyj&amp;mout</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="267"/>
         <source>Ctrl+X</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="276"/>
         <source>&amp;Copy</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Kopírovat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="279"/>
         <source>Ctrl+C</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="288"/>
         <source>&amp;Paste</source>
-        <translation type="unfinished"></translation>
+        <translation>V&amp;ložit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="291"/>
         <source>Ctrl+V</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="300"/>
@@ -711,7 +711,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="303"/>
         <source>Ctrl+Alt+R</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="312"/>
@@ -721,7 +721,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="315"/>
         <source>Ctrl+N</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="324"/>
@@ -731,7 +731,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="327"/>
         <source>Ctrl+A</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="336"/>
@@ -741,7 +741,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="339"/>
         <source>F9</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="348"/>
@@ -751,7 +751,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="351"/>
         <source>F10</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="360"/>
@@ -761,7 +761,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="363"/>
         <source>F11</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="372"/>
@@ -771,7 +771,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="375"/>
         <source>F12</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="384"/>
@@ -781,7 +781,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="387"/>
         <source>F4</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="396"/>
@@ -791,7 +791,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="399"/>
         <source>Shift+F4</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="408"/>
@@ -801,7 +801,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="411"/>
         <source>Ctrl++</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="420"/>
@@ -811,7 +811,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="423"/>
         <source>Ctrl+-</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="432"/>
@@ -829,7 +829,7 @@
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="444"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="120"/>
         <source>F1</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="453"/>
@@ -840,7 +840,7 @@
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="456"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="150"/>
         <source>F5</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="465"/>
@@ -851,7 +851,7 @@
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="468"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="186"/>
         <source>F6</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="477"/>
@@ -861,7 +861,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="480"/>
         <source>F7</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="489"/>
@@ -871,7 +871,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="492"/>
         <source>Ctrl+G</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="501"/>
@@ -881,7 +881,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="504"/>
         <source>Ctrl+Shift+G</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="513"/>
@@ -931,7 +931,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="591"/>
         <source>Ctrl+Z</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="600"/>
@@ -941,7 +941,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="603"/>
         <source>Ctrl+Y</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="608"/>
@@ -958,12 +958,12 @@
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="55"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="147"/>
         <source>&amp;Compare</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Porovnat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="76"/>
         <source>&amp;Filter</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Filtrovat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="129"/>
@@ -978,27 +978,27 @@
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="159"/>
         <source>&amp;Close</source>
-        <translation type="unfinished"></translation>
+        <translation>Za&amp;vřít</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="162"/>
         <source>Ctrl+F4</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="171"/>
         <source>&amp;Previous Difference</source>
-        <translation type="unfinished"></translation>
+        <translation>Předchozí ro&amp;zdíl</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="174"/>
         <source>Shift+F6</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="183"/>
         <source>&amp;Next Difference</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Následující rozdíl</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="195"/>
@@ -1033,22 +1033,22 @@
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="267"/>
         <source>View &amp;Differences</source>
-        <translation type="unfinished"></translation>
+        <translation>Zobrazit roz&amp;díly</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="279"/>
         <source>View &amp;Left</source>
-        <translation type="unfinished"></translation>
+        <translation>Zobrazit &amp;levý</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="291"/>
         <source>View &amp;Right</source>
-        <translation type="unfinished"></translation>
+        <translation>Zobrazit &amp;pravý</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="303"/>
         <source>View &amp;Overlay</source>
-        <translation type="unfinished"></translation>
+        <translation>Zobrazit pře&amp;kryv</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="315"/>
@@ -1104,7 +1104,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.ui" line="14"/>
         <source>Object Statistics</source>
-        <translation type="unfinished"></translation>
+        <translation>Statistika objektů</translation>
     </message>
 </context>
 <context>
@@ -1112,7 +1112,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.ui" line="14"/>
         <source>Form</source>
-        <translation type="unfinished">Formulář</translation>
+        <translation>Formulář</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.ui" line="35"/>
@@ -1127,27 +1127,27 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.ui" line="51"/>
         <source>Information</source>
-        <translation type="unfinished"></translation>
+        <translation>Informace</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.ui" line="57"/>
         <source>Reference</source>
-        <translation type="unfinished"></translation>
+        <translation>Odkaz</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.ui" line="71"/>
         <source>Type</source>
-        <translation type="unfinished"></translation>
+        <translation>Typ</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.ui" line="85"/>
         <source>Description</source>
-        <translation type="unfinished">Popis</translation>
+        <translation>Popis</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.ui" line="102"/>
         <source>Contents</source>
-        <translation type="unfinished"></translation>
+        <translation>Obsah</translation>
     </message>
 </context>
 <context>
@@ -1246,7 +1246,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="252"/>
         <source>Select</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Vybrat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="272"/>
@@ -1361,12 +1361,12 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.ui" line="14"/>
         <source>Certificate Manager</source>
-        <translation type="unfinished"></translation>
+        <translation>Správce Certifikátů</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.ui" line="20"/>
         <source>Certificates</source>
-        <translation type="unfinished"></translation>
+        <translation>Certifikáty</translation>
     </message>
 </context>
 <context>
@@ -1397,52 +1397,52 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="14"/>
         <source>Create Certificate</source>
-        <translation type="unfinished"></translation>
+        <translation>Vytvořit certifikát</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="20"/>
         <source>Create Self Signed Certificate</source>
-        <translation type="unfinished"></translation>
+        <translation>Vytvořit samopodepsaný certifikát</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="26"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation>Jméno</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="40"/>
         <source>Organization</source>
-        <translation type="unfinished"></translation>
+        <translation>Organizace</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="47"/>
         <source>Organization Unit</source>
-        <translation type="unfinished"></translation>
+        <translation>Organizační jednotka</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="54"/>
         <source>Email</source>
-        <translation type="unfinished"></translation>
+        <translation>Email</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="95"/>
         <source>Country</source>
-        <translation type="unfinished"></translation>
+        <translation>Stát</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="102"/>
         <source>Key length</source>
-        <translation type="unfinished"></translation>
+        <translation>Délka klíče</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="109"/>
         <source>Valid till</source>
-        <translation type="unfinished"></translation>
+        <translation>Platné do</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="128"/>
         <source>Certificate file</source>
-        <translation type="unfinished"></translation>
+        <translation>Soubor certifikátu</translation>
     </message>
 </context>
 <context>
@@ -1450,40 +1450,40 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="14"/>
         <source>Document Properties</source>
-        <translation type="unfinished"></translation>
+        <translation>Vlastnosti dokumentu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="24"/>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="30"/>
         <source>Properties</source>
-        <translation type="unfinished"></translation>
+        <translation>Vlastnosti</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="59"/>
         <source>File Information</source>
-        <translation type="unfinished"></translation>
+        <translation>Informace o souboru</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="89"/>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="95"/>
         <source>Security</source>
-        <translation type="unfinished"></translation>
+        <translation>Zabezpečení</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="125"/>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="131"/>
         <source>Fonts</source>
-        <translation type="unfinished"></translation>
+        <translation>Fonty</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="161"/>
         <source>Display &amp;&amp; Print</source>
-        <translation type="unfinished"></translation>
+        <translation>Zobrazení &amp;&amp; Tisk</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="167"/>
         <source>Display &amp;&amp; Print Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Nastavení - Zobrazení &amp;&amp; Tisk</translation>
     </message>
 </context>
 <context>
@@ -1491,12 +1491,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="14"/>
         <source>PDF Editor</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="28"/>
         <source>&amp;File</source>
-        <translation type="unfinished">Soubor</translation>
+        <translation>&amp;Soubor</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="47"/>
@@ -1511,7 +1511,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="71"/>
         <source>&amp;View</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Zobrazit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="75"/>
@@ -1532,7 +1532,7 @@
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="131"/>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="776"/>
         <source>&amp;Help</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Nápověda</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="139"/>
@@ -1542,13 +1542,13 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="146"/>
         <source>&amp;Edit</source>
-        <translation type="unfinished">Úpravy</translation>
+        <translation>&amp;Úpravy</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="170"/>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="784"/>
         <source>&amp;Insert</source>
-        <translation type="unfinished"></translation>
+        <translation>Vloži&amp;t</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="174"/>
@@ -1558,7 +1558,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="186"/>
         <source>&amp;Stamp</source>
-        <translation type="unfinished"></translation>
+        <translation>Raz&amp;ítko</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="191"/>
@@ -1573,7 +1573,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="246"/>
         <source>&amp;Close</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Za&amp;vřít</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="255"/>
@@ -2201,17 +2201,17 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="14"/>
         <source>Encryption Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Nastavení zabezpečení</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="20"/>
         <source>Encryption Method</source>
-        <translation type="unfinished"></translation>
+        <translation>Metoda šifrování</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="26"/>
         <source>Encryption algorithm</source>
-        <translation type="unfinished"></translation>
+        <translation>Šifrovací algoritmus</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="36"/>
@@ -2221,87 +2221,87 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="46"/>
         <source>Certificate</source>
-        <translation type="unfinished"></translation>
+        <translation>Certifikát</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="59"/>
         <source>Passwords</source>
-        <translation type="unfinished"></translation>
+        <translation>Hesla</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="65"/>
         <source>Password (document open)</source>
-        <translation type="unfinished"></translation>
+        <translation>Heslo (otevření dokumentu)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="92"/>
         <source>Password (owner access)</source>
-        <translation type="unfinished"></translation>
+        <translation>Heslo (veškerý přístup)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="102"/>
         <source>Encrypt Contents</source>
-        <translation type="unfinished"></translation>
+        <translation>Zašifrovat obsah</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="108"/>
         <source>Encrypt all document contents, including document metadata</source>
-        <translation type="unfinished"></translation>
+        <translation>Zašifrovat všechny druhy obsahu, včetně metadat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="118"/>
         <source>Encrypt all document contets except metadata</source>
-        <translation type="unfinished"></translation>
+        <translation>Zašifrovat všechny druhy obsahu kromě metadat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="125"/>
         <source>Encrypt file attachments only</source>
-        <translation type="unfinished"></translation>
+        <translation>Zašifrovat pouze přílohy</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="135"/>
         <source>Permissions</source>
-        <translation type="unfinished"></translation>
+        <translation>Práva</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="141"/>
         <source>Print (low resolution)</source>
-        <translation type="unfinished"></translation>
+        <translation>Tísk (nízké rozlišení)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="148"/>
         <source>Fill interactive forms</source>
-        <translation type="unfinished"></translation>
+        <translation>Vyplnění interaktivních formulářů</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="155"/>
         <source>Print (high resolution)</source>
-        <translation type="unfinished"></translation>
+        <translation>Tisk (vysoké rozlišení)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="162"/>
         <source>Accessibility</source>
-        <translation type="unfinished"></translation>
+        <translation>Usnadnění</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="169"/>
         <source>Modify document contents</source>
-        <translation type="unfinished"></translation>
+        <translation>Změnit obsah dokumentu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="176"/>
         <source>Assemble document (insert, rotate, delete pages...)</source>
-        <translation type="unfinished"></translation>
+        <translation>Sestavit doument (vložit, rotovat, smazat stránky...)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="183"/>
         <source>Edit interactive items (annotations, forms, ...)</source>
-        <translation type="unfinished"></translation>
+        <translation>Upravit interaktivní prvky (anotace, formuláře, ...)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="190"/>
         <source>Copy/extract document content</source>
-        <translation type="unfinished"></translation>
+        <translation>Kopírování a vyjmutí obsahu dokumetu</translation>
     </message>
 </context>
 <context>
@@ -2337,7 +2337,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="43"/>
         <source>Image</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Obrázek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="49"/>
@@ -2352,7 +2352,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="64"/>
         <source>Width</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Šířka</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="85"/>
@@ -2518,7 +2518,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="188"/>
         <source>Font</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Font</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="198"/>
@@ -2636,12 +2636,12 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="162"/>
         <source>Appearance</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Vzhled</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="186"/>
         <source>Content</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Obsah</translation>
     </message>
 </context>
 <context>
@@ -2674,7 +2674,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="47"/>
         <source>Generate into directory</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Vytvořit v adresáři</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="54"/>
@@ -2760,7 +2760,7 @@
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="222"/>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="229"/>
         <source>Enable</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Povolit</translation>
     </message>
 </context>
 <context>
@@ -2768,7 +2768,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfrenderingerrorswidget.ui" line="14"/>
         <source>Rendering errors</source>
-        <translation type="unfinished"></translation>
+        <translation>Chyby vykreslování</translation>
     </message>
 </context>
 <context>
@@ -2891,7 +2891,7 @@
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="48"/>
         <source>Help</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Nápověda</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="51"/>
@@ -3204,7 +3204,7 @@
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="80"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="258"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Jméno</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="239"/>
@@ -3236,7 +3236,7 @@
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="244"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="255"/>
         <source>Country</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Stát</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="245"/>
@@ -3319,7 +3319,7 @@
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="75"/>
         <source>Certificates</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Certifikáty</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="79"/>
@@ -3330,41 +3330,41 @@
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="126"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="142"/>
         <source>Type</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Typ</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="80"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="144"/>
         <source>Certificate</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Certifikát</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="81"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="256"/>
         <source>Organization</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Organizace</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="82"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="309"/>
         <source>Valid from</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Platný od</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="83"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="317"/>
         <source>Valid to</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Platný do</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="95"/>
         <source>User</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Uživatelský</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="99"/>
         <source>System</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Systémový</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="156"/>
@@ -3544,7 +3544,7 @@
         <location filename="../PdfTool/pdftoolrender.cpp" line="330"/>
         <location filename="../PdfTool/pdftoolrender.cpp" line="366"/>
         <source>Page No.</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Číslo Stránky.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="199"/>
@@ -3585,7 +3585,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="38"/>
         <source>Info</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Informace</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="41"/>
@@ -3624,7 +3624,7 @@
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="188"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="262"/>
         <source>Title</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Titulek</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="85"/>
@@ -3639,7 +3639,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="87"/>
         <source>Author</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Autor</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="88"/>
@@ -3672,7 +3672,7 @@
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="172"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="201"/>
         <source>Yes</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Ano</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="102"/>
@@ -3705,7 +3705,7 @@
         <location filename="../PdfTool/pdftoolinfo.cpp" line="121"/>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="175"/>
         <source>None</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Žádný</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="125"/>
@@ -3751,7 +3751,7 @@
         <location filename="../PdfTool/pdftoolinfo.cpp" line="179"/>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="217"/>
         <source>Standard</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Standardní</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="183"/>
@@ -3797,7 +3797,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="226"/>
         <source>Print (low resolution)</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Tísk (nízké rozlišení)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="230"/>
@@ -3812,7 +3812,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="238"/>
         <source>Accessibility</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Usnadnění</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="242"/>
@@ -3842,7 +3842,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="262"/>
         <source>Permissions</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Práva</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="270"/>
@@ -4076,7 +4076,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfoinks.cpp" line="71"/>
         <source>Color</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Barva</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="34"/>
@@ -4101,7 +4101,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="78"/>
         <source>Context</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Kontext</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="79"/>
@@ -4146,7 +4146,7 @@
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="109"/>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="114"/>
         <source>Annotation</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Anotace</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="131"/>
@@ -4197,7 +4197,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="75"/>
         <source>Left</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Vlevo</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="76"/>
@@ -4207,7 +4207,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="77"/>
         <source>Right</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Vpravo</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="78"/>
@@ -4338,7 +4338,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="72"/>
         <source>Hidden</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Skrytý</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="117"/>
@@ -4353,7 +4353,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="168"/>
         <source>Properties</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Vlastnosti</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="196"/>
@@ -4662,7 +4662,7 @@
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="402"/>
         <source>Information</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Informace</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolseparate.cpp" line="39"/>
@@ -4697,12 +4697,12 @@
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="67"/>
         <source>Statistics by Object Class</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Statistika dle Třídy Objektu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="70"/>
         <source>Class</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Třída</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="71"/>
@@ -4724,7 +4724,7 @@
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="105"/>
         <source>Content Stream</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Proud dat obsahu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="106"/>
@@ -4734,42 +4734,42 @@
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="107"/>
         <source>Color Space</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Barevný prostor</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="108"/>
         <source>Pattern</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Vzor</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="109"/>
         <source>Shading</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Stínování</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="110"/>
         <source>Image</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Obrázek</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="112"/>
         <source>Font</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Font</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="113"/>
         <source>Action</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Akce</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="115"/>
         <source>Other</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Jiné</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="123"/>
         <source>Statistics by Object Type</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Statistika dle Typů Objektů</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolunite.cpp" line="39"/>
@@ -4799,7 +4799,7 @@
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="37"/>
         <source>Signature verification</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Ověření podpisu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="40"/>
@@ -4820,7 +4820,7 @@
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="122"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="145"/>
         <source>Signature</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Podepisování</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="125"/>
@@ -4976,7 +4976,7 @@
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="268"/>
         <source>Email</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Email</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="274"/>
@@ -5104,7 +5104,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="67"/>
         <source>&amp;View</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">&amp;Zobrazit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="71"/>
@@ -5124,7 +5124,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="124"/>
         <source>&amp;Help</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">&amp;Nápověda</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="152"/>
@@ -5134,7 +5134,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="161"/>
         <source>&amp;Close</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Za&amp;vřít</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="170"/>
@@ -5492,7 +5492,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="14"/>
         <source>Options</source>
-        <translation type="unfinished"></translation>
+        <translation>Možnosti</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="57"/>
@@ -5528,16 +5528,16 @@
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="645"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="861"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="882"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="937"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="965"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1227"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1234"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1305"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1312"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1326"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1333"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="948"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1007"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1237"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1244"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1315"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1322"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1336"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1343"/>
         <source>Enable</source>
-        <translation type="unfinished"></translation>
+        <translation>Povolit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="101"/>
@@ -5664,7 +5664,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="444"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="467"/>
         <source> kB</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="460"/>
@@ -5693,7 +5693,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="537"/>
         <source>Shortcuts</source>
-        <translation type="unfinished">Zkratky</translation>
+        <translation>Zkratky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="569"/>
@@ -5713,7 +5713,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="600"/>
         <source>Accuracy</source>
-        <translation type="unfinished"></translation>
+        <translation>Přesnost</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="610"/>
@@ -5792,12 +5792,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="775"/>
         <source>Foreground color</source>
-        <translation type="unfinished"></translation>
+        <translation>Barva popředí</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="785"/>
         <source>Background color</source>
-        <translation type="unfinished"></translation>
+        <translation>Barva pozadí</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="802"/>
@@ -5826,12 +5826,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="868"/>
         <source>Allow URI link launch</source>
-        <translation type="unfinished"></translation>
+        <translation>Povolit spuštění URI odkazu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="875"/>
         <source>Allow application launch</source>
-        <translation type="unfinished"></translation>
+        <translation>Povolit spuštění aplikace</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="891"/>
@@ -5850,55 +5850,60 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="926"/>
         <source>UI Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Nastavení uživatelského rozhraní</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="944"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="934"/>
         <source>Maximum redo steps</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="951"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="976"/>
         <source>Magnifier size</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="958"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="969"/>
         <source>Use logical pixels when zooming</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="972"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1014"/>
         <source>px</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1002"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="993"/>
         <source>Maximum undo steps</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1009"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="962"/>
         <source>Magnifier zoom</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1023"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1000"/>
         <source>Maximum count of recent files</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1030"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1040"/>
         <source>Developer mode</source>
-        <translation type="unfinished"></translation>
+        <translation>Režim pro vývojáře</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1040"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1030"/>
         <source>Color Scheme (GUI)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1049"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1047"/>
+        <source>Language</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1059"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -5912,42 +5917,42 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1084"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1094"/>
         <source>Speech Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Nastavení čtení</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1092"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1102"/>
         <source>Voice</source>
-        <translation type="unfinished"></translation>
+        <translation>Hlas</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1099"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1109"/>
         <source>Pitch</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1106"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1116"/>
         <source>Volume</source>
-        <translation type="unfinished">Hlasitost</translation>
+        <translation>Hlasitost</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1113"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1123"/>
         <source>Rate</source>
-        <translation type="unfinished">Rychlost</translation>
+        <translation>Rychlost</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1120"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1130"/>
         <source>Voice synthetiser</source>
-        <translation type="unfinished"></translation>
+        <translation>Syntetizér hlasu</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1127"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1137"/>
         <source>Locale</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1172"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1182"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -5959,22 +5964,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1205"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1215"/>
         <source>Form Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Nastavení formuláře</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1213"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1223"/>
         <source>Highlight form fields</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1220"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1230"/>
         <source>Highlight required form fields</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1243"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1253"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -5986,49 +5991,49 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1276"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1286"/>
         <source>Digital Signature Verification</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1284"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1294"/>
         <source>Ignore expired certificates</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1291"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1301"/>
         <source>Signature verification</source>
-        <translation type="unfinished"></translation>
+        <translation>Ověření podpisu</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1298"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1308"/>
         <source>Strict mode</source>
-        <translation type="unfinished"></translation>
+        <translation>Přísný režim</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1319"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1329"/>
         <source>Use system certificate store</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1349"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1359"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Trusted certificate store&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1378"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1388"/>
         <source>Remove</source>
-        <translation type="unfinished"></translation>
+        <translation>Smazat</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1394"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1404"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;These are the settings for digital signature verification. Digital signatures are verified as strictly as possible to prevent any malicious content or signature manipulation. Verification can also be disabled, if not required. When &lt;span style=&quot; font-weight:600;&quot;&gt;Strict mode&lt;/span&gt; is enabled, every warning is treated as an error. You have the option to ignore the certificate expiration date, but this should only be done if you fully understand the potential risks involved. Verification uses a list of trusted certificates. System certificates can be added to this list, and you can also manage your own list of trusted certificates.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1423"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1433"/>
         <source>Plugins</source>
-        <translation type="unfinished"></translation>
+        <translation>Přídavné moduly</translation>
     </message>
 </context>
 <context>
@@ -6036,7 +6041,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtPageMaster/selectoutlinetoregroupdialog.ui" line="14"/>
         <source>Select Outline</source>
-        <translation type="unfinished"></translation>
+        <translation>Vybrat Záložky</translation>
     </message>
 </context>
 <context>
@@ -6090,27 +6095,27 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.cpp" line="30"/>
         <source>Auto</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Automaticky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.cpp" line="31"/>
         <source>Perceptual</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Percepční</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.cpp" line="32"/>
         <source>Relative colorimetric</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Relativně kolorimetrický</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.cpp" line="33"/>
         <source>Absolute colorimetric</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Absolutně kolorimetrický</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.cpp" line="34"/>
         <source>Saturation</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Saturační</translation>
     </message>
 </context>
 <context>
@@ -6139,7 +6144,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="62"/>
         <source>Options</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Možnosti</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="68"/>
@@ -6159,12 +6164,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="110"/>
         <source>Colors</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Barvy</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="116"/>
         <source>Remove</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Smazat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="130"/>
@@ -6202,7 +6207,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="36"/>
         <source>Certificate</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Certifikát</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="46"/>
@@ -6253,7 +6258,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../CodeGenerator/codegenerator.cpp" line="1138"/>
         <source>Dictionary</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Slovník</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/codegenerator.cpp" line="1141"/>
@@ -6271,7 +6276,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcompiler.cpp" line="543"/>
         <source>Indexing document contents...</source>
-        <translation type="unfinished"></translation>
+        <translation>Indexuji obsah dokumentu...</translation>
     </message>
 </context>
 <context>
@@ -6279,7 +6284,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfitemmodels.cpp" line="866"/>
         <source>Files</source>
-        <translation type="unfinished"></translation>
+        <translation>Soubory</translation>
     </message>
 </context>
 <context>
@@ -6365,7 +6370,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatelisthelper.cpp" line="84"/>
         <source>Password protected</source>
-        <translation type="unfinished"></translation>
+        <translation>Chráněný heslem</translation>
     </message>
 </context>
 <context>
@@ -6519,7 +6524,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="1108"/>
         <source>Select Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Vybrat Barvu</translation>
     </message>
 </context>
 <context>
@@ -6540,7 +6545,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditortools.cpp" line="417"/>
         <source>Select Image</source>
-        <translation type="unfinished"></translation>
+        <translation>Vybrat Obrázek</translation>
     </message>
 </context>
 <context>
@@ -6561,22 +6566,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="252"/>
         <source>Qt</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="253"/>
         <source>LGPLv3</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="255"/>
         <source>https://www.qt.io/</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="260"/>
         <source>libjpeg</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="261"/>
@@ -6586,7 +6591,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="262"/>
         <source>https://www.ijg.org/</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="264"/>
@@ -6602,89 +6607,89 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="279"/>
         <source>FreeType</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="280"/>
         <source>FTL</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="281"/>
         <source>%1.%2.%3</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="282"/>
         <source>https://www.freetype.org/index.html</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="287"/>
         <source>OpenJPEG</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="288"/>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="306"/>
         <source>2-clause MIT license</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="290"/>
         <source>https://www.openjpeg.org/</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="295"/>
         <source>OpenSSL</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="296"/>
         <source>Apache 2.0</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="298"/>
         <source>https://www.openssl.org/</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="305"/>
         <source>LittleCMS</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="308"/>
         <source>http://www.littlecms.com/</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="313"/>
         <source>zlib</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="314"/>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="326"/>
         <source>zlib specific</source>
-        <translation type="unfinished"></translation>
+        <translation>podobné zlib</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="316"/>
         <source>https://zlib.net/</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="325"/>
         <source>Blend2D</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="328"/>
         <source>https://blend2d.com/</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
 </context>
 <context>
@@ -7016,12 +7021,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="53"/>
         <source>Page No.</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Číslo Stránky.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="56"/>
         <source>Type</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Typ</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="59"/>
@@ -7037,7 +7042,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="132"/>
         <source>Title</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Titulek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="136"/>
@@ -7062,7 +7067,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="161"/>
         <source>Active</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Aktivní</translation>
     </message>
 </context>
 <context>
@@ -7091,7 +7096,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="990"/>
         <source>Edit Annotation</source>
-        <translation type="unfinished"></translation>
+        <translation>Upravit Anotaci</translation>
     </message>
 </context>
 <context>
@@ -7245,27 +7250,27 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="547"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="550"/>
         <source>General</source>
-        <translation type="unfinished"></translation>
+        <translation>Obecný</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="477"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="478"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="578"/>
         <source>Type</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Typ</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="481"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="643"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="645"/>
         <source>Text</source>
-        <translation type="unfinished">Text</translation>
+        <translation>Text</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="482"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="593"/>
         <source>Link</source>
-        <translation type="unfinished"></translation>
+        <translation>Odkaz</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="483"/>
@@ -7274,7 +7279,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="607"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="612"/>
         <source>Free text</source>
-        <translation type="unfinished"></translation>
+        <translation>Volný text</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="484"/>
@@ -7288,7 +7293,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="643"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="645"/>
         <source>Line</source>
-        <translation type="unfinished"></translation>
+        <translation>Čára</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="485"/>
@@ -7300,7 +7305,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="486"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="708"/>
         <source>Circle</source>
-        <translation type="unfinished"></translation>
+        <translation>Kruh</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="487"/>
@@ -7322,7 +7327,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="490"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="561"/>
         <source>Underline</source>
-        <translation type="unfinished"></translation>
+        <translation>Podtrhnutí</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="491"/>
@@ -7345,7 +7350,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="665"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="667"/>
         <source>Stamp</source>
-        <translation type="unfinished"></translation>
+        <translation>Razítko</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="495"/>
@@ -7356,7 +7361,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="496"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="672"/>
         <source>File attachment</source>
-        <translation type="unfinished"></translation>
+        <translation>Příloha (se souborem)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="497"/>
@@ -7366,7 +7371,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="500"/>
         <source>Rectangle</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Obdélník</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="501"/>
@@ -7374,12 +7379,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="503"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="504"/>
         <source>Contents</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Obsah</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="501"/>
         <source>Author</source>
-        <translation type="unfinished"></translation>
+        <translation>Autor</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="502"/>
@@ -7395,7 +7400,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="505"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="506"/>
         <source>Info</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Informace</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="505"/>
@@ -7405,24 +7410,24 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="506"/>
         <source>Created</source>
-        <translation type="unfinished"></translation>
+        <translation>Vytvořeno</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="507"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="522"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="550"/>
         <source>Options</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Možnosti</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="510"/>
         <source>Invisible</source>
-        <translation type="unfinished"></translation>
+        <translation>Neviditelný</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="511"/>
         <source>Hidden</source>
-        <translation type="unfinished"></translation>
+        <translation>Skrytý</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="512"/>
@@ -7479,23 +7484,23 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="682"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="683"/>
         <source>Appearance</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Vzhled</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="523"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="525"/>
         <source>Colors</source>
-        <translation type="unfinished"></translation>
+        <translation>Barvy</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="523"/>
         <source>Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Barva</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="525"/>
         <source>Interior color</source>
-        <translation type="unfinished"></translation>
+        <translation>Barva výplně</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="528"/>
@@ -7535,18 +7540,18 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="565"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="572"/>
         <source>Border</source>
-        <translation type="unfinished"></translation>
+        <translation>Rámeček</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="551"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="555"/>
         <source>Border Style</source>
-        <translation type="unfinished"></translation>
+        <translation>Styl rámečku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="551"/>
         <source>Width</source>
-        <translation type="unfinished"></translation>
+        <translation>Šířka</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="555"/>
@@ -7576,7 +7581,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="558"/>
         <source>Dashed</source>
-        <translation type="unfinished"></translation>
+        <translation>Čárkovaný</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="559"/>
@@ -7605,7 +7610,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="637"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="706"/>
         <source>None</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Žádný</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="572"/>
@@ -7621,12 +7626,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="581"/>
         <source>Comment</source>
-        <translation type="unfinished"></translation>
+        <translation>Komentář</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="582"/>
         <source>Key</source>
-        <translation type="unfinished"></translation>
+        <translation>Klíč</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="583"/>
@@ -7636,7 +7641,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="584"/>
         <source>Help</source>
-        <translation type="unfinished"></translation>
+        <translation>Nápověda</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="585"/>
@@ -7705,12 +7710,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="615"/>
         <source>Line start</source>
-        <translation type="unfinished"></translation>
+        <translation>Začátek čáry</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="617"/>
         <source>Line end</source>
-        <translation type="unfinished"></translation>
+        <translation>Konec čáry</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="620"/>
@@ -7735,7 +7740,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="632"/>
         <source>Dimension</source>
-        <translation type="unfinished"></translation>
+        <translation>Kóta</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="638"/>
@@ -7745,7 +7750,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="639"/>
         <source>Line dimension</source>
-        <translation type="unfinished"></translation>
+        <translation>Liniová kóta</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="640"/>
@@ -7775,12 +7780,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="651"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Jméno</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="668"/>
         <source>Image</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Obrázek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="669"/>
@@ -7832,22 +7837,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="693"/>
         <source>Left</source>
-        <translation type="unfinished"></translation>
+        <translation>Vlevo</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="694"/>
         <source>Center</source>
-        <translation type="unfinished"></translation>
+        <translation>Vycentrovaný</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="695"/>
         <source>Right</source>
-        <translation type="unfinished"></translation>
+        <translation>Vpravo</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="709"/>
         <source>Diamond</source>
-        <translation type="unfinished"></translation>
+        <translation>Diamant</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="710"/>
@@ -7857,7 +7862,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="711"/>
         <source>Closed arrow</source>
-        <translation type="unfinished"></translation>
+        <translation>Uzavřená šipka</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="712"/>
@@ -7885,7 +7890,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="951"/>
         <source>custom</source>
-        <translation type="unfinished"></translation>
+        <translation>uživatelská</translation>
     </message>
 </context>
 <context>
@@ -7893,7 +7898,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="361"/>
         <source>Rectangle</source>
-        <translation type="unfinished"></translation>
+        <translation>Obdélník</translation>
     </message>
 </context>
 <context>
@@ -7944,7 +7949,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfitemmodels.cpp" line="674"/>
         <source>Item %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Položka %1</translation>
     </message>
 </context>
 <context>
@@ -7958,12 +7963,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="52"/>
         <source>Dashed</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Čárkovaný</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="53"/>
         <source>Dotted</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Tečkovaný</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="54"/>
@@ -7983,7 +7988,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="99"/>
         <source>Image</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Obrázek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="106"/>
@@ -8003,7 +8008,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="350"/>
         <source>Select Image</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Vybrat Obrázek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="382"/>
@@ -8022,7 +8027,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="51"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="58"/>
         <source>None</source>
-        <translation type="unfinished"></translation>
+        <translation>Žádný</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="52"/>
@@ -8033,12 +8038,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="53"/>
         <source>Dashed</source>
-        <translation type="unfinished"></translation>
+        <translation>Čárkovaný</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="54"/>
         <source>Dotted</source>
-        <translation type="unfinished"></translation>
+        <translation>Tečkovaný</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="55"/>
@@ -8053,12 +8058,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="60"/>
         <source>Horizontal</source>
-        <translation type="unfinished"></translation>
+        <translation>Vodorovný</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="61"/>
         <source>Vertical</source>
-        <translation type="unfinished"></translation>
+        <translation>Svislý</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="62"/>
@@ -8073,27 +8078,27 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="64"/>
         <source>Cross</source>
-        <translation type="unfinished"></translation>
+        <translation>Křížový</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="264"/>
         <source>Edit Item</source>
-        <translation type="unfinished"></translation>
+        <translation>Upravit Položku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="302"/>
         <source>Content</source>
-        <translation type="unfinished"></translation>
+        <translation>Obsah</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="319"/>
         <source>Appearance</source>
-        <translation type="unfinished"></translation>
+        <translation>Vzhled</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="398"/>
         <source>Select Font</source>
-        <translation type="unfinished"></translation>
+        <translation>Vybrat Font</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="420"/>
@@ -8288,7 +8293,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="1545"/>
         <source>Use key &apos;C&apos; to show/hide large cross.</source>
-        <translation type="unfinished"></translation>
+        <translation>Použijte klávesu &apos;C&apos; pro zapnutí/vypnutí kříže.</translation>
     </message>
 </context>
 <context>
@@ -8361,12 +8366,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.cpp" line="123"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.cpp" line="130"/>
         <source>Error</source>
-        <translation type="unfinished">Chyba</translation>
+        <translation>Chyba</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.cpp" line="130"/>
         <source>Selected page range is empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>Vybraný rozsah stránek je prázdný.</translation>
     </message>
 </context>
 <context>
@@ -8374,7 +8379,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="1990"/>
         <source>Table region was selected. Use left/right mouse buttons to add/remove rows/columns, then use Enter key to copy the table.</source>
-        <translation type="unfinished"></translation>
+        <translation>Vybraná oblast tabulky. Použijte levé/pravé tlačítko myši k přidání nebo odstranění řádků/sloupců, poté stiskněte Enter pro zkopírování tabulky.</translation>
     </message>
 </context>
 <context>
@@ -8400,7 +8405,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="208"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="1123"/>
         <source>Line</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Čára</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="205"/>
@@ -8415,7 +8420,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="214"/>
         <source>Circle</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Kruh</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="217"/>
@@ -8435,7 +8440,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="226"/>
         <source>Underline</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Podtrhnutí</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="229"/>
@@ -8450,7 +8455,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="235"/>
         <source>Stamp</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Razítko</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="238"/>
@@ -8722,7 +8727,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfblendfunction.cpp" line="223"/>
         <source>Difference</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Rozdíl</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfblendfunction.cpp" line="225"/>
@@ -8737,12 +8742,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfblendfunction.cpp" line="229"/>
         <source>Saturation</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Saturační</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfblendfunction.cpp" line="231"/>
         <source>Color</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Barva</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfblendfunction.cpp" line="233"/>
@@ -8862,7 +8867,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextflow.cpp" line="705"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextflow.cpp" line="763"/>
         <source>Page %1</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Page %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextflow.cpp" line="735"/>
@@ -9183,7 +9188,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="237"/>
         <source>Null</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Nic</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="240"/>
@@ -9193,42 +9198,42 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="243"/>
         <source>Integer</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Celé číslo</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="246"/>
         <source>Real</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Reálné číslo</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="249"/>
         <source>String</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Řetězec</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="252"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Jméno</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="255"/>
         <source>Array</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Pole</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="258"/>
         <source>Dictionary</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Slovník</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="261"/>
         <source>Stream</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Proud dat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="264"/>
         <source>Reference</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Odkaz</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="67"/>
@@ -10541,7 +10546,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3001"/>
         <source>Invalid color space of the image.</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Neplatný barevný prostor obrázku.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3033"/>
@@ -10825,7 +10830,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="927"/>
         <source>Font</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Font</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="931"/>
@@ -10835,7 +10840,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="934"/>
         <source>Yes</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Ano</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="935"/>
@@ -10886,7 +10891,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="957"/>
         <source>None</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Žádný</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="961"/>
@@ -11042,7 +11047,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2020"/>
         <source>Standard</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Standardní</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2024"/>
@@ -11276,7 +11281,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="242"/>
         <source>Info</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Informace</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="248"/>
@@ -11296,7 +11301,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="339"/>
         <source>Rectangle</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Obdélník</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="1261"/>
@@ -11321,7 +11326,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="2740"/>
         <source>Image</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Obrázek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="2750"/>
@@ -11349,7 +11354,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="145"/>
         <source>Annotation</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Anotace</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="146"/>
@@ -11443,7 +11448,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtDiff/differencesdockwidget.cpp" line="227"/>
         <source>Page %1</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Page %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/differencesdockwidget.cpp" line="233"/>
@@ -11466,7 +11471,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtDiff/utils.cpp" line="436"/>
         <source>Difference</source>
-        <translation type="unfinished"></translation>
+        <translation>Rozdíl</translation>
     </message>
 </context>
 <context>
@@ -11474,17 +11479,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="128"/>
         <source>&amp;Main</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Hlavní</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="136"/>
         <source>&amp;Differences</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Rozdíly</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="140"/>
         <source>&amp;View</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Zobrazit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="232"/>
@@ -11493,68 +11498,68 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="634"/>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="833"/>
         <source>Error</source>
-        <translation type="unfinished">Chyba</translation>
+        <translation>Chyba</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="236"/>
         <source>Info</source>
-        <translation type="unfinished"></translation>
+        <translation>Informace</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="236"/>
         <source>No differences found between the compared documents.</source>
-        <translation type="unfinished"></translation>
+        <translation>Nebyly nalezeny žádné rozdíly mezi zobrazenými dokumenty.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="593"/>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="805"/>
         <source>Select PDF document</source>
-        <translation type="unfinished"></translation>
+        <translation>Vybrat PDF dokument</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="593"/>
         <source>XML file (*.xml)</source>
-        <translation type="unfinished"></translation>
+        <translation>XML soubor (*.xml)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="604"/>
         <source>File &apos;%1&apos; cannot be opened. %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Soubor &apos;%1&apos; není možné otevřít. %2</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="610"/>
         <source>Save results to XML</source>
-        <translation type="unfinished"></translation>
+        <translation>Uložit výsledky do XML</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="610"/>
         <source>Displayed results are empty. Cannot save empty results.</source>
-        <translation type="unfinished"></translation>
+        <translation>Zobrazené výsledky jsou prázdné. Není možné uložit prázdné výsledky.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="623"/>
         <source>Save As</source>
-        <translation type="unfinished"></translation>
+        <translation>Uložit Jako</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="623"/>
         <source>Portable Document (*.pdf);;All files (*.*)</source>
-        <translation type="unfinished"></translation>
+        <translation>Přenositelný Dokument (*.pdf);;Všechny soubory (*.*)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="805"/>
         <source>PDF document (*.pdf)</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF dokument (*.pdf)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="814"/>
         <source>Encrypted document</source>
-        <translation type="unfinished"></translation>
+        <translation>Zašifrovaný dokument</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="814"/>
         <source>Enter password to access document content</source>
-        <translation type="unfinished"></translation>
+        <translation>Vložte heslo pro přístup k obsahu dokumentu</translation>
     </message>
 </context>
 <context>
@@ -11585,7 +11590,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.cpp" line="49"/>
         <source>S&amp;ettings</source>
-        <translation type="unfinished"></translation>
+        <translation>Nastav&amp;ení</translation>
     </message>
 </context>
 <context>
@@ -11593,22 +11598,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="35"/>
         <source>No Outline</source>
-        <translation type="unfinished"></translation>
+        <translation>Žádný Obsah</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="36"/>
         <source>Join Outlines</source>
-        <translation type="unfinished"></translation>
+        <translation>Spojit Obsahy</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="37"/>
         <source>Document Parts</source>
-        <translation type="unfinished"></translation>
+        <translation>Části Dokumentů</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="71"/>
         <source>Select output directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Výběr výstupního adresáře</translation>
     </message>
 </context>
 <context>
@@ -11616,32 +11621,32 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="149"/>
         <source>&amp;Main</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">&amp;Hlavní</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="160"/>
         <source>&amp;Insert</source>
-        <translation type="unfinished"></translation>
+        <translation>Vloži&amp;t</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="163"/>
         <source>&amp;Select</source>
-        <translation type="unfinished"></translation>
+        <translation>Vy&amp;brat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="166"/>
         <source>&amp;Regroup</source>
-        <translation type="unfinished"></translation>
+        <translation>Přes&amp;kupit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="169"/>
         <source>&amp;Zoom</source>
-        <translation type="unfinished"></translation>
+        <translation>Přiblížení</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="172"/>
         <source>Ma&amp;ke</source>
-        <translation type="unfinished"></translation>
+        <translation>Vy&amp;tvořit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="254"/>
@@ -11654,22 +11659,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="863"/>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="892"/>
         <source>PDF document (*.pdf)</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF dokument (*.pdf)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="281"/>
         <source>Select</source>
-        <translation type="unfinished"></translation>
+        <translation>Vybrat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="288"/>
         <source>Regroup</source>
-        <translation type="unfinished"></translation>
+        <translation>Přeskupit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="366"/>
         <source>Encrypted document</source>
-        <translation type="unfinished"></translation>
+        <translation>Zašifrovaný dokument</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="366"/>
@@ -11684,7 +11689,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="819"/>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="828"/>
         <source>Error</source>
-        <translation type="unfinished">Chyba</translation>
+        <translation>Chyba</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="389"/>
@@ -11694,7 +11699,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="720"/>
         <source>No documents to assemble.</source>
-        <translation type="unfinished"></translation>
+        <translation>Žádné dokumenty pro sestavení.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="819"/>
@@ -11709,12 +11714,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="845"/>
         <source>Select Image(s)</source>
-        <translation type="unfinished"></translation>
+        <translation>Vybrat obrázek/obrázky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="892"/>
         <source>Select PDF document</source>
-        <translation type="unfinished"></translation>
+        <translation>Vybrat PDF dokument</translation>
     </message>
 </context>
 <context>
@@ -11722,22 +11727,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtPageMaster/aboutdialog.cpp" line="41"/>
         <source>Library</source>
-        <translation type="unfinished">Knihovna</translation>
+        <translation>Knihovna</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/aboutdialog.cpp" line="41"/>
         <source>Version</source>
-        <translation type="unfinished">Verze</translation>
+        <translation>Verze</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/aboutdialog.cpp" line="41"/>
         <source>License</source>
-        <translation type="unfinished">Licence</translation>
+        <translation>Licence</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/aboutdialog.cpp" line="41"/>
         <source>URL</source>
-        <translation type="unfinished">Odkaz</translation>
+        <translation>Odkaz</translation>
     </message>
 </context>
 <context>
@@ -11760,12 +11765,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1021"/>
         <source>Image</source>
-        <translation type="unfinished"></translation>
+        <translation>Obrázek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1021"/>
         <source>Images</source>
-        <translation type="unfinished">Obrázky</translation>
+        <translation>Obrázky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1026"/>
@@ -12003,7 +12008,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiotextstreameditordockwidget.cpp" line="42"/>
         <source>Audio Book Actions</source>
-        <translation type="unfinished"></translation>
+        <translation>Audiokniha Akce</translation>
     </message>
 </context>
 <context>
@@ -12011,17 +12016,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.cpp" line="83"/>
         <source>File Name</source>
-        <translation type="unfinished"></translation>
+        <translation>Jméno souboru</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.cpp" line="113"/>
         <source>Error</source>
-        <translation type="unfinished">Chyba</translation>
+        <translation>Chyba</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.cpp" line="113"/>
         <source>Cannot convert &apos;%1&apos; to color value.</source>
-        <translation type="unfinished"></translation>
+        <translation>Nelze převést &apos;%1&apos; na barvu.</translation>
     </message>
 </context>
 <context>
@@ -12029,72 +12034,72 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="46"/>
         <source>&amp;Horizontal Dimension</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Vodorovná kóta</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="47"/>
         <source>&amp;Vertical Dimension</source>
-        <translation type="unfinished"></translation>
+        <translation>Svislá &amp;kóta</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="48"/>
         <source>&amp;Linear Dimension</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Liniová kóta</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="49"/>
         <source>&amp;Perimeter</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Obvod</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="50"/>
         <source>&amp;Rectangle Perimeter</source>
-        <translation type="unfinished"></translation>
+        <translation>Obvod o&amp;bdélníka</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="51"/>
         <source>&amp;Area</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Plocha</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="52"/>
         <source>R&amp;ectangle Area</source>
-        <translation type="unfinished"></translation>
+        <translation>Ploc&amp;ha obdélníka</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="53"/>
         <source>An&amp;gle</source>
-        <translation type="unfinished"></translation>
+        <translation>Ú&amp;hel</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="89"/>
         <source>&amp;Show Dimensions</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Zobrazid kóty</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="90"/>
         <source>&amp;Clear Dimensions</source>
-        <translation type="unfinished"></translation>
+        <translation>S&amp;mazat kóty</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="91"/>
         <source>Se&amp;ttings</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Nastavení</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="145"/>
         <source>&amp;Dimensions</source>
-        <translation type="unfinished"></translation>
+        <translation>Kót&amp;y</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="268"/>
         <source>A = %1 %2</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="272"/>
         <source>p = %1 %2</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
 </context>
 <context>
@@ -12200,22 +12205,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/inkcoveragedialog.cpp" line="250"/>
         <source>Total</source>
-        <translation type="unfinished"></translation>
+        <translation>Celkem</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/inkcoveragedialog.cpp" line="343"/>
         <source>Page Index</source>
-        <translation type="unfinished"></translation>
+        <translation>Index Stránky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/inkcoveragedialog.cpp" line="357"/>
         <source>[ mm² ]</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/inkcoveragedialog.cpp" line="360"/>
         <source>[ % ]</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
 </context>
 <context>
@@ -12263,12 +12268,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.cpp" line="74"/>
         <source>Forms</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Formuláře</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.cpp" line="78"/>
         <source>Fonts</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Fonty</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.cpp" line="82"/>
@@ -12291,17 +12296,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectorplugin.cpp" line="46"/>
         <source>Object &amp;Inspector</source>
-        <translation type="unfinished"></translation>
+        <translation>Proh&amp;lížeč Objektů</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectorplugin.cpp" line="52"/>
         <source>Object &amp;Statistics</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Statistika Objektů</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectorplugin.cpp" line="83"/>
         <source>O&amp;bject Inspector</source>
-        <translation type="unfinished"></translation>
+        <translation>Prohlížeč O&amp;bjektů</translation>
     </message>
 </context>
 <context>
@@ -12309,23 +12314,23 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="36"/>
         <source>Statistics by Object Function</source>
-        <translation type="unfinished"></translation>
+        <translation>Statistika dle Funkce Objektu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="37"/>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="129"/>
         <source>Statistics by Object Type</source>
-        <translation type="unfinished"></translation>
+        <translation>Statistika dle Typů Objektů</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="80"/>
         <source>Statistics by Object Class</source>
-        <translation type="unfinished"></translation>
+        <translation>Statistika dle Třídy Objektu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="81"/>
         <source>Class</source>
-        <translation type="unfinished"></translation>
+        <translation>Třída</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="81"/>
@@ -12347,12 +12352,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="111"/>
         <source>Page</source>
-        <translation type="unfinished">Stránka</translation>
+        <translation>Stránka</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="112"/>
         <source>Content Stream</source>
-        <translation type="unfinished"></translation>
+        <translation>Proud dat obsahu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="113"/>
@@ -12362,52 +12367,52 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="114"/>
         <source>Color Space</source>
-        <translation type="unfinished"></translation>
+        <translation>Barevný prostor</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="115"/>
         <source>Pattern</source>
-        <translation type="unfinished"></translation>
+        <translation>Vzor</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="116"/>
         <source>Shading</source>
-        <translation type="unfinished"></translation>
+        <translation>Stínování</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="117"/>
         <source>Image</source>
-        <translation type="unfinished"></translation>
+        <translation>Obrázek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="118"/>
         <source>Form</source>
-        <translation type="unfinished">Formulář</translation>
+        <translation>Formulář</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="119"/>
         <source>Font</source>
-        <translation type="unfinished"></translation>
+        <translation>Font</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="120"/>
         <source>Action</source>
-        <translation type="unfinished"></translation>
+        <translation>Akce</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="121"/>
         <source>Annotation</source>
-        <translation type="unfinished"></translation>
+        <translation>Anotace</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="122"/>
         <source>Other</source>
-        <translation type="unfinished"></translation>
+        <translation>Jiné</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="130"/>
         <source>Type</source>
-        <translation type="unfinished"></translation>
+        <translation>Typ</translation>
     </message>
 </context>
 <context>
@@ -12416,117 +12421,117 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="99"/>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="293"/>
         <source>%1 %2 R</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="107"/>
         <source>Part of object %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Část objektu %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="112"/>
         <source>&lt;none&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;žádný&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="118"/>
         <source>Null</source>
-        <translation type="unfinished"></translation>
+        <translation>Nic</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="121"/>
         <source>Bool</source>
-        <translation type="unfinished"></translation>
+        <translation>Boolean</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="124"/>
         <source>Integer</source>
-        <translation type="unfinished"></translation>
+        <translation>Celé číslo</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="127"/>
         <source>Real</source>
-        <translation type="unfinished"></translation>
+        <translation>Reálné číslo</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="130"/>
         <source>String</source>
-        <translation type="unfinished"></translation>
+        <translation>Řetězec</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="133"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation>Jméno</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="136"/>
         <source>Array</source>
-        <translation type="unfinished"></translation>
+        <translation>Pole</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="139"/>
         <source>Dictionary</source>
-        <translation type="unfinished"></translation>
+        <translation>Slovník</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="142"/>
         <source>Stream</source>
-        <translation type="unfinished"></translation>
+        <translation>Proud dat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="145"/>
         <source>Reference</source>
-        <translation type="unfinished"></translation>
+        <translation>Odkaz</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="158"/>
         <source>null</source>
-        <translation type="unfinished"></translation>
+        <translation>nic</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="162"/>
         <source>true</source>
-        <translation type="unfinished"></translation>
+        <translation>ano</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="162"/>
         <source>false</source>
-        <translation type="unfinished"></translation>
+        <translation>ne</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="182"/>
         <source>Array [%1 items]</source>
-        <translation type="unfinished"></translation>
+        <translation>Pole [%1 položek]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="186"/>
         <source>Dictionary [%1 items]</source>
-        <translation type="unfinished"></translation>
+        <translation>Slovník [%1 položek]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="190"/>
         <source>Stream [%1 items, %2 data bytes]</source>
-        <translation type="unfinished"></translation>
+        <translation>Proud dat [%1 položek, %2 bajtů]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="225"/>
         <source>Invalid color space of the image.</source>
-        <translation type="unfinished"></translation>
+        <translation>Neplatný barevný prostor obrázku.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="239"/>
         <source>Image Stream [%1 items, %2 data bytes, %3 x %4 pixels, %5 bits per component]</source>
-        <translation type="unfinished"></translation>
+        <translation>Obrázek [%1 položek, %2 bajtů, %3 x %4 pixelů, %5 bitů komponenty barvy]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="290"/>
         <source>[Unknown]</source>
-        <translation type="unfinished"></translation>
+        <translation>[Neznámý]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="301"/>
         <source>%1 (part)</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 (část)</translation>
     </message>
 </context>
 <context>
@@ -12650,32 +12655,32 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/pdfobjectinspectortreeitemmodel.cpp" line="143"/>
         <source>null</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">nic</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/pdfobjectinspectortreeitemmodel.cpp" line="147"/>
         <source>true</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">ano</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/pdfobjectinspectortreeitemmodel.cpp" line="147"/>
         <source>false</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">ne</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/pdfobjectinspectortreeitemmodel.cpp" line="167"/>
         <source>Array [%1 items]</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Pole [%1 položek]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/pdfobjectinspectortreeitemmodel.cpp" line="171"/>
         <source>Dictionary [%1 items]</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Slovník [%1 položek]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/pdfobjectinspectortreeitemmodel.cpp" line="175"/>
         <source>Stream [%1 items, %2 data bytes]</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Proud dat [%1 položek, %2 bajtů]</translation>
     </message>
 </context>
 <context>
@@ -12683,17 +12688,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="53"/>
         <source>Redact &amp;Rectangle</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Redigovat obdélník</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="54"/>
         <source>Redact &amp;Text</source>
-        <translation type="unfinished"></translation>
+        <translation>Redigovat &amp;text</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="55"/>
         <source>Redact Text &amp;Selection</source>
-        <translation type="unfinished"></translation>
+        <translation>Redigovat výběr te&amp;xtu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="56"/>
@@ -12703,17 +12708,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="57"/>
         <source>Create Redacted &amp;Document</source>
-        <translation type="unfinished"></translation>
+        <translation>Vytvořit redigovaný &amp;dokument</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="99"/>
         <source>Redac&amp;t</source>
-        <translation type="unfinished"></translation>
+        <translation>Redigova&amp;t</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="115"/>
         <source>Information</source>
-        <translation type="unfinished"></translation>
+        <translation>Informace</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="115"/>
@@ -12723,7 +12728,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="148"/>
         <source>Redact Pages</source>
-        <translation type="unfinished"></translation>
+        <translation>Redigovat stránky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="148"/>
@@ -12733,7 +12738,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="201"/>
         <source>Error</source>
-        <translation type="unfinished">Chyba</translation>
+        <translation>Chyba</translation>
     </message>
 </context>
 <context>
@@ -12752,17 +12757,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="94"/>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="102"/>
         <source>Error</source>
-        <translation type="unfinished">Chyba</translation>
+        <translation>Chyba</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="94"/>
         <source>Certificate does not exist.</source>
-        <translation type="unfinished"></translation>
+        <translation>Certifikát neexistuje.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="102"/>
         <source>Password to open certificate is invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>Heslo pro otevření certifikátu není platné.</translation>
     </message>
 </context>
 <context>
@@ -12884,7 +12889,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="486"/>
         <source>Portable Document (*.pdf);;All files (*.*)</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Přenositelný Dokument (*.pdf);;Všechny soubory (*.*)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="662"/>
@@ -12920,7 +12925,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="477"/>
         <source>Toggle this icon to switch image conversion to bitonal format on or off.</source>
-        <translation type="unfinished"></translation>
+        <translation>Přepněte tuto ikonu pro zapnutí nebo vypnutí převodu obrázku do dvoubarevného formátu.</translation>
     </message>
 </context>
 <context>
@@ -12951,7 +12956,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfactioncombobox.cpp" line="35"/>
         <source>Find action...</source>
-        <translation type="unfinished"></translation>
+        <translation>Najít akci...</translation>
     </message>
 </context>
 <context>
@@ -12959,37 +12964,37 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="41"/>
         <source>Page No.</source>
-        <translation type="unfinished"></translation>
+        <translation>Číslo Stránky.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="41"/>
         <source>Phrase</source>
-        <translation type="unfinished"></translation>
+        <translation>Věta</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="41"/>
         <source>Context</source>
-        <translation type="unfinished"></translation>
+        <translation>Kontext</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="121"/>
         <source>Search error</source>
-        <translation type="unfinished"></translation>
+        <translation>Chyba hledání</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="121"/>
         <source>Search phrase regular expression has error &apos;%1&apos; near symbol %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>Regulární výraz hledaného textu je chybný &apos;%1&apos; blízko části %2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="178"/>
         <source>Results (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>Výsledky (%1)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="178"/>
         <source>Results</source>
-        <translation type="unfinished">Výsledky</translation>
+        <translation>Výsledky</translation>
     </message>
 </context>
 <context>
@@ -12997,12 +13002,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfbookmarkui.cpp" line="190"/>
         <source>Page %1 | Generated</source>
-        <translation type="unfinished"></translation>
+        <translation>Stránka %1 | Vytvořeno automaticky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfbookmarkui.cpp" line="194"/>
         <source>Page %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Page %1</translation>
     </message>
 </context>
 <context>
@@ -13010,7 +13015,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfbookmarkmanager.cpp" line="194"/>
         <source>User bookmark for page %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Uživatelská záložka pro stránku %1</translation>
     </message>
 </context>
 <context>
@@ -13018,22 +13023,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="121"/>
         <source>ORIGINAL</source>
-        <translation type="unfinished"></translation>
+        <translation>ORIGINÁLNÍ</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="122"/>
         <source>BITONAL</source>
-        <translation type="unfinished"></translation>
+        <translation>DVOUBAREVNÝ</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="130"/>
         <source>Perform</source>
-        <translation type="unfinished"></translation>
+        <translation>Provést</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="180"/>
         <source>Converting images...</source>
-        <translation type="unfinished"></translation>
+        <translation>Konvertuji obrázky...</translation>
     </message>
 </context>
 <context>
@@ -13041,7 +13046,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="110"/>
         <source>Properties</source>
-        <translation type="unfinished"></translation>
+        <translation>Vlastnosti</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="114"/>
@@ -13051,7 +13056,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="115"/>
         <source>Title</source>
-        <translation type="unfinished"></translation>
+        <translation>Nadpis</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="116"/>
@@ -13061,7 +13066,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="117"/>
         <source>Author</source>
-        <translation type="unfinished"></translation>
+        <translation>Autor</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="118"/>
@@ -13097,7 +13102,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="393"/>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="562"/>
         <source>Yes</source>
-        <translation type="unfinished"></translation>
+        <translation>Ano</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="132"/>
@@ -13117,7 +13122,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="144"/>
         <source>Content</source>
-        <translation type="unfinished"></translation>
+        <translation>Obsah</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="146"/>
@@ -13152,7 +13157,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="187"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Jméno</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="188"/>
@@ -13167,7 +13172,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="201"/>
         <source>Size</source>
-        <translation type="unfinished"></translation>
+        <translation>Velikost</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="202"/>
@@ -13182,19 +13187,19 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="215"/>
         <source>Security</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Zabezpečení</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="222"/>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="525"/>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="542"/>
         <source>None</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Žádný</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="226"/>
         <source>Standard</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Standardní</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="230"/>
@@ -13239,22 +13244,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="268"/>
         <source>Version</source>
-        <translation type="unfinished">Verze</translation>
+        <translation>Verze</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="271"/>
         <source>Permissions</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Práva</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="277"/>
         <source>Print (low resolution)</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Tísk (nízké rozlišení)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="278"/>
         <source>Print (high resolution)</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Tisk (vysoké rozlišení)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="279"/>
@@ -13314,7 +13319,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="387"/>
         <source>Type</source>
-        <translation type="unfinished"></translation>
+        <translation>Typ</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="390"/>
@@ -13458,12 +13463,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="103"/>
         <source>Standard</source>
-        <translation type="unfinished"></translation>
+        <translation>Standardní</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="246"/>
         <source>%</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="280"/>
@@ -13473,17 +13478,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="290"/>
         <source>Advanced find</source>
-        <translation type="unfinished"></translation>
+        <translation>Pokročilé hledání</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="298"/>
         <source>Ad&amp;vanced Find...</source>
-        <translation type="unfinished"></translation>
+        <translation>Po&amp;kročilé hledání...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="435"/>
         <source> / %1</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
 </context>
 <context>
@@ -13491,32 +13496,32 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.cpp" line="46"/>
         <source>None</source>
-        <translation type="unfinished"></translation>
+        <translation>Žádný</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.cpp" line="47"/>
         <source>RC4 128-bit | R4</source>
-        <translation type="unfinished"></translation>
+        <translation>RC4 128-bitový | R4</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.cpp" line="48"/>
         <source>AES 128-bit | R4</source>
-        <translation type="unfinished"></translation>
+        <translation>AES 128-bitový | R4</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.cpp" line="49"/>
         <source>AES 256-bit | R6</source>
-        <translation type="unfinished"></translation>
+        <translation>AES 256-bitový | R6</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.cpp" line="50"/>
         <source>Certificate Encryption</source>
-        <translation type="unfinished"></translation>
+        <translation>Šifrovat certifikátem</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.cpp" line="252"/>
         <source>Error</source>
-        <translation type="unfinished">Chyba</translation>
+        <translation>Chyba</translation>
     </message>
 </context>
 <context>
@@ -13524,27 +13529,27 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionstrengthhintwidget.cpp" line="37"/>
         <source>Very weak</source>
-        <translation type="unfinished"></translation>
+        <translation>Velmi slabé</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionstrengthhintwidget.cpp" line="38"/>
         <source>Weak</source>
-        <translation type="unfinished"></translation>
+        <translation>Slabé</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionstrengthhintwidget.cpp" line="39"/>
         <source>Moderate</source>
-        <translation type="unfinished"></translation>
+        <translation>Průměrné</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionstrengthhintwidget.cpp" line="40"/>
         <source>Strong</source>
-        <translation type="unfinished"></translation>
+        <translation>Silné</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionstrengthhintwidget.cpp" line="41"/>
         <source>Very strong</source>
-        <translation type="unfinished"></translation>
+        <translation>Velmi silné</translation>
     </message>
 </context>
 <context>
@@ -13680,12 +13685,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1159"/>
         <source>Save As</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Uložit Jako</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1159"/>
         <source>Portable Document (*.pdf);;All files (*.*)</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Přenositelný Dokument (*.pdf);;Všechny soubory (*.*)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1194"/>
@@ -13727,12 +13732,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1518"/>
         <source>Encrypted document</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Zašifrovaný dokument</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1518"/>
         <source>Enter password to access document content</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Vložte heslo pro přístup k obsahu dokumentu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1917"/>
@@ -13768,7 +13773,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2345"/>
         <source>Plugins</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Přídavné moduly</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2345"/>
@@ -13779,12 +13784,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2372"/>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2444"/>
         <source>Select PDF document</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Vybrat PDF dokument</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2372"/>
         <source>PDF document (*.pdf)</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">PDF dokument (*.pdf)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2429"/>
@@ -13812,12 +13817,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfrecentfilemanager.cpp" line="82"/>
         <source>(&amp;%1) %2</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrecentfilemanager.cpp" line="88"/>
         <source>Recent file dummy &amp;%1</source>
-        <translation type="unfinished"></translation>
+        <translation>Nedávný soubor &amp;%1</translation>
     </message>
 </context>
 <context>
@@ -13826,12 +13831,13 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.cpp" line="256"/>
         <source>%1
 Page %2: %3</source>
-        <translation type="unfinished"></translation>
+        <translation>%1
+Stránka %2: %3</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.cpp" line="280"/>
         <source>Select output directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Výběr výstupního adresáře</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.cpp" line="349"/>
@@ -13841,7 +13847,7 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.cpp" line="359"/>
         <source>Error</source>
-        <translation type="unfinished">Chyba</translation>
+        <translation>Chyba</translation>
     </message>
 </context>
 <context>
@@ -14006,12 +14012,12 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="608"/>
         <source>Country</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Stát</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="609"/>
         <source>Organization</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Organizace</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="610"/>
@@ -14021,7 +14027,7 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="611"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Jméno</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="612"/>
@@ -14041,7 +14047,7 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="615"/>
         <source>Title</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Titulek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="616"/>
@@ -14071,7 +14077,7 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="621"/>
         <source>Email</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Email</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="644"/>
@@ -14131,12 +14137,12 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="752"/>
         <source>User</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Uživatelský</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="760"/>
         <source>Page %1</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Page %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="854"/>
@@ -14285,12 +14291,12 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="103"/>
         <source>Standard</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">Standardní</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="197"/>
         <source>%</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="215"/>
@@ -14300,7 +14306,7 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="347"/>
         <source> / %1</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
 </context>
 <context>
@@ -14308,22 +14314,22 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="82"/>
         <source>Engine</source>
-        <translation type="unfinished"></translation>
+        <translation>Stroj</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="83"/>
         <source>Rendering</source>
-        <translation type="unfinished"></translation>
+        <translation>Vykreslování</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="84"/>
         <source>Shading</source>
-        <translation type="unfinished"></translation>
+        <translation>Stínování</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="85"/>
         <source>Cache</source>
-        <translation type="unfinished"></translation>
+        <translation>Keš</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="86"/>
@@ -14333,237 +14339,267 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="87"/>
         <source>Colors | CMS</source>
-        <translation type="unfinished"></translation>
+        <translation>Barvy | Správce</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="88"/>
         <source>Colors | Postprocessing</source>
-        <translation type="unfinished"></translation>
+        <translation>Barvy | Postprodukce</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="89"/>
         <source>Security</source>
-        <translation type="unfinished"></translation>
+        <translation>Bezpečnost</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="90"/>
         <source>UI</source>
-        <translation type="unfinished"></translation>
+        <translation>Uživatelské rozhraní</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="91"/>
         <source>Speech</source>
-        <translation type="unfinished">Číst nahlas</translation>
+        <translation>Číst nahlas</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="92"/>
         <source>Forms</source>
-        <translation type="unfinished"></translation>
+        <translation>Formuláře</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="93"/>
         <source>Signature</source>
-        <translation type="unfinished"></translation>
+        <translation>Podepisování</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="94"/>
         <source>Plugins</source>
-        <translation type="unfinished"></translation>
+        <translation>Přídavné moduly</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="105"/>
         <source>Software | QPainter</source>
-        <translation type="unfinished"></translation>
+        <translation>Software | QPainter</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="106"/>
         <source>Software | Blend2D | Parallel</source>
-        <translation type="unfinished"></translation>
+        <translation>Software | Blend2D | Vícevláknový</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="107"/>
         <source>Software | Blend2D | Sequential</source>
-        <translation type="unfinished"></translation>
+        <translation>Software | Blend2D | Jednovláknový</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="109"/>
         <source>Single thread</source>
-        <translation type="unfinished"></translation>
+        <translation>Jednovláknový</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="110"/>
         <source>Multithreading (load balanced)</source>
-        <translation type="unfinished"></translation>
+        <translation>Vícevláknový (balancovaný)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="111"/>
         <source>Multithreading (maximum threads)</source>
-        <translation type="unfinished"></translation>
+        <translation>Vícevláknový (maximální výkon)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="120"/>
         <source>Auto</source>
-        <translation type="unfinished"></translation>
+        <translation>Automaticky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="121"/>
         <source>Perceptual</source>
-        <translation type="unfinished"></translation>
+        <translation>Percepční</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="122"/>
         <source>Relative colorimetric</source>
-        <translation type="unfinished"></translation>
+        <translation>Relativně kolorimetrický</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="123"/>
         <source>Absolute colorimetric</source>
-        <translation type="unfinished"></translation>
+        <translation>Absolutně kolorimetrický</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="124"/>
         <source>Saturation</source>
-        <translation type="unfinished"></translation>
+        <translation>Saturační</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="126"/>
         <source>Low</source>
-        <translation type="unfinished"></translation>
+        <translation>Nízká</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="127"/>
         <source>Medium</source>
-        <translation type="unfinished"></translation>
+        <translation>Střední</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="128"/>
         <source>High</source>
-        <translation type="unfinished"></translation>
+        <translation>Vysoká</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="130"/>
         <source>None</source>
-        <translation type="unfinished"></translation>
+        <translation>Žádný</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="131"/>
         <source>XYZ scaling</source>
-        <translation type="unfinished"></translation>
+        <translation>XYZ škálování</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="132"/>
         <source>CAT97 matrix</source>
-        <translation type="unfinished"></translation>
+        <translation>CAT97 matice</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="133"/>
         <source>CAT02 matrix</source>
-        <translation type="unfinished"></translation>
+        <translation>CAT02 matice</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="134"/>
         <source>Bradford method</source>
-        <translation type="unfinished"></translation>
+        <translation>Bradforda metoda</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="137"/>
         <source>Automatic (or via command line)</source>
-        <translation type="unfinished"></translation>
+        <translation>Automaticky (nebo skrz příkazovou řádku)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="138"/>
         <source>Light scheme</source>
-        <translation type="unfinished"></translation>
+        <translation>Světlé schéma</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="139"/>
         <source>Dark scheme</source>
-        <translation type="unfinished"></translation>
+        <translation>Tmavé schéma</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="654"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="142"/>
+        <source>Automatic detection</source>
+        <translation>Automatická detekce</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="143"/>
+        <source>English</source>
+        <translation>Angličtina</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="144"/>
+        <source>German</source>
+        <translation>Němčina</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="145"/>
+        <source>Korean</source>
+        <translation>Korejština</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="146"/>
+        <source>Spanish</source>
+        <translation>Španělština</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="147"/>
+        <source>Czech</source>
+        <translation>Čeština</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="667"/>
         <source>Type</source>
-        <translation type="unfinished"></translation>
+        <translation>Typ</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="654"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="667"/>
         <source>Certificate</source>
-        <translation type="unfinished"></translation>
+        <translation>Certifikát</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="654"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="667"/>
         <source>Organization</source>
-        <translation type="unfinished"></translation>
+        <translation>Organizace</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="654"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="667"/>
         <source>Valid from</source>
-        <translation type="unfinished"></translation>
+        <translation>Platný od</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="654"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="667"/>
         <source>Valid to</source>
-        <translation type="unfinished"></translation>
+        <translation>Platný do</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="662"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="675"/>
         <source>User</source>
-        <translation type="unfinished"></translation>
+        <translation>Uživatelský</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="666"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="679"/>
         <source>System</source>
-        <translation type="unfinished"></translation>
+        <translation>Systémový</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="706"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="719"/>
         <source>Action</source>
-        <translation type="unfinished"></translation>
+        <translation>Akce</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="706"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="719"/>
         <source>Shortcut</source>
-        <translation type="unfinished"></translation>
+        <translation>Zkratka</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="735"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="748"/>
         <source>Error</source>
-        <translation type="unfinished">Chyba</translation>
+        <translation>Chyba</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="735"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="748"/>
         <source>Shortcut &apos;%1&apos; is invalid for action %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>Klávesová zkratka &apos;%1&apos; není platná pro akci %2.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="758"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="771"/>
         <source>Active</source>
-        <translation type="unfinished"></translation>
+        <translation>Aktivní</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="758"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="771"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation>Jméno</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="758"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="771"/>
         <source>Author</source>
-        <translation type="unfinished"></translation>
+        <translation>Autor</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="758"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="771"/>
         <source>Version</source>
-        <translation type="unfinished">Verze</translation>
+        <translation>Verze</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="758"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="771"/>
         <source>License</source>
         <translation>Licence</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="872"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="885"/>
         <source>Select color profile directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Vybrat adresář s barevnými profily</translation>
     </message>
 </context>
 </TS>
