@@ -5,13 +5,13 @@ on:
 
 jobs:
   build_ubuntu:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libxcb-cursor0
+          sudo apt-get install -y libxcb-cursor0 libfuse2
           sudo apt-get install -y libspeechd2
           sudo apt-get install -y gnupg2 wget
           sudo apt-get install -y appstream
@@ -88,20 +88,20 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
         with:
-          version: '6.8.0'
+          version: '6.9.0'
           host: 'linux'
           target: 'desktop'
           dir: '${{ github.workspace }}/qt/'
           install-deps: 'true'
           modules: 'qtspeech qtmultimedia'
           cache: 'true'
-          cache-key-prefix: ${{ runner.os }}-qt-680
+          cache-key-prefix: ${{ runner.os }}-qt-690
 
       - name: Build Project
         working-directory: pdf4qt
         run: |
           cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_VCPKG_BUILD_TYPE=Release -DVCPKG_OVERLAY_PORTS=vcpkg/overlays -DPDF4QT_INSTALL_TO_USR=ON
-          cmake --build build -j6
+          cmake --build build --target all release_translations -j6
           cmake --install build
           
       - name: Read version

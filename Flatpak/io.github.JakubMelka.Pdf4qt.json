@@ -1,7 +1,7 @@
 {
     "app-id": "io.github.JakubMelka.Pdf4qt",
     "runtime": "org.kde.Sdk",
-    "runtime-version": "6.8",
+    "runtime-version": "6.9",
     "sdk": "org.kde.Sdk",
     "command": "Pdf4QtEditor",
     "finish-args": [
@@ -120,6 +120,10 @@
                 "-DPDF4QT_INSTALL_DEPENDENCIES=OFF",
                 "-DPDF4QT_INSTALL_TO_USR=OFF",
                 "-DCMAKE_VERBOSE_MAKEFILE=OFF"
+            ],
+            "build-commands": [
+              "ninja all",
+              "ninja release_translations"
             ],
             "sources": [
                 {
