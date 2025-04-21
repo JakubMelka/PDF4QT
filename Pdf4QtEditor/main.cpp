@@ -1,4 +1,4 @@
-//    Copyright (C) 2021-2024 Jakub Melka
+//    Copyright (C) 2021-2025 Jakub Melka
 //
 //    This file is part of PDF4QT.
 //
@@ -20,6 +20,7 @@
 #include "pdfsecurityhandler.h"
 #include "pdfwidgetutils.h"
 #include "pdfviewersettings.h"
+#include "pdfapplicationtranslator.h"
 
 #include <QSettings>
 #include <QApplication>
@@ -59,6 +60,10 @@ int main(int argc, char *argv[])
     {
         pdf::PDFSecurityHandler::setNoDRMMode();
     }
+
+    pdf::PDFApplicationTranslator translator;
+    translator.loadSettings();
+    translator.installTranslator();
 
     bool isLightGui = false;
     bool isDarkGui = false;

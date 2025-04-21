@@ -20,6 +20,7 @@
 #include "pdfsecurityhandler.h"
 #include "pdfwidgetutils.h"
 #include "pdfviewersettings.h"
+#include "pdfapplicationtranslator.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
@@ -52,6 +53,10 @@ int main(int argc, char *argv[])
     {
         pdf::PDFSecurityHandler::setNoDRMMode();
     }
+
+    pdf::PDFApplicationTranslator translator;
+    translator.loadSettings();
+    translator.installTranslator();
 
     bool isLightGui = false;
     bool isDarkGui = false;

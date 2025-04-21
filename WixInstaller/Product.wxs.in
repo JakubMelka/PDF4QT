@@ -207,6 +207,27 @@
       <Component Id="cmpasmjit" Directory="INSTALLFOLDER" Guid="{E0C3FFC2-930D-4DD3-817F-C96ECDC49A40}">
         <File Id="filasmjit" KeyPath="yes" Source="$(var.MyInstallDir)\asmjit.dll" />
       </Component>
+
+      <Component Id="cmptransen" Directory="dir_translations" Guid="{9A96085A-079F-4DD6-B41E-8F854911D3D2}">
+        <File Id="filtransen" KeyPath="yes" Source="$(var.MyInstallDir)\translations\PDF4QT_en.qm" />
+      </Component>
+
+      <Component Id="cmptransde" Directory="dir_translations" Guid="{B39F38CF-B6C0-47C3-8684-7B154654F435}">
+        <File Id="filtransde" KeyPath="yes" Source="$(var.MyInstallDir)\translations\PDF4QT_de.qm" />
+      </Component>
+
+      <Component Id="cmptranscs" Directory="dir_translations" Guid="{CE00279C-8F80-4365-A368-10C2BD569795}">
+        <File Id="filtranscs" KeyPath="yes" Source="$(var.MyInstallDir)\translations\PDF4QT_cs.qm" />
+      </Component>
+
+      <Component Id="cmptranses" Directory="dir_translations" Guid="{8857D5F3-D960-4E33-95CF-8F13C300D0E6}">
+        <File Id="filtranses" KeyPath="yes" Source="$(var.MyInstallDir)\translations\PDF4QT_es.qm" />
+      </Component>
+
+      <Component Id="cmptransko" Directory="dir_translations" Guid="{B959062A-9893-4891-A862-69DFA83E36FA}">
+        <File Id="filtransko" KeyPath="yes" Source="$(var.MyInstallDir)\translations\PDF4QT_ko.qm" />
+      </Component>
+
     </ComponentGroup>
   </Fragment>
 
@@ -344,6 +365,12 @@
   <Fragment>
     <DirectoryRef Id="INSTALLFOLDER">
       <Directory Id="dir_platforms" Name="platforms" />
+    </DirectoryRef>
+  </Fragment>
+
+  <Fragment>
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Directory Id="dir_translations" Name="translations" />
     </DirectoryRef>
   </Fragment>
 </Wix>

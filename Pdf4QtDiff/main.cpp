@@ -18,6 +18,7 @@
 #include "pdfconstants.h"
 #include "pdfdocumentreader.h"
 #include "pdfsecurityhandler.h"
+#include "pdfapplicationtranslator.h"
 #include "mainwindow.h"
 
 #include <QApplication>
@@ -48,6 +49,9 @@ int main(int argc, char *argv[])
     {
         pdf::PDFSecurityHandler::setNoDRMMode();
     }
+
+    pdf::PDFApplicationTranslator translator;
+    translator.installTranslator();
 
     QIcon appIcon(":/app-icon.svg");
     QApplication::setWindowIcon(appIcon);

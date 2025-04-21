@@ -18,6 +18,7 @@
 #include "pdfconstants.h"
 #include "pdfsecurityhandler.h"
 #include "pdfwidgetutils.h"
+#include "pdfapplicationtranslator.h"
 #include "mainwindow.h"
 
 #include <QApplication>
@@ -53,6 +54,9 @@ int main(int argc, char *argv[])
     }
 
     pdf::PDFWidgetUtils::setDarkTheme(parser.isSet(lightGui), parser.isSet(darkGui));
+
+    pdf::PDFApplicationTranslator translator;
+    translator.installTranslator();
 
     QIcon appIcon(":/app-icon.svg");
     QApplication::setWindowIcon(appIcon);

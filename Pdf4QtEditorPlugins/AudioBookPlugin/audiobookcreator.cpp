@@ -17,6 +17,8 @@
 
 #include "audiobookcreator.h"
 
+#include <QTextStream>
+
 #ifdef Q_OS_WIN
 #include <windows.h>
 #include <sapi.h>

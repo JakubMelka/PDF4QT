@@ -116,7 +116,7 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
         with:
-          version: '6.8.0'
+          version: '6.9.0'
           host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2022_64'
@@ -124,7 +124,7 @@ jobs:
           install-deps: 'true'
           modules: 'qtspeech qtmultimedia qtimageformats'
           cache: 'true'
-          cache-key-prefix: ${{ runner.os }}-qt-680
+          cache-key-prefix: ${{ runner.os }}-qt-690
           
 
       - name: Find VC Redistributable Directories
@@ -156,8 +156,9 @@ jobs:
         shell: pwsh
         run: |
           cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_VCPKG_BUILD_TYPE=Release -DPDF4QT_INSTALL_QT_DEPENDENCIES=ON -DPDF4QT_INSTALL_DEPENDENCIES=ON -DCMAKE_TOOLCHAIN_FILE="${env:GITHUB_WORKSPACE}\vcpkg\scripts\buildsystems\vcpkg.cmake" -DPDF4QT_QT_ROOT="${env:Qt6_DIR}" -DPDF4QT_INSTALL_MSVC_REDISTRIBUTABLE=ON -DPDF4QT_INSTALL_PREPARE_WIX_INSTALLER=ON -DPDF4QT_INSTALL_TO_USR=ON 
+          cmake --build build --target release_translations --config Release -j6
           cmake --build build --config Release -j6
-          cmake --install build
+          cmake --install build --config Release
         env:
           VCToolsRedistDir: ${{ env.VCToolsRedistDir }}
           VSCMD_ARG_TGT_ARCH: ${{ env.VSCMD_ARG_TGT_ARCH }}

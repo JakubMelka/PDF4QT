@@ -138,6 +138,14 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     ui->colorSchemeCombo->addItem(tr("Light scheme"), static_cast<int>(PDFViewerSettings::LightScheme));
     ui->colorSchemeCombo->addItem(tr("Dark scheme"), static_cast<int>(PDFViewerSettings::DarkScheme));
 
+    // Langauges
+    ui->languageCombo->addItem(tr("Automatic detection"), static_cast<int>(pdf::PDFApplicationTranslator::E_LANGUAGE_AUTOMATIC_SELECTION));
+    ui->languageCombo->addItem(tr("English"), static_cast<int>(pdf::PDFApplicationTranslator::E_LANGUAGE_ENGLISH));
+    ui->languageCombo->addItem(tr("German"), static_cast<int>(pdf::PDFApplicationTranslator::E_LANGUAGE_GERMAN));
+    ui->languageCombo->addItem(tr("Korean"), static_cast<int>(pdf::PDFApplicationTranslator::E_LANGUAGE_KOREAN));
+    ui->languageCombo->addItem(tr("Spanish"), static_cast<int>(pdf::PDFApplicationTranslator::E_LANGUAGE_SPANISH));
+    ui->languageCombo->addItem(tr("Czech"), static_cast<int>(pdf::PDFApplicationTranslator::E_LANGUAGE_CZECH));
+
     auto fillColorProfileList = [](QComboBox* comboBox, const pdf::PDFColorProfileIdentifiers& identifiers)
     {
         for (const pdf::PDFColorProfileIdentifier& identifier : identifiers)
@@ -311,6 +319,7 @@ void PDFViewerSettingsDialog::loadData()
     ui->developerModeCheckBox->setChecked(m_settings.m_allowDeveloperMode);
     ui->logicalPixelZoomCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::LogicalSizeZooming));
     ui->colorSchemeCombo->setCurrentIndex(ui->colorSchemeCombo->findData(static_cast<int>(m_settings.m_colorScheme)));
+    ui->languageCombo->setCurrentIndex(ui->languageCombo->findData(static_cast<int>(m_settings.m_language)));
 
     // CMS
     ui->cmsTypeComboBox->setCurrentIndex(ui->cmsTypeComboBox->findData(int(m_cmsSettings.system)));
@@ -402,7 +411,11 @@ void PDFViewerSettingsDialog::saveData()
 
     QObject* sender = this->sender();
 
-    if (sender == ui->colorSchemeCombo)
+    if (sender == ui->languageCombo)
+    {
+        m_settings.m_language = static_cast<pdf::PDFApplicationTranslator::ELanguage>(ui->languageCombo->currentData().toInt());
+    }
+    else if (sender == ui->colorSchemeCombo)
     {
         m_settings.m_colorScheme = static_cast<PDFViewerSettings::ColorScheme>(ui->colorSchemeCombo->currentData().toInt());
     }

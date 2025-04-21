@@ -46,13 +46,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(GNUInstallDirs)
 
+find_package(Qt6 REQUIRED COMPONENTS Core LinguistTools)
+
 if(PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     find_package(Qt6 REQUIRED COMPONENTS Core Gui Svg Xml)
 else()
     find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg Xml PrintSupport TextToSpeech Test)
 endif()
 
-qt_standard_project_setup()
+qt_standard_project_setup(I18N_TRANSLATED_LANGUAGES en de cs es ko)
 
 find_package(OpenSSL REQUIRED)
 find_package(lcms2 REQUIRED)
@@ -140,12 +142,33 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_subdirectory(WixInstaller)
 endif()
 
+qt_collect_translation_source_targets(i18n_targets)
+message("CMAKE_TRANSLATION_TARGETS = " ${i18n_targets})
+
+set(PDF4QT_TRANSLATION_TS_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/translations)
+set(PDF4QT_TRANSLATION_QM_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/translations)
+
+message("PDF4QT_TRANSLATION_TS_OUTPUT_DIRECTORY" ${PDF4QT_TRANSLATION_TS_OUTPUT_DIRECTORY})
+message("PDF4QT_TRANSLATION_QM_OUTPUT_DIRECTORY" ${PDF4QT_TRANSLATION_QM_OUTPUT_DIRECTORY})
+
+qt_add_translations(TARGETS Pdf4QtEditor Pdf4QtViewer Pdf4QtPageMaster Pdf4QtDiff PdfTool
+                    SOURCE_TARGETS ${i18n_targets}
+                    MERGE_QT_TRANSLATIONS
+                    TS_OUTPUT_DIRECTORY ${PDF4QT_TRANSLATION_TS_OUTPUT_DIRECTORY}
+                    QM_OUTPUT_DIRECTORY ${PDF4QT_TRANSLATION_QM_OUTPUT_DIRECTORY}
+                    QM_FILES_OUTPUT_VARIABLE pdf4qt_qm_files)
+
 message("CMAKE_PREFIX_PATH = " ${CMAKE_PREFIX_PATH})
 message("CMAKE_TOOLCHAIN_FILE = " ${CMAKE_TOOLCHAIN_FILE})
 
 configure_file(version.txt.in version.txt)
 
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    install(DIRECTORY ${PDF4QT_TRANSLATION_QM_OUTPUT_DIRECTORY}
+            RUNTIME DESTINATION ${PDF4QT_INSTALL_BIN_DIR}
+            FILES_MATCHING
+            PATTERN *.qm)
+
     if(WIN32)
         install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/Desktop/44x44/
                 RUNTIME DESTINATION ${PDF4QT_INSTALL_BIN_DIR}/assets/44x44
