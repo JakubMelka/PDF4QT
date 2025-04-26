@@ -205,7 +205,7 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="53"/>
         <source>Remove</source>
-        <translation type="unfinished"></translation>
+        <translation type="删除"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="60"/>
@@ -310,7 +310,7 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="276"/>
         <source>Save As...</source>
-        <translation type="unfinished"></translation>
+        <translation type="另存为"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="281"/>
@@ -422,27 +422,27 @@
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.ui" line="14"/>
         <source>Launch Application</source>
-        <translation type="unfinished"></translation>
+        <translation type="启动程序"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="55"/>
         <source>Editor</source>
-        <translation type="unfinished"></translation>
+        <translation type="编辑器"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="56"/>
         <source>Viewer</source>
-        <translation type="unfinished"></translation>
+        <translation type="阅读器"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="57"/>
         <source>Diff</source>
-        <translation type="unfinished"></translation>
+        <translation type="文件对比"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="58"/>
         <source>PageMaster</source>
-        <translation type="unfinished"></translation>
+        <translation type="页面管理"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="60"/>
