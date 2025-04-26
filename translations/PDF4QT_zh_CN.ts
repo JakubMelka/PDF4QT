@@ -6,27 +6,27 @@
     <message>
         <location filename="../Pdf4QtEditor/main.cpp" line="43"/>
         <source>PDF4QT Editor</source>
-        <translation type="unfinished"></translation>
+        <translation type="PDF4QT编辑器"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtViewer/main.cpp" line="36"/>
         <source>PDF4QT Viewer</source>
-        <translation type="unfinished"></translation>
+        <translation type="PDF4QT阅读器"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/main.cpp" line="35"/>
         <source>PDF4QT PageMaster</source>
-        <translation type="unfinished"></translation>
+        <translation type="PDF4QT页面管理"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/main.cpp" line="35"/>
         <source>PDF4QT Diff</source>
-        <translation type="unfinished"></translation>
+        <translation type="PDF4QT文件对比"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/main.cpp" line="29"/>
         <source>PDF4QT LaunchPad</source>
-        <translation type="unfinished"></translation>
+        <translation type="PDF4QT启动器"></translation>
     </message>
 </context>
 <context>
