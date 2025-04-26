@@ -45,7 +45,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="36"/>
         <source>File template</source>
-        <translation type="unfinished"></translation>
+        <translation type="文件模板"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="43"/>
