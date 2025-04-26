@@ -14488,7 +14488,7 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="142"/>
         <source>Automatic detection</source>
-        <translation type="unfinished"></translation>
+        <translation type="跟随糸统"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="143"/>
@@ -14558,7 +14558,7 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="719"/>
         <source>Shortcut</source>
-        <translation type="unfinished"></translation>
+        <translation type="快捷键"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="748"/>
@@ -14568,7 +14568,7 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="748"/>
         <source>Shortcut &apos;%1&apos; is invalid for action %2.</source>
-        <translation type="unfinished"></translation>
+        <translation type="快捷键 &apos;%1&apos; 对动作%2无效."></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="771"/>
@@ -14588,12 +14588,12 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="771"/>
         <source>Version</source>
-        <translation type="unfinished"></translation>
+        <translation type="版本"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="771"/>
         <source>License</source>
-        <translation type="unfinished"></translation>
+        <translation type="许可证"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="885"/>
