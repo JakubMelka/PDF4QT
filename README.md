@@ -29,11 +29,13 @@ Project (www.freetype.org). All rights reserved.
 
 ## 2. LEGAL ISSUES
 
-Both library and viewer uses more benevolent LGPL license, so it is more
-usable in commercial software, than GPL code only. Please see attached
-file - LICENSE.txt to see details. This software also uses several
-third party software, and user of this software must also respect licenses
-of third party libraries.
+This software was originally licensed under the GNU Lesser General Public License version 3 (LGPLv3).
+As of April 27, 2025, the project has been relicensed under the MIT License by the original author.
+The change to the MIT License was made to provide greater freedom and flexibility for both open-source and commercial use, reduce legal complexity, and encourage broader adoption and contribution.
+
+Please see the attached LICENSE.txt file for details.
+
+This software also uses several third-party libraries, and users must comply with the licenses of those third-party components.
 
 ## 3. FEATURES
 
@@ -58,10 +60,6 @@ Software have following features (the list is not complete):
 - [x] static XFA support (readonly, simple XFA only)
 - [x] electronically/digitally sign documents
 - [x] public key security encryption
-- [ ] 3D PDF support *(planned in year 2024)*
-- [ ] create fillable forms *(planned in year 2024)*
-- [ ] watermarks / headers / footers *(planned in year 2024)*
-- [ ] presentation application *(planned in year 2024)*
 
 ## 4. THIRD PARTY LIBRARIES
 
@@ -74,15 +72,16 @@ Several third-party libraries are used.
 5. OpenSSL, https://www.openssl.org/, Apache 2.0 license
 6. LittleCMS, http://www.littlecms.com/
 7. zlib, https://zlib.net/
+8. Blend2D, https://blend2d.com/
 
 ## 5. CONTRIBUTIONS
 
-If you want to contribute to this project, it is required, that you (contributor)
-fill and digitally sign document [Contributor License Agreement](CLA/Contributor_License_Agreement.pdf),
-because I want to have a freedom to do whatever I want with my library, without obligation
-to someone else. But I would strongly prefer, if you want to contribute, to contribute
-in a form of testing, consultation, giving advices etc. I would like to write this library
-entirely by myself.
+Contributions are welcome!
+
+Since the project is now licensed under the MIT License, contributions can be freely submitted without the need to sign a Contributor License Agreement (CLA).
+However, all contributions must be made under the terms of the MIT License to ensure license consistency across the project.
+
+You are encouraged to contribute by testing, offering feedback, providing advice, or submitting code improvements.
 
 ## 6. INSTALLING
 
