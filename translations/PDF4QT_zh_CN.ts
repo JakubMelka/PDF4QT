@@ -96,12 +96,12 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="26"/>
         <source>Output file name</source>
-        <translation type="unfinished"></translation>
+        <translation type="输出文件名"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="36"/>
         <source>...</source>
-        <translation type="unfinished"></translation>
+        <translation type="..."></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="46"/>
@@ -139,7 +139,7 @@
     <message>
         <location filename="../Pdf4QtDiff/differencesdockwidget.ui" line="14"/>
         <source>Differences</source>
-        <translation type="unfinished"></translation>
+        <translation type="差异"></translation>
     </message>
 </context>
 <context>
@@ -220,12 +220,12 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="80"/>
         <source>Parameters</source>
-        <translation type="unfinished"></translation>
+        <translation type="参数"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="86"/>
         <source>Data type</source>
-        <translation type="unfinished"></translation>
+        <translation type="数据类型"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="112"/>
@@ -250,7 +250,7 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="181"/>
         <source>Delete</source>
-        <translation type="unfinished"></translation>
+        <translation type="删除"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="188"/>
@@ -275,7 +275,7 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="230"/>
         <source>File</source>
-        <translation type="unfinished"></translation>
+        <translation type="文件"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="238"/>
@@ -290,22 +290,22 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="260"/>
         <source>Load</source>
-        <translation type="unfinished"></translation>
+        <translation type="载入"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="263"/>
         <source>Ctrl+O</source>
-        <translation type="unfinished"></translation>
+        <translation type="Ctrl+O"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="268"/>
         <source>Save</source>
-        <translation type="unfinished"></translation>
+        <translation type="保存"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="271"/>
         <source>Ctrl+S</source>
-        <translation type="unfinished"></translation>
+        <translation type="Ctrl+S"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="276"/>
@@ -330,7 +330,7 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="294"/>
         <source>Ctrl+G</source>
-        <translation type="unfinished"></translation>
+        <translation type="Ctrl+G"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="299"/>
@@ -409,7 +409,7 @@
     <message>
         <location filename="../Pdf4QtLaunchPad/launchapplicationwidget.ui" line="59"/>
         <source>Title</source>
-        <translation type="unfinished"></translation>
+        <translation type="标题"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchapplicationwidget.ui" line="66"/>
