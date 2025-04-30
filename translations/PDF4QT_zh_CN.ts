@@ -65,12 +65,12 @@
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="67"/>
         <source>Generate into directory</source>
-        <translation type="unfinished"></translation>
+        <translation type="生成到目录"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="74"/>
         <source>Outline Mode</source>
-        <translation type="unfinished"></translation>
+        <translation type="大纲模式"></translation>
     </message>
 </context>
 <context>
