@@ -535,36 +535,36 @@
         <location filename="../JBIG2_Viewer/mainwindow.cpp" line="44"/>
         <location filename="../JBIG2_Viewer/mainwindow.cpp" line="81"/>
         <source>Open image</source>
-        <translation type="unfinished"></translation>
+        <translation type="打开图像"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="17"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="14"/>
         <source>Workspace</source>
-        <translation type="unfinished"></translation>
+        <translation type="工作区"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="62"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="34"/>
         <source>&amp;File</source>
-        <translation type="unfinished"></translation>
+        <translation type="&amp;文件"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="70"/>
         <source>&amp;Edit</source>
-        <translation type="unfinished"></translation>
+        <translation type="&amp;编辑"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="92"/>
         <source>&amp;Insert</source>
-        <translation type="unfinished"></translation>
+        <translation type="&amp;插入"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="100"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="63"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="67"/>
         <source>&amp;View</source>
-        <translation type="unfinished"></translation>
+        <translation type="&amp;视图"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="115"/>
@@ -575,38 +575,38 @@
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="123"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="42"/>
         <source>&amp;Help</source>
-        <translation type="unfinished"></translation>
+        <translation type="&amp;帮助"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="132"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="50"/>
         <source>&amp;Toolbars</source>
-        <translation type="unfinished"></translation>
+        <translation type="&amp;工具栏"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="137"/>
         <source>&amp;Regroup</source>
-        <translation type="unfinished"></translation>
+        <translation type="&amp;重组"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="162"/>
         <source>&amp;Add Documents...</source>
-        <translation type="unfinished"></translation>
+        <translation type="&amp;增加文档"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="165"/>
         <source>Add Documents</source>
-        <translation type="unfinished"></translation>
+        <translation type="增加文档"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="177"/>
         <source>C&amp;lose</source>
-        <translation type="unfinished"></translation>
+        <translation type="&amp;丢弃"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="180"/>
         <source>Alt+F4</source>
-        <translation type="unfinished"></translation>
+        <translation type="Alt+F4"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="189"/>
