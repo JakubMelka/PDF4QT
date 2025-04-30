@@ -40,7 +40,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="26"/>
         <source>...</source>
-        <translation type="unfinished"></translation>
+        <translation type="..."></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="36"/>
@@ -55,7 +55,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="53"/>
         <source>Overwrite existing files</source>
-        <translation type="unfinished"></translation>
+        <translation type="覆盖已存在文件"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="60"/>
@@ -78,7 +78,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiotextstreameditordockwidget.ui" line="14"/>
         <source>Text Stream for Audio Book</source>
-        <translation type="unfinished"></translation>
+        <translation type="有声读物文本流"></translation>
     </message>
 </context>
 <context>
@@ -86,12 +86,12 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="14"/>
         <source>Create Redacted Document</source>
-        <translation type="unfinished"></translation>
+        <translation type="创建可编辑文档"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="20"/>
         <source>Redacted document</source>
-        <translation type="unfinished"></translation>
+        <translation type="可编辑文档"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="26"/>
@@ -106,32 +106,32 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="46"/>
         <source>Appearance</source>
-        <translation type="unfinished"></translation>
+        <translation type="外观"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="52"/>
         <source>Fill redacted area with color:</source>
-        <translation type="unfinished"></translation>
+        <translation type="用颜色填充可编辑区域"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="68"/>
         <source>Options</source>
-        <translation type="unfinished"></translation>
+        <translation type="选项"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="74"/>
         <source>Copy document title into redacted document</source>
-        <translation type="unfinished"></translation>
+        <translation type="复制文件标题到可编辑文档"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="84"/>
         <source>Copy document metadata into redacted document</source>
-        <translation type="unfinished"></translation>
+        <translation type="复制文档元数据到可编辑文档"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="94"/>
         <source>Copy outline into redacted document</source>
-        <translation type="unfinished"></translation>
+        <translation type="复制大纲到可编辑文档"></translation>
     </message>
 </context>
 <context>
@@ -157,12 +157,12 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="285"/>
         <source>mm</source>
-        <translation type="unfinished"></translation>
+        <translation type="毫米"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="286"/>
         <source>cm</source>
-        <translation type="unfinished"></translation>
+        <translation type="厘米"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="295"/>
