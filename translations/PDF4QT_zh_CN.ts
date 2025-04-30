@@ -192,7 +192,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="308"/>
         <source>rad</source>
-        <translation type="unfinished"></translation>
+        <translation type="弧度"></translation>
     </message>
 </context>
 <context>
@@ -210,12 +210,12 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="60"/>
         <source>Clone</source>
-        <translation type="unfinished"></translation>
+        <translation type="克隆"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="67"/>
         <source>New</source>
-        <translation type="unfinished"></translation>
+        <translation type="新建"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="80"/>
@@ -230,22 +230,22 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="112"/>
         <source>Value</source>
-        <translation type="unfinished"></translation>
+        <translation type="值"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="119"/>
         <source>Item type</source>
-        <translation type="unfinished"></translation>
+        <translation type="条目类别"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="126"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation type="名称"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="133"/>
         <source>Text description / C++ code</source>
-        <translation type="unfinished"></translation>
+        <translation type="文本类型 / C++代码"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="181"/>
@@ -255,22 +255,22 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="188"/>
         <source>Up</source>
-        <translation type="unfinished"></translation>
+        <translation type="上"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="195"/>
         <source>Down</source>
-        <translation type="unfinished"></translation>
+        <translation type="下"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="202"/>
         <source>New Child</source>
-        <translation type="unfinished"></translation>
+        <translation type="新子结点"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="209"/>
         <source>New Sibling</source>
-        <translation type="unfinished"></translation>
+        <translation type="新兄弟结点"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="230"/>
@@ -280,7 +280,7 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="238"/>
         <source>Code</source>
-        <translation type="unfinished"></translation>
+        <translation type="代码"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="246"/>
@@ -315,17 +315,17 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="281"/>
         <source>Set code header (*.h)</source>
-        <translation type="unfinished"></translation>
+        <translation type="设置代码头文件(*.h)"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="286"/>
         <source>Set code source (*.cpp)</source>
-        <translation type="unfinished"></translation>
+        <translation type="设置代码源文件(*.cpp)"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="291"/>
         <source>Generate code</source>
-        <translation type="unfinished"></translation>
+        <translation type="生成代码"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="294"/>
@@ -335,55 +335,55 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="299"/>
         <source>Set code header XFA</source>
-        <translation type="unfinished"></translation>
+        <translation type="设置代码头文件XFA"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="304"/>
         <source>Set code source XFA</source>
-        <translation type="unfinished"></translation>
+        <translation type="设置源码XFA"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="309"/>
         <source>Generate XFA code</source>
-        <translation type="unfinished"></translation>
+        <translation type="生成XFA代码"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="314"/>
         <source>Set XFA description</source>
-        <translation type="unfinished"></translation>
+        <translation type="设置XFA类型"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="389"/>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="402"/>
         <source>Select XML definition file</source>
-        <translation type="unfinished"></translation>
+        <translation type="选择XML定义文件"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="423"/>
         <source>Create function</source>
-        <translation type="unfinished"></translation>
+        <translation type="创建函数"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="423"/>
         <source>Enter function name</source>
-        <translation type="unfinished"></translation>
+        <translation type="输入函数名"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="505"/>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="533"/>
         <source>Select cpp header</source>
-        <translation type="unfinished"></translation>
+        <translation type="选择cpp头文件"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="515"/>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="543"/>
         <source>Select cpp source</source>
-        <translation type="unfinished"></translation>
+        <translation type="选择cpp源码"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="553"/>
         <source>Select xml definition</source>
-        <translation type="unfinished"></translation>
+        <translation type="选择XML定义"></translation>
     </message>
 </context>
 <context>
@@ -391,12 +391,12 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/inkcoveragedialog.ui" line="14"/>
         <source>Ink Coverage Calculator</source>
-        <translation type="unfinished"></translation>
+        <translation type="油墨覆盖率计算器"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/inkcoveragedialog.ui" line="20"/>
         <source>Ink Coverage</source>
-        <translation type="unfinished"></translation>
+        <translation type="油墨覆盖率"></translation>
     </message>
 </context>
 <context>
@@ -414,7 +414,7 @@
     <message>
         <location filename="../Pdf4QtLaunchPad/launchapplicationwidget.ui" line="66"/>
         <source>TextLabel</source>
-        <translation type="unfinished"></translation>
+        <translation type="文本标签"></translation>
     </message>
 </context>
 <context>
