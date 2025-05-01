@@ -285,7 +285,7 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="246"/>
         <source>XFA</source>
-        <translation type="unfinished"></translation>
+        <translation type="XFA"></translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="260"/>
@@ -447,22 +447,22 @@
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="60"/>
         <source>Go beyond basic browsing. This tool packs a punch with a host of advanced features, including encryption, document reading, digital signature verification, annotation editing, and even support for searching text using regular expressions. Turn pages into images, and enhance your PDF interactions with multiple available plugins.</source>
-        <translation type="unfinished"></translation>
+        <translation type="超越基本浏览。该工具拥有大量高级功能，包括加密、文档阅读、数字签名验证、注释编辑，甚至支持使用正则表达式搜索文本。将页面转化为图像，并利用多个可用插件增强 PDF 交互。"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="61"/>
         <source>Simplify your viewing experience. This lightweight viewer offers essential viewing functions in a clean, user-friendly interface.</source>
-        <translation type="unfinished"></translation>
+        <translation type="简化观看体验。这款轻巧的查看器以简洁、用户友好的界面提供基本的查看功能。"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="62"/>
         <source>Spot differences effortlessly. This tool allows users to open two documents and receive a detailed list of differences. View these differences in a page-to-page window where they are clearly marked. Save these differences into an XML file for future reference.</source>
-        <translation type="unfinished"></translation>
+        <translation type="轻松发现差异。该工具允许用户打开两个文档，并获得详细的差异列表。在页与页之间的窗口中查看这些差异，这些差异都有清晰的标记。将这些差异保存到 XML 文件中，以备将来参考。"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="63"/>
         <source>Take control of your documents. Manage whole documents or individual pages with ease. Merge documents into a single file, or split them into multiple ones. You can also move, clone, or add pages with a few clicks, all within an intuitive user interface.</source>
-        <translation type="unfinished"></translation>
+        <translation type="掌控您的文档。轻松管理整个文档或单个页面。将文档合并为一个文件，或分割为多个文件。您还可以移动、克隆或添加页面，只需点击几下，一切尽在直观的用户界面。"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="111"/>
