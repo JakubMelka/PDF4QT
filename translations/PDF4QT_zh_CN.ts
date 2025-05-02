@@ -467,12 +467,12 @@
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="111"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation type="错误"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="111"/>
         <source>Failed to start process &apos;%1&apos;</source>
-        <translation type="unfinished"></translation>
+        <translation type="启动进程 &apos;%1&apos;失败"></translation>
     </message>
 </context>
 <context>
@@ -480,56 +480,56 @@
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="14"/>
         <source>JBIG2 Image Viewer</source>
-        <translation type="unfinished"></translation>
+        <translation type="JBIG2图像查看器"></translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="36"/>
         <source>Images</source>
-        <translation type="unfinished"></translation>
+        <translation type="图像"></translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="74"/>
         <source>File</source>
-        <translation type="unfinished"></translation>
+        <translation type="文件"></translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="85"/>
         <source>Add image</source>
-        <translation type="unfinished"></translation>
+        <translation type="增加图像"></translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="88"/>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="168"/>
         <source>Ctrl+O</source>
-        <translation type="unfinished"></translation>
+        <translation type="Ctrl+O"></translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="93"/>
         <source>Clear</source>
-        <translation type="unfinished"></translation>
+        <translation type="清空"></translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="96"/>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="516"/>
         <source>Ctrl+W</source>
-        <translation type="unfinished"></translation>
+        <translation type="Ctrl+W"></translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="101"/>
         <source>Add JBIG2 image</source>
-        <translation type="unfinished"></translation>
+        <translation type="增加JBIG2图像"></translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="104"/>
         <source>Ctrl+J</source>
-        <translation type="unfinished"></translation>
+        <translation type="Ctrl+J"></translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.cpp" line="39"/>
         <location filename="../JBIG2_Viewer/mainwindow.cpp" line="111"/>
         <location filename="../JBIG2_Viewer/mainwindow.cpp" line="120"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation type="错误"></translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.cpp" line="44"/>
@@ -569,7 +569,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="115"/>
         <source>&amp;Make</source>
-        <translation type="unfinished"></translation>
+        <translation type="制作"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="123"/>
@@ -611,77 +611,77 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="189"/>
         <source>Clone &amp;Selection</source>
-        <translation type="unfinished"></translation>
+        <translation type="克隆选择的&amp;"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="192"/>
         <source>Ctrl+L</source>
-        <translation type="unfinished"></translation>
+        <translation type="Ctrl+L"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="201"/>
-        <source>Re&amp;move Selection</source>
-        <translation type="unfinished"></translation>
+        <source>Remove &amp; Selection</source>
+        <translation type="删除选择的&amp"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="204"/>
         <source>Del</source>
-        <translation type="unfinished"></translation>
+        <translation type="删除"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="213"/>
         <source>Restore Removed &amp;Items</source>
-        <translation type="unfinished"></translation>
+        <translation type="恢复删除的&amp;条目"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="216"/>
         <source>Ctrl+Shift+R</source>
-        <translation type="unfinished"></translation>
+        <translation type="Ctrl+Shift+R"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="225"/>
         <source>Insert &amp;PDF</source>
-        <translation type="unfinished"></translation>
+        <translation type="插入&amp;PDF"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="228"/>
         <source>Insert PDF</source>
-        <translation type="unfinished"></translation>
+        <translation type="插入PDF"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="231"/>
         <source>Ctrl+I</source>
-        <translation type="unfinished"></translation>
+        <translation type="Ctrl+I"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="240"/>
         <source>&amp;Insert Image</source>
-        <translation type="unfinished"></translation>
+        <translation type="&amp;插入图像"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="243"/>
         <source>Ctrl+Alt+I</source>
-        <translation type="unfinished"></translation>
+        <translation type="Ctrl+Alt+I"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="252"/>
         <source>Insert &amp;Empty Page</source>
-        <translation type="unfinished"></translation>
+        <translation type="插入 &amp;空白页"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="255"/>
         <source>Ctrl+Shift+I</source>
-        <translation type="unfinished"></translation>
+        <translation type="Ctrl+Shift+I"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="264"/>
         <source>Cu&amp;t</source>
-        <translation type="unfinished"></translation>
+        <translation type="剪切"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="267"/>
         <source>Ctrl+X</source>
-        <translation type="unfinished"></translation>
+        <translation type="Ctrl+X"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="276"/>
