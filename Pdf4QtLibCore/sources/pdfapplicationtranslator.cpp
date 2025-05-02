@@ -75,6 +75,7 @@ void PDFApplicationTranslator::installTranslator()
         case E_LANGUAGE_GERMAN:
         case E_LANGUAGE_KOREAN:
         case E_LANGUAGE_SPANISH:
+        case E_LANGUAGE_CHINESE
         {
             QString languageFileName = getLanguageFileName();
 
@@ -182,6 +183,9 @@ QString PDFApplicationTranslator::getLanguageFileName() const
             return QLatin1String("PDF4QT_es.qm");
         case E_LANGUAGE_SPANISH:
             return QLatin1String("PDF4QT_ko.qm");
+            break;
+        case E_LANGUAGE_SPANISH:
+            return QLatin1String("PDF4QT_zh_CN.qm");
             break;
 
         default:
