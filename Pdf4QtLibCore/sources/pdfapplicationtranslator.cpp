@@ -184,7 +184,7 @@ QString PDFApplicationTranslator::getLanguageFileName() const
         case E_LANGUAGE_SPANISH:
             return QLatin1String("PDF4QT_ko.qm");
             break;
-        case E_LANGUAGE_SPANISH:
+        case E_LANGUAGE_CHINESE:
             return QLatin1String("PDF4QT_zh_CN.qm");
             break;
 
