@@ -75,7 +75,7 @@ void PDFApplicationTranslator::installTranslator()
         case E_LANGUAGE_GERMAN:
         case E_LANGUAGE_KOREAN:
         case E_LANGUAGE_SPANISH:
-        case E_LANGUAGE_CHINESE
+        case E_LANGUAGE_CHINESE:
         {
             QString languageFileName = getLanguageFileName();
 
