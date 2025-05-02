@@ -39,10 +39,9 @@ class PDF4QTLIBCORESHARED_EXPORT PDFDocumentWriter
     Q_DECLARE_TR_FUNCTIONS(pdf::PDFDocumentWriter)
 
 public:
-    explicit inline PDFDocumentWriter(PDFProgress* progress) :
-        m_progress(progress)
+    explicit inline PDFDocumentWriter(PDFProgress* progress)
     {
-
+        Q_UNUSED(progress);
     }
 
     /// Writes document to the file. If \p safeWrite is true, then document is first
@@ -81,9 +80,6 @@ private:
     static void writeCRLF(QIODevice* device);
     static void writeObjectHeader(QIODevice* device, PDFObjectReference reference);
     static void writeObjectFooter(QIODevice* device);
-
-    /// Progress indicator
-    PDFProgress* m_progress;
 };
 
 }   // namespace pdf
