@@ -611,7 +611,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="189"/>
         <source>Clone &amp;Selection</source>
-        <translation type="克隆选择的&amp;"></translation>
+        <translation type="克隆&amp;选择的"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="192"/>
@@ -620,8 +620,8 @@
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="201"/>
-        <source>Remove &amp; Selection</source>
-        <translation type="删除选择的&amp"></translation>
+        <source>Re&amp;move Selection</source>
+        <translation type="删除&amp;选择的"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="204"/>
@@ -686,32 +686,32 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="276"/>
         <source>&amp;Copy</source>
-        <translation type="unfinished"></translation>
+        <translation type="&amp;复制"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="279"/>
         <source>Ctrl+C</source>
-        <translation type="unfinished"></translation>
+        <translation type="Ctrl+C"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="288"/>
         <source>&amp;Paste</source>
-        <translation type="unfinished"></translation>
+        <translation type="&amp;粘贴"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="291"/>
         <source>Ctrl+V</source>
-        <translation type="unfinished"></translation>
+        <translation type="Ctrl+V"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="300"/>
         <source>Repl&amp;ace Selection</source>
-        <translation type="unfinished"></translation>
+        <translation type="取代&amp;已选择的"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="303"/>
         <source>Ctrl+Alt+R</source>
-        <translation type="unfinished"></translation>
+        <translation type="Ctrl+Alt+R"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="312"/>
