@@ -721,17 +721,17 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="315"/>
         <source>Ctrl+N</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+N</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="324"/>
         <source>Select &amp;All</source>
-        <translation type="unfinished"></translation>
+        <translation>全部选取</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="327"/>
         <source>Ctrl+A</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+A</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="336"/>
@@ -741,7 +741,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="339"/>
         <source>F9</source>
-        <translation type="unfinished"></translation>
+        <translation>F9</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="348"/>
@@ -751,7 +751,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="351"/>
         <source>F10</source>
-        <translation type="unfinished"></translation>
+        <translation>F10</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="360"/>
@@ -761,7 +761,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="363"/>
         <source>F11</source>
-        <translation type="unfinished"></translation>
+        <translation>F11</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="372"/>
@@ -776,7 +776,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="384"/>
         <source>Rotate &amp;Right</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="387"/>
@@ -786,27 +786,27 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="396"/>
         <source>Rotate &amp;Left</source>
-        <translation type="unfinished"></translation>
+        <translation>向右旋转</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="399"/>
         <source>Shift+F4</source>
-        <translation type="unfinished"></translation>
+        <translation>Shift+F4</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="408"/>
         <source>&amp;Zoom In</source>
-        <translation type="unfinished"></translation>
+        <translation>放大</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="411"/>
         <source>Ctrl++</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl++</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="420"/>
         <source>Zoo&amp;m Out</source>
-        <translation type="unfinished"></translation>
+        <translation>缩小</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="423"/>
@@ -817,13 +817,13 @@
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="432"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="108"/>
         <source>&amp;Get Source</source>
-        <translation type="unfinished"></translation>
+        <translation>获取源码</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="441"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="117"/>
         <source>&amp;About...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;关于...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="444"/>
@@ -834,7 +834,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="453"/>
         <source>&amp;United Document...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;合并文档...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="456"/>
@@ -845,7 +845,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="465"/>
         <source>&amp;Separate to Multiple Documents...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;分成多个文档...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="468"/>
@@ -856,7 +856,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="477"/>
         <source>Separate to Multiple Documents (&amp;Grouped)...</source>
-        <translation type="unfinished"></translation>
+        <translation>分成多个文档 (&amp;已分组)...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="480"/>
@@ -866,7 +866,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="489"/>
         <source>&amp;Group</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;分组</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="492"/>
@@ -876,7 +876,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="501"/>
         <source>U&amp;ngroup</source>
-        <translation type="unfinished"></translation>
+        <translation>取消分组</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="504"/>
@@ -886,47 +886,47 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="513"/>
         <source>&amp;Clear</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;清空</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="525"/>
         <source>Regroup by &amp;Even/Odd Pages</source>
-        <translation type="unfinished"></translation>
+        <translation>按偶/奇页码重新分组</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="534"/>
         <source>Regroup by Re&amp;verse</source>
-        <translation type="unfinished"></translation>
+        <translation>按逆序重新分组</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="543"/>
         <source>Regroup by &amp;Page Pairs</source>
-        <translation type="unfinished"></translation>
+        <translation>按页面对重新分组</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="552"/>
         <source>Regroup by &amp;Outline</source>
-        <translation type="unfinished"></translation>
+        <translation>按大纲重新分组</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="561"/>
         <source>Regroup by &amp;Alternating Pages</source>
-        <translation type="unfinished"></translation>
+        <translation>按交替页面重新分组</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="570"/>
         <source>Regroup by Alternating Pages (&amp;Reversed Order)</source>
-        <translation type="unfinished"></translation>
+        <translation>按交替页面重新分组（逆序）</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="579"/>
         <source>&amp;Invert Selection</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;反向选择</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="588"/>
         <source>&amp;Undo</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;撤消</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="591"/>
@@ -936,7 +936,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="600"/>
         <source>Re&amp;do</source>
-        <translation type="unfinished"></translation>
+        <translation>重做</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="603"/>
@@ -946,39 +946,39 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="608"/>
         <source>&amp;Prepare Icon Theme</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;准备图标主题</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="617"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="372"/>
         <source>Become a &amp;Sponsor</source>
-        <translation type="unfinished"></translation>
+        <translation>成为赞助人</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="55"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="147"/>
         <source>&amp;Compare</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;比较</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="76"/>
         <source>&amp;Filter</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;筛选</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="129"/>
         <source>Open &amp;Left...</source>
-        <translation type="unfinished"></translation>
+        <translation>在左边打开...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="138"/>
         <source>Open &amp;Right...</source>
-        <translation type="unfinished"></translation>
+        <translation>在右边打开...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="159"/>
         <source>&amp;Close</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;关闭</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="162"/>
@@ -988,7 +988,7 @@
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="171"/>
         <source>&amp;Previous Difference</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;上一个的差异</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="174"/>
@@ -998,87 +998,87 @@
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="183"/>
         <source>&amp;Next Difference</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;下一个的差异</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="195"/>
         <source>Create Compare &amp;Report...</source>
-        <translation type="unfinished"></translation>
+        <translation>创建比较报告</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="207"/>
         <source>Filter &amp;Text</source>
-        <translation type="unfinished"></translation>
+        <translation>筛选文本</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="219"/>
         <source>Filter &amp;Vector Graphics</source>
-        <translation type="unfinished"></translation>
+        <translation>筛选矢量图</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="231"/>
         <source>Filter &amp;Images</source>
-        <translation type="unfinished"></translation>
+        <translation>筛选图像</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="243"/>
         <source>Filter &amp;Shading</source>
-        <translation type="unfinished"></translation>
+        <translation>筛选阴影</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="255"/>
         <source>Filter &amp;Page Movement</source>
-        <translation type="unfinished"></translation>
+        <translation>筛选页面移动</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="267"/>
         <source>View &amp;Differences</source>
-        <translation type="unfinished"></translation>
+        <translation>查看差异</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="279"/>
         <source>View &amp;Left</source>
-        <translation type="unfinished"></translation>
+        <translation>查看左边</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="291"/>
         <source>View &amp;Right</source>
-        <translation type="unfinished"></translation>
+        <translation>查看右边</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="303"/>
         <source>View &amp;Overlay</source>
-        <translation type="unfinished"></translation>
+        <translation>查看覆盖</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="315"/>
         <source>&amp;Show Pages with Differences</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;显示有差异的页面</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="318"/>
         <source>Show Pages with Differences</source>
-        <translation type="unfinished"></translation>
+        <translation>显示有差异的页面</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="327"/>
         <source>Save Differences to &amp;XML...</source>
-        <translation type="unfinished"></translation>
+        <translation>保存差异为XML文件...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="339"/>
         <source>S&amp;ynchronize View with Differences</source>
-        <translation type="unfinished"></translation>
+        <translation>同步差异视图</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="351"/>
         <source>Display &amp;Differences</source>
-        <translation type="unfinished"></translation>
+        <translation>显示差异</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="363"/>
         <source>Display &amp;Markers</source>
-        <translation type="unfinished"></translation>
+        <translation>显示作者</translation>
     </message>
 </context>
 <context>
