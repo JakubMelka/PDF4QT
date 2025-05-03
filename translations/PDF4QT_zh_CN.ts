@@ -706,7 +706,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="300"/>
         <source>Repl&amp;ace Selection</source>
-        <translation>取代&amp;已选择的</translation>
+        <translation>取代已选的</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="303"/>
