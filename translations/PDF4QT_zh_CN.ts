@@ -611,7 +611,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="189"/>
         <source>Clone &amp;Selection</source>
-        <translation>克隆&amp;选择的</translation>
+        <translation>克隆已选的</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="192"/>
@@ -621,7 +621,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="201"/>
         <source>Re&amp;move Selection</source>
-        <translation>删除&amp;选择的</translation>
+        <translation>删除已选的</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="204"/>
