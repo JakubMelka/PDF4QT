@@ -547,24 +547,24 @@
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="62"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="34"/>
         <source>&amp;File</source>
-        <translation>\&amp;文件</translation>
+        <translation>文件</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="70"/>
         <source>&amp;Edit</source>
-        <translation>\&amp;编辑</translation>
+        <translation>编辑</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="92"/>
         <source>&amp;Insert</source>
-        <translation>\&amp;插入</translation>
+        <translation>插入</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="100"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="63"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="67"/>
         <source>&amp;View</source>
-        <translation>\&amp;视图</translation>
+        <translation>视图</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="115"/>
@@ -631,7 +631,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="213"/>
         <source>Restore Removed &amp;Items</source>
-        <translation>恢复删除的&amp;条目</translation>
+        <translation>恢复删除的条目</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="216"/>
@@ -641,7 +641,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="225"/>
         <source>Insert &amp;PDF</source>
-        <translation>插入&amp;PDF</translation>
+        <translation>插入PDF</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="228"/>
@@ -666,7 +666,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="252"/>
         <source>Insert &amp;Empty Page</source>
-        <translation>插入 &amp;空白页</translation>
+        <translation>插入空白页</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="255"/>
