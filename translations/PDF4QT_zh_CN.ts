@@ -6,7 +6,7 @@
     <message>
         <location filename="../Pdf4QtEditor/main.cpp" line="43"/>
         <source>PDF4QT Editor</source>
-        <translation type="PDF4QT编辑器"></translation>
+        <translation>PDF4QT编辑器</translation>
     </message>
     <message>
         <location filename="../Pdf4QtViewer/main.cpp" line="36"/>
