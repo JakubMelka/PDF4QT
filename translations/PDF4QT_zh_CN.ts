@@ -11652,34 +11652,34 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="254"/>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="863"/>
         <source>Select PDF document(s)</source>
-        <translation type="unfinished"></translation>
+        <translation>选取多个PDF文档</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="254"/>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="863"/>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="892"/>
         <source>PDF document (*.pdf)</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF文档（*.pdf)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="281"/>
         <source>Select</source>
-        <translation type="unfinished"></translation>
+        <translation>选取</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="288"/>
         <source>Regroup</source>
-        <translation type="unfinished"></translation>
+        <translation>重组</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="366"/>
         <source>Encrypted document</source>
-        <translation type="unfinished"></translation>
+        <translation>已加密的文档</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="366"/>
         <source>Enter password to access document &apos;%1&apos;</source>
-        <translation type="unfinished"></translation>
+        <translation>输入密码解锁文档</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="389"/>
@@ -11689,37 +11689,37 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="819"/>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="828"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>错误</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="389"/>
         <source>Document security doesn&apos;t permit to organize pages.</source>
-        <translation type="unfinished"></translation>
+        <translation>文件安全性不允许整理页面。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="720"/>
         <source>No documents to assemble.</source>
-        <translation type="unfinished"></translation>
+        <translation>没有需要组装的文档。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="819"/>
         <source>Document with given filename already exists.</source>
-        <translation type="unfinished"></translation>
+        <translation>已存在同名的文档</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="844"/>
         <source>Images (*.%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>图像 (*.%1)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="845"/>
         <source>Select Image(s)</source>
-        <translation type="unfinished"></translation>
+        <translation>选取多个图像</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="892"/>
         <source>Select PDF document</source>
-        <translation type="unfinished"></translation>
+        <translation>选取PDF文档</translation>
     </message>
 </context>
 <context>
@@ -11755,47 +11755,47 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="986"/>
         <source>Document collection</source>
-        <translation type="unfinished"></translation>
+        <translation>收藏文档</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="987"/>
         <source>Page Count: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>页数：%1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1021"/>
         <source>Image</source>
-        <translation type="unfinished"></translation>
+        <translation>图像</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1021"/>
         <source>Images</source>
-        <translation type="unfinished"></translation>
+        <translation>多个图像</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1026"/>
         <source>Blank Page</source>
-        <translation type="unfinished"></translation>
+        <translation>空白页</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1026"/>
         <source>Blank Pages</source>
-        <translation type="unfinished"></translation>
+        <translation>多个空白页</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1036"/>
         <source>#BBBB00@Collection</source>
-        <translation type="unfinished"></translation>
+        <translation>#BBBB00@收藏</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1040"/>
         <source>#D98335@Blank</source>
-        <translation type="unfinished"></translation>
+        <translation>#D98335@空白</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1044"/>
         <source>#24A5EA@Image</source>
-        <translation type="unfinished"></translation>
+        <translation>#24A5EA@图像</translation>
     </message>
 </context>
 <context>
@@ -14488,7 +14488,7 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="142"/>
         <source>Automatic detection</source>
-        <translation type="跟随糸统"></translation>
+        <translation>跟随糸统</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="143"/>
@@ -14558,7 +14558,7 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="719"/>
         <source>Shortcut</source>
-        <translation type="快捷键"></translation>
+        <translation>快捷键</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="748"/>
@@ -14568,7 +14568,7 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="748"/>
         <source>Shortcut &apos;%1&apos; is invalid for action %2.</source>
-        <translation type="快捷键 &apos;%1&apos; 对动作%2无效."></translation>
+        <translation>快捷键 &apos;%1&apos; 对动作%2无效.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="771"/>
@@ -14588,12 +14588,12 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="771"/>
         <source>Version</source>
-        <translation type="版本"></translation>
+        <translation>版本</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="771"/>
         <source>License</source>
-        <translation type="许可证"></translation>
+        <translation>许可证</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="885"/>
