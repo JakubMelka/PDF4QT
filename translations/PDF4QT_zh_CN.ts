@@ -547,171 +547,171 @@
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="62"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="34"/>
         <source>&amp;File</source>
-        <translation type="&amp;文件"></translation>
+        <translation>\&amp;文件</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="70"/>
         <source>&amp;Edit</source>
-        <translation type="&amp;编辑"></translation>
+        <translation>\&amp;编辑</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="92"/>
         <source>&amp;Insert</source>
-        <translation type="&amp;插入"></translation>
+        <translation>\&amp;插入</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="100"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="63"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="67"/>
         <source>&amp;View</source>
-        <translation type="&amp;视图"></translation>
+        <translation>\&amp;视图</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="115"/>
         <source>&amp;Make</source>
-        <translation type="制作"></translation>
+        <translation>制作</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="123"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="42"/>
         <source>&amp;Help</source>
-        <translation type="&amp;帮助"></translation>
+        <translation>帮助</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="132"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="50"/>
         <source>&amp;Toolbars</source>
-        <translation type="&amp;工具栏"></translation>
+        <translation>工具栏</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="137"/>
         <source>&amp;Regroup</source>
-        <translation type="&amp;重组"></translation>
+        <translation>重组</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="162"/>
         <source>&amp;Add Documents...</source>
-        <translation type="&amp;增加文档"></translation>
+        <translation>添加文档</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="165"/>
         <source>Add Documents</source>
-        <translation type="增加文档"></translation>
+        <translation>添加文档</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="177"/>
         <source>C&amp;lose</source>
-        <translation type="&amp;丢弃"></translation>
+        <translation>丢弃</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="180"/>
         <source>Alt+F4</source>
-        <translation type="Alt+F4"></translation>
+        <translation>Alt+F4</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="189"/>
         <source>Clone &amp;Selection</source>
-        <translation type="克隆&amp;选择的"></translation>
+        <translation>克隆&amp;选择的</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="192"/>
         <source>Ctrl+L</source>
-        <translation type="Ctrl+L"></translation>
+        <translation>Ctrl+L</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="201"/>
         <source>Re&amp;move Selection</source>
-        <translation type="删除&amp;选择的"></translation>
+        <translation>删除&amp;选择的</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="204"/>
         <source>Del</source>
-        <translation type="删除"></translation>
+        <translation>删除</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="213"/>
         <source>Restore Removed &amp;Items</source>
-        <translation type="恢复删除的&amp;条目"></translation>
+        <translation>恢复删除的&amp;条目</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="216"/>
         <source>Ctrl+Shift+R</source>
-        <translation type="Ctrl+Shift+R"></translation>
+        <translation>Ctrl+Shift+R</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="225"/>
         <source>Insert &amp;PDF</source>
-        <translation type="插入&amp;PDF"></translation>
+        <translation>插入&amp;PDF</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="228"/>
         <source>Insert PDF</source>
-        <translation type="插入PDF"></translation>
+        <translation>插入PDF</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="231"/>
         <source>Ctrl+I</source>
-        <translation type="Ctrl+I"></translation>
+        <translation>Ctrl+I</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="240"/>
         <source>&amp;Insert Image</source>
-        <translation type="&amp;插入图像"></translation>
+        <translation>插入图像</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="243"/>
         <source>Ctrl+Alt+I</source>
-        <translation type="Ctrl+Alt+I"></translation>
+        <translation>Ctrl+Alt+I</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="252"/>
         <source>Insert &amp;Empty Page</source>
-        <translation type="插入 &amp;空白页"></translation>
+        <translation>插入 &amp;空白页</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="255"/>
         <source>Ctrl+Shift+I</source>
-        <translation type="Ctrl+Shift+I"></translation>
+        <translation>Ctrl+Shift+I</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="264"/>
         <source>Cu&amp;t</source>
-        <translation type="剪切"></translation>
+        <translation>剪切</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="267"/>
         <source>Ctrl+X</source>
-        <translation type="Ctrl+X"></translation>
+        <translation>Ctrl+X</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="276"/>
         <source>&amp;Copy</source>
-        <translation type="&amp;复制"></translation>
+        <translation>复制</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="279"/>
         <source>Ctrl+C</source>
-        <translation type="Ctrl+C"></translation>
+        <translation>Ctrl+C</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="288"/>
         <source>&amp;Paste</source>
-        <translation type="&amp;粘贴"></translation>
+        <translation>粘贴</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="291"/>
         <source>Ctrl+V</source>
-        <translation type="Ctrl+V"></translation>
+        <translation>Ctrl+V</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="300"/>
         <source>Repl&amp;ace Selection</source>
-        <translation type="取代&amp;已选择的"></translation>
+        <translation>取代&amp;已选择的</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="303"/>
         <source>Ctrl+Alt+R</source>
-        <translation type="Ctrl+Alt+R"></translation>
+        <translation>Ctrl+Alt+R</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="312"/>
