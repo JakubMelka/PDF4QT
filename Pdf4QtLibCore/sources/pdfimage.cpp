@@ -317,7 +317,7 @@ PDFImage PDFImage::createImage(const PDFDocument* document,
         if (jpeg_read_header(&codec, TRUE) == JPEG_HEADER_OK)
         {
             // Determine color transform
-            if (colorTransform == -1 && codec.saw_Adobe_marker)
+            if (codec.saw_Adobe_marker)
             {
                 colorTransform = codec.Adobe_transform;
             }
