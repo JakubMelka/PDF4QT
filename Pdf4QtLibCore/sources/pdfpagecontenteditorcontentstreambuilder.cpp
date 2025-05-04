@@ -951,6 +951,7 @@ QByteArray PDFPageContentEditorContentStreamBuilder::selectFont(const QByteArray
             m_fontDictionary.setEntry(PDFInplaceOrMemoryString(defaultFontKey), defaultFontFactory.takeObject());
         }
 
+        fontObject = m_fontDictionary.get(defaultFontKey);
         m_textFont = PDFFont::createFont(fontObject, font, m_document);
         return defaultFontKey;
     }
