@@ -47,7 +47,8 @@ public:
         E_LANGUAGE_CZECH,
         E_LANGUAGE_GERMAN,
         E_LANGUAGE_KOREAN,
-        E_LANGUAGE_SPANISH
+        E_LANGUAGE_SPANISH,
+        E_LANGUAGE_CHINESE,
     };
 
     Q_ENUM(ELanguage)

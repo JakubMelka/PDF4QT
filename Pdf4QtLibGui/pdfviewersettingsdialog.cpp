@@ -150,6 +150,7 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     ui->languageCombo->addItem(tr("Korean"), static_cast<int>(pdf::PDFApplicationTranslator::E_LANGUAGE_KOREAN));
     ui->languageCombo->addItem(tr("Spanish"), static_cast<int>(pdf::PDFApplicationTranslator::E_LANGUAGE_SPANISH));
     ui->languageCombo->addItem(tr("Czech"), static_cast<int>(pdf::PDFApplicationTranslator::E_LANGUAGE_CZECH));
+    ui->languageCombo->addItem(tr("Chinese"), static_cast<int>(pdf::PDFApplicationTranslator::E_LANGUAGE_CHINESE));
 
     auto fillColorProfileList = [](QComboBox* comboBox, const pdf::PDFColorProfileIdentifiers& identifiers)
     {
