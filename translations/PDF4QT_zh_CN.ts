@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.1" language="ko" sourcelanguage="en">
+<TS version="2.1" language="zh_CN" sourcelanguage="en">
 <context>
     <name>Application</name>
     <message>
@@ -5858,8 +5858,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="976"/>
-        <source>Magnifier size</source>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="962"/>
+        <source>Magnifier zoom</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -5868,8 +5868,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1014"/>
-        <source>px</source>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="976"/>
+        <source>Magnifier size</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -5878,23 +5878,23 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="962"/>
-        <source>Magnifier zoom</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1000"/>
         <source>Maximum count of recent files</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1040"/>
-        <source>Developer mode</source>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1014"/>
+        <source>px</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1030"/>
         <source>Color Scheme (GUI)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1040"/>
+        <source>Developer mode</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
