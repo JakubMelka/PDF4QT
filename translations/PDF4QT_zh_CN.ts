@@ -6,27 +6,27 @@
     <message>
         <location filename="../Pdf4QtEditor/main.cpp" line="48"/>
         <source>PDF4QT Editor</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF4QT编辑器</translation>
     </message>
     <message>
         <location filename="../Pdf4QtViewer/main.cpp" line="41"/>
         <source>PDF4QT Viewer</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF4QT阅读器</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/main.cpp" line="40"/>
         <source>PDF4QT PageMaster</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF4QT页面管理</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/main.cpp" line="40"/>
         <source>PDF4QT Diff</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF4QT文件对比</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/main.cpp" line="34"/>
         <source>PDF4QT LaunchPad</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF4QT启动器</translation>
     </message>
 </context>
 <context>
@@ -35,7 +35,7 @@
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="14"/>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="20"/>
         <source>Assemble Documents</source>
-        <translation type="unfinished"></translation>
+        <translation>组合文档</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="26"/>
@@ -45,12 +45,12 @@
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="36"/>
         <source>File template</source>
-        <translation type="unfinished"></translation>
+        <translation>文件模板</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="43"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;In a template file name, you can use symbols &apos;#&apos; for output document number (means output document index, not input document) or &apos;@&apos; for page number of input document (if document contains more pages, it is a page number of a original document), or &apos;%&apos; for index of input document. Use more &apos;#&apos; or &apos;@&apos; or &apos;%&apos; for setting minimal number of digits (if number has less digits, the they are padded with zero).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;在模板文件名中，您可以使用符号 &apos;#&apos; 输出文档编号（表示输出文档索引，而不是输入文档）或 &apos;@&apos; 输入文档的页码（如果文档包含更多页面，则为原始文档的页码）或 &apos;%&apos; 用于输入文档的索引。使用更多 &apos;#&apos; 或 &apos;@&apos; 或 &apos;%&apos;设置最少位数（如果数字位数较少，则用零填充）。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="53"/>
