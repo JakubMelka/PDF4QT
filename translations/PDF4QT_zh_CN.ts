@@ -55,7 +55,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="53"/>
         <source>Overwrite existing files</source>
-        <translation type="unfinished"></translation>
+        <translation>覆盖已存在文件</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="60"/>
@@ -65,12 +65,12 @@
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="67"/>
         <source>Generate into directory</source>
-        <translation type="unfinished"></translation>
+        <translation>生成到目录</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="74"/>
         <source>Outline Mode</source>
-        <translation type="unfinished"></translation>
+        <translation>大纲模式</translation>
     </message>
 </context>
 <context>
@@ -78,7 +78,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiotextstreameditordockwidget.ui" line="14"/>
         <source>Text Stream for Audio Book</source>
-        <translation type="unfinished"></translation>
+        <translation>有声读物文本流</translation>
     </message>
 </context>
 <context>
@@ -86,17 +86,17 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="14"/>
         <source>Create Redacted Document</source>
-        <translation type="unfinished"></translation>
+        <translation>创建修订文档</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="20"/>
         <source>Redacted document</source>
-        <translation type="unfinished"></translation>
+        <translation>已修订文档</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="26"/>
         <source>Output file name</source>
-        <translation type="unfinished"></translation>
+        <translation>输出文件名</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="36"/>
@@ -106,32 +106,32 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="46"/>
         <source>Appearance</source>
-        <translation type="unfinished"></translation>
+        <translation>外观</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="52"/>
         <source>Fill redacted area with color:</source>
-        <translation type="unfinished"></translation>
+        <translation>用颜色填充修订区域：</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="68"/>
         <source>Options</source>
-        <translation type="unfinished"></translation>
+        <translation>选项</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="74"/>
         <source>Copy document title into redacted document</source>
-        <translation type="unfinished"></translation>
+        <translation>将文档标题复制到修订文档中</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="84"/>
         <source>Copy document metadata into redacted document</source>
-        <translation type="unfinished"></translation>
+        <translation>将文档元数据复制到修订文档中</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="94"/>
         <source>Copy outline into redacted document</source>
-        <translation type="unfinished"></translation>
+        <translation>将大纲复制到修订文档中</translation>
     </message>
 </context>
 <context>
@@ -139,7 +139,7 @@
     <message>
         <location filename="../Pdf4QtDiff/differencesdockwidget.ui" line="14"/>
         <source>Differences</source>
-        <translation type="unfinished"></translation>
+        <translation>差异</translation>
     </message>
 </context>
 <context>
