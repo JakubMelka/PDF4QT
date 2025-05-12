@@ -192,7 +192,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="313"/>
         <source>rad</source>
-        <translation type="unfinished"></translation>
+        <translation>弧度</translation>
     </message>
 </context>
 <context>
@@ -200,57 +200,57 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="14"/>
         <source>Code Generator</source>
-        <translation type="unfinished"></translation>
+        <translation>代码生成器</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="53"/>
         <source>Remove</source>
-        <translation type="unfinished"></translation>
+        <translation>删除</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="60"/>
         <source>Clone</source>
-        <translation type="unfinished"></translation>
+        <translation>克隆</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="67"/>
         <source>New</source>
-        <translation type="unfinished"></translation>
+        <translation>新建</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="80"/>
         <source>Parameters</source>
-        <translation type="unfinished"></translation>
+        <translation>参数</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="86"/>
         <source>Data type</source>
-        <translation type="unfinished"></translation>
+        <translation>数据类型</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="112"/>
         <source>Value</source>
-        <translation type="unfinished"></translation>
+        <translation>值</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="119"/>
         <source>Item type</source>
-        <translation type="unfinished"></translation>
+        <translation>条目类型</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="126"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation>名称</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="133"/>
         <source>Text description / C++ code</source>
-        <translation type="unfinished"></translation>
+        <translation>文本描述 / C++代码</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="181"/>
         <source>Delete</source>
-        <translation type="unfinished"></translation>
+        <translation>删除</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="188"/>
@@ -265,22 +265,22 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="202"/>
         <source>New Child</source>
-        <translation type="unfinished"></translation>
+        <translation>新子结点</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="209"/>
         <source>New Sibling</source>
-        <translation type="unfinished"></translation>
+        <translation>新兄弟结点</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="230"/>
         <source>File</source>
-        <translation type="unfinished"></translation>
+        <translation>文件</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="238"/>
         <source>Code</source>
-        <translation type="unfinished"></translation>
+        <translation>代码</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="246"/>
@@ -290,7 +290,7 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="260"/>
         <source>Load</source>
-        <translation type="unfinished"></translation>
+        <translation>载入</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="263"/>
@@ -300,7 +300,7 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="268"/>
         <source>Save</source>
-        <translation type="unfinished"></translation>
+        <translation>保存</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="271"/>
@@ -310,22 +310,22 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="276"/>
         <source>Save As...</source>
-        <translation type="unfinished"></translation>
+        <translation>另存为</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="281"/>
         <source>Set code header (*.h)</source>
-        <translation type="unfinished"></translation>
+        <translation>设置代码头文件（*.h）</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="286"/>
         <source>Set code source (*.cpp)</source>
-        <translation type="unfinished"></translation>
+        <translation>设置代码源</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="291"/>
         <source>Generate code</source>
-        <translation type="unfinished"></translation>
+        <translation>生成代码</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="294"/>
@@ -335,55 +335,55 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="299"/>
         <source>Set code header XFA</source>
-        <translation type="unfinished"></translation>
+        <translation>设置代码头文件 XFA</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="304"/>
         <source>Set code source XFA</source>
-        <translation type="unfinished"></translation>
+        <translation>设置代码源 XFA</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="309"/>
         <source>Generate XFA code</source>
-        <translation type="unfinished"></translation>
+        <translation>生成XFA代码</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="314"/>
         <source>Set XFA description</source>
-        <translation type="unfinished"></translation>
+        <translation>设置XFA描述</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="394"/>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="407"/>
         <source>Select XML definition file</source>
-        <translation type="unfinished"></translation>
+        <translation>选取XML定义文件</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="428"/>
         <source>Create function</source>
-        <translation type="unfinished"></translation>
+        <translation>创建函数</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="428"/>
         <source>Enter function name</source>
-        <translation type="unfinished"></translation>
+        <translation>键入函数名</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="510"/>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="538"/>
         <source>Select cpp header</source>
-        <translation type="unfinished"></translation>
+        <translation>选取cpp头文件</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="520"/>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="548"/>
         <source>Select cpp source</source>
-        <translation type="unfinished"></translation>
+        <translation>选取cpp源</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="558"/>
         <source>Select xml definition</source>
-        <translation type="unfinished"></translation>
+        <translation>选取xml定义</translation>
     </message>
 </context>
 <context>
@@ -391,12 +391,12 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/inkcoveragedialog.ui" line="14"/>
         <source>Ink Coverage Calculator</source>
-        <translation type="unfinished"></translation>
+        <translation>墨水覆盖率计算器</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/inkcoveragedialog.ui" line="20"/>
         <source>Ink Coverage</source>
-        <translation type="unfinished"></translation>
+        <translation>墨水覆盖率</translation>
     </message>
 </context>
 <context>
@@ -404,17 +404,17 @@
     <message>
         <location filename="../Pdf4QtLaunchPad/launchapplicationwidget.ui" line="14"/>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>出自</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchapplicationwidget.ui" line="59"/>
         <source>Title</source>
-        <translation type="unfinished"></translation>
+        <translation>标题</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchapplicationwidget.ui" line="66"/>
         <source>TextLabel</source>
-        <translation type="unfinished"></translation>
+        <translation>文本标签</translation>
     </message>
 </context>
 <context>
@@ -422,57 +422,57 @@
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.ui" line="14"/>
         <source>Launch Application</source>
-        <translation type="unfinished"></translation>
+        <translation>启动程序</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="60"/>
         <source>Editor</source>
-        <translation type="unfinished"></translation>
+        <translation>编辑器</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="61"/>
         <source>Viewer</source>
-        <translation type="unfinished"></translation>
+        <translation>阅读器</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="62"/>
         <source>Diff</source>
-        <translation type="unfinished"></translation>
+        <translation>比较</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="63"/>
         <source>PageMaster</source>
-        <translation type="unfinished"></translation>
+        <translation>页面管理</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="65"/>
         <source>Go beyond basic browsing. This tool packs a punch with a host of advanced features, including encryption, document reading, digital signature verification, annotation editing, and even support for searching text using regular expressions. Turn pages into images, and enhance your PDF interactions with multiple available plugins.</source>
-        <translation type="unfinished"></translation>
+        <translation>超越基本浏览。该工具拥有大量高级功能，包括加密、文档阅读、数字签名验证、注释编辑，甚至支持使用正则表达式搜索文本。将页面转化为图像，并利用多个可用插件增强PDF交互。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="66"/>
         <source>Simplify your viewing experience. This lightweight viewer offers essential viewing functions in a clean, user-friendly interface.</source>
-        <translation type="unfinished"></translation>
+        <translation>简化观看体验。这款轻巧的查看器以简洁、用户友好的界面提供基本的查看功能。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="67"/>
         <source>Spot differences effortlessly. This tool allows users to open two documents and receive a detailed list of differences. View these differences in a page-to-page window where they are clearly marked. Save these differences into an XML file for future reference.</source>
-        <translation type="unfinished"></translation>
+        <translation>轻松发现差异。该工具允许用户打开两个文档，并获得详细的差异列表。在页与页之间的窗口中查看这些差异，这些差异都有清晰的标记。将这些差异保存到XML文件中，以备将来参考。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="68"/>
         <source>Take control of your documents. Manage whole documents or individual pages with ease. Merge documents into a single file, or split them into multiple ones. You can also move, clone, or add pages with a few clicks, all within an intuitive user interface.</source>
-        <translation type="unfinished"></translation>
+        <translation>掌控您的文档。轻松管理整个文档或单个页面。将文档合并为一个文件，或分割为多个文件。您还可以移动、克隆或添加页面，只需点击几下，一切尽在直观的用户界面。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="116"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>错误</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="116"/>
         <source>Failed to start process &apos;%1&apos;</source>
-        <translation type="unfinished"></translation>
+        <translation>启动进程 &apos;%1&apos;失败</translation>
     </message>
 </context>
 <context>
@@ -480,22 +480,22 @@
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="14"/>
         <source>JBIG2 Image Viewer</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2图像浏览器</translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="36"/>
         <source>Images</source>
-        <translation type="unfinished"></translation>
+        <translation>图像</translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="74"/>
         <source>File</source>
-        <translation type="unfinished"></translation>
+        <translation>文件</translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="85"/>
         <source>Add image</source>
-        <translation type="unfinished"></translation>
+        <translation>增加图像</translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="88"/>
@@ -506,7 +506,7 @@
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="93"/>
         <source>Clear</source>
-        <translation type="unfinished"></translation>
+        <translation>清除</translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="96"/>
@@ -517,7 +517,7 @@
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="101"/>
         <source>Add JBIG2 image</source>
-        <translation type="unfinished"></translation>
+        <translation>增加JBIG2图像</translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="104"/>
@@ -529,79 +529,79 @@
         <location filename="../JBIG2_Viewer/mainwindow.cpp" line="133"/>
         <location filename="../JBIG2_Viewer/mainwindow.cpp" line="142"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>错误</translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.cpp" line="66"/>
         <location filename="../JBIG2_Viewer/mainwindow.cpp" line="103"/>
         <source>Open image</source>
-        <translation type="unfinished"></translation>
+        <translation>打开图像</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="17"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="14"/>
         <source>Workspace</source>
-        <translation type="unfinished"></translation>
+        <translation>工作区</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="62"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="34"/>
         <source>&amp;File</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;文件</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="70"/>
         <source>&amp;Edit</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;编辑</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="92"/>
         <source>&amp;Insert</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;插入</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="100"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="63"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="67"/>
         <source>&amp;View</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;视图</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="115"/>
         <source>&amp;Make</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;制作</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="123"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="42"/>
         <source>&amp;Help</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;帮助</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="132"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="50"/>
         <source>&amp;Toolbars</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;工具栏</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="137"/>
         <source>&amp;Regroup</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;重组</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="162"/>
         <source>&amp;Add Documents...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;增加文档...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="165"/>
         <source>Add Documents</source>
-        <translation type="unfinished"></translation>
+        <translation>增加文档</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="177"/>
         <source>C&amp;lose</source>
-        <translation type="unfinished"></translation>
+        <translation>关闭</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="180"/>
@@ -611,7 +611,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="189"/>
         <source>Clone &amp;Selection</source>
-        <translation type="unfinished"></translation>
+        <translation>克隆已选</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="192"/>
@@ -621,17 +621,17 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="201"/>
         <source>Re&amp;move Selection</source>
-        <translation type="unfinished"></translation>
+        <translation>删除已选</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="204"/>
         <source>Del</source>
-        <translation type="unfinished"></translation>
+        <translation>删除</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="213"/>
         <source>Restore Removed &amp;Items</source>
-        <translation type="unfinished"></translation>
+        <translation>恢复删除的条目</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="216"/>
@@ -641,12 +641,12 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="225"/>
         <source>Insert &amp;PDF</source>
-        <translation type="unfinished"></translation>
+        <translation>插入&amp;PDF</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="228"/>
         <source>Insert PDF</source>
-        <translation type="unfinished"></translation>
+        <translation>插入PDF</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="231"/>
@@ -656,7 +656,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="240"/>
         <source>&amp;Insert Image</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;插入图像</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="243"/>
@@ -666,7 +666,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="252"/>
         <source>Insert &amp;Empty Page</source>
-        <translation type="unfinished"></translation>
+        <translation>插入&amp;空白页</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="255"/>
@@ -676,7 +676,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="264"/>
         <source>Cu&amp;t</source>
-        <translation type="unfinished"></translation>
+        <translation>剪切</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="267"/>
@@ -686,7 +686,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="276"/>
         <source>&amp;Copy</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;复制</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="279"/>
@@ -696,7 +696,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="288"/>
         <source>&amp;Paste</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;粘贴</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="291"/>
