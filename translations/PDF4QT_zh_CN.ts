@@ -988,7 +988,7 @@
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="171"/>
         <source>&amp;Previous Difference</source>
-        <translation type="unfinished"></translation>
+        <translation>上个差异</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="174"/>
@@ -998,77 +998,77 @@
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="183"/>
         <source>&amp;Next Difference</source>
-        <translation type="unfinished"></translation>
+        <translation>下个差异</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="195"/>
         <source>Create Compare &amp;Report...</source>
-        <translation type="unfinished"></translation>
+        <translation>创建比较 &amp;报告...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="207"/>
         <source>Filter &amp;Text</source>
-        <translation type="unfinished"></translation>
+        <translation>文本筛选器</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="219"/>
         <source>Filter &amp;Vector Graphics</source>
-        <translation type="unfinished"></translation>
+        <translation>矢量图筛选器</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="231"/>
         <source>Filter &amp;Images</source>
-        <translation type="unfinished"></translation>
+        <translation>图像筛选器</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="243"/>
         <source>Filter &amp;Shading</source>
-        <translation type="unfinished"></translation>
+        <translation>底纹筛选器</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="255"/>
         <source>Filter &amp;Page Movement</source>
-        <translation type="unfinished"></translation>
+        <translation>页面移动筛选器</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="267"/>
         <source>View &amp;Differences</source>
-        <translation type="unfinished"></translation>
+        <translation>查看差异</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="279"/>
         <source>View &amp;Left</source>
-        <translation type="unfinished"></translation>
+        <translation>查看左边</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="291"/>
         <source>View &amp;Right</source>
-        <translation type="unfinished"></translation>
+        <translation>查看 &amp;右边</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="303"/>
         <source>View &amp;Overlay</source>
-        <translation type="unfinished"></translation>
+        <translation>查看&amp;重叠</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="315"/>
         <source>&amp;Show Pages with Differences</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;显示有差异的页面</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="318"/>
         <source>Show Pages with Differences</source>
-        <translation type="unfinished"></translation>
+        <translation>显示有差异的页面</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="327"/>
         <source>Save Differences to &amp;XML...</source>
-        <translation type="unfinished"></translation>
+        <translation>保存差异为XML文件...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="339"/>
         <source>S&amp;ynchronize View with Differences</source>
-        <translation type="unfinished"></translation>
+        <translation>同步差异视图</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="351"/>
