@@ -1279,7 +1279,7 @@
         <location filename="../Pdf4QtPageMaster/aboutdialog.ui" line="74"/>
         <location filename="../Pdf4QtDiff/aboutdialog.ui" line="74"/>
         <source>Used libraries</source>
-        <translation type="unfinished"></translation>
+        <translation>使用的库</translation>
     </message>
 </context>
 <context>
@@ -1287,72 +1287,72 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="14"/>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>出自</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="24"/>
         <source>Search for</source>
-        <translation type="unfinished"></translation>
+        <translation>捜索</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="30"/>
         <source>Search Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>捜索设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="36"/>
         <source>Search</source>
-        <translation type="unfinished"></translation>
+        <translation>捜索</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="43"/>
         <source>Whole words only</source>
-        <translation type="unfinished"></translation>
+        <translation>仅限整词</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="50"/>
         <source>Remove soft hyphen at end of line</source>
-        <translation type="unfinished"></translation>
+        <translation>删除行尾的软连字符</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="57"/>
         <source>Search for:</source>
-        <translation type="unfinished"></translation>
+        <translation>捜索：</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="64"/>
         <source>Case sensitive</source>
-        <translation type="unfinished"></translation>
+        <translation>区分大小写</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="74"/>
         <source>Use regular expressions</source>
-        <translation type="unfinished"></translation>
+        <translation>使用正则表达式</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="81"/>
         <source>Clear</source>
-        <translation type="unfinished"></translation>
+        <translation>清空</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="91"/>
         <source>Regular Expression Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>正则表达式设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="97"/>
         <source>Dot matches everything (including newline characters)</source>
-        <translation type="unfinished"></translation>
+        <translation>点号匹配所有字符（包括换行符）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="107"/>
         <source>Multiline matching (enables search using &apos;^&apos; and &apos;$&apos; to mark line beginnings/endings)</source>
-        <translation type="unfinished"></translation>
+        <translation>多行匹配 (可使用捜索 &apos;^&apos; 并 &apos;$&apos; 标记行首/行尾)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="131"/>
         <source>Results</source>
-        <translation type="unfinished"></translation>
+        <translation>结果</translation>
     </message>
 </context>
 <context>
@@ -1360,12 +1360,12 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.ui" line="14"/>
         <source>Certificate Manager</source>
-        <translation type="unfinished"></translation>
+        <translation>证书管理</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.ui" line="20"/>
         <source>Certificates</source>
-        <translation type="unfinished"></translation>
+        <translation>证书</translation>
     </message>
 </context>
 <context>
@@ -1373,22 +1373,22 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.ui" line="14"/>
         <source>Create Bitonal Document</source>
-        <translation type="unfinished"></translation>
+        <translation>创建黑白文档</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.ui" line="30"/>
         <source>Color to Bitonal Conversion Options</source>
-        <translation type="unfinished"></translation>
+        <translation>彩色到黑白转换选项</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.ui" line="36"/>
         <source>Automatic (Otsu&apos;s 1D method)</source>
-        <translation type="unfinished"></translation>
+        <translation>自动控制 (Otsu&apos;s 1D 模式)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.ui" line="56"/>
         <source>User-Defined Intensity Threshold (0-255):</source>
-        <translation type="unfinished"></translation>
+        <translation>用户自定义强度阈值（0-255）</translation>
     </message>
 </context>
 <context>
@@ -1396,52 +1396,52 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="14"/>
         <source>Create Certificate</source>
-        <translation type="unfinished"></translation>
+        <translation>创建证书</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="20"/>
         <source>Create Self Signed Certificate</source>
-        <translation type="unfinished"></translation>
+        <translation>创建自签名证书</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="26"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation>名称</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="40"/>
         <source>Organization</source>
-        <translation type="unfinished"></translation>
+        <translation>组织</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="47"/>
         <source>Organization Unit</source>
-        <translation type="unfinished"></translation>
+        <translation>部门</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="54"/>
         <source>Email</source>
-        <translation type="unfinished"></translation>
+        <translation>邮箱</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="95"/>
         <source>Country</source>
-        <translation type="unfinished"></translation>
+        <translation>国家</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="102"/>
         <source>Key length</source>
-        <translation type="unfinished"></translation>
+        <translation>密钥长度</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="109"/>
         <source>Valid till</source>
-        <translation type="unfinished"></translation>
+        <translation>有效期至</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="128"/>
         <source>Certificate file</source>
-        <translation type="unfinished"></translation>
+        <translation>证书文件</translation>
     </message>
 </context>
 <context>
@@ -1449,40 +1449,40 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="14"/>
         <source>Document Properties</source>
-        <translation type="unfinished"></translation>
+        <translation>文件属性</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="24"/>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="30"/>
         <source>Properties</source>
-        <translation type="unfinished"></translation>
+        <translation>属性</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="59"/>
         <source>File Information</source>
-        <translation type="unfinished"></translation>
+        <translation>文件信息</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="89"/>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="95"/>
         <source>Security</source>
-        <translation type="unfinished"></translation>
+        <translation>安全</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="125"/>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="131"/>
         <source>Fonts</source>
-        <translation type="unfinished"></translation>
+        <translation>字体</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="161"/>
         <source>Display &amp;&amp; Print</source>
-        <translation type="unfinished"></translation>
+        <translation>显示 &amp;&amp; 打印</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="167"/>
         <source>Display &amp;&amp; Print Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>显示 &amp;&amp; 打印设置</translation>
     </message>
 </context>
 <context>
@@ -1490,32 +1490,32 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="14"/>
         <source>PDF Editor</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF编辑</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="28"/>
         <source>&amp;File</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;文件</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="47"/>
         <source>&amp;Go To</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;跳转</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="51"/>
         <source>Book&amp;mark Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>图书&amp;标记设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="71"/>
         <source>&amp;View</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;查看</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="75"/>
         <source>Page La&amp;yout</source>
-        <translation type="unfinished"></translation>
+        <translation>页面布&amp;局</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="86"/>
