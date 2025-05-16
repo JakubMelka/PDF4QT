@@ -1933,7 +1933,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="792"/>
         <source>&amp;Key</source>
-        <translation>&amp;关键词</translation>
+        <translation>&amp;线索</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="800"/>
@@ -14393,67 +14393,67 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="114"/>
         <source>Single thread</source>
-        <translation type="unfinished"></translation>
+        <translation>单线程</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="115"/>
         <source>Multithreading (load balanced)</source>
-        <translation type="unfinished"></translation>
+        <translation>多线程（负载平衡）</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="116"/>
         <source>Multithreading (maximum threads)</source>
-        <translation type="unfinished"></translation>
+        <translation>多线程（最大线程数）</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="125"/>
         <source>Auto</source>
-        <translation type="unfinished"></translation>
+        <translation>自动</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="126"/>
         <source>Perceptual</source>
-        <translation type="unfinished"></translation>
+        <translation>感知</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="127"/>
         <source>Relative colorimetric</source>
-        <translation type="unfinished"></translation>
+        <translation>相对色度</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="128"/>
         <source>Absolute colorimetric</source>
-        <translation type="unfinished"></translation>
+        <translation>绝对色度</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="129"/>
         <source>Saturation</source>
-        <translation type="unfinished"></translation>
+        <translation>饱和度</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="131"/>
         <source>Low</source>
-        <translation type="unfinished"></translation>
+        <translation>低</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="132"/>
         <source>Medium</source>
-        <translation type="unfinished"></translation>
+        <translation>中</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="133"/>
         <source>High</source>
-        <translation type="unfinished"></translation>
+        <translation>高</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="135"/>
         <source>None</source>
-        <translation type="unfinished"></translation>
+        <translation>无</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="136"/>
         <source>XYZ scaling</source>
-        <translation type="unfinished"></translation>
+        <translation>XYZ 缩放</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="137"/>
@@ -14463,32 +14463,32 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="138"/>
         <source>CAT02 matrix</source>
-        <translation type="unfinished"></translation>
+        <translation>CAT97 矩阵</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="139"/>
         <source>Bradford method</source>
-        <translation type="unfinished"></translation>
+        <translation>布拉德福德法</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="142"/>
         <source>Automatic (or via command line)</source>
-        <translation type="unfinished"></translation>
+        <translation>自动（或通过命令行）</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="143"/>
         <source>Light scheme</source>
-        <translation type="unfinished"></translation>
+        <translation>照明方案</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="144"/>
         <source>Dark scheme</source>
-        <translation type="unfinished"></translation>
+        <translation>深色方案</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="147"/>
         <source>Automatic detection</source>
-        <translation type="unfinished"></translation>
+        <translation>自动检测</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="148"/>
@@ -14498,107 +14498,107 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="149"/>
         <source>German</source>
-        <translation type="unfinished"></translation>
+        <translation>Deutsch</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="150"/>
         <source>Korean</source>
-        <translation type="unfinished"></translation>
+        <translation>한국인</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="151"/>
         <source>Spanish</source>
-        <translation type="unfinished"></translation>
+        <translation>Español</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="152"/>
         <source>Czech</source>
-        <translation type="unfinished"></translation>
+        <translation>čeština</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="672"/>
         <source>Type</source>
-        <translation type="unfinished"></translation>
+        <translation>类型</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="672"/>
         <source>Certificate</source>
-        <translation type="unfinished"></translation>
+        <translation>证书</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="672"/>
         <source>Organization</source>
-        <translation type="unfinished"></translation>
+        <translation>组织</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="672"/>
         <source>Valid from</source>
-        <translation type="unfinished"></translation>
+        <translation>有效期自</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="672"/>
         <source>Valid to</source>
-        <translation type="unfinished"></translation>
+        <translation>有效期至</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="680"/>
         <source>User</source>
-        <translation type="unfinished"></translation>
+        <translation>用户</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="684"/>
         <source>System</source>
-        <translation type="unfinished"></translation>
+        <translation>糸统</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="724"/>
         <source>Action</source>
-        <translation type="unfinished"></translation>
+        <translation>操作</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="724"/>
         <source>Shortcut</source>
-        <translation type="unfinished"></translation>
+        <translation>快捷键</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="753"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>错误</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="753"/>
         <source>Shortcut &apos;%1&apos; is invalid for action %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>快捷方式‘%1’对于操作 %2 无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="776"/>
         <source>Active</source>
-        <translation type="unfinished"></translation>
+        <translation>激活</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="776"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation>名称</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="776"/>
         <source>Author</source>
-        <translation type="unfinished"></translation>
+        <translation>作者</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="776"/>
         <source>Version</source>
-        <translation type="unfinished"></translation>
+        <translation>版本</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="776"/>
         <source>License</source>
-        <translation type="unfinished"></translation>
+        <translation>许可证</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="890"/>
         <source>Select color profile directory</source>
-        <translation type="unfinished"></translation>
+        <translation>选择颜色配置文件目录</translation>
     </message>
 </context>
 </TS>
