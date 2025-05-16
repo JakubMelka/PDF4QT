@@ -1558,37 +1558,37 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="186"/>
         <source>&amp;Stamp</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;印章</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="191"/>
         <source>Text Hi&amp;ghlight</source>
-        <translation type="unfinished"></translation>
+        <translation>文本高亮</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="237"/>
         <source>&amp;Open...</source>
-        <translation type="unfinished"></translation>
+        <translation>打开...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="246"/>
         <source>&amp;Close</source>
-        <translation type="unfinished"></translation>
+        <translation>关闭</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="255"/>
         <source>&amp;Quit</source>
-        <translation type="unfinished"></translation>
+        <translation>退出</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="263"/>
         <source>&amp;Single Page</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;1页</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="266"/>
         <source>Single Page</source>
-        <translation type="unfinished"></translation>
+        <translation>1页</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="269"/>
@@ -1598,12 +1598,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="277"/>
         <source>&amp;Continuous</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;持续</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="280"/>
         <source>Continuous</source>
-        <translation type="unfinished"></translation>
+        <translation>持续</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="283"/>
@@ -1613,12 +1613,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="291"/>
         <source>Two &amp;Pages</source>
-        <translation type="unfinished"></translation>
+        <translation>2 &amp;页</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="294"/>
         <source>Two Pages</source>
-        <translation type="unfinished"></translation>
+        <translation>2页</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="297"/>
@@ -1628,12 +1628,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="305"/>
         <source>&amp;Two columns</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;2列</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="308"/>
         <source>Two columns</source>
-        <translation type="unfinished"></translation>
+        <translation>2列</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="311"/>
@@ -1643,12 +1643,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="319"/>
         <source>&amp;First page on right side</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;右侧第一页</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="322"/>
         <source>First page on right side</source>
-        <translation type="unfinished"></translation>
+        <translation>右侧第一页</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="325"/>
@@ -1658,7 +1658,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="334"/>
         <source>&amp;Rendering Errors...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;渲染错误...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="337"/>
@@ -1668,47 +1668,47 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="345"/>
         <source>&amp;Antialiasing</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;抗锯齿</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="348"/>
         <source>Antialiasing</source>
-        <translation type="unfinished"></translation>
+        <translation>抗锯齿</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="356"/>
         <source>&amp;Text Antialiasing</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;文本抗锯齿</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="359"/>
         <source>Text Antialiasing</source>
-        <translation type="unfinished"></translation>
+        <translation>文本抗锯齿</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="367"/>
         <source>&amp;Smooth Pictures</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;使图像平滑</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="370"/>
         <source>Smooth Pictures</source>
-        <translation type="unfinished"></translation>
+        <translation>使图像平滑</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="378"/>
         <source>&amp;Ignore Optional Content Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;忽略可选内容设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="381"/>
         <source>Ignore Optional Content Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>忽略可选内容设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="390"/>
         <source>&amp;Options...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;选项...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="393"/>
@@ -1718,22 +1718,22 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="398"/>
         <source>Reset to &amp;Factory Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>恢复默认设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="407"/>
         <source>&amp;Zoom In</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;放大</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="416"/>
         <source>Zoom &amp;Out</source>
-        <translation type="unfinished"></translation>
+        <translation>缩 &amp;小</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="425"/>
         <source>&amp;About...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;关于...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="434"/>
