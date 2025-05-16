@@ -1783,42 +1783,42 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="501"/>
         <source>&amp;Find</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;查找</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="510"/>
         <source>Fin&amp;d Previous</source>
-        <translation type="unfinished"></translation>
+        <translation>查找&amp;上一个</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="519"/>
         <source>Fi&amp;nd Next</source>
-        <translation type="unfinished"></translation>
+        <translation>查找&amp;下一个</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="531"/>
         <source>Select te&amp;xt</source>
-        <translation type="unfinished"></translation>
+        <translation>选取&amp;文本</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="543"/>
         <source>Select &amp;table</source>
-        <translation type="unfinished"></translation>
+        <translation>选取&amp;表格</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="552"/>
         <source>Select &amp;All</source>
-        <translation type="unfinished"></translation>
+        <translation>选取&amp;全部</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="561"/>
         <source>Dese&amp;lect</source>
-        <translation type="unfinished"></translation>
+        <translation>取消选择</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="570"/>
         <source>&amp;Copy text</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;复制文本</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="582"/>
