@@ -1275,6 +1275,7 @@
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;PdfForQtViewer&lt;/span&gt;&lt;/p&gt;&lt;p&gt;Copyright 2018-2025 Jakub Melka. All rights reserved.&lt;/p&gt;&lt;p&gt;THE SOFTWARE IS PROVIDED &amp;quot;AS IS&amp;quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR ANYONE DISTRIBUTING THE SOFTWARE BE LIABLE FOR ANY DAMAGES OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;PdfForQtViewer&lt;/span&gt;&lt;/p&gt;&lt;p&gt;版权 2018-2025 Jakub Melka. 保留所有权利.&lt;/p&gt;&lt;p&gt;本软件按 &amp;quot;原样提供&amp;quot;, 不作任何明示或暗示的保证，包括但不限于适销性、特定用途的适用性、所有权和非侵权保证。在任何情况下，对于因本软件或本软件的使用或其他交易而引起、产生或与之相关的任何损害或其他责任，无论是合同责任、侵权责任还是其他责任，版权所有者或分发本软件的任何人均不承担任何责任。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
+    <message>
         <location filename="../Pdf4QtLibGui/pdfaboutdialog.ui" line="74"/>
         <location filename="../Pdf4QtPageMaster/aboutdialog.ui" line="74"/>
         <location filename="../Pdf4QtDiff/aboutdialog.ui" line="74"/>
