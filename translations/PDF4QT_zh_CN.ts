@@ -14516,6 +14516,11 @@ Page %2: %3</source>
         <translation>čeština</translation>
     </message>
     <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="153"/>
+        <source>Chinese</source>
+        <translation>简体中文</translation>
+    </message>
+    <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="672"/>
         <source>Type</source>
         <translation>类型</translation>
