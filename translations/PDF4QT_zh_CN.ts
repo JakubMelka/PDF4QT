@@ -1603,7 +1603,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="280"/>
         <source>Continuous</source>
-        <translation>持续</translation>
+        <translation>连续</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="283"/>
@@ -1933,7 +1933,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="792"/>
         <source>&amp;Key</source>
-        <translation>&amp;密钥</translation>
+        <translation>&amp;关键词</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="800"/>
