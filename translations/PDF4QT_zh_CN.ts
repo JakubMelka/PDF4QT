@@ -6717,17 +6717,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1253"/>
         <source>Page no. %1 was moved to a page no. %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>页码 %1 已移动到页码 %2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1256"/>
         <source>Page no. %1 was added.</source>
-        <translation type="unfinished"></translation>
+        <translation>页码 %1已增加</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1259"/>
         <source>Page no. %1 was removed.</source>
-        <translation type="unfinished"></translation>
+        <translation>页码 %1已删除</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1262"/>
@@ -11803,37 +11803,37 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtPageMaster/selectoutlinetoregroupdialog.cpp" line="70"/>
         <source>Select All</source>
-        <translation type="unfinished"></translation>
+        <translation>选取全部</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/selectoutlinetoregroupdialog.cpp" line="71"/>
         <source>Deselect All</source>
-        <translation type="unfinished"></translation>
+        <translation>取消全部选择</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/selectoutlinetoregroupdialog.cpp" line="72"/>
         <source>Invert Selection</source>
-        <translation type="unfinished"></translation>
+        <translation>反转已选</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/selectoutlinetoregroupdialog.cpp" line="75"/>
         <source>Select Level 1</source>
-        <translation type="unfinished"></translation>
+        <translation>选择等级1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/selectoutlinetoregroupdialog.cpp" line="76"/>
         <source>Select Level 2</source>
-        <translation type="unfinished"></translation>
+        <translation>选择等级2</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/selectoutlinetoregroupdialog.cpp" line="84"/>
         <source>Select subtree</source>
-        <translation type="unfinished"></translation>
+        <translation>选取子树</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/selectoutlinetoregroupdialog.cpp" line="85"/>
         <source>Deselect subtree</source>
-        <translation type="unfinished"></translation>
+        <translation>取消子树选择</translation>
     </message>
 </context>
 <context>
@@ -11841,28 +11841,28 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookcreator.cpp" line="132"/>
         <source>No suitable voice found.</source>
-        <translation type="unfinished"></translation>
+        <translation>没有找到合适的声音。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookcreator.cpp" line="142"/>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookcreator.cpp" line="158"/>
         <source>Cannot create output stream &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法创建输出流 &apos;%1&apos;。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookcreator.cpp" line="150"/>
         <source>Cannot create voice.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法创建语音。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookcreator.cpp" line="166"/>
         <source>Failed to set requested voice.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法设置所请求的语音。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookcreator.cpp" line="182"/>
         <source>Audio book plugin is unsupported on your system.</source>
-        <translation type="unfinished"></translation>
+        <translation>您的系统不支持有声读物插件。</translation>
     </message>
 </context>
 <context>
@@ -11870,77 +11870,77 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="76"/>
         <source>&amp;Create Text Stream for Audio Book</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;为有声读物创建文本流</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="80"/>
         <source>Synchronize Selection from &amp;Table to Graphics</source>
-        <translation type="unfinished"></translation>
+        <translation>将已选从&amp;表格同步到图形</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="85"/>
         <source>Synchronize Selection from &amp;Graphics to Table</source>
-        <translation type="unfinished"></translation>
+        <translation>将已选从&amp;表格同步到图形</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="90"/>
         <source>&amp;Activate Selection</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;激活已选</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="94"/>
         <source>&amp;Deactivate Selection</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;停用已选</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="98"/>
         <source>Select by &amp;Rectangle</source>
-        <translation type="unfinished"></translation>
+        <translation>按 &amp;矩形选择</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="102"/>
         <source>Select by Contained &amp;Text</source>
-        <translation type="unfinished"></translation>
+        <translation>按包含的&amp;文本选择</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="106"/>
         <source>Select by Regular &amp;Expression</source>
-        <translation type="unfinished"></translation>
+        <translation>按正则表达式选择</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="110"/>
         <source>Select by Page &amp;List</source>
-        <translation type="unfinished"></translation>
+        <translation>按页面列表选择</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="114"/>
         <source>Restore &amp;Original Text</source>
-        <translation type="unfinished"></translation>
+        <translation>恢复&amp;原文</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="118"/>
         <source>Move Selection &amp;Up</source>
-        <translation type="unfinished"></translation>
+        <translation>向上移动已选</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="122"/>
         <source>Move Selection &amp;Down</source>
-        <translation type="unfinished"></translation>
+        <translation>向下移动已选</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="126"/>
         <source>Create Audio &amp;Book</source>
-        <translation type="unfinished"></translation>
+        <translation>创建有声读物</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="130"/>
         <source>Clear Te&amp;xt Stream</source>
-        <translation type="unfinished"></translation>
+        <translation>清空文本流</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="171"/>
         <source>&amp;Audio Book</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;有声读物</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="307"/>
@@ -11950,57 +11950,57 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="356"/>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="469"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>错误</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="307"/>
         <source>Cannot select items by text, because text is empty.</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">文本为空，无法通过文本选择项目。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="326"/>
         <source>Regular expression is not valid. %1</source>
-        <translation type="unfinished"></translation>
+        <translation>无效正则表达式。%1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="331"/>
         <source>Cannot select items by regular expression, because regular expression definition is empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>则表达式定义为空，因此无法通过正则表达式选择项目。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="351"/>
         <source>Cannot select items by page indices, because page indices are invalid. %1</source>
-        <translation type="unfinished"></translation>
+        <translation>页面索引无效，无法按页面索引选择项目。%1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="356"/>
         <source>Cannot select items by page indices, because page indices are empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>页面索引无效，无法按页面索引选择项目。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="368"/>
         <source>Question</source>
-        <translation type="unfinished"></translation>
+        <translation>问题</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="368"/>
         <source>Restore original texts in selected items? All changes will be lost.</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">恢复已选项目中的原文吗？所有更改都将丢失。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="444"/>
         <source>Select Audio File</source>
-        <translation type="unfinished"></translation>
+        <translation>选取音频文件</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="444"/>
         <source>Audio stream (*.mp3)</source>
-        <translation type="unfinished"></translation>
+        <translation>音频流 (*.mp3)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="464"/>
         <source>Audio book creator cannot be initialized.</source>
-        <translation type="unfinished"></translation>
+        <translation>有声读物创建器无法初始化。</translation>
     </message>
 </context>
 <context>
@@ -12008,7 +12008,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiotextstreameditordockwidget.cpp" line="47"/>
         <source>Audio Book Actions</source>
-        <translation type="unfinished"></translation>
+        <translation>有声读物的操作</translation>
     </message>
 </context>
 <context>
@@ -12016,17 +12016,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.cpp" line="88"/>
         <source>File Name</source>
-        <translation type="unfinished"></translation>
+        <translation>文件名</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.cpp" line="118"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>错误</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.cpp" line="118"/>
         <source>Cannot convert &apos;%1&apos; to color value.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法将 &apos;%1&apos; 转换为颜色值。</translation>
     </message>
 </context>
 <context>
@@ -12034,62 +12034,62 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="51"/>
         <source>&amp;Horizontal Dimension</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;水平尺寸</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="52"/>
         <source>&amp;Vertical Dimension</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;垂直尺寸</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="53"/>
         <source>&amp;Linear Dimension</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;直线尺寸</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="54"/>
         <source>&amp;Perimeter</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;周长</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="55"/>
         <source>&amp;Rectangle Perimeter</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;矩形周长</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="56"/>
         <source>&amp;Area</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;区域</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="57"/>
         <source>R&amp;ectangle Area</source>
-        <translation type="unfinished"></translation>
+        <translation>矩形区域</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="58"/>
         <source>An&amp;gle</source>
-        <translation type="unfinished"></translation>
+        <translation>角度</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="94"/>
         <source>&amp;Show Dimensions</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;显示尺寸</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="95"/>
         <source>&amp;Clear Dimensions</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;清空尺寸</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="96"/>
         <source>Se&amp;ttings</source>
-        <translation type="unfinished"></translation>
+        <translation>设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="150"/>
         <source>&amp;Dimensions</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;尺寸</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="273"/>
@@ -12107,97 +12107,97 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="63"/>
         <source>&amp;Edit page content</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;编辑页面内容</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="64"/>
         <source>Create &amp;Text Label</source>
-        <translation type="unfinished"></translation>
+        <translation>创建 &amp;页面标签</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="65"/>
         <source>Create &amp;Freehand Curve</source>
-        <translation type="unfinished"></translation>
+        <translation>创建 &amp;曲线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="66"/>
         <source>Create &amp;Accept Mark</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">创建&amp;接受标记</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="67"/>
         <source>Create &amp;Reject Mark</source>
-        <translation type="unfinished"></translation>
+        <translation>创建&amp;剔除标记</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="68"/>
         <source>Create R&amp;ectangle</source>
-        <translation type="unfinished"></translation>
+        <translation>创建矩形</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="69"/>
         <source>&amp;Create Rounded Rectangle</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;创建圆角矩形</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="70"/>
         <source>Create &amp;Horizontal Line</source>
-        <translation type="unfinished"></translation>
+        <translation>创建&amp;水平线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="71"/>
         <source>Create &amp;Vertical Line</source>
-        <translation type="unfinished"></translation>
+        <translation>创建&amp;垂直线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="72"/>
         <source>Create L&amp;ine</source>
-        <translation type="unfinished"></translation>
+        <translation>创建直线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="73"/>
         <source>Create &amp;Dot</source>
-        <translation type="unfinished"></translation>
+        <translation>创建圆点</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="74"/>
         <source>Create &amp;SVG Image</source>
-        <translation type="unfinished"></translation>
+        <translation>创建SVG图像</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="75"/>
         <source>Clear A&amp;ll Graphics</source>
-        <translation type="unfinished"></translation>
+        <translation>清空所有图像</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="189"/>
         <source>Ed&amp;itor</source>
-        <translation type="unfinished"></translation>
+        <translation>编辑器</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="309"/>
         <source>Errors (%2) occured while creating content stream on page %3.&lt;br&gt;%1</source>
-        <translation type="unfinished"></translation>
+        <translation>在 %3 页面上创建内容流时出现错误 (%2) 。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="310"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>错误</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="381"/>
         <source>Confirm Changes</source>
-        <translation type="unfinished"></translation>
+        <translation>确认更改</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="381"/>
         <source>The changes to the page content will be written to the document. Do you want to continue?</source>
-        <translation type="unfinished"></translation>
+        <translation>页面内容的更改将写入文档。要继续吗？</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="705"/>
         <source>Editor Toolbox</source>
-        <translation type="unfinished"></translation>
+        <translation>编辑器工具箱</translation>
     </message>
 </context>
 <context>
@@ -12205,12 +12205,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/inkcoveragedialog.cpp" line="255"/>
         <source>Total</source>
-        <translation type="unfinished"></translation>
+        <translation>合计</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/inkcoveragedialog.cpp" line="348"/>
         <source>Page Index</source>
-        <translation type="unfinished"></translation>
+        <translation>页面索引</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/inkcoveragedialog.cpp" line="362"/>
@@ -12228,67 +12228,67 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.cpp" line="50"/>
         <source>Document</source>
-        <translation type="unfinished"></translation>
+        <translation>文档</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.cpp" line="51"/>
         <source>Pages</source>
-        <translation type="unfinished"></translation>
+        <translation>页面</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.cpp" line="55"/>
         <source>Content streams</source>
-        <translation type="unfinished"></translation>
+        <translation>内容流</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.cpp" line="59"/>
         <source>Graphic states</source>
-        <translation type="unfinished"></translation>
+        <translation>图形状态</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.cpp" line="63"/>
         <source>Color spaces</source>
-        <translation type="unfinished"></translation>
+        <translation>色彩空间</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.cpp" line="67"/>
         <source>Patterns</source>
-        <translation type="unfinished"></translation>
+        <translation>图样</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.cpp" line="71"/>
         <source>Shadings</source>
-        <translation type="unfinished"></translation>
+        <translation>色调</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.cpp" line="75"/>
         <source>Images</source>
-        <translation type="unfinished"></translation>
+        <translation>图像</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.cpp" line="79"/>
         <source>Forms</source>
-        <translation type="unfinished"></translation>
+        <translation>表格</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.cpp" line="83"/>
         <source>Fonts</source>
-        <translation type="unfinished"></translation>
+        <translation>字体</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.cpp" line="87"/>
         <source>Actions</source>
-        <translation type="unfinished"></translation>
+        <translation>操作</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.cpp" line="91"/>
         <source>Annotations</source>
-        <translation type="unfinished"></translation>
+        <translation>注释</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.cpp" line="94"/>
         <source>Object List</source>
-        <translation type="unfinished"></translation>
+        <translation>对象列表</translation>
     </message>
 </context>
 <context>
@@ -12296,17 +12296,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectorplugin.cpp" line="51"/>
         <source>Object &amp;Inspector</source>
-        <translation type="unfinished"></translation>
+        <translation>对象&amp;检查器</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectorplugin.cpp" line="57"/>
         <source>Object &amp;Statistics</source>
-        <translation type="unfinished"></translation>
+        <translation>对象&amp;统计</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectorplugin.cpp" line="88"/>
         <source>O&amp;bject Inspector</source>
-        <translation type="unfinished"></translation>
+        <translation>对象检查器</translation>
     </message>
 </context>
 <context>
@@ -12314,105 +12314,105 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="41"/>
         <source>Statistics by Object Function</source>
-        <translation type="unfinished"></translation>
+        <translation>按对象功能统计</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="42"/>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="134"/>
         <source>Statistics by Object Type</source>
-        <translation type="unfinished"></translation>
+        <translation>按对象类型统计</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="85"/>
         <source>Statistics by Object Class</source>
-        <translation type="unfinished"></translation>
+        <translation>对象类别统计</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="86"/>
         <source>Class</source>
-        <translation type="unfinished"></translation>
+        <translation>类别</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="86"/>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="135"/>
         <source>Percentage [%]</source>
-        <translation type="unfinished"></translation>
+        <translation>百分比 [%]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="86"/>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="135"/>
         <source>Count [#]</source>
-        <translation type="unfinished"></translation>
+        <translation>计数 [#]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="86"/>
         <source>Space Usage [bytes]</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">空间使用量[bytes]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="116"/>
         <source>Page</source>
-        <translation type="unfinished"></translation>
+        <translation>页面</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="117"/>
         <source>Content Stream</source>
-        <translation type="unfinished"></translation>
+        <translation>内容流</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="118"/>
         <source>Graphic State</source>
-        <translation type="unfinished"></translation>
+        <translation>图形状态</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="119"/>
         <source>Color Space</source>
-        <translation type="unfinished"></translation>
+        <translation>色彩空间</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="120"/>
         <source>Pattern</source>
-        <translation type="unfinished"></translation>
+        <translation>图样</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="121"/>
         <source>Shading</source>
-        <translation type="unfinished"></translation>
+        <translation>色调</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="122"/>
         <source>Image</source>
-        <translation type="unfinished"></translation>
+        <translation>图像</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="123"/>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>出自</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="124"/>
         <source>Font</source>
-        <translation type="unfinished"></translation>
+        <translation>字体</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="125"/>
         <source>Action</source>
-        <translation type="unfinished"></translation>
+        <translation>操作</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="126"/>
         <source>Annotation</source>
-        <translation type="unfinished"></translation>
+        <translation>注释</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="127"/>
         <source>Other</source>
-        <translation type="unfinished"></translation>
+        <translation>其它</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="135"/>
         <source>Type</source>
-        <translation type="unfinished"></translation>
+        <translation>类型</translation>
     </message>
 </context>
 <context>
@@ -12426,112 +12426,112 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="112"/>
         <source>Part of object %1</source>
-        <translation type="unfinished"></translation>
+        <translation>对象 %1 的一部分</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="117"/>
         <source>&lt;none&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;无&gt；</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="123"/>
         <source>Null</source>
-        <translation type="unfinished"></translation>
+        <translation>空</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="126"/>
         <source>Bool</source>
-        <translation type="unfinished"></translation>
+        <translation>布尔值</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="129"/>
         <source>Integer</source>
-        <translation type="unfinished"></translation>
+        <translation>整数</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="132"/>
         <source>Real</source>
-        <translation type="unfinished"></translation>
+        <translation>真实</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="135"/>
         <source>String</source>
-        <translation type="unfinished"></translation>
+        <translation>字符串</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="138"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation>名称</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="141"/>
         <source>Array</source>
-        <translation type="unfinished"></translation>
+        <translation>数组</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="144"/>
         <source>Dictionary</source>
-        <translation type="unfinished"></translation>
+        <translation>词典</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="147"/>
         <source>Stream</source>
-        <translation type="unfinished"></translation>
+        <translation>流</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="150"/>
         <source>Reference</source>
-        <translation type="unfinished"></translation>
+        <translation>参考</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="163"/>
         <source>null</source>
-        <translation type="unfinished"></translation>
+        <translation>空</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="167"/>
         <source>true</source>
-        <translation type="unfinished"></translation>
+        <translation>真</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="167"/>
         <source>false</source>
-        <translation type="unfinished"></translation>
+        <translation>假</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="187"/>
         <source>Array [%1 items]</source>
-        <translation type="unfinished"></translation>
+        <translation>数组 [%1 项］</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="191"/>
         <source>Dictionary [%1 items]</source>
-        <translation type="unfinished"></translation>
+        <translation>词典 [%1 项］</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="195"/>
         <source>Stream [%1 items, %2 data bytes]</source>
-        <translation type="unfinished"></translation>
+        <translation>数据流 [%1 项目，%2 数据字节]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="230"/>
         <source>Invalid color space of the image.</source>
-        <translation type="unfinished"></translation>
+        <translation>图像色彩空间无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="244"/>
         <source>Image Stream [%1 items, %2 data bytes, %3 x %4 pixels, %5 bits per component]</source>
-        <translation type="unfinished"></translation>
+        <translation>图像流 [%1 项目，%2 数据字节，%3 x %4 像素，每个组件 %5 比特］</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="295"/>
         <source>[Unknown]</source>
-        <translation type="unfinished"></translation>
+        <translation>[未知]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="306"/>
         <source>%1 (part)</source>
-        <translation type="unfinished"></translation>
+        <translation>%1（部分）</translation>
     </message>
 </context>
 <context>
@@ -12964,7 +12964,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="46"/>
         <source>Page No.</source>
-        <translation type="unfinished"></translation>
+        <translation>页码</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="46"/>
