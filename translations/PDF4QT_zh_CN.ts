@@ -3544,7 +3544,7 @@
         <location filename="../PdfTool/pdftoolrender.cpp" line="335"/>
         <location filename="../PdfTool/pdftoolrender.cpp" line="371"/>
         <source>Page No.</source>
-        <translation type="unfinished"></translation>
+        <translation>页码</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="204"/>
@@ -12969,32 +12969,32 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="46"/>
         <source>Phrase</source>
-        <translation type="unfinished"></translation>
+        <translation>短语</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="46"/>
         <source>Context</source>
-        <translation type="unfinished"></translation>
+        <translation>内容</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="126"/>
         <source>Search error</source>
-        <translation type="unfinished"></translation>
+        <translation>捜索错误</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="126"/>
         <source>Search phrase regular expression has error &apos;%1&apos; near symbol %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>搜索短语正则表达式在符号 %2 附近有错误 &apos;%1&apos;。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="183"/>
         <source>Results (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>结果 (%1)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="183"/>
         <source>Results</source>
-        <translation type="unfinished"></translation>
+        <translation>结果</translation>
     </message>
 </context>
 <context>
@@ -13473,17 +13473,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="285"/>
         <source>&amp;Sidebar</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;侧边栏</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="295"/>
         <source>Advanced find</source>
-        <translation type="unfinished"></translation>
+        <translation>高级查找</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="303"/>
         <source>Ad&amp;vanced Find...</source>
-        <translation type="unfinished"></translation>
+        <translation>高&amp;级查找...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="440"/>
@@ -13941,12 +13941,12 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="378"/>
         <source>Speech feature is unavailable. No speech engines detected. If you&apos;re using Linux, please install speech libraries like &apos;flite&apos; or &apos;speechd&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>语音功能不可用。未检测到语音引擎。如果您使用的是 Linux，请安装语音库，如&apos;flite&apos;或&apos;speechd&apos;。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="382"/>
         <source>The speech feature is available, but its options are not properly set. Please check the speech settings in the options dialog.</source>
-        <translation type="unfinished"></translation>
+        <translation>语音功能可用，但其选项未正确设置。请检查选项对话框中的语音设置。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="486"/>
