@@ -12431,7 +12431,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="117"/>
         <source>&lt;none&gt;</source>
-        <translation>&lt;无&gt；</translation>
+        <translation>无</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="123"/>
