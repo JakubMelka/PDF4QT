@@ -1180,7 +1180,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="85"/>
         <source>Simulate separations</source>
-        <translation>模拟分离</translation>
+        <translation>模拟分色</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="95"/>
@@ -12539,42 +12539,42 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="57"/>
         <source>Separations</source>
-        <translation type="unfinished"></translation>
+        <translation>分色</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="58"/>
         <source>Color Warnings | Ink Coverage</source>
-        <translation type="unfinished"></translation>
+        <translation>颜色警告 | 墨水覆盖率</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="59"/>
         <source>Color Warnings | Rich Black</source>
-        <translation type="unfinished"></translation>
+        <translation>颜色警告 | 富黑色</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="60"/>
         <source>Ink Coverage</source>
-        <translation type="unfinished"></translation>
+        <translation>墨水覆盖率</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="61"/>
         <source>Shape Channel</source>
-        <translation type="unfinished"></translation>
+        <translation>形状通道</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="62"/>
         <source>Opacity Channel</source>
-        <translation type="unfinished"></translation>
+        <translation>不透明度通道</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="127"/>
         <source>Process Inks</source>
-        <translation type="unfinished"></translation>
+        <translation>工艺墨水</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="128"/>
         <source>Spot Inks</source>
-        <translation type="unfinished"></translation>
+        <translation>专色墨水</translation>
     </message>
 </context>
 <context>
@@ -12582,17 +12582,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewplugin.cpp" line="47"/>
         <source>&amp;Output Preview</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;输出预览</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewplugin.cpp" line="49"/>
         <source>&amp;Ink Coverage</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;墨水覆盖率</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewplugin.cpp" line="75"/>
         <source>Output Previe&amp;w</source>
-        <translation type="unfinished"></translation>
+        <translation>输出预览</translation>
     </message>
 </context>
 <context>
@@ -12600,54 +12600,54 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="292"/>
         <source>Distribution</source>
-        <translation type="unfinished"></translation>
+        <translation>分配</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="505"/>
         <source>Process Inks</source>
-        <translation type="unfinished"></translation>
+        <translation>工艺墨水</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="521"/>
         <source>Spot Inks</source>
-        <translation type="unfinished"></translation>
+        <translation>专色墨水</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="549"/>
         <source>Warning | Ink Coverage</source>
-        <translation type="unfinished"></translation>
+        <translation>警告 | 墨水覆盖率</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="553"/>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="564"/>
         <source>OK</source>
-        <translation type="unfinished"></translation>
+        <translation>确定</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="554"/>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="565"/>
         <source>Failure</source>
-        <translation type="unfinished"></translation>
+        <translation>故障</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="560"/>
         <source>Warning | Rich Black</source>
-        <translation type="unfinished"></translation>
+        <translation>警告 | 富黑色</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="579"/>
         <source>Ink Coverage</source>
-        <translation type="unfinished"></translation>
+        <translation>墨水覆盖率</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="598"/>
         <source>Shape/Opacity</source>
-        <translation type="unfinished"></translation>
+        <translation>形状/不透明</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="604"/>
         <source>Sample Color</source>
-        <translation type="unfinished"></translation>
+        <translation>示例颜色</translation>
     </message>
 </context>
 <context>
@@ -12655,32 +12655,32 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/pdfobjectinspectortreeitemmodel.cpp" line="148"/>
         <source>null</source>
-        <translation type="unfinished"></translation>
+        <translation>空</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/pdfobjectinspectortreeitemmodel.cpp" line="152"/>
         <source>true</source>
-        <translation type="unfinished"></translation>
+        <translation>真</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/pdfobjectinspectortreeitemmodel.cpp" line="152"/>
         <source>false</source>
-        <translation type="unfinished"></translation>
+        <translation>假</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/pdfobjectinspectortreeitemmodel.cpp" line="172"/>
         <source>Array [%1 items]</source>
-        <translation type="unfinished"></translation>
+        <translation>数组 [%1 项]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/pdfobjectinspectortreeitemmodel.cpp" line="176"/>
         <source>Dictionary [%1 items]</source>
-        <translation type="unfinished"></translation>
+        <translation>词典[%1 项]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/pdfobjectinspectortreeitemmodel.cpp" line="180"/>
         <source>Stream [%1 items, %2 data bytes]</source>
-        <translation type="unfinished"></translation>
+        <translation>流 [%1 项, %2 数据字节]</translation>
     </message>
 </context>
 <context>
