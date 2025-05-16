@@ -1520,39 +1520,39 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="86"/>
         <source>Re&amp;ndering Options</source>
-        <translation type="unfinished"></translation>
+        <translation>重新渲染选项</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="116"/>
         <source>&amp;Tools</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;工具</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="131"/>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="776"/>
         <source>&amp;Help</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;帮助</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="139"/>
         <source>&amp;Developer</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;开发者</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="146"/>
         <source>&amp;Edit</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;编辑</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="170"/>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="784"/>
         <source>&amp;Insert</source>
-        <translation type="unfinished"></translation>
+        <translation>插入</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="174"/>
         <source>Sticky &amp;Note</source>
-        <translation type="unfinished"></translation>
+        <translation>便利&amp;贴</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="186"/>
