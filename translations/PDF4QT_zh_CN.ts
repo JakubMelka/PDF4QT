@@ -1583,12 +1583,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="263"/>
         <source>&amp;Single Page</source>
-        <translation>&amp;1页</translation>
+        <translation>&amp;一页</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="266"/>
         <source>Single Page</source>
-        <translation>1页</translation>
+        <translation>一页</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="269"/>
@@ -1613,12 +1613,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="291"/>
         <source>Two &amp;Pages</source>
-        <translation>2 &amp;页</translation>
+        <translation>二&amp;页</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="294"/>
         <source>Two Pages</source>
-        <translation>2页</translation>
+        <translation>二页</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="297"/>
@@ -1628,12 +1628,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="305"/>
         <source>&amp;Two columns</source>
-        <translation>&amp;2列</translation>
+        <translation>&amp;二列</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="308"/>
         <source>Two columns</source>
-        <translation>2列</translation>
+        <translation>二列</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="311"/>
@@ -1738,12 +1738,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="434"/>
         <source>Fit &amp;Page</source>
-        <translation type="unfinished"></translation>
+        <translation>自适应页面</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="443"/>
         <source>Fit &amp;Width</source>
-        <translation type="unfinished"></translation>
+        <translation>自适应宽度</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="446"/>
@@ -1753,7 +1753,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="455"/>
         <source>&amp;Fit Height</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;自适应高度</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="458"/>
@@ -1763,22 +1763,22 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="467"/>
         <source>Prope&amp;rties...</source>
-        <translation type="unfinished"></translation>
+        <translation>属性...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="476"/>
         <source>Send by &amp;E-Mail...</source>
-        <translation type="unfinished"></translation>
+        <translation>通过邮件发送</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="484"/>
         <source>Show Text &amp;Blocks</source>
-        <translation type="unfinished"></translation>
+        <translation>显示文本块</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="492"/>
         <source>Show Text &amp;Lines</source>
-        <translation type="unfinished"></translation>
+        <translation>显示文本行</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="501"/>
