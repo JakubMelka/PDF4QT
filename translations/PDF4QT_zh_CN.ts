@@ -2418,12 +2418,12 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="253"/>
         <source>Translation in Y</source>
-        <translation type="unfinished"></translation>
+        <translation>翻译Y</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="270"/>
         <source>Translation in X</source>
-        <translation type="unfinished"></translation>
+        <translation>翻译X</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="287"/>
@@ -2443,7 +2443,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="351"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Rotation angle&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;旋转角度&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="368"/>
@@ -2453,12 +2453,12 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="375"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;s&lt;span style=&quot; vertical-align:sub;&quot;&gt;x&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;s&lt;span style=&quot; 垂直角度：sub;&quot;&gt;x&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="382"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;s&lt;span style=&quot; vertical-align:sub;&quot;&gt;y&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;s&lt;span style=&quot; 垂直角度：sub;&quot;&gt;y&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="389"/>
@@ -2468,12 +2468,12 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="396"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;t&lt;span style=&quot; vertical-align:sub;&quot;&gt;x&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;t&lt;span style=&quot;垂直角度：sub;&quot;&gt;x&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="403"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;t&lt;span style=&quot; vertical-align:sub;&quot;&gt;y&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;t&lt;span style=&quot; 垂直角度：sub;&quot;&gt;y&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
 </context>
 <context>
@@ -2481,27 +2481,27 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="14"/>
         <source>Style Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>样式设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="20"/>
         <source>Text Alignment</source>
-        <translation type="unfinished"></translation>
+        <translation>文本对齐</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="27"/>
         <source>Pen Style</source>
-        <translation type="unfinished"></translation>
+        <translation>笔样式</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="70"/>
         <source>Pen Width</source>
-        <translation type="unfinished"></translation>
+        <translation>笔宽</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="77"/>
         <source>Brush Color</source>
-        <translation type="unfinished"></translation>
+        <translation>刷子颜色</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="174"/>
@@ -2513,22 +2513,22 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="181"/>
         <source>Pen Color</source>
-        <translation type="unfinished"></translation>
+        <translation>笔颜色</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="188"/>
         <source>Font</source>
-        <translation type="unfinished"></translation>
+        <translation>字体</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="198"/>
         <source>Text Angle</source>
-        <translation type="unfinished"></translation>
+        <translation>文本角度</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="219"/>
         <source>Brush Style</source>
-        <translation type="unfinished"></translation>
+        <translation>刷子样式</translation>
     </message>
 </context>
 <context>
@@ -2536,112 +2536,112 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="17"/>
         <source>Content editor</source>
-        <translation type="unfinished"></translation>
+        <translation>内容编辑器</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="24"/>
         <source>Toolbox</source>
-        <translation type="unfinished"></translation>
+        <translation>工具箱</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="32"/>
         <source>Geometry Tools</source>
-        <translation type="unfinished"></translation>
+        <translation>几何图形工具</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="38"/>
         <source>Align to Top</source>
-        <translation type="unfinished"></translation>
+        <translation>顶部对齐</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="45"/>
         <source>Align to Vertical Center</source>
-        <translation type="unfinished"></translation>
+        <translation>垂直中心对齐</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="52"/>
         <source>Align to Bottom</source>
-        <translation type="unfinished"></translation>
+        <translation>底部对齐</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="59"/>
         <source>Set Same Width</source>
-        <translation type="unfinished"></translation>
+        <translation>设置相同宽度</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="66"/>
         <source>Set Same Height</source>
-        <translation type="unfinished"></translation>
+        <translation>设置相同高度</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="73"/>
         <source>Set Same Size</source>
-        <translation type="unfinished"></translation>
+        <translation>设置同样的尺寸</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="80"/>
         <source>Align to Left</source>
-        <translation type="unfinished"></translation>
+        <translation>左对齐</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="87"/>
         <source>Align to Horizontal Center</source>
-        <translation type="unfinished"></translation>
+        <translation>水平中心对齐</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="94"/>
         <source>Align to Right</source>
-        <translation type="unfinished"></translation>
+        <translation>右对齐</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="101"/>
         <source>Center Horizontally</source>
-        <translation type="unfinished"></translation>
+        <translation>水平居中</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="108"/>
         <source>Center Vertically</source>
-        <translation type="unfinished"></translation>
+        <translation>垂直居中</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="115"/>
         <source>Center to Page Media Box</source>
-        <translation type="unfinished"></translation>
+        <translation>中心至页面媒体框</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="125"/>
         <source>Layout Tools</source>
-        <translation type="unfinished"></translation>
+        <translation>布局工具</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="131"/>
         <source>Make Horizontal Layout</source>
-        <translation type="unfinished"></translation>
+        <translation>进行水平布局</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="138"/>
         <source>Make Vertical Layout</source>
-        <translation type="unfinished"></translation>
+        <translation>进行垂直布局</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="145"/>
         <source>Make Form Layout</source>
-        <translation type="unfinished"></translation>
+        <translation>进行表格布局</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="152"/>
         <source>Make Grid Layout</source>
-        <translation type="unfinished"></translation>
+        <translation>进行网格布局</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="162"/>
         <source>Appearance</source>
-        <translation type="unfinished"></translation>
+        <translation>外观</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="186"/>
         <source>Content</source>
-        <translation type="unfinished"></translation>
+        <translation>内容</translation>
     </message>
 </context>
 <context>
@@ -2649,32 +2649,32 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="14"/>
         <source>Render Document to Images</source>
-        <translation type="unfinished"></translation>
+        <translation>将文档渲染为图像</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="20"/>
         <source>Output Files Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>输出文件设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="26"/>
         <source>Pages to render</source>
-        <translation type="unfinished"></translation>
+        <translation>要渲染的页面</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="33"/>
         <source>File template</source>
-        <translation type="unfinished"></translation>
+        <translation>文件模板</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="40"/>
         <source>All</source>
-        <translation type="unfinished"></translation>
+        <translation>全部</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="47"/>
         <source>Generate into directory</source>
-        <translation type="unfinished"></translation>
+        <translation>生成目录</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="54"/>
@@ -2684,22 +2684,22 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="67"/>
         <source>Pages:</source>
-        <translation type="unfinished"></translation>
+        <translation>页面：</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="80"/>
         <source>Image Resolution</source>
-        <translation type="unfinished"></translation>
+        <translation>图像分辨率</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="86"/>
         <source>Resolution</source>
-        <translation type="unfinished"></translation>
+        <translation>分辨率</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="93"/>
         <source>Pixels</source>
-        <translation type="unfinished"></translation>
+        <translation>像素</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="100"/>
@@ -2719,48 +2719,48 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="148"/>
         <source>Image Format Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>图像格式设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="154"/>
         <source>Format</source>
-        <translation type="unfinished"></translation>
+        <translation>格式</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="161"/>
         <source>Subtype</source>
-        <translation type="unfinished"></translation>
+        <translation>子类型</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="181"/>
         <source>Gamma</source>
-        <translation type="unfinished"></translation>
+        <translation>伽马</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="188"/>
         <source>Optimized write</source>
-        <translation type="unfinished"></translation>
+        <translation>优化写入</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="198"/>
         <source>Quality</source>
-        <translation type="unfinished"></translation>
+        <translation>质量</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="205"/>
         <source>Compression</source>
-        <translation type="unfinished"></translation>
+        <translation>压缩</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="215"/>
         <source>Progressive scan write</source>
-        <translation type="unfinished"></translation>
+        <translation>逐行扫描写入</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="222"/>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="229"/>
         <source>Enable</source>
-        <translation type="unfinished"></translation>
+        <translation>启用</translation>
     </message>
 </context>
 <context>
@@ -2768,7 +2768,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfrenderingerrorswidget.ui" line="14"/>
         <source>Rendering errors</source>
-        <translation type="unfinished"></translation>
+        <translation>渲染错误</translation>
     </message>
 </context>
 <context>
@@ -2776,12 +2776,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.ui" line="14"/>
         <source>Document sanitization</source>
-        <translation type="unfinished"></translation>
+        <translation>文档合规</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.ui" line="20"/>
         <source>Sanitization Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>合规设置</translation>
     </message>
 </context>
 <context>
@@ -2789,27 +2789,27 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.ui" line="20"/>
         <source>All pages</source>
-        <translation type="unfinished"></translation>
+        <translation>所有页</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.ui" line="30"/>
         <source>Even pages</source>
-        <translation type="unfinished"></translation>
+        <translation>偶数页</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.ui" line="37"/>
         <source>Odd pages</source>
-        <translation type="unfinished"></translation>
+        <translation>奇数页</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.ui" line="44"/>
         <source>Custom page range:</source>
-        <translation type="unfinished"></translation>
+        <translation>自定义页码范围：</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.ui" line="51"/>
         <source>Visible pages</source>
-        <translation type="unfinished"></translation>
+        <translation>当前页</translation>
     </message>
 </context>
 <context>
@@ -2817,42 +2817,42 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="84"/>
         <source>Outline</source>
-        <translation type="unfinished"></translation>
+        <translation>大纲</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="116"/>
         <source>Thumbnails</source>
-        <translation type="unfinished"></translation>
+        <translation>缩略图</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="148"/>
         <source>Visibility</source>
-        <translation type="unfinished"></translation>
+        <translation>可视性</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="180"/>
         <source>Attachments</source>
-        <translation type="unfinished"></translation>
+        <translation>附件</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="212"/>
         <source>Speech</source>
-        <translation type="unfinished"></translation>
+        <translation>语音</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="244"/>
         <source>Signatures</source>
-        <translation type="unfinished"></translation>
+        <translation>签名</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="276"/>
         <source>Bookmarks</source>
-        <translation type="unfinished"></translation>
+        <translation>书签</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="305"/>
         <source>Notes</source>
-        <translation type="unfinished"></translation>
+        <translation>笔记</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="318"/>
@@ -2863,27 +2863,27 @@
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="384"/>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="574"/>
         <source>Search text or wildcard...</source>
-        <translation type="unfinished"></translation>
+        <translation>搜索文本或通配符...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="421"/>
         <source>Synchronize thumbnails with current page</source>
-        <translation type="unfinished"></translation>
+        <translation>将缩略图与当前页面同步</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="622"/>
         <source>Volume</source>
-        <translation type="unfinished"></translation>
+        <translation>音量</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="642"/>
         <source>Pitch</source>
-        <translation type="unfinished"></translation>
+        <translation>间距</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="662"/>
         <source>Rate</source>
-        <translation type="unfinished"></translation>
+        <translation>速度</translation>
     </message>
 </context>
 <context>
@@ -2891,32 +2891,32 @@
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="53"/>
         <source>Help</source>
-        <translation type="unfinished"></translation>
+        <translation>帮助</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="56"/>
         <source>Show list of all available commands.</source>
-        <translation type="unfinished"></translation>
+        <translation>显示所有可用命令的列表。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="69"/>
         <source>PDFTool help</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF工具帮助</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="72"/>
         <source>List of available commands</source>
-        <translation type="unfinished"></translation>
+        <translation>可用命令列表</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="76"/>
         <source>Command</source>
-        <translation type="unfinished"></translation>
+        <translation>命令</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="77"/>
         <source>Tool</source>
-        <translation type="unfinished"></translation>
+        <translation>工具</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="78"/>
@@ -2924,37 +2924,37 @@
         <location filename="../PdfTool/pdftoolrender.cpp" line="297"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="244"/>
         <source>Description</source>
-        <translation type="unfinished"></translation>
+        <translation>描述</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="118"/>
         <source>Text Encoding</source>
-        <translation type="unfinished"></translation>
+        <translation>文本编码</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="120"/>
         <source>When you redirect console to a file, then specific codec is used to transform output text to target encoding. UTF-8 encoding is used by default. For XML output, you should use only UTF-8 codec. Available codecs:</source>
-        <translation type="unfinished"></translation>
+        <translation>将控制台重定向到文件时，会使用特定的编解码器将输出文本转换为目标编码。默认使用 UTF-8 编码。对于 XML 输出，只能使用 UTF-8 编解码器。可用的编解码器：</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="131"/>
         <source>Suggested codec: UTF-8 or %1</source>
-        <translation type="unfinished"></translation>
+        <translation>建议编码： UTF-8 或 %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="376"/>
         <source>Unknown console format &apos;%1&apos;. Defaulting to text console format.</source>
-        <translation type="unfinished"></translation>
+        <translation>未知控制台格式 &apos;%1&apos;。默认为文本控制台格式。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="406"/>
         <source>Unknown console date/time format &apos;%1&apos;. Defaulting to short date/time format.</source>
-        <translation type="unfinished"></translation>
+        <translation>未知控制台日期/时间格式 &apos;%1&apos;。默认为短日期/时间格式。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="481"/>
         <source>Unknown text layout analysis algorithm &apos;%1&apos;. Defaulting to automatic algorithm selection.</source>
-        <translation type="unfinished"></translation>
+        <translation>未知文本布局分析算法 &apos;%1&apos;。默认为自动选择算法。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="509"/>
@@ -2964,67 +2964,67 @@
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="532"/>
         <source>Image format &apos;%1&apos; is not supported. Defaulting to png.</source>
-        <translation type="unfinished"></translation>
+        <translation>不支持图像格式 &apos;%1&apos;。默认为 png。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="549"/>
         <source>Image format subtype &apos;%1&apos; is not supported.</source>
-        <translation type="unfinished"></translation>
+        <translation>不支持图像格式子类型 &apos;%1&apos;。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="568"/>
         <source>Image compression for current format is not supported.</source>
-        <translation type="unfinished"></translation>
+        <translation>不支持对当前格式的图像进行压缩。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="573"/>
         <source>Invalid compression level &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>压缩级别无效&apos;%1&apos;。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="592"/>
         <source>Image quality settings for current format is not supported.</source>
-        <translation type="unfinished"></translation>
+        <translation>当前格式不支持图像质量设置。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="597"/>
         <source>Invalid image quality &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>图像质量无效 &apos;%1&apos;</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="612"/>
         <source>Optimized write is not supported.</source>
-        <translation type="unfinished"></translation>
+        <translation>不支持优化写入</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="624"/>
         <source>Progressive scan write is not supported.</source>
-        <translation type="unfinished"></translation>
+        <translation>不支持逐行扫描写入。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="656"/>
         <source>Invalid image resolution mode &apos;%1&apos;. Defaulting to dpi.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效图像分辨率模式 &apos;%1&apos;。默认为 dpi。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="664"/>
         <source>Cannot set dpi value, resolution mode must be dpi.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法设置 dpi 值，分辨率模式必须为 dpi。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="675"/>
         <source>Dpi must be in range from %1 to %2. Defaulting to %3.</source>
-        <translation type="unfinished"></translation>
+        <translation>Dpi 必须在 %1 到 %2 的范围内。默认为 %3。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="682"/>
         <source>Invalid image dpi value &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>图像 dpi 值 &apos;%1&apos; 无效。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="690"/>
         <source>Cannot set pixel value, resolution mode must be pixel.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法设置像素值，分辨率模式必须为像素。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="701"/>
