@@ -1553,7 +1553,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="174"/>
         <source>Sticky &amp;Note</source>
-        <translation>便利&amp;贴</translation>
+        <translation>备注&amp;贴</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="186"/>
@@ -2852,7 +2852,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="305"/>
         <source>Notes</source>
-        <translation>笔记</translation>
+        <translation>备注</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="318"/>
