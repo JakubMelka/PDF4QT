@@ -12688,57 +12688,57 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="58"/>
         <source>Redact &amp;Rectangle</source>
-        <translation type="unfinished"></translation>
+        <translation>重构矩形</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="59"/>
         <source>Redact &amp;Text</source>
-        <translation type="unfinished"></translation>
+        <translation>修订文本</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="60"/>
         <source>Redact Text &amp;Selection</source>
-        <translation type="unfinished"></translation>
+        <translation>修订已选文本</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="61"/>
         <source>Redact &amp;Page(s)</source>
-        <translation type="unfinished"></translation>
+        <translation>修订页面</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="62"/>
         <source>Create Redacted &amp;Document</source>
-        <translation type="unfinished"></translation>
+        <translation>创建可修订文档</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="104"/>
         <source>Redac&amp;t</source>
-        <translation type="unfinished"></translation>
+        <translation>修订</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="120"/>
         <source>Information</source>
-        <translation type="unfinished"></translation>
+        <translation>信息</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="120"/>
         <source>Select text via &apos;Advanced Search&apos; tool, and then redact it using this tool. Select rows in &apos;Result&apos; table to select particular results.</source>
-        <translation type="unfinished"></translation>
+        <translation>通过&apos;高级搜索&apos;工具选择文本，然后使用该工具进行编辑。在 &apos;结果表格&apos;中选择行以选择特定结果。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="153"/>
         <source>Redact Pages</source>
-        <translation type="unfinished"></translation>
+        <translation>修订页面</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="153"/>
         <source>Page Range to be Redacted</source>
-        <translation type="unfinished"></translation>
+        <translation>要修订的页面范围</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="206"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>错误</translation>
     </message>
 </context>
 <context>
@@ -12746,28 +12746,28 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="44"/>
         <source>Sign digitally</source>
-        <translation type="unfinished"></translation>
+        <translation>数字签名</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="47"/>
         <source>Sign digitally (invisible signature)</source>
-        <translation type="unfinished"></translation>
+        <translation>数字签名（隐形签名）</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="99"/>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="107"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>错误</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="99"/>
         <source>Certificate does not exist.</source>
-        <translation type="unfinished"></translation>
+        <translation>证书不存在</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="107"/>
         <source>Password to open certificate is invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的证书密码</translation>
     </message>
 </context>
 <context>
@@ -12775,126 +12775,126 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="60"/>
         <source>&amp;Activate signature creator</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;启动签名创建器</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="61"/>
         <source>Create &amp;Text Label</source>
-        <translation type="unfinished"></translation>
+        <translation>创建文本标签</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="62"/>
         <source>Create &amp;Freehand Curve</source>
-        <translation type="unfinished"></translation>
+        <translation>创建曲线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="63"/>
         <source>Create &amp;Accept Mark</source>
-        <translation type="unfinished"></translation>
+        <translation>创建接受标记</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="64"/>
         <source>Create Reject &amp;Mark</source>
-        <translation type="unfinished"></translation>
+        <translation>创建剔除标记</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="65"/>
         <source>Create &amp;Rectangle</source>
-        <translation type="unfinished"></translation>
+        <translation>创建矩形</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="66"/>
         <source>Create R&amp;ounded Rectangle</source>
-        <translation type="unfinished"></translation>
+        <translation>创建圆角矩形</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="67"/>
         <source>Create &amp;Horizontal Line</source>
-        <translation type="unfinished"></translation>
+        <translation>创建水平线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="68"/>
         <source>Create &amp;Vertical Line</source>
-        <translation type="unfinished"></translation>
+        <translation>创建垂直线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="69"/>
         <source>Create &amp;Line</source>
-        <translation type="unfinished"></translation>
+        <translation>创建直线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="70"/>
         <source>Create &amp;Dot</source>
-        <translation type="unfinished"></translation>
+        <translation>创建圆点</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="71"/>
         <source>Create SVG &amp;Image</source>
-        <translation type="unfinished"></translation>
+        <translation>创建SVG图像</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="72"/>
         <source>Clear All &amp;Graphics</source>
-        <translation type="unfinished"></translation>
+        <translation>清空所有图像</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="73"/>
         <source>Sign &amp;Electronically</source>
-        <translation type="unfinished"></translation>
+        <translation>电子签名</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="74"/>
         <source>Sign Digitally &amp;With Certificate</source>
-        <translation type="unfinished"></translation>
+        <translation>用证书数字签名</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="75"/>
         <source>Certificates &amp;Manager</source>
-        <translation type="unfinished"></translation>
+        <translation>证书管理</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="200"/>
         <source>Si&amp;gnature</source>
-        <translation type="unfinished"></translation>
+        <translation>签名</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="299"/>
         <source>Confirm Signature</source>
-        <translation type="unfinished"></translation>
+        <translation>确认签名</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="299"/>
         <source>Document will be signed electronically. Do you want to continue?</source>
-        <translation type="unfinished"></translation>
+        <translation>文件将以电子方式签署。您想继续吗？</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="351"/>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="447"/>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="481"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>错误</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="351"/>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="447"/>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="481"/>
         <source>Failed to create digital signature.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法创建数字签名</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="491"/>
         <source>Save Signed Document</source>
-        <translation type="unfinished"></translation>
+        <translation>保存已签文档</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="491"/>
         <source>Portable Document (*.pdf);;All files (*.*)</source>
-        <translation type="unfinished"></translation>
+        <translation>便携式文档 (*.pdf);;所有文件 (*.*)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="667"/>
         <source>Signature Toolbox</source>
-        <translation type="unfinished"></translation>
+        <translation>签名工具箱</translation>
     </message>
 </context>
 <context>
@@ -12902,22 +12902,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/softproofingplugin.cpp" line="51"/>
         <source>&amp;Soft Proofing</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;软打样</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/softproofingplugin.cpp" line="52"/>
         <source>&amp;Gamut Checking</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;色域检查</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/softproofingplugin.cpp" line="53"/>
         <source>Soft &amp;Proofing Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>软打样设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/softproofingplugin.cpp" line="93"/>
         <source>Soft &amp;Proofing</source>
-        <translation type="unfinished"></translation>
+        <translation>软打样</translation>
     </message>
 </context>
 <context>
@@ -12925,7 +12925,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="482"/>
         <source>Toggle this icon to switch image conversion to bitonal format on or off.</source>
-        <translation type="unfinished"></translation>
+        <translation>切换此图标以改变图像转换为黑白格式开或关。</translation>
     </message>
 </context>
 <context>
@@ -12933,17 +12933,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfaboutdialog.cpp" line="47"/>
         <source>Library</source>
-        <translation type="unfinished"></translation>
+        <translation>库</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfaboutdialog.cpp" line="47"/>
         <source>Version</source>
-        <translation type="unfinished"></translation>
+        <translation>版本</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfaboutdialog.cpp" line="47"/>
         <source>License</source>
-        <translation type="unfinished"></translation>
+        <translation>许可</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfaboutdialog.cpp" line="47"/>
@@ -12956,7 +12956,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfactioncombobox.cpp" line="40"/>
         <source>Find action...</source>
-        <translation type="unfinished"></translation>
+        <translation>查找操作...</translation>
     </message>
 </context>
 <context>
@@ -13002,12 +13002,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfbookmarkui.cpp" line="195"/>
         <source>Page %1 | Generated</source>
-        <translation type="unfinished"></translation>
+        <translation>页面 %1 | 已生成</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfbookmarkui.cpp" line="199"/>
         <source>Page %1</source>
-        <translation type="unfinished"></translation>
+        <translation>页面 %1</translation>
     </message>
 </context>
 <context>
@@ -13015,7 +13015,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfbookmarkmanager.cpp" line="199"/>
         <source>User bookmark for page %1</source>
-        <translation type="unfinished"></translation>
+        <translation>页面%1用户书签</translation>
     </message>
 </context>
 <context>
@@ -13023,22 +13023,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="126"/>
         <source>ORIGINAL</source>
-        <translation type="unfinished"></translation>
+        <translation>原版</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="127"/>
         <source>BITONAL</source>
-        <translation type="unfinished"></translation>
+        <translation>双调</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="135"/>
         <source>Perform</source>
-        <translation type="unfinished"></translation>
+        <translation>执行</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="185"/>
         <source>Converting images...</source>
-        <translation type="unfinished"></translation>
+        <translation>转换图像中...</translation>
     </message>
 </context>
 <context>
@@ -13046,17 +13046,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="115"/>
         <source>Properties</source>
-        <translation type="unfinished"></translation>
+        <translation>属性</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="119"/>
         <source>PDF version</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF版本</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="120"/>
         <source>Title</source>
-        <translation type="unfinished"></translation>
+        <translation>标题</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="121"/>
@@ -13066,33 +13066,33 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="122"/>
         <source>Author</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">作者</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="123"/>
         <source>Keywords</source>
-        <translation type="unfinished"></translation>
+        <translation>关键词</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="124"/>
         <source>Creator</source>
-        <translation type="unfinished"></translation>
+        <translation>创作者</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="125"/>
         <source>Producer</source>
-        <translation type="unfinished"></translation>
+        <translation>制作人</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="126"/>
         <source>Creation date</source>
-        <translation type="unfinished"></translation>
+        <translation>创建日期</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="127"/>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="208"/>
         <source>Modified date</source>
-        <translation type="unfinished"></translation>
+        <translation>修改日期</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="133"/>
@@ -13102,7 +13102,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="398"/>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="567"/>
         <source>Yes</source>
-        <translation type="unfinished"></translation>
+        <translation>是</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="137"/>
@@ -13112,17 +13112,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="398"/>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="567"/>
         <source>No</source>
-        <translation type="unfinished"></translation>
+        <translation>不</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="141"/>
         <source>Unknown</source>
-        <translation type="unfinished"></translation>
+        <translation>未知</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="149"/>
         <source>Content</source>
-        <translation type="unfinished"></translation>
+        <translation>内容</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="151"/>
