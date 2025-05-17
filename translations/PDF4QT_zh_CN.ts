@@ -6057,7 +6057,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1404"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;These are the settings for digital signature verification. Digital signatures are verified as strictly as possible to prevent any malicious content or signature manipulation. Verification can also be disabled, if not required. When &lt;span style=&quot; font-weight:600;&quot;&gt;Strict mode&lt;/span&gt; is enabled, every warning is treated as an error. You have the option to ignore the certificate expiration date, but this should only be done if you fully understand the potential risks involved. Verification uses a list of trusted certificates. System certificates can be added to this list, and you can also manage your own list of trusted certificates.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;这些是数字签名验证的设置。 数字签名经过尽可能严格的验证，以防止任何恶意内容或签名操纵。 如果不需要，也可以禁用验证。 当 &lt;span style=&quot; font-weight:600;&quot;&gt;严格模式&lt;/span&gt;被启用, 所有警告均视为错误。您可以选择忽略证书到期日期，但只有在您完全了解相关潜在风险的情况下才应这样做。验证使用受信任证书列表。您可以将系统证书添加到此列表中，也可以管理您自己的受信任证书列表。 &lt;/p&gt;&lt;/body&gt;&lt;/html&gt</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;这些是数字签名验证的设置。 数字签名经过尽可能严格的验证，以防止任何恶意内容或签名操纵。 如果不需要，也可以禁用验证。 当 &lt;span style=&quot; font-weight:600;&quot;&gt;严格模式&lt;/span&gt;被启用, 所有警告均视为错误。您可以选择忽略证书到期日期，但只有在您完全了解相关潜在风险的情况下才应这样做。验证使用受信任证书列表。您可以将系统证书添加到此列表中，也可以管理您自己的受信任证书列表。 &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1433"/>
