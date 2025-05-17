@@ -5757,7 +5757,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="631"/>
         <source>Output color profile</source>
-        <translatio>输出颜色配置</translation>
+        <translation>输出颜色配置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="652"/>
