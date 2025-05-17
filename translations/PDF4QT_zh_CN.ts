@@ -50,7 +50,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="43"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;In a template file name, you can use symbols &apos;#&apos; for output document number (means output document index, not input document) or &apos;@&apos; for page number of input document (if document contains more pages, it is a page number of a original document), or &apos;%&apos; for index of input document. Use more &apos;#&apos; or &apos;@&apos; or &apos;%&apos; for setting minimal number of digits (if number has less digits, the they are padded with zero).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;在模板文件名中，您可以使用符号‘#’; 表示输出文档编号（表示输出文档索引，而不是输入文档）或 &apos;@&apos; 输入文档的页码（如果输入文档包含更多页面，则该符号对应原始文档的页码）或 &apos;%&apos; 用于输入文档的索引。使用更多 &apos;#&apos; 或 &apos;@&apos; 或 &apos;%&apos;设置最少位数（如果数字位数较少，则用零填充）。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;在模板文件名中，您可以使用符号&apos;#&apos; 表示输出文档编号（表示输出文档索引，而不是输入文档）或 &apos;@&apos; 输入文档的页码（如果输入文档包含更多页面，则该符号对应原始文档的页码）或 &apos;%&apos; 用于输入文档的索引。使用更多 &apos;#&apos; 或 &apos;@&apos; 或 &apos;%&apos;设置最少位数（如果数字位数较少，则用零填充）。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="53"/>
@@ -1210,7 +1210,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="180"/>
         <source>Shading patterns</source>
-        <translation>底纹图案</translation>
+        <translation>着色图案</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="190"/>
@@ -4672,196 +4672,196 @@
     <message>
         <location filename="../PdfTool/pdftoolseparate.cpp" line="47"/>
         <source>Separate document into single page documents.</source>
-        <translation type="unfinished"></translation>
+        <translation>拆分文档为单页文档</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolseparate.cpp" line="83"/>
         <source>File template is empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>文件模板为空</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolseparate.cpp" line="89"/>
         <source>File template must contain character &apos;%&apos; for page number.</source>
-        <translation type="unfinished"></translation>
+        <translation>文件模板必须包含&apos;%&apos;以用于页码编号</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolseparate.cpp" line="120"/>
         <source>File &apos;%1&apos; already exists. Page %2 was not extracted.</source>
-        <translation type="unfinished"></translation>
+        <translation>文件&apos;%1&apos;已存在。页面 %2 未被提取。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="42"/>
         <source>Compute statistics of internal objects used in a document.</source>
-        <translation type="unfinished"></translation>
+        <translation>计算文档中使用的内部对象的统计信息。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="72"/>
         <source>Statistics by Object Class</source>
-        <translation type="unfinished"></translation>
+        <translation>按对象类别统计</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="75"/>
         <source>Class</source>
-        <translation type="unfinished"></translation>
+        <translation>类别</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="76"/>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="132"/>
         <source>Percentage [%]</source>
-        <translation type="unfinished"></translation>
+        <translation>百分比[%]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="77"/>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="133"/>
         <source>Count [#]</source>
-        <translation type="unfinished"></translation>
+        <translation>计数[#]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="78"/>
         <source>Space Usage [bytes]</source>
-        <translation type="unfinished"></translation>
+        <translation>空间使用量 [bytes]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="110"/>
         <source>Content Stream</source>
-        <translation type="unfinished"></translation>
+        <translation>内容流</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="111"/>
         <source>Graphic State</source>
-        <translation type="unfinished"></translation>
+        <translation>图形状态</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="112"/>
         <source>Color Space</source>
-        <translation type="unfinished"></translation>
+        <translation>色彩空间</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="113"/>
         <source>Pattern</source>
-        <translation type="unfinished"></translation>
+        <translation>填充模式</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="114"/>
         <source>Shading</source>
-        <translation type="unfinished"></translation>
+        <translation>着色</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="115"/>
         <source>Image</source>
-        <translation type="unfinished"></translation>
+        <translation>图像</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="117"/>
         <source>Font</source>
-        <translation type="unfinished"></translation>
+        <translation>字体</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="118"/>
         <source>Action</source>
-        <translation type="unfinished"></translation>
+        <translation>操作</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="120"/>
         <source>Other</source>
-        <translation type="unfinished"></translation>
+        <translation>其它</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="128"/>
         <source>Statistics by Object Type</source>
-        <translation type="unfinished"></translation>
+        <translation>按对象类型统计</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolunite.cpp" line="44"/>
         <source>Merge documents</source>
-        <translation type="unfinished"></translation>
+        <translation>合并文档</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolunite.cpp" line="47"/>
         <source>Merge multiple documents to a single document.</source>
-        <translation type="unfinished"></translation>
+        <translation>合并多个文档到单个文档</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolunite.cpp" line="61"/>
         <source>At least two documents and target (merged) document must be specified.</source>
-        <translation type="unfinished"></translation>
+        <translation>必须指定至少两个文档和目标（合并）文档。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolunite.cpp" line="71"/>
         <source>Target file &apos;%1&apos; already exists. Document merging not performed.</source>
-        <translation type="unfinished"></translation>
+        <translation>目标文件&apos;%1&apos;已存在。未执行文档合并。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolunite.cpp" line="99"/>
         <source>Document doesn&apos;t allow to assemble pages.</source>
-        <translation type="unfinished"></translation>
+        <translation>文档不允许组装页面。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="42"/>
         <source>Signature verification</source>
-        <translation type="unfinished"></translation>
+        <translation>验证签名</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="45"/>
         <source>Verify signatures and timestamps in pdf document.</source>
-        <translation type="unfinished"></translation>
+        <translation>在PDF文档中验证签名与时间戳</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="60"/>
         <source>No document specified.</source>
-        <translation type="unfinished"></translation>
+        <translation>没有指定文档</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="116"/>
         <source>Digital signatures/timestamps verification of %1</source>
-        <translation type="unfinished"></translation>
+        <translation>验证文档%1的数字签名/时间戳</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="127"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="150"/>
         <source>Signature</source>
-        <translation type="unfinished"></translation>
+        <translation>签名</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="130"/>
         <source>Timestamp</source>
-        <translation type="unfinished"></translation>
+        <translation>时间戳</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="148"/>
         <source>Signed by</source>
-        <translation type="unfinished"></translation>
+        <translation>签名人</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="151"/>
         <source>Signing date</source>
-        <translation type="unfinished"></translation>
+        <translation>签名日期</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="152"/>
         <source>Timestamp date</source>
-        <translation type="unfinished"></translation>
+        <translation>时间戳日期</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="153"/>
         <source>Hash alg.</source>
-        <translation type="unfinished"></translation>
+        <translation>哈希算法</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="154"/>
         <source>Handler</source>
-        <translation type="unfinished"></translation>
+        <translation>处理模块</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="155"/>
         <source>Signed whole</source>
-        <translation type="unfinished"></translation>
+        <translation>签名完整</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="171"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="200"/>
         <source>Skipped</source>
-        <translation type="unfinished"></translation>
+        <translation>已跳过</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="194"/>
@@ -4871,57 +4871,57 @@
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="199"/>
         <source>Signed by: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>签名人：%1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="200"/>
         <source>Certificate status: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>证书状态：%1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="201"/>
         <source>Signature status: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>签名状态：%1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="202"/>
         <source>Signing date: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>签名日期：%1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="203"/>
         <source>Timestamp date: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>时间戳日期：%1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="204"/>
         <source>Hash algorithm: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>哈希算法：%1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="205"/>
         <source>Handler: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>处理模块：%1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="206"/>
         <source>Is whole document signed: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>整个文档是否已签名：%1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="210"/>
         <source>Byte range covered by signature: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>签名涵盖的字节范围：%1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="215"/>
         <source>Errors:</source>
-        <translation type="unfinished"></translation>
+        <translation>错误：</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="226"/>
         <source>Warnings:</source>
-        <translation type="unfinished"></translation>
+        <translation>警告：</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="241"/>
