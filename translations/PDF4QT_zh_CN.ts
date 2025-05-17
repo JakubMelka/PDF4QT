@@ -1104,7 +1104,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.ui" line="14"/>
         <source>Object Statistics</source>
-        <translation>对象统计</translation>
+        <translation>对象统计信息</translation>
     </message>
 </context>
 <context>
@@ -4433,7 +4433,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinkcoverage.cpp" line="128"/>
         <source>%1 Covered [mm^2]</source>
-        <translation type="unfinished">%1覆盖[mm^2]</translation>
+        <translation>%1覆盖[mm^2]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinkcoverage.cpp" line="168"/>
@@ -4458,53 +4458,53 @@
     <message>
         <location filename="../PdfTool/pdftooloptimize.cpp" line="78"/>
         <source>Failed to write optimize document. %1</source>
-        <translation type="unfinished"></translation>
+        <translation>无法写入优化文档。%1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="44"/>
         <source>Render document</source>
-        <translation type="unfinished"></translation>
+        <translation>渲染文档</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="47"/>
         <source>Render selected pages of document into image files.</source>
-        <translation type="unfinished"></translation>
+        <translation>将选定的文档页面渲染为图像文件。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="65"/>
         <source>Render document %1</source>
-        <translation type="unfinished"></translation>
+        <translation>渲染文档%1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="110"/>
         <source>Benchmark rendering</source>
-        <translation type="unfinished"></translation>
+        <translation>基准渲染</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="113"/>
         <source>Benchmark page rendering (measure time, detect errors).</source>
-        <translation type="unfinished"></translation>
+        <translation>基准页面渲染（测量时间，检测错误）。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="131"/>
         <source>Benchmark rendering of document %1</source>
-        <translation type="unfinished"></translation>
+        <translation>文档 %1 的基准渲染</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="294"/>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="39"/>
         <source>Statistics</source>
-        <translation type="unfinished"></translation>
+        <translation>统计信息</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="299"/>
         <source>Unit</source>
-        <translation type="unfinished"></translation>
+        <translation>测量单位</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="311"/>
         <source>Pages rendered</source>
-        <translation type="unfinished"></translation>
+        <translation>已渲染页面</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="311"/>
@@ -4514,7 +4514,7 @@
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="312"/>
         <source>Total compile time</source>
-        <translation type="unfinished"></translation>
+        <translation>总编译时间</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="312"/>
@@ -4524,57 +4524,57 @@
         <location filename="../PdfTool/pdftoolrender.cpp" line="316"/>
         <location filename="../PdfTool/pdftoolrender.cpp" line="317"/>
         <source>msec</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="313"/>
         <source>Total render time</source>
-        <translation type="unfinished"></translation>
+        <translation>总渲染时间</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="314"/>
         <source>Total wait time</source>
-        <translation type="unfinished"></translation>
+        <translation>总等待时间</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="315"/>
         <source>Total write time</source>
-        <translation type="unfinished"></translation>
+        <translation>总写入时间</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="316"/>
         <source>Total time</source>
-        <translation type="unfinished"></translation>
+        <translation>时间合计</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="317"/>
         <source>Wall time</source>
-        <translation type="unfinished"></translation>
+        <translation>实际运行时间</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="318"/>
         <source>Rendering speed (per core)</source>
-        <translation type="unfinished"></translation>
+        <translation>渲染速度（每核）</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="318"/>
         <source>pages / sec (one core)</source>
-        <translation type="unfinished"></translation>
+        <translation>页/秒（单核）</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="319"/>
         <source>Rendering speed (wall time)</source>
-        <translation type="unfinished"></translation>
+        <translation>渲染速度（实际时间）</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="319"/>
         <source>pages / sec</source>
-        <translation type="unfinished"></translation>
+        <translation>页/秒</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="320"/>
         <source>Compile time ratio</source>
-        <translation type="unfinished"></translation>
+        <translation>编译时间比率</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="320"/>
@@ -4587,87 +4587,87 @@
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="321"/>
         <source>Render time ratio</source>
-        <translation type="unfinished"></translation>
+        <translation>渲染时间比率</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="322"/>
         <source>Wait time ratio</source>
-        <translation type="unfinished"></translation>
+        <translation>等待时间比率</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="323"/>
         <source>Write time ratio</source>
-        <translation type="unfinished"></translation>
+        <translation>写入时间比率</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="332"/>
         <source>Page Statistics</source>
-        <translation type="unfinished"></translation>
+        <translation>页面统计信息</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="336"/>
         <source>Compile Time [msec]</source>
-        <translation type="unfinished"></translation>
+        <translation>编译时间</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="337"/>
         <source>Render Time [msec]</source>
-        <translation type="unfinished"></translation>
+        <translation>渲染时间[msec]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="338"/>
         <source>Wait Time [msec]</source>
-        <translation type="unfinished"></translation>
+        <translation>等待时间[msec]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="339"/>
         <source>Write Time [msec]</source>
-        <translation type="unfinished"></translation>
+        <translation>写入时间[msec]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="340"/>
         <source>Total Time [msec]</source>
-        <translation type="unfinished"></translation>
+        <translation>时间合计[msec]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="368"/>
         <source>Rendering Errors</source>
-        <translation type="unfinished"></translation>
+        <translation>渲染错误</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="373"/>
         <source>Message</source>
-        <translation type="unfinished"></translation>
+        <translation>消息</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="391"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>错误</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="395"/>
         <source>Warning</source>
-        <translation type="unfinished"></translation>
+        <translation>警告</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="399"/>
         <source>Not implemented</source>
-        <translation type="unfinished"></translation>
+        <translation>未实施</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="403"/>
         <source>Not supported</source>
-        <translation type="unfinished"></translation>
+        <translation>不支持</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="407"/>
         <source>Information</source>
-        <translation type="unfinished"></translation>
+        <translation>信息</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolseparate.cpp" line="44"/>
         <source>Extract pages</source>
-        <translation type="unfinished"></translation>
+        <translation>提取页面</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolseparate.cpp" line="47"/>
@@ -12301,7 +12301,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectorplugin.cpp" line="57"/>
         <source>Object &amp;Statistics</source>
-        <translation>对象&amp;统计</translation>
+        <translation>对象&amp;统计信息</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectorplugin.cpp" line="88"/>
