@@ -11870,77 +11870,77 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="76"/>
         <source>&amp;Create Text Stream for Audio Book</source>
-        <translation>&amp;为有声读物创建文本流</translation>
+        <translation>为有声读物创建文本流(&amp;C)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="80"/>
         <source>Synchronize Selection from &amp;Table to Graphics</source>
-        <translation>将已选从&amp;表格同步到图形</translation>
+        <translation>将已选从表格同步到图形(&amp;T)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="85"/>
         <source>Synchronize Selection from &amp;Graphics to Table</source>
-        <translation>将已选从&amp;表格同步到图形</translation>
+        <translation>将已选从表格同步到图形(&amp;G)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="90"/>
         <source>&amp;Activate Selection</source>
-        <translation>&amp;激活已选</translation>
+        <translation>激活已选(&amp;A)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="94"/>
         <source>&amp;Deactivate Selection</source>
-        <translation>&amp;停用已选</translation>
+        <translation>停用已选(&amp;D)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="98"/>
         <source>Select by &amp;Rectangle</source>
-        <translation>按 &amp;矩形选择</translation>
+        <translation>按矩形选择(&amp;R)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="102"/>
         <source>Select by Contained &amp;Text</source>
-        <translation>按包含的&amp;文本选择</translation>
+        <translation>按包含的文本选择(&amp;T)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="106"/>
         <source>Select by Regular &amp;Expression</source>
-        <translation>按正则表达式选择</translation>
+        <translation>按正则表达式选择(&amp;E)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="110"/>
         <source>Select by Page &amp;List</source>
-        <translation>按页面列表选择</translation>
+        <translation>按页面列表选择(&amp;L)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="114"/>
         <source>Restore &amp;Original Text</source>
-        <translation>恢复&amp;原文</translation>
+        <translation>恢复原文(&amp;O)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="118"/>
         <source>Move Selection &amp;Up</source>
-        <translation>向上移动已选</translation>
+        <translation>向上移动已选(&amp;U)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="122"/>
         <source>Move Selection &amp;Down</source>
-        <translation>向下移动已选</translation>
+        <translation>向下移动已选(&amp;D)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="126"/>
         <source>Create Audio &amp;Book</source>
-        <translation>创建有声读物</translation>
+        <translation>创建有声读物(&amp;B)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="130"/>
         <source>Clear Te&amp;xt Stream</source>
-        <translation>清空文本流</translation>
+        <translation>清空文本流(&amp;X)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="171"/>
         <source>&amp;Audio Book</source>
-        <translation>&amp;有声读物</translation>
+        <translation>有声读物(&amp;A)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="307"/>
@@ -11955,7 +11955,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="307"/>
         <source>Cannot select items by text, because text is empty.</source>
-        <translation type="unfinished">文本为空，无法通过文本选择项目。</translation>
+        <translation>文本为空，无法通过文本选择项目。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="326"/>
@@ -12034,62 +12034,62 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="51"/>
         <source>&amp;Horizontal Dimension</source>
-        <translation>&amp;水平尺寸</translation>
+        <translation>水平尺寸(&amp;H)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="52"/>
         <source>&amp;Vertical Dimension</source>
-        <translation>&amp;垂直尺寸</translation>
+        <translation>垂直尺寸(&amp;V)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="53"/>
         <source>&amp;Linear Dimension</source>
-        <translation>&amp;直线尺寸</translation>
+        <translation>直线尺寸(&amp;L)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="54"/>
         <source>&amp;Perimeter</source>
-        <translation>&amp;周长</translation>
+        <translation>周长(&amp;P)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="55"/>
         <source>&amp;Rectangle Perimeter</source>
-        <translation>&amp;矩形周长</translation>
+        <translation>矩形周长(&amp;R)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="56"/>
         <source>&amp;Area</source>
-        <translation>&amp;区域</translation>
+        <translation>区域(&amp;A)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="57"/>
         <source>R&amp;ectangle Area</source>
-        <translation>矩形区域</translation>
+        <translation>矩形区域(&amp;E)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="58"/>
         <source>An&amp;gle</source>
-        <translation>角度</translation>
+        <translation>角度(&amp;G)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="94"/>
         <source>&amp;Show Dimensions</source>
-        <translation>&amp;显示尺寸</translation>
+        <translation>显示尺寸(&amp;S)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="95"/>
         <source>&amp;Clear Dimensions</source>
-        <translation>&amp;清空尺寸</translation>
+        <translation>清空尺寸(&amp;C)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="96"/>
         <source>Se&amp;ttings</source>
-        <translation>设置</translation>
+        <translation>设置(&amp;T)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="150"/>
         <source>&amp;Dimensions</source>
-        <translation>&amp;尺寸</translation>
+        <translation>尺寸(&amp;D)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="273"/>
@@ -12107,72 +12107,72 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="63"/>
         <source>&amp;Edit page content</source>
-        <translation>&amp;编辑页面内容</translation>
+        <translation>编辑页面内容(&amp;E)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="64"/>
         <source>Create &amp;Text Label</source>
-        <translation>创建 &amp;页面标签</translation>
+        <translation>创建页面标签(&amp;T)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="65"/>
         <source>Create &amp;Freehand Curve</source>
-        <translation>创建 &amp;曲线</translation>
+        <translation>创建曲线(&amp;F)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="66"/>
         <source>Create &amp;Accept Mark</source>
-        <translation type="unfinished">创建&amp;接受标记</translation>
+        <translation>创建接受标记(&amp;A)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="67"/>
         <source>Create &amp;Reject Mark</source>
-        <translation>创建&amp;剔除标记</translation>
+        <translation>创建剔除标记(&amp;R)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="68"/>
         <source>Create R&amp;ectangle</source>
-        <translation>创建矩形</translation>
+        <translation>创建矩形(&amp;E)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="69"/>
         <source>&amp;Create Rounded Rectangle</source>
-        <translation>&amp;创建圆角矩形</translation>
+        <translation>创建圆角矩形(&amp;C)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="70"/>
         <source>Create &amp;Horizontal Line</source>
-        <translation>创建&amp;水平线</translation>
+        <translation>创建水平线(&amp;H)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="71"/>
         <source>Create &amp;Vertical Line</source>
-        <translation>创建&amp;垂直线</translation>
+        <translation>创建垂直线(&amp;V)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="72"/>
         <source>Create L&amp;ine</source>
-        <translation>创建直线</translation>
+        <translation>创建直线(&amp;I)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="73"/>
         <source>Create &amp;Dot</source>
-        <translation>创建圆点</translation>
+        <translation>创建圆点(&amp;D)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="74"/>
         <source>Create &amp;SVG Image</source>
-        <translation>创建SVG图像</translation>
+        <translation>创建SVG图像(&amp;S)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="75"/>
         <source>Clear A&amp;ll Graphics</source>
-        <translation>清空所有图像</translation>
+        <translation>清空所有图像(&amp;L)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="189"/>
         <source>Ed&amp;itor</source>
-        <translation>编辑器</translation>
+        <translation>编辑器(&amp;I)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="309"/>
@@ -12296,17 +12296,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectorplugin.cpp" line="51"/>
         <source>Object &amp;Inspector</source>
-        <translation>对象&amp;检查器</translation>
+        <translation>对象检查器(&amp;I)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectorplugin.cpp" line="57"/>
         <source>Object &amp;Statistics</source>
-        <translation>对象&amp;统计信息</translation>
+        <translation>对象统计信息(&amp;S)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectorplugin.cpp" line="88"/>
         <source>O&amp;bject Inspector</source>
-        <translation>对象检查器</translation>
+        <translation>对象检查器(&amp;B)</translation>
     </message>
 </context>
 <context>
@@ -12582,17 +12582,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewplugin.cpp" line="47"/>
         <source>&amp;Output Preview</source>
-        <translation>&amp;输出预览</translation>
+        <translation>输出预览(&amp;O)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewplugin.cpp" line="49"/>
         <source>&amp;Ink Coverage</source>
-        <translation>&amp;墨水覆盖率</translation>
+        <translation>墨水覆盖率(&amp;I)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewplugin.cpp" line="75"/>
         <source>Output Previe&amp;w</source>
-        <translation>输出预览</translation>
+        <translation>输出预览(&amp;W)</translation>
     </message>
 </context>
 <context>
@@ -12688,32 +12688,32 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="58"/>
         <source>Redact &amp;Rectangle</source>
-        <translation>重构矩形</translation>
+        <translation>重构矩形(&amp;R)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="59"/>
         <source>Redact &amp;Text</source>
-        <translation>修订文本</translation>
+        <translation>修订文本(&amp;T)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="60"/>
         <source>Redact Text &amp;Selection</source>
-        <translation>修订已选文本</translation>
+        <translation>修订已选文本(&amp;S)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="61"/>
         <source>Redact &amp;Page(s)</source>
-        <translation>修订页面</translation>
+        <translation>修订页面(&amp;P)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="62"/>
         <source>Create Redacted &amp;Document</source>
-        <translation>创建可修订文档</translation>
+        <translation>创建可修订文档(&amp;D)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="104"/>
         <source>Redac&amp;t</source>
-        <translation>修订</translation>
+        <translation>修订(&amp;T)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="120"/>
@@ -12775,87 +12775,87 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="60"/>
         <source>&amp;Activate signature creator</source>
-        <translation>&amp;启动签名创建器</translation>
+        <translation>启动签名创建器(&amp;A)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="61"/>
         <source>Create &amp;Text Label</source>
-        <translation>创建文本标签</translation>
+        <translation>创建文本标签(&amp;T)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="62"/>
         <source>Create &amp;Freehand Curve</source>
-        <translation>创建曲线</translation>
+        <translation>创建曲线(&amp;F)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="63"/>
         <source>Create &amp;Accept Mark</source>
-        <translation>创建接受标记</translation>
+        <translation>创建接受标记(&amp;A)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="64"/>
         <source>Create Reject &amp;Mark</source>
-        <translation>创建剔除标记</translation>
+        <translation>创建剔除标记(&amp;M)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="65"/>
         <source>Create &amp;Rectangle</source>
-        <translation>创建矩形</translation>
+        <translation>创建矩形(&amp;R)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="66"/>
         <source>Create R&amp;ounded Rectangle</source>
-        <translation>创建圆角矩形</translation>
+        <translation>创建圆角矩形(&amp;O)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="67"/>
         <source>Create &amp;Horizontal Line</source>
-        <translation>创建水平线</translation>
+        <translation>创建水平线(&amp;H)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="68"/>
         <source>Create &amp;Vertical Line</source>
-        <translation>创建垂直线</translation>
+        <translation>创建垂直线(&amp;V)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="69"/>
         <source>Create &amp;Line</source>
-        <translation>创建直线</translation>
+        <translation>创建直线(&amp;L)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="70"/>
         <source>Create &amp;Dot</source>
-        <translation>创建圆点</translation>
+        <translation>创建圆点(&amp;D)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="71"/>
         <source>Create SVG &amp;Image</source>
-        <translation>创建SVG图像</translation>
+        <translation>创建SVG图像(&amp;I)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="72"/>
         <source>Clear All &amp;Graphics</source>
-        <translation>清空所有图像</translation>
+        <translation>清空所有图像(&amp;G)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="73"/>
         <source>Sign &amp;Electronically</source>
-        <translation>电子签名</translation>
+        <translation>电子签名(&amp;E)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="74"/>
         <source>Sign Digitally &amp;With Certificate</source>
-        <translation>用证书数字签名</translation>
+        <translation>用证书数字签名(&amp;W)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="75"/>
         <source>Certificates &amp;Manager</source>
-        <translation>证书管理</translation>
+        <translation>证书管理(&amp;M)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="200"/>
         <source>Si&amp;gnature</source>
-        <translation>签名</translation>
+        <translation>签名(&amp;G)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="299"/>
@@ -12902,22 +12902,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/softproofingplugin.cpp" line="51"/>
         <source>&amp;Soft Proofing</source>
-        <translation>&amp;软打样</translation>
+        <translation>软打样(&amp;S)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/softproofingplugin.cpp" line="52"/>
         <source>&amp;Gamut Checking</source>
-        <translation>&amp;色域检查</translation>
+        <translation>色域检查(&amp;G)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/softproofingplugin.cpp" line="53"/>
         <source>Soft &amp;Proofing Settings</source>
-        <translation>软打样设置</translation>
+        <translation>软打样设置(&amp;P)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/softproofingplugin.cpp" line="93"/>
         <source>Soft &amp;Proofing</source>
-        <translation>软打样</translation>
+        <translation>软打样(&amp;P)</translation>
     </message>
 </context>
 <context>
@@ -13473,7 +13473,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="285"/>
         <source>&amp;Sidebar</source>
-        <translation>&amp;侧边栏</translation>
+        <translation>侧边栏(&amp;S)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="295"/>
@@ -13483,7 +13483,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="303"/>
         <source>Ad&amp;vanced Find...</source>
-        <translation>高&amp;级查找...</translation>
+        <translation>高级查找...(&amp;V)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="440"/>
