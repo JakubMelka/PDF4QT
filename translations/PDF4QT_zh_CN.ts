@@ -4926,157 +4926,157 @@
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="241"/>
         <source>Certificate No. #%1</source>
-        <translation type="unfinished"></translation>
+        <translation>证书编号 #%1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="262"/>
         <source>Org. unit</source>
-        <translation type="unfinished"></translation>
+        <translation>组织单元</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="264"/>
         <source>State</source>
-        <translation type="unfinished"></translation>
+        <translation>状态</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="265"/>
         <source>Serial number</source>
-        <translation type="unfinished"></translation>
+        <translation>序列号</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="266"/>
         <source>Locality</source>
-        <translation type="unfinished"></translation>
+        <translation>位置</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="268"/>
         <source>Surname</source>
-        <translation type="unfinished"></translation>
+        <translation>姓</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="269"/>
         <source>Forename</source>
-        <translation type="unfinished"></translation>
+        <translation>名</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="270"/>
         <source>Initials</source>
-        <translation type="unfinished"></translation>
+        <translation>首字母</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="271"/>
         <source>Pseudonym</source>
-        <translation type="unfinished"></translation>
+        <translation>笔名</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="272"/>
         <source>Qualifier</source>
-        <translation type="unfinished"></translation>
+        <translation>限定符</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="273"/>
         <source>Email</source>
-        <translation type="unfinished"></translation>
+        <translation>邮箱</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="279"/>
         <source>RSA method, %1-bit key</source>
-        <translation type="unfinished"></translation>
+        <translation>RSA加密方式，%1位密钥</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="283"/>
         <source>DSA method, %1-bit key</source>
-        <translation type="unfinished"></translation>
+        <translation>DSA加密方式，%1位密钥</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="287"/>
         <source>EC method, %1-bit key</source>
-        <translation type="unfinished"></translation>
+        <translation>EC加密方式，%1位密钥</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="291"/>
         <source>DH method, %1-bit key</source>
-        <translation type="unfinished"></translation>
+        <translation>DH加密方式，%1位密钥</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="295"/>
         <source>Unknown method, %1-bit key</source>
-        <translation type="unfinished"></translation>
+        <translation>未知加密方式，%1位密钥</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="304"/>
         <source>Encryption method</source>
-        <translation type="unfinished"></translation>
+        <translation>加密方式</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="331"/>
         <source>Digital signatures</source>
-        <translation type="unfinished"></translation>
+        <translation>数字签名</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="335"/>
         <source>Non-repudiation</source>
-        <translation type="unfinished"></translation>
+        <translation>不可否认性</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="339"/>
         <source>Key encipherement</source>
-        <translation type="unfinished"></translation>
+        <translation>密钥加密</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="343"/>
         <source>Application data encipherement</source>
-        <translation type="unfinished"></translation>
+        <translation>应用程序数据加密</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="347"/>
         <source>Key agreement</source>
-        <translation type="unfinished"></translation>
+        <translation>密钥协议</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="351"/>
         <source>Verify signatures on certificates</source>
-        <translation type="unfinished"></translation>
+        <translation>验证证书上的签名</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="355"/>
         <source>Verify signatures on revocation information</source>
-        <translation type="unfinished"></translation>
+        <translation>验证撤销信息上的签名</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="359"/>
         <source>Encipher data during key agreement</source>
-        <translation type="unfinished"></translation>
+        <translation>在密钥协商期间加密数据</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="363"/>
         <source>Decipher data during key agreement</source>
-        <translation type="unfinished"></translation>
+        <translation>在密钥协商期间解密数据</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="367"/>
         <source>Trusted timestamping</source>
-        <translation type="unfinished"></translation>
+        <translation>可信时间戳</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="371"/>
         <source>Key usage</source>
-        <translation type="unfinished"></translation>
+        <translation>密钥用法</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="389"/>
         <source>No digital signatures or timestamps found in the document.</source>
-        <translation type="unfinished"></translation>
+        <translation>文档中未找到数字签名或时间戳。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolxml.cpp" line="188"/>
         <source>XML export</source>
-        <translation type="unfinished"></translation>
+        <translation>XML 导出</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolxml.cpp" line="191"/>
         <source>Export internal data structure to xml.</source>
-        <translation type="unfinished"></translation>
+        <translation>将内部数据结构导出为 xml。</translation>
     </message>
 </context>
 <context>
@@ -5084,67 +5084,67 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="14"/>
         <source>PDF Viewer</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF浏览器</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="28"/>
         <source>&amp;File</source>
-        <translation type="unfinished"></translation>
+        <translation>文件(&amp;F)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="43"/>
         <source>&amp;Go To</source>
-        <translation type="unfinished"></translation>
+        <translation>跳转(&amp;G)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="47"/>
         <source>Book&amp;mark Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>书签设置(&amp;M)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="67"/>
         <source>&amp;View</source>
-        <translation type="unfinished"></translation>
+        <translation>视图(&amp;V)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="71"/>
         <source>Page La&amp;yout</source>
-        <translation type="unfinished"></translation>
+        <translation>页面布局(&amp;Y)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="82"/>
         <source>Re&amp;ndering Options</source>
-        <translation type="unfinished"></translation>
+        <translation>渲染选项(&amp;N)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="112"/>
         <source>&amp;Tools</source>
-        <translation type="unfinished"></translation>
+        <translation>工具(&amp;T)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="124"/>
         <source>&amp;Help</source>
-        <translation type="unfinished"></translation>
+        <translation>帮助(&amp;H)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="152"/>
         <source>&amp;Open...</source>
-        <translation type="unfinished"></translation>
+        <translation>打开...(&amp;O)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="161"/>
         <source>&amp;Close</source>
-        <translation type="unfinished"></translation>
+        <translation>关闭(&amp;C)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="170"/>
         <source>&amp;Quit</source>
-        <translation type="unfinished"></translation>
+        <translation>退出(&amp;Q)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="178"/>
         <source>&amp;Single Page</source>
-        <translation type="unfinished"></translation>
+        <translation>一页(&amp;S)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="181"/>
@@ -5154,7 +5154,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="189"/>
         <source>&amp;Continuous</source>
-        <translation type="unfinished"></translation>
+        <translation>连续(&amp;C)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="192"/>
@@ -5164,7 +5164,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="200"/>
         <source>Two &amp;Pages</source>
-        <translation type="unfinished"></translation>
+        <translation>二页(&amp;P)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="203"/>
@@ -5174,7 +5174,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="211"/>
         <source>&amp;Two columns</source>
-        <translation type="unfinished"></translation>
+        <translation>二列(&amp;T)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="214"/>
@@ -5184,12 +5184,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="222"/>
         <source>&amp;First page on right side</source>
-        <translation type="unfinished"></translation>
+        <translation>右边第一页(&amp;F)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="225"/>
         <source>First page on right side</source>
-        <translation type="unfinished"></translation>
+        <translation>右边第一页</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="228"/>
@@ -5199,7 +5199,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="237"/>
         <source>Rendering &amp;Errors...</source>
-        <translation type="unfinished"></translation>
+        <translation>渲染错误(&amp;E)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="240"/>
@@ -5209,27 +5209,27 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="248"/>
         <source>&amp;Antialiasing</source>
-        <translation type="unfinished"></translation>
+        <translation>抗锯齿(&amp;A)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="256"/>
         <source>&amp;Text Antialiasing</source>
-        <translation type="unfinished"></translation>
+        <translation>文本抗锯齿(&amp;T)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="264"/>
         <source>&amp;Smooth Pictures</source>
-        <translation type="unfinished"></translation>
+        <translation>平滑图片(&amp;S)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="272"/>
         <source>&amp;Ignore Optional Content Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>忽略可选内容设置(&amp;I)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="281"/>
         <source>&amp;Options...</source>
-        <translation>&amp;选项...</translation>
+        <translation>选项...(&amp;O)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="284"/>
@@ -5239,32 +5239,32 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="289"/>
         <source>&amp;Reset to Factory Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>重置为出厂设置(&amp;R)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="298"/>
         <source>&amp;Zoom In</source>
-        <translation type="unfinished"></translation>
+        <translation>放大(&amp;Z)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="307"/>
         <source>Zoom &amp;Out</source>
-        <translation type="unfinished"></translation>
+        <translation>缩小(&amp;O)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="316"/>
         <source>&amp;About...</source>
-        <translation type="unfinished"></translation>
+        <translation>关于...(&amp;A)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="325"/>
         <source>Fit &amp;Page</source>
-        <translation type="unfinished"></translation>
+        <translation>页面适配(&amp;P)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="334"/>
         <source>Fit &amp;Width</source>
-        <translation type="unfinished"></translation>
+        <translation>适配页宽(&amp;W)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="337"/>
@@ -5274,7 +5274,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="346"/>
         <source>&amp;Fit Height</source>
-        <translation type="unfinished"></translation>
+        <translation>适配页高(&amp;H)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="349"/>
@@ -5284,87 +5284,87 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="358"/>
         <source>Prope&amp;rties...</source>
-        <translation type="unfinished"></translation>
+        <translation>属性(&amp;R)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="367"/>
         <source>Send by &amp;E-Mail...</source>
-        <translation type="unfinished"></translation>
+        <translation>通过邮件发送(&amp;E)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="379"/>
         <source>Color | &amp;Inverted</source>
-        <translation type="unfinished"></translation>
+        <translation>颜色 | 反色(&amp;I)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="391"/>
         <source>Color | &amp;Grayscale</source>
-        <translation type="unfinished"></translation>
+        <translation>颜色 | 灰度(&amp;G)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="403"/>
         <source>Color | &amp;High Contrast</source>
-        <translation type="unfinished"></translation>
+        <translation>>颜色 | 高对比度(&amp;H)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="415"/>
         <source>Color | &amp;Monochromatic</source>
-        <translation type="unfinished"></translation>
+        <translation>>颜色 | 黑白(&amp;M)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="427"/>
         <source>Color | &amp;Custom</source>
-        <translation type="unfinished"></translation>
+        <translation>>颜色 | 自定义(&amp;C)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="436"/>
         <source>Rotate &amp;Right</source>
-        <translation type="unfinished"></translation>
+        <translation>右旋(&amp;R)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="445"/>
         <source>Rotate &amp;Left</source>
-        <translation type="unfinished"></translation>
+        <translation>左旋(&amp;L)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="454"/>
         <source>&amp;Print...</source>
-        <translation type="unfinished"></translation>
+        <translation>打印...(&amp;P)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="462"/>
         <source>&amp;Display Annotations</source>
-        <translation type="unfinished"></translation>
+        <translation>显示注释(&amp;D)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="471"/>
         <source>Go to document &amp;start</source>
-        <translation type="unfinished"></translation>
+        <translation>跳转到文档开始(&amp;S)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="480"/>
         <source>Go to document &amp;end</source>
-        <translation type="unfinished"></translation>
+        <translation>跳转到文档结束(&amp;E)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="489"/>
         <source>Go to &amp;next page</source>
-        <translation type="unfinished"></translation>
+        <translation>跳转到下一页(&amp;N)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="498"/>
         <source>Go to &amp;previous page</source>
-        <translation type="unfinished"></translation>
+        <translation>跳转到上一页(&amp;P)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="507"/>
         <source>Go &amp;to next line</source>
-        <translation type="unfinished"></translation>
+        <translation>跳转到下一行(&amp;T)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="516"/>
         <source>Go t&amp;o previous line</source>
-        <translation type="unfinished"></translation>
+        <translation>跳转到上一行(&amp;O)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="525"/>
