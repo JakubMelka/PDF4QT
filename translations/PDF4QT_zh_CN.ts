@@ -50,7 +50,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="43"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;In a template file name, you can use symbols &apos;#&apos; for output document number (means output document index, not input document) or &apos;@&apos; for page number of input document (if document contains more pages, it is a page number of a original document), or &apos;%&apos; for index of input document. Use more &apos;#&apos; or &apos;@&apos; or &apos;%&apos; for setting minimal number of digits (if number has less digits, the they are padded with zero).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;在模板文件名中，您可以使用符号 &apos#&apos; 表示输出文档编号（表示输出文档索引，而不是输入文档）或 &apos;@&apos; 输入文档的页码（如果输入文档包含更多页面，则该符号对应原始文档的页码）或 &apos;%&apos; 用于输入文档的索引。使用更多 &apos;#&apos; 或 &apos;@&apos; 或 &apos;%&apos;设置最少位数（如果数字位数较少，则用零填充）。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;在模板文件名中，您可以使用符号‘#’; 表示输出文档编号（表示输出文档索引，而不是输入文档）或 &apos;@&apos; 输入文档的页码（如果输入文档包含更多页面，则该符号对应原始文档的页码）或 &apos;%&apos; 用于输入文档的索引。使用更多 &apos;#&apos; 或 &apos;@&apos; 或 &apos;%&apos;设置最少位数（如果数字位数较少，则用零填充）。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="53"/>
