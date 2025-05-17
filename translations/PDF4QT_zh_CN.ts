@@ -1053,7 +1053,7 @@
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="315"/>
         <source>&amp;Show Pages with Differences</source>
-        <translation>&amp;显示有差异的页面</translation>
+        <translation>显示有差异的页面(&amp;S)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="318"/>
@@ -1063,22 +1063,22 @@
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="327"/>
         <source>Save Differences to &amp;XML...</source>
-        <translation>保存差异为XML文件...</translation>
+        <translation>保存差异为XML文件...(&amp;X)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="339"/>
         <source>S&amp;ynchronize View with Differences</source>
-        <translation>同步差异视图</translation>
+        <translation>同步差异视图(&amp;Y)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="351"/>
         <source>Display &amp;Differences</source>
-        <translation>显示 &amp;差异</translation>
+        <translation>显示差异(&amp;D)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="363"/>
         <source>Display &amp;Markers</source>
-        <translation>显示 &amp;标记</translation>
+        <translation>显示标记(&amp;M)</translation>
     </message>
 </context>
 <context>
@@ -1478,12 +1478,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="161"/>
         <source>Display &amp;&amp; Print</source>
-        <translation>显示 &amp;&amp; 打印</translation>
+        <translation>显示与打印(&amp;P)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="167"/>
         <source>Display &amp;&amp; Print Settings</source>
-        <translation>显示 &amp;&amp; 打印设置</translation>
+        <translation>显示与打印设置(&amp;P)</translation>
     </message>
 </context>
 <context>
@@ -1496,94 +1496,94 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="28"/>
         <source>&amp;File</source>
-        <translation>&amp;文件</translation>
+        <translation>文件(&amp;F)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="47"/>
         <source>&amp;Go To</source>
-        <translation>&amp;跳转</translation>
+        <translation>跳转(&amp;G)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="51"/>
         <source>Book&amp;mark Settings</source>
-        <translation>图书&amp;标记设置</translation>
+        <translation>书签设置(&amp;M)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="71"/>
         <source>&amp;View</source>
-        <translation>&amp;查看</translation>
+        <translation>查看(&amp;V)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="75"/>
         <source>Page La&amp;yout</source>
-        <translation>页面布&amp;局</translation>
+        <translation>页面布局(&amp;Y)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="86"/>
         <source>Re&amp;ndering Options</source>
-        <translation>重新渲染选项</translation>
+        <translation>重新渲染选项(&amp;N)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="116"/>
         <source>&amp;Tools</source>
-        <translation>&amp;工具</translation>
+        <translation>工具(&amp;T)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="131"/>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="776"/>
         <source>&amp;Help</source>
-        <translation>&amp;帮助</translation>
+        <translation>帮助(&amp;H)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="139"/>
         <source>&amp;Developer</source>
-        <translation>&amp;开发者</translation>
+        <translation>开发者(&amp;D)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="146"/>
         <source>&amp;Edit</source>
-        <translation>&amp;编辑</translation>
+        <translation>编辑(&amp;E)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="170"/>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="784"/>
         <source>&amp;Insert</source>
-        <translation>插入</translation>
+        <translation>插入(&amp;I)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="174"/>
         <source>Sticky &amp;Note</source>
-        <translation>备注&amp;贴</translation>
+        <translation>备注贴(&amp;N)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="186"/>
         <source>&amp;Stamp</source>
-        <translation>&amp;印章</translation>
+        <translation>印章(&amp;S)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="191"/>
         <source>Text Hi&amp;ghlight</source>
-        <translation>文本高亮</translation>
+        <translation>文本高亮(&amp;G)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="237"/>
         <source>&amp;Open...</source>
-        <translation>打开...</translation>
+        <translation>打开...(&amp;O)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="246"/>
         <source>&amp;Close</source>
-        <translation>关闭</translation>
+        <translation>关闭(&amp;C)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="255"/>
         <source>&amp;Quit</source>
-        <translation>退出</translation>
+        <translation>退出(&amp;Q)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="263"/>
         <source>&amp;Single Page</source>
-        <translation>&amp;一页</translation>
+        <translation>一页(&amp;S)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="266"/>
@@ -1598,7 +1598,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="277"/>
         <source>&amp;Continuous</source>
-        <translation>&amp;持续</translation>
+        <translation>连续(&amp;C)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="280"/>
@@ -1613,7 +1613,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="291"/>
         <source>Two &amp;Pages</source>
-        <translation>二&amp;页</translation>
+        <translation>二页(&amp;P)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="294"/>
@@ -1628,7 +1628,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="305"/>
         <source>&amp;Two columns</source>
-        <translation>&amp;二列</translation>
+        <translation>二列(&amp;T)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="308"/>
@@ -1643,7 +1643,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="319"/>
         <source>&amp;First page on right side</source>
-        <translation>&amp;右侧第一页</translation>
+        <translation>右侧第一页(&amp;F)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="322"/>
@@ -1658,7 +1658,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="334"/>
         <source>&amp;Rendering Errors...</source>
-        <translation>&amp;渲染错误...</translation>
+        <translation>渲染错误...(&amp;R)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="337"/>
@@ -1668,7 +1668,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="345"/>
         <source>&amp;Antialiasing</source>
-        <translation>&amp;抗锯齿</translation>
+        <translation>抗锯齿(&amp;A)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="348"/>
@@ -1678,7 +1678,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="356"/>
         <source>&amp;Text Antialiasing</source>
-        <translation>&amp;文本抗锯齿</translation>
+        <translation>文本抗锯齿(&amp;T)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="359"/>
@@ -1688,7 +1688,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="367"/>
         <source>&amp;Smooth Pictures</source>
-        <translation>&amp;图像平滑</translation>
+        <translation>平滑图像(&amp;S)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="370"/>
@@ -1698,7 +1698,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="378"/>
         <source>&amp;Ignore Optional Content Settings</source>
-        <translation>&amp;忽略可选内容设置</translation>
+        <translation>忽略可选内容设置(&amp;I)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="381"/>
@@ -1708,7 +1708,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="390"/>
         <source>&amp;Options...</source>
-        <translation>&amp;选项...</translation>
+        <translation>选项...(&amp;O)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="393"/>
@@ -1718,32 +1718,32 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="398"/>
         <source>Reset to &amp;Factory Settings</source>
-        <translation>恢复默认设置</translation>
+        <translation>恢复默认设置(&amp;F)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="407"/>
         <source>&amp;Zoom In</source>
-        <translation>&amp;放大</translation>
+        <translation>放大(&amp;Z)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="416"/>
         <source>Zoom &amp;Out</source>
-        <translation>缩 &amp;小</translation>
+        <translation>缩小(&amp;O)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="425"/>
         <source>&amp;About...</source>
-        <translation>&amp;关于...</translation>
+        <translation>关于...(&amp;A)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="434"/>
         <source>Fit &amp;Page</source>
-        <translation>自适应页面</translation>
+        <translation>自适应页面(&amp;P)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="443"/>
         <source>Fit &amp;Width</source>
-        <translation>自适应宽度</translation>
+        <translation>自适应宽度(&amp;W)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="446"/>
@@ -1753,7 +1753,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="455"/>
         <source>&amp;Fit Height</source>
-        <translation>&amp;自适应高度</translation>
+        <translation>自适应高度(&amp;H)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="458"/>
@@ -1763,112 +1763,112 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="467"/>
         <source>Prope&amp;rties...</source>
-        <translation>属性...</translation>
+        <translation>属性...(&amp;R)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="476"/>
         <source>Send by &amp;E-Mail...</source>
-        <translation>通过邮件发送</translation>
+        <translation>通过邮件发送(&amp;E)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="484"/>
         <source>Show Text &amp;Blocks</source>
-        <translation>显示文本块</translation>
+        <translation>显示文本块(&amp;B)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="492"/>
         <source>Show Text &amp;Lines</source>
-        <translation>显示文本行</translation>
+        <translation>显示文本行(&amp;L)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="501"/>
         <source>&amp;Find</source>
-        <translation>&amp;查找</translation>
+        <translation>查找(&amp;F)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="510"/>
         <source>Fin&amp;d Previous</source>
-        <translation>查找&amp;上一个</translation>
+        <translation>查找上一个(&amp;P)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="519"/>
         <source>Fi&amp;nd Next</source>
-        <translation>查找&amp;下一个</translation>
+        <translation>查找下一个(&amp;N)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="531"/>
         <source>Select te&amp;xt</source>
-        <translation>选取&amp;文本</translation>
+        <translation>选取文本(&amp;X)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="543"/>
         <source>Select &amp;table</source>
-        <translation>选取&amp;表格</translation>
+        <translation>选取表格(&amp;T)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="552"/>
-        <source>Select &amp;All</source>
-        <translation>选取&amp;全部</translation>
+        <source>Select  &amp;All</source>
+        <translation>选取全部(&amp;A)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="561"/>
         <source>Dese&amp;lect</source>
-        <translation>取消选择</translation>
+        <translation>取消选择(&amp;L)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="570"/>
         <source>&amp;Copy text</source>
-        <translation>&amp;复制文本</translation>
+        <translation>复制文本(&amp;C)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="582"/>
         <source>Color | &amp;Inverted</source>
-        <translation>颜色 | &amp;反色</translation>
+        <translation>颜色 | 反色(&amp;I)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="594"/>
         <source>Color | &amp;Grayscale</source>
-        <translation>颜色 | &amp;灰度</translation>
+        <translation>颜色 | 灰度(&amp;G)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="606"/>
         <source>Color | &amp;High Contrast</source>
-        <translation>颜色 | &amp;高对比度</translation>
+        <translation>颜色 | 高对比度(&amp;H)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="618"/>
         <source>Color | &amp;Monochromatic</source>
-        <translation>颜色 | &amp;黑白</translation>
+        <translation>颜色 | 黑白(&amp;M)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="630"/>
         <source>Color | &amp;Custom</source>
-        <translation>颜色 | &amp;定制</translation>
+        <translation>颜色 | 定制(&amp;C)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="639"/>
         <source>Rotate &amp;Right</source>
-        <translation>右旋</translation>
+        <translation>右旋(&amp;R)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="648"/>
         <source>Rotate &amp;Left</source>
-        <translation>左旋</translation>
+        <translation>左旋(&amp;L)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="657"/>
         <source>&amp;Print...</source>
-        <translation>&amp;打印...</translation>
+        <translation>打印...(&amp;P)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="662"/>
         <source>Render to &amp;Images...</source>
-        <translation>渲染为&amp;图像...</translation>
+        <translation>渲染为图像...(&amp;I)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="674"/>
         <source>&amp;Magnifier</source>
-        <translation>&amp;放大镜</translation>
+        <translation>放大镜(&amp;M)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="677"/>
@@ -1878,17 +1878,17 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="689"/>
         <source>&amp;Screenshot</source>
-        <translation>&amp;截图</translation>
+        <translation>截图(&amp;S)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="701"/>
         <source>&amp;Extract Image</source>
-        <translation>&amp;提取图像</translation>
+        <translation>提取图像(&amp;E)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="709"/>
         <source>&amp;Display Annotations</source>
-        <translation>&amp;显示注释</translation>
+        <translation>显示注释(&amp;D)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="712"/>
@@ -1898,17 +1898,17 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="721"/>
         <source>&amp;Undo</source>
-        <translation>&amp;撤销</translation>
+        <translation>撤销(&amp;U)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="730"/>
         <source>&amp;Redo</source>
-        <translation>&amp;重做</translation>
+        <translation>重做(&amp;R)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="739"/>
         <source>&amp;Optimize...</source>
-        <translation>&amp;优化...</translation>
+        <translation>优化...(&amp;O)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="742"/>
@@ -1918,157 +1918,157 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="751"/>
         <source>Save &amp;As...</source>
-        <translation>另存 &amp;为...</translation>
+        <translation>另存为...(&amp;A)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="760"/>
         <source>&amp;Save</source>
-        <translation>&amp;保存</translation>
+        <translation>保存(&amp;S)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="768"/>
         <source>&amp;Comment</source>
-        <translation>&amp;评论</translation>
+        <translation>评论(&amp;C)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="792"/>
         <source>&amp;Key</source>
-        <translation>&amp;线索</translation>
+        <translation>线索(&amp;K)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="800"/>
         <source>&amp;New Paragraph</source>
-        <translation>&amp;新段落</translation>
+        <translation>新段落(&amp;N)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="808"/>
         <source>No&amp;te</source>
-        <translation>备&amp;注</translation>
+        <translation>备注(&amp;T)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="816"/>
         <source>&amp;Paragraph</source>
-        <translation>&amp;段落</translation>
+        <translation>段落(&amp;P)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="828"/>
         <source>&amp;Hyperlink</source>
-        <translation>&amp;超链结</translation>
+        <translation>超链结(&amp;H)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="840"/>
         <source>&amp;Inline text</source>
-        <translation>&amp;内联文本</translation>
+        <translation>内联文本(&amp;I)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="852"/>
         <source>Str&amp;aight Line</source>
-        <translation>直&amp;线</translation>
+        <translation>直线(&amp;A)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="864"/>
         <source>Pol&amp;yline</source>
-        <translation>折线</translation>
+        <translation>折线(&amp;Y)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="876"/>
         <source>&amp;Rectangle</source>
-        <translation>&amp;矩形</translation>
+        <translation>矩形(&amp;R)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="888"/>
         <source>&amp;Polygon</source>
-        <translation>&amp;多边形</translation>
+        <translation>多边形(&amp;P)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="900"/>
         <source>&amp;Ellipse</source>
-        <translation>&amp;椭圆</translation>
+        <translation>椭圆(&amp;E)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="912"/>
         <source>&amp;Freehand Curve</source>
-        <translation>&amp;曲线</translation>
+        <translation>曲线(&amp;F)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="924"/>
         <source>&amp;Highlight</source>
-        <translation>&amp;高亮</translation>
+        <translation>高亮(&amp;H)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="936"/>
         <source>&amp;Underline</source>
-        <translation>&amp;下划线</translation>
+        <translation>下划线(&amp;U)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="948"/>
         <source>Stri&amp;keout</source>
-        <translation>删除线</translation>
+        <translation>删除线(&amp;K)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="960"/>
         <source>&amp;Squiggly</source>
-        <translation>&amp;波浪线</translation>
+        <translation>波浪线(&amp;S)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="969"/>
         <source>Go to document &amp;start</source>
-        <translation>跳转到文档开始</translation>
+        <translation>跳转到文档开始(&amp;S)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="978"/>
         <source>Go to document &amp;end</source>
-        <translation>跳转到文档结尾</translation>
+        <translation>跳转到文档结尾(&amp;E)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="987"/>
         <source>Go to &amp;next page</source>
-        <translation>跳转到下一页</translation>
+        <translation>跳转到下一页(&amp;N)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="996"/>
         <source>Go to &amp;previous page</source>
-        <translation>跳转到上一页</translation>
+        <translation>跳转到上一页(&amp;P)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1005"/>
         <source>Go &amp;to next line</source>
-        <translation>跳转到下一行</translation>
+        <translation>跳转到下一行(&amp;T)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1014"/>
         <source>Go t&amp;o previous line</source>
-        <translation>跳转到下一行</translation>
+        <translation>跳转到下一行(&amp;O)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1023"/>
         <source>&amp;Get Source</source>
-        <translation>&amp;获取源码</translation>
+        <translation>获取源码(&amp;G)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1032"/>
         <source>&amp;Encryption...</source>
-        <translation>&amp;加密...</translation>
+        <translation>加密...(&amp;E)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1041"/>
         <source>&amp;Certificates...</source>
-        <translation>&amp;证书...</translation>
+        <translation>证书...(&amp;C)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1050"/>
         <source>&amp;Sanitize...</source>
-        <translation>&amp;合规...</translation>
+        <translation>隐私清除...(&amp;S)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1053"/>
         <source>Sanitize document to remove sensitive information.</source>
-        <translation>对文件进行合规处理，删除敏感信息。</translation>
+        <translation>对文件进行隐私清除，删除敏感信息。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1061"/>
         <source>Automatic &amp;Document Refresh</source>
-        <translation>自动刷新文档</translation>
+        <translation>自动刷新文档(&amp;D)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1064"/>
@@ -2078,12 +2078,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1073"/>
         <source>Become a &amp;Sponsor</source>
-        <translation>成为赞助人</translation>
+        <translation>成为赞助人(&amp;S)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1082"/>
         <source>Create &amp;Bitonal Document...</source>
-        <translation>创建黑白文档...</translation>
+        <translation>创建黑白文档...(&amp;B)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1085"/>
@@ -2098,7 +2098,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1097"/>
         <source>&amp;Bookmark Page</source>
-        <translation>&amp;书签页</translation>
+        <translation>书签页(&amp;B)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1100"/>
@@ -2113,7 +2113,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1112"/>
         <source>&amp;Go to Next Bookmark</source>
-        <translation>&amp;跳转下一个书签</translation>
+        <translation>跳转下一个书签(&amp;G)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1115"/>
@@ -2128,7 +2128,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1127"/>
         <source>Go to Previous Boo&amp;kmark</source>
-        <translation>跳转上一个书&amp;签</translation>
+        <translation>跳转上一个书签(&amp;K)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1130"/>
@@ -2143,7 +2143,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1142"/>
         <source>&amp;Export Bookmarks</source>
-        <translation>&amp;导出书签</translation>
+        <translation>导出书签(&amp;E)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1145"/>
@@ -2158,7 +2158,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1157"/>
         <source>&amp;Import Bookmarks</source>
-        <translation>&amp;导入书签</translation>
+        <translation>导入书签(&amp;I)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1160"/>
@@ -2173,7 +2173,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1175"/>
         <source>&amp;Generate Bookmarks Automatically</source>
-        <translation>&amp;自动生成书签</translation>
+        <translation>自动生成书签(&amp;G)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1178"/>
@@ -2188,7 +2188,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1189"/>
         <source>Display &amp;Render Times</source>
-        <translation>显示 &amp;渲染时间</translation>
+        <translation>显示渲染时间(&amp;R)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1192"/>
@@ -2453,12 +2453,12 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="375"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;s&lt;span style=&quot; vertical-align:sub;&quot;&gt;x&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;s&lt;span style=&quot; 垂直角度：sub;&quot;&gt;x&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;s&lt;span style=&quot; 垂直对齐：sub;&quot;&gt;x&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="382"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;s&lt;span style=&quot; vertical-align:sub;&quot;&gt;y&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;s&lt;span style=&quot; 垂直角度：sub;&quot;&gt;y&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;s&lt;span style=&quot; 垂直对齐：sub;&quot;&gt;y&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="389"/>
@@ -2468,12 +2468,12 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="396"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;t&lt;span style=&quot; vertical-align:sub;&quot;&gt;x&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;t&lt;span style=&quot;垂直角度：sub;&quot;&gt;x&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;t&lt;span style=&quot;垂直对齐：sub;&quot;&gt;x&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="403"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;t&lt;span style=&quot; vertical-align:sub;&quot;&gt;y&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;t&lt;span style=&quot; 垂直角度：sub;&quot;&gt;y&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;t&lt;span style=&quot; 垂直对齐：sub;&quot;&gt;y&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
 </context>
 <context>
@@ -2586,7 +2586,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="87"/>
         <source>Align to Horizontal Center</source>
-        <translation>水平中心对齐</translation>
+        <translation>对齐至水平中心</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="94"/>
@@ -2616,22 +2616,22 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="131"/>
         <source>Make Horizontal Layout</source>
-        <translation>进行水平布局</translation>
+        <translation>构建横向布局</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="138"/>
         <source>Make Vertical Layout</source>
-        <translation>进行垂直布局</translation>
+        <translation>构建纵向布局</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="145"/>
         <source>Make Form Layout</source>
-        <translation>进行表格布局</translation>
+        <translation>构建表单布局</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="152"/>
         <source>Make Grid Layout</source>
-        <translation>进行网格布局</translation>
+        <translation>构建网格布局</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="162"/>
@@ -2817,7 +2817,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="84"/>
         <source>Outline</source>
-        <translation>大纲</translation>
+        <translation>PDF目录</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="116"/>
@@ -3219,7 +3219,7 @@
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="246"/>
         <source>Lang. Code</source>
-        <translation>Lang.代码</translation>
+        <translation>语言编码</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="247"/>
@@ -4177,22 +4177,22 @@
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="39"/>
         <source>Info (Named Destinations)</source>
-        <translation type="unfinished">信息（指定目标地址）</translation>
+        <translation type="unfinished">信息（命名定位）</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="42"/>
         <source>Retrieve informations about named destinations in a document.</source>
-        <translation type="unfinished">检索有关文档中指定的目标地址信息。</translation>
+        <translation type="unfinished">检索有关文档中命名定位信息。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="71"/>
         <source>Named destinations used in document %1</source>
-        <translation>文档 %1 中指定的目标地址</translation>
+        <translation>文档 %1 命名定位</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="74"/>
         <source>Named Destinations</source>
-        <translation>指定的目标地址</translation>
+        <translation>命名定位</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="80"/>
@@ -4233,37 +4233,37 @@
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="166"/>
         <source>Fit</source>
-        <translation>自适应</translation>
+        <translation>页面适配</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="172"/>
         <source>FitH</source>
-        <translation>水平自适应</translation>
+        <translation>适配页面宽度</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="179"/>
         <source>FitV</source>
-        <translation>垂直自适应</translation>
+        <translation>适配页面高度</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="186"/>
         <source>FitR</source>
-        <translation>右边自适应</translation>
+        <translation>适配选定区域</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="196"/>
         <source>FitB</source>
-        <translation>底部自适应</translation>
+        <translation>按边界框适配</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="202"/>
         <source>FitBH</source>
-        <translation>底部水平自适应</translation>
+        <translation>按边界框宽度适配</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="209"/>
         <source>FitBV</source>
-        <translation>底部垂直自适应</translation>
+        <translation>按边界框高度适配</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfopageboxes.cpp" line="39"/>
@@ -4388,22 +4388,22 @@
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="257"/>
         <source>Info (Structure tree)</source>
-        <translation>信息（文档逻辑结构）</translation>
+        <translation>信息（结构树）</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="260"/>
         <source>Examine structure tree in tagged document.</source>
-        <translation>检查标记文档中的文档逻辑结构。</translation>
+        <translation>检查已标记文档中的结构树。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="283"/>
         <source>Structure tree in document %1</source>
-        <translation>文档 %1 中的文档逻辑结构</translation>
+        <translation>文档 %1 中的结构树</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="293"/>
         <source>No structure tree found in document.</source>
-        <translation>未找到文档逻辑结构。</translation>
+        <translation>未在文档中找到结构树。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinkcoverage.cpp" line="39"/>
@@ -4607,27 +4607,27 @@
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="336"/>
         <source>Compile Time [msec]</source>
-        <translation>编译时间</translation>
+        <translation>编译时间[毫秒]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="337"/>
         <source>Render Time [msec]</source>
-        <translation>渲染时间[msec]</translation>
+        <translation>渲染时间[毫秒]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="338"/>
         <source>Wait Time [msec]</source>
-        <translation>等待时间[msec]</translation>
+        <translation>等待时间[毫秒]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="339"/>
         <source>Write Time [msec]</source>
-        <translation>写入时间[msec]</translation>
+        <translation>写入时间[毫秒]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="340"/>
         <source>Total Time [msec]</source>
-        <translation>时间合计[msec]</translation>
+        <translation>时间合计[毫秒]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="368"/>
