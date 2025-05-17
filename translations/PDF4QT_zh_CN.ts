@@ -2098,17 +2098,17 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1097"/>
         <source>&amp;Bookmark Page</source>
-        <translation>书签页(&amp;B)</translation>
+        <translation>收藏页面(&amp;B)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1100"/>
         <source>Bookmark Page</source>
-        <translation>书签页</translation>
+        <translation>收藏页面</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1103"/>
         <source>Bookmark page for fast navigation.</source>
-        <translation>快速导航书签页。</translation>
+        <translation>收藏页面以快速导航。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1112"/>
@@ -5369,122 +5369,122 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="525"/>
         <source>&amp;Get Source</source>
-        <translation type="unfinished"></translation>
+        <translation>获取源码(&amp;G)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="534"/>
         <source>&amp;Certificates...</source>
-        <translation type="unfinished"></translation>
+        <translation>证书...(&amp;C)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="542"/>
         <source>Automatic &amp;Document Refresh</source>
-        <translation type="unfinished"></translation>
+        <translation>自动刷新文档(&amp;D)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="545"/>
         <source>Automatically reloads the document if a change made by an external program is detected.</source>
-        <translation type="unfinished"></translation>
+        <translation>如果检测到外部程序所做的更改，则自动重新加载文档。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="554"/>
         <source>Become a &amp;Sponsor</source>
-        <translation type="unfinished"></translation>
+        <translation>成为赞助人(&amp;S)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="557"/>
         <source>Become a Sponsor</source>
-        <translation type="unfinished"></translation>
+        <translation>成为赞助人</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="566"/>
         <source>&amp;Bookmark Page</source>
-        <translation type="unfinished"></translation>
+        <translation>收藏页面(&amp;B)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="569"/>
         <source>Bookmark Page</source>
-        <translation type="unfinished"></translation>
+        <translation>收藏页面</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="572"/>
         <source>Bookmark page for fast navigation.</source>
-        <translation type="unfinished"></translation>
+        <translation>收藏页面以便快速导航</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="581"/>
         <source>&amp;Go to Next Bookmark</source>
-        <translation type="unfinished"></translation>
+        <translation>跳转到下一个书签(&amp;G)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="584"/>
         <source>Go to Next Bookmark</source>
-        <translation type="unfinished"></translation>
+        <translation>跳转到下一个书签</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="587"/>
         <source>Navigates to the next bookmarked page.</source>
-        <translation type="unfinished"></translation>
+        <translation>导航到下一个书签页面</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="596"/>
         <source>Go to Previous Boo&amp;kmark</source>
-        <translation type="unfinished"></translation>
+        <translation>跳转到上一个书签(&amp;K)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="599"/>
         <source>Navigates to the previous bookmarked page.</source>
-        <translation type="unfinished"></translation>
+        <translation>导航到上一个书签页面</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="608"/>
         <source>&amp;Export Bookmarks</source>
-        <translation type="unfinished"></translation>
+        <translation>导出书签(&amp;E)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="611"/>
         <source>Export Bookmarks</source>
-        <translation type="unfinished"></translation>
+        <translation>导出书签</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="614"/>
         <source>Export bookmarks to the file.</source>
-        <translation type="unfinished"></translation>
+        <translation>导出书签到文件</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="623"/>
         <source>&amp;Import Bookmarks</source>
-        <translation type="unfinished"></translation>
+        <translation>导入书签(&amp;I)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="626"/>
         <source>Import Bookmarks</source>
-        <translation type="unfinished"></translation>
+        <translation>导入书签</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="629"/>
         <source>Import bookmarks from the file.</source>
-        <translation type="unfinished"></translation>
+        <translation>从文件导入书签</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="641"/>
         <source>&amp;Generate Bookmarks Automatically</source>
-        <translation type="unfinished"></translation>
+        <translation>自动生成书签(&amp;G)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="644"/>
         <source>Generate Bookmarks Automatically</source>
-        <translation type="unfinished"></translation>
+        <translation>自动生成书签</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="647"/>
         <source>If checked, bookmarks for main document chapters are generated automatically.</source>
-        <translation type="unfinished"></translation>
+        <translation>如果选中，则会自动生成主文档章节的书签。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="655"/>
         <source>Display &amp;Render Times</source>
-        <translation type="unfinished"></translation>
+        <translation>显示渲染时间(&amp;R)</translation>
     </message>
 </context>
 <context>
@@ -5502,7 +5502,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="65"/>
         <source>Multithreading strategy</source>
-        <translation type="unfinished"></translation>
+        <translation>多线程策略</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="75"/>
@@ -5512,7 +5512,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="82"/>
         <source>Prefetch pages</source>
-        <translation type="unfinished"></translation>
+        <translation>预取页面</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="92"/>
@@ -5537,7 +5537,7 @@
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1336"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1343"/>
         <source>Enable</source>
-        <translation type="unfinished"></translation>
+        <translation>启用</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="101"/>
@@ -5552,48 +5552,61 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;On the other hand, for applications that demand high-performance rendering, leveraging the Blend2D library offers a compelling alternative. Blend2D is a high-performance 2D vector graphics engine that utilizes multi-threading to accelerate the rendering process. It does not rely on QPainter or hardware acceleration but instead offers a software-based rendering solution optimized for speed and quality. Blend2D&apos;s advanced anti-aliasing techniques ensure crisp and clear image quality, making it suitable for applications where rendering performance and image quality are paramount.&lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The Prefetch Pages feature is a strategy that can be applied regardless of the rendering method chosen. By pre-rendering pages adjacent to the currently viewed content, this approach minimizes flickering and enhances the smoothness of transitions during scrolling, improving the overall user experience.&lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;When it comes to optimizing the rendering process, the choice of multithreading strategy plays a crucial role. A Single Thread strategy, where rendering tasks are executed sequentially on a single CPU core, might be preferable in environments where simplicity and predictability are key. For more demanding applications, employing a Multi-threading strategy can significantly improve rendering times. Strategies like Load Balanced distribute the workload evenly across CPU cores without delving into content-specific processing, offering a good performance boost. The Maximum Threads strategy takes full advantage of available CPU resources by allocating as many threads as possible to the rendering tasks, achieving optimal performance and minimizing rendering times.&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This delineation between using QPainter for software rendering and Blend2D for high-performance, multi-threaded rendering allows developers to choose the most appropriate rendering pathway based on their specific performance requirements and the graphical complexity of their application.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This delineation between using QPainter for software rendering and Blend2D for high-performance, multi-threaded rendering allows developers to choose the most appropriate rendering pathway based on their specific performance requirements and the graphical complexity of their application.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt; 
+    </source>
+        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;选择适合您应用程序需求的渲染方法。软件渲染（利用 QPainter）是一种功能多样的选择，可确保跨所有平台的兼容性。它在无需直接访问硬件加速的场景中尤其有用。QPainter 是 Qt 框架的一部分，在 2D 图形渲染方面表现出色，支持各种绘画风格、图像处理和复杂的图形转换，使其成为需要精细复杂的 2D 图形且不依赖硬件加速的应用程序的理想工具。 &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;另一方面，对于需要高性能渲染的应用程序，利用 Blend2D 库是一个极具吸引力的选择。Blend2D 是一款高性能 2D 矢量图形引擎，利用多线程加速渲染过程。它不依赖于 QPainter 或硬件加速，而是提供基于软件的渲染解决方案，并针对速度和质量进行了优化。Blend2D 先进的抗锯齿技术可确保清晰锐利的图像质量，非常适合那些注重渲染性能和图像质量的应用程序。&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;预取页面功能是一种无论选择哪种渲染方法都可以应用的策略。通过预渲染当前查看内容附近的页面，这种方法可以最大限度地减少闪烁，并增强滚动过程中过渡的流畅度，从而提升整体用户体验。&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;在优化渲染流程时，多线程策略的选择至关重要。单线程策略（即渲染任务在单个 CPU 核心上按顺序执行）在注重简单性和可预测性的环境中可能更适合。对于要求更高的应用程序，采用多线程策略可以显著缩短渲染时间。诸如负载均衡之类的策略可将工作负载均匀地分布在 CPU 核心之间，而无需深入处理特定内容，从而显著提升性能。最大线程数策略则通过为渲染任务分配尽可能多的线程，充分利用可用的 CPU 资源，从而实现最佳性能并最大限度地缩短渲染时间。&lt;/p&gt;</translation>
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;使用 QPainter 进行软件渲染和使用 Blend2D 进行高性能、多线程渲染之间的区别，使开发人员能够根据其特定的性能要求和应用程序的图形复杂性选择最合适的渲染路径.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;
+    </translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="138"/>
         <source>Rendering Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>渲染设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="160"/>
         <source>Clip to crop box</source>
-        <translation type="unfinished"></translation>
+        <translation>剪裁到裁剪框</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="167"/>
         <source>Text antialiasing</source>
-        <translation type="unfinished"></translation>
+        <translation>文本抗锯齿</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="174"/>
         <source>Ignore optional content</source>
-        <translation type="unfinished"></translation>
+        <translation>忽略可选内容</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="209"/>
         <source>Smooth pictures</source>
-        <translation type="unfinished"></translation>
+        <translation>平滑图片</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="216"/>
         <source>Display page compile/draw time</source>
-        <translation type="unfinished"></translation>
+        <translation>显示页面编译/绘制时间</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="223"/>
         <source>Antialiasing</source>
-        <translation type="unfinished"></translation>
+        <translation>抗锯齿</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="230"/>
         <source>Display annotations</source>
-        <translation type="unfinished"></translation>
+        <translation>显示注释</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="246"/>
@@ -5608,17 +5621,27 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Smooth pictures&lt;/span&gt; option enables pictures to be transformed into device space coordinates using a high-quality image transformation method. This generally results in better image quality. When disabled, a default fast transformation is used, potentially reducing image quality if the source DPI and device DPI differ. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Ignore optional content &lt;/span&gt;ignores all optional content settings and renders everything in the content stream. &lt;span style=&quot; font-weight:600;&quot;&gt;Clip to crop box&lt;/span&gt; restricts the rendering area to the page&apos;s crop box, which is usually smaller than the whole page. Graphics outside the crop box aren&apos;t drawn, which can be useful for removing printer marks and similar elements. &lt;span style=&quot; font-weight:600;&quot;&gt;Display page compile/draw time&lt;/span&gt; can be handy for debugging, showing the time taken to compile a page (stored in the cache) and the time taken to render the compiled page contents onto the output device. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Using the &lt;span style=&quot; font-weight:600;&quot;&gt;Display annotations&lt;/span&gt; setting, you can enable or disable the display of annotations. If annotations are disabled, the user will not be able to interact with them. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;渲染设置控制渲染引擎如何处理页面内容和显示图形的外观。 &lt;span style=&quot; font-weight:600;&quot;&gt;抗锯齿&lt;/span&gt;使绘制的形状（例如矩形、矢量图形和线条）的外观变得平滑，但不影响文本。 &lt;span style=&quot; font-weight:600;&quot;&gt;文本抗锯齿&lt;/span&gt;,另一方面，优化文本字符的外观，同时保持其他项目不变。&lt;span style=&quot; font-weight:600;&quot;&gt;抗锯齿 &lt;/span&gt;与 &lt;span style=&quot; font-weight:600;&quot;&gt;文本抗锯齿 &lt;/span&gt;两者都仅与软件渲染器相关。如果您使用 OpenGL 等硬件渲染引擎，这些设置将不会产生影响，因为 OpenGL 使用 MSAA 抗锯齿（如果启用）渲染图像。 &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Smooth pictures&lt;/span&gt; 此选项允许使用高质量的图像转换方法将图片转换为设备空间坐标。这通常会提高图像质量。禁用时，将使用默认的快速转换，如果源 DPI 和设备 DPI 不同，则可能会降低图像质量。 &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;忽略可选内容 &lt;/span&gt;忽略所有可选内容设置并呈现内容流中的所有内容。 &lt;span style=&quot; font-weight:600;&quot;&gt;剪裁到裁剪框&lt;/span&gt; 将渲染区域限制在页面的裁剪框内，该框通常小于整个页面。裁剪框外的图形不会被绘制，这对于去除打印机标记和类似元素非常有用。 &lt;span style=&quot; font-weight:600;&quot;&gt;显示页面编译/绘制时间&lt;/span&gt; 可以方便地进行调试，显示编译页面（存储在缓存中）所花费的时间以及将编译后的页面内容呈现到输出设备上所花费的时间。 &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Using the &lt;span style=&quot; font-weight:600;&quot;&gt;Display annotations&lt;/span&gt; setting, you can enable or disable the display of annotations. If annotations are disabled, the user will not be able to interact with them. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt; </translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="282"/>
         <source>Shading Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>着色设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="290"/>
         <source>Preferred mesh resolution ratio</source>
-        <translation type="unfinished"></translation>
+        <translation>首选网格分辨率比</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="297"/>
@@ -14478,7 +14501,7 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="143"/>
         <source>Light scheme</source>
-        <translation>照明方案</translation>
+        <translation>浅色方案</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="144"/>
