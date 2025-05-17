@@ -5653,22 +5653,32 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The &lt;span style=&quot; font-weight:600;&quot;&gt;Preferred mesh resolution ratio&lt;/span&gt; should be set to optimize the balance between the performance of mesh generation and the quality of the mesh. The optimal triangle size is computed as follows: the total meshing area (typically a page) is multiplied by this ratio to determine the triangle size. For example, if we have an A4 page (210 mm x 297 mm), and the ratio is set to 0.01, then the optimal triangle size is computed as 297 * 0.01 = ~3 mm. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The &lt;span style=&quot; font-weight:600;&quot;&gt;Minimal mesh resolution ratio&lt;/span&gt; is a ratio that determines the minimal triangle size. At this boundary, no triangles are subdivided, regardless of color variation or shape quality. This ratio should be set to a value at which a user can barely recognize patterns on the screen (for example, the triangle size should be &amp;lt; 1 mm). However, this also affects performance, as too many triangles can be generated. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Color tolerance&lt;/span&gt; is the threshold at which two colors are recognized as different. The comparison is done component-wise, so if at least one color component exceeds this parameter, the colors are treated as different. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+    <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;根据网格质量标准执行着色, 涉及&lt;span style=&quot; font-weight:600;&quot;&gt;颜色公差&lt;/span&gt;与形状公差。 如果网格中某个三角形顶点的颜色差异过大（超过设定的颜色容差），则需要细化网格，并细分该三角形。有些阴影由图案定义， 例如 &lt;span style=&quot; font-style:italic;&quot;&gt;Coons贴片填充&lt;/span&gt; or &lt;span style=&quot; font-style:italic;&quot;&gt; 张量积贴片填充&lt;/span&gt;, 这些在网格划分过程中也会被考虑进去。 &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;首选 &lt;span style=&quot; font-weight:600;&quot;&gt;网格分辨率比&lt;/span&gt; 应当被设置以优化网格生成性能和网格质量之间的平衡。最佳三角形尺寸的计算方法如下：将网格总面积（通常为一页）乘以该比率，即可确定三角形尺寸。例如，如果我们有一张 A4 纸（210 毫米 x 297 毫米），且该比率设置为 0.01，则最佳三角形尺寸计算为 297 * 0.01 = ~3 毫米。&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;最小 &lt;span style=&quot; font-weight:600;&quot;&gt;网格分辨率比&lt;/span&gt; 决定了最小三角形尺寸。在此边界处，无论颜色变化或形状质量如何，都不会细分三角形。此比例应设置为用户几乎无法辨认屏幕上图案的值（例如，三角形大小应小于 1 毫米）。然而，这也会影响性能，因为可能会生成过多的三角形。 &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;颜色公差&lt;/span&gt; 是将两种颜色识别为不同的阈值。比较是逐个组件进行的，因此如果至少一个颜色组件超过此参数，则颜色将被视为不同。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="406"/>
         <source>Cache Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>缓存设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="414"/>
         <source>Thumbnail image cache size</source>
-        <translation type="unfinished"></translation>
+        <translation>缩略图缓存大小</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="421"/>
         <source>Cached font limit</source>
-        <translation type="unfinished"></translation>
+        <translation>缓存字体限制</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="444"/>
@@ -5679,12 +5689,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="460"/>
         <source>Compiled page cache size</source>
-        <translation type="unfinished"></translation>
+        <translation>编译页面缓存大小</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="483"/>
         <source>Cached instanced font limit</source>
-        <translation type="unfinished"></translation>
+        <translation>缓存实例字体限制</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="502"/>
@@ -5698,72 +5708,81 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The rendering engine first compiles the page to enable quick drawing and then stores these compiled pages in a cache. These stored pages usually render much quicker than non-cached pages. The &lt;span style=&quot; font-weight:600;&quot;&gt;Compiled Page Cache Size&lt;/span&gt; sets the memory limit for these compiled pages, measured in kilobytes. Ideally, this limit should be at least twice as large as the size of the largest compiled page. If a compiled page exceeds this limit, an error will be displayed during rendering. Setting a higher value for this limit can speed up the rendering engine, but it will consume more operating memory. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;There is also a cache for thumbnail images. The &lt;span style=&quot; font-weight:600;&quot;&gt;Thumbnail Image Cache Size&lt;/span&gt; determines the memory space allocated for these images. This value should be set large enough to accommodate all thumbnail images on the screen. The larger this value is, the quicker thumbnails will display, but at the cost of consuming more operating memory. Please note that thumbnails are stored as bitmaps for rapid drawing, not as precompiled pages. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;During rendering, fonts are cached as well. There are two levels of cache for fonts: one for general fonts and one for instance-specific fonts (fonts at a specific size). The &lt;span style=&quot; font-weight:600;&quot;&gt;Cached Font Limit&lt;/span&gt; sets the maximum number of fonts that can be stored in the cache. The &lt;span style=&quot; font-weight:600;&quot;&gt;Instanced Font Cache Limit&lt;/span&gt; sets the maximum number of instance-specific fonts that can be stored. If these cache limits are exceeded, fonts are removed from the cache. However, this only happens when no operation in another thread (like compiling pages) is being performed to avoid race conditions. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+    <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;渲染引擎首先编译页面以实现快速绘制，然后将编译后的页面存储在缓存中。这些存储的页面通常比非缓存页面渲染速度快得多。&lt;span style=&quot; font-weight:600;&quot;&gt;编译页面缓存大小&lt;/span&gt; 设置这些编译页面的内存限制，以 KB 为单位。理想情况下，此限制应至少为最大编译页面大小的两倍。如果编译页面超出此限制，渲染过程中将显示错误。设置更高的此限制值可以加快渲染引擎的速度，但会消耗更多运行内存。 &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;还有一个缩略图缓存。&lt;span style=&quot; font-weight:600;&quot;&gt;缩略图缓存大小&lt;/span&gt; 决定了为这些图像分配的内存空间。此值应设置得足够大，以容纳屏幕上的所有缩略图。此值越大，缩略图显示速度越快，但代价是会消耗更多运行内存。请注意，缩略图以位图形式存储，以便快速绘制，而不是以预编译页面的形式存储。 &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;在渲染过程中，字体也会被缓存。字体缓存分为两级：通用字体缓存和实例专用字体（特定大小的字体）。&lt;span style=&quot; font-weight:600;&quot;&gt;缓存字体限制&lt;/span&gt; 设置缓存中可存储的字体最大数量。 The &lt;span style=&quot; font-weight:600;&quot;&gt;缓存实例字体限制&lt;/span&gt; 设置可存储的实例专用字体的最大数量。如果超出这些缓存限制，字体将从缓存中移除。但是，这仅在其他线程（例如编译页面）中未执行任何操作时才会发生，以避免出现竞争情况。 &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="537"/>
         <source>Shortcuts</source>
-        <translation type="unfinished"></translation>
+        <translation>快捷键</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="569"/>
         <source>Color management system settings</source>
-        <translation type="unfinished"></translation>
+        <translation>色彩管理系统设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="580"/>
         <source>Black point compensation</source>
-        <translation type="unfinished"></translation>
+        <translation>黑点补偿</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="587"/>
         <source>Device gray color profile</source>
-        <translation type="unfinished"></translation>
+        <translation>设备灰度配置文件</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="600"/>
         <source>Accuracy</source>
-        <translation type="unfinished"></translation>
+        <translation>准确性</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="610"/>
         <source>Additional color profile directory</source>
-        <translation type="unfinished"></translation>
+        <translation>附加颜色配置文件目录</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="617"/>
         <source>White paper color transformed</source>
-        <translation type="unfinished"></translation>
+        <translation>白纸颜色转换</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="631"/>
         <source>Output color profile</source>
-        <translation type="unfinished"></translation>
+        <translatio>输出颜色配置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="652"/>
         <source>Rendering intent</source>
-        <translation type="unfinished"></translation>
+        <translation>渲染意图</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="665"/>
         <source>Consider document output intents</source>
-        <translation type="unfinished"></translation>
+        <translation>考虑文档输出意图</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="672"/>
         <source>Device RGB color profile</source>
-        <translation type="unfinished"></translation>
+        <translation>设备 RGB 颜色配置文件</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="679"/>
         <source>Color management system</source>
-        <translation type="unfinished"></translation>
+        <translation>色彩管理系统</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="686"/>
         <source>Device CMYK color profile</source>
-        <translation type="unfinished"></translation>
+        <translation>设备 CMYK 颜色配置文件</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="698"/>
@@ -5773,7 +5792,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="713"/>
         <source>Color adaptation method (XYZ whitepoint)</source>
-        <translation type="unfinished"></translation>
+        <translation>（颜色适应方法（XYZ 白点）</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="722"/>
@@ -5792,27 +5811,27 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="757"/>
         <source>Color Postprocessing</source>
-        <translation type="unfinished"></translation>
+        <translation>颜色后期处理</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="768"/>
         <source>Sigmoid function slope parameter</source>
-        <translation type="unfinished"></translation>
+        <translation>Sigmoid函数斜率参数</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="775"/>
         <source>Foreground color</source>
-        <translation type="unfinished"></translation>
+        <translation>前景色</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="785"/>
         <source>Background color</source>
-        <translation type="unfinished"></translation>
+        <translation>背景色</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="802"/>
         <source>Bitonal threshold</source>
-        <translation type="unfinished"></translation>
+        <translation>双调阈值</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="818"/>
@@ -5831,17 +5850,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="853"/>
         <source>Security Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>安全设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="868"/>
         <source>Allow URI link launch</source>
-        <translation type="unfinished"></translation>
+        <translation>允许 URI 链接启动</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="875"/>
         <source>Allow application launch</source>
-        <translation type="unfinished"></translation>
+        <translation>允许应用程序启动</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="891"/>
@@ -5860,17 +5879,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="926"/>
         <source>UI Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>用户界面设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="934"/>
         <source>Maximum redo steps</source>
-        <translation type="unfinished"></translation>
+        <translation>最大重做步骤数</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="962"/>
         <source>Magnifier zoom</source>
-        <translation type="unfinished"></translation>
+        <translation>放大镜缩放</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="969"/>
@@ -5880,17 +5899,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="976"/>
         <source>Magnifier size</source>
-        <translation type="unfinished"></translation>
+        <translation>缩放时使用逻辑像素</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="993"/>
         <source>Maximum undo steps</source>
-        <translation type="unfinished"></translation>
+        <translation>最大撤消步骤数</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1000"/>
         <source>Maximum count of recent files</source>
-        <translation type="unfinished"></translation>
+        <translation>最近文件的最大数量</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1014"/>
@@ -5900,17 +5919,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1030"/>
         <source>Color Scheme (GUI)</source>
-        <translation type="unfinished"></translation>
+        <translation>配色方案（GUI）</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1040"/>
         <source>Developer mode</source>
-        <translation type="unfinished"></translation>
+        <translation>开发者模式</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1047"/>
         <source>Language</source>
-        <translation type="unfinished"></translation>
+        <translation>语言</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1059"/>
@@ -5929,37 +5948,37 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1094"/>
         <source>Speech Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>语音设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1102"/>
         <source>Voice</source>
-        <translation type="unfinished"></translation>
+        <translation>声音</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1109"/>
         <source>Pitch</source>
-        <translation type="unfinished"></translation>
+        <translation>音高</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1116"/>
         <source>Volume</source>
-        <translation type="unfinished"></translation>
+        <translation>音量</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1123"/>
         <source>Rate</source>
-        <translation type="unfinished"></translation>
+        <translation>速度</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1130"/>
         <source>Voice synthetiser</source>
-        <translation type="unfinished"></translation>
+        <translation>声音合成器</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1137"/>
         <source>Locale</source>
-        <translation type="unfinished"></translation>
+        <translation>区域设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1182"/>
@@ -5976,17 +5995,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1215"/>
         <source>Form Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>表单设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1223"/>
         <source>Highlight form fields</source>
-        <translation type="unfinished"></translation>
+        <translation>高亮显示表单字段</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1230"/>
         <source>Highlight required form fields</source>
-        <translation type="unfinished"></translation>
+        <translation>高亮必填的表单字段</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1253"/>
@@ -6003,47 +6022,47 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1286"/>
         <source>Digital Signature Verification</source>
-        <translation type="unfinished"></translation>
+        <translation>数字签名验证</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1294"/>
         <source>Ignore expired certificates</source>
-        <translation type="unfinished"></translation>
+        <translation>忽略过期的证书</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1301"/>
         <source>Signature verification</source>
-        <translation type="unfinished"></translation>
+        <translation>签名验证</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1308"/>
         <source>Strict mode</source>
-        <translation type="unfinished"></translation>
+        <translation>严格模式</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1329"/>
         <source>Use system certificate store</source>
-        <translation type="unfinished"></translation>
+        <translation>使用系统证书存储区</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1359"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Trusted certificate store&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;受信任的证书存储&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1388"/>
         <source>Remove</source>
-        <translation type="unfinished"></translation>
+        <translation>删除</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1404"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;These are the settings for digital signature verification. Digital signatures are verified as strictly as possible to prevent any malicious content or signature manipulation. Verification can also be disabled, if not required. When &lt;span style=&quot; font-weight:600;&quot;&gt;Strict mode&lt;/span&gt; is enabled, every warning is treated as an error. You have the option to ignore the certificate expiration date, but this should only be done if you fully understand the potential risks involved. Verification uses a list of trusted certificates. System certificates can be added to this list, and you can also manage your own list of trusted certificates.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;这些是数字签名验证的设置。 数字签名经过尽可能严格的验证，以防止任何恶意内容或签名操纵。 如果不需要，也可以禁用验证。 当 &lt;span style=&quot; font-weight:600;&quot;&gt;严格模式&lt;/span&gt;被启用, 所有警告均视为错误。您可以选择忽略证书到期日期，但只有在您完全了解相关潜在风险的情况下才应这样做。验证使用受信任证书列表。您可以将系统证书添加到此列表中，也可以管理您自己的受信任证书列表。 &lt;/p&gt;&lt;/body&gt;&lt;/html&gt</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1433"/>
         <source>Plugins</source>
-        <translation type="unfinished"></translation>
+        <translation>插件</translation>
     </message>
 </context>
 <context>
@@ -6051,7 +6070,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtPageMaster/selectoutlinetoregroupdialog.ui" line="14"/>
         <source>Select Outline</source>
-        <translation type="unfinished"></translation>
+        <translation>选择PDF目录</translation>
     </message>
 </context>
 <context>
@@ -6059,73 +6078,73 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="14"/>
         <source>Unit Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>单位设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="20"/>
         <source>Units</source>
-        <translation type="unfinished"></translation>
+        <translation>单位</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="26"/>
         <source>Lengths</source>
-        <translation type="unfinished"></translation>
+        <translation>长度</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="36"/>
         <source>Areas</source>
-        <translation type="unfinished"></translation>
+        <translation>区域</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="46"/>
         <source>Angles</source>
-        <translation type="unfinished"></translation>
+        <translation>角度</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.ui" line="14"/>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.ui" line="20"/>
         <source>Soft Proofing Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>软打样设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.ui" line="39"/>
         <source>Proofing intent</source>
-        <translation type="unfinished"></translation>
+        <translation>打样意图</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.ui" line="49"/>
         <source>Proofing profile</source>
-        <translation type="unfinished"></translation>
+        <translation>打样配置文件</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.ui" line="59"/>
         <source>Alarm color</source>
-        <translation type="unfinished"></translation>
+        <translation>警报颜色</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.cpp" line="35"/>
         <source>Auto</source>
-        <translation type="unfinished"></translation>
+        <translation>自动</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.cpp" line="36"/>
         <source>Perceptual</source>
-        <translation type="unfinished"></translation>
+        <translation>百分比</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.cpp" line="37"/>
         <source>Relative colorimetric</source>
-        <translation type="unfinished"></translation>
+        <translation>相对比色法</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.cpp" line="38"/>
         <source>Absolute colorimetric</source>
-        <translation type="unfinished"></translation>
+        <translation>绝对比色法</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.cpp" line="39"/>
         <source>Saturation</source>
-        <translation type="unfinished"></translation>
+        <translation>饱和度</translation>
     </message>
 </context>
 <context>
@@ -6133,23 +6152,23 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="17"/>
         <source>Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="24"/>
         <source>Left Document</source>
-        <translation type="unfinished"></translation>
+        <translation>左侧文件</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="30"/>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="49"/>
         <source>Page Selection:</source>
-        <translation type="unfinished"></translation>
+        <translation>页面选择：</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="43"/>
         <source>Right Document</source>
-        <translation type="unfinished"></translation>
+        <translation>右侧文件</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="62"/>
@@ -6159,42 +6178,42 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="68"/>
         <source>Compare texts as vector graphics</source>
-        <translation type="unfinished"></translation>
+        <translation>将文本作为矢量图形进行比较</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="75"/>
         <source>Compare text characters instead of words</source>
-        <translation type="unfinished"></translation>
+        <translation>比较文本字符而不是单词</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="85"/>
         <source>Transparency | Overlay View</source>
-        <translation type="unfinished"></translation>
+        <translation>透明度 | 叠加视图</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="110"/>
         <source>Colors</source>
-        <translation type="unfinished"></translation>
+        <translation>颜色</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="116"/>
         <source>Remove</source>
-        <translation type="unfinished"></translation>
+        <translation>删除</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="130"/>
         <source>Add</source>
-        <translation type="unfinished"></translation>
+        <translation>增加</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="137"/>
         <source>Replace</source>
-        <translation type="unfinished"></translation>
+        <translation>取代</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="144"/>
         <source>Move</source>
-        <translation type="unfinished"></translation>
+        <translation>移动</translation>
     </message>
 </context>
 <context>
@@ -6202,42 +6221,42 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="14"/>
         <source>Dialog</source>
-        <translation type="unfinished"></translation>
+        <translation>对话框</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="20"/>
         <source>Sign Method</source>
-        <translation type="unfinished"></translation>
+        <translation>签名方法</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="26"/>
         <source>Method</source>
-        <translation type="unfinished"></translation>
+        <translation>方法</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="36"/>
         <source>Certificate</source>
-        <translation type="unfinished"></translation>
+        <translation>证书</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="46"/>
         <source>Password</source>
-        <translation type="unfinished"></translation>
+        <translation>密码</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="66"/>
         <source>Parameters</source>
-        <translation type="unfinished"></translation>
+        <translation>参数</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="72"/>
         <source>Reason</source>
-        <translation type="unfinished"></translation>
+        <translation>原因</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="86"/>
         <source>Contact Info</source>
-        <translation type="unfinished"></translation>
+        <translation>联系信息</translation>
     </message>
 </context>
 <context>
@@ -6245,7 +6264,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/statisticsgraphwidget.ui" line="14"/>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>表单</translation>
     </message>
 </context>
 <context>
@@ -6253,32 +6272,32 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../CodeGenerator/codegenerator.cpp" line="1134"/>
         <source>Object</source>
-        <translation type="unfinished"></translation>
+        <translation>对象</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/codegenerator.cpp" line="1137"/>
         <source>Array (simple)</source>
-        <translation type="unfinished"></translation>
+        <translation>数组（简单）</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/codegenerator.cpp" line="1140"/>
         <source>Array (complex)</source>
-        <translation type="unfinished"></translation>
+        <translation>数组（复杂）</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/codegenerator.cpp" line="1143"/>
         <source>Dictionary</source>
-        <translation type="unfinished"></translation>
+        <translation>词典</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/codegenerator.cpp" line="1146"/>
         <source>Item (simple), name = &apos;%1&apos;</source>
-        <translation type="unfinished"></translation>
+        <translation>项目（简单），名称 = &apos;%1&apos;</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/codegenerator.cpp" line="1149"/>
         <source>Item (complex), name = &apos;%1&apos;</source>
-        <translation type="unfinished"></translation>
+        <translation>项目（复杂），名称 = &apos;%1&apos;</translation>
     </message>
 </context>
 <context>
