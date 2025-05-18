@@ -24,6 +24,7 @@
 #include "pdfdocumentreader.h"
 #include "pdfsecurityhandler.h"
 #include "pdfapplicationtranslator.h"
+#include "pdfwidgetutils.h"
 #include "mainwindow.h"
 
 #include <QApplication>
@@ -40,10 +41,14 @@ int main(int argc, char *argv[])
     QApplication::setApplicationDisplayName(QApplication::translate("Application", "PDF4QT Diff"));
 
     QCommandLineOption noDrm("no-drm", "Disable DRM settings of documents.");
+    QCommandLineOption lightGui("theme-light", "Use a light theme for the GUI.");
+    QCommandLineOption darkGui("theme-dark", "Use a dark theme for the GUI.");
 
     QCommandLineParser parser;
     parser.setApplicationDescription(QCoreApplication::applicationName());
     parser.addOption(noDrm);
+    parser.addOption(lightGui);
+    parser.addOption(darkGui);
     parser.addHelpOption();
     parser.addVersionOption();
     parser.addPositionalArgument("file1", "The PDF file to be compared.");
@@ -54,6 +59,8 @@ int main(int argc, char *argv[])
     {
         pdf::PDFSecurityHandler::setNoDRMMode();
     }
+
+    pdf::PDFWidgetUtils::setDarkTheme(parser.isSet(lightGui), parser.isSet(darkGui));
 
     pdf::PDFApplicationTranslator translator;
     translator.installTranslator();

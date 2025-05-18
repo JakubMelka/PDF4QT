@@ -196,11 +196,10 @@ void PDFWidgetUtils::setDarkTheme(bool isLightTheme, bool isDarkTheme)
     {
         QPalette darkPalette = QApplication::palette();
 
-#ifdef Q_OS_WIN
         QApplication::setStyle(QStyleFactory::create("Fusion"));
 
         // Basic colors
-        darkPalette.setColor(QPalette::WindowText, QColor(220, 220, 220));
+        darkPalette.setColor(QPalette::WindowText, QColor(240, 246, 252));
         darkPalette.setColor(QPalette::Button, QColor(53, 53, 53));
         darkPalette.setColor(QPalette::Light, QColor(70, 70, 70));
         darkPalette.setColor(QPalette::Midlight, QColor(60, 60, 60));
@@ -213,8 +212,8 @@ void PDFWidgetUtils::setDarkTheme(bool isLightTheme, bool isDarkTheme)
         darkPalette.setColor(QPalette::ButtonText, QColor(220, 220, 220));
 
         // Background
-        darkPalette.setColor(QPalette::Base, QColor(42, 42, 42));
-        darkPalette.setColor(QPalette::Window, QColor(53, 53, 53));
+        darkPalette.setColor(QPalette::Base, QColor(13, 17, 23));
+        darkPalette.setColor(QPalette::Window, QColor(1, 4, 9));
         darkPalette.setColor(QPalette::Shadow, QColor(20, 20, 20));
 
         // Highlight
@@ -245,7 +244,6 @@ void PDFWidgetUtils::setDarkTheme(bool isLightTheme, bool isDarkTheme)
             currentColor = currentColor.lighter(150);
             darkPalette.setColor(QPalette::Current, static_cast<QPalette::ColorRole>(i), currentColor);
         }
-#endif
 
         // Placeholder text (Qt 5.12+)
         darkPalette.setColor(QPalette::PlaceholderText, QColor(150, 150, 150));
