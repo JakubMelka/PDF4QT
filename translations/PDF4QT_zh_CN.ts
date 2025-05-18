@@ -8487,7 +8487,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="231"/>
         <source>Underline</source>
-        <translation>下划线/translation>
+        <translation>下划线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="234"/>
