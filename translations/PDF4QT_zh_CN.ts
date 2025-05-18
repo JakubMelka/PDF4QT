@@ -2837,7 +2837,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="212"/>
         <source>Speech</source>
-        <translation>语音误别</translation>
+        <translation>语音识别</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="244"/>
@@ -8925,23 +8925,23 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1002"/>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1014"/>
         <source>JBIG2 invalid header - bad referred segments.</source>
-        <translation>JBIG2无效标头-错误引用段。</translation>
+        <translation>JBIG2 无效标头-错误引用段。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1103"/>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1309"/>
         <source>JBIG2 invalid segment type %1.</source>
-        <translation>JBIG2无效段类型 %1。</translation>
+        <translation>JBIG2 无效段类型 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1154"/>
         <source>Invalid JBIG2 file header.</source>
-        <translation>JBIG2文件头无效。</translation>
+        <translation>JBIG2 文件头无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1168"/>
         <source>Invalid JBIG2 file header flags.</source>
-        <translation>JBIG2文件头标志无效。</translation>
+        <translation>JBIG2 文件头标志无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1176"/>
@@ -8961,12 +8961,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1320"/>
         <source>JBIG2 bad segment data - handler doesn&apos;t process all segment data - %1 bytes left.</source>
-        <translation>JBIG2坏段数据-处理程序未处理所有段数据-剩余%1 bytes。</translation>
+        <translation>JBIG2 坏段数据-处理程序未处理所有段数据-剩余%1 bytes。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1325"/>
         <source>JBIG2 bad segment data - handler reads %1 bytes past segment end.</source>
-        <translation>JBIG2坏段数据-处理程序读取了段末尾之后的 %1 bytes。</translation>
+        <translation>JBIG2 坏段数据-处理程序读取了段末尾之后的 %1 bytes。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1358"/>
@@ -8975,7 +8975,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1380"/>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1385"/>
         <source>JBIG2 invalid flags for symbol dictionary segment.</source>
-        <translation>JBIG2符号字典段的标志无效。</translation>
+        <translation>JBIG2 符号字典段的标志无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1416"/>
@@ -8992,12 +8992,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2033"/>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3981"/>
         <source>JBIG2 invalid user huffman code table.</source>
-        <translation>JBIG2无效的用户哈夫曼（huffman）编码表。</translation>
+        <translation>JBIG2 无效的用户哈夫曼（huffman）编码表。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1469"/>
         <source>JBIG2 invalid number of huffam code table - %1 unused.</source>
-        <translation>JBIG2哈夫曼（huffman）码表数量无效—%1未使用。</translation>
+        <translation>JBIG2 哈夫曼（huffman）码表数量无效—%1未使用。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1479"/>
@@ -9008,99 +9008,99 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1559"/>
         <source>JBIG2 symbol height class has more symbols, than defined in the symbol dictionary header.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 符号高度类具有比符号字典头中定义的更多的符号。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1618"/>
         <source>Trying to use reference bitmap %1, but number of decoded bitmaps is %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>尝试使用参考位图 %1，但解码位图的数量为 %2。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1757"/>
         <source>JBIG2 - invalid export flags in symbol dictionary.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2–符号字典中的导出标志无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1884"/>
         <source>JBIG2 - invalid huffman table flags in text region segment.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2-文本区域段中的哈夫曼（huffman）表标志无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2049"/>
         <source>JBIG2 no referred symbols in text region segment.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 文本区域段中没有引用符号。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2087"/>
         <source>JBIG2 invalid symbol length code table for text region segment.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 文本区域段的符号长度代码表无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2157"/>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2561"/>
         <source>JBIG2 - invalid bitmap for generic region.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2–通用区域的位图无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2178"/>
         <source>JBIG2 invalid pattern dictionary flags.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 无效模式字典标志。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2201"/>
         <source>JBIG2 unknown data length for pattern dictionary.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 模式字典的数据长度未知。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2230"/>
         <source>JBIG2 invalid pattern dictionary collective bitmap.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 无效模式字典集体位图。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2289"/>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3532"/>
         <source>JBIG2 region segment information - invalid bit operation mode.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 区域段信息-无效的位操作模式。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2295"/>
         <source>JBIG2 invalid referenced pattern dictionaries for halftone segment.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 半色调段引用的图案字典无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2303"/>
         <source>JBIG2 invalid patterns for halftone segment.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 半色调段的模式无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2343"/>
         <source>JBIG2 halftoning with more than 8 grayscale bit planes not supported (current bitplanes: %1).</source>
-        <translation type="unfinished"></translation>
+        <translation>不支持具有超过 8 个灰度位平面的 JBIG2 半色调（当前位平面：%1）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2368"/>
         <source>JBIG2 unknown data length for halftone dictionary.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 半色调字典的数据长度未知。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2418"/>
         <source>JBIG2 invalid halftone grayscale bit plane image.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 无效的半色调灰度位平面图像。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2446"/>
         <source>JBIG2 halftoning pattern index %1 out of bounds [0, %2]</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 半色调图案索引 %1 超出范围 [0，%2]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2466"/>
         <source>JBIG2 - invalid bitmap for halftone region.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 – 半色调区域的位图无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2488"/>
         <source>JBIG2 - malformed generic region flags.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2—格式错误的通用区域标志。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2523"/>
