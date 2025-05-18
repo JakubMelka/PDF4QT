@@ -5304,17 +5304,17 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="403"/>
         <source>Color | &amp;High Contrast</source>
-        <translation>>颜色 | 高对比度(&amp;H)</translation>
+        <translation>颜色 | 高对比度(&amp;H)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="415"/>
         <source>Color | &amp;Monochromatic</source>
-        <translation>>颜色 | 黑白(&amp;M)</translation>
+        <translation>颜色 | 黑白(&amp;M)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="427"/>
         <source>Color | &amp;Custom</source>
-        <translation>>颜色 | 自定义(&amp;C)</translation>
+        <translation>颜色 | 自定义(&amp;C)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="436"/>
@@ -7747,189 +7747,189 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="614"/>
         <source>Typewriter</source>
-        <translation type="unfinished">文本框</translation>
+        <translation>文本框</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="617"/>
         <source>Callout line ending</source>
-        <translation type="unfinished">标注线结尾</translation>
+        <translation>标注线结尾</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="620"/>
         <source>Line start</source>
-        <translation type="unfinished"></translation>
+        <translation>直线起点</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="622"/>
         <source>Line end</source>
-        <translation type="unfinished"></translation>
+        <translation>直线终点</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="625"/>
         <source>Leader line length</source>
-        <translation type="unfinished"></translation>
+        <translation>引线长度</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="628"/>
         <source>Leader line extension</source>
-        <translation type="unfinished"></translation>
+        <translation>引线的延伸长度</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="631"/>
         <source>Leader line offset</source>
-        <translation type="unfinished"></translation>
+        <translation>引线偏移</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="636"/>
         <source>Arrow</source>
-        <translation type="unfinished"></translation>
+        <translation>箭头</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="637"/>
         <source>Dimension</source>
-        <translation type="unfinished"></translation>
+        <translation>尺寸</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="643"/>
         <source>Cloud</source>
-        <translation type="unfinished"></translation>
+        <translation>云协作</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="644"/>
         <source>Line dimension</source>
-        <translation type="unfinished"></translation>
+        <translation>线条尺寸</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="645"/>
         <source>Polygon dimension</source>
-        <translation type="unfinished"></translation>
+        <translation>多边形尺寸</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="648"/>
         <source>Caption</source>
-        <translation type="unfinished"></translation>
+        <translation>标题说明</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="650"/>
         <source>Caption position</source>
-        <translation type="unfinished"></translation>
+        <translation>标题说明位置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="652"/>
         <source>Inline</source>
-        <translation type="unfinished"></translation>
+        <translation>行内元素</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="653"/>
         <source>Top</source>
-        <translation type="unfinished"></translation>
+        <translation>顶部</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="656"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation>名称</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="673"/>
         <source>Image</source>
-        <translation type="unfinished"></translation>
+        <translation>图像</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="674"/>
         <source>Snapshot</source>
-        <translation type="unfinished"></translation>
+        <translation>快照</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="677"/>
         <source>Icon</source>
-        <translation type="unfinished"></translation>
+        <translation>图标</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="679"/>
         <source>Graph</source>
-        <translation type="unfinished"></translation>
+        <translation>图形</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="680"/>
         <source>Push-pin</source>
-        <translation type="unfinished"></translation>
+        <translation>图钉</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="681"/>
         <source>Paperclip</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">回形针</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="682"/>
         <source>Tag</source>
-        <translation type="unfinished"></translation>
+        <translation>标签</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="686"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="687"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="688"/>
         <source>Redact</source>
-        <translation type="unfinished"></translation>
+        <translation>修订</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="686"/>
         <source>Overlay text</source>
-        <translation type="unfinished"></translation>
+        <translation>叠加文本</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="687"/>
         <source>Repeat overlay text</source>
-        <translation type="unfinished"></translation>
+        <translation>重复叠加文本</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="698"/>
         <source>Left</source>
-        <translation type="unfinished"></translation>
+        <translation>左</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="699"/>
         <source>Center</source>
-        <translation type="unfinished"></translation>
+        <translation>中</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="700"/>
         <source>Right</source>
-        <translation type="unfinished"></translation>
+        <translation>右</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="714"/>
         <source>Diamond</source>
-        <translation type="unfinished"></translation>
+        <translation>菱形标记</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="715"/>
         <source>Open arrow</source>
-        <translation type="unfinished"></translation>
+        <translation>开放式箭头</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="716"/>
         <source>Closed arrow</source>
-        <translation type="unfinished"></translation>
+        <translation>闭合式箭头</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="717"/>
         <source>Butt</source>
-        <translation type="unfinished"></translation>
+        <translation>平端</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="718"/>
         <source>Reversed open arrow</source>
-        <translation type="unfinished"></translation>
+        <translation>反向开放式箭头</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="719"/>
         <source>Reversed closed arrow</source>
-        <translation type="unfinished"></translation>
+        <translation>反向闭合式箭头</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="720"/>
         <source>Slash</source>
-        <translation type="unfinished"></translation>
+        <translation>斜线</translation>
     </message>
 </context>
 <context>
@@ -7937,7 +7937,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="956"/>
         <source>custom</source>
-        <translation type="unfinished"></translation>
+        <translation>定制</translation>
     </message>
 </context>
 <context>
@@ -7945,7 +7945,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="366"/>
         <source>Rectangle</source>
-        <translation type="unfinished"></translation>
+        <translation>矩形</translation>
     </message>
 </context>
 <context>
@@ -7958,37 +7958,37 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="146"/>
         <source>Pass %1</source>
-        <translation type="unfinished"></translation>
+        <translation>阶段%1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="202"/>
         <source>Simple objects dereferenced and embedded: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>取消引用和嵌入的简单对象：%1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="221"/>
         <source>Null objects entries from dictionaries removed: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>已从词典中删除空对象条目：%1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="246"/>
         <source>Unused objects removed: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>已删除未使用的对象：%1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="319"/>
         <source>Identical objects merged: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>合并的相同对象：%1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="415"/>
         <source>Object list shrinked by: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>对象列表缩小了：%1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="465"/>
         <source>Bytes saved by recompressing stream: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>重新压缩流节省的字节数：%1</translation>
     </message>
 </context>
 <context>
@@ -7996,7 +7996,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfitemmodels.cpp" line="679"/>
         <source>Item %1</source>
-        <translation type="unfinished"></translation>
+        <translation>项目 %1</translation>
     </message>
 </context>
 <context>
@@ -8005,67 +8005,67 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="56"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="62"/>
         <source>Solid</source>
-        <translation type="unfinished"></translation>
+        <translation>实线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="57"/>
         <source>Dashed</source>
-        <translation type="unfinished"></translation>
+        <translation>虚线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="58"/>
         <source>Dotted</source>
-        <translation type="unfinished"></translation>
+        <translation>点线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="59"/>
         <source>Dash-dot</source>
-        <translation type="unfinished"></translation>
+        <translation>点划线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="60"/>
         <source>Dash-dot-dot</source>
-        <translation type="unfinished"></translation>
+        <translation>点划双点线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="61"/>
         <source>Custom</source>
-        <translation type="unfinished"></translation>
+        <translation>定制</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="104"/>
         <source>Image</source>
-        <translation type="unfinished"></translation>
+        <translation>图像</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="111"/>
         <source>Text</source>
-        <translation type="unfinished"></translation>
+        <translation>文本</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="118"/>
         <source>Style</source>
-        <translation type="unfinished"></translation>
+        <translation>样式</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="131"/>
         <source>Transformation</source>
-        <translation type="unfinished"></translation>
+        <translation>转换</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="355"/>
         <source>Select Image</source>
-        <translation type="unfinished"></translation>
+        <translation>选取图像</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="387"/>
         <source>Select Color for Pen</source>
-        <translation type="unfinished"></translation>
+        <translation>选取笔颜色</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="412"/>
         <source>Select Color for Brush</source>
-        <translation type="unfinished"></translation>
+        <translation>选取刷子颜色</translation>
     </message>
 </context>
 <context>
@@ -8074,88 +8074,88 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="56"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="63"/>
         <source>None</source>
-        <translation type="unfinished"></translation>
+        <translation>无</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="57"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="64"/>
         <source>Solid</source>
-        <translation type="unfinished"></translation>
+        <translation>实线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="58"/>
         <source>Dashed</source>
-        <translation type="unfinished"></translation>
+        <translation>虚线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="59"/>
         <source>Dotted</source>
-        <translation type="unfinished"></translation>
+        <translation>点线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="60"/>
         <source>Dash-dot</source>
-        <translation type="unfinished"></translation>
+        <translation>点划线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="61"/>
         <source>Dash-dot-dot</source>
-        <translation type="unfinished"></translation>
+        <translation>点划双点线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="65"/>
         <source>Horizontal</source>
-        <translation type="unfinished"></translation>
+        <translation>水平</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="66"/>
         <source>Vertical</source>
-        <translation type="unfinished"></translation>
+        <translation>垂直</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="67"/>
         <source>B-Diagonal</source>
-        <translation type="unfinished"></translation>
+        <translation>反斜对角线填充</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="68"/>
         <source>F-Diagonal</source>
-        <translation type="unfinished"></translation>
+        <translation>正斜对角线填充</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="69"/>
         <source>Cross</source>
-        <translation type="unfinished"></translation>
+        <translation>十字线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="269"/>
         <source>Edit Item</source>
-        <translation type="unfinished"></translation>
+        <translation>编辑项目</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="307"/>
         <source>Content</source>
-        <translation type="unfinished"></translation>
+        <translation>内容</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="324"/>
         <source>Appearance</source>
-        <translation type="unfinished"></translation>
+        <translation>外观</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="403"/>
         <source>Select Font</source>
-        <translation type="unfinished"></translation>
+        <translation>选取字体</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="425"/>
         <source>Select Color for Pen</source>
-        <translation type="unfinished"></translation>
+        <translation>选取笔颜色</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="466"/>
         <source>Select Color for Brush</source>
-        <translation type="unfinished"></translation>
+        <translation>选取刷子颜色</translation>
     </message>
 </context>
 <context>
@@ -8163,62 +8163,62 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="795"/>
         <source>Stream ended inside array.</source>
-        <translation type="unfinished"></translation>
+        <translation>流在数组内结束。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="820"/>
         <source>Dictionary key must be a name.</source>
-        <translation type="unfinished"></translation>
+        <translation>字典索引必须是名称。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="835"/>
         <source>End of stream inside dictionary reached.</source>
-        <translation type="unfinished"></translation>
+        <translation>已到达词典内的流末尾。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="844"/>
         <source>Streams are not allowed in this context.</source>
-        <translation type="unfinished"></translation>
+        <translation>在此上下文中不允许使用流。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="853"/>
         <source>Stream length is not specified.</source>
-        <translation type="unfinished"></translation>
+        <translation>未指定流长度。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="859"/>
         <source>Bad value of stream length. It should be an integer number.</source>
-        <translation type="unfinished"></translation>
+        <translation>流长度值错误。它应该是一个整数。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="865"/>
         <source>Length of the stream buffer is negative (%1). It must be a positive number.</source>
-        <translation type="unfinished"></translation>
+        <translation>流缓冲区的长度为负数 (%1)。它必须为正数。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="881"/>
         <source>Stream data should be in external file, but invalid file name is specified.</source>
-        <translation type="unfinished"></translation>
+        <translation>流数据应该在外部文件中，但指定了无效的文件名。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="892"/>
         <source>Can&apos;t open stream data stored in external file &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">无法打开存储在外部文件&apos;%1&apos;中的流数据。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="909"/>
         <source>End of stream should end in keyword &apos;endstream&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">流的结束应该以关键字&apos;endstream&apos;结尾</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="931"/>
         <source>Cannot read object. Unexpected token appeared.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法读取对象。出现意外的标记。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="937"/>
         <source>Cannot read object. End of stream reached.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法读取对象。已到达流末尾。</translation>
     </message>
 </context>
 <context>
@@ -8226,83 +8226,83 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="671"/>
         <source>Cyclical reference found while parsing object %1 %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>解析对象 %1 %2 时发现循环引用。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="82"/>
         <source>Function dictionary expected.</source>
-        <translation type="unfinished"></translation>
+        <translation>需要函数词典。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="93"/>
         <source>Fuction has invalid domain.</source>
-        <translation type="unfinished"></translation>
+        <translation>函数具有无效域。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="98"/>
         <source>Fuction has invalid range.</source>
-        <translation type="unfinished"></translation>
+        <translation>函数具有无效范围。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="113"/>
         <source>Sampled function has invalid sample size.</source>
-        <translation type="unfinished"></translation>
+        <translation>采样函数的样本大小无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="118"/>
         <source>Sampled function has invalid count of bits per sample.</source>
-        <translation type="unfinished"></translation>
+        <translation>采样函数的每个样本的位数无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="142"/>
         <source>Sampled function hasn&apos;t any output.</source>
-        <translation type="unfinished"></translation>
+        <translation>采样函数没有任何输出。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="147"/>
         <source>Sampled function has invalid encode array.</source>
-        <translation type="unfinished"></translation>
+        <translation>采样函数具有无效的编码数组。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="152"/>
         <source>Sampled function has invalid decode array.</source>
-        <translation type="unfinished"></translation>
+        <translation>采样函数具有无效的解码数组。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="182"/>
         <source>Not enough samples for sampled function.</source>
-        <translation type="unfinished"></translation>
+        <translation>采样函数的样本不足。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="206"/>
         <source>Exponential function can have only one input value.</source>
-        <translation type="unfinished"></translation>
+        <translation>指数函数只能有一个输入值。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="211"/>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="216"/>
         <source>Invalid domain of exponential function.</source>
-        <translation type="unfinished"></translation>
+        <translation>指数函数的定义域无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="236"/>
         <source>Invalid parameter of exponential function (at x = 0.0).</source>
-        <translation type="unfinished"></translation>
+        <translation>指数函数的参数无效（在 x = 0.0）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="240"/>
         <source>Invalid parameter of exponential function (at x = 1.0).</source>
-        <translation type="unfinished"></translation>
+        <translation>指数函数的参数无效（在 x = 1.0）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="253"/>
         <source>Stitching function can have only one input value.</source>
-        <translation type="unfinished"></translation>
+        <translation>拼接函数只能有一个输入值。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="264"/>
         <source>Stitching function has different function count. Expected %1, actual %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>拼接功能的功能数量不同。预期为 %1，实际为 %2。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="272"/>
