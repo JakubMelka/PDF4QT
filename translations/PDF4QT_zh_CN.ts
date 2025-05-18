@@ -1553,7 +1553,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="174"/>
         <source>Sticky &amp;Note</source>
-        <translation>备注贴(&amp;N)</translation>
+        <translation>便签(&amp;N)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="186"/>
@@ -2817,7 +2817,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="84"/>
         <source>Outline</source>
-        <translation>PDF目录</translation>
+        <translation>大纲</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="116"/>
@@ -3978,7 +3978,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="296"/>
         <source>Embedded</source>
-        <translation>嵌入式</translation>
+        <translation>嵌入</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="297"/>
@@ -5806,7 +5806,16 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The &lt;span style=&quot; font-weight:600;&quot;&gt;Color Management System&lt;/span&gt; governs input and output color profiles and color transformations. This system allows for accurate color representation as defined in the PDF document. For faster color transformations, select &apos;Generic&apos; to disable this functionality. The &lt;span style=&quot; font-weight:600;&quot;&gt;Rendering Intent&lt;/span&gt; selection influences the way colors are transformed. While rendering intents are often defined within the PDF document&apos;s content streams, you have the option to override them by selecting a different intent from &apos;Auto&apos;. The &lt;span style=&quot; font-weight:600;&quot;&gt;Accuracy&lt;/span&gt; setting determines the precision of the color transformation, with higher accuracy consuming more memory. The &lt;span style=&quot; font-weight:600;&quot;&gt;Black Point Compensation&lt;/span&gt; adjusts for black colors that fall outside the gamut. The &lt;span style=&quot; font-weight:600;&quot;&gt;White Paper Color Transformed&lt;/span&gt; setting affects the color of the underlying white paper - enabling this will transform pure white from the device RGB profile to the output profile. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The &lt;span style=&quot; font-weight:600;&quot;&gt;Output Color Profile&lt;/span&gt; specifies the output (target) rendering profile. This profile should align with the color space that your screen uses to display colors. Additionally, you can set the color spaces for &lt;span style=&quot; font-weight:600;&quot;&gt;gray/RGB/CMYK&lt;/span&gt; device color spaces. These are used to transform gray/RGB/CMYK colors to the output color profile. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;A document may contain output intents, which can be used for transforming between color spaces. If the &lt;span style=&quot; font-weight:600;&quot;&gt;Consider Document Output Intents&lt;/span&gt; option is checked, the color management system will verify whether the document contains output intents. If such intents are present, they will be used for color transformation as device color spaces (gray/RGB/CMYK). &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+     <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;色彩 &lt;span style=&quot; font-weight:600;&quot;&gt;管理系统&lt;/span&gt; 控制输入和输出颜色配置文件以及颜色转换。该系统能够准确地呈现 PDF 文档中定义的色彩。为了更快地实现颜色转换，请选择&apos;通用&apos;以禁用此功能。&lt;span style=&quot; font-weight:600;&quot;&gt;渲染意图&lt;/span&gt; 的选择会影响颜色的转换方式。虽然渲染意图通常在 PDF 文档的内容流中定义，但您可以选择从&apos;自动&apos;中选择其他意图来覆盖它们。 &lt;span style=&quot; font-weight:600;&quot;&gt;Accuracy&lt;/span&gt; 设置决定颜色转换的精度，精度越高，消耗的内存就越多。&lt;span style=&quot; font-weight:600;&quot;&gt;黑点补偿&lt;/span&gt;可调整色域之外的黑色。&lt;span style=&quot; font-weight:600;&quot;&gt;白纸颜色转换&lt;/span&gt;设置会影响底层白纸的颜色 - 启用此功能会将纯白色从设备 RGB 配置文件转换为输出配置文件。&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;输出色彩 &lt;span style=&quot; font-weight:600;&quot;&gt;配置文件&lt;/span&gt; 指定输出（目标）渲染配置文件。此配置文件应与您的屏幕用于显示颜色的色彩空间一致。 此外，您还可以设置 &lt;span style=&quot; font-weight:600;&quot;&gt;灰色/RGB/CMYK&lt;/span&gt; 设备色彩空间的色彩空间。这些色彩空间用于将灰色/RGB/CMYK 颜色转换为输出色彩配置文件。&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;文档可能包含输出意图，可用于在色彩空间之间进行转换。 如果 &lt;span style=&quot; font-weight:600;&quot;&gt;考虑文档输出意图&lt;/span&gt; 选项被选中，色彩管理系统将验证文档是否包含输出意图。如果存在此类意图，则它们将用作设备色彩空间（灰度/RGB/CMYK）进行色彩转换。 &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="757"/>
@@ -5845,7 +5854,16 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Foreground&lt;/span&gt; and &lt;span style=&quot; font-weight:700;&quot;&gt;background&lt;/span&gt; colors refer to a custom colors rendering mode, where two colors are used - the paper is drawn with the background color, and the foreground color is used for text and graphics. By default, the background is black and the foreground is green, which is easy on the eyes. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Sigmoid function slope parameter&lt;/span&gt; is a parameter in high contrast color rendering. This rendering mode displays all graphics in high contrast. This parameter affects the degree of contrast. Set the value from 1 to 5 for a small contrast change, from 5 to 10 for a medium contrast change, and more than 10 for very high contrast rendering. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Bitonal threshold&lt;/span&gt; is used in the bitonal rendering color mode. It distinguishes between black and white colors. However, the threshold for images is determined automatically. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+     <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;前景色&lt;/span&gt; 和 &lt;span style=&quot; font-weight:700;&quot;&gt;背景色&lt;/span&gt;颜色是指自定义颜色渲染模式，其中使用两种颜色：纸张使用背景色绘制，前景色用于文本和图形。默认情况下，背景为黑色，前景色为绿色，这种颜色看起来比较舒服。&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;逻辑（Sigmoid）函数斜率参数&lt;/span&gt; 是高对比度颜色渲染中的一个参数。此渲染模式以高对比度显示所有图形。此参数影响对比度的程度。将值设置为 1 到 5 表示较小的对比度变化，将值设置为 5 到 10 表示中等对比度变化，将值设置为 10 以上表示非常高的对比度渲染。&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;双调阈值&lt;/span&gt; 用于双色调渲染颜色模式。它区分黑色和白色。但是，图像的阈值是自动确定的。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="853"/>
@@ -6305,7 +6323,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcompiler.cpp" line="548"/>
         <source>Indexing document contents...</source>
-        <translation type="unfinished"></translation>
+        <translation>索引文档内容...</translation>
     </message>
 </context>
 <context>
@@ -6313,7 +6331,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfitemmodels.cpp" line="871"/>
         <source>Files</source>
-        <translation type="unfinished"></translation>
+        <translation>文件</translation>
     </message>
 </context>
 <context>
@@ -6321,42 +6339,42 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1596"/>
         <source>Generic</source>
-        <translation type="unfinished"></translation>
+        <translation>通用</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1602"/>
         <source>Little CMS %1.%2</source>
-        <translation type="unfinished"></translation>
+        <translation>小型 CMS %1.%2</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1656"/>
         <source>Gray D65, γ = 2.2</source>
-        <translation type="unfinished"></translation>
+        <translation>灰色 D65，γ = 2.2</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1657"/>
         <source>Gray D50, γ = 2.2</source>
-        <translation type="unfinished"></translation>
+        <translation>灰色 D50，γ = 2.2</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1658"/>
         <source>Gray D93, γ = 2.2</source>
-        <translation type="unfinished"></translation>
+        <translation>灰色 D93，γ = 2.2</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1659"/>
         <source>Gray D65, γ = 1.0 (linear)</source>
-        <translation type="unfinished"></translation>
+        <translation>灰色 D65，γ = 1.0</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1660"/>
         <source>Gray D50, γ = 1.0 (linear)</source>
-        <translation type="unfinished"></translation>
+        <translation>灰色 D50，γ = 1.0</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1661"/>
         <source>Gray D93, γ = 1.0 (linear)</source>
-        <translation type="unfinished"></translation>
+        <translation>灰色 D93，γ = 1.0</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1678"/>
@@ -6386,7 +6404,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1683"/>
         <source>ProPhoto RGB</source>
-        <translation type="unfinished"></translation>
+        <translation>Adobe 广色域 RGB</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1834"/>
@@ -6399,7 +6417,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatelisthelper.cpp" line="89"/>
         <source>Password protected</source>
-        <translation type="unfinished"></translation>
+        <translation>密码保护</translation>
     </message>
 </context>
 <context>
@@ -6407,70 +6425,70 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="58"/>
         <source>Create</source>
-        <translation type="unfinished"></translation>
+        <translation>创建</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="59"/>
         <source>Open Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>打开目录</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="60"/>
         <source>Delete</source>
-        <translation type="unfinished"></translation>
+        <translation>删除</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="61"/>
         <source>Import</source>
-        <translation type="unfinished"></translation>
+        <translation>导入</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="96"/>
         <source>Confirm delete</source>
-        <translation type="unfinished"></translation>
+        <translation>确认删除</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="96"/>
         <source>Do you want to delete certificate &apos;%1&apos;?</source>
-        <translation type="unfinished"></translation>
+        <translation>是否要删除证书&apos;%1&apos;?</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="101"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="123"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>错误</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="101"/>
         <source>Cannot delete certificate &apos;%1&apos;</source>
-        <translation type="unfinished"></translation>
+        <translation>无法删除证书&apos;%1&apos;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="109"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="129"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="133"/>
         <source>Import Certificate</source>
-        <translation type="unfinished"></translation>
+        <translation>导入证书</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="109"/>
         <source>Certificate file (*.pfx);;All files (*.*)</source>
-        <translation type="unfinished"></translation>
+        <translation>证书文件(*.pfx);;所有文件(*.*)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="123"/>
         <source>Target file exists. Please rename the certificate file to import.</source>
-        <translation type="unfinished"></translation>
+        <translation>目标文件已存在。请重命名要导入的证书文件。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="129"/>
         <source>Certificate &apos;%1&apos; was successfully imported.</source>
-        <translation type="unfinished"></translation>
+        <translation>证书&apos;%1&apos;已成功导入。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="133"/>
         <source>Error occured during certificate &apos;%1&apos; import.</source>
-        <translation type="unfinished"></translation>
+        <translation>证书&apos;%1&apos;导入时发生错误。</translation>
     </message>
 </context>
 <context>
@@ -6494,17 +6512,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="106"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="113"/>
         <source>Certificate Protection</source>
-        <translation type="unfinished"></translation>
+        <translation>证书保护</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="106"/>
         <source>Enter password to protect your certificate.</source>
-        <translation type="unfinished"></translation>
+        <translation>输入密码以保护您的证书</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="113"/>
         <source>Enter password again to verify password text.</source>
-        <translation type="unfinished"></translation>
+        <translation>再次输入密码以确认</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="117"/>
@@ -6512,27 +6530,27 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="152"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="159"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>错误</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="117"/>
         <source>Reentered password is not equal to the first one!</source>
-        <translation type="unfinished"></translation>
+        <translation>重新输入的密码与第一个密码不同！</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="145"/>
         <source>Please enter a name!</source>
-        <translation type="unfinished"></translation>
+        <translation>请输入姓名！</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="152"/>
         <source>Please enter an organization name!</source>
-        <translation type="unfinished"></translation>
+        <translation>请输入组织名</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="159"/>
         <source>Please enter an email address!</source>
-        <translation type="unfinished"></translation>
+        <translation>请输入邮箱地址</translation>
     </message>
 </context>
 <context>
@@ -6540,12 +6558,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="170"/>
         <source>Text</source>
-        <translation type="unfinished"></translation>
+        <translation>文本</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="170"/>
         <source>Enter text for free text panel</source>
-        <translation type="unfinished"></translation>
+        <translation>在自由文本面板中输入文本</translation>
     </message>
 </context>
 <context>
@@ -6553,7 +6571,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="1113"/>
         <source>Select Color</source>
-        <translation type="unfinished"></translation>
+        <translation>选取颜色</translation>
     </message>
 </context>
 <context>
@@ -6561,12 +6579,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="135"/>
         <source>Hyperlink</source>
-        <translation type="unfinished"></translation>
+        <translation>超链结</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="135"/>
         <source>Enter url address of the hyperlink</source>
-        <translation type="unfinished"></translation>
+        <translation>输入超链接的url地址</translation>
     </message>
 </context>
 <context>
@@ -6574,7 +6592,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditortools.cpp" line="422"/>
         <source>Select Image</source>
-        <translation type="unfinished"></translation>
+        <translation>选取图像</translation>
     </message>
 </context>
 <context>
@@ -6582,12 +6600,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="86"/>
         <source>Sticky note</source>
-        <translation type="unfinished"></translation>
+        <translation>便签</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="86"/>
         <source>Enter text to be displayed in the sticky note</source>
-        <translation type="unfinished"></translation>
+        <translation>输入要在便签中显示的文本</translation>
     </message>
 </context>
 <context>
@@ -6615,7 +6633,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="266"/>
         <source>permissive + ack.</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">允许+确认.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="267"/>
@@ -6726,22 +6744,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="173"/>
         <source>No document to be compared.</source>
-        <translation type="unfinished"></translation>
+        <translation>没有可供比较的文档</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="179"/>
         <source>No page to be compared.</source>
-        <translation type="unfinished"></translation>
+        <translation>没有可供比较的页面。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="194"/>
         <source>Invalid page range.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的页面范围</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="202"/>
         <source>Comparing documents.</source>
-        <translation type="unfinished"></translation>
+        <translation>比较文档中</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1253"/>
@@ -6761,132 +6779,132 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1262"/>
         <source>Removed text character from page %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>从页面 %1 中删除了文本字符</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1265"/>
         <source>Removed vector graphics from page %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>从页面 %1 中删除了矢量图</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1268"/>
         <source>Removed image from page %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>从页面 %1 中删除了图像</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1271"/>
         <source>Removed shading from page %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>从页面 %1 中删除了着色</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1274"/>
         <source>Added text character to page %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>已将文本字符添加到页面 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1277"/>
         <source>Added vector graphics to page %1.</source>
-        <translation type="unfinished"></translation>
+        <translation >已将矢量图添加到页面 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1280"/>
         <source>Added image to page %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>已将图像添加到页面 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1283"/>
         <source>Added shading to page %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>已将着色添加到页面 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1286"/>
         <source>Text &apos;%1&apos; has been added to page %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>文本&apos;%1&apos;已添加到页面 %2。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1289"/>
         <source>Text &apos;%1&apos; has been removed from page %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>文本&apos;%1&apos;已从页面 %2删除</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1292"/>
         <source>Text &apos;%1&apos; on page %2 has been replaced by text &apos;%3&apos; on page %4.</source>
-        <translation type="unfinished"></translation>
+        <translation>页 %2 上的文本&apos;%1&apos;已被页 %4 上的文本&apos;%3&apos;替换。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1337"/>
         <source>Invalid</source>
-        <translation type="unfinished"></translation>
+        <translation>无效</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1339"/>
         <source>Page moved</source>
-        <translation type="unfinished"></translation>
+        <translation>页面已移动</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1341"/>
         <source>Page added</source>
-        <translation type="unfinished"></translation>
+        <translation>页面已添加</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1343"/>
         <source>Page removed</source>
-        <translation type="unfinished"></translation>
+        <translation>页面已删除</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1345"/>
         <source>Removed text character</source>
-        <translation type="unfinished"></translation>
+        <translation>已删除文本字符</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1347"/>
         <source>Removed vector graphics</source>
-        <translation type="unfinished"></translation>
+        <translation>已删除矢量图</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1349"/>
         <source>Removed image</source>
-        <translation type="unfinished"></translation>
+        <translation>已删除图像</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1351"/>
         <source>Removed shading</source>
-        <translation type="unfinished"></translation>
+        <translation>已删除着色</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1353"/>
         <source>Added text character</source>
-        <translation type="unfinished"></translation>
+        <translation>已添加文本字符</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1355"/>
         <source>Added vector graphics</source>
-        <translation type="unfinished"></translation>
+        <translation>已添加矢量图</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1357"/>
         <source>Added image</source>
-        <translation type="unfinished"></translation>
+        <translation>已添加图像</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1359"/>
         <source>Added shading</source>
-        <translation type="unfinished"></translation>
+        <translation>已添加着色</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1361"/>
         <source>Text added</source>
-        <translation type="unfinished"></translation>
+        <translation>文本已添加</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1363"/>
         <source>Text removed</source>
-        <translation type="unfinished"></translation>
+        <translation>文本已删除</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1365"/>
         <source>Text replaced</source>
-        <translation type="unfinished"></translation>
+        <translation>文本已取代</translation>
     </message>
 </context>
 <context>
@@ -6894,35 +6912,35 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="35"/>
         <source>Empty page list.</source>
-        <translation type="unfinished"></translation>
+        <translation>空的页面列表</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="62"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="283"/>
         <source>Invalid document.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的文档。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="170"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="305"/>
         <source>Missing page (%1) in a document.</source>
-        <translation type="unfinished"></translation>
+        <translation>文档中缺少页面 (%1)。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="211"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="218"/>
         <source>Missing image.</source>
-        <translation type="unfinished"></translation>
+        <translation>缺少图像。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="239"/>
         <source>Error occured during page creation.</source>
-        <translation type="unfinished"></translation>
+        <translation>页面创建时发生错误。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="577"/>
         <source>Document %1</source>
-        <translation type="unfinished"></translation>
+        <translation>文档 %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="582"/>
@@ -6932,12 +6950,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="591"/>
         <source>%1 Images</source>
-        <translation type="unfinished"></translation>
+        <translation>%1图像</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="595"/>
         <source>%1 Pages</source>
-        <translation type="unfinished"></translation>
+        <translation>%1页面</translation>
     </message>
 </context>
 <context>
@@ -6945,43 +6963,43 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="71"/>
         <source>File &apos;%1&apos; cannot be opened for reading. %1</source>
-        <translation type="unfinished"></translation>
+        <translation>无法打开文件&apos;%1&apos;进行读取。%1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="77"/>
         <source>File &apos;%1&apos; doesn&apos;t exist.</source>
-        <translation type="unfinished"></translation>
+        <translation>文件&apos;%1&apos;不存在。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="97"/>
         <source>Device is not opened for reading.</source>
-        <translation type="unfinished"></translation>
+        <translation>设备尚未打开以供读取。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="109"/>
         <source>Can&apos;t open device for reading.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法打开设备进行读取。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="119"/>
         <source>End of file marking was not found.</source>
-        <translation type="unfinished"></translation>
+        <translation>未找到文件结束标记。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="162"/>
         <source>Header of PDF file was not found.</source>
-        <translation type="unfinished"></translation>
+        <translation>未找到 PDF 文件的标题。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="168"/>
         <source>Version of the PDF file is not valid.</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF 文件的版本无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="177"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="185"/>
         <source>Start of object reference table not found.</source>
-        <translation type="unfinished"></translation>
+        <translation>未找到对象引用表的开头。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="204"/>
@@ -6989,17 +7007,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="216"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="222"/>
         <source>Can&apos;t read object at position %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法读取位置 %1 处的对象。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="353"/>
         <source>Invalid trailer dictionary.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的预告词典。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="564"/>
         <source>Empty xref table.</source>
-        <translation type="unfinished"></translation>
+        <translation>空的外部参照表。</translation>
     </message>
 </context>
 <context>
@@ -7007,42 +7025,42 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="151"/>
         <source>Document info was removed.</source>
-        <translation type="unfinished"></translation>
+        <translation>文档信息已被删除。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="169"/>
         <source>Metadata streams removed: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>已删除元数据流：%1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="184"/>
         <source>Outline was removed.</source>
-        <translation type="unfinished"></translation>
+        <translation>大纲已被删除。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="194"/>
         <source>File attachments removed: %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>已删除的文件附件：%1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="222"/>
         <source>Embedded files were removed.</source>
-        <translation type="unfinished"></translation>
+        <translation>嵌入的文件已被删除。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="254"/>
         <source>Search index was removed.</source>
-        <translation type="unfinished"></translation>
+        <translation>搜索索引已被删除。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="265"/>
         <source>Markup annotations removed: %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>已删除标记注释：%1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="293"/>
         <source>Page thumbnails removed: %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>已删除页面缩略图：%1。</translation>
     </message>
 </context>
 <context>
@@ -7050,53 +7068,53 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="58"/>
         <source>Page No.</source>
-        <translation type="unfinished"></translation>
+        <translation>页码</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="61"/>
         <source>Type</source>
-        <translation type="unfinished"></translation>
+        <translation>类型</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="64"/>
         <source>State</source>
-        <translation type="unfinished"></translation>
+        <translation>状态</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="67"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="148"/>
         <source>Text</source>
-        <translation type="unfinished"></translation>
+        <translation>文本</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="137"/>
         <source>Title</source>
-        <translation type="unfinished"></translation>
+        <translation>标题</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="141"/>
         <source>Language</source>
-        <translation type="unfinished"></translation>
+        <translation>语言</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="145"/>
         <source>Special</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="158"/>
         <source>Removed</source>
-        <translation type="unfinished"></translation>
+        <translation>已删除</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="163"/>
         <source>Modified</source>
-        <translation type="unfinished"></translation>
+        <translation>已修改</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="166"/>
         <source>Active</source>
-        <translation type="unfinished"></translation>
+        <translation>激活</translation>
     </message>
 </context>
 <context>
@@ -7105,19 +7123,19 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentwriter.cpp" line="189"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentwriter.cpp" line="255"/>
         <source>Writing of encrypted documents is not supported.</source>
-        <translation type="unfinished"></translation>
+        <translation>不支持写入加密文档</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentwriter.cpp" line="204"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentwriter.cpp" line="215"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentwriter.cpp" line="237"/>
         <source>File &apos;%1&apos; can&apos;t be opened for writing. %2</source>
-        <translation type="unfinished"></translation>
+        <translation>无法打开文件&apos;%1&apos;进行写入。%2</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentwriter.cpp" line="246"/>
         <source>Device is not writable.</source>
-        <translation type="unfinished"></translation>
+        <translation>设备不可写入。</translation>
     </message>
 </context>
 <context>
@@ -7125,7 +7143,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="995"/>
         <source>Edit Annotation</source>
-        <translation type="unfinished"></translation>
+        <translation>编辑注释</translation>
     </message>
 </context>
 <context>
@@ -7133,7 +7151,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="1662"/>
         <source>Image of size %1 x %2 pixels was copied to the clipboard.</source>
-        <translation type="unfinished"></translation>
+        <translation>尺寸为 %1 x %2 像素的图像已复制到剪贴板。</translation>
     </message>
 </context>
 <context>
@@ -7142,37 +7160,37 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="408"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="661"/>
         <source>Find</source>
-        <translation type="unfinished"></translation>
+        <translation>查找</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="420"/>
         <source>Case sensitive</source>
-        <translation type="unfinished"></translation>
+        <translation>区分大小写</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="421"/>
         <source>Whole words only</source>
-        <translation type="unfinished"></translation>
+        <translation>仅整词</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="422"/>
         <source>Previous</source>
-        <translation type="unfinished"></translation>
+        <translation>上一个</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="423"/>
         <source>Next</source>
-        <translation type="unfinished"></translation>
+        <translation>下一个</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="447"/>
         <source>Search text</source>
-        <translation type="unfinished"></translation>
+        <translation>捜索文本</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="665"/>
         <source>Find (%1/%2)</source>
-        <translation type="unfinished"></translation>
+        <translation>查找(%1/%2)</translation>
     </message>
 </context>
 <context>
@@ -7180,17 +7198,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetformmanager.cpp" line="323"/>
         <source>Signature Unknown</source>
-        <translation type="unfinished"></translation>
+        <translation>未知签名</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetformmanager.cpp" line="330"/>
         <source>Signature Valid</source>
-        <translation type="unfinished"></translation>
+        <translation>有效签名</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetformmanager.cpp" line="335"/>
         <source>Signature Invalid</source>
-        <translation type="unfinished"></translation>
+        <translation>无效签名</translation>
     </message>
 </context>
 <context>
@@ -7198,73 +7216,73 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="88"/>
         <source>Expected a number, but end of stream reached.</source>
-        <translation type="unfinished"></translation>
+        <translation>预期有一个数字，但已到达流末尾。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="146"/>
         <source>Invalid format of number. Character &apos;%1&apos; appeared.</source>
-        <translation type="unfinished"></translation>
+        <translation>数字格式无效。出现字符&apos;%1&apos;。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="153"/>
         <source>Both &apos;+&apos; and &apos;-&apos; appeared in number. Invalid format of number.</source>
-        <translation type="unfinished"></translation>
+        <translation>数字中同时出现了&apos;+&apos;和&apos;-&apos;。数字格式无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="158"/>
         <source>Bad format of number - no digits appeared.</source>
-        <translation type="unfinished"></translation>
+        <translation>数字格式错误 - 没有出现数字。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="164"/>
         <source>Real number overflow.</source>
-        <translation type="unfinished"></translation>
+        <translation>实数溢出。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="330"/>
         <source>Hexadecimal number must follow character &apos;#&apos; in the name.</source>
-        <translation type="unfinished"></translation>
+        <translation>名称中的字符&apos;#&apos;后面必须跟有十六进制数。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="411"/>
         <source>Invalid character in hexadecimal string.</source>
-        <translation type="unfinished"></translation>
+        <translation>十六进制字符串中的字符无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="415"/>
         <source>Unexpected end of stream reached while scanning hexadecimal string.</source>
-        <translation type="unfinished"></translation>
+        <translation>扫描十六进制字符串时意外到达流末尾。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="431"/>
         <source>Invalid character &apos;%1&apos;</source>
-        <translation type="unfinished"></translation>
+        <translation>无效字符&apos;%1&apos;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="478"/>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="482"/>
         <source>Unexpected character &apos;%1&apos; in the stream.</source>
-        <translation type="unfinished"></translation>
+        <translation>流中出现意外字符&apos;%1&apos;。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="500"/>
         <source>Trying to seek stream position to %1 bytes from the start, byte offset is invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>尝试寻找距开始处 %1 字节处的流位置，字节偏移量无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="552"/>
         <source>Can&apos;t read %1 bytes from the input stream. Input stream end reached.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法从输入流读取 %1 个字节。已到达输入流末尾。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="612"/>
         <source>Unexpected end of stream reached.</source>
-        <translation type="unfinished"></translation>
+        <translation>意外到达流末尾。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="653"/>
         <source>Error near position %1. %2</source>
-        <translation type="unfinished"></translation>
+        <translation>位置 %1 附近出现错误。%2</translation>
     </message>
 </context>
 <context>
@@ -7279,27 +7297,27 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="552"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="555"/>
         <source>General</source>
-        <translation type="unfinished"></translation>
+        <translation>通用</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="482"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="483"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="583"/>
         <source>Type</source>
-        <translation type="unfinished"></translation>
+        <translation>类型</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="486"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="648"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="650"/>
         <source>Text</source>
-        <translation type="unfinished"></translation>
+        <translation>文本</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="487"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="598"/>
         <source>Link</source>
-        <translation type="unfinished"></translation>
+        <translation>链结</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="488"/>
@@ -7308,7 +7326,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="612"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="617"/>
         <source>Free text</source>
-        <translation type="unfinished"></translation>
+        <translation>自由文本</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="489"/>
@@ -7322,56 +7340,56 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="648"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="650"/>
         <source>Line</source>
-        <translation type="unfinished"></translation>
+        <translation>行</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="490"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="712"/>
         <source>Square</source>
-        <translation type="unfinished"></translation>
+        <translation>正方形</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="491"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="713"/>
         <source>Circle</source>
-        <translation type="unfinished"></translation>
+        <translation>圆</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="492"/>
         <source>Polygon</source>
-        <translation type="unfinished"></translation>
+        <translation>多边形</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="493"/>
         <source>Polyline</source>
-        <translation type="unfinished"></translation>
+        <translation>折线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="494"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="598"/>
         <source>Highlight</source>
-        <translation type="unfinished"></translation>
+        <translation>高亮</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="495"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="566"/>
         <source>Underline</source>
-        <translation type="unfinished"></translation>
+        <translation>下划线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="496"/>
         <source>Squiggly</source>
-        <translation type="unfinished"></translation>
+        <translation>波浪线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="497"/>
         <source>Strike Out</source>
-        <translation type="unfinished"></translation>
+        <translation>删除线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="498"/>
         <source>Caret</source>
-        <translation type="unfinished"></translation>
+        <translation>插入符号</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="499"/>
@@ -7379,28 +7397,28 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="670"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="672"/>
         <source>Stamp</source>
-        <translation type="unfinished"></translation>
+        <translation>印章</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="500"/>
         <source>Ink</source>
-        <translation type="unfinished"></translation>
+        <translation>墨水</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="501"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="677"/>
         <source>File attachment</source>
-        <translation type="unfinished"></translation>
+        <translation>文件附件</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="502"/>
         <source>Redaction</source>
-        <translation type="unfinished"></translation>
+        <translation>修订</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="505"/>
         <source>Rectangle</source>
-        <translation type="unfinished"></translation>
+        <translation>矩形</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="506"/>
@@ -7408,38 +7426,38 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="508"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="509"/>
         <source>Contents</source>
-        <translation type="unfinished"></translation>
+        <translation>内容</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="506"/>
         <source>Author</source>
-        <translation type="unfinished"></translation>
+        <translation>作者</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="507"/>
         <source>Subject</source>
-        <translation type="unfinished"></translation>
+        <translation>主题</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="509"/>
         <source>Annotation name</source>
-        <translation type="unfinished"></translation>
+        <translation>注释名称</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="510"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="511"/>
         <source>Info</source>
-        <translation type="unfinished"></translation>
+        <translation>信息</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="510"/>
         <source>Modified</source>
-        <translation type="unfinished"></translation>
+        <translation>已修改</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="511"/>
         <source>Created</source>
-        <translation type="unfinished"></translation>
+        <translation>创建</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="512"/>
@@ -7451,57 +7469,57 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="515"/>
         <source>Invisible</source>
-        <translation type="unfinished"></translation>
+        <translation>不可见</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="516"/>
         <source>Hidden</source>
-        <translation type="unfinished"></translation>
+        <translation>隐藏</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="517"/>
         <source>Print</source>
-        <translation type="unfinished"></translation>
+        <translation>打印</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="518"/>
         <source>No Zoom</source>
-        <translation type="unfinished"></translation>
+        <translation>不缩放</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="519"/>
         <source>No Rotate</source>
-        <translation type="unfinished"></translation>
+        <translation>不旋转</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="520"/>
         <source>No View</source>
-        <translation type="unfinished"></translation>
+        <translation>无可视内容</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="521"/>
         <source>Readonly</source>
-        <translation type="unfinished"></translation>
+        <translation>只读</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="522"/>
         <source>Locked</source>
-        <translation type="unfinished"></translation>
+        <translation>已锁定</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="523"/>
         <source>Toggle No View</source>
-        <translation type="unfinished"></translation>
+        <translation>切换可见性</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="524"/>
         <source>Locked Contents</source>
-        <translation type="unfinished"></translation>
+        <translation>已锁定的内容</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="527"/>
         <source>Modify appearance</source>
-        <translation type="unfinished"></translation>
+        <translation>修改外观</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="528"/>
@@ -7513,55 +7531,55 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="687"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="688"/>
         <source>Appearance</source>
-        <translation type="unfinished"></translation>
+        <translation>外观</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="528"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="530"/>
         <source>Colors</source>
-        <translation type="unfinished"></translation>
+        <translation>色彩</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="528"/>
         <source>Color</source>
-        <translation type="unfinished"></translation>
+        <translation>颜色</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="530"/>
         <source>Interior color</source>
-        <translation type="unfinished"></translation>
+        <translation>内部颜色</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="533"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="543"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="547"/>
         <source>Transparency</source>
-        <translation type="unfinished"></translation>
+        <translation>透明度</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="533"/>
         <source>Blend mode</source>
-        <translation type="unfinished"></translation>
+        <translation>出血模式</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="543"/>
         <source>Fill opacity</source>
-        <translation type="unfinished"></translation>
+        <translation>填充不透明度</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="547"/>
         <source>Stroke opacity</source>
-        <translation type="unfinished"></translation>
+        <translation>描边不透明度</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="552"/>
         <source>Language</source>
-        <translation type="unfinished"></translation>
+        <translation>语言</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="555"/>
         <source>Modify border</source>
-        <translation type="unfinished"></translation>
+        <translation>修改边框</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="556"/>
@@ -7569,18 +7587,18 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="570"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="577"/>
         <source>Border</source>
-        <translation type="unfinished"></translation>
+        <translation>边框</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="556"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="560"/>
         <source>Border Style</source>
-        <translation type="unfinished"></translation>
+        <translation>边框样式</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="556"/>
         <source>Width</source>
-        <translation type="unfinished"></translation>
+        <translation>宽度</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="560"/>
@@ -7600,38 +7618,38 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="670"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="677"/>
         <source>Style</source>
-        <translation type="unfinished"></translation>
+        <translation>样式</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="562"/>
         <source>Solid</source>
-        <translation type="unfinished"></translation>
+        <translation>实线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="563"/>
         <source>Dashed</source>
-        <translation type="unfinished"></translation>
+        <translation>虚线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="564"/>
         <source>Beveled</source>
-        <translation type="unfinished"></translation>
+        <translation>斜线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="565"/>
         <source>Inset</source>
-        <translation type="unfinished"></translation>
+        <translation>插图</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="570"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="577"/>
         <source>Border Effect</source>
-        <translation type="unfinished"></translation>
+        <translation>边框效果</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="572"/>
         <source>Cloudy</source>
-        <translation type="unfinished"></translation>
+        <translation>多云</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="573"/>
@@ -7639,79 +7657,79 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="642"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="711"/>
         <source>None</source>
-        <translation type="unfinished"></translation>
+        <translation>无</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="577"/>
         <source>Intensity</source>
-        <translation type="unfinished"></translation>
+        <translation>强度</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="583"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="595"/>
         <source>Sticky note</source>
-        <translation type="unfinished"></translation>
+        <translation>便签</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="586"/>
         <source>Comment</source>
-        <translation type="unfinished"></translation>
+        <translation>评论</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="587"/>
         <source>Key</source>
-        <translation type="unfinished"></translation>
+        <translation>线索</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="588"/>
         <source>Note</source>
-        <translation type="unfinished"></translation>
+        <translation>备注</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="589"/>
         <source>Help</source>
-        <translation type="unfinished"></translation>
+        <translation>帮助</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="590"/>
         <source>New Paragraph</source>
-        <translation type="unfinished"></translation>
+        <translation>新段落</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="591"/>
         <source>Paragraph</source>
-        <translation type="unfinished"></translation>
+        <translation>段茖</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="592"/>
         <source>Insert</source>
-        <translation type="unfinished"></translation>
+        <translation>插入</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="595"/>
         <source>Open</source>
-        <translation type="unfinished"></translation>
+        <translation>打开</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="602"/>
         <source>Invert</source>
-        <translation type="unfinished"></translation>
+        <translation>反转</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="603"/>
         <source>Outline</source>
-        <translation type="unfinished"></translation>
+        <translation>大纲</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="604"/>
         <source>Push</source>
-        <translation type="unfinished"></translation>
+        <translation>推送</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="608"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="688"/>
         <source>Alignment</source>
-        <translation type="unfinished"></translation>
+        <translation>对齐</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="610"/>
@@ -7719,22 +7737,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="640"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="670"/>
         <source>Intent</source>
-        <translation type="unfinished"></translation>
+        <translation>意图</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="613"/>
         <source>Callout</source>
-        <translation type="unfinished"></translation>
+        <translation>标注线</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="614"/>
         <source>Typewriter</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">文本框</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="617"/>
         <source>Callout line ending</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">标注线结尾</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="620"/>
