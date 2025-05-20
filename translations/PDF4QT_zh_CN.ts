@@ -9105,188 +9105,188 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2523"/>
         <source>JBIG2 - end of data byte sequence not found for generic region.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2—未找到通用区域的数据字节序列结尾。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2580"/>
         <source>JBIG2 - invalid flags for generic refinement region.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2—通用细化区域的无效标志。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2601"/>
         <source>JBIG2 - operation must be REPLACE for generic refinement region.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2—对于通用细化区域，操作必须是&aops;REPLACE&aops;。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2615"/>
         <source>JBIG2 - invalid referred segments (%1) for generic refinement region.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2–通用细化区域的引用段（%1）无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2620"/>
         <source>JBIG2 - invalid referred bitmap size [%1 x %2] instead of [%3 x %4] for generic refinement region.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2-对于通用细化区域，引用的位图大小无效，为 [%1 x %2]，而不是 [%3 x %4]。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2655"/>
         <source>JBIG2 - invalid bitmap for generic refinement region.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2-通用细化区域的位图无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2715"/>
         <source>JBIG2 end-of-page segment shouldn&apos;t contain any data, but has extra data of %1 bytes.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 页尾段不应包含任何数据，但有 %1 字节的额外数据。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2719"/>
         <source>JBIG2 end-of-page segment detected and ignored.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 检测到并忽略了页尾段。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2732"/>
         <source>JBIG2 end-of-file segment shouldn&apos;t contain any data, but has extra data of %1 bytes.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 文件结束段不应包含任何数据，但有 %1 字节的额外数据。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2736"/>
         <source>JBIG2 end-of-file segment detected and ignored.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2  检测到并忽略了文件结束段。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2753"/>
         <source>JBIG2 underflow of the low value in huffman table.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 哈夫曼（huffman ）表中的低值下溢。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2810"/>
         <source>JBIG2 unknown extension %1 necessary for decoding the image.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 解码图像所需的未知扩展名 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2819"/>
         <source>JBIG2 segment with unknown extension has not defined length.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 具有未知扩展名的段没有定义长度。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2834"/>
         <source>JBIG2 segment %1 is not a bitmap.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 段 %1 不是位图。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2850"/>
         <source>JBIG2 bitmap segment %1 not found.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 未找到位图段 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3338"/>
         <source>JBIG2 symbol index %1 not found in symbol table of length %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 在长度 %2 的符号表中未找到符号索引 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3506"/>
         <source>JBIG2 region segment information flags are invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 区域段信息标志无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3560"/>
         <source>JBIG2 segment with unknown data length can&apos;t be skipped.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 无法跳过数据长度未知的段。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3597"/>
         <source>JBIG2 invalid referred segment %1 referenced by segment %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 无效引用段 %1，该段被段 %2 引用。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3608"/>
         <source>JBIG2 maximum bitmap size exceeded (%1 &gt; %2).</source>
-        <translation type="unfinished"></translation>
+        <translation> JBIG2 超出了最大位图大小 (%1 &gt; %2)。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3621"/>
         <source>JBIG2 invalid bitmap size (%1 x %2).</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 无效位图大小 (%1 x %2)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3626"/>
         <source>JBIG2 invalid bit operation.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 位操作无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3638"/>
         <source>JBIG2 can&apos;t read integer.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 无法读取整数。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3743"/>
         <source>JBIG2 - invalid bitmap paint operation.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2-无效的位图绘制操作。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3753"/>
         <source>JBIG2 - invalid bitmap copy row operation.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2-无效的位图复制行操作。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3809"/>
         <source>JBIG2 overflow of prefix bit values in huffman table.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 哈夫曼（huffman）表中的前缀位值溢出。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="242"/>
         <source>Null</source>
-        <translation type="unfinished"></translation>
+        <translation>空</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="245"/>
         <source>Boolean</source>
-        <translation type="unfinished"></translation>
+        <translation>布尔</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="248"/>
         <source>Integer</source>
-        <translation type="unfinished"></translation>
+        <translation>整数</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="251"/>
         <source>Real</source>
-        <translation type="unfinished"></translation>
+        <translation>实数</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="254"/>
         <source>String</source>
-        <translation type="unfinished"></translation>
+        <translation>字符串</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="257"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation>名称</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="260"/>
         <source>Array</source>
-        <translation type="unfinished"></translation>
+        <translation>数组</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="263"/>
         <source>Dictionary</source>
-        <translation type="unfinished"></translation>
+        <translation>词典</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="266"/>
         <source>Stream</source>
-        <translation type="unfinished"></translation>
+        <translation>流</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="269"/>
         <source>Reference</source>
-        <translation type="unfinished"></translation>
+        <translation>参考</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="71"/>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="77"/>
         <source>Invalid optional content properties.</source>
-        <translation type="unfinished"></translation>
+        <translation>可选内容属性无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="118"/>
@@ -9294,50 +9294,50 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="144"/>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="168"/>
         <source>Invalid optional content configuration.</source>
-        <translation type="unfinished"></translation>
+        <translation>可选内容配置无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="231"/>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="253"/>
         <source>Invalid optional content group.</source>
-        <translation type="unfinished"></translation>
+        <translation>可选内容组无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="496"/>
         <source>Cyclic reference error in optional content visibility expression.</source>
-        <translation type="unfinished"></translation>
+        <translation>可选内容可见性表达式中存在循环引用错误。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="508"/>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="533"/>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="554"/>
         <source>Invalid optional content visibility expression.</source>
-        <translation type="unfinished"></translation>
+        <translation>可选内容可见性表达式无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocument.cpp" line="290"/>
         <source>Invalid number of matrix elements. Expected 6, actual %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>矩阵元素数量无效。应为 6，实际为 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="329"/>
         <source>Reading contents of document...</source>
-        <translation type="unfinished"></translation>
+        <translation>正在读取文档内容...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="396"/>
         <source>Authorization failed. Bad password provided.</source>
-        <translation type="unfinished"></translation>
+        <translation>授权失败。提供的密码错误。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="425"/>
         <source>Decrypting encrypted contents of document...</source>
-        <translation type="unfinished"></translation>
+        <translation>正在解密文档的加密内容...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="457"/>
         <source>Object stream %1 not found.</source>
-        <translation type="unfinished"></translation>
+        <translation>未找到对象流 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="463"/>
@@ -9345,32 +9345,32 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="479"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="500"/>
         <source>Object stream %1 is invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>对象流 %1 无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="747"/>
         <source>Trailer dictionary is not valid.</source>
-        <translation type="unfinished"></translation>
+        <translation>预告词典无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="116"/>
         <source>Invalid tiling pattern - wrong paint type %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的平铺图案 - 错误的绘画类型 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="120"/>
         <source>Invalid tiling pattern - wrong tiling type %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的平铺图案 - 错误的平铺类型 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="124"/>
         <source>Invalid tiling pattern - bounding box is invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的平铺图案 - 边界框无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="128"/>
         <source>Invalid tiling pattern - steps are invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的平铺图案 - 步骤无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="152"/>
@@ -9378,109 +9378,109 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="905"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1019"/>
         <source>Invalid pattern.</source>
-        <translation type="unfinished"></translation>
+        <translation>图案无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="172"/>
         <source>Invalid shading.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的着色。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="194"/>
         <source>Pattern color space is not valid for shading patterns.</source>
-        <translation type="unfinished"></translation>
+        <translation>图案颜色空间对着色模式无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="223"/>
         <source>Invalid shading pattern extends. Expected 2, but %1 provided.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的着色模式扩展。预期为 2，但提供了 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="256"/>
         <source>Invalid function shading pattern domain. Expected 4 values, but %1 provided.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的函数着色模式域。预期 4 个值，但提供了 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="260"/>
         <source>Invalid function shading pattern domain. Invalid domain ranges.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的函数着色模式域。域范围无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="268"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="310"/>
         <source>Invalid axial shading pattern color functions. Expected %1 functions, but %2 provided.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的轴向着色模式颜色函数。预期 %1 个函数，但提供了 %2 个。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="294"/>
         <source>Invalid axial shading pattern coordinates. Expected 4, but %1 provided.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的径向着色模式坐标。预期为 4，但提供了 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="304"/>
         <source>Invalid axial shading pattern domain. Expected 2, but %1 provided.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的轴向着色模式域。预期为 2，但提供了 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="340"/>
         <source>Invalid radial shading pattern coordinates. Expected 6, but %1 provided.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的径向着色模式坐标。预期为 6，但提供了 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="350"/>
         <source>Invalid radial shading pattern domain. Expected 2, but %1 provided.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的径向着色模式域。预期为 2，但提供了 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="356"/>
         <source>Invalid radial shading pattern color functions. Expected %1 functions, but %2 provided.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的径向着色模式颜色函数。预期 %1 个函数，但提供了 %2 个。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="361"/>
         <source>Radial shading cannot have negative circle radius.</source>
-        <translation type="unfinished"></translation>
+        <translation>径向着色不能具有负的圆半径。。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="432"/>
         <source>Invalid bits per coordinate (%1) for shading.</source>
-        <translation type="unfinished"></translation>
+        <translation>用于着色的每坐标位数（%1）无效</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="437"/>
         <source>Invalid bits per component (%1) for shading.</source>
-        <translation type="unfinished"></translation>
+        <translation>用于着色的每个组件的位数（%1）无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="445"/>
         <source>Invalid domain for shading. Expected size is 6, actual size is %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>着色域无效。预期大小为 6，实际大小为 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="453"/>
         <source>Invalid domain for shading. Expected size is %1, actual size is %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>着色域无效。预期大小为 %1，实际大小为 %2。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="483"/>
         <source>Invalid bits per flag (%1) for shading.</source>
-        <translation type="unfinished"></translation>
+        <translation>对于着色来说，每个标志的无效位数 (%1)。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="494"/>
         <source>Invalid vertices per row (%1) for lattice-form gourad triangle meshing.</source>
-        <translation type="unfinished"></translation>
+        <translation>对于格状古拉德（gourad）三角形网格，每行顶点数 (%1) 无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="508"/>
         <source>Invalid shading pattern type (%1).</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的着色模式类型 (%1)。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="759"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="892"/>
         <source>Error occured during mesh generation of shading: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>着色网格生成期间发生错误：%1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="1008"/>
@@ -9490,17 +9490,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="2515"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="2525"/>
         <source>Error occured during mesh creation of shading: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>创建着色网格时发生错误：%1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="2291"/>
         <source>Invalid free form gourad triangle data stream.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的自由形式古拉德（gourad）三角形数据流。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="2459"/>
         <source>Invalid lattice form gourad triangle data stream.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的格形古拉德（gourad）三角数据流。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="2974"/>
