@@ -1807,7 +1807,7 @@
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="552"/>
-        <source>Select  &amp;All</source>
+        <source>Select &amp;All</source>
         <translation>选取全部(&amp;A)</translation>
     </message>
     <message>
