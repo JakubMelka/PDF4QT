@@ -11401,37 +11401,37 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="150"/>
         <source>Annotation</source>
-        <translation type="unfinished"></translation>
+        <translation>注释</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="151"/>
         <source>Show Popup Window</source>
-        <translation type="unfinished"></translation>
+        <translation>显示弹出窗口</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="152"/>
         <source>Copy to Multiple Pages</source>
-        <translation type="unfinished"></translation>
+        <translation>复制到多页</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="153"/>
         <source>Edit</source>
-        <translation type="unfinished"></translation>
+        <translation>编辑</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="154"/>
         <source>Delete</source>
-        <translation type="unfinished"></translation>
+        <translation>删除</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="370"/>
         <source>Copy Annotation</source>
-        <translation type="unfinished"></translation>
+        <translation>复制注释</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="370"/>
         <source>Copy Annotation onto Multiple Pages</source>
-        <translation type="unfinished"></translation>
+        <translation>复制注释到多页</translation>
     </message>
 </context>
 <context>
