@@ -9115,7 +9115,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2601"/>
         <source>JBIG2 - operation must be REPLACE for generic refinement region.</source>
-        <translation>JBIG2—对于通用细化区域，操作必须是&aops;REPLACE&aops;。</translation>
+        <translation>JBIG2—对于通用细化区域，操作必须是REPLACE;。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2615"/>
