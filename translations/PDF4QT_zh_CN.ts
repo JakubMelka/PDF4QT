@@ -2418,12 +2418,12 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="253"/>
         <source>Translation in Y</source>
-        <translation>翻译Y</translation>
+        <translation>Y轴平移</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="270"/>
         <source>Translation in X</source>
-        <translation>翻译X</translation>
+        <translation>X轴平移</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="287"/>
@@ -9507,22 +9507,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="3017"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="3060"/>
         <source>Nonzero flag for first patch (flags = %1).</source>
-        <translation type="unfinished"></translation>
+        <translation>第一个补丁的非零标志（标志 = %1）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="3120"/>
         <source>Invalid data in tensor product patch shading.</source>
-        <translation type="unfinished"></translation>
+        <translation>张量积块着色中的数据无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="3716"/>
         <source>Invalid data in coons patch shading.</source>
-        <translation type="unfinished"></translation>
+        <translation>库恩斯（coons）补丁着色中的数据无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="320"/>
         <source>Unknown crypt filter &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>未知的加密过滤器&apos;%1&apos;。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="346"/>
@@ -9530,235 +9530,235 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1642"/>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1715"/>
         <source>Revision %1 of standard security handler is not supported.</source>
-        <translation type="unfinished"></translation>
+        <translation>不支持标准安全处理程序的修订版 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="365"/>
         <source>Expected %1 characters long string in entry &apos;%2&apos;. Provided length is %3.</source>
-        <translation type="unfinished"></translation>
+        <translation>条目&apos;%2&apos;中的字符串长度应为 %1 个字符。实际长度为 %3。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="375"/>
         <source>Expected %1 characters long string in entry &apos;%2&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>条目&apos;%2&apos;中预期有 %1 个字符长的字符串。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="411"/>
         <source>Invalid encryption dictionary.</source>
-        <translation type="unfinished"></translation>
+        <translation>加密词典无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="419"/>
         <source>Unknown security handler.</source>
-        <translation type="unfinished"></translation>
+        <translation>未知的安全处理程序。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="427"/>
         <source>Unsupported version of document encryption (V = %1).</source>
-        <translation type="unfinished"></translation>
+        <translation>不受支持的文档加密版本 (V = %1)。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="696"/>
         <source>Invalid value for entry &apos;%1&apos; in encryption dictionary. Name expected.</source>
-        <translation type="unfinished"></translation>
+        <translation>加密词典中条目&apos;%1&apos;的值无效。应为名称。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="712"/>
         <source>Invalid value for entry &apos;%1&apos; in encryption dictionary. Boolean expected.</source>
-        <translation type="unfinished"></translation>
+        <translation>加密词典中条目&apos;%1&apos;的值无效。应为布尔值。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="728"/>
         <source>Invalid value for entry &apos;%1&apos; in encryption dictionary. Integer expected.</source>
-        <translation type="unfinished"></translation>
+        <translation>加密词典中条目&apos;%1&apos;的值无效。应为整数。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="741"/>
         <source>Crypt filter is not a dictionary!</source>
-        <translation type="unfinished"></translation>
+        <translation>加密过滤器不是词典！</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="766"/>
         <source>Unsupported encryption algorithm &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>不支持的加密算法&apos;%1&apos;。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="780"/>
         <source>Unsupported authorization event &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>不支持授权事件&apos;%1&apos;。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1105"/>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1162"/>
         <source>Crypt filter &apos;%1&apos; not found.</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">未找到加密过滤器&apos;%1&apos;。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1414"/>
         <source>Permissions entry in the Encryption dictionary is invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>加密词典中的权限条目无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1421"/>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1427"/>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1431"/>
         <source>Security permissions are manipulated. Can&apos;t open the document.</source>
-        <translation type="unfinished"></translation>
+        <translation>安全权限已被操纵。无法打开该文档。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1540"/>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1664"/>
         <source>Encryption key length (%1) exceeded maximal value of %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>加密密钥长度（%1）超出最大值 %2。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="234"/>
         <source>No signature handler for signature format &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>没有针对签名格式&apos;%1&apos;的签名处理程序。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="240"/>
         <source>Certificate format is invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>证书格式无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="246"/>
         <source>No signatures in certificate data.</source>
-        <translation type="unfinished"></translation>
+        <translation>证书数据中没有签名。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="252"/>
         <source>Certificate is missing.</source>
-        <translation type="unfinished"></translation>
+        <translation>证书缺失。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="258"/>
         <source>Generic error occured during certificate validation.</source>
-        <translation type="unfinished"></translation>
+        <translation>证书验证期间发生一般错误。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="264"/>
         <source>Certificate has expired.</source>
-        <translation type="unfinished"></translation>
+        <translation>证书已过期。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="270"/>
         <source>Certificate is self-signed.</source>
-        <translation type="unfinished"></translation>
+        <translation>证书是自签名的。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="276"/>
         <source>Self-signed certificate in chain.</source>
-        <translation type="unfinished"></translation>
+        <translation>证书链包含自签名证书。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="282"/>
         <source>Trusted certificate not found.</source>
-        <translation type="unfinished"></translation>
+        <translation>未找到受信任的证书。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="288"/>
         <source>Certificate has been revoked.</source>
-        <translation type="unfinished"></translation>
+        <translation>证书已被吊销。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="294"/>
         <source>Certificate validation failed with code %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>证书验证失败，代码为 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="300"/>
         <source>Signature is invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>签名无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="306"/>
         <source>No signatures found in certificate.</source>
-        <translation type="unfinished"></translation>
+        <translation>证书中未找到签名。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="312"/>
         <source>Signature certificate is missing.</source>
-        <translation type="unfinished"></translation>
+        <translation>缺少签名证书。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="318"/>
         <source>Signed data has different hash function digest.</source>
-        <translation type="unfinished"></translation>
+        <translation>签名数据具有不同的哈希函数摘要。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="324"/>
         <source>Signed data are invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>签名的数据无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="330"/>
         <source>Data covered by signature are not present.</source>
-        <translation type="unfinished"></translation>
+        <translation>签名所涵盖的数据不存在。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="338"/>
         <source>%1 bytes are not covered by signature.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 个字节未被签名覆盖。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="347"/>
         <source>Certificate revocation list (CRL) not checked, validity time has expired.</source>
-        <translation type="unfinished"></translation>
+        <translation>未检查证书吊销列表 (CRL)，有效期已过。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="356"/>
         <source>Qualified certificate statement not verified.</source>
-        <translation type="unfinished"></translation>
+        <translation>合格证书声明未经验证。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="365"/>
         <source>Unable to get CRL.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法获取 CRL。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="460"/>
         <source>OK</source>
-        <translation type="unfinished"></translation>
+        <translation>确认</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="463"/>
         <source>Warning</source>
-        <translation type="unfinished"></translation>
+        <translation>警告</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="466"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>错误</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="956"/>
         <source>Transformation between blending color space failed.</source>
-        <translation type="unfinished"></translation>
+        <translation>混合色彩空间之间的转换失败。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1201"/>
         <source>Invalid clear color - process color %1 was not found in clear color.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的清晰颜色-在清晰颜色中未找到印刷色 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1210"/>
         <source>More colors in clear color (%1) than process color channel count (%2).</source>
-        <translation type="unfinished"></translation>
+        <translation>清晰颜色 (%1) 中的颜色数量多于印刷色通道数量 (%2)。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1380"/>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1396"/>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1404"/>
         <source>Transformation of spot color to blend color space failed.</source>
-        <translation type="unfinished"></translation>
+        <translation>专色到混合色彩空间的转换失败。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1428"/>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="733"/>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="767"/>
         <source>Invalid number bits of image mask (should be 1 bit instead of %1 bits).</source>
-        <translation type="unfinished"></translation>
+        <translation>图像掩码的位数无效（应为 1 位而不是 %1 位）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1433"/>
@@ -9766,29 +9766,29 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="741"/>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="772"/>
         <source>Invalid size of image (%1x%2)</source>
-        <translation type="unfinished"></translation>
+        <translation>图像尺寸无效（%1x%2）</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1559"/>
         <source>Invalid image color space.</source>
-        <translation type="unfinished"></translation>
+        <translation>图像颜色空间无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1576"/>
         <source>Invalid base color space of indexed color space.</source>
-        <translation type="unfinished"></translation>
+        <translation>索引颜色空间的基色空间无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1584"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1922"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1968"/>
         <source>Invalid colors for indexed color space. Color space has %1 colors. Provided color count is %4.</source>
-        <translation type="unfinished"></translation>
+        <translation>索引颜色空间的颜色无效。颜色空间有 %1 种颜色。提供的颜色数量为 %4。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1612"/>
         <source>Conversion of indexed image to base color space failed.</source>
-        <translation type="unfinished"></translation>
+        <translation>索引图像到基本颜色空间的转换失败。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1674"/>
@@ -9796,7 +9796,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="496"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2096"/>
         <source>Image masking not implemented!</source>
-        <translation type="unfinished"></translation>
+        <translation>图像遮罩未实现！</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1689"/>
@@ -9807,7 +9807,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="426"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2028"/>
         <source>Invalid colors for color space. Color space has %1 colors. Provided color count is %4.</source>
-        <translation type="unfinished"></translation>
+        <translation>色彩空间的颜色无效。色彩空间有 %1 种颜色。提供的颜色数量为 %4。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1695"/>
@@ -9817,192 +9817,192 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="323"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="565"/>
         <source>Invalid size of the decode array. Expected %1, actual %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>解码数组的大小无效。应为 %1，实际为 %2。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1743"/>
         <source>Invalid matte color.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的哑光颜色。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1851"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="433"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2035"/>
         <source>Invalid number of color components in color key mask. Expected %1, provided %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>颜色键掩码中颜色分量的数量无效。应为 %1，实际为 %2。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1857"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="439"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2041"/>
         <source>Invalid size of the decoded array. Expected %1, actual %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>解码数组的大小无效。应为 %1，实际为 %2。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1931"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="546"/>
         <source>Soft mask can&apos;t have masking.</source>
-        <translation type="unfinished"></translation>
+        <translation>软蒙版不能有蒙版。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1936"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="551"/>
         <source>Invalid size of soft mask.</source>
-        <translation type="unfinished"></translation>
+        <translation>软蒙版尺寸无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1944"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="559"/>
         <source>Soft mask should have only 1 color component (alpha) instead of %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>软蒙版应该只有 1 个颜色分量 (alpha)，而不是 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2015"/>
         <source>Invalind soft mask.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的软蒙版。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2028"/>
         <source>Invalid blend color space of soft mask definition.</source>
-        <translation type="unfinished"></translation>
+        <translation>软蒙版定义的混合色彩空间无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2062"/>
         <source>Invalid soft mask type.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的软蒙版类型。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2084"/>
         <source>Evaulation of soft mask transfer function failed.</source>
-        <translation type="unfinished"></translation>
+        <translation>软蒙版传输函数评估失败。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2287"/>
         <source>Cannot create shading sampler.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法创建着色采样器。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2750"/>
         <source>Image painting not implemented.</source>
-        <translation type="unfinished"></translation>
+        <translation>图像绘制功能未实现。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2757"/>
         <source>Mesh painting not implemented.</source>
-        <translation type="unfinished"></translation>
+        <translation>网格绘制功能未实现。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2912"/>
         <source>Invalid source ink index %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>源墨水索引 %1 无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2919"/>
         <source>Invalid target ink index %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>目标墨水索引 %1 无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2967"/>
         <source>Transformation from source color space to target blending color space failed.</source>
-        <translation type="unfinished"></translation>
+        <translation>从源色彩空间到目标混合色彩空间的转换失败。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3083"/>
         <source>Gray</source>
-        <translation type="unfinished"></translation>
+        <translation>灰</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3100"/>
         <source>Red</source>
-        <translation type="unfinished"></translation>
+        <translation>红</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3111"/>
         <source>Green</source>
-        <translation type="unfinished"></translation>
+        <translation>绿</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3122"/>
         <source>Blue</source>
-        <translation type="unfinished"></translation>
+        <translation>蓝</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3139"/>
         <source>Cyan</source>
-        <translation type="unfinished"></translation>
+        <translation>青</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3150"/>
         <source>Magenta</source>
-        <translation type="unfinished"></translation>
+        <translation>品红</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3161"/>
         <source>Yellow</source>
-        <translation type="unfinished"></translation>
+        <translation>黄</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3172"/>
         <source>Black</source>
-        <translation type="unfinished"></translation>
+        <translation>黑</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3188"/>
         <source>Process Generic%1</source>
-        <translation type="unfinished"></translation>
+        <translation>处理通用 %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="94"/>
         <source>Not enough data to read %1-bit value.</source>
-        <translation type="unfinished"></translation>
+        <translation>数据不足，无法读取 %1 位值。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="134"/>
         <source>Can&apos;t seek to position %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法寻找位置 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="189"/>
         <source>Can&apos;t get substream - remaining %1 bits in buffer.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法获取子流-缓冲区中剩余 %1 比特。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="446"/>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="452"/>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="471"/>
         <source>Can&apos;t convert &apos;%1&apos; to a number.</source>
-        <translation type="unfinished"></translation>
+        <translation type="unfinished">无法将&apos;%1&apos;转换为数字。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="458"/>
         <source>Closed interval [%1, %2] is invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>闭区间 [%1, %2] 无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="11854"/>
         <source>Rendering of content type &apos;%1&apos; is not implemented.</source>
-        <translation type="unfinished"></translation>
+        <translation>内容类型 &apos;%1&apos; 的呈现尚未实现。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="11929"/>
         <source>Image encoded by &apos;package&apos; mode not decoded.</source>
-        <translation type="unfinished"></translation>
+        <translation>以“打包”模式编码的图像未解码。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="11946"/>
         <source>Image of type &apos;%1&apos; not decoded.</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos;类型的图像未解码。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12004"/>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12173"/>
         <source>XFA: Buttons not implemented.</source>
-        <translation type="unfinished"></translation>
+        <translation>XFA：按钮功能未实现。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12187"/>
         <source>XFA: Uknown ui.</source>
-        <translation type="unfinished"></translation>
+        <translation>XFA：未知的用户界面。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12542"/>
