@@ -10007,238 +10007,238 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12542"/>
         <source>Barcode not implemented!</source>
-        <translation type="unfinished"></translation>
+        <translation>条形码未实现！</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12846"/>
         <source>XFA: Unknown fill pattern.</source>
-        <translation type="unfinished"></translation>
+        <translation>XFA：未知的填充图案。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="13244"/>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="13301"/>
         <source>XFA: special stroke is not supported.</source>
-        <translation type="unfinished"></translation>
+        <translation>XFA：不支持特殊笔画。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="181"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="338"/>
         <source>Catalog must be a dictionary.</source>
-        <translation type="unfinished"></translation>
+        <translation>文档索引必须是一个词典</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="919"/>
         <source>Required features %1 are unsupported. Document processing can be limited.</source>
-        <translation type="unfinished"></translation>
+        <translation>所需功能 %1 不受支持。文档处理可能会受到限制。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="930"/>
         <source>Optional Content User Interaction</source>
-        <translation type="unfinished"></translation>
+        <translation>可选内容用户交互</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="932"/>
         <source>Optional Content Usage</source>
-        <translation type="unfinished"></translation>
+        <translation>可选内容使用</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="934"/>
         <source>Acrobat Forms</source>
-        <translation type="unfinished"></translation>
+        <translation>Acrobat表单</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="936"/>
         <source>Navigation</source>
-        <translation type="unfinished"></translation>
+        <translation>导航</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="938"/>
         <source>Markup Annotations</source>
-        <translation type="unfinished"></translation>
+        <translation>标记注释</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="940"/>
         <source>Markup of 3D Content</source>
-        <translation type="unfinished"></translation>
+        <translation>3D内容的标记</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="942"/>
         <source>Multimedia</source>
-        <translation type="unfinished"></translation>
+        <translation>多媒体</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="944"/>
         <source>U3D Format of PDF 3D</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF 3D 的 U3D 格式</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="946"/>
         <source>PRC Format of PDF 3D</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF 3D 的 PRC 格式</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="948"/>
         <source>Actions</source>
-        <translation type="unfinished"></translation>
+        <translation>操作</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="950"/>
         <source>JavaScript</source>
-        <translation type="unfinished"></translation>
+        <translation>JavaScript</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="952"/>
         <source>Attached Files</source>
-        <translation type="unfinished"></translation>
+        <translation>附加文件</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="954"/>
         <source>Attached Files Modification</source>
-        <translation type="unfinished"></translation>
+        <translation>附件修改</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="956"/>
         <source>Collections of Attached Files</source>
-        <translation type="unfinished"></translation>
+        <translation>附件集</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="958"/>
         <source>Collections of Attached Files (editation)</source>
-        <translation type="unfinished"></translation>
+        <translation>附件集（编辑）</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="960"/>
         <source>Digital Signature Validation</source>
-        <translation type="unfinished"></translation>
+        <translation>数字签名验证</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="962"/>
         <source>Apply Digital Signature</source>
-        <translation type="unfinished"></translation>
+        <translation>应用数字签名</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="964"/>
         <source>Digital Signature Validation (with MDP)</source>
-        <translation type="unfinished"></translation>
+        <translation>数字签名验证（使用 MDP）</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="968"/>
         <source>Geospatial 2D Features</source>
-        <translation type="unfinished"></translation>
+        <translation>地理空间二维特征</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="970"/>
         <source>Geospatial 3D Features</source>
-        <translation type="unfinished"></translation>
+        <translation>地理空间 3D 功能</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="972"/>
         <source>Navigation for Document Parts</source>
-        <translation type="unfinished"></translation>
+        <translation>文档部分导航</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="974"/>
         <source>Separation Simulation</source>
-        <translation type="unfinished"></translation>
+        <translation>分离模拟</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="976"/>
         <source>Transitions/Presentations</source>
-        <translation type="unfinished"></translation>
+        <translation>过渡/演示</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="978"/>
         <source>Encryption</source>
-        <translation type="unfinished"></translation>
+        <translation>加密</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpage.cpp" line="97"/>
         <source>Invalid page rotation.</source>
-        <translation type="unfinished"></translation>
+        <translation>页面旋转无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpage.cpp" line="284"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpage.cpp" line="299"/>
         <source>Expected valid kids in page tree.</source>
-        <translation type="unfinished"></translation>
+        <translation>页面树中预期有效的孩子。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpage.cpp" line="290"/>
         <source>Detected cycles in page tree.</source>
-        <translation type="unfinished"></translation>
+        <translation>在页面树中检测到循环。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpage.cpp" line="350"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpage.cpp" line="355"/>
         <source>Expected valid type item in page tree.</source>
-        <translation type="unfinished"></translation>
+        <translation>页面树中预期有效类型项。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpage.cpp" line="360"/>
         <source>Expected dictionary in page tree.</source>
-        <translation type="unfinished"></translation>
+        <translation>页面树中预期有字典。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="273"/>
         <source>Invalid code in the LZW stream.</source>
-        <translation type="unfinished"></translation>
+        <translation>LZW 流中的代码无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="405"/>
         <source>Failed to initialize flate compression stream.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法初始化平面压缩流。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="436"/>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="538"/>
         <source>zlib code: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>zlib 代码：%1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="439"/>
         <source>Error compressing by flate method: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>使用 flate 方法压缩时出错：%1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="503"/>
         <source>Failed to initialize flate decompression stream.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法初始化 flate 解压缩流。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="541"/>
         <source>Error decompressing by flate method: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>使用 flate 方法解压缩时出错：%1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="762"/>
         <source>Property &apos;%1&apos; should be in range from %2 to %3.</source>
-        <translation type="unfinished"></translation>
+        <translation>属性&apos;%1&apos; 应在 %2 至 %3 范围内。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="772"/>
         <source>Invalid property &apos;%1&apos; of the stream predictor parameters.</source>
-        <translation type="unfinished"></translation>
+        <translation>流预测器参数的属性&apos;%1&apos; 无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="806"/>
         <source>Invalid predictor algorithm.</source>
-        <translation type="unfinished"></translation>
+        <translation>预测算法无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="949"/>
         <source>Security handler required, but not provided.</source>
-        <translation type="unfinished"></translation>
+        <translation>需要安全处理程序，但未提供。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="536"/>
         <source>Invalid number of color components. Expected number is %1, actual number is %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>颜色成分数量无效。预期数量为 %1，实际数量为 %2。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1070"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1170"/>
         <source>Can&apos;t load color space, because color space structure is too complex.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法加载色彩空间，因为色彩空间结构太复杂。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1159"/>
@@ -10246,260 +10246,260 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2414"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2437"/>
         <source>Invalid color space.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的色彩空间。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1783"/>
         <source>Can&apos;t determine alternate color space for ICC based profile. Number of components is %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法确定基于 ICC 的配置文件的备用色彩空间。组件数量为 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1791"/>
         <source>Can&apos;t determine alternate color space for ICC based profile.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法确定基于 ICC 的配置文件的备用色彩空间。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1802"/>
         <source>Too much color components for ICC based profile.</source>
-        <translation type="unfinished"></translation>
+        <translation>基于 ICC 的配置文件的颜色成分太多。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1935"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1984"/>
         <source>Operation cancelled!</source>
-        <translation type="unfinished"></translation>
+        <translation>操作取消！</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2116"/>
         <source>Can&apos;t determine base color space for indexed color space.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法确定索引颜色空间的基本颜色空间。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2142"/>
         <source>Invalid colors for indexed color space. Color space has %1 colors, %2 color components and must have %3 size. Provided size is %4.</source>
-        <translation type="unfinished"></translation>
+        <translation>索引颜色空间的颜色无效。颜色空间包含 %1 种颜色、%2 种颜色成分，且大小必须为 %3。实际提供的大小为 %4。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2326"/>
         <source>Can&apos;t determine color name for separation color space.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法确定分离色彩空间的颜色名称。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2334"/>
         <source>Can&apos;t determine alternate color space for separation color space.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法确定分离色彩空间的替代色彩空间。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2340"/>
         <source>Can&apos;t determine tint transform for separation color space.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法确定分离色彩空间的色调变换。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2392"/>
         <source>Pattern doesn&apos;t have defined uniform color.</source>
-        <translation type="unfinished"></translation>
+        <translation>图案没有明确的统一颜色。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2556"/>
         <source>Invalid colorants for DeviceN color space.</source>
-        <translation type="unfinished"></translation>
+        <translation>DeviceN 颜色空间的着色剂无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2570"/>
         <source>Can&apos;t determine alternate color space for DeviceN color space.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法确定 DeviceN 色彩空间的替代色彩空间。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2576"/>
         <source>Can&apos;t determine tint transform for DeviceN color space.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法确定 DeviceN 颜色空间的色调变换。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="167"/>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="186"/>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="203"/>
         <source>Page %1 doesn&apos;t exist.</source>
-        <translation type="unfinished"></translation>
+        <translation>页面 %1 不存在。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="338"/>
         <source>Start at %1...</source>
-        <translation type="unfinished"></translation>
+        <translation>从 %1 开始...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="344"/>
         <source>Rendering document into images.</source>
-        <translation type="unfinished"></translation>
+        <translation>将文档渲染为图像。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="357"/>
         <source>Page %1 not found.</source>
-        <translation type="unfinished"></translation>
+        <translation>未找到页面 %1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="418"/>
         <source>Finished at %1...</source>
-        <translation type="unfinished"></translation>
+        <translation>完成于 %1...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="419"/>
         <source>%1 miliseconds elapsed to render %2 pages...</source>
-        <translation type="unfinished"></translation>
+        <translation>渲染 %2 个页面耗时 %1 毫秒...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="569"/>
         <source>Image_%</source>
-        <translation type="unfinished"></translation>
+        <translation>图像_％</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="651"/>
         <source>Target directory is empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>目标目录为空。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="659"/>
         <source>Target directory &apos;%1&apos; doesn&apos;t exist.</source>
-        <translation type="unfinished"></translation>
+        <translation>目标目录为空。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="665"/>
         <source>File template is empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>文件模板为空。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="671"/>
         <source>File template must contain character &apos;%&apos; for page number.</source>
-        <translation type="unfinished"></translation>
+        <translation>文件模板必须包含&apos;%&apos; 字符作为页码。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="684"/>
         <source>Page list is invalid. It should have form such as &apos;1-12,17,24,27-29&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>页面列表无效。其格式应为&apos;1-12,17,24,27-29&apos;。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="690"/>
         <source>Page list contains page, which is not in the document (%1).</source>
-        <translation type="unfinished"></translation>
+        <translation>页面列表包含不在文档 (%1) 中的页面。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="700"/>
         <source>DPI resolution should be in range %1 to %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>DPI 分辨率应在 %1 到 %2 范围内。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="706"/>
         <source>Pixel resolution should be in range %1 to %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>像素分辨率应在 %1 至 %2 范围内。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="336"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="346"/>
         <source>Invalid page contents.</source>
-        <translation type="unfinished"></translation>
+        <translation>页面内容无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="352"/>
         <source>Graphic state stack was saved more times, than was restored.</source>
-        <translation type="unfinished"></translation>
+        <translation>图形状态堆栈保存的次数比恢复的次数多。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="531"/>
         <source>Transparency group blending color space is invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>透明度组混合颜色空间无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="588"/>
         <source>Invalid inline image dictionary, ID operator is missing.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的内联图像字典，缺少 ID 运算符。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="625"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="675"/>
         <source>Expected name in the inline image dictionary stream.</source>
-        <translation type="unfinished"></translation>
+        <translation>内联图像字典流中的预期名称。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="686"/>
         <source>Invalid inline image stream.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的内联图像流。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="871"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="971"/>
         <source>Shading pattern graphic state is invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>着色图案图形状态无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1072"/>
         <source>Uncolored tiling pattern has not underlying color space.</source>
-        <translation type="unfinished"></translation>
+        <translation>无色平铺图案没有底层色彩空间。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1620"/>
         <source>Unknown operator &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>未知运算符&apos;%1&apos;。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1626"/>
         <source>Not implemented operator &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>未实现运算符&apos;%1&apos;。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1642"/>
         <source>Current point of path is not set. Path is empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>路径的当前点未设置。路径为空。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1802"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1809"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2882"/>
         <source>Invalid line dash pattern.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的线虚线图案。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1870"/>
         <source>Marked content is not well formed (not enough EMC operators).</source>
-        <translation type="unfinished"></translation>
+        <translation>标记内容格式不正确（EMC 运算符不足）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1953"/>
         <source>Blend mode &apos;%1&apos; is invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>混合模式&apos;%1&apos;无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2075"/>
         <source>Graphic state &apos;%1&apos; found, but invalid in resource dictionary.</source>
-        <translation type="unfinished"></translation>
+        <translation>找到了图形状态&apos;%1&apos;，但在资源字典中无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2080"/>
         <source>Graphic state &apos;%1&apos; not found in resource dictionary.</source>
-        <translation type="unfinished"></translation>
+        <translation>资源字典中未找到图形状态&apos;%1&apos;。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2085"/>
         <source>Invalid graphic state resource dictionary.</source>
-        <translation type="unfinished"></translation>
+        <translation>图形状态资源字典无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2101"/>
         <source>Trying to restore graphic state more times than it was saved.</source>
-        <translation type="unfinished"></translation>
+        <translation>尝试恢复图形状态的次数超过保存次数。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2137"/>
         <source>Transformation matrix is not invertible.</source>
-        <translation type="unfinished"></translation>
+        <translation>变换矩阵不可逆。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2158"/>
         <source>Can&apos;t read operand (real number) on index %1. Operand is of type &apos;%2&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法读取索引 %1 上的操作数（实数）。操作数的类型为“%2”。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2163"/>
         <source>Can&apos;t read operand (real number) on index %1. Only %2 operands provided.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法读取索引 %1 上的操作数（实数）。仅提供了 %2 个操作数。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2180"/>
