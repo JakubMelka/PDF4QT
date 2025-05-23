@@ -10509,8 +10509,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2185"/>
         <source>Can&apos;t read operand (integer) on index %1. Only %2 operands provided.</source>
-        <translation>无法读取索引 %1 上的操作数（整数）。仅提供了 %2 个操作数。
-    </translation>
+        <translation>无法读取索引 %1 上的操作数（整数）。仅提供了 %2 个操作数。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2202"/>
