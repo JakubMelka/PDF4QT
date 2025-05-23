@@ -10504,39 +10504,40 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2180"/>
         <source>Can&apos;t read operand (integer) on index %1. Operand is of type &apos;%2&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法读取索引 %1 上的操作数（整数）。操作数的类型为&apos;%2&apos;。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2185"/>
         <source>Can&apos;t read operand (integer) on index %1. Only %2 operands provided.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法读取索引 %1 上的操作数（整数）。仅提供了 %2 个操作数。
+</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2202"/>
         <source>Can&apos;t read operand (name) on index %1. Operand is of type &apos;%2&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法读取索引 %1 上的操作数（名称）。操作数的类型为“%2”。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2207"/>
         <source>Can&apos;t read operand (name) on index %1. Only %2 operands provided.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法读取索引 %1 上的操作数（名称）。仅提供了 %2 个操作数。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2225"/>
         <source>Can&apos;t read operand (string) on index %1. Operand is of type &apos;%2&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法读取索引 %1 上的操作数（字符串）。操作数的类型为&apos;%2&apos;。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2230"/>
         <source>Can&apos;t read operand (string) on index %1. Only %2 operands provided.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法读取索引 %1 上的操作数（字符串）。仅提供了 %2 个操作数。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2466"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2544"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.h" line="924"/>
         <source>Invalid color component count. Provided %1, required %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>颜色组件计数无效。已提供 %1，需要 %2。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2506"/>
@@ -10544,27 +10545,27 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2584"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2588"/>
         <source>Invalid pattern for Pattern color space.</source>
-        <translation type="unfinished"></translation>
+        <translation>图案颜色空间的图案无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2692"/>
         <source>Text object already started.</source>
-        <translation type="unfinished"></translation>
+        <translation>文本对象已启动。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2702"/>
         <source>Text object ended more than once.</source>
-        <translation type="unfinished"></translation>
+        <translation>文本对象结束多次。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2773"/>
         <source>Font &apos;%1&apos; not found in font dictionary.</source>
-        <translation type="unfinished"></translation>
+        <translation>字体词典中未找到字体&apos;%1&apos;。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2778"/>
         <source>Invalid font dictionary.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的字体词典。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2853"/>
@@ -10573,107 +10574,107 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2933"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3390"/>
         <source>Invalid font, text can&apos;t be printed.</source>
-        <translation type="unfinished"></translation>
+        <translation>字体无效，无法打印文本。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2875"/>
         <source>Invalid parameters of text operator with individual character spacing.</source>
-        <translation type="unfinished"></translation>
+        <translation>具有单独字符间距的文本运算符的参数无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2924"/>
         <source>Invalid operand of text show operator.</source>
-        <translation type="unfinished"></translation>
+        <translation>文本显示运算符的操作数无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2966"/>
         <source>Shading &apos;%1&apos; not found.</source>
-        <translation type="unfinished"></translation>
+        <translation>未找到着色&apos;%1&apos;。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3006"/>
         <source>Invalid color space of the image.</source>
-        <translation type="unfinished"></translation>
+        <translation>图像的色彩空间无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3038"/>
         <source>Can&apos;t decode the image.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法解码图像。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3046"/>
         <source>Color operators are not allowed in uncolored tilling pattern.</source>
-        <translation type="unfinished"></translation>
+        <translation>无色平铺图案中不允许使用颜色运算符。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3107"/>
         <source>Reference to optional content expected.</source>
-        <translation type="unfinished"></translation>
+        <translation>期望参考可选内容。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3122"/>
         <source>Form of type %1 not supported.</source>
-        <translation type="unfinished"></translation>
+        <translation>不支持 %1 类型的表单。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3129"/>
         <source>Unknown XObject type &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>未知的 XObject 类型&apos;%1&apos;。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3134"/>
         <source>Invalid format of XObject. Dictionary expected.</source>
-        <translation type="unfinished"></translation>
+        <translation>XObject 格式无效。应为词典。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3139"/>
         <source>XObject resource dictionary not found.</source>
-        <translation type="unfinished"></translation>
+        <translation>未找到 XObject 资源词典。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3187"/>
         <source>Mismatched begin/end of marked content.</source>
-        <translation type="unfinished"></translation>
+        <translation>标记内容的开始/结束不匹配。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3203"/>
         <source>Compatibility operator begin/end mismatch.</source>
-        <translation type="unfinished"></translation>
+        <translation>兼容性运算符开始/结束不匹配。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3325"/>
         <source>Type 3 font matrix is not invertible.</source>
-        <translation type="unfinished"></translation>
+        <translation>类型 3 字体矩阵不可逆。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3410"/>
         <source>Invalid stroking color.</source>
-        <translation type="unfinished"></translation>
+        <translation>描边颜色无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3418"/>
         <source>Invalid filling color.</source>
-        <translation type="unfinished"></translation>
+        <translation>填充颜​​色无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="4084"/>
         <source>Invalid soft mask transfer function.</source>
-        <translation type="unfinished"></translation>
+        <translation>软掩模传递函数无效。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpainter.cpp" line="90"/>
         <source>Blend mode &apos;%1&apos; not supported.</source>
-        <translation type="unfinished"></translation>
+        <translation>不支持混合模式 &apos;%1&apos;。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpainter.cpp" line="98"/>
         <source>Blend mode &apos;%1&apos; is in transparency group, which is not supported.</source>
-        <translation type="unfinished"></translation>
+        <translation>混合模式&apos;%1&apos;位于透明组中，不受支持。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpainter.cpp" line="104"/>
         <source>Soft masks not supported.</source>
-        <translation type="unfinished"></translation>
+        <translation>不支持软掩模。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="424"/>
@@ -10681,7 +10682,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="599"/>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1839"/>
         <source>Invalid number of operands for function. Expected %1, provided %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>函数的操作数数量无效。应为 %1，实际为 %2。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="428"/>
@@ -10689,321 +10690,321 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="603"/>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1843"/>
         <source>Invalid number of output variables for function. Expected %1, provided %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>函数的输出变量数量无效。应为 %1，实际为 %2。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="650"/>
         <source>Invalid number of operands for identity function. Expected %1, provided %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>标识函数的操作数数量无效。应为 %1，实际为 %2。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="800"/>
         <source>Invalid instruction pointer.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的指令指针。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="864"/>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="878"/>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="892"/>
         <source>Division by zero (PostScript engine).</source>
-        <translation type="unfinished"></translation>
+        <translation>除以零（PostScript 引擎）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="933"/>
         <source>Number expected for ceil function (PostScript engine).</source>
-        <translation type="unfinished"></translation>
+        <translation>ceil 函数（PostScript 引擎）的预期数字。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="946"/>
         <source>Number expected for floor function (PostScript engine).</source>
-        <translation type="unfinished"></translation>
+        <translation>floor 函数（PostScript 引擎）的预期数字。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="959"/>
         <source>Number expected for round function (PostScript engine).</source>
-        <translation type="unfinished"></translation>
+        <translation>round 函数（PostScript 引擎）的预期数字。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="972"/>
         <source>Number expected for truncate function (PostScript engine).</source>
-        <translation type="unfinished"></translation>
+        <translation>truncate 函数（PostScript 引擎）的预期数字。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="983"/>
         <source>Square root of negative value can&apos;t be computed (PostScript engine).</source>
-        <translation type="unfinished"></translation>
+        <translation、>无法计算负值的平方根（PostScript 引擎）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1026"/>
         <source>Logarithm&apos;s input should be positive value  (PostScript engine).</source>
-        <translation type="unfinished"></translation>
+        <translation>对数的输入应为正值（PostScript 引擎）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1039"/>
         <source>Logarithm&apos;s input should be positive value (PostScript engine).</source>
-        <translation type="unfinished"></translation>
+        <translation>对数的输入应为正值（PostScript 引擎）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1054"/>
         <source>Real value expected for conversion to integer (PostScript engine).</source>
-        <translation type="unfinished"></translation>
+        <translation>期望转换为整数的实数值（PostScript 引擎）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1067"/>
         <source>Integer value expected for conversion to real (PostScript engine).</source>
-        <translation type="unfinished"></translation>
+        <translation>期望将整数值转换为实数（PostScript 引擎）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1313"/>
         <source>Can&apos;t copy negative number of arguments (PostScript engine).</source>
-        <translation type="unfinished"></translation>
+        <translation>无法复制负数的参数（PostScript 引擎）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1330"/>
         <source>Negative index of operand (PostScript engine).</source>
-        <translation type="unfinished"></translation>
+        <translation>操作数的负索引（PostScript 引擎）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1344"/>
         <source>Negative number of operands (PostScript engine).</source>
-        <translation type="unfinished"></translation>
+        <translation>操作数为负数（PostScript 引擎）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1362"/>
         <source>Call stack underflow (PostScript engine).</source>
-        <translation type="unfinished"></translation>
+        <translation>调用堆栈下溢（PostScript 引擎）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1413"/>
         <source>Real value expected (PostScript engine).</source>
-        <translation type="unfinished"></translation>
+        <translation>预期实数值（PostScript 引擎）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1430"/>
         <source>Integer value expected (PostScript engine).</source>
-        <translation type="unfinished"></translation>
+        <translation>预期整数值（PostScript 引擎）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1447"/>
         <source>Boolean value expected (PostScript engine).</source>
-        <translation type="unfinished"></translation>
+        <translation>预期布尔值（PostScript 引擎）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1464"/>
         <source>Instruction pointer expected (PostScript engine).</source>
-        <translation type="unfinished"></translation>
+        <translation>需要指令指针（PostScript 引擎）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1487"/>
         <source>Number expected (PostScript engine).</source>
-        <translation type="unfinished"></translation>
+        <translation>预期数量（PostScript 引擎）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1576"/>
         <source>Stack overflow occured (PostScript engine).</source>
-        <translation type="unfinished"></translation>
+        <translation>发生堆栈溢出（PostScript 引擎）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1584"/>
         <source>Stack underflow occured (PostScript engine).</source>
-        <translation type="unfinished"></translation>
+        <translation>发生堆栈下溢（PostScript 引擎）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1651"/>
         <source>Invalid operator (PostScript function) &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>无效运算符（PostScript 函数）&apos;%1&apos;。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1721"/>
         <source>Invalid program - bad enclosing brackets (PostScript function).</source>
-        <translation type="unfinished"></translation>
+        <translation>无效程序-括号错误（PostScript 函数）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1739"/>
         <source>Invalid program (PostScript function).</source>
-        <translation type="unfinished"></translation>
+        <translation>无效程序（PostScript 函数）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1746"/>
         <source>Empty program (PostScript function).</source>
-        <translation type="unfinished"></translation>
+        <translation>空程序（PostScript 函数）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1873"/>
         <source>Stack contains more values, than output size (%1 remains) (PostScript function).</source>
-        <translation type="unfinished"></translation>
+        <translation>堆栈包含的值多于输出大小（剩余 %1）（PostScript 函数）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="360"/>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="380"/>
         <source>Inexact font substitution: font %1 replaced by %2 using font family %3.</source>
-        <translation type="unfinished"></translation>
+        <translation>字体替换不精确：字体 %1 被使用字体系列 %3 的 %2 替换。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="402"/>
         <source>Inexact font substitution: font %1 replaced by %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>字体替换不精确：字体 %1 被 %2 替换。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="415"/>
         <source>FontConfig error building pattern for font %1</source>
-        <translation type="unfinished"></translation>
+        <translation>FontConfig 为字体 %1 构建模式时出错</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="469"/>
         <source>Inexact font substitution: font %1 replaced by standard font Times New Roman.</source>
-        <translation type="unfinished"></translation>
+        <translation>字体替换不精确：字体 %1 被标准字体 Times New Roman 替换。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="557"/>
         <source>Fontconfig error</source>
-        <translation type="unfinished"></translation>
+        <translation>Fontconfig 错误</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="762"/>
         <source>Glyph for simple font character code &apos;%1&apos; not found.</source>
-        <translation type="unfinished"></translation>
+        <translation>未找到简单字体字符代码&apos;%1&apos;的字形。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="800"/>
         <source>Glyph for composite font character with cid &apos;%1&apos; not found.</source>
-        <translation type="unfinished"></translation>
+        <translation>未找到 cid 为&apos;%1&apos;的复合字体字符的字形。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="928"/>
         <source>Details</source>
-        <translation type="unfinished"></translation>
+        <translation>详情</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="932"/>
         <source>Font</source>
-        <translation type="unfinished"></translation>
+        <translation>字体</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="936"/>
         <source>Style</source>
-        <translation type="unfinished"></translation>
+        <translation>样式</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="939"/>
         <source>Yes</source>
-        <translation type="unfinished"></translation>
+        <translation>是</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="940"/>
         <source>No</source>
-        <translation type="unfinished"></translation>
+        <translation>不</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="942"/>
         <source>Glyph count</source>
-        <translation type="unfinished"></translation>
+        <translation>字形数量</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="943"/>
         <source>Is CID keyed</source>
-        <translation type="unfinished"></translation>
+        <translation>是否已输入 CID</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="944"/>
         <source>Is bold</source>
-        <translation type="unfinished"></translation>
+        <translation>是粗体</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="945"/>
         <source>Is italics</source>
-        <translation type="unfinished"></translation>
+        <translation>是斜体</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="946"/>
         <source>Has vertical writing system</source>
-        <translation type="unfinished"></translation>
+        <translation>具有垂直书写系统</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="947"/>
         <source>Has SFNT storage scheme</source>
-        <translation type="unfinished"></translation>
+        <translation>拥有SFNT存储方案</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="948"/>
         <source>Has glyph names</source>
-        <translation type="unfinished"></translation>
+        <translation>有字形名称</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="952"/>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2067"/>
         <source>Encoding</source>
-        <translation type="unfinished"></translation>
+        <translation>编码</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="962"/>
         <source>None</source>
-        <translation type="unfinished"></translation>
+        <translation>无</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="966"/>
         <source>Unicode</source>
-        <translation type="unfinished"></translation>
+        <translation>Unicode</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="970"/>
         <source>MS Symbol</source>
-        <translation type="unfinished"></translation>
+        <translation>MS Symbol</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="974"/>
         <source>Japanese Shift JIS</source>
-        <translation type="unfinished"></translation>
+        <translation>日语 Shift JIS</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="978"/>
         <source>PRC - Simplified Chinese</source>
-        <translation type="unfinished"></translation>
+        <translation>简体中文</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="982"/>
         <source>Traditional Chinese</source>
-        <translation type="unfinished"></translation>
+        <translation>繁体中文</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="986"/>
         <source>Korean Extended Wansung</source>
-        <translation type="unfinished"></translation>
+        <translation>韩语Extended Wansung</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="990"/>
         <source>Korean Standard</source>
-        <translation type="unfinished"></translation>
+        <translation>韩语 标准</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="994"/>
         <source>Adobe Standard</source>
-        <translation type="unfinished"></translation>
+        <translation>Adobe 标准</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="998"/>
         <source>Adobe Expert</source>
-        <translation type="unfinished"></translation>
+        <translation>Adobe 专家</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1001"/>
         <source>Adobe Custom</source>
-        <translation type="unfinished"></translation>
+        <translation>Adobe 定制</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1005"/>
         <source>Adobe Latin 1</source>
-        <translation type="unfinished"></translation>
+        <translation>Adobe Latin 1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1009"/>
         <source>Old Latin 1</source>
-        <translation type="unfinished"></translation>
+        <translation>Old Latin 1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1013"/>
         <source>Apple Roman</source>
-        <translation type="unfinished"></translation>
+        <translation>Apple Roman</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1021"/>
