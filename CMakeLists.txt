@@ -29,6 +29,7 @@ project(PDF4QT VERSION ${PDF4QT_VERSION} LANGUAGES CXX)
 
 option(PDF4QT_INSTALL_DEPENDENCIES "Install dependencies" ON)
 option(PDF4QT_INSTALL_QT_DEPENDENCIES "Install Qt dependencies" ON)
+option(PDF4QT_INSTALL_INCLUDE "Install include headers" ON)
 
 add_compile_definitions(PDF4QT_PROJECT_VERSION="${PDF4QT_VERSION}")
 add_compile_definitions(QT_NO_EMIT)
@@ -122,13 +123,35 @@ if(PDF4QT_INSTALL_TO_USR)
     set(PDF4QT_INSTALL_LIB_DIR usr/${PDF4QT_INSTALL_LIB_DIR_IMPL})
     set(PDF4QT_INSTALL_BIN_DIR usr/${PDF4QT_INSTALL_BIN_DIR_IMPL})
     set(PDF4QT_INSTALL_SHARE_DIR usr/share)
+    set(PDF4QT_INSTALL_INCLUDE_DIR usr/include)
 else()
     set(PDF4QT_INSTALL_LIB_DIR ${PDF4QT_INSTALL_LIB_DIR_IMPL})
     set(PDF4QT_INSTALL_BIN_DIR ${PDF4QT_INSTALL_BIN_DIR_IMPL})
     set(PDF4QT_INSTALL_SHARE_DIR share)
+    set(PDF4QT_INSTALL_INCLUDE_DIR include)
 endif()
 
 add_subdirectory(Pdf4QtLibCore)
+
+if(PDF4QT_INSTALL_INCLUDE)
+    # Install public headers from Pdf4QtLibCore/include
+    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/Pdf4QtLibCore/sources/
+            DESTINATION ${PDF4QT_INSTALL_INCLUDE_DIR}/Pdf4QtLibCore
+            FILES_MATCHING PATTERN "*.h")
+
+    # Install generated export header
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/pdf4qtlibcore_export.h
+            DESTINATION ${PDF4QT_INSTALL_INCLUDE_DIR}/Pdf4QtLibCore)
+
+    # Install public headers from Pdf4QtLibWidgets/include
+    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/Pdf4QtLibWidgets/sources/
+            DESTINATION ${PDF4QT_INSTALL_INCLUDE_DIR}/Pdf4QtLibWidgets
+            FILES_MATCHING PATTERN "*.h")
+
+    # Install generated export header
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/pdf4qtlibwidgets_export.h
+            DESTINATION ${PDF4QT_INSTALL_INCLUDE_DIR}/Pdf4QtLibWidgets)
+endif()
 
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_subdirectory(Pdf4QtLibWidgets)
