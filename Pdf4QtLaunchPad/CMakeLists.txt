@@ -24,11 +24,15 @@ add_executable(Pdf4QtLaunchPad
     main.cpp
     icon.rc
     app.qrc
-    launchapplicationwidget.h launchapplicationwidget.cpp launchapplicationwidget.ui
-    launchdialog.h launchdialog.cpp launchdialog.ui
+    launchapplicationwidget.h
+    launchapplicationwidget.cpp
+    launchapplicationwidget.ui
+    launchdialog.h
+    launchdialog.cpp
+    launchdialog.ui
 )
 
-target_link_libraries(Pdf4QtLaunchPad PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets)
+target_link_libraries(Pdf4QtLaunchPad PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Widgets)
 
 set_target_properties(Pdf4QtLaunchPad PROPERTIES
     WIN32_EXECUTABLE ON

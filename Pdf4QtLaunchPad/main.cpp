@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "launchdialog.h"
+#include "pdfapplicationtranslator.h"
 
 #include <QApplication>
 
@@ -32,6 +33,9 @@ int main(int argc, char *argv[])
     QCoreApplication::setOrganizationName("MelkaJ");
     QCoreApplication::setApplicationName("PDF4QT LaunchPad");
     QApplication::setApplicationDisplayName(QApplication::translate("Application", "PDF4QT LaunchPad"));
+
+    pdf::PDFApplicationTranslator translator;
+    translator.installTranslator();
 
     QIcon appIcon(":/app-icon.svg");
     QApplication::setWindowIcon(appIcon);
