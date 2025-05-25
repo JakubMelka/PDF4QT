@@ -1738,12 +1738,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="434"/>
         <source>Fit &amp;Page</source>
-        <translation>自适应页面(&amp;P)</translation>
+        <translation>适合页面(&amp;P)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="443"/>
         <source>Fit &amp;Width</source>
-        <translation>自适应宽度(&amp;W)</translation>
+        <translation>适合宽度(&amp;W)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="446"/>
@@ -1753,7 +1753,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="455"/>
         <source>&amp;Fit Height</source>
-        <translation>自适应高度(&amp;H)</translation>
+        <translation>适合高度(&amp;H)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="458"/>
