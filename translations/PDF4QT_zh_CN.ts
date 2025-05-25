@@ -205,7 +205,7 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="53"/>
         <source>Remove</source>
-        <translation>删除</translation>
+        <translation>移除</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="60"/>
@@ -631,7 +631,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="213"/>
         <source>Restore Removed &amp;Items</source>
-        <translation>恢复删除的条目(&amp;M)</translation>
+        <translation>恢复移除的条目(&amp;M)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="216"/>
@@ -1313,7 +1313,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="50"/>
         <source>Remove soft hyphen at end of line</source>
-        <translation>删除行尾的软连字符</translation>
+        <translation>移除行尾的软连字符</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="57"/>
@@ -2063,7 +2063,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1053"/>
         <source>Sanitize document to remove sensitive information.</source>
-        <translation>对文件进行隐私清除，删除敏感信息。</translation>
+        <translation>对文件进行净化，移除敏感信息。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1061"/>
@@ -3309,7 +3309,7 @@
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="45"/>
         <source>Certificate store operations (list, add, remove certificates).</source>
-        <translation>证书存储操作（列表、添加、删除证书）。</translation>
+        <translation>证书存储操作（列表、添加、移除证书）。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="77"/>
@@ -3435,7 +3435,7 @@
     <message>
         <location filename="../PdfTool/pdftooldecrypt.cpp" line="43"/>
         <source>Remove encryption from a document (with only owner access only).</source>
-        <translation>删除文件加密（仅限所有者权限）。</translation>
+        <translation>移除文件加密（仅限所有者权限）。</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldecrypt.cpp" line="61"/>
@@ -6070,7 +6070,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1388"/>
         <source>Remove</source>
-        <translation>删除</translation>
+        <translation>移除</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1404"/>
@@ -6216,7 +6216,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="116"/>
         <source>Remove</source>
-        <translation>删除</translation>
+        <translation>移除</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="130"/>
@@ -6774,27 +6774,27 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1259"/>
         <source>Page no. %1 was removed.</source>
-        <translation>页码 %1已删除</translation>
+        <translation>页码 %1已移除</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1262"/>
         <source>Removed text character from page %1.</source>
-        <translation>从页面 %1 中删除了文本字符</translation>
+        <translation>从页面 %1 中移除了文本字符</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1265"/>
         <source>Removed vector graphics from page %1.</source>
-        <translation>从页面 %1 中删除了矢量图</translation>
+        <translation>从页面 %1 中移除了矢量图</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1268"/>
         <source>Removed image from page %1.</source>
-        <translation>从页面 %1 中删除了图像</translation>
+        <translation>从页面 %1 中移除了图像</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1271"/>
         <source>Removed shading from page %1.</source>
-        <translation>从页面 %1 中删除了着色</translation>
+        <translation>从页面 %1 中移除了着色</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1274"/>
@@ -6824,7 +6824,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1289"/>
         <source>Text &apos;%1&apos; has been removed from page %2.</source>
-        <translation>文本&apos;%1&apos;已从页面 %2删除</translation>
+        <translation>文本&apos;%1&apos;已从页面 %2移除</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1292"/>
@@ -6849,27 +6849,27 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1343"/>
         <source>Page removed</source>
-        <translation>页面已删除</translation>
+        <translation>页面已移除</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1345"/>
         <source>Removed text character</source>
-        <translation>已删除文本字符</translation>
+        <translation>已移除文本字符</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1347"/>
         <source>Removed vector graphics</source>
-        <translation>已删除矢量图</translation>
+        <translation>已移除矢量图</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1349"/>
         <source>Removed image</source>
-        <translation>已删除图像</translation>
+        <translation>已移除图像</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1351"/>
         <source>Removed shading</source>
-        <translation>已删除着色</translation>
+        <translation>已移除着色</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1353"/>
@@ -6899,7 +6899,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1363"/>
         <source>Text removed</source>
-        <translation>文本已删除</translation>
+        <translation>文本已移除</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1365"/>
@@ -7025,7 +7025,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="151"/>
         <source>Document info was removed.</source>
-        <translation>文档信息已被删除。</translation>
+        <translation>文档信息已被移除。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="169"/>
@@ -7035,32 +7035,32 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="184"/>
         <source>Outline was removed.</source>
-        <translation>大纲已被删除。</translation>
+        <translation>大纲已被移除。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="194"/>
         <source>File attachments removed: %1.</source>
-        <translation>已删除的文件附件：%1。</translation>
+        <translation>已移除的文件附件：%1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="222"/>
         <source>Embedded files were removed.</source>
-        <translation>嵌入的文件已被删除。</translation>
+        <translation>嵌入的文件已被移除。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="254"/>
         <source>Search index was removed.</source>
-        <translation>搜索索引已被删除。</translation>
+        <translation>搜索索引已被移除。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="265"/>
         <source>Markup annotations removed: %1.</source>
-        <translation>已删除标记注释：%1。</translation>
+        <translation>已移除标记注释：%1。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="293"/>
         <source>Page thumbnails removed: %1.</source>
-        <translation>已删除页面缩略图：%1。</translation>
+        <translation>已移除页面缩略图：%1。</translation>
     </message>
 </context>
 <context>
@@ -7104,7 +7104,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="158"/>
         <source>Removed</source>
-        <translation>已删除</translation>
+        <translation>已移除</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="163"/>
@@ -7968,12 +7968,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="221"/>
         <source>Null objects entries from dictionaries removed: %1</source>
-        <translation>已从词典中删除空对象条目：%1</translation>
+        <translation>已从词典中移除空对象条目：%1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="246"/>
         <source>Unused objects removed: %1</source>
-        <translation>已删除未使用的对象：%1</translation>
+        <translation>已移除未使用的对象：%1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="319"/>
@@ -8426,7 +8426,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="1995"/>
         <source>Table region was selected. Use left/right mouse buttons to add/remove rows/columns, then use Enter key to copy the table.</source>
-        <translation>已选择表格区域。使用鼠标左键/右键添加/删除行/列，然后按 Enter 键复制表格。</translation>
+        <translation>已选择表格区域。使用鼠标左键/右键添加/移除行/列，然后按 Enter 键复制表格。</translation>
     </message>
 </context>
 <context>
@@ -13609,12 +13609,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="59"/>
         <source>Remove null objects from dictionary entries</source>
-        <translation>从词典条目中删除空对象</translation>
+        <translation>从词典条目中移除空对象</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="60"/>
         <source>Remove unused objects (objects unreachable from document root object)</source>
-        <translation>删除未使用的对象（从文档根对象无法访问的对象）</translation>
+        <translation>移除未使用的对象（从文档根对象无法访问的对象）</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="61"/>
@@ -13901,12 +13901,12 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="58"/>
         <source>Remove document info</source>
-        <translation>删除文档信息</translation>
+        <translation>移除文档信息</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="59"/>
         <source>Remove all metadata</source>
-        <translation>删除所有元数据</translation>
+        <translation>移除所有元数据</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="60"/>
