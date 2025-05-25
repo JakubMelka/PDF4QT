@@ -2058,7 +2058,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1050"/>
         <source>&amp;Sanitize...</source>
-        <translation>隐私清除...(&amp;S)</translation>
+        <translation>净化...(&amp;S)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1053"/>
@@ -2776,12 +2776,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.ui" line="14"/>
         <source>Document sanitization</source>
-        <translation>文档合规</translation>
+        <translation>文档净化</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.ui" line="20"/>
         <source>Sanitization Settings</source>
-        <translation>合规设置</translation>
+        <translation>净化设置</translation>
     </message>
 </context>
 <context>
@@ -5892,7 +5892,16 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;If the application launch is permitted, a message box appears after the &lt;span style=&quot; font-weight:600;&quot;&gt;Launch&lt;/span&gt; action is triggered, asking the user if they want to execute an external application. If the user confirms the dialog, the external application executes (for example, using the Windows function &lt;span style=&quot; font-weight:600;&quot;&gt;ShellExecute&lt;/span&gt;). When this option is turned off, no dialog appears and the external application never executes. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;If the &lt;span style=&quot; font-weight:600;&quot;&gt;URI link&lt;/span&gt; launch is allowed, a message box appears asking the user if they want to open the URI link. If the user confirms the dialog, the URI link is opened by the default web browser (or default application if the URI links to the file system). &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Users should exercise caution with these settings and only confirm execution if the document is safe and comes from a reliable source. Launching external applications and following URI links can pose risks to the user&apos;s computer. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+    <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;如果允许启动应用程序，则在触发 &lt;span style=&quot; font-weight:600;&quot;&gt;启动&lt;/span&gt;操作后会出现一个消息框，询问用户是否要执行外部应用程序。 如果用户确认对话框，外部应用程序将执行（例如，使用 Windows 函数 &lt;span style=&quot; font-weight:600;&quot;&gt;Shell脚本&lt;/span&gt;)。关闭此选项时，不会出现任何对话框，外部应用程序也不会执行。&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;If the &lt;span style=&quot; font-weight:600;&quot;&gt;URI link&lt;/span&gt; 如果允许启动，则会出现一个消息框，询问用户是否要打开 URI 链接。如果用户确认，则默认 Web 浏览器（如果 URI 链接到文件系统，则由默认应用程序）打开 URI 链接。 &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;用户应谨慎使用这些设置，并且仅在文档安全且来源可靠的情况下才确认执行。启动外部应用程序并跟踪 URI 链接可能会给用户的计算机带来风险。 &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="926"/>
@@ -5961,7 +5970,16 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The &apos;Maximum count of recent files&apos; setting controls the number of recent files displayed in the menu. When a document is opened, it is added to the top of the recent files list. The list is then truncated from the bottom if the number of recent files exceeds the maximum. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Magnifier tool settings&lt;/span&gt; determine the appearance of the magnifier. The magnifier tool enlarges the area under the mouse cursor. You can specify the size of the magnifier (in &lt;span style=&quot; font-weight:600;&quot;&gt;logical&lt;/span&gt; pixels) and its zoom level. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;By specifying the &lt;span style=&quot; font-weight:600;&quot;&gt;undo/redo&lt;/span&gt; step count, you control the number of undo/redo steps available during document editing. Setting the maximum undo step count to zero disables the undo/redo function. You can also set a nonzero undo step count and a zero redo step count, which would make only undo actions available, with redo actions disabled. Changes are optimized for memory usage, so each undo/redo step shares unmodified objects with others. This means that, roughly speaking, making 10 modifications to a 50 MB document may consume around 51 MB of memory. Actual memory usage depends on the extent of the changes but is usually minimal as changes typically affect a small number of objects (for example, editing a form field or modifying an annotation). &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+    <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&apos;最近文件的最大数量&apos;设置控制菜单中显示的最近文件数量。打开文档时，它会被添加到最近文件列表的顶部。如果最近文件的数量超过最大值，列表将从底部截断。 &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;放大镜工具设置&lt;/span&gt; 决定了放大镜的外观。放大镜工具可以放大鼠标光标下方的区域。您可以指定放大镜的大小（以  &lt;span style=&quot; font-weight:600;&quot;&gt;logical&lt;/span&gt;像素为单位）及其缩放级别。 &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;By specifying the &lt;span style=&quot; font-weight:600;&quot;&gt;撤消/重做&lt;/span&gt; 步骤数，您可以控制文档编辑期间可用的撤消/重做步骤数。将最大撤消步骤数设置为零将禁用撤消/重做功能。您还可以设置非零撤消步骤数和零重做步骤数，这将使撤消操作可用，而重做操作禁用。更改针对内存使用进行了优化，因此每个撤消/重做步骤都会与其他步骤共享未修改的对象。这意味着，粗略地说，对 50 MB 的文档进行 10 次修改可能会消耗大约 51 MB 的内存。实际内存使用量取决于更改的程度，但通常很小，因为更改通常只影响少量对象（例如，编辑表单字段或修改注释）。 &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1094"/>
