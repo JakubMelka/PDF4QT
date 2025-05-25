@@ -11650,7 +11650,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="810"/>
         <source>PDF document (*.pdf)</source>
-        <translation>PDF文档 (*.pdf)</translation>
+        <translation>PDF文档(*.pdf)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="819"/>
@@ -13890,7 +13890,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2377"/>
         <source>PDF document (*.pdf)</source>
-        <translation>PDF文档（*.pdf）</translation>
+        <translation>PDF文档(*.pdf)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2434"/>
