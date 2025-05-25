@@ -10749,7 +10749,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="983"/>
         <source>Square root of negative value can&apos;t be computed (PostScript engine).</source>
-        <translation、>无法计算负值的平方根（PostScript 引擎）。</translation>
+        <translation>无法计算负值的平方根（PostScript 引擎）。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1026"/>
