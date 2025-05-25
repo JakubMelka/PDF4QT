@@ -13745,7 +13745,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="952"/>
         <source>Opening url &apos;%1&apos; failed.</source>
-        <translation type="unfinished">未能打开 URL&apos;%1&apos</translation>
+        <translation>未能打开 URL&apos;%1&apos;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1164"/>
