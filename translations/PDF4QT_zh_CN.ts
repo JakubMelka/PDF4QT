@@ -13346,163 +13346,163 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="372"/>
         <source>Type0 (CID keyed)</source>
-        <translation type="unfinished"></translation>
+        <translation>Type 0 (CID 字体)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="376"/>
         <source>Type1 (8 bit keyed)</source>
-        <translation type="unfinished"></translation>
+        <translation>Type 1 (8 位编码字体)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="380"/>
         <source>MMType1 (8 bit keyed)</source>
-        <translation type="unfinished"></translation>
+        <translation>MMType 1 (8 位编码字体)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="384"/>
         <source>Type3 (content streams for font glyphs)</source>
-        <translation type="unfinished"></translation>
+        <translation>Type 3 (内容流字形字体)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="392"/>
         <source>Type</source>
-        <translation type="unfinished"></translation>
+        <translation>类型</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="395"/>
         <source>Font family</source>
-        <translation type="unfinished"></translation>
+        <translation>字体族</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="398"/>
         <source>Embedded subset</source>
-        <translation type="unfinished"></translation>
+        <translation>嵌入子集</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="445"/>
         <source>Viewer settings</source>
-        <translation type="unfinished"></translation>
+        <translation>阅读器设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="446"/>
         <source>Default printer settings</source>
-        <translation type="unfinished"></translation>
+        <translation>默认打印设置</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="452"/>
         <source>Single page</source>
-        <translation type="unfinished"></translation>
+        <translation>单页</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="456"/>
         <source>Continuous column</source>
-        <translation type="unfinished"></translation>
+        <translation>连续列</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="461"/>
         <source>Two continuous columns</source>
-        <translation type="unfinished"></translation>
+        <translation>二栏连续排版</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="466"/>
         <source>Two pages</source>
-        <translation type="unfinished"></translation>
+        <translation>二页</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="478"/>
         <source>Default</source>
-        <translation type="unfinished"></translation>
+        <translation>默认</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="482"/>
         <source>Show outlines</source>
-        <translation type="unfinished"></translation>
+        <translation>显示大纲</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="486"/>
         <source>Show thumbnails</source>
-        <translation type="unfinished"></translation>
+        <translation>显示缩略图</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="490"/>
         <source>Fullscreen</source>
-        <translation type="unfinished"></translation>
+        <translation>全屏</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="494"/>
         <source>Show optional content</source>
-        <translation type="unfinished"></translation>
+        <translation>显示高级选项</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="498"/>
         <source>Show attachments</source>
-        <translation type="unfinished"></translation>
+        <translation>显示附件</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="510"/>
         <source>Left to right</source>
-        <translation type="unfinished"></translation>
+        <translation>从左到右</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="514"/>
         <source>Right to left</source>
-        <translation type="unfinished"></translation>
+        <translation>从右到左</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="522"/>
         <source>Page layout</source>
-        <translation type="unfinished"></translation>
+        <translation>页面布局</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="523"/>
         <source>View mode</source>
-        <translation type="unfinished"></translation>
+        <translation>视图模式</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="524"/>
         <source>Writing direction</source>
-        <translation type="unfinished"></translation>
+        <translation>书写方向</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="534"/>
         <source>Application default</source>
-        <translation type="unfinished"></translation>
+        <translation>默认程序</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="541"/>
         <source>Scale</source>
-        <translation type="unfinished"></translation>
+        <translation>缩放</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="551"/>
         <source>Simplex</source>
-        <translation type="unfinished"></translation>
+        <translation>单面打印</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="555"/>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="559"/>
         <source>Duplex (flip long edge)</source>
-        <translation type="unfinished"></translation>
+        <translation>双面打印（从长边翻转）</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="566"/>
         <source>Duplex mode</source>
-        <translation type="unfinished"></translation>
+        <translation>双面模式</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="567"/>
         <source>Pick tray by page size</source>
-        <translation type="unfinished"></translation>
+        <translation>根据纸张大小选择纸盘</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="575"/>
         <source>Default print page ranges</source>
-        <translation type="unfinished"></translation>
+        <translation>默认打印页范围</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="576"/>
         <source>Number of copies</source>
-        <translation type="unfinished"></translation>
+        <translation>打印份数</translation>
     </message>
 </context>
 <context>
@@ -13510,12 +13510,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="108"/>
         <source>Standard</source>
-        <translation type="unfinished"></translation>
+        <translation>标准</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="251"/>
         <source>%</source>
-        <translation type="unfinished"></translation>
+        <translation>%</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="285"/>
@@ -13535,7 +13535,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="440"/>
         <source> / %1</source>
-        <translation type="unfinished"></translation>
+        <translation> / %1</translation>
     </message>
 </context>
 <context>
@@ -13543,32 +13543,32 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.cpp" line="51"/>
         <source>None</source>
-        <translation type="unfinished"></translation>
+        <translation>无</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.cpp" line="52"/>
         <source>RC4 128-bit | R4</source>
-        <translation type="unfinished"></translation>
+        <translation>RC4 (128位)加密 | R4</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.cpp" line="53"/>
         <source>AES 128-bit | R4</source>
-        <translation type="unfinished"></translation>
+        <translation>AES (128位)加密 | R4</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.cpp" line="54"/>
         <source>AES 256-bit | R6</source>
-        <translation type="unfinished"></translation>
+        <translation>AES (256位)加密 | R4</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.cpp" line="55"/>
         <source>Certificate Encryption</source>
-        <translation type="unfinished"></translation>
+        <translation>证书加密</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.cpp" line="257"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>错误</translation>
     </message>
 </context>
 <context>
@@ -13576,27 +13576,27 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionstrengthhintwidget.cpp" line="42"/>
         <source>Very weak</source>
-        <translation type="unfinished"></translation>
+        <translation>非常弱</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionstrengthhintwidget.cpp" line="43"/>
         <source>Weak</source>
-        <translation type="unfinished"></translation>
+        <translation>弱</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionstrengthhintwidget.cpp" line="44"/>
         <source>Moderate</source>
-        <translation type="unfinished"></translation>
+        <translation>中等</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionstrengthhintwidget.cpp" line="45"/>
         <source>Strong</source>
-        <translation type="unfinished"></translation>
+        <translation>强</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionstrengthhintwidget.cpp" line="46"/>
         <source>Very strong</source>
-        <translation type="unfinished"></translation>
+        <translation>非常强</translation>
     </message>
 </context>
 <context>
@@ -13604,17 +13604,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="58"/>
         <source>Embed (dereference) simple objects, such as int, bool, real</source>
-        <translation type="unfinished"></translation>
+        <translation>嵌入（解引用）简单对象，例如整数、布尔值、实数。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="59"/>
         <source>Remove null objects from dictionary entries</source>
-        <translation type="unfinished"></translation>
+        <translation>从词典条目中删除空对象</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="60"/>
         <source>Remove unused objects (objects unreachable from document root object)</source>
-        <translation type="unfinished"></translation>
+        <translation>删除未使用的对象（从文档根对象无法访问的对象）</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="61"/>
