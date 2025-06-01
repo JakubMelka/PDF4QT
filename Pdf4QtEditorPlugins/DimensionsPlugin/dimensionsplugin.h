@@ -55,6 +55,9 @@ public:
                           const pdf::PDFColorConvertor& convertor,
                           QList<pdf::PDFRenderError>& errors) const override;
 
+    void setScale(double scale);
+    double getScale() const;
+
 private:
     void onShowDimensionsTriggered();
     void onClearDimensionsTriggered();
@@ -73,6 +76,9 @@ private:
     DimensionUnit m_lengthUnit;
     DimensionUnit m_areaUnit;
     DimensionUnit m_angleUnit;
+
+    // New member variable for scaling
+    double m_scale = 1.0;
 };
 
 }   // namespace pdfplugin

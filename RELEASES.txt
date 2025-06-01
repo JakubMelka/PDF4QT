@@ -1,5 +1,7 @@
 CURRENT:
+ - Issue #284: Scaling dimensions [Enhancements, Features] 
  - Issue #281: install API headers for reuse by other applications ?
+
 
 V: 1.5.1.0 27.4.2025
  - Issue #271: Change of the license to MIT

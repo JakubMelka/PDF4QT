@@ -289,6 +289,9 @@ DimensionUnits DimensionUnit::getLengthUnits()
     units.emplace_back(pdf::PDF_POINT_TO_INCH, DimensionTool::tr("in"));
     units.emplace_back(pdf::PDF_POINT_TO_MM, DimensionTool::tr("mm"));
     units.emplace_back(pdf::PDF_POINT_TO_MM * 0.1, DimensionTool::tr("cm"));
+    units.emplace_back(pdf::PDF_POINT_TO_MM * 0.001, DimensionTool::tr("m"));
+    units.emplace_back(pdf::PDF_POINT_TO_INCH * 12.0, DimensionTool::tr("ft")); // Feet
+    units.emplace_back(pdf::PDF_POINT_TO_INCH * 36.0, DimensionTool::tr("yd")); // Yards
 
     return units;
 }
@@ -301,6 +304,9 @@ DimensionUnits DimensionUnit::getAreaUnits()
     units.emplace_back(pdf::PDF_POINT_TO_INCH * pdf::PDF_POINT_TO_INCH, DimensionTool::tr("sq. in"));
     units.emplace_back(pdf::PDF_POINT_TO_MM * pdf::PDF_POINT_TO_MM, DimensionTool::tr("sq. mm"));
     units.emplace_back(pdf::PDF_POINT_TO_MM * 0.1 * pdf::PDF_POINT_TO_MM * 0.1, DimensionTool::tr("sq. cm"));
+    units.emplace_back(pdf::PDF_POINT_TO_MM * 0.001 * pdf::PDF_POINT_TO_MM * 0.001, DimensionTool::tr("sq. m"));
+    units.emplace_back(pdf::PDF_POINT_TO_INCH * 12.0 * pdf::PDF_POINT_TO_INCH * 12.0, DimensionTool::tr("sq. ft")); // Square Feet
+    units.emplace_back(pdf::PDF_POINT_TO_INCH * 36.0 * pdf::PDF_POINT_TO_INCH * 36.0, DimensionTool::tr("sq. yd")); // Square Yards
 
     return units;
 }

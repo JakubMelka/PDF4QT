@@ -25,12 +25,17 @@
 
 #include "pdfwidgetutils.h"
 
-SettingsDialog::SettingsDialog(QWidget* parent, DimensionUnit& lengthUnit, DimensionUnit& areaUnit, DimensionUnit& angleUnit) :
+SettingsDialog::SettingsDialog(QWidget* parent,
+                               DimensionUnit& lengthUnit,
+                               DimensionUnit& areaUnit,
+                               DimensionUnit& angleUnit,
+                               double& scale) :
     QDialog(parent),
     ui(new Ui::SettingsDialog),
     m_lengthUnit(lengthUnit),
     m_areaUnit(areaUnit),
-    m_angleUnit(angleUnit)
+    m_angleUnit(angleUnit),
+    m_scale(scale)
 {
     ui->setupUi(this);
 
@@ -41,6 +46,7 @@ SettingsDialog::SettingsDialog(QWidget* parent, DimensionUnit& lengthUnit, Dimen
     initComboBox(m_lengthUnits, m_lengthUnit, ui->lengthsComboBox);
     initComboBox(m_areaUnits, m_areaUnit, ui->areasComboBox);
     initComboBox(m_angleUnits, m_angleUnit, ui->anglesComboBox);
+    ui->scaleEdit->setValue(m_scale);
 
     setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(320, 240)));
     pdf::PDFWidgetUtils::style(this);
@@ -66,6 +72,7 @@ void SettingsDialog::accept()
     m_lengthUnit = m_lengthUnits[ui->lengthsComboBox->currentIndex()];
     m_areaUnit = m_areaUnits[ui->areasComboBox->currentIndex()];
     m_angleUnit = m_angleUnits[ui->anglesComboBox->currentIndex()];
+    m_scale = ui->scaleEdit->value();
 
     QDialog::accept();
 }

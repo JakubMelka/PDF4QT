@@ -23,7 +23,6 @@
 #include "dimensionsplugin.h"
 #include "pdfdrawwidget.h"
 #include "pdfwidgetutils.h"
-#include "pdfcms.h"
 #include "settingsdialog.h"
 
 #include <QPainter>
@@ -216,8 +215,7 @@ void DimensionsPlugin::drawPage(QPainter* painter,
                 qreal angle = line.angle();
                 QFontMetricsF fontMetrics(painter->font());
                 QRectF textRect(-line.length() * 0.5, -fontMetrics.lineSpacing(), line.length(), fontMetrics.lineSpacing());
-
-                QString text = QString("%1 %2").arg(locale.toString(dimension.getMeasuredValue() * m_lengthUnit.scale, 'f', 2), m_lengthUnit.symbol);
+                QString text = QString("%1 %2").arg(locale.toString(dimension.getMeasuredValue() * m_scale * m_lengthUnit.scale, 'f', 2), m_lengthUnit.symbol);
 
                 painter->save();
                 painter->translate(textPoint);
@@ -270,11 +268,11 @@ void DimensionsPlugin::drawPage(QPainter* painter,
 
                 if (isArea)
                 {
-                    text = tr("A = %1 %2").arg(locale.toString(dimension.getMeasuredValue() * m_areaUnit.scale, 'f', 2), m_areaUnit.symbol);
+                    text = tr("A = %1 %2").arg(locale.toString(dimension.getMeasuredValue() * m_scale * m_scale * m_areaUnit.scale, 'f', 2), m_areaUnit.symbol);
                 }
                 else
                 {
-                    text = tr("p = %1 %2").arg(locale.toString(dimension.getMeasuredValue() * m_lengthUnit.scale, 'f', 2), m_lengthUnit.symbol);
+                    text = tr("p = %1 %2").arg(locale.toString(dimension.getMeasuredValue() * m_scale * m_lengthUnit.scale, 'f', 2), m_lengthUnit.symbol);
                 }
                 painter->drawText(centerPoint, text);
 
@@ -349,7 +347,7 @@ void DimensionsPlugin::onClearDimensionsTriggered()
 
 void DimensionsPlugin::onSettingsTriggered()
 {
-    SettingsDialog dialog(m_widget, m_lengthUnit, m_areaUnit, m_angleUnit);
+    SettingsDialog dialog(m_widget, m_lengthUnit, m_areaUnit, m_angleUnit, m_scale);
     dialog.exec();
 
     updateGraphics();

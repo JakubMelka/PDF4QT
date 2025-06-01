@@ -42,7 +42,8 @@ public:
     explicit SettingsDialog(QWidget* parent,
                             DimensionUnit& lengthUnit,
                             DimensionUnit& areaUnit,
-                            DimensionUnit& angleUnit);
+                            DimensionUnit& angleUnit,
+                            double& scale);
     virtual ~SettingsDialog() override;
 
     virtual void accept() override;
@@ -58,6 +59,7 @@ private:
     DimensionUnit& m_lengthUnit;
     DimensionUnit& m_areaUnit;
     DimensionUnit& m_angleUnit;
+    double& m_scale;
 };
 
 #endif // SETTINGSDIALOG_H
