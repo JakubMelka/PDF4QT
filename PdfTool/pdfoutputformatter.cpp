@@ -328,6 +328,7 @@ PDFHtmlOutputFormatterImpl::PDFHtmlOutputFormatterImpl() :
 
 void PDFHtmlOutputFormatterImpl::beginElement(PDFOutputFormatter::Element type, QString name, QString description, Qt::Alignment alignment, int reference)
 {
+    Q_UNUSED(name);
     Q_UNUSED(reference);
     m_elementStack.push(type);
 

@@ -19,12 +19,12 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtDiff/main.cpp" line="40"/>
+        <location filename="../Pdf4QtDiff/main.cpp" line="41"/>
         <source>PDF4QT Diff</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLaunchPad/main.cpp" line="34"/>
+        <location filename="../Pdf4QtLaunchPad/main.cpp" line="35"/>
         <source>PDF4QT LaunchPad</source>
         <translation type="unfinished"></translation>
     </message>
@@ -11334,12 +11334,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfdrawspacecontroller.cpp" line="924"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfdrawspacecontroller.cpp" line="928"/>
         <source>Compile time:    %1 [ms]</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfdrawspacecontroller.cpp" line="926"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfdrawspacecontroller.cpp" line="930"/>
         <source>Draw time:       %1 [ms]</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14516,87 +14516,92 @@ Page %2: %3</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="672"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="153"/>
+        <source>Chinese</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="673"/>
         <source>Type</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="672"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="673"/>
         <source>Certificate</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="672"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="673"/>
         <source>Organization</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="672"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="673"/>
         <source>Valid from</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="672"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="673"/>
         <source>Valid to</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="680"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="681"/>
         <source>User</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="684"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="685"/>
         <source>System</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="724"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="725"/>
         <source>Action</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="724"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="725"/>
         <source>Shortcut</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="753"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="754"/>
         <source>Error</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="753"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="754"/>
         <source>Shortcut &apos;%1&apos; is invalid for action %2.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="776"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="777"/>
         <source>Active</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="776"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="777"/>
         <source>Name</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="776"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="777"/>
         <source>Author</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="776"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="777"/>
         <source>Version</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="776"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="777"/>
         <source>License</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="890"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="891"/>
         <source>Select color profile directory</source>
         <translation type="unfinished"></translation>
     </message>

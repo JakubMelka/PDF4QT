@@ -1195,6 +1195,8 @@ void PDFSidebarWidget::onOutlineItemsChanged()
 
 void PDFSidebarWidget::onBookmarkActivated(int index, PDFBookmarkManager::Bookmark bookmark)
 {
+    Q_UNUSED(bookmark);
+
     if (m_bookmarkChangeInProgress)
     {
         return;
