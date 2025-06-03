@@ -6242,7 +6242,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="66"/>
         <source>Scale 1:</source>
-        <translation>实际尺寸</translation>
+        <translation>实际尺寸:</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.ui" line="14"/>
