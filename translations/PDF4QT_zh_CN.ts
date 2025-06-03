@@ -906,7 +906,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="501"/>
         <source>U&amp;ngroup</source>
-        <translation>解散(&amp;N)</translation>
+        <translation>解组(&amp;N)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="504"/>
