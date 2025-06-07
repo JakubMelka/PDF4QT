@@ -631,7 +631,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="177"/>
         <source>C&amp;lose</source>
-        <translation>关闭(&amp;C)</translation>
+        <translation>关闭(&amp;L)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="180"/>
@@ -906,7 +906,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="501"/>
         <source>U&amp;ngroup</source>
-        <translation>解散(&amp;N)</translation>
+        <translation>解组(&amp;N)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="504"/>
@@ -6242,7 +6242,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="66"/>
         <source>Scale 1:</source>
-        <translation type="unfinished"></translation>
+        <translation>实际尺寸:</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.ui" line="14"/>
