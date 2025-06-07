@@ -591,7 +591,7 @@ void PDFViewerSettingsDialog::saveData()
     }
     else if (sender == ui->foregroundColorEdit)
     {
-        m_cmsSettings.foregroundColor.fromString(ui->foregroundColorEdit->text());
+        m_cmsSettings.foregroundColor = QColor::fromString(ui->foregroundColorEdit->text());
         if (!m_cmsSettings.foregroundColor.isValid())
         {
             pdf::PDFColorConvertor colorConvertor;
@@ -600,7 +600,7 @@ void PDFViewerSettingsDialog::saveData()
     }
     else if (sender == ui->backgroundColorEdit)
     {
-        m_cmsSettings.backgroundColor.fromString(ui->backgroundColorEdit->text());
+        m_cmsSettings.backgroundColor = QColor::fromString(ui->backgroundColorEdit->text());
         if (!m_cmsSettings.backgroundColor.isValid())
         {
             pdf::PDFColorConvertor colorConvertor;

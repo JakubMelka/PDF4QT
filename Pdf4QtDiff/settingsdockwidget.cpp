@@ -139,7 +139,7 @@ void SettingsDockWidget::onEditColorChanged()
     auto saveColor = [&isChanged](QComboBox* comboBox, QColor& color)
     {
         QColor oldColor = color;
-        color.fromString(comboBox->currentText());
+        color = QColor::fromString(comboBox->currentText());
         isChanged = isChanged || oldColor != color;
     };
 
