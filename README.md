@@ -146,7 +146,7 @@ On Linux, a GCC version >= 8 should work, altough we tested it with GCC 11.
     To uninstall, run `sudo xargs rm < ./build/install_manifest.txt`.
 
 ### Using Qt Creator (both Windows/Linux)
-1. Download Qt 6.6 or higher, and VCPKG package manager (https://vcpkg.io/en/index.html)
+1. Download Qt 6.9 or higher, and VCPKG package manager (https://vcpkg.io/en/index.html)
 2. Open Qt Creator and configure the project
 3. Build
  

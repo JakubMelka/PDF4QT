@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #279: qt_add_translations uses options only in qt 6.9
  - Issue #284: Scaling dimensions [Enhancements, Features] 
  - Issue #281: install API headers for reuse by other applications ?
 
