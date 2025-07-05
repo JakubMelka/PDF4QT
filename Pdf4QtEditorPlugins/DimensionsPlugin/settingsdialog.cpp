@@ -24,31 +24,53 @@
 #include "ui_settingsdialog.h"
 
 #include "pdfwidgetutils.h"
+#include <QFontDialog>
+#include <QColorDialog>
 
-SettingsDialog::SettingsDialog(QWidget* parent,
-                               DimensionUnit& lengthUnit,
-                               DimensionUnit& areaUnit,
-                               DimensionUnit& angleUnit,
-                               double& scale) :
+SettingsDialog::SettingsDialog(QWidget* parent, pdfplugin::DimensionsPluginSettings& originalSettings) :
     QDialog(parent),
     ui(new Ui::SettingsDialog),
-    m_lengthUnit(lengthUnit),
-    m_areaUnit(areaUnit),
-    m_angleUnit(angleUnit),
-    m_scale(scale)
+    m_originalSettings(originalSettings)
 {
     ui->setupUi(this);
+
+    m_updatedSettings = m_originalSettings;
 
     m_lengthUnits = DimensionUnit::getLengthUnits();
     m_areaUnits = DimensionUnit::getAreaUnits();
     m_angleUnits = DimensionUnit::getAngleUnits();
 
-    initComboBox(m_lengthUnits, m_lengthUnit, ui->lengthsComboBox);
-    initComboBox(m_areaUnits, m_areaUnit, ui->areasComboBox);
-    initComboBox(m_angleUnits, m_angleUnit, ui->anglesComboBox);
-    ui->scaleEdit->setValue(m_scale);
+    initComboBox(m_lengthUnits, m_updatedSettings.lengthUnit, ui->lengthsComboBox);
+    initComboBox(m_areaUnits, m_updatedSettings.areaUnit, ui->areasComboBox);
+    initComboBox(m_angleUnits, m_updatedSettings.angleUnit, ui->anglesComboBox);
+    ui->scaleEdit->setValue(m_updatedSettings.scale);
 
-    setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(320, 240)));
+    connect(ui->fontComboBox, &QFontComboBox::currentFontChanged, this, &SettingsDialog::setFont);
+    connect(ui->textColorButton, &QPushButton::clicked, this, [this]() {
+        QColor color = QColorDialog::getColor(m_updatedSettings.textColor, this, tr("Select Text Color"), QColorDialog::ShowAlphaChannel);
+        if (color.isValid())
+        {
+            setTextColor(color);
+        }
+    });
+    connect(ui->backgroundColorButton, &QPushButton::clicked, this, [this]() {
+        QColor color = QColorDialog::getColor(m_updatedSettings.backgroundColor, this, tr("Select Background Color"), QColorDialog::ShowAlphaChannel);
+        if (color.isValid())
+        {
+            setBackgroundColor(color);
+        }
+    });
+    connect(ui->selectFontButton, &QPushButton::clicked, this, [this]() {
+        bool ok = false;
+        QFont font = QFontDialog::getFont(&ok, m_updatedSettings.font, this, tr("Select Font"));
+        if (ok)
+        {
+            setFont(font);
+            ui->fontComboBox->setCurrentFont(font);
+        }
+    });
+
+    setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(640, 480)));
     pdf::PDFWidgetUtils::style(this);
 }
 
@@ -69,10 +91,41 @@ void SettingsDialog::initComboBox(const DimensionUnits& units, const DimensionUn
 
 void SettingsDialog::accept()
 {
-    m_lengthUnit = m_lengthUnits[ui->lengthsComboBox->currentIndex()];
-    m_areaUnit = m_areaUnits[ui->areasComboBox->currentIndex()];
-    m_angleUnit = m_angleUnits[ui->anglesComboBox->currentIndex()];
-    m_scale = ui->scaleEdit->value();
+    m_updatedSettings.lengthUnit = m_lengthUnits[ui->lengthsComboBox->currentIndex()];
+    m_updatedSettings.areaUnit = m_areaUnits[ui->areasComboBox->currentIndex()];
+    m_updatedSettings.angleUnit = m_angleUnits[ui->anglesComboBox->currentIndex()];
+    m_updatedSettings.scale = ui->scaleEdit->value();
 
+    m_originalSettings = m_updatedSettings;
     QDialog::accept();
+}
+
+void SettingsDialog::setFont(const QFont& font)
+{
+    m_updatedSettings.font = font;
+}
+
+QFont SettingsDialog::getFont() const
+{
+    return m_updatedSettings.font;
+}
+
+void SettingsDialog::setTextColor(const QColor& color)
+{
+    m_updatedSettings.textColor = color;
+}
+
+QColor SettingsDialog::getTextColor() const
+{
+    return m_updatedSettings.textColor;
+}
+
+void SettingsDialog::setBackgroundColor(const QColor& color)
+{
+    m_updatedSettings.backgroundColor = color;
+}
+
+QColor SettingsDialog::getBackgroundColor() const
+{
+    return m_updatedSettings.backgroundColor;
 }

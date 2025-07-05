@@ -101,9 +101,11 @@ void DimensionsPlugin::setWidget(pdf::PDFWidget* widget)
     connect(m_clearDimensionsAction, &QAction::triggered, this, &DimensionsPlugin::onClearDimensionsTriggered);
     connect(m_settingsAction, &QAction::triggered, this, &DimensionsPlugin::onSettingsTriggered);
 
-    m_lengthUnit = DimensionUnit::getLengthUnits().front();
-    m_areaUnit = DimensionUnit::getAreaUnits().front();
-    m_angleUnit = DimensionUnit::getAngleUnits().front();
+    m_settings.lengthUnit = DimensionUnit::getLengthUnits().front();
+    m_settings.areaUnit = DimensionUnit::getAreaUnits().front();
+    m_settings.angleUnit = DimensionUnit::getAngleUnits().front();
+    m_settings.textColor = Qt::black;
+    m_settings.backgroundColor = Qt::transparent;
 
     m_widget->getDrawWidgetProxy()->registerDrawInterface(this);
 
@@ -168,7 +170,10 @@ void DimensionsPlugin::drawPage(QPainter* painter,
     }
 
     QLocale locale;
+    painter->setFont(m_settings.font);
     painter->setRenderHint(QPainter::Antialiasing, true);
+
+    QFontMetricsF fontMetrics(painter->font());
 
     for (const Dimension& dimension : m_dimensions)
     {
@@ -202,7 +207,7 @@ void DimensionsPlugin::drawPage(QPainter* painter,
                 QPointF unitVector = unitVectorLine.p2() - unitVectorLine.p1();
                 qreal extensionLineSize = pdf::PDFWidgetUtils::scaleDPI_y(painter->device(), 5);
 
-                painter->setPen(convertor.convert(QColor(Qt::black), false, true));
+                painter->setPen(convertor.convert(m_settings.textColor, false, true));
                 painter->drawLine(line);
 
                 QLineF extensionLineLeft(p1 - unitVector * extensionLineSize, p1 + unitVector * extensionLineSize);
@@ -213,13 +218,16 @@ void DimensionsPlugin::drawPage(QPainter* painter,
 
                 QPointF textPoint = line.center();
                 qreal angle = line.angle();
-                QFontMetricsF fontMetrics(painter->font());
+
                 QRectF textRect(-line.length() * 0.5, -fontMetrics.lineSpacing(), line.length(), fontMetrics.lineSpacing());
-                QString text = QString("%1 %2").arg(locale.toString(dimension.getMeasuredValue() * m_scale * m_lengthUnit.scale, 'f', 2), m_lengthUnit.symbol);
+                QString text = QString("%1 %2").arg(locale.toString(dimension.getMeasuredValue() * m_settings.scale * m_settings.lengthUnit.scale, 'f', 2), m_settings.lengthUnit.symbol);
+                QRectF textBoundingRect;
 
                 painter->save();
                 painter->translate(textPoint);
                 painter->rotate(-angle);
+                painter->drawText(textRect, Qt::AlignCenter | Qt::TextDontClip | Qt::TextDontClip, text, &textBoundingRect);
+                painter->fillRect(textBoundingRect, convertor.convert(m_settings.backgroundColor, true, false));
                 painter->drawText(textRect, Qt::AlignCenter | Qt::TextDontClip, text);
                 painter->restore();
 
@@ -236,11 +244,11 @@ void DimensionsPlugin::drawPage(QPainter* painter,
                 qreal pointSize = pdf::PDFWidgetUtils::scaleDPI_x(painter->device(), 5);
 
                 painter->save();
-                QPen pen(Qt::black);
+                QPen pen(m_settings.textColor);
                 pen.setWidthF(lineSize);
                 pen.setCosmetic(true);
 
-                QColor brushColor = Qt::black;
+                QColor brushColor = m_settings.textColor;
                 brushColor.setAlphaF(0.1f);
                 painter->setPen(convertor.convert(pen));
                 painter->setBrush(convertor.convert(QBrush(brushColor, isArea ? Qt::SolidPattern : Qt::DiagCrossPattern)));
@@ -249,7 +257,7 @@ void DimensionsPlugin::drawPage(QPainter* painter,
                 painter->drawPolygon(polygon.data(), int(polygon.size()), Qt::OddEvenFill);
                 painter->restore();
 
-                QPen penPoint(convertor.convert(QColor(Qt::black), false, true));
+                QPen penPoint(convertor.convert(m_settings.textColor, false, true));
                 penPoint.setCapStyle(Qt::RoundCap);
                 penPoint.setWidthF(pointSize);
                 painter->setPen(penPoint);
@@ -268,13 +276,19 @@ void DimensionsPlugin::drawPage(QPainter* painter,
 
                 if (isArea)
                 {
-                    text = tr("A = %1 %2").arg(locale.toString(dimension.getMeasuredValue() * m_scale * m_scale * m_areaUnit.scale, 'f', 2), m_areaUnit.symbol);
+                    text = tr("A = %1 %2").arg(locale.toString(dimension.getMeasuredValue() * m_settings.scale * m_settings.scale * m_settings.areaUnit.scale, 'f', 2), m_settings.areaUnit.symbol);
                 }
                 else
                 {
-                    text = tr("p = %1 %2").arg(locale.toString(dimension.getMeasuredValue() * m_scale * m_lengthUnit.scale, 'f', 2), m_lengthUnit.symbol);
+                    text = tr("p = %1 %2").arg(locale.toString(dimension.getMeasuredValue() * m_settings.scale * m_settings.lengthUnit.scale, 'f', 2), m_settings.lengthUnit.symbol);
                 }
-                painter->drawText(centerPoint, text);
+
+                QRectF textBoundingRect;
+                QRectF textRect(0, 0, fontMetrics.horizontalAdvance(text) * 2, fontMetrics.lineSpacing() * 2);
+                textRect.moveCenter(centerPoint);
+                painter->drawText(textRect, Qt::AlignCenter | Qt::TextDontClip | Qt::TextDontClip, text, &textBoundingRect);
+                painter->fillRect(textBoundingRect, convertor.convert(m_settings.backgroundColor, true, false));
+                painter->drawText(textRect, Qt::AlignCenter | Qt::TextDontClip, text);
 
                 break;
             }
@@ -292,7 +306,7 @@ void DimensionsPlugin::drawPage(QPainter* painter,
                 line1.setLength(maxLength);
                 line2.setLength(maxLength);
 
-                QPen pen(convertor.convert(QColor(Qt::black), false, true));
+                QPen pen(convertor.convert(m_settings.textColor, false, true));
                 pen.setWidthF(lineSize);
                 painter->setPen(qMove(pen));
 
@@ -306,7 +320,7 @@ void DimensionsPlugin::drawPage(QPainter* painter,
                 rect.translate(line1.p1());
                 painter->drawArc(rect, startAngle - angleLength, angleLength);
 
-                QPen penPoint(convertor.convert(QColor(Qt::black), false, true));
+                QPen penPoint(convertor.convert(m_settings.textColor, false, true));
                 penPoint.setCapStyle(Qt::RoundCap);
                 penPoint.setWidthF(pointSize);
                 painter->setPen(penPoint);
@@ -320,8 +334,14 @@ void DimensionsPlugin::drawPage(QPainter* painter,
                 textMatrix.rotate(-line1.angle() + dimension.getMeasuredValue() * 0.5);
 
                 QPointF textPoint = textMatrix.map(QPointF(maxLength * 0.25, 0.0));
-                QString text = QString("%1 %2").arg(locale.toString(dimension.getMeasuredValue() * m_angleUnit.scale, 'f', 2), m_angleUnit.symbol);
-                painter->drawText(textPoint, text);
+                QString text = QString("%1 %2").arg(locale.toString(dimension.getMeasuredValue() * m_settings.angleUnit.scale, 'f', 2), m_settings.angleUnit.symbol);
+
+                QRectF textBoundingRect;
+                QRectF textRect(0, 0, fontMetrics.horizontalAdvance(text) * 2, fontMetrics.lineSpacing() * 2);
+                textRect.moveCenter(textPoint);
+                painter->drawText(textRect, Qt::AlignCenter | Qt::TextDontClip | Qt::TextDontClip, text, &textBoundingRect);
+                painter->fillRect(textBoundingRect, convertor.convert(m_settings.backgroundColor, true, false));
+                painter->drawText(textRect, Qt::AlignCenter | Qt::TextDontClip, text);
 
                 break;
             }
@@ -347,7 +367,7 @@ void DimensionsPlugin::onClearDimensionsTriggered()
 
 void DimensionsPlugin::onSettingsTriggered()
 {
-    SettingsDialog dialog(m_widget, m_lengthUnit, m_areaUnit, m_angleUnit, m_scale);
+    SettingsDialog dialog(m_widget, m_settings);
     dialog.exec();
 
     updateGraphics();

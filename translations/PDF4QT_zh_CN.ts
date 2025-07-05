@@ -6245,6 +6245,37 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>实际尺寸:</translation>
     </message>
     <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="76"/>
+        <source>Appearance</source>
+        <translation type="unfinished">外观</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="92"/>
+        <source>Font</source>
+        <translation type="unfinished">字体</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="106"/>
+        <source>Select...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="99"/>
+        <source>Text Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="113"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="120"/>
+        <source>Select</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="85"/>
+        <source>Background Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.ui" line="14"/>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.ui" line="20"/>
         <source>Soft Proofing Settings</source>
@@ -6289,6 +6320,21 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.cpp" line="39"/>
         <source>Saturation</source>
         <translation>饱和度</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.cpp" line="50"/>
+        <source>Select Text Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.cpp" line="57"/>
+        <source>Select Background Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.cpp" line="65"/>
+        <source>Select Font</source>
+        <translation type="unfinished">选取字体</translation>
     </message>
 </context>
 <context>
@@ -12260,17 +12306,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>设置(&amp;T)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="149"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="151"/>
         <source>&amp;Dimensions</source>
         <translation>尺寸(&amp;D)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="271"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="279"/>
         <source>A = %1 %2</source>
         <translation>A = %1 %2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="275"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="283"/>
         <source>p = %1 %2</source>
         <translation>p = %1 %2</translation>
     </message>

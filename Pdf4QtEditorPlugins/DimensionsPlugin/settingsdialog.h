@@ -24,8 +24,11 @@
 #define SETTINGSDIALOG_H
 
 #include "dimensiontool.h"
+#include "dimensionsplugin.h"
 
 #include <QDialog>
+#include <QFont>
+#include <QColor>
 
 class QComboBox;
 
@@ -39,27 +42,31 @@ class SettingsDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit SettingsDialog(QWidget* parent,
-                            DimensionUnit& lengthUnit,
-                            DimensionUnit& areaUnit,
-                            DimensionUnit& angleUnit,
-                            double& scale);
+    explicit SettingsDialog(QWidget* parent, pdfplugin::DimensionsPluginSettings& originalSettings);
     virtual ~SettingsDialog() override;
 
     virtual void accept() override;
+
+    void setFont(const QFont& font);
+    QFont getFont() const;
+
+    void setTextColor(const QColor& color);
+    QColor getTextColor() const;
+
+    void setBackgroundColor(const QColor& color);
+    QColor getBackgroundColor() const;
 
 private:
     Ui::SettingsDialog* ui;
 
     void initComboBox(const DimensionUnits& units, const DimensionUnit& currentUnit, QComboBox* comboBox);
 
+    pdfplugin::DimensionsPluginSettings& m_originalSettings;
+    pdfplugin::DimensionsPluginSettings  m_updatedSettings;
+
     DimensionUnits m_lengthUnits;
     DimensionUnits m_areaUnits;
     DimensionUnits m_angleUnits;
-    DimensionUnit& m_lengthUnit;
-    DimensionUnit& m_areaUnit;
-    DimensionUnit& m_angleUnit;
-    double& m_scale;
 };
 
 #endif // SETTINGSDIALOG_H

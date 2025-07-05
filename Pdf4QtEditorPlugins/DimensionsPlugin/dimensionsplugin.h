@@ -31,6 +31,17 @@
 namespace pdfplugin
 {
 
+struct DimensionsPluginSettings
+{
+    DimensionUnit lengthUnit;
+    DimensionUnit areaUnit;
+    DimensionUnit angleUnit;
+    double scale = 1.0;
+    QFont font;
+    QColor textColor;
+    QColor backgroundColor;
+};
+
 class DimensionsPlugin : public pdf::PDFPlugin, public pdf::IDocumentDrawInterface
 {
     Q_OBJECT
@@ -73,12 +84,7 @@ private:
     QAction* m_clearDimensionsAction;
     QAction* m_settingsAction;
 
-    DimensionUnit m_lengthUnit;
-    DimensionUnit m_areaUnit;
-    DimensionUnit m_angleUnit;
-
-    // New member variable for scaling
-    double m_scale = 1.0;
+    DimensionsPluginSettings m_settings;
 };
 
 }   // namespace pdfplugin
