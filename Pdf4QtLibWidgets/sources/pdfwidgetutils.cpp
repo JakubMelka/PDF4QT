@@ -196,8 +196,6 @@ void PDFWidgetUtils::setDarkTheme(bool isLightTheme, bool isDarkTheme)
     {
         QPalette darkPalette = QApplication::palette();
 
-        QApplication::setStyle(QStyleFactory::create("Fusion"));
-
         // Basic colors
         darkPalette.setColor(QPalette::WindowText, QColor(240, 246, 252));
         darkPalette.setColor(QPalette::Button, QColor(53, 53, 53));
