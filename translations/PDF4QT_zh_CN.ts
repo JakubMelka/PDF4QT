@@ -6247,33 +6247,33 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="76"/>
         <source>Appearance</source>
-        <translation type="unfinished">外观</translation>
+        <translation>外观</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="92"/>
         <source>Font</source>
-        <translation type="unfinished">字体</translation>
+        <translation>字体</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="106"/>
         <source>Select...</source>
-        <translation type="unfinished"></translation>
+        <translation>选取...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="99"/>
         <source>Text Color</source>
-        <translation type="unfinished"></translation>
+        <translation>文本颜色</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="113"/>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="120"/>
         <source>Select</source>
-        <translation type="unfinished"></translation>
+        <translation>选取</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="85"/>
         <source>Background Color</source>
-        <translation type="unfinished"></translation>
+        <translation>背景颜色</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.ui" line="14"/>
@@ -6324,17 +6324,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.cpp" line="50"/>
         <source>Select Text Color</source>
-        <translation type="unfinished"></translation>
+        <translation>选取文本颜色</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.cpp" line="57"/>
         <source>Select Background Color</source>
-        <translation type="unfinished"></translation>
+        <translation>选取背景颜色</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.cpp" line="65"/>
         <source>Select Font</source>
-        <translation type="unfinished">选取字体</translation>
+        <translation>选取字体</translation>
     </message>
 </context>
 <context>
@@ -6581,7 +6581,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1834"/>
         <source>sRGB</source>
-        <translation type="unfinished"></translation>
+        <translation>sRGB</translation>
     </message>
 </context>
 <context>
@@ -6668,17 +6668,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="45"/>
         <source>1024 bits</source>
-        <translation type="unfinished"></translation>
+        <translation>1024位</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="46"/>
-        <source>2048 bits</source>
-        <translation type="unfinished"></translation>
+        <source>2048位</source>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="47"/>
         <source>4096 bits</source>
-        <translation type="unfinished"></translation>
+        <translation>4096位</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="106"/>
@@ -6785,130 +6785,130 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="257"/>
         <source>Qt</source>
-        <translation type="unfinished"></translation>
+        <translation>Qt</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="258"/>
         <source>LGPLv3</source>
-        <translation type="unfinished"></translation>
+        <translation>LGPLv3</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="260"/>
         <source>https://www.qt.io/</source>
-        <translation type="unfinished"></translation>
+        <translation>https://www.qt.io/</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="265"/>
         <source>libjpeg</source>
-        <translation type="unfinished"></translation>
+        <translation>libjpeg</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="266"/>
         <source>permissive + ack.</source>
-        <translation type="unfinished">允许+确认.</translation>
+        <translation>允许+确认.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="267"/>
         <source>https://www.ijg.org/</source>
-        <translation type="unfinished"></translation>
+        <translation>https://www.ijg.org</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="269"/>
         <source>%1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="271"/>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="312"/>
         <source>%1.%2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1.%2</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="284"/>
         <source>FreeType</source>
-        <translation type="unfinished"></translation>
+        <translation>FreeType</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="285"/>
         <source>FTL</source>
-        <translation type="unfinished"></translation>
+        <translation>FTL</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="286"/>
         <source>%1.%2.%3</source>
-        <translation type="unfinished"></translation>
+        <translation>%1.%2.%3</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="287"/>
         <source>https://www.freetype.org/index.html</source>
-        <translation type="unfinished"></translation>
+        <translation>https://www.freetype.org/index.html</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="292"/>
         <source>OpenJPEG</source>
-        <translation type="unfinished"></translation>
+        <translation>OpenJPEG</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="293"/>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="311"/>
         <source>2-clause MIT license</source>
-        <translation type="unfinished"></translation>
+        <translation>2-clause MIT license</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="295"/>
         <source>https://www.openjpeg.org/</source>
-        <translation type="unfinished"></translation>
+        <translation>https://www.openjpeg.org/</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="300"/>
         <source>OpenSSL</source>
-        <translation type="unfinished"></translation>
+        <translation>OpenSSL</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="301"/>
         <source>Apache 2.0</source>
-        <translation type="unfinished"></translation>
+        <translation>Apache 2.0</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="303"/>
         <source>https://www.openssl.org/</source>
-        <translation type="unfinished"></translation>
+        <translation>https://www.openssl.org/</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="310"/>
         <source>LittleCMS</source>
-        <translation type="unfinished"></translation>
+        <translation>LittleCMS</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="313"/>
         <source>http://www.littlecms.com/</source>
-        <translation type="unfinished"></translation>
+        <translation>http://www.littlecms.com/</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="318"/>
         <source>zlib</source>
-        <translation type="unfinished"></translation>
+        <translation>zlib</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="319"/>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="331"/>
         <source>zlib specific</source>
-        <translation type="unfinished"></translation>
+        <translation>zlib specific</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="321"/>
         <source>https://zlib.net/</source>
-        <translation type="unfinished"></translation>
+        <translation>https://zlib.net/</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="330"/>
         <source>Blend2D</source>
-        <translation type="unfinished"></translation>
+        <translation>Blend2D</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="333"/>
         <source>https://blend2d.com/</source>
-        <translation type="unfinished"></translation>
+        <translation>https://blend2d.com/</translation>
     </message>
 </context>
 <context>
