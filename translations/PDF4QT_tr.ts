@@ -2764,7 +2764,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="161"/>
         <source>Subtype</source>
-        <translation></translation>
+        <translation>Alt tür</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="181"/>
@@ -2926,32 +2926,32 @@
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="53"/>
         <source>Help</source>
-        <translation type="unfinished"></translation>
+        <translation>Yardım</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="56"/>
         <source>Show list of all available commands.</source>
-        <translation type="unfinished"></translation>
+        <translation>Kullanılabilir tüm komutların listesini göster.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="69"/>
         <source>PDFTool help</source>
-        <translation type="unfinished"></translation>
+        <translation>PDFTool yardım</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="72"/>
         <source>List of available commands</source>
-        <translation type="unfinished"></translation>
+        <translation>Kullanılabilir komutların listesi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="76"/>
         <source>Command</source>
-        <translation type="unfinished"></translation>
+        <translation>Komut</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="77"/>
         <source>Tool</source>
-        <translation type="unfinished"></translation>
+        <translation>Araç</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="78"/>
@@ -2959,82 +2959,82 @@
         <location filename="../PdfTool/pdftoolrender.cpp" line="297"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="244"/>
         <source>Description</source>
-        <translation type="unfinished"></translation>
+        <translation>Açıklama</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="118"/>
         <source>Text Encoding</source>
-        <translation type="unfinished"></translation>
+        <translation>Metin Kodlaması</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="120"/>
         <source>When you redirect console to a file, then specific codec is used to transform output text to target encoding. UTF-8 encoding is used by default. For XML output, you should use only UTF-8 codec. Available codecs:</source>
-        <translation type="unfinished"></translation>
+        <translation>Konsolu bir dosyaya yeniden yönlendirdiğinizde, çıktı metnini hedef kodlamaya dönüştürmek için belirli bir codec bileşeni kullanılır. Varsayılan olarak UTF-8 kodlaması kullanılır. XML çıktısı için yalnızca UTF-8 codec bileşenini kullanmalısınız. Kullanılabilir codec bileşenleri:</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="131"/>
         <source>Suggested codec: UTF-8 or %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Önerilen codec bileşeni: UTF-8 veya %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="376"/>
         <source>Unknown console format &apos;%1&apos;. Defaulting to text console format.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilinmeyen konsol biçimi &apos;%1&apos;. Varsayılan olarak metin konsolu biçimine ayarlanır.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="406"/>
         <source>Unknown console date/time format &apos;%1&apos;. Defaulting to short date/time format.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilinmeyen konsol tarih/saat biçimi &apos;%1&apos;. Varsayılan olarak kısa tarih/saat biçimine ayarlanır.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="481"/>
         <source>Unknown text layout analysis algorithm &apos;%1&apos;. Defaulting to automatic algorithm selection.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilinmeyen metin düzeni çözümleme algoritması &apos;%1&apos;. Varsayılan olarak otomatik algoritma seçimine ayarlanır.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="509"/>
         <source>Unknown audio format &apos;%1&apos;. Defaulting to mp3 audio format.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilinmeyen ses biçimi &apos;%1&apos;. Varsayılan olarak mp3 ses formatına ayarlanmıştır.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="532"/>
         <source>Image format &apos;%1&apos; is not supported. Defaulting to png.</source>
-        <translation type="unfinished"></translation>
+        <translation>Görüntü biçimi &apos;%1&apos; desteklenmez. Varsayılan olarak png&apos;dir.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="549"/>
         <source>Image format subtype &apos;%1&apos; is not supported.</source>
-        <translation type="unfinished"></translation>
+        <translation>Görüntü biçimi alt türü &apos;%1&apos; desteklenmez.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="568"/>
         <source>Image compression for current format is not supported.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçerli biçim için resim sıkıştırma desteklenmez.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="573"/>
         <source>Invalid compression level &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz sıkıştırma düzeyi &apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="592"/>
         <source>Image quality settings for current format is not supported.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçerli format için resim kalitesi ayarları desteklenmez.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="597"/>
         <source>Invalid image quality &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz resim kalitesi &apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="612"/>
         <source>Optimized write is not supported.</source>
-        <translation type="unfinished"></translation>
+        <translation>İyileştirilmiş yazma desteklenmez.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="624"/>
         <source>Progressive scan write is not supported.</source>
-        <translation type="unfinished"></translation>
+        <translation>Aşamalı tarama yazımı desteklenmez.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="656"/>
@@ -3141,27 +3141,27 @@
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1045"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="95"/>
         <source>Warning: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Uyarı: %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="42"/>
         <source>Attachments</source>
-        <translation type="unfinished"></translation>
+        <translation>Ekler</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="45"/>
         <source>Show list or save attached files.</source>
-        <translation type="unfinished"></translation>
+        <translation>Listeyi göster veya ekli dosyaları kaydet.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="122"/>
         <source>Attached files of document %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge %1&apos;in ekli dosyaları</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="125"/>
         <source>Attached files overview</source>
-        <translation type="unfinished"></translation>
+        <translation>Ekli dosyalar genel bakış</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="128"/>
@@ -3176,13 +3176,13 @@
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="77"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="146"/>
         <source>No.</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="129"/>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="168"/>
         <source>File name</source>
-        <translation type="unfinished"></translation>
+        <translation>Dosya adı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="130"/>
@@ -3230,7 +3230,7 @@
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="240"/>
         <source>Voice list</source>
-        <translation type="unfinished"></translation>
+        <translation>Ses listesi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="243"/>
@@ -3239,56 +3239,56 @@
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="85"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="263"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation>Ad</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="244"/>
         <source>Gender</source>
-        <translation type="unfinished"></translation>
+        <translation>Cinsiyet</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="245"/>
         <source>Age</source>
-        <translation type="unfinished"></translation>
+        <translation>Yaş</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="246"/>
         <source>Lang. Code</source>
-        <translation type="unfinished"></translation>
+        <translation>Dil Kodu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="247"/>
         <source>Locale</source>
-        <translation type="unfinished"></translation>
+        <translation>Konum</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="248"/>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="197"/>
         <source>Language</source>
-        <translation type="unfinished"></translation>
+        <translation>Dil</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="249"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="260"/>
         <source>Country</source>
-        <translation type="unfinished"></translation>
+        <translation>Ülke</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="250"/>
         <source>Vendor</source>
-        <translation type="unfinished"></translation>
+        <translation>Sağlayıcı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="251"/>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="97"/>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="227"/>
         <source>Version</source>
-        <translation type="unfinished"></translation>
+        <translation>Sürüm</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="286"/>
         <source>Audio book voices</source>
-        <translation type="unfinished"></translation>
+        <translation>Sesli Kitap Sesleri</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="289"/>
@@ -3313,7 +3313,7 @@
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="405"/>
         <source>Invalid voice.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz ses.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="416"/>
@@ -3354,7 +3354,7 @@
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="80"/>
         <source>Certificates</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifikalar</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="84"/>
@@ -3365,19 +3365,19 @@
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="131"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="147"/>
         <source>Type</source>
-        <translation type="unfinished"></translation>
+        <translation>Tür</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="85"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="149"/>
         <source>Certificate</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifika</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="86"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="261"/>
         <source>Organization</source>
-        <translation type="unfinished"></translation>
+        <translation>Organizasyon</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="87"/>
@@ -3394,17 +3394,17 @@
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="100"/>
         <source>User</source>
-        <translation type="unfinished"></translation>
+        <translation>Kullanıcı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="104"/>
         <source>System</source>
-        <translation type="unfinished"></translation>
+        <translation>Sistem</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="161"/>
         <source>Install Certificate</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifika Kur</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="164"/>
@@ -3512,22 +3512,22 @@
     <message>
         <location filename="../PdfTool/pdftooldiff.cpp" line="101"/>
         <source>Differences</source>
-        <translation type="unfinished"></translation>
+        <translation>Farklılıklar</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldiff.cpp" line="106"/>
         <source>Left Page</source>
-        <translation type="unfinished"></translation>
+        <translation>Sol Sayfa</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldiff.cpp" line="107"/>
         <source>Right Page</source>
-        <translation type="unfinished"></translation>
+        <translation>Sağ Sayfa</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolencrypt.cpp" line="40"/>
         <source>Encrypt</source>
-        <translation type="unfinished"></translation>
+        <translation>Şifrele</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolencrypt.cpp" line="43"/>
@@ -3571,7 +3571,7 @@
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="202"/>
         <source>Image No.</source>
-        <translation type="unfinished"></translation>
+        <translation>Resim No.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="203"/>
@@ -3579,22 +3579,22 @@
         <location filename="../PdfTool/pdftoolrender.cpp" line="335"/>
         <location filename="../PdfTool/pdftoolrender.cpp" line="371"/>
         <source>Page No.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa No.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="204"/>
         <source>Width [pixels]</source>
-        <translation type="unfinished"></translation>
+        <translation>Genişlik [pixel]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="205"/>
         <source>Height [pixels]</source>
-        <translation type="unfinished"></translation>
+        <translation>Yükseklik [pixel]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="206"/>
         <source>Size [bytes]</source>
-        <translation type="unfinished"></translation>
+        <translation>Boyut [byte]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="207"/>
@@ -3620,7 +3620,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="43"/>
         <source>Info</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilgi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="46"/>
@@ -3636,7 +3636,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="74"/>
         <source>Properties:</source>
-        <translation type="unfinished"></translation>
+        <translation>Özellikler:</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="77"/>
@@ -3652,49 +3652,49 @@
         <location filename="../PdfTool/pdftoolrender.cpp" line="298"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="245"/>
         <source>Value</source>
-        <translation type="unfinished"></translation>
+        <translation>Değer</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="89"/>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="193"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="267"/>
         <source>Title</source>
-        <translation type="unfinished"></translation>
+        <translation>Başlık</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="90"/>
         <source>Subject</source>
-        <translation type="unfinished"></translation>
+        <translation>Konu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="91"/>
         <source>Keywords</source>
-        <translation type="unfinished"></translation>
+        <translation>Anahtar kelimeler</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="92"/>
         <source>Author</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazar</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="93"/>
         <source>Creator</source>
-        <translation type="unfinished"></translation>
+        <translation>Oluşturucu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="94"/>
         <source>Producer</source>
-        <translation type="unfinished"></translation>
+        <translation>Yapımcı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="95"/>
         <source>Creation date</source>
-        <translation type="unfinished"></translation>
+        <translation>Oluşturma tarihi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="96"/>
         <source>Modified date</source>
-        <translation type="unfinished"></translation>
+        <translation>Düzenleme tarihi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="103"/>
@@ -3707,7 +3707,7 @@
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="177"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="206"/>
         <source>Yes</source>
-        <translation type="unfinished"></translation>
+        <translation>Evet</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="107"/>
@@ -3722,14 +3722,14 @@
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="177"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="206"/>
         <source>No</source>
-        <translation type="unfinished"></translation>
+        <translation>Hayır</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="111"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="169"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="198"/>
         <source>Unknown</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilinmeyen</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="119"/>
@@ -3740,7 +3740,7 @@
         <location filename="../PdfTool/pdftoolinfo.cpp" line="126"/>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="180"/>
         <source>None</source>
-        <translation type="unfinished"></translation>
+        <translation>Hiçbiri</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="130"/>
@@ -3750,54 +3750,54 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="134"/>
         <source>XFA</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="142"/>
         <source>Form type</source>
-        <translation type="unfinished"></translation>
+        <translation>Form türü</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="145"/>
         <source>Page count</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa sayısı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="153"/>
         <source>Paper format</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa biçimi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="154"/>
         <source>Paper size</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa boyutu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="169"/>
         <source>File size</source>
-        <translation type="unfinished"></translation>
+        <translation>Dosya boyutu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="172"/>
         <source>JavaScript</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="184"/>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="222"/>
         <source>Standard</source>
-        <translation type="unfinished"></translation>
+        <translation>Standart</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="188"/>
         <source>Public Key</source>
-        <translation type="unfinished"></translation>
+        <translation>Genel anahtar</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="192"/>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="244"/>
         <source>Custom</source>
-        <translation type="unfinished"></translation>
+        <translation>Özel</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="204"/>
@@ -3817,7 +3817,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="220"/>
         <source>Encryption</source>
-        <translation type="unfinished"></translation>
+        <translation>Şifreleme</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="221"/>
@@ -3832,37 +3832,37 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="231"/>
         <source>Print (low resolution)</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazdır (düşük çözünürlüklü)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="235"/>
         <source>Print</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazdır</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="239"/>
         <source>Copy content</source>
-        <translation type="unfinished"></translation>
+        <translation>İçeriği kopyala</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="243"/>
         <source>Accessibility</source>
-        <translation type="unfinished"></translation>
+        <translation>Erişilebilirlik</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="247"/>
         <source>Page assembling</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa birleştirme</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="251"/>
         <source>Modify content</source>
-        <translation type="unfinished"></translation>
+        <translation>İçeriği düzenle</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="255"/>
         <source>Modify interactive items</source>
-        <translation type="unfinished"></translation>
+        <translation>Etkileşimli öğeleri değiştir</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="259"/>
@@ -3872,12 +3872,12 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="264"/>
         <source>All</source>
-        <translation type="unfinished"></translation>
+        <translation>Tümü</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="267"/>
         <source>Permissions</source>
-        <translation type="unfinished"></translation>
+        <translation>İzinler</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="275"/>
@@ -3887,42 +3887,42 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="278"/>
         <source>Algorithm</source>
-        <translation type="unfinished"></translation>
+        <translation>Algoritma</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="279"/>
         <source>Hash</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="290"/>
         <source>MD5</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="291"/>
         <source>SHA1</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="292"/>
         <source>SHA256</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="293"/>
         <source>SHA384</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="294"/>
         <source>SHA512</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="42"/>
         <source>Info about used fonts</source>
-        <translation type="unfinished"></translation>
+        <translation>Kullanılan yazıtipleri hakkında bilgi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="45"/>
@@ -3932,57 +3932,57 @@
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="173"/>
         <source>Type 0 (CID)</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="177"/>
         <source>Type 1 (8 bit)</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="181"/>
         <source>MM Type 1 (8 bit)</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="185"/>
         <source>TrueType (8 bit)</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="189"/>
         <source>Type 3</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="225"/>
         <source>MacRoman</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="228"/>
         <source>WinAnsi</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="231"/>
         <source>PDFDoc</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="234"/>
         <source>MacExpert</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="237"/>
         <source>Symbol</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="240"/>
         <source>ZapfDingbats</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="285"/>
@@ -3993,22 +3993,22 @@
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="292"/>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="352"/>
         <source>Font Name</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazıtipi Adı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="293"/>
         <source>Font Type</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazıtipi Türü</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="294"/>
         <source>Encoding</source>
-        <translation type="unfinished"></translation>
+        <translation>Kodlama</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="295"/>
         <source>Pages</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfalar</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="296"/>
@@ -4018,19 +4018,19 @@
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="297"/>
         <source>Subset</source>
-        <translation type="unfinished"></translation>
+        <translation>Alt tür</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="298"/>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="411"/>
         <source>Unicode</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="299"/>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="355"/>
         <source>Object</source>
-        <translation type="unfinished"></translation>
+        <translation>Nesne</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="300"/>
@@ -4041,7 +4041,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="307"/>
         <source>--</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="348"/>
@@ -4061,32 +4061,32 @@
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="371"/>
         <source>??</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="395"/>
         <source>Font Character Maps</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazı Tipi Karakter Haritaları</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="405"/>
         <source>Character Map for Font &apos;%1&apos;</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; Yazı Tipi için Karakter Eşlem</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="409"/>
         <source>Glyph Index</source>
-        <translation type="unfinished"></translation>
+        <translation>Glif İndeksi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="410"/>
         <source>Character</source>
-        <translation type="unfinished"></translation>
+        <translation>Karakter</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfoinks.cpp" line="39"/>
         <source>Info about used inks</source>
-        <translation type="unfinished"></translation>
+        <translation>Kullanılan mürekkepler hakkında bilgi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfoinks.cpp" line="42"/>
