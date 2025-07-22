@@ -2683,118 +2683,119 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="14"/>
         <source>Render Document to Images</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgeyi Resimlere Dönüştür</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="20"/>
         <source>Output Files Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgeyi Görüntülere Dönüştür</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="26"/>
         <source>Pages to render</source>
-        <translation type="unfinished"></translation>
+        <translatorcomment>Render ifadesi &quot;Oluşturulacak&quot; olarak kullanıldı</translatorcomment>
+        <translation>Oluşturulacak sayfalar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="33"/>
         <source>File template</source>
-        <translation type="unfinished"></translation>
+        <translation>Dosya şablonu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="40"/>
         <source>All</source>
-        <translation type="unfinished"></translation>
+        <translation>Tümü</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="47"/>
         <source>Generate into directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Dizine oluştur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="54"/>
         <source>...</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="67"/>
         <source>Pages:</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfalar:</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="80"/>
         <source>Image Resolution</source>
-        <translation type="unfinished"></translation>
+        <translation>Resim Çözünürlüğü</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="86"/>
         <source>Resolution</source>
-        <translation type="unfinished"></translation>
+        <translation>Çözünürlük</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="93"/>
         <source>Pixels</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="100"/>
         <source>DPI</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="107"/>
         <source> dots/inch</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="126"/>
         <source> px</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="148"/>
         <source>Image Format Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Resim Biçimi Ayarları</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="154"/>
         <source>Format</source>
-        <translation type="unfinished"></translation>
+        <translation>Biçim</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="161"/>
         <source>Subtype</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="181"/>
         <source>Gamma</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="188"/>
         <source>Optimized write</source>
-        <translation type="unfinished"></translation>
+        <translation>Optimize edilmiş yazma</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="198"/>
         <source>Quality</source>
-        <translation type="unfinished"></translation>
+        <translation>Kalite</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="205"/>
         <source>Compression</source>
-        <translation type="unfinished"></translation>
+        <translation>Sıkıştırma</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="215"/>
         <source>Progressive scan write</source>
-        <translation type="unfinished"></translation>
+        <translation>Aşamalı tarama yazma</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="222"/>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="229"/>
         <source>Enable</source>
-        <translation type="unfinished"></translation>
+        <translation>Etkinleştir</translation>
     </message>
 </context>
 <context>
@@ -2802,7 +2803,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfrenderingerrorswidget.ui" line="14"/>
         <source>Rendering errors</source>
-        <translation type="unfinished"></translation>
+        <translation>Renderleme Hataları</translation>
     </message>
 </context>
 <context>
@@ -2810,12 +2811,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.ui" line="14"/>
         <source>Document sanitization</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge Sterilizasyonu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.ui" line="20"/>
         <source>Sanitization Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Sterilizasyon Ayarları</translation>
     </message>
 </context>
 <context>
@@ -2823,27 +2824,27 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.ui" line="20"/>
         <source>All pages</source>
-        <translation type="unfinished"></translation>
+        <translation>Tüm sayfalar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.ui" line="30"/>
         <source>Even pages</source>
-        <translation type="unfinished"></translation>
+        <translation>Çift sayfalar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.ui" line="37"/>
         <source>Odd pages</source>
-        <translation type="unfinished"></translation>
+        <translation>Tek sayfalar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.ui" line="44"/>
         <source>Custom page range:</source>
-        <translation type="unfinished"></translation>
+        <translation>Özel sayfa aralığı:</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.ui" line="51"/>
         <source>Visible pages</source>
-        <translation type="unfinished"></translation>
+        <translation>Görünür sayfalar</translation>
     </message>
 </context>
 <context>
@@ -2856,68 +2857,68 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="116"/>
         <source>Thumbnails</source>
-        <translation type="unfinished"></translation>
+        <translation>Küçük resimler</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="148"/>
         <source>Visibility</source>
-        <translation type="unfinished"></translation>
+        <translation>Görünürlük</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="180"/>
         <source>Attachments</source>
-        <translation type="unfinished"></translation>
+        <translation>Ekler</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="212"/>
         <source>Speech</source>
-        <translation type="unfinished"></translation>
+        <translation>Konuşma</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="244"/>
         <source>Signatures</source>
-        <translation type="unfinished"></translation>
+        <translation>İmzalar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="276"/>
         <source>Bookmarks</source>
-        <translation type="unfinished"></translation>
+        <translation>Yer İşaretleri</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="305"/>
         <source>Notes</source>
-        <translation type="unfinished"></translation>
+        <translation>Notlar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="318"/>
         <source>Ctrl+S</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="384"/>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="574"/>
         <source>Search text or wildcard...</source>
-        <translation type="unfinished"></translation>
+        <translation>Metin veya joker karakter ara...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="421"/>
         <source>Synchronize thumbnails with current page</source>
-        <translation type="unfinished"></translation>
+        <translation>Mevcut sayfa ile küçük resimleri senkronize edin</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="622"/>
         <source>Volume</source>
-        <translation type="unfinished"></translation>
+        <translation>Ses</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="642"/>
         <source>Pitch</source>
-        <translation type="unfinished"></translation>
+        <translation>Ton</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="662"/>
         <source>Rate</source>
-        <translation type="unfinished"></translation>
+        <translation>Tempo</translation>
     </message>
 </context>
 <context>
