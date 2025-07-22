@@ -2515,54 +2515,54 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="14"/>
         <source>Style Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Stil Ayarları</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="20"/>
         <source>Text Alignment</source>
-        <translation type="unfinished"></translation>
+        <translation>Metin Hizalama</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="27"/>
         <source>Pen Style</source>
-        <translation type="unfinished"></translation>
+        <translation>Kalem Stili</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="70"/>
         <source>Pen Width</source>
-        <translation type="unfinished"></translation>
+        <translation>Kalem Genişliği</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="77"/>
         <source>Brush Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Fırça Rengi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="174"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="205"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="212"/>
         <source>...</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="181"/>
         <source>Pen Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Kalem Rengi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="188"/>
         <source>Font</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazıtipi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="198"/>
         <source>Text Angle</source>
-        <translation type="unfinished"></translation>
+        <translation>Metin Açısı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="219"/>
         <source>Brush Style</source>
-        <translation type="unfinished"></translation>
+        <translation>Fırça Stili</translation>
     </message>
 </context>
 <context>
@@ -2570,112 +2570,112 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="17"/>
         <source>Content editor</source>
-        <translation type="unfinished"></translation>
+        <translation>İçerik Editörü</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="24"/>
         <source>Toolbox</source>
-        <translation type="unfinished"></translation>
+        <translation>Araç kutusu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="32"/>
         <source>Geometry Tools</source>
-        <translation type="unfinished"></translation>
+        <translation>Geometri Araçları</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="38"/>
         <source>Align to Top</source>
-        <translation type="unfinished"></translation>
+        <translation>Yukarıya Hizala</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="45"/>
         <source>Align to Vertical Center</source>
-        <translation type="unfinished"></translation>
+        <translation>Dikey Merkeze Hizala</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="52"/>
         <source>Align to Bottom</source>
-        <translation type="unfinished"></translation>
+        <translation>Alta Hizala</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="59"/>
         <source>Set Same Width</source>
-        <translation type="unfinished"></translation>
+        <translation>Aynı Genişliği Ayarla</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="66"/>
         <source>Set Same Height</source>
-        <translation type="unfinished"></translation>
+        <translation>Aynı Yüksekliği Ayarla</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="73"/>
         <source>Set Same Size</source>
-        <translation type="unfinished"></translation>
+        <translation>Aynı Boyutu Ayarla</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="80"/>
         <source>Align to Left</source>
-        <translation type="unfinished"></translation>
+        <translation>Sola Hizala</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="87"/>
         <source>Align to Horizontal Center</source>
-        <translation type="unfinished"></translation>
+        <translation>Yatay Merkeze Hizala</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="94"/>
         <source>Align to Right</source>
-        <translation type="unfinished"></translation>
+        <translation>Sağa Hizala</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="101"/>
         <source>Center Horizontally</source>
-        <translation type="unfinished"></translation>
+        <translation>Yatay Olarak Ortala</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="108"/>
         <source>Center Vertically</source>
-        <translation type="unfinished"></translation>
+        <translation>Dikey Olarak Ortala</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="115"/>
         <source>Center to Page Media Box</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa Ortasına Ortala Medya Kutusu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="125"/>
         <source>Layout Tools</source>
-        <translation type="unfinished"></translation>
+        <translation>Düzen Araçları</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="131"/>
         <source>Make Horizontal Layout</source>
-        <translation type="unfinished"></translation>
+        <translation>Yatay Düzen Yap</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="138"/>
         <source>Make Vertical Layout</source>
-        <translation type="unfinished"></translation>
+        <translation>Dikey Düzen Yap</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="145"/>
         <source>Make Form Layout</source>
-        <translation type="unfinished"></translation>
+        <translation>Form Düzeni Yap</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="152"/>
         <source>Make Grid Layout</source>
-        <translation type="unfinished"></translation>
+        <translation>Izgara Düzeni Yap</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="162"/>
         <source>Appearance</source>
-        <translation type="unfinished"></translation>
+        <translation>Görünüş</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="186"/>
         <source>Content</source>
-        <translation type="unfinished"></translation>
+        <translation>İçerik</translation>
     </message>
 </context>
 <context>
