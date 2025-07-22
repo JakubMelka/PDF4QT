@@ -477,22 +477,22 @@
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="65"/>
         <source>Go beyond basic browsing. This tool packs a punch with a host of advanced features, including encryption, document reading, digital signature verification, annotation editing, and even support for searching text using regular expressions. Turn pages into images, and enhance your PDF interactions with multiple available plugins.</source>
-        <translation type="unfinished"></translation>
+        <translation>Temel gezinmenin ötesine geçin. Bu araç, şifreleme, belge okuma, dijital imza doğrulama, açıklama düzenleme ve hatta normal ifadeler kullanarak metin arama desteği dahil olmak üzere bir dizi gelişmiş özelliğe sahiptir. Sayfaları görüntülere dönüştürün ve mevcut birden çok eklentiyle PDF etkileşimlerinizi geliştirin.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="66"/>
         <source>Simplify your viewing experience. This lightweight viewer offers essential viewing functions in a clean, user-friendly interface.</source>
-        <translation type="unfinished"></translation>
+        <translation>Görüntüleme deneyiminizi basitleştirin. Bu hafif görüntüleyici, temiz, kullanıcı dostu bir arayüzde temel görüntüleme işlevleri sunar.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="67"/>
         <source>Spot differences effortlessly. This tool allows users to open two documents and receive a detailed list of differences. View these differences in a page-to-page window where they are clearly marked. Save these differences into an XML file for future reference.</source>
-        <translation type="unfinished"></translation>
+        <translation>Farklılıkları zahmetsizce tespit edin. Bu araç, kullanıcıların iki belge açmasına ve ayrıntılı bir farklılık listesi almasına olanak tanır. Bu farklılıkları, açıkça işaretlendikleri bir sayfa penceresinden diğerine görüntüleyin. Bu farklılıkları ileride başvurmak üzere bir XML dosyasına kaydedin.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="68"/>
         <source>Take control of your documents. Manage whole documents or individual pages with ease. Merge documents into a single file, or split them into multiple ones. You can also move, clone, or add pages with a few clicks, all within an intuitive user interface.</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgelerinizin kontrolünü elinize alın. Tüm belgeleri veya tek tek sayfaları kolaylıkla yönetin. Belgeleri tek bir dosyada birleştirin veya birden çok dosyaya bölün. Ayrıca, sezgisel bir kullanıcı arayüzünde birkaç tıklamayla sayfaları taşıyabilir, klonlayabilir veya ekleyebilirsiniz.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="116"/>
@@ -1303,7 +1303,7 @@
         <location filename="../Pdf4QtPageMaster/aboutdialog.ui" line="26"/>
         <location filename="../Pdf4QtDiff/aboutdialog.ui" line="26"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;PdfForQtViewer&lt;/span&gt;&lt;/p&gt;&lt;p&gt;Copyright 2018-2025 Jakub Melka. All rights reserved.&lt;/p&gt;&lt;p&gt;THE SOFTWARE IS PROVIDED &amp;quot;AS IS&amp;quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR ANYONE DISTRIBUTING THE SOFTWARE BE LIABLE FOR ANY DAMAGES OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;PdfForQtViewer&lt;/span&gt;&lt;/p&gt;&lt;p&gt;Copyright 2018-2025 Jakub Melka. Tüm hakları saklıdır.&lt;/p&gt;&lt;p&gt;YAZILIM, TAYİN EDİLEBİLİRLİK, BELİRLİ BİR AMACA UYGUNLUK, BAŞLIK VE İHLAL ETME GARANTİLERİ DAHİL ANCAK BUNLARLA SINIRLI OLMAMAK ÜZERE, HERHANGİ BİR TÜR GARANTİ OLMADAN &amp;quot;OLDUĞU GİBİ&amp;quot; OLDUĞU GİBİ SAĞLANIR. HİÇBİR DURUMDA, TELİF HAKKI SAHİPLERİ VEYA YAZILIMI DAĞITAN HERHANGİ BİRİ, SÖZLEŞMEDE, HAKSIZ FİİL VEYA BAŞKA BİR ŞEKİLDE, YAZILIMDAN VEYA YAZILIMDAKİ KULLANIM VEYA DİĞER İLİŞKİLERLE BAĞLANTILI OLARAK HERHANGİ BİR ZARAR VEYA DİĞER YÜKÜMLÜLÜKTEN SORUMLU OLMAZ.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfaboutdialog.ui" line="74"/>
@@ -1467,7 +1467,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="109"/>
         <source>Valid till</source>
-        <translation>Şu tarihe kadar geçerlidir:</translation>
+        <translation>Geçerlilik tarihi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="128"/>
@@ -1893,7 +1893,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="662"/>
         <source>Render to &amp;Images...</source>
-        <translation>Resimleri Render&apos;la...</translation>
+        <translation>Res&amp;imleri Render&apos;la...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="674"/>
@@ -2231,107 +2231,107 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="14"/>
         <source>Encryption Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Şifreleme Ayarları</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="20"/>
         <source>Encryption Method</source>
-        <translation type="unfinished"></translation>
+        <translation>Şifreleme Yöntemi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="26"/>
         <source>Encryption algorithm</source>
-        <translation type="unfinished"></translation>
+        <translation>Şifreleme algoritması</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="36"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Select encryption algorithm. AES-256 is strongly recommended, because older encryption algorithm can be potentially broken. Select older algorithms (as AES-128 or RC4) only, if you need backward compatibility. Also, choose a strong password to ensure strong encryption.&lt;/p&gt;&lt;p&gt;Public key security using certificate is also supported. In that case, you must select a certificate with private key, and this certificate is then used to encrypt data. User, which wants to open document encrypted with certificate, must have a private key to the certificae.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Şifreleme algoritmasını seçin. AES-256 şiddetle tavsiye edilir, çünkü eski şifreleme algoritması potansiyel olarak bozulabilir. Geriye dönük uyumluluğa ihtiyacınız varsa yalnızca eski algoritmaları (AES-128 veya RC4 olarak) seçin. Ayrıca, güçlü şifreleme sağlamak için güçlü bir parola seçin.&lt;/p&gt;&lt;p&gt;Sertifika kullanan ortak anahtar güvenliği de desteklenir. Bu durumda, özel anahtarlı bir sertifika seçmeniz gerekir ve bu sertifika daha sonra verileri şifrelemek için kullanılır. Sertifika ile şifrelenmiş belgeyi açmak isteyen kullanıcının, sertifika için özel bir anahtara sahip olması gerekir.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="46"/>
         <source>Certificate</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifika</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="59"/>
         <source>Passwords</source>
-        <translation type="unfinished"></translation>
+        <translation>Parolalar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="65"/>
         <source>Password (document open)</source>
-        <translation type="unfinished"></translation>
+        <translation>Şifre (belge açık)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="92"/>
         <source>Password (owner access)</source>
-        <translation type="unfinished"></translation>
+        <translation>Parola (sahip erişimi)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="102"/>
         <source>Encrypt Contents</source>
-        <translation type="unfinished"></translation>
+        <translation>İçeriği Şifrele</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="108"/>
         <source>Encrypt all document contents, including document metadata</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge meta verileri de dahil olmak üzere tüm belge içeriğini şifreleyin</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="118"/>
         <source>Encrypt all document contets except metadata</source>
-        <translation type="unfinished"></translation>
+        <translation>Meta veriler dışındaki tüm belge içeriklerini şifreleyin</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="125"/>
         <source>Encrypt file attachments only</source>
-        <translation type="unfinished"></translation>
+        <translation>Yalnızca dosya eklerini şifreleyin</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="135"/>
         <source>Permissions</source>
-        <translation type="unfinished"></translation>
+        <translation>İzinler</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="141"/>
         <source>Print (low resolution)</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazdır (düşük çözünürlüklü)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="148"/>
         <source>Fill interactive forms</source>
-        <translation type="unfinished"></translation>
+        <translation>Etkileşimli formları doldurun</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="155"/>
         <source>Print (high resolution)</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazdır (yüksek çözünürlüklü)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="162"/>
         <source>Accessibility</source>
-        <translation type="unfinished"></translation>
+        <translation>Erişilebilirlik</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="169"/>
         <source>Modify document contents</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge içeriğini değiştir</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="176"/>
         <source>Assemble document (insert, rotate, delete pages...)</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgeyi birleştirin (sayfa ekleme, döndürme, silme...)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="183"/>
         <source>Edit interactive items (annotations, forms, ...)</source>
-        <translation type="unfinished"></translation>
+        <translation>Etkileşimli öğeleri düzenleyin (açıklamalar, formlar,...)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="190"/>
         <source>Copy/extract document content</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge içeriğini kopyala/ayıkla</translation>
     </message>
 </context>
 <context>
@@ -2339,12 +2339,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.ui" line="14"/>
         <source>Document optimization</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge optimizasyonu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.ui" line="20"/>
         <source>Optimization Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Optimizasyon Seçenekleri</translation>
     </message>
 </context>
 <context>
@@ -2352,158 +2352,162 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="14"/>
         <source>Dialog</source>
-        <translation type="unfinished"></translation>
+        <translation>Diyalog</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="24"/>
         <source>Text</source>
-        <translation type="unfinished"></translation>
+        <translation>Metin</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="30"/>
         <source>Text Content</source>
-        <translation type="unfinished"></translation>
+        <translation>Metin İçeriği</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="43"/>
         <source>Image</source>
-        <translation type="unfinished"></translation>
+        <translation>Resim</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="49"/>
         <source>Image Content</source>
-        <translation type="unfinished"></translation>
+        <translation>Resim İçeriği</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="57"/>
         <source>Height</source>
-        <translation type="unfinished"></translation>
+        <translation>Yükseklik</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="64"/>
         <source>Width</source>
-        <translation type="unfinished"></translation>
+        <translation>Genişlik</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="85"/>
         <source>Ratio</source>
-        <translation type="unfinished"></translation>
+        <translation>Oran</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="113"/>
         <source>Load Image</source>
-        <translation type="unfinished"></translation>
+        <translation>Resim Yükle</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="139"/>
         <source>Style</source>
-        <translation type="unfinished"></translation>
+        <translation>Stil</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="145"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="169"/>
         <source>...</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="155"/>
         <source>Pen Style</source>
-        <translation type="unfinished"></translation>
+        <translation>Kalem Stili</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="162"/>
         <source>Pen Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Kalem Rengi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="179"/>
         <source>Brush Style</source>
-        <translation type="unfinished"></translation>
+        <translation>Fırça Stili</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="186"/>
         <source>Pen Width</source>
-        <translation type="unfinished"></translation>
+        <translation>Kalem Genişliği</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="193"/>
         <source>Stroke path</source>
-        <translation type="unfinished"></translation>
+        <translation>Kontur yolu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="216"/>
         <source>Brush Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Fırça Rengi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="237"/>
         <source>Fill path</source>
-        <translation type="unfinished"></translation>
+        <translation>Dolgu yolu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="245"/>
         <source>Transformation</source>
-        <translation type="unfinished"></translation>
+        <translation>Dönüşüm</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="253"/>
         <source>Translation in Y</source>
-        <translation type="unfinished"></translation>
+        <translation>Y&apos;de dönüştür</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="270"/>
         <source>Translation in X</source>
-        <translation type="unfinished"></translation>
+        <translation>X&apos;te dönüştür</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="287"/>
         <source>Scale in X</source>
-        <translation type="unfinished"></translation>
+        <translation>X&apos;te ölçeklendirin</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="324"/>
         <source>Scale in Y</source>
-        <translation type="unfinished"></translation>
+        <translation>Y&apos;de ölçeklendirin</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="331"/>
         <source>Shear factor</source>
-        <translation type="unfinished"></translation>
+        <translation>Kesme faktörü</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="351"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Rotation angle&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Dönme açısı&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="368"/>
         <source>φ</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="375"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;s&lt;span style=&quot; vertical-align:sub;&quot;&gt;x&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translatorcomment>stil değeri,&quot; dikey hizalama:alt;&quot; olarak çevrilmemeli</translatorcomment>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="382"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;s&lt;span style=&quot; vertical-align:sub;&quot;&gt;y&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translatorcomment>stil değeri,&quot; dikey hizalama:alt;&quot; olarak çevrilmemeli</translatorcomment>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="389"/>
         <source>m</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="396"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;t&lt;span style=&quot; vertical-align:sub;&quot;&gt;x&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translatorcomment>stil değeri,&quot; dikey hizalama:alt;&quot; olarak çevrilmemeli</translatorcomment>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="403"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;t&lt;span style=&quot; vertical-align:sub;&quot;&gt;y&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translatorcomment>stil değeri,&quot; dikey hizalama:alt;&quot; olarak çevrilmemeli</translatorcomment>
+        <translation></translation>
     </message>
 </context>
 <context>
