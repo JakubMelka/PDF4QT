@@ -1551,7 +1551,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="86"/>
         <source>Re&amp;ndering Options</source>
-        <translation>Re&amp;nderleme Seçenekleri</translation>
+        <translation>İ&amp;şleme Seçenekleri</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="116"/>
@@ -1688,7 +1688,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="334"/>
         <source>&amp;Rendering Errors...</source>
-        <translation>&amp;Renderleme Hataları...</translation>
+        <translation>&amp;İşleme Hataları...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="337"/>
@@ -1893,7 +1893,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="662"/>
         <source>Render to &amp;Images...</source>
-        <translation>Res&amp;imleri Render&apos;la...</translation>
+        <translation>Res&amp;imleri İşle...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="674"/>
@@ -2218,12 +2218,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1189"/>
         <source>Display &amp;Render Times</source>
-        <translation>&amp;Render Süresini Görüntüle</translation>
+        <translation>&amp;İşleme Süresini Görüntüle</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1192"/>
         <source>Display Render Times</source>
-        <translation>Render Süresini Görüntüle</translation>
+        <translation>İşleme Süresini Görüntüle</translation>
     </message>
 </context>
 <context>
@@ -2683,6 +2683,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="14"/>
         <source>Render Document to Images</source>
+        <translatorcomment>İşle yerine dönüştür kelimesi kullanıldı</translatorcomment>
         <translation>Belgeyi Resimlere Dönüştür</translation>
     </message>
     <message>
@@ -2693,8 +2694,8 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="26"/>
         <source>Pages to render</source>
-        <translatorcomment>Render ifadesi &quot;Oluşturulacak&quot; olarak kullanıldı</translatorcomment>
-        <translation>Oluşturulacak sayfalar</translation>
+        <translatorcomment>Render ifadesi &quot;İşleme&quot; olarak kullanıldı</translatorcomment>
+        <translation>İşlenecek sayfalar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="33"/>
@@ -2803,7 +2804,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfrenderingerrorswidget.ui" line="14"/>
         <source>Rendering errors</source>
-        <translation>Renderleme Hataları</translation>
+        <translation>İşleme Hataları</translation>
     </message>
 </context>
 <context>
@@ -3039,103 +3040,104 @@
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="656"/>
         <source>Invalid image resolution mode &apos;%1&apos;. Defaulting to dpi.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz resim çözünürlüğü modu &apos;%1&apos;. Varsayılan olarak dpi&apos;dir.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="664"/>
         <source>Cannot set dpi value, resolution mode must be dpi.</source>
-        <translation type="unfinished"></translation>
+        <translation>Dpi değeri ayarlanamıyor, çözünürlük modu dpi olmalıdır.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="675"/>
         <source>Dpi must be in range from %1 to %2. Defaulting to %3.</source>
-        <translation type="unfinished"></translation>
+        <translation>Dpi %1 ile %2 arasında olmalıdır. Varsayılan olarak %3&apos;tür.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="682"/>
         <source>Invalid image dpi value &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz resim dpi değeri &apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="690"/>
         <source>Cannot set pixel value, resolution mode must be pixel.</source>
-        <translation type="unfinished"></translation>
+        <translation>Piksel değeri ayarlanamıyor, çözünürlük modu piksel olmalıdır.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="701"/>
         <source>Pixel value must be in range from %1 to %2. Defaulting to %3.</source>
-        <translation type="unfinished"></translation>
+        <translation>Piksel değeri %1 ile %2 arasında olmalıdır. Varsayılan olarak %3&apos;tür.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="708"/>
         <source>Invalid image pixel value &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz resim piksel değeri &apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="729"/>
         <source>Unknown color management system &apos;%1&apos;. Defaulting to lcms.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilinmeyen renk yönetim sistemi &apos;%1&apos;. Varsayılan olarak lcms&apos;ye ayarlanır.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="748"/>
         <source>Uknown color management system accuracy &apos;%1&apos;. Defaulting to medium.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilinmeyen renk yönetim sistemi doğruluğu &apos;%1&apos;. Varsayılan olarak orta değerdedir.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="775"/>
         <source>Unknown color adaptation method &apos;%1&apos;. Defaulting to bradford.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilinmeyen renk adaptasyon yöntemi &apos;%1&apos;. Varsayılan olarak bradford&apos;a ayarlanıyor.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="802"/>
         <source>Uknown color management system rendering intent &apos;%1&apos;. Defaulting to auto.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilinmeyen renk yönetim sistemi işleme amacı &apos;%1&apos;. Varsayılan olarak otomatik ayarlıdır.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="851"/>
         <source>Uknown bool value &apos;%1&apos;. Default value is used.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilinmeyen mantıksal (bool) değer &apos;%1&apos;. Varsayılan değer kullanılır.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="864"/>
         <source>Uknown bool value &apos;%1&apos;. GPU rendering is used as default.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilinmeyen mantıksal (bool) değer &apos;%1&apos;. GPU işleme varsayılan olarak kullanılır.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="871"/>
         <source>Uknown MSAA sample count &apos;%1&apos;. 4 samples are used as default.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilinmeyen MSAA örnek sayısı &apos;%1&apos;. Varsayılan olarak 4 örnek kullanılır.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="880"/>
         <source>Uknown rasterizer count &apos;%1&apos;. %2 rasterizers are used as default.</source>
-        <translation type="unfinished"></translation>
+        <translatorcomment>rasterizer = pikselleştirici</translatorcomment>
+        <translation>Bilinmeyen pikselleştirici sayısı &apos;%1&apos;. Varsayılan olarak %2 pikselleştiriciler kullanılır.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="885"/>
         <source>Invalid raterizer count: %1. Correcting to use %2 rasterizers.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz değerlendirici sayısı: %1. %2 pikselleştiricileri kullanacak şekilde düzeltiliyor.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="944"/>
         <source>Unknown encryption algorithm &apos;%1&apos;. Defaulting to AES-256 encryption.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilinmeyen şifreleme algoritması &apos;%1&apos;. Varsayılan olarak AES-256 şifrelemesi ayarlanmıştır.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="967"/>
         <source>Unknown encryption contents mode &apos;%1&apos;. Defaulting to encrypt all contents.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilinmeyen şifreleme içeriği modu &apos;%1&apos;. Tüm içeriği şifrelemek için varsayılan ayardır.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1026"/>
         <source>Invalid password provided.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz şifre sağlandı.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1032"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="84"/>
         <source>Error occured during document reading. %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge okuma sırasında hata oluştu. %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1045"/>
@@ -3187,45 +3189,45 @@
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="130"/>
         <source>Mime type</source>
-        <translation type="unfinished"></translation>
+        <translation>Mime tipi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="131"/>
         <source>Mime type description</source>
-        <translation type="unfinished"></translation>
+        <translation>Mime türü açıklaması</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="132"/>
         <source>File description</source>
-        <translation type="unfinished"></translation>
+        <translation>Dosya açıklaması</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="133"/>
         <source>Packed size [bytes]</source>
-        <translation type="unfinished"></translation>
+        <translation>Paketlenmiş boyut [bayt]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="161"/>
         <source>Target file name must not be specified, if multiple files are being saved.</source>
-        <translation type="unfinished"></translation>
+        <translation>Birden fazla dosya kaydediliyorsa, hedef dosya adı belirtilmemelidir.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="196"/>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="202"/>
         <source>Failed to save attachment to file. %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Ek dosyaya kaydedilemedi. %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="136"/>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="142"/>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="214"/>
         <source>SAPI Error: Cannot enumerate SAPI voices.</source>
-        <translation type="unfinished"></translation>
+        <translation>SAPI Hatası: SAPI sesleri numaralandırılamıyor.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="237"/>
         <source>Available voices for given settings:</source>
-        <translation type="unfinished"></translation>
+        <translation>Verilen ayarlar için mevcut sesler:</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="240"/>
@@ -3293,22 +3295,22 @@
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="289"/>
         <source>List of available voices for audio book conversion.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sesli kitap dönüştürme için mevcut seslerin listesi.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="326"/>
         <source>Audio book convertor</source>
-        <translation type="unfinished"></translation>
+        <translation>Sesli kitap dönüştürücü</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="329"/>
         <source>Convert your document to a simple audio book.</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgenizi basit bir sesli kitaba dönüştürün.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="399"/>
         <source>No suitable voice found.</source>
-        <translation type="unfinished"></translation>
+        <translation>Uygun ses bulunamadı.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="405"/>
@@ -3319,37 +3321,37 @@
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="416"/>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="430"/>
         <source>Cannot create output stream &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; çıkış akışı oluşturulamıyor.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="423"/>
         <source>Cannot create voice.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ses oluşturulamıyor.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="439"/>
         <source>Failed to set requested voice. Default voice will be used.</source>
-        <translation type="unfinished"></translation>
+        <translation>İstenen ses ayarlanamadı. Varsayılan ses kullanılacaktır.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="465"/>
         <source>No text extracted to be converted to audio book.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sesli kitaba dönüştürülmek üzere çıkarılan metin yok.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="42"/>
         <source>Certificate Store</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifika Deposu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="45"/>
         <source>Certificate store operations (list, add, remove certificates).</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifika deposu işlemleri (sertifikaları listeleme, ekleme, kaldırma).</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="77"/>
         <source>Certificates used in the signature verification</source>
-        <translation type="unfinished"></translation>
+        <translation>İmza doğrulamasında kullanılan sertifikalar</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="80"/>
@@ -3383,13 +3385,13 @@
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="87"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="314"/>
         <source>Valid from</source>
-        <translation type="unfinished"></translation>
+        <translation>-den beri geçerli</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="88"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="322"/>
         <source>Valid to</source>
-        <translation type="unfinished"></translation>
+        <translation>-e kadar geçerli</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="100"/>
@@ -3409,105 +3411,105 @@
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="164"/>
         <source>Install a new user certificate to certificate store.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifika deposuna yeni bir kullanıcı sertifikası yükleyin.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="185"/>
         <source>Cannot open file &apos;%1&apos;. %2</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; dosyası açılamıyor. %2</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="198"/>
         <source>Cannot read certificate from file &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; dosyasından sertifika okunamıyor.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcolorprofiles.cpp" line="39"/>
         <source>Color Profiles List</source>
-        <translation type="unfinished"></translation>
+        <translation>Renk Profilleri Listesi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcolorprofiles.cpp" line="42"/>
         <source>Show list of available color profiles.</source>
-        <translation type="unfinished"></translation>
+        <translation>Kullanılabilir renk profillerinin listesini göster.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcolorprofiles.cpp" line="55"/>
         <source>Available Color Profiles</source>
-        <translation type="unfinished"></translation>
+        <translation>Mevcut Renk Profilleri</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcolorprofiles.cpp" line="71"/>
         <location filename="../PdfTool/pdftoolinfoinks.cpp" line="73"/>
         <source>Identifier</source>
-        <translation type="unfinished"></translation>
+        <translation>Tanımlayıcı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcolorprofiles.cpp" line="94"/>
         <source>Output Profiles</source>
-        <translation type="unfinished"></translation>
+        <translation>Çıktı Profilleri</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcolorprofiles.cpp" line="95"/>
         <source>Gray Profiles</source>
-        <translation type="unfinished"></translation>
+        <translation>Gri Profiller</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcolorprofiles.cpp" line="96"/>
         <source>RGB Profiles</source>
-        <translation type="unfinished"></translation>
+        <translation>RGB Profilleri</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcolorprofiles.cpp" line="97"/>
         <source>CMYK Profiles</source>
-        <translation type="unfinished"></translation>
+        <translation>CMYK Profilleri</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldecrypt.cpp" line="40"/>
         <source>Decrypt</source>
-        <translation type="unfinished"></translation>
+        <translation>Şifresini çöz</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldecrypt.cpp" line="43"/>
         <source>Remove encryption from a document (with only owner access only).</source>
-        <translation type="unfinished"></translation>
+        <translation>Bir belgeden şifrelemeyi kaldırın (yalnızca sahip erişimi ile).</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldecrypt.cpp" line="61"/>
         <source>Authorization as owner failed. Encryption removal is not permitted if authorized as user only.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sahip olarak yetkilendirme başarısız oldu. Yalnızca kullanıcı olarak yetkilendirilmişse, şifreleme kaldırmaya izin verilmez.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldecrypt.cpp" line="68"/>
         <source>Document is not encrypted.</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge şifrelenmemiş.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldiff.cpp" line="41"/>
         <source>Compare documents</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgeleri karşılaştırın</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldiff.cpp" line="44"/>
         <source>Compare contents of two documents.</source>
-        <translation type="unfinished"></translation>
+        <translation>İki belgenin içeriğini karşılaştırın.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldiff.cpp" line="58"/>
         <source>Exactly two documents must be specified.</source>
-        <translation type="unfinished"></translation>
+        <translation>Tam olarak iki belge belirtilmelidir.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldiff.cpp" line="67"/>
         <location filename="../PdfTool/pdftooldiff.cpp" line="74"/>
         <location filename="../PdfTool/pdftoolunite.cpp" line="93"/>
         <source>Cannot open document &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; belgesi açılamıyor.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldiff.cpp" line="98"/>
         <source>Difference Report</source>
-        <translation type="unfinished"></translation>
+        <translation>Fark Raporu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldiff.cpp" line="101"/>
@@ -3532,41 +3534,41 @@
     <message>
         <location filename="../PdfTool/pdftoolencrypt.cpp" line="43"/>
         <source>Encrypt the document (with only owner access only).</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgeyi şifreleyin (yalnızca sahip erişimiyle).</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolencrypt.cpp" line="77"/>
         <source>Authorization as owner failed. Encryption change is not permitted if authorized as user only.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sahip olarak yetkilendirme başarısız oldu. Yalnızca kullanıcı olarak yetkilendirilmişse, şifreleme değişikliğine izin verilmez.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="111"/>
         <source>Fetch images</source>
-        <translation type="unfinished"></translation>
+        <translation>Resimleri getir</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="114"/>
         <source>Fetch image content from document.</source>
-        <translation type="unfinished"></translation>
+        <translation>Resim içeriğini belgeden getirin.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="135"/>
         <location filename="../PdfTool/pdftoolfetchtext.cpp" line="63"/>
         <location filename="../PdfTool/pdftoolseparate.cpp" line="68"/>
         <source>Document doesn&apos;t allow to copy content.</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge, içeriğin kopyalanmasına izin vermez.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="196"/>
         <source>Images fetched from document %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 belgesinden alınmış görüntüler</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="199"/>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="288"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="143"/>
         <source>Overview</source>
-        <translation type="unfinished"></translation>
+        <translation>Genel bakış</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="202"/>
@@ -3599,23 +3601,23 @@
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="207"/>
         <source>Stored to</source>
-        <translation type="unfinished"></translation>
+        <translation>Depolandığı yer</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="248"/>
         <location filename="../PdfTool/pdftoolrender.cpp" line="96"/>
         <source>Cannot write page image to file &apos;%1&apos;, because: %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa görüntüsü &apos;%1&apos; dosyasına yazılamıyor, çünkü: %2.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchtext.cpp" line="39"/>
         <source>Fetch text</source>
-        <translation type="unfinished"></translation>
+        <translation>Metin getir</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchtext.cpp" line="42"/>
         <source>Fetch text content from document.</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgeden metin içeriği alın.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="43"/>
@@ -3625,13 +3627,13 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="46"/>
         <source>Retrieve basic informations about a document.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bir belgeyle ilgili temel bilgileri alın.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="71"/>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="68"/>
         <source>Information about document %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 belgesi hakkında bilgi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="74"/>
@@ -3642,7 +3644,8 @@
         <location filename="../PdfTool/pdftoolinfo.cpp" line="77"/>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="177"/>
         <source>Property</source>
-        <translation type="unfinished"></translation>
+        <translatorcomment>Property = Özellik ve Milkiyet anlamlarına gelir</translatorcomment>
+        <translation>Özellik</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="78"/>
@@ -3734,7 +3737,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="119"/>
         <source>Tagged</source>
-        <translation type="unfinished"></translation>
+        <translation>Etiketlenmiş</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="126"/>
@@ -3745,7 +3748,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="130"/>
         <source>AcroForm</source>
-        <translation type="unfinished"></translation>
+        <translation>Akroform</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="134"/>
@@ -3802,17 +3805,17 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="204"/>
         <source>No authorization required</source>
-        <translation type="unfinished"></translation>
+        <translation>Yetkilendirme gerekmez</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="208"/>
         <source>Authorized as owner</source>
-        <translation type="unfinished"></translation>
+        <translation>Sahip olarak yetkilendirilmiş</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="212"/>
         <source>Authorized as user</source>
-        <translation type="unfinished"></translation>
+        <translation>Kullanıcı olarak yetkilendirildi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="220"/>
@@ -3822,12 +3825,12 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="221"/>
         <source>Authorization</source>
-        <translation type="unfinished"></translation>
+        <translation>Yetkilendirme</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="226"/>
         <source>Metadata encrypted</source>
-        <translation type="unfinished"></translation>
+        <translation>Meta veri şifreli</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="231"/>
@@ -3867,7 +3870,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="259"/>
         <source>Form filling</source>
-        <translation type="unfinished"></translation>
+        <translation>Form doldur</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="264"/>
@@ -3882,7 +3885,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="275"/>
         <source>File hashes:</source>
-        <translation type="unfinished"></translation>
+        <translation>Dosya sağlamaları:</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="278"/>
@@ -3927,7 +3930,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="45"/>
         <source>Retrieve informations about font usage in a document.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bir belgedeki yazı tipi kullanımıyla ilgili bilgileri alın.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="173"/>
@@ -3987,7 +3990,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="285"/>
         <source>Fonts used in document %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgede kullanılan yazı tipleri %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="292"/>
@@ -4013,7 +4016,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="296"/>
         <source>Embedded</source>
-        <translation type="unfinished"></translation>
+        <translation>Gömülü</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="297"/>
@@ -4036,7 +4039,7 @@
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="300"/>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="356"/>
         <source>Gen.</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="307"/>
@@ -4046,17 +4049,17 @@
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="348"/>
         <source>Substitutions</source>
-        <translation type="unfinished"></translation>
+        <translation>Değiştirmeler</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="353"/>
         <source>Substituted by Font</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazı tipi ile değiştirildi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="354"/>
         <source>Match</source>
-        <translation type="unfinished"></translation>
+        <translation>Eşleştir</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="371"/>
@@ -4091,465 +4094,465 @@
     <message>
         <location filename="../PdfTool/pdftoolinfoinks.cpp" line="42"/>
         <source>Retrieve information about inks used in a document.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bir belgede kullanılan mürekkepler hakkında bilgi alın.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfoinks.cpp" line="66"/>
         <source>Inks</source>
-        <translation type="unfinished"></translation>
+        <translation>Mürekkepler</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfoinks.cpp" line="69"/>
         <source>Ink list</source>
-        <translation type="unfinished"></translation>
+        <translation>Mürekkep listesi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfoinks.cpp" line="75"/>
         <source>Spot</source>
-        <translation type="unfinished"></translation>
+        <translation>Benek</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfoinks.cpp" line="76"/>
         <source>Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Renk</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="39"/>
         <source>Info (JavaScript code)</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilgi (JavaScript kodu)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="42"/>
         <source>Retrieve informations about JavaScript usage in a document.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bir belgede JavaScript kullanımıyla ilgili bilgileri alın.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="76"/>
         <source>JavaScript used in document %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 belgesinde kullanılan JavaScript</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="79"/>
         <source>JavaScript Usage Overview</source>
-        <translation type="unfinished"></translation>
+        <translation>JavaScript Kullanımına Genel Bakış</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="83"/>
         <source>Context</source>
-        <translation type="unfinished"></translation>
+        <translation>İçerik</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="84"/>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="78"/>
         <source>Page Number</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa Numarası</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="85"/>
         <source>Code Size</source>
-        <translation type="unfinished"></translation>
+        <translation>Kod Boyutu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="86"/>
         <source>Code Snippet</source>
-        <translation type="unfinished"></translation>
+        <translation>Kod Parçacığı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="98"/>
         <source>Document</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="102"/>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="148"/>
         <source>Named</source>
-        <translation type="unfinished"></translation>
+        <translation>Adlandırılmış</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="106"/>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="116"/>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>Form</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="110"/>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="109"/>
         <source>Page</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="114"/>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="119"/>
         <source>Annotation</source>
-        <translation type="unfinished"></translation>
+        <translation>Açıklama</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="136"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="188"/>
         <source>Details</source>
-        <translation type="unfinished"></translation>
+        <translation>Detaylar</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="142"/>
         <source>JavaScript #%1</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfometadata.cpp" line="39"/>
         <source>Extract document metadata</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge Meta Verilerini Ayıkla</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfometadata.cpp" line="42"/>
         <source>Extract document metadata (embedded xml stream).</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge meta verilerini ayıklayın (gömülü xml akışı).</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfometadata.cpp" line="76"/>
         <source>Metadata not found in document.</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgede meta veri bulunamadı.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="39"/>
         <source>Info (Named Destinations)</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilgi (adlandırılmış hedefler)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="42"/>
         <source>Retrieve informations about named destinations in a document.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bir belgedeki adlandırılmış hedeflerle ilgili bilgileri alın.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="71"/>
         <source>Named destinations used in document %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 belgesinde kullanılan adlandırılmış hedefler</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="74"/>
         <source>Named Destinations</source>
-        <translation type="unfinished"></translation>
+        <translation>Adlandırılmış Hedefler</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="80"/>
         <source>Left</source>
-        <translation type="unfinished"></translation>
+        <translation>Sol</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="81"/>
         <source>Top</source>
-        <translation type="unfinished"></translation>
+        <translation>Üst</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="82"/>
         <source>Right</source>
-        <translation type="unfinished"></translation>
+        <translation>Sağ</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="83"/>
         <source>Bottom</source>
-        <translation type="unfinished"></translation>
+        <translation>Alt</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="84"/>
         <source>Zoom</source>
-        <translation type="unfinished"></translation>
+        <translation>Yakınlaştır</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="142"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="124"/>
         <source>Invalid</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="154"/>
         <source>XYZ</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="166"/>
         <source>Fit</source>
-        <translation type="unfinished"></translation>
+        <translation>Sığdır</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="172"/>
         <source>FitH</source>
-        <translation type="unfinished"></translation>
+        <translation>SığdırH</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="179"/>
         <source>FitV</source>
-        <translation type="unfinished"></translation>
+        <translation>SığdırV</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="186"/>
         <source>FitR</source>
-        <translation type="unfinished"></translation>
+        <translation>SığdırR</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="196"/>
         <source>FitB</source>
-        <translation type="unfinished"></translation>
+        <translation>SığdırB</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="202"/>
         <source>FitBH</source>
-        <translation type="unfinished"></translation>
+        <translation>SığdırBH</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="209"/>
         <source>FitBV</source>
-        <translation type="unfinished"></translation>
+        <translation>SığdırBV</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfopageboxes.cpp" line="39"/>
         <source>Info (page boxes)</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilgi (sayfa kutuları)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfopageboxes.cpp" line="42"/>
         <source>Retrieve informations about page boxes in a document.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bir belgedeki sayfa kutuları hakkında bilgi alın.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfopageboxes.cpp" line="116"/>
         <source>Page boxes in document %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 belgesindeki sayfa kutuları</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfopageboxes.cpp" line="138"/>
         <source>Pages %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfalar %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfopageboxes.cpp" line="141"/>
         <source>Box</source>
-        <translation type="unfinished"></translation>
+        <translation>Kutu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfopageboxes.cpp" line="145"/>
         <source>Media</source>
-        <translation type="unfinished"></translation>
+        <translation>Medya</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfopageboxes.cpp" line="146"/>
         <source>Crop</source>
-        <translation type="unfinished"></translation>
+        <translation>Kırp</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfopageboxes.cpp" line="147"/>
         <source>Bleed</source>
-        <translation type="unfinished"></translation>
+        <translation>Taşma payı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfopageboxes.cpp" line="148"/>
         <source>Trim</source>
-        <translation type="unfinished"></translation>
+        <translation>Tıraşla</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfopageboxes.cpp" line="149"/>
         <source>Art</source>
-        <translation type="unfinished"></translation>
+        <translation>Sanat</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="57"/>
         <source>Structure Tree</source>
-        <translation type="unfinished"></translation>
+        <translation>Yapı Ağacı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="70"/>
         <source>Attributes</source>
-        <translation type="unfinished"></translation>
+        <translation>Öznitelik</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="75"/>
         <source>Owner</source>
-        <translation type="unfinished"></translation>
+        <translation>Sahip</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="76"/>
         <source>Revision</source>
-        <translation type="unfinished"></translation>
+        <translation>Revizyon</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="77"/>
         <source>Hidden</source>
-        <translation type="unfinished"></translation>
+        <translation>Gizli</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="122"/>
         <source>[null]</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="146"/>
         <source>[complex type]</source>
-        <translation type="unfinished"></translation>
+        <translation>[karmaşık tür]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="173"/>
         <source>Properties</source>
-        <translation type="unfinished"></translation>
+        <translation>Özellikler</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="201"/>
         <source>Alternative description</source>
-        <translation type="unfinished"></translation>
+        <translation>Alternatif açıklama</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="205"/>
         <source>Expanded form</source>
-        <translation type="unfinished"></translation>
+        <translation>Genişletilmiş form</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="209"/>
         <source>Actual text</source>
-        <translation type="unfinished"></translation>
+        <translation>Gerçek metin</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="213"/>
         <source>Phoneme</source>
-        <translation type="unfinished"></translation>
+        <translation>Sesbirim</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="238"/>
         <source>Marked Content Reference %1</source>
-        <translation type="unfinished"></translation>
+        <translation>İşaretli İçerik Referansı %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="244"/>
         <source>Structure Object Reference [%1 %2 R]</source>
-        <translation type="unfinished"></translation>
+        <translation>Yapı Nesnesi Başvurusu [%1 %2 R]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="257"/>
         <source>Info (Structure tree)</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilgi (Yapı ağacı)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="260"/>
         <source>Examine structure tree in tagged document.</source>
-        <translation type="unfinished"></translation>
+        <translation>Etiketli belgedeki yapı ağacını inceleyin.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="283"/>
         <source>Structure tree in document %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgedeki yapı ağacı %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="293"/>
         <source>No structure tree found in document.</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgede yapı ağacı bulunamadı.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinkcoverage.cpp" line="39"/>
         <source>Ink coverage</source>
-        <translation type="unfinished"></translation>
+        <translation>Mürekkep kapsamı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinkcoverage.cpp" line="42"/>
         <source>Calculate ink coverage of the selected pages, or a whole document.</source>
-        <translation type="unfinished"></translation>
+        <translation>Seçili sayfaların veya tüm belgenin mürekkep kapsamını hesaplayın.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinkcoverage.cpp" line="96"/>
         <source>Ink Coverage</source>
-        <translation type="unfinished"></translation>
+        <translation>Mürekkep Kapsamı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinkcoverage.cpp" line="99"/>
         <source>Ink Coverage by Page</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfaya Göre Mürekkep Kapsamı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinkcoverage.cpp" line="127"/>
         <source>%1 Ratio [%]</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 Oran [%]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinkcoverage.cpp" line="128"/>
         <source>%1 Covered [mm^2]</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 Kapalı [mm^2]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinkcoverage.cpp" line="168"/>
         <source>Sum</source>
-        <translation type="unfinished"></translation>
+        <translation>Toplam</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooloptimize.cpp" line="40"/>
         <source>Optimize</source>
-        <translation type="unfinished"></translation>
+        <translation>Optimize et</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooloptimize.cpp" line="43"/>
         <source>Optimize document size using various algorithms.</source>
-        <translation type="unfinished"></translation>
+        <translation>Çeşitli algoritmalar kullanarak belge boyutunu optimize edin.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooloptimize.cpp" line="57"/>
         <source>No optimization option has been set.</source>
-        <translation type="unfinished"></translation>
+        <translation>Optimizasyon seçeneği ayarlanmamıştır.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooloptimize.cpp" line="78"/>
         <source>Failed to write optimize document. %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Optimize etme belgesi yazılamadı. %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="44"/>
         <source>Render document</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgeyi İşle</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="47"/>
         <source>Render selected pages of document into image files.</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgenin seçili sayfalarını resim dosyalarına dönüştürün.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="65"/>
         <source>Render document %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 Belgeyi işle</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="110"/>
         <source>Benchmark rendering</source>
-        <translation type="unfinished"></translation>
+        <translation>Karşılaştırma testi oluştur</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="113"/>
         <source>Benchmark page rendering (measure time, detect errors).</source>
-        <translation type="unfinished"></translation>
+        <translation>Karşılaştırma test sayfası oluşturma (zamanı ölçün, hataları tespit edin).</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="131"/>
         <source>Benchmark rendering of document %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgenin kıyaslama işlemesi %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="294"/>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="39"/>
         <source>Statistics</source>
-        <translation type="unfinished"></translation>
+        <translation>İstatistik</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="299"/>
         <source>Unit</source>
-        <translation type="unfinished"></translation>
+        <translation>Birim</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="311"/>
         <source>Pages rendered</source>
-        <translation type="unfinished"></translation>
+        <translation>İşlenen sayfalar</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="311"/>
         <source>-</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="312"/>
         <source>Total compile time</source>
-        <translation type="unfinished"></translation>
+        <translation>Toplam derleme süresi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="312"/>
@@ -4559,57 +4562,57 @@
         <location filename="../PdfTool/pdftoolrender.cpp" line="316"/>
         <location filename="../PdfTool/pdftoolrender.cpp" line="317"/>
         <source>msec</source>
-        <translation type="unfinished"></translation>
+        <translation>msn</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="313"/>
         <source>Total render time</source>
-        <translation type="unfinished"></translation>
+        <translation>Toplam işleme süresi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="314"/>
         <source>Total wait time</source>
-        <translation type="unfinished"></translation>
+        <translation>Toplam bekleme süresi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="315"/>
         <source>Total write time</source>
-        <translation type="unfinished"></translation>
+        <translation>Toplam yazma süresi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="316"/>
         <source>Total time</source>
-        <translation type="unfinished"></translation>
+        <translation>Toplam süre</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="317"/>
         <source>Wall time</source>
-        <translation type="unfinished"></translation>
+        <translation>Gerçek zaman</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="318"/>
         <source>Rendering speed (per core)</source>
-        <translation type="unfinished"></translation>
+        <translation>İşleme hızı (çekirdek başına)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="318"/>
         <source>pages / sec (one core)</source>
-        <translation type="unfinished"></translation>
+        <translation>sayfa / sn (bir çekirdek)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="319"/>
         <source>Rendering speed (wall time)</source>
-        <translation type="unfinished"></translation>
+        <translation>İşleme hızı (gerçek zaman)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="319"/>
         <source>pages / sec</source>
-        <translation type="unfinished"></translation>
+        <translation>sayfa / sn</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="320"/>
         <source>Compile time ratio</source>
-        <translation type="unfinished"></translation>
+        <translation>Derleme süresi oranı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="320"/>
@@ -4617,501 +4620,502 @@
         <location filename="../PdfTool/pdftoolrender.cpp" line="322"/>
         <location filename="../PdfTool/pdftoolrender.cpp" line="323"/>
         <source>%</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="321"/>
         <source>Render time ratio</source>
-        <translation type="unfinished"></translation>
+        <translation>İşleme süresi oranı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="322"/>
         <source>Wait time ratio</source>
-        <translation type="unfinished"></translation>
+        <translation>Bekleme süresi oranı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="323"/>
         <source>Write time ratio</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazma süresi oranı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="332"/>
         <source>Page Statistics</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa İstatistikleri</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="336"/>
         <source>Compile Time [msec]</source>
-        <translation type="unfinished"></translation>
+        <translation>Derleme Süresi [msn]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="337"/>
         <source>Render Time [msec]</source>
-        <translation type="unfinished"></translation>
+        <translation>İşleme Süresi [msn]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="338"/>
         <source>Wait Time [msec]</source>
-        <translation type="unfinished"></translation>
+        <translation>Bekleme Süresi [msn]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="339"/>
         <source>Write Time [msec]</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazma Süresi [msn]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="340"/>
         <source>Total Time [msec]</source>
-        <translation type="unfinished"></translation>
+        <translation>Toplam Süre [msn]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="368"/>
         <source>Rendering Errors</source>
-        <translation type="unfinished"></translation>
+        <translation>İşleme Hataları</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="373"/>
         <source>Message</source>
-        <translation type="unfinished"></translation>
+        <translation>Mesaj</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="391"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Hata</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="395"/>
         <source>Warning</source>
-        <translation type="unfinished"></translation>
+        <translation>Uyarı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="399"/>
         <source>Not implemented</source>
-        <translation type="unfinished"></translation>
+        <translation>Uygulanmadı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="403"/>
         <source>Not supported</source>
-        <translation type="unfinished"></translation>
+        <translation>Desteklenmiyor</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="407"/>
         <source>Information</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilgi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolseparate.cpp" line="44"/>
         <source>Extract pages</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfaları ayıkla</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolseparate.cpp" line="47"/>
         <source>Separate document into single page documents.</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgeyi tek sayfalı belgelere ayırın.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolseparate.cpp" line="83"/>
         <source>File template is empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>Dosya şablonu boş.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolseparate.cpp" line="89"/>
         <source>File template must contain character &apos;%&apos; for page number.</source>
-        <translation type="unfinished"></translation>
+        <translation>Dosya şablonu, sayfa numarası için &apos;%&apos; karakterini içermelidir.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolseparate.cpp" line="120"/>
         <source>File &apos;%1&apos; already exists. Page %2 was not extracted.</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; dosyası zaten var. Sayfa %2 ayıklanmadı.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="42"/>
         <source>Compute statistics of internal objects used in a document.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bir belgede kullanılan dahili nesnelerin istatistiklerini hesaplayın.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="72"/>
         <source>Statistics by Object Class</source>
-        <translation type="unfinished"></translation>
+        <translation>Nesne Sınıfına Göre İstatistik</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="75"/>
         <source>Class</source>
-        <translation type="unfinished"></translation>
+        <translation>Sınıf</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="76"/>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="132"/>
         <source>Percentage [%]</source>
-        <translation type="unfinished"></translation>
+        <translation>Yüzde [%]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="77"/>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="133"/>
         <source>Count [#]</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayı [#]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="78"/>
         <source>Space Usage [bytes]</source>
-        <translation type="unfinished"></translation>
+        <translation>Alan Kullanımı [bayt]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="110"/>
         <source>Content Stream</source>
-        <translation type="unfinished"></translation>
+        <translation>İçerik Akışı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="111"/>
         <source>Graphic State</source>
-        <translation type="unfinished"></translation>
+        <translation>Grafik Durumu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="112"/>
         <source>Color Space</source>
-        <translation type="unfinished"></translation>
+        <translation>Renk Uzayı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="113"/>
         <source>Pattern</source>
-        <translation type="unfinished"></translation>
+        <translation>Desen</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="114"/>
         <source>Shading</source>
-        <translation type="unfinished"></translation>
+        <translation>Gölgelendirme</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="115"/>
         <source>Image</source>
-        <translation type="unfinished"></translation>
+        <translation>Resim</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="117"/>
         <source>Font</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazıtipi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="118"/>
         <source>Action</source>
-        <translation type="unfinished"></translation>
+        <translation>Eylem</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="120"/>
         <source>Other</source>
-        <translation type="unfinished"></translation>
+        <translation>Diğer</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="128"/>
         <source>Statistics by Object Type</source>
-        <translation type="unfinished"></translation>
+        <translation>Nesne Türüne Göre İstatistik</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolunite.cpp" line="44"/>
         <source>Merge documents</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgeleri birleştir</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolunite.cpp" line="47"/>
         <source>Merge multiple documents to a single document.</source>
-        <translation type="unfinished"></translation>
+        <translation>Birden çok belgeyi tek bir belgede birleştirin.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolunite.cpp" line="61"/>
         <source>At least two documents and target (merged) document must be specified.</source>
-        <translation type="unfinished"></translation>
+        <translation>En az iki belge ve hedef (birleştirilmiş) belge belirtilmelidir.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolunite.cpp" line="71"/>
         <source>Target file &apos;%1&apos; already exists. Document merging not performed.</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; hedef dosyası zaten var. Belge birleştirme gerçekleştirilmedi.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolunite.cpp" line="99"/>
         <source>Document doesn&apos;t allow to assemble pages.</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge, sayfaların birleştirilmesine izin vermiyor.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="42"/>
         <source>Signature verification</source>
-        <translation type="unfinished"></translation>
+        <translation>İmza doğrulama</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="45"/>
         <source>Verify signatures and timestamps in pdf document.</source>
-        <translation type="unfinished"></translation>
+        <translation>Pdf belgesindeki imzaları ve zaman damgalarını doğrulayın.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="60"/>
         <source>No document specified.</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge belirtilmedi.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="116"/>
         <source>Digital signatures/timestamps verification of %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 dijital imza/zaman damgası doğrulaması</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="127"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="150"/>
         <source>Signature</source>
-        <translation type="unfinished"></translation>
+        <translation>İmza(la)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="130"/>
         <source>Timestamp</source>
-        <translation type="unfinished"></translation>
+        <translation>Zaman damgası</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="148"/>
         <source>Signed by</source>
-        <translation type="unfinished"></translation>
+        <translation>İmzalayan</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="151"/>
         <source>Signing date</source>
-        <translation type="unfinished"></translation>
+        <translation>İmza tarihi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="152"/>
         <source>Timestamp date</source>
-        <translation type="unfinished"></translation>
+        <translation>Zaman damgası tarihi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="153"/>
         <source>Hash alg.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sağlama alg.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="154"/>
         <source>Handler</source>
-        <translation type="unfinished"></translation>
+        <translation>İşleyici</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="155"/>
         <source>Signed whole</source>
-        <translation type="unfinished"></translation>
+        <translation>Bütün olarak imzalandı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="171"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="200"/>
         <source>Skipped</source>
-        <translation type="unfinished"></translation>
+        <translation>Atlandı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="194"/>
         <source>%1 #%2</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="199"/>
         <source>Signed by: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>İmzalayan: %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="200"/>
         <source>Certificate status: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifika durumu: %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="201"/>
         <source>Signature status: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>İmza durumu: %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="202"/>
         <source>Signing date: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>İmza tarihi: %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="203"/>
         <source>Timestamp date: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Zaman damgası tarihi: %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="204"/>
         <source>Hash algorithm: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Sağlama algoritması: %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="205"/>
         <source>Handler: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>İşleyici: %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="206"/>
         <source>Is whole document signed: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgenin tamamı imzalandı mı: %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="210"/>
         <source>Byte range covered by signature: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgenin tamamı imzalandı mı: %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="215"/>
         <source>Errors:</source>
-        <translation type="unfinished"></translation>
+        <translation>Hatalar:</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="226"/>
         <source>Warnings:</source>
-        <translation type="unfinished"></translation>
+        <translation>Uyarılar:</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="241"/>
         <source>Certificate No. #%1</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifika No. #%1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="262"/>
         <source>Org. unit</source>
-        <translation type="unfinished"></translation>
+        <translation>Org. birim</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="264"/>
         <source>State</source>
-        <translation type="unfinished"></translation>
+        <translatorcomment>Devlet ya da Durum olacak.</translatorcomment>
+        <translation>Devlet</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="265"/>
         <source>Serial number</source>
-        <translation type="unfinished"></translation>
+        <translation>Seri numara</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="266"/>
         <source>Locality</source>
-        <translation type="unfinished"></translation>
+        <translation>Yer</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="268"/>
         <source>Surname</source>
-        <translation type="unfinished"></translation>
+        <translation>Soyadı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="269"/>
         <source>Forename</source>
-        <translation type="unfinished"></translation>
+        <translation>İlk ad</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="270"/>
         <source>Initials</source>
-        <translation type="unfinished"></translation>
+        <translation>Baş harfler</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="271"/>
         <source>Pseudonym</source>
-        <translation type="unfinished"></translation>
+        <translation>Takma ad</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="272"/>
         <source>Qualifier</source>
-        <translation type="unfinished"></translation>
+        <translation>Niteleyici</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="273"/>
         <source>Email</source>
-        <translation type="unfinished"></translation>
+        <translation>E-Posta</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="279"/>
         <source>RSA method, %1-bit key</source>
-        <translation type="unfinished"></translation>
+        <translation>RSA yöntemi, %1-bit anahtar</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="283"/>
         <source>DSA method, %1-bit key</source>
-        <translation type="unfinished"></translation>
+        <translation>DSA yöntemi, %1-bit anahtar</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="287"/>
         <source>EC method, %1-bit key</source>
-        <translation type="unfinished"></translation>
+        <translation>EC yöntemi, %1-bit anahtar</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="291"/>
         <source>DH method, %1-bit key</source>
-        <translation type="unfinished"></translation>
+        <translation>DH yöntemi, %1-bit anahtar</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="295"/>
         <source>Unknown method, %1-bit key</source>
-        <translation type="unfinished"></translation>
+        <translation>RSA yöntemi, %1-bit anahtar</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="304"/>
         <source>Encryption method</source>
-        <translation type="unfinished"></translation>
+        <translation>Şifreleme yöntemi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="331"/>
         <source>Digital signatures</source>
-        <translation type="unfinished"></translation>
+        <translation>Dijital imzalar</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="335"/>
         <source>Non-repudiation</source>
-        <translation type="unfinished"></translation>
+        <translation>Onaylama</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="339"/>
         <source>Key encipherement</source>
-        <translation type="unfinished"></translation>
+        <translation>Anahtar şifreleme</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="343"/>
         <source>Application data encipherement</source>
-        <translation type="unfinished"></translation>
+        <translation>Uygulama veri şifrelemesi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="347"/>
         <source>Key agreement</source>
-        <translation type="unfinished"></translation>
+        <translation>Anahtar anlaşma</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="351"/>
         <source>Verify signatures on certificates</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifikalardaki imzaları doğrulayın</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="355"/>
         <source>Verify signatures on revocation information</source>
-        <translation type="unfinished"></translation>
+        <translation>İptal bilgileri hakkındaki imzaları doğrulayın</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="359"/>
         <source>Encipher data during key agreement</source>
-        <translation type="unfinished"></translation>
+        <translation>Anahtar sözleşmesi sırasında verileri şifreleyin</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="363"/>
         <source>Decipher data during key agreement</source>
-        <translation type="unfinished"></translation>
+        <translation>Anahtar anlaşması sırasında verilerin şifresini çözün</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="367"/>
         <source>Trusted timestamping</source>
-        <translation type="unfinished"></translation>
+        <translation>Güvenilir zaman damgası</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="371"/>
         <source>Key usage</source>
-        <translation type="unfinished"></translation>
+        <translation>Anahtar kullanımı</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="389"/>
         <source>No digital signatures or timestamps found in the document.</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgede dijital imza veya zaman damgası bulunamadı.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolxml.cpp" line="188"/>
         <source>XML export</source>
-        <translation type="unfinished"></translation>
+        <translation>XML dışa aktarım</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolxml.cpp" line="191"/>
         <source>Export internal data structure to xml.</source>
-        <translation type="unfinished"></translation>
+        <translation>Dahili veri yapısını xml&apos;e aktarın.</translation>
     </message>
 </context>
 <context>
@@ -6076,7 +6080,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtPageMaster/selectoutlinetoregroupdialog.ui" line="14"/>
         <source>Select Outline</source>
-        <translation type="unfinished"></translation>
+        <translation>Anahat Seç</translation>
     </message>
 </context>
 <context>
@@ -6321,7 +6325,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/statisticsgraphwidget.ui" line="14"/>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>Form</translation>
     </message>
 </context>
 <context>
@@ -6362,7 +6366,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcompiler.cpp" line="548"/>
         <source>Indexing document contents...</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
 </context>
 <context>
@@ -6370,7 +6374,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfitemmodels.cpp" line="871"/>
         <source>Files</source>
-        <translation type="unfinished"></translation>
+        <translation>Dosyalar</translation>
     </message>
 </context>
 <context>
@@ -6456,7 +6460,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatelisthelper.cpp" line="89"/>
         <source>Password protected</source>
-        <translation type="unfinished"></translation>
+        <translation>Parola korumalı</translation>
     </message>
 </context>
 <context>
@@ -6610,7 +6614,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="1113"/>
         <source>Select Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Renk Seç</translation>
     </message>
 </context>
 <context>
@@ -6631,7 +6635,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditortools.cpp" line="422"/>
         <source>Select Image</source>
-        <translation type="unfinished"></translation>
+        <translation>Resim Seç</translation>
     </message>
 </context>
 <context>
@@ -6639,12 +6643,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="86"/>
         <source>Sticky note</source>
-        <translation type="unfinished"></translation>
+        <translation>Yapışkan not</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="86"/>
         <source>Enter text to be displayed in the sticky note</source>
-        <translation type="unfinished"></translation>
+        <translation>Yapışkan notta görüntülenecek metni girin</translation>
     </message>
 </context>
 <context>
@@ -7182,7 +7186,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="995"/>
         <source>Edit Annotation</source>
-        <translation type="unfinished"></translation>
+        <translation>Açıklamayı Düzenle</translation>
     </message>
 </context>
 <context>
@@ -7190,7 +7194,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="1662"/>
         <source>Image of size %1 x %2 pixels was copied to the clipboard.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 x %2 piksel boyutundaki görüntü panoya kopyalandı.</translation>
     </message>
 </context>
 <context>
@@ -7976,7 +7980,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="956"/>
         <source>custom</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
 </context>
 <context>
@@ -7984,7 +7988,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="366"/>
         <source>Rectangle</source>
-        <translation type="unfinished"></translation>
+        <translation>Dikdörtgen</translation>
     </message>
 </context>
 <context>
@@ -8035,7 +8039,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfitemmodels.cpp" line="679"/>
         <source>Item %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Öğe %1</translation>
     </message>
 </context>
 <context>
@@ -8379,7 +8383,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="1550"/>
         <source>Use key &apos;C&apos; to show/hide large cross.</source>
-        <translation type="unfinished"></translation>
+        <translation>Büyük çarpı işaretini göstermek/gizlemek için &apos;C&apos; tuşunu kullanın.</translation>
     </message>
 </context>
 <context>
@@ -8425,7 +8429,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="1631"/>
         <source>Page contents of size %1 x %2 pixels were copied to the clipboard.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 x %2 piksel boyutundaki sayfa içeriği panoya kopyalandı.</translation>
     </message>
 </context>
 <context>
@@ -8452,12 +8456,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.cpp" line="128"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.cpp" line="135"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Hata</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.cpp" line="135"/>
         <source>Selected page range is empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>Seçilen sayfa aralığı boş.</translation>
     </message>
 </context>
 <context>
@@ -8465,7 +8469,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="1995"/>
         <source>Table region was selected. Use left/right mouse buttons to add/remove rows/columns, then use Enter key to copy the table.</source>
-        <translation type="unfinished"></translation>
+        <translation>Tablo bölgesi seçildi. Satır/sütun eklemek/kaldırmak için sol/sağ fare düğmelerini kullanın, ardından tabloyu kopyalamak için Enter tuşunu kullanın.</translation>
     </message>
 </context>
 <context>
@@ -11557,7 +11561,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtDiff/utils.cpp" line="441"/>
         <source>Difference</source>
-        <translation type="unfinished"></translation>
+        <translation>Fark</translation>
     </message>
 </context>
 <context>
@@ -11676,7 +11680,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.cpp" line="54"/>
         <source>S&amp;ettings</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Ayarlar</translation>
     </message>
 </context>
 <context>
@@ -12094,7 +12098,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiotextstreameditordockwidget.cpp" line="47"/>
         <source>Audio Book Actions</source>
-        <translation type="unfinished"></translation>
+        <translation>Sesli Kitap İşlemleri</translation>
     </message>
 </context>
 <context>
@@ -12102,17 +12106,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.cpp" line="88"/>
         <source>File Name</source>
-        <translation type="unfinished"></translation>
+        <translation>Dosya adı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.cpp" line="118"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Hata</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.cpp" line="118"/>
         <source>Cannot convert &apos;%1&apos; to color value.</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; renk değerine dönüştürülemiyor.</translation>
     </message>
 </context>
 <context>
@@ -13011,7 +13015,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="482"/>
         <source>Toggle this icon to switch image conversion to bitonal format on or off.</source>
-        <translation type="unfinished"></translation>
+        <translation>Görüntü dönüştürmeyi siyah-beyaz formata geçirmek veya kapatmak için bu simgeyi değiştirin.</translation>
     </message>
 </context>
 <context>
@@ -13042,7 +13046,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfactioncombobox.cpp" line="40"/>
         <source>Find action...</source>
-        <translation type="unfinished"></translation>
+        <translation>Eylem bul...</translation>
     </message>
 </context>
 <context>
@@ -13088,12 +13092,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfbookmarkui.cpp" line="195"/>
         <source>Page %1 | Generated</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa %1 | Oluşturulan</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfbookmarkui.cpp" line="199"/>
         <source>Page %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa %1</translation>
     </message>
 </context>
 <context>
@@ -13101,7 +13105,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfbookmarkmanager.cpp" line="199"/>
         <source>User bookmark for page %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 sayfası için kullanıcı yer işareti</translation>
     </message>
 </context>
 <context>
