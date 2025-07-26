@@ -6631,33 +6631,33 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="45"/>
         <source>1024 bits</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="46"/>
         <source>2048 bits</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="47"/>
         <source>4096 bits</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="106"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="113"/>
         <source>Certificate Protection</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifika Koruması</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="106"/>
         <source>Enter password to protect your certificate.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifikanızı korumak için parola girin.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="113"/>
         <source>Enter password again to verify password text.</source>
-        <translation type="unfinished"></translation>
+        <translation>Parola metnini doğrulamak için parolayı tekrar girin.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="117"/>
@@ -6665,27 +6665,27 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="152"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="159"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Hata</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="117"/>
         <source>Reentered password is not equal to the first one!</source>
-        <translation type="unfinished"></translation>
+        <translation>Yeniden girilen şifre ilkine eşit değil!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="145"/>
         <source>Please enter a name!</source>
-        <translation type="unfinished"></translation>
+        <translation>Lütfen bir isim giriniz!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="152"/>
         <source>Please enter an organization name!</source>
-        <translation type="unfinished"></translation>
+        <translation>Lütfen bir isim giriniz!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="159"/>
         <source>Please enter an email address!</source>
-        <translation type="unfinished"></translation>
+        <translation>Lütfen bir e-posta adresi giriniz!</translation>
     </message>
 </context>
 <context>
@@ -6693,12 +6693,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="170"/>
         <source>Text</source>
-        <translation type="unfinished"></translation>
+        <translation>Metin</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="170"/>
         <source>Enter text for free text panel</source>
-        <translation type="unfinished"></translation>
+        <translation>Serbest metin paneline metin girin</translation>
     </message>
 </context>
 <context>
@@ -6714,12 +6714,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="135"/>
         <source>Hyperlink</source>
-        <translation type="unfinished"></translation>
+        <translation>Köprü</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="135"/>
         <source>Enter url address of the hyperlink</source>
-        <translation type="unfinished"></translation>
+        <translation>Köprünün url adresini girin</translation>
     </message>
 </context>
 <context>
@@ -6748,130 +6748,130 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="257"/>
         <source>Qt</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="258"/>
         <source>LGPLv3</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="260"/>
         <source>https://www.qt.io/</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="265"/>
         <source>libjpeg</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="266"/>
         <source>permissive + ack.</source>
-        <translation type="unfinished"></translation>
+        <translation>izin verilen + ack.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="267"/>
         <source>https://www.ijg.org/</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="269"/>
         <source>%1</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="271"/>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="312"/>
         <source>%1.%2</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="284"/>
         <source>FreeType</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="285"/>
         <source>FTL</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="286"/>
         <source>%1.%2.%3</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="287"/>
         <source>https://www.freetype.org/index.html</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="292"/>
         <source>OpenJPEG</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="293"/>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="311"/>
         <source>2-clause MIT license</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="295"/>
         <source>https://www.openjpeg.org/</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="300"/>
         <source>OpenSSL</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="301"/>
         <source>Apache 2.0</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="303"/>
         <source>https://www.openssl.org/</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="310"/>
         <source>LittleCMS</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="313"/>
         <source>http://www.littlecms.com/</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="318"/>
         <source>zlib</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="319"/>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="331"/>
         <source>zlib specific</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="321"/>
         <source>https://zlib.net/</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="330"/>
         <source>Blend2D</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="333"/>
         <source>https://blend2d.com/</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
 </context>
 <context>
@@ -6879,167 +6879,167 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="173"/>
         <source>No document to be compared.</source>
-        <translation type="unfinished"></translation>
+        <translation>Karşılaştırılacak belge yok.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="179"/>
         <source>No page to be compared.</source>
-        <translation type="unfinished"></translation>
+        <translation>Karşılaştırılacak sayfa yok.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="194"/>
         <source>Invalid page range.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz sayfa aralığı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="202"/>
         <source>Comparing documents.</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgelerin karşılaştırılması.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1253"/>
         <source>Page no. %1 was moved to a page no. %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa no. %1, sayfa no. %2&apos;ye taşındı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1256"/>
         <source>Page no. %1 was added.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa no. %1 eklendi.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1259"/>
         <source>Page no. %1 was removed.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa no. %1 kaldırıldı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1262"/>
         <source>Removed text character from page %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 sayfasından metin karakteri kaldırıldı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1265"/>
         <source>Removed vector graphics from page %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 sayfasından vektör grafikler kaldırıldı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1268"/>
         <source>Removed image from page %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa %1&apos;den resim kaldırıldı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1271"/>
         <source>Removed shading from page %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 sayfasından gölgelendirme kaldırıldı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1274"/>
         <source>Added text character to page %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 sayfasına metin karakteri eklendi.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1277"/>
         <source>Added vector graphics to page %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 sayfasına vektör grafikler eklendi.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1280"/>
         <source>Added image to page %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 sayfasına resim eklendi.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1283"/>
         <source>Added shading to page %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 sayfasına gölgelendirme eklendi.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1286"/>
         <source>Text &apos;%1&apos; has been added to page %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; metni %2 sayfasına eklendi.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1289"/>
         <source>Text &apos;%1&apos; has been removed from page %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; metni %2 sayfasından kaldırıldı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1292"/>
         <source>Text &apos;%1&apos; on page %2 has been replaced by text &apos;%3&apos; on page %4.</source>
-        <translation type="unfinished"></translation>
+        <translation>%2 sayfasındaki &apos;%1&apos; metni, %4 sayfasındaki &apos;%3&apos; metniyle değiştirilmiştir.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1337"/>
         <source>Invalid</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1339"/>
         <source>Page moved</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa taşındı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1341"/>
         <source>Page added</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa eklendi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1343"/>
         <source>Page removed</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa kaldırıldı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1345"/>
         <source>Removed text character</source>
-        <translation type="unfinished"></translation>
+        <translation>Metin karakteri kaldırıldı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1347"/>
         <source>Removed vector graphics</source>
-        <translation type="unfinished"></translation>
+        <translation>Vektör grafikler kaldırıldı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1349"/>
         <source>Removed image</source>
-        <translation type="unfinished"></translation>
+        <translation>Resim kaldırıldı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1351"/>
         <source>Removed shading</source>
-        <translation type="unfinished"></translation>
+        <translation>Gölgelendirme kaldırıldı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1353"/>
         <source>Added text character</source>
-        <translation type="unfinished"></translation>
+        <translation>Metin karakteri eklendi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1355"/>
         <source>Added vector graphics</source>
-        <translation type="unfinished"></translation>
+        <translation>Vektör grafikler eklendi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1357"/>
         <source>Added image</source>
-        <translation type="unfinished"></translation>
+        <translation>Resim eklendi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1359"/>
         <source>Added shading</source>
-        <translation type="unfinished"></translation>
+        <translation>Gölgelendirme eklendi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1361"/>
         <source>Text added</source>
-        <translation type="unfinished"></translation>
+        <translation>Metin eklendi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1363"/>
         <source>Text removed</source>
-        <translation type="unfinished"></translation>
+        <translation>Metin kaldırıldı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1365"/>
         <source>Text replaced</source>
-        <translation type="unfinished"></translation>
+        <translation>Metin değiştirildi</translation>
     </message>
 </context>
 <context>
