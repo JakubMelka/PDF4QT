@@ -2909,7 +2909,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="622"/>
         <source>Volume</source>
-        <translation>Ses</translation>
+        <translation>Ses seviyesi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="642"/>
@@ -5666,29 +5666,29 @@ li.unchecked::marker { content: &quot;\2610&quot;; }
 li.checked::marker { content: &quot;\2612&quot;; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Görüntü oluşturma ayarları, görüntü oluşturma motorunun sayfa içeriğini nasıl işlediğini ve görüntülenen grafiklerin görünümünü denetler.&lt;span style=&quot; font-weight:600;&quot;&gt;Kenar yumuşatma&lt;/span&gt; dikdörtgenler, vektör grafikleri ve çizgiler gibi boyanmış şekillerin görünümünü düzgünleştirir, ancak metni etkilemez. Öte yandan&lt;span style=&quot; font-weight:600;&quot;&gt;metin kenar yumuşatma&lt;/span&gt;, metin karakterlerinin görünümünü iyileştirir ve diğer öğelere dokunulmaz. Hem &lt;span style=&quot; font-weight:600;&quot;&gt;Kenar yumuşatma &lt;/span&gt;hemde &lt;span style=&quot; font-weight:600;&quot;&gt;Metin Kenarı Yumuşatma&lt;/span&gt;sadece yazılım işleyici için geçerlidir. OpenGL gibi bir donanım işleme (render) motoru kullanıyorsanız, bu ayarlar bir etki yaratmayacaktır çünkü OpenGL, görüntüleri MSAA kenar yumuşatma kullanarak işler (eğer etkinleştirilmişse). &lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Pürüzsüz resimler&lt;/span&gt; seçeneği, yüksek kaliteli bir görüntü dönüştürme yöntemi kullanarak resimlerin cihaz uzay koordinatlarına dönüştürülmesini sağlar. Bu genellikle daha iyi görüntü kalitesi sağlar. Devre dışı bırakıldığında, varsayılan hızlı dönüştürme kullanılır ve kaynak DPI ile cihaz DPI farklıysa görüntü kalitesi düşebilir.&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;İsteğe bağlı içeriği yok say &lt;/span&gt;isteğe bağlı içerik ayarlarının tümünü yok sayar ve içerik akışındaki her şeyi görüntüler. &lt;span style=&quot; font-weight:600;&quot;&gt;Kırpma kutusu ile kırp&lt;/span&gt; görüntüleme alanını sayfanın kırpma kutusuyla sınırlar; bu kutu genellikle sayfanın tamamından daha küçüktür. Kırpma kutusu dışındaki grafikler çizilmez, bu da yazıcı işaretlerini ve benzer öğeleri kaldırmak için yararlı olabilir. &lt;span style=&quot; font-weight:600;&quot;&gt;Sayfa derleme/çizim süresini göster&lt;/span&gt; hata ayıklama için kullanışlı olabilir, bir sayfayı derlemek için geçen süreyi (önbellekte saklanır) ve derlenen sayfa içeriğini çıktı aygıtına görüntülemek için geçen süreyi gösterir.&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Ek açıklamaları göster&lt;/span&gt; ayarını kullanarak, ek açıklamaların görüntülenmesini etkinleştirebilir veya devre dışı bırakabilirsiniz. Ek açıklamalar devre dışı bırakılırsa, kullanıcı bunlarla etkileşim kuramaz.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Pürüzsüz resimler&lt;/span&gt; seçeneği, yüksek kaliteli bir görüntü dönüştürme yöntemi kullanarak resimlerin cihaz uzay koordinatlarına dönüştürülmesini sağlar. Bu genellikle daha iyi görüntü kalitesi sağlar. Devre dışı bırakıldığında, varsayılan hızlı dönüştürme kullanılır ve kaynak DPI ile cihaz DPI farklıysa görüntü kalitesi düşebilir. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;İsteğe bağlı içeriği yok say &lt;/span&gt;isteğe bağlı içerik ayarlarının tümünü yok sayar ve içerik akışındaki her şeyi görüntüler. &lt;span style=&quot; font-weight:600;&quot;&gt;Kırpma kutusu ile kırp&lt;/span&gt; görüntüleme alanını sayfanın kırpma kutusuyla sınırlar; bu kutu genellikle sayfanın tamamından daha küçüktür. Kırpma kutusu dışındaki grafikler çizilmez, bu da yazıcı işaretlerini ve benzer öğeleri kaldırmak için yararlı olabilir. &lt;span style=&quot; font-weight:600;&quot;&gt;Sayfa derleme/çizim süresini göster&lt;/span&gt; hata ayıklama için kullanışlı olabilir, bir sayfayı derlemek için geçen süreyi (önbellekte saklanır) ve derlenen sayfa içeriğini çıktı aygıtına görüntülemek için geçen süreyi gösterir. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Ek açıklamaları göster&lt;/span&gt; ayarını kullanarak, ek açıklamaların görüntülenmesini etkinleştirebilir veya devre dışı bırakabilirsiniz. Ek açıklamalar devre dışı bırakılırsa, kullanıcı bunlarla etkileşim kuramaz. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="282"/>
         <source>Shading Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Gölgelendirme Ayarları</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="290"/>
         <source>Preferred mesh resolution ratio</source>
-        <translation type="unfinished"></translation>
+        <translation>Tercih edilen mesh çözünürlük oranı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="297"/>
         <source>Color tolerance</source>
-        <translation type="unfinished"></translation>
+        <translation>Renk toleransı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="304"/>
         <source>Minimal mesh resolution ratio</source>
-        <translation type="unfinished"></translation>
+        <translation>Asgari mesh çözünürlük oranı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="370"/>
@@ -5703,38 +5703,48 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The &lt;span style=&quot; font-weight:600;&quot;&gt;Preferred mesh resolution ratio&lt;/span&gt; should be set to optimize the balance between the performance of mesh generation and the quality of the mesh. The optimal triangle size is computed as follows: the total meshing area (typically a page) is multiplied by this ratio to determine the triangle size. For example, if we have an A4 page (210 mm x 297 mm), and the ratio is set to 0.01, then the optimal triangle size is computed as 297 * 0.01 = ~3 mm. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The &lt;span style=&quot; font-weight:600;&quot;&gt;Minimal mesh resolution ratio&lt;/span&gt; is a ratio that determines the minimal triangle size. At this boundary, no triangles are subdivided, regardless of color variation or shape quality. This ratio should be set to a value at which a user can barely recognize patterns on the screen (for example, the triangle size should be &amp;lt; 1 mm). However, this also affects performance, as too many triangles can be generated. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Color tolerance&lt;/span&gt; is the threshold at which two colors are recognized as different. The comparison is done component-wise, so if at least one color component exceeds this parameter, the colors are treated as different. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Gölgelendirme, &lt;span style=&quot; font-weight:600;&quot;&gt;renk toleransı&lt;/span&gt; ve şekil toleransı gibi mesh (ağ) kalitesi kriterlerine göre gerçekleştirilir. Mesh&apos;teki (ağdak)i bir üçgenin köşelerinin rengi çok farklıysa (ayarlanan renk toleransını aşıyorsa), ağ inceltilir ve üçgen alt bölümlere ayrılır. Bazı gölgelendirmeler, &lt;span style=&quot; font-style:italic;&quot;&gt;Coons yama gölgelendirme&lt;/span&gt; veya &lt;span style=&quot; font-style:italic;&quot;&gt;Tensor ürün yama gölgelendirme&lt;/span&gt; gibi desenlerle tanımlanır ve bunlar da ağ (mesh) oluşturma sırasında dikkate alınır. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Tercih edilen ağ çözünürlük oranı&lt;/span&gt;, ağ oluşturma performansı ile ağ kalitesi arasındaki dengeyi optimize etmek için ayarlanmalıdır. Optimum üçgen boyutu şu şekilde hesaplanır: toplam ağ alanı (genellikle bir sayfa) bu oranla çarpılarak üçgen boyutu belirlenir. Örneğin, A4 sayfası (210 mm x 297 mm) varsa ve oran 0,01 olarak ayarlanmışsa, optimum üçgen boyutu 297 * 0,01 = ~3 mm olarak hesaplanır. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Minimum ağ çözünürlük oranı&lt;/span&gt;, minimum üçgen boyutunu belirleyen bir orandır. Bu sınırda, renk varyasyonu veya şekil kalitesinden bağımsız olarak hiçbir üçgen alt bölümlere ayrılmaz. Bu oran, kullanıcının ekrandaki desenleri zar zor tanıyabileceği bir değere ayarlanmalıdır (örneğin, üçgen boyutu &amp;lt; 1 mm olmalıdır). Ancak bu, çok fazla üçgen oluşturulabileceğinden performansı da etkiler. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Renk toleransı&lt;/span&gt;, iki rengin farklı olarak algılandığı eşik değeridir. Karşılaştırma bileşen bazında yapılır, bu nedenle en az bir renk bileşeni bu parametreyi aşarsa, renkler farklı olarak değerlendirilir. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="406"/>
         <source>Cache Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Önbellek Ayarları</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="414"/>
         <source>Thumbnail image cache size</source>
-        <translation type="unfinished"></translation>
+        <translation>Küçük resim önbellek boyutu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="421"/>
         <source>Cached font limit</source>
-        <translation type="unfinished"></translation>
+        <translation>Önbelleğe alınmış yazı tipi sınırı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="444"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="467"/>
         <source> kB</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="460"/>
         <source>Compiled page cache size</source>
-        <translation type="unfinished"></translation>
+        <translation>Derlenmiş sayfa önbellek boyutu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="483"/>
         <source>Cached instanced font limit</source>
-        <translation type="unfinished"></translation>
+        <translation>Önbelleğe alınmış örnekli yazı tipi sınırı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="502"/>
@@ -5748,82 +5758,91 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The rendering engine first compiles the page to enable quick drawing and then stores these compiled pages in a cache. These stored pages usually render much quicker than non-cached pages. The &lt;span style=&quot; font-weight:600;&quot;&gt;Compiled Page Cache Size&lt;/span&gt; sets the memory limit for these compiled pages, measured in kilobytes. Ideally, this limit should be at least twice as large as the size of the largest compiled page. If a compiled page exceeds this limit, an error will be displayed during rendering. Setting a higher value for this limit can speed up the rendering engine, but it will consume more operating memory. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;There is also a cache for thumbnail images. The &lt;span style=&quot; font-weight:600;&quot;&gt;Thumbnail Image Cache Size&lt;/span&gt; determines the memory space allocated for these images. This value should be set large enough to accommodate all thumbnail images on the screen. The larger this value is, the quicker thumbnails will display, but at the cost of consuming more operating memory. Please note that thumbnails are stored as bitmaps for rapid drawing, not as precompiled pages. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;During rendering, fonts are cached as well. There are two levels of cache for fonts: one for general fonts and one for instance-specific fonts (fonts at a specific size). The &lt;span style=&quot; font-weight:600;&quot;&gt;Cached Font Limit&lt;/span&gt; sets the maximum number of fonts that can be stored in the cache. The &lt;span style=&quot; font-weight:600;&quot;&gt;Instanced Font Cache Limit&lt;/span&gt; sets the maximum number of instance-specific fonts that can be stored. If these cache limits are exceeded, fonts are removed from the cache. However, this only happens when no operation in another thread (like compiling pages) is being performed to avoid race conditions. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Render motoru önce sayfayı hızlı çizim için derler ve ardından bu derlenmiş sayfaları önbellekte saklar. Bu saklanan sayfalar genellikle önbelleğe alınmamış sayfalardan çok daha hızlı görüntülenir. &lt;span style=&quot; font-weight:600;&quot;&gt;Derlenmiş Sayfa Önbellek Boyutu&lt;/span&gt;, bu derlenmiş sayfalar için bellek sınırını kilobayt cinsinden belirler. İdeal olarak, bu sınır en büyük derlenmiş sayfanın boyutunun en az iki katı kadar olmalıdır. Derlenmiş bir sayfa bu sınırı aşarsa, görüntüleme sırasında bir hata görüntülenir. Bu sınır için daha yüksek bir değer belirlemek görüntüleme motorunu hızlandırabilir, ancak daha fazla işletim belleği tüketir. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Küçük resimler için de bir önbellek vardır. &lt;span style=&quot; font-weight:600;&quot;&gt;Küçük Resim Önbellek Boyutu&lt;/span&gt; bu resimler için ayrılan bellek alanını belirler. Bu değer, ekrandaki tüm küçük resimleri barındıracak kadar büyük olmalıdır. Bu değer ne kadar büyük olursa, küçük resimler o kadar hızlı görüntülenir, ancak bunun bedeli olarak daha fazla işletim belleği tüketilir. Küçük resimler, önceden derlenmiş sayfalar olarak değil, hızlı çizim için bitmap olarak depolanır. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;İşleme (Renderlama) sırasında yazı tipleri de önbelleğe alınır. Yazı tipleri için iki düzeyde önbellek vardır: biri genel yazı tipleri için, diğeri ise örneğe özgü yazı tipleri (belirli boyuttaki yazı tipleri) içindir. &lt;span style=&quot; font-weight:600;&quot;&gt;Önbelleğe Alınan Yazı Tipi Sınırı&lt;/span&gt; önbellekte depolanabilecek maksimum yazı tipi sayısını belirler. &lt;span style=&quot; font-weight:600;&quot;&gt;Örnek Yazı Tipi Önbellek Sınırı&lt;/span&gt; depolanabilecek örnek özel yazı tiplerinin maksimum sayısını belirler. Bu önbellek sınırları aşıldığında, yazı tipleri önbellekten kaldırılır. Ancak, bu durum yalnızca başka bir iş parçacığında (sayfaların derlenmesi gibi) herhangi bir işlem yapılmadığında, yarış koşullarını önlemek için gerçekleşir. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="537"/>
         <source>Shortcuts</source>
-        <translation type="unfinished"></translation>
+        <translation>Kısayollar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="569"/>
         <source>Color management system settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Renk yönetimi sistemi ayarları</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="580"/>
         <source>Black point compensation</source>
-        <translation type="unfinished"></translation>
+        <translation>Siyah nokta dengeleme</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="587"/>
         <source>Device gray color profile</source>
-        <translation type="unfinished"></translation>
+        <translation>Cihaz gri renk profili</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="600"/>
         <source>Accuracy</source>
-        <translation type="unfinished"></translation>
+        <translation>Doğruluk</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="610"/>
         <source>Additional color profile directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Ek renk profili dizini</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="617"/>
         <source>White paper color transformed</source>
-        <translation type="unfinished"></translation>
+        <translation>Beyaz kağıt rengi dönüştürüldü</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="631"/>
         <source>Output color profile</source>
-        <translation type="unfinished"></translation>
+        <translation>Çıktı renk profili</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="652"/>
         <source>Rendering intent</source>
-        <translation type="unfinished"></translation>
+        <translation>İşleme amacı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="665"/>
         <source>Consider document output intents</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge çıktı amaçlarını göz önünde bulundurun</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="672"/>
         <source>Device RGB color profile</source>
-        <translation type="unfinished"></translation>
+        <translation>Cihaz RGB renk profili</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="679"/>
         <source>Color management system</source>
-        <translation type="unfinished"></translation>
+        <translation>Renk yönetimi sistemi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="686"/>
         <source>Device CMYK color profile</source>
-        <translation type="unfinished"></translation>
+        <translation>Cihaz CMYK renk profili</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="698"/>
         <source>...</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="713"/>
         <source>Color adaptation method (XYZ whitepoint)</source>
-        <translation type="unfinished"></translation>
+        <translation>Renk adaptasyon yöntemi (XYZ whitepoint)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="722"/>
@@ -5837,32 +5856,41 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The &lt;span style=&quot; font-weight:600;&quot;&gt;Color Management System&lt;/span&gt; governs input and output color profiles and color transformations. This system allows for accurate color representation as defined in the PDF document. For faster color transformations, select &apos;Generic&apos; to disable this functionality. The &lt;span style=&quot; font-weight:600;&quot;&gt;Rendering Intent&lt;/span&gt; selection influences the way colors are transformed. While rendering intents are often defined within the PDF document&apos;s content streams, you have the option to override them by selecting a different intent from &apos;Auto&apos;. The &lt;span style=&quot; font-weight:600;&quot;&gt;Accuracy&lt;/span&gt; setting determines the precision of the color transformation, with higher accuracy consuming more memory. The &lt;span style=&quot; font-weight:600;&quot;&gt;Black Point Compensation&lt;/span&gt; adjusts for black colors that fall outside the gamut. The &lt;span style=&quot; font-weight:600;&quot;&gt;White Paper Color Transformed&lt;/span&gt; setting affects the color of the underlying white paper - enabling this will transform pure white from the device RGB profile to the output profile. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The &lt;span style=&quot; font-weight:600;&quot;&gt;Output Color Profile&lt;/span&gt; specifies the output (target) rendering profile. This profile should align with the color space that your screen uses to display colors. Additionally, you can set the color spaces for &lt;span style=&quot; font-weight:600;&quot;&gt;gray/RGB/CMYK&lt;/span&gt; device color spaces. These are used to transform gray/RGB/CMYK colors to the output color profile. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;A document may contain output intents, which can be used for transforming between color spaces. If the &lt;span style=&quot; font-weight:600;&quot;&gt;Consider Document Output Intents&lt;/span&gt; option is checked, the color management system will verify whether the document contains output intents. If such intents are present, they will be used for color transformation as device color spaces (gray/RGB/CMYK). &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Renk Yönetim Sistemi&lt;/span&gt; giriş ve çıkış renk profillerini ve renk dönüşümlerini yönetir. Bu sistem, PDF belgesinde tanımlanan şekilde doğru renk temsilini sağlar. Daha hızlı renk dönüşümleri için, bu işlevi devre dışı bırakmak üzere ‘Genel’ seçeneğini seçin. &lt;span style=&quot; font-weight:600;&quot;&gt;İşleme Amacı&lt;/span&gt; seçimi, renklerin dönüştürülme şeklini etkiler. İşleme Amacları genellikle PDF belgesinin içerik akışlarında tanımlanır, ancak ‘Otomatik’ seçeneğinden farklı bir amaç seçerek bunları geçersiz kılma seçeneğiniz vardır. &lt;span style=&quot; font-weight:600;&quot;&gt;Doğruluk&lt;/span&gt; ayarı, renk dönüşümünün hassasiyetini belirler; daha yüksek doğruluk, daha fazla bellek tüketir. &lt;span style=&quot; font-weight:600;&quot;&gt;Siyah Nokta Dengeleme&lt;/span&gt;, gamutun dışında kalan siyah renkleri ayarlar. &lt;span style=&quot; font-weight:600;&quot;&gt;Beyaz Kağıt Rengi Dönüştürüldü&lt;/span&gt; ayarı, altta yatan beyaz kağıdın rengini etkiler - bu özelliği etkinleştirmek, cihazın RGB profilindeki saf beyazı çıktı profiline dönüştürür. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Çıktı Renk Profili&lt;/span&gt; çıktı (hedef) görüntüleme profilini belirtir. Bu profil, ekranınızın renkleri görüntülemek için kullandığı renk alanı ile uyumlu olmalıdır. Ek olarak, &lt;span style=&quot; font-weight:600;&quot;&gt;gri/RGB/CMYK&lt;/span&gt; cihaz renk alanları için renk alanlarını ayarlayabilirsiniz. Bunlar, gri/RGB/CMYK renklerini çıktı renk profiline dönüştürmek için kullanılır. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Bir belge, renk alanları arasında dönüştürme için kullanılabilecek çıktı amaçları içerebilir. &lt;span style=&quot; font-weight:600;&quot;&gt;Belge Çıktı Amaçlarını Dikkate Al&lt;/span&gt; seçeneği işaretliyse, renk yönetim sistemi belgenin çıktı amaçları içerip içermediğini doğrular. Bu tür amaçlar varsa, cihaz renk alanları (gri/RGB/CMYK) olarak renk dönüştürme için kullanılır. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="757"/>
         <source>Color Postprocessing</source>
-        <translation type="unfinished"></translation>
+        <translation>Renk Son İşleme</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="768"/>
         <source>Sigmoid function slope parameter</source>
-        <translation type="unfinished"></translation>
+        <translation>Sigmoid fonksiyon eğim parametresi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="775"/>
         <source>Foreground color</source>
-        <translation type="unfinished"></translation>
+        <translation>Ön plan rengi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="785"/>
         <source>Background color</source>
-        <translation type="unfinished"></translation>
+        <translation>Arka plan rengi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="802"/>
         <source>Bitonal threshold</source>
-        <translation type="unfinished"></translation>
+        <translation>SiyahBeyaz eşiği</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="818"/>
@@ -5876,22 +5904,31 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Foreground&lt;/span&gt; and &lt;span style=&quot; font-weight:700;&quot;&gt;background&lt;/span&gt; colors refer to a custom colors rendering mode, where two colors are used - the paper is drawn with the background color, and the foreground color is used for text and graphics. By default, the background is black and the foreground is green, which is easy on the eyes. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Sigmoid function slope parameter&lt;/span&gt; is a parameter in high contrast color rendering. This rendering mode displays all graphics in high contrast. This parameter affects the degree of contrast. Set the value from 1 to 5 for a small contrast change, from 5 to 10 for a medium contrast change, and more than 10 for very high contrast rendering. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Bitonal threshold&lt;/span&gt; is used in the bitonal rendering color mode. It distinguishes between black and white colors. However, the threshold for images is determined automatically. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Ön plan&lt;/span&gt; ve &lt;span style=&quot; font-weight:700;&quot;&gt;arka plan&lt;/span&gt; renkleri, iki rengin kullanıldığı özel bir renk görüntüleme modunu ifade eder. Kağıt arka plan rengiyle çizilir ve ön plan rengi metin ve grafikler için kullanılır. Varsayılan olarak arka plan siyah, ön plan ise yeşildir ve bu renkler göze daha rahat gelir. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Sigmoid fonksiyon eğim parametresi&lt;/span&gt; yüksek kontrastlı renk işleme modunda kullanılan bir parametredir. Bu işleme modu tüm grafikleri yüksek kontrastlı olarak görüntüler. Bu parametre kontrast derecesini etkiler. Küçük bir kontrast değişikliği için değeri 1 ile 5 arasında, orta düzeyde bir kontrast değişikliği için 5 ile 10 arasında ve çok yüksek kontrastlı işleme için 10&apos;dan büyük bir değer ayarlayın. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;SiyahBeyaz eşik&lt;/span&gt; SiyahBeyaz görüntüleme renk modunda kullanılır. Siyah ve beyaz renkleri birbirinden ayırır. Ancak, görüntüler için eşik otomatik olarak belirlenir. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="853"/>
         <source>Security Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Güvenlik Ayarları</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="868"/>
         <source>Allow URI link launch</source>
-        <translation type="unfinished"></translation>
+        <translation>URI bağlantısının açılmasına izin ver</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="875"/>
         <source>Allow application launch</source>
-        <translation type="unfinished"></translation>
+        <translation>Uygulamanın başlatılmasına izin ver</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="891"/>
@@ -5905,62 +5942,71 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;If the application launch is permitted, a message box appears after the &lt;span style=&quot; font-weight:600;&quot;&gt;Launch&lt;/span&gt; action is triggered, asking the user if they want to execute an external application. If the user confirms the dialog, the external application executes (for example, using the Windows function &lt;span style=&quot; font-weight:600;&quot;&gt;ShellExecute&lt;/span&gt;). When this option is turned off, no dialog appears and the external application never executes. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;If the &lt;span style=&quot; font-weight:600;&quot;&gt;URI link&lt;/span&gt; launch is allowed, a message box appears asking the user if they want to open the URI link. If the user confirms the dialog, the URI link is opened by the default web browser (or default application if the URI links to the file system). &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Users should exercise caution with these settings and only confirm execution if the document is safe and comes from a reliable source. Launching external applications and following URI links can pose risks to the user&apos;s computer. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Uygulamanın başlatılmasına izin verilirse, &lt;span style=&quot; font-weight:600;&quot;&gt;Başlat&lt;/span&gt; eylemi tetiklendikten sonra, kullanıcıya harici bir uygulamayı çalıştırmak isteyip istemediğini soran bir mesaj kutusu görüntülenir. Kullanıcı iletişim kutusunu onaylarsa, harici uygulama çalıştırılır (örneğin, Windows işlevi &lt;span style=&quot; font-weight:600;&quot;&gt;ShellExecute&lt;/span&gt; kullanılarak). Bu seçenek kapatıldığında, hiçbir iletişim kutusu görünmez ve harici uygulama hiçbir zaman çalıştırılmaz. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;If the &lt;span style=&quot; font-weight:600;&quot;&gt;URI bağlantısı&lt;/span&gt; açılmasına izin verilirse, kullanıcıya URI bağlantısını açmak isteyip istemediğini soran bir mesaj kutusu görüntülenir. Kullanıcı diyalog kutusunu onaylarsa, URI bağlantısı varsayılan web tarayıcısıyla (veya URI bağlantısı dosya sistemine yönlendiriliyorsa varsayılan uygulama ile) açılır. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Kullanıcılar bu ayarlara dikkat etmeli ve belge güvenli ve güvenilir bir kaynaktan geliyorsa yürütmeyi onaylamalıdır. Harici uygulamaları başlatmak ve URI bağlantılarını takip etmek kullanıcının bilgisayarına risk oluşturabilir. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="926"/>
         <source>UI Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Kullanıcı Arayüzü Ayarları</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="934"/>
         <source>Maximum redo steps</source>
-        <translation type="unfinished"></translation>
+        <translation>Azami yineleme adımları</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="976"/>
         <source>Magnifier size</source>
-        <translation type="unfinished"></translation>
+        <translation>Büyüteç boyutu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="969"/>
         <source>Use logical pixels when zooming</source>
-        <translation type="unfinished"></translation>
+        <translation>Yakınlaştırma sırasında mantıksal pikselleri kullan</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1014"/>
         <source>px</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="993"/>
         <source>Maximum undo steps</source>
-        <translation type="unfinished"></translation>
+        <translation>Azami geri alma adımı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="962"/>
         <source>Magnifier zoom</source>
-        <translation type="unfinished"></translation>
+        <translation>Büyüteç yakınlaştır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1000"/>
         <source>Maximum count of recent files</source>
-        <translation type="unfinished"></translation>
+        <translation>En son kullanılan dosyaların azami sayısı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1040"/>
         <source>Developer mode</source>
-        <translation type="unfinished"></translation>
+        <translation>Geliştirici modu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1030"/>
         <source>Color Scheme (GUI)</source>
-        <translation type="unfinished"></translation>
+        <translation>Renk Şeması (GUI)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1047"/>
         <source>Language</source>
-        <translation type="unfinished"></translation>
+        <translation>Dil</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1059"/>
@@ -5974,42 +6020,51 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The &apos;Maximum count of recent files&apos; setting controls the number of recent files displayed in the menu. When a document is opened, it is added to the top of the recent files list. The list is then truncated from the bottom if the number of recent files exceeds the maximum. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Magnifier tool settings&lt;/span&gt; determine the appearance of the magnifier. The magnifier tool enlarges the area under the mouse cursor. You can specify the size of the magnifier (in &lt;span style=&quot; font-weight:600;&quot;&gt;logical&lt;/span&gt; pixels) and its zoom level. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;By specifying the &lt;span style=&quot; font-weight:600;&quot;&gt;undo/redo&lt;/span&gt; step count, you control the number of undo/redo steps available during document editing. Setting the maximum undo step count to zero disables the undo/redo function. You can also set a nonzero undo step count and a zero redo step count, which would make only undo actions available, with redo actions disabled. Changes are optimized for memory usage, so each undo/redo step shares unmodified objects with others. This means that, roughly speaking, making 10 modifications to a 50 MB document may consume around 51 MB of memory. Actual memory usage depends on the extent of the changes but is usually minimal as changes typically affect a small number of objects (for example, editing a form field or modifying an annotation). &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;“Son dosyaların azami sayısı” ayarı, menüde görüntülenen son dosyaların sayısını kontrol eder. Bir belge açıldığında, son dosyalar listesinin en üstüne eklenir. Son dosyaların sayısı azami sayıyı aşarsa, liste alt kısımdan kesilir. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Büyüteç aracı ayarları&lt;/span&gt; büyütecin görünümünü belirler. Büyüteç aracı, fare imlecinin altındaki alanı büyütür. Büyütecin boyutunu (&lt;span style=&quot; font-weight:600;&quot;&gt;mantıksal&lt;/span&gt; piksel cinsinden) ve yakınlaştırma düzeyini belirleyebilirsiniz. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Geri alma/yineleme&lt;/span&gt; adım sayısını belirleyerek, belge düzenleme sırasında kullanılabilir geri alma/yineleme adımlarının sayısını kontrol edebilirsiniz. Azami geri alma adım sayısını sıfıra ayarlamak, geri alma/yineleme işlevini devre dışı bırakır. Ayrıca, sıfır olmayan bir geri alma adım sayısı ve sıfır bir yineleme adım sayısı ayarlayabilirsiniz; bu durumda, yalnızca geri alma eylemleri kullanılabilir olur ve yineleme eylemleri devre dışı bırakılır. Değişiklikler bellek kullanımı için optimize edilmiştir, bu nedenle her geri alma/yineleme adımı, değiştirilmemiş nesneleri diğerleriyle paylaşır. Bu, kabaca söylemek gerekirse, 50 MB&apos;lık bir belgeye 10 değişiklik yapmak yaklaşık 51 MB bellek tüketebilir anlamına gelir. Gerçek bellek kullanımı, değişikliklerin kapsamına bağlıdır, ancak değişiklikler genellikle az sayıda nesneyi etkilediği için (örneğin, bir form alanını düzenlemek veya bir açıklamayı değiştirmek) genellikle asgari düzeydedir. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1094"/>
         <source>Speech Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Konuşma Ayarları</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1102"/>
         <source>Voice</source>
-        <translation type="unfinished"></translation>
+        <translation>Ses</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1109"/>
         <source>Pitch</source>
-        <translation type="unfinished"></translation>
+        <translation>Ton</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1116"/>
         <source>Volume</source>
-        <translation type="unfinished"></translation>
+        <translation>Ses seviyesi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1123"/>
         <source>Rate</source>
-        <translation type="unfinished"></translation>
+        <translation>Tempo</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1130"/>
         <source>Voice synthetiser</source>
-        <translation type="unfinished"></translation>
+        <translation>Ses sentezleyici</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1137"/>
         <source>Locale</source>
-        <translation type="unfinished"></translation>
+        <translation>Konum</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1182"/>
@@ -6021,22 +6076,29 @@ li.unchecked::marker { content: &quot;\2610&quot;; }
 li.checked::marker { content: &quot;\2612&quot;; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Configure the speech settings to enable the text-to-speech feature for reading documents. While these settings act as defaults for the text-to-speech function, some can be adjusted later on. The &apos;Pitch&apos; setting can vary from -1.0 to 1.0, with 0.0 serving as the default value. Similarly, the &apos;Rate&apos; can range from -1.0 to 1.0, with 0.0 denoting a normal speech flow. Lastly, &apos;Volume&apos; can be adjusted between 0.0 and 1.0. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Belgeleri okumak için metin okuma özelliğini etkinleştirmek üzere konuşma ayarlarını yapılandırın. Bu ayarlar metin okuma işlevi için varsayılan ayarlar olarak işlev görür, ancak bazıları daha sonra ayarlanabilir. &apos;Ton&apos; ayarı -1,0 ile 1,0 arasında değişebilir ve 0,0 varsayılan değer olarak kullanılır. Benzer şekilde, ‘Hız’ -1,0 ile 1,0 arasında değişebilir ve 0,0 normal konuşma akışını gösterir. Son olarak, &apos;Ses Seviyesi&apos; 0,0 ile 1,0 arasında ayarlanabilir. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1215"/>
         <source>Form Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Form Ayarları</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1223"/>
         <source>Highlight form fields</source>
-        <translation type="unfinished"></translation>
+        <translation>Form alanlarını vurgula</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1230"/>
         <source>Highlight required form fields</source>
-        <translation type="unfinished"></translation>
+        <translation>Gerekli form alanlarını vurgulayın</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1253"/>
@@ -6048,52 +6110,59 @@ li.unchecked::marker { content: &quot;\2610&quot;; }
 li.checked::marker { content: &quot;\2612&quot;; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;You can customize the appearance of form fields using the provided settings, including the option to highlight editable fields. You can separately highlight required form fields in red, while other fields can be emphasized in blue. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Sağlanan ayarları kullanarak form alanlarının görünümünü özelleştirebilirsiniz. Bu ayarlar arasında düzenlenebilir alanları vurgulamak için bir seçenek de bulunmaktadır. Gerekli form alanlarını ayrı ayrı kırmızı renkle vurgulayabilir, diğer alanları ise mavi renkle vurgulayabilirsiniz. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1286"/>
         <source>Digital Signature Verification</source>
-        <translation type="unfinished"></translation>
+        <translation>Dijital İmza Doğrulama</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1294"/>
         <source>Ignore expired certificates</source>
-        <translation type="unfinished"></translation>
+        <translation>Süresi dolan sertifikaları yoksay</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1301"/>
         <source>Signature verification</source>
-        <translation type="unfinished"></translation>
+        <translation>İmza doğrulama</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1308"/>
         <source>Strict mode</source>
-        <translation type="unfinished"></translation>
+        <translation>Sıkı mod</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1329"/>
         <source>Use system certificate store</source>
-        <translation type="unfinished"></translation>
+        <translation>Sistem sertifika deposunu kullan</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1359"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Trusted certificate store&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Güvenilen sertifika deposu&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1388"/>
         <source>Remove</source>
-        <translation type="unfinished"></translation>
+        <translation>Kaldır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1404"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;These are the settings for digital signature verification. Digital signatures are verified as strictly as possible to prevent any malicious content or signature manipulation. Verification can also be disabled, if not required. When &lt;span style=&quot; font-weight:600;&quot;&gt;Strict mode&lt;/span&gt; is enabled, every warning is treated as an error. You have the option to ignore the certificate expiration date, but this should only be done if you fully understand the potential risks involved. Verification uses a list of trusted certificates. System certificates can be added to this list, and you can also manage your own list of trusted certificates.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Bunlar dijital imza doğrulama ayarlarıdır. Dijital imzalar, kötü niyetli içerik veya imza manipülasyonunu önlemek için mümkün olduğunca sıkı bir şekilde doğrulanır. Doğrulama, gerekli değilse devre dışı bırakılabilir. &lt;span style=&quot; font-weight:600;&quot;&gt;Sıkı mod&lt;/span&gt; etkinleştirildiğinde, her uyarı bir hata olarak değerlendirilir. Sertifika son kullanma tarihini yok sayma seçeneğiniz vardır, ancak bunu yalnızca ilgili potansiyel riskleri tam olarak anladıysanız yapmalısınız. Doğrulama, güvenilir sertifikalar listesini kullanır. Sistem sertifikaları bu listeye eklenebilir ve ayrıca kendi güvenilir sertifikalar listenizi de yönetebilirsiniz.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1433"/>
         <source>Plugins</source>
-        <translation type="unfinished"></translation>
+        <translation>Eklentiler</translation>
     </message>
 </context>
 <context>
