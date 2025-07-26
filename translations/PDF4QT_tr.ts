@@ -7047,50 +7047,50 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="35"/>
         <source>Empty page list.</source>
-        <translation type="unfinished"></translation>
+        <translation>Boş sayfa listesi.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="62"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="283"/>
         <source>Invalid document.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz belge.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="170"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="305"/>
         <source>Missing page (%1) in a document.</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgede eksik sayfa (%1).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="211"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="218"/>
         <source>Missing image.</source>
-        <translation type="unfinished"></translation>
+        <translation>Eksik resim.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="239"/>
         <source>Error occured during page creation.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa oluşturma sırasında hata oluştu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="577"/>
         <source>Document %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="582"/>
         <source>%1, p. %2</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="591"/>
         <source>%1 Images</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 Resimler</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="595"/>
         <source>%1 Pages</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 Sayfalar</translation>
     </message>
 </context>
 <context>
@@ -7098,43 +7098,43 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="71"/>
         <source>File &apos;%1&apos; cannot be opened for reading. %1</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; dosyası okuma için açılamıyor. %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="77"/>
         <source>File &apos;%1&apos; doesn&apos;t exist.</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; dosyası mevcut değil.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="97"/>
         <source>Device is not opened for reading.</source>
-        <translation type="unfinished"></translation>
+        <translation>Cihaz okumak için açılmadı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="109"/>
         <source>Can&apos;t open device for reading.</source>
-        <translation type="unfinished"></translation>
+        <translation>Cihaz okumak için açılamıyor.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="119"/>
         <source>End of file marking was not found.</source>
-        <translation type="unfinished"></translation>
+        <translation>Dosya sonu işareti bulunamadı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="162"/>
         <source>Header of PDF file was not found.</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF dosyasının başlığı bulunamadı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="168"/>
         <source>Version of the PDF file is not valid.</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF dosyasının sürümü geçerli değil.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="177"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="185"/>
         <source>Start of object reference table not found.</source>
-        <translation type="unfinished"></translation>
+        <translation>Nesne referans tablosunun başlangıcı bulunamadı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="204"/>
@@ -7142,17 +7142,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="216"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="222"/>
         <source>Can&apos;t read object at position %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 konumundaki nesne okunamıyor.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="353"/>
         <source>Invalid trailer dictionary.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz trailer sözlüğü.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="564"/>
         <source>Empty xref table.</source>
-        <translation type="unfinished"></translation>
+        <translation>Boş xref tablosu.</translation>
     </message>
 </context>
 <context>
@@ -7160,42 +7160,42 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="151"/>
         <source>Document info was removed.</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge bilgileri kaldırıldı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="169"/>
         <source>Metadata streams removed: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Kaldırılan meta veri akışları: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="184"/>
         <source>Outline was removed.</source>
-        <translation type="unfinished"></translation>
+        <translation>Anahat kaldırıldı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="194"/>
         <source>File attachments removed: %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>Dosya ekleri kaldırıldı: %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="222"/>
         <source>Embedded files were removed.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gömülü dosyalar kaldırıldı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="254"/>
         <source>Search index was removed.</source>
-        <translation type="unfinished"></translation>
+        <translation>Arama dizinini kaldırıldı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="265"/>
         <source>Markup annotations removed: %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>İşaretleme açıklamaları kaldırıldı: %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="293"/>
         <source>Page thumbnails removed: %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa küçük resimleri kaldırıldı: %1.</translation>
     </message>
 </context>
 <context>
@@ -7203,53 +7203,53 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="58"/>
         <source>Page No.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa No.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="61"/>
         <source>Type</source>
-        <translation type="unfinished"></translation>
+        <translation>Tür</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="64"/>
         <source>State</source>
-        <translation type="unfinished"></translation>
+        <translation>Devlet</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="67"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="148"/>
         <source>Text</source>
-        <translation type="unfinished"></translation>
+        <translation>Metin</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="137"/>
         <source>Title</source>
-        <translation type="unfinished"></translation>
+        <translation>Başlık</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="141"/>
         <source>Language</source>
-        <translation type="unfinished"></translation>
+        <translation>Dil</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="145"/>
         <source>Special</source>
-        <translation type="unfinished"></translation>
+        <translation>Özel</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="158"/>
         <source>Removed</source>
-        <translation type="unfinished"></translation>
+        <translation>Kaldırıldı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="163"/>
         <source>Modified</source>
-        <translation type="unfinished"></translation>
+        <translation>Değiştirildi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="166"/>
         <source>Active</source>
-        <translation type="unfinished"></translation>
+        <translation>Aktif</translation>
     </message>
 </context>
 <context>
@@ -7258,19 +7258,19 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentwriter.cpp" line="189"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentwriter.cpp" line="255"/>
         <source>Writing of encrypted documents is not supported.</source>
-        <translation type="unfinished"></translation>
+        <translation>Şifrelenmiş belgelerin yazılması desteklenmez.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentwriter.cpp" line="204"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentwriter.cpp" line="215"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentwriter.cpp" line="237"/>
         <source>File &apos;%1&apos; can&apos;t be opened for writing. %2</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; dosyası yazmak için açılamıyor. %2</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentwriter.cpp" line="246"/>
         <source>Device is not writable.</source>
-        <translation type="unfinished"></translation>
+        <translation>Cihaz yazılabilir değil.</translation>
     </message>
 </context>
 <context>
@@ -7295,37 +7295,37 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="408"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="661"/>
         <source>Find</source>
-        <translation type="unfinished"></translation>
+        <translation>Bul</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="420"/>
         <source>Case sensitive</source>
-        <translation type="unfinished"></translation>
+        <translation>Büyük/küçük harfe duyarlı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="421"/>
         <source>Whole words only</source>
-        <translation type="unfinished"></translation>
+        <translation>Yalnızca tam sözcükler</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="422"/>
         <source>Previous</source>
-        <translation type="unfinished"></translation>
+        <translation>Önceki</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="423"/>
         <source>Next</source>
-        <translation type="unfinished"></translation>
+        <translation>Sonraki</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="447"/>
         <source>Search text</source>
-        <translation type="unfinished"></translation>
+        <translation>Arama metni</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="665"/>
         <source>Find (%1/%2)</source>
-        <translation type="unfinished"></translation>
+        <translation>Bul (%1/%2)</translation>
     </message>
 </context>
 <context>
@@ -7333,17 +7333,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetformmanager.cpp" line="323"/>
         <source>Signature Unknown</source>
-        <translation type="unfinished"></translation>
+        <translation>İmza Bilinmiyor</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetformmanager.cpp" line="330"/>
         <source>Signature Valid</source>
-        <translation type="unfinished"></translation>
+        <translation>İmza Geçerli</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetformmanager.cpp" line="335"/>
         <source>Signature Invalid</source>
-        <translation type="unfinished"></translation>
+        <translation>İmza Geçersiz</translation>
     </message>
 </context>
 <context>
@@ -7351,73 +7351,73 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="88"/>
         <source>Expected a number, but end of stream reached.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bir sayı bekleniyordu, ancak akışın sonuna ulaşıldı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="146"/>
         <source>Invalid format of number. Character &apos;%1&apos; appeared.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayının biçimi geçersiz. ‘%1’ karakteri göründü.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="153"/>
         <source>Both &apos;+&apos; and &apos;-&apos; appeared in number. Invalid format of number.</source>
-        <translation type="unfinished"></translation>
+        <translation>Hem ‘+’ hem de ‘-’ sayı olarak göründü. Sayının biçimi geçersiz.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="158"/>
         <source>Bad format of number - no digits appeared.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayının formatı yanlış - rakamlar görünmüyor.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="164"/>
         <source>Real number overflow.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gerçek sayı taşması.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="330"/>
         <source>Hexadecimal number must follow character &apos;#&apos; in the name.</source>
-        <translation type="unfinished"></translation>
+        <translation>Onaltılık sayı, isimde &apos;#&apos; karakterinden sonra gelmelidir.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="411"/>
         <source>Invalid character in hexadecimal string.</source>
-        <translation type="unfinished"></translation>
+        <translation>Onaltılık dizede geçersiz karakter.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="415"/>
         <source>Unexpected end of stream reached while scanning hexadecimal string.</source>
-        <translation type="unfinished"></translation>
+        <translation>Onaltılık dize taranırken beklenmeyen akış sonuna ulaşıldı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="431"/>
         <source>Invalid character &apos;%1&apos;</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz karakter &apos;%1&apos;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="478"/>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="482"/>
         <source>Unexpected character &apos;%1&apos; in the stream.</source>
-        <translation type="unfinished"></translation>
+        <translation>Akışta beklenmeyen &apos;%1&apos; karakteri.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="500"/>
         <source>Trying to seek stream position to %1 bytes from the start, byte offset is invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>Başlangıçtan itibaren %1 bayta akış konumu aramaya çalışırken, bayt uzaklığı geçersizdir.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="552"/>
         <source>Can&apos;t read %1 bytes from the input stream. Input stream end reached.</source>
-        <translation type="unfinished"></translation>
+        <translation>Giriş akışından %1 bayt okunamıyor. Giriş akışı sonuna ulaşıldı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="612"/>
         <source>Unexpected end of stream reached.</source>
-        <translation type="unfinished"></translation>
+        <translation>Beklenmeyen akış sonuna ulaşıldı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="653"/>
         <source>Error near position %1. %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 konumuna yakın bir yerde hata oluştu. %2</translation>
     </message>
 </context>
 <context>
@@ -7432,27 +7432,27 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="552"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="555"/>
         <source>General</source>
-        <translation type="unfinished"></translation>
+        <translation>Genel</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="482"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="483"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="583"/>
         <source>Type</source>
-        <translation type="unfinished"></translation>
+        <translation>Tür</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="486"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="648"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="650"/>
         <source>Text</source>
-        <translation type="unfinished"></translation>
+        <translation>Metin</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="487"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="598"/>
         <source>Link</source>
-        <translation type="unfinished"></translation>
+        <translation>Bağlantı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="488"/>
@@ -7461,7 +7461,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="612"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="617"/>
         <source>Free text</source>
-        <translation type="unfinished"></translation>
+        <translation>Serbest metin</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="489"/>
@@ -7475,56 +7475,56 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="648"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="650"/>
         <source>Line</source>
-        <translation type="unfinished"></translation>
+        <translation>Çizgi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="490"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="712"/>
         <source>Square</source>
-        <translation type="unfinished"></translation>
+        <translation>Kare</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="491"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="713"/>
         <source>Circle</source>
-        <translation type="unfinished"></translation>
+        <translation>Daire</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="492"/>
         <source>Polygon</source>
-        <translation type="unfinished"></translation>
+        <translation>Çokgen</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="493"/>
         <source>Polyline</source>
-        <translation type="unfinished"></translation>
+        <translation>Çoklu çizgi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="494"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="598"/>
         <source>Highlight</source>
-        <translation type="unfinished"></translation>
+        <translation>Vurgula</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="495"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="566"/>
         <source>Underline</source>
-        <translation type="unfinished"></translation>
+        <translation>Altını çiz</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="496"/>
         <source>Squiggly</source>
-        <translation type="unfinished"></translation>
+        <translation>Dalgalı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="497"/>
         <source>Strike Out</source>
-        <translation type="unfinished"></translation>
+        <translation>Üzerini Çiz</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="498"/>
         <source>Caret</source>
-        <translation type="unfinished"></translation>
+        <translation>Düzeltme imi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="499"/>
@@ -7532,28 +7532,28 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="670"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="672"/>
         <source>Stamp</source>
-        <translation type="unfinished"></translation>
+        <translation>Damgala</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="500"/>
         <source>Ink</source>
-        <translation type="unfinished"></translation>
+        <translation>Mürekkep</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="501"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="677"/>
         <source>File attachment</source>
-        <translation type="unfinished"></translation>
+        <translation>Dosya eki</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="502"/>
         <source>Redaction</source>
-        <translation type="unfinished"></translation>
+        <translation>Redaksiyon</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="505"/>
         <source>Rectangle</source>
-        <translation type="unfinished"></translation>
+        <translation>Dikdörtgen</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="506"/>
@@ -7561,100 +7561,100 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="508"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="509"/>
         <source>Contents</source>
-        <translation type="unfinished"></translation>
+        <translation>İçerik</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="506"/>
         <source>Author</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="507"/>
         <source>Subject</source>
-        <translation type="unfinished"></translation>
+        <translation>Konu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="509"/>
         <source>Annotation name</source>
-        <translation type="unfinished"></translation>
+        <translation>Açıklama adı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="510"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="511"/>
         <source>Info</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilgi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="510"/>
         <source>Modified</source>
-        <translation type="unfinished"></translation>
+        <translation>Değiştirildi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="511"/>
         <source>Created</source>
-        <translation type="unfinished"></translation>
+        <translation>Oluşturuldu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="512"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="527"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="555"/>
         <source>Options</source>
-        <translation type="unfinished"></translation>
+        <translation>Seçenekler</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="515"/>
         <source>Invisible</source>
-        <translation type="unfinished"></translation>
+        <translation>Görünmez</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="516"/>
         <source>Hidden</source>
-        <translation type="unfinished"></translation>
+        <translation>Gizli</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="517"/>
         <source>Print</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazdır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="518"/>
         <source>No Zoom</source>
-        <translation type="unfinished"></translation>
+        <translation>Yakınlaştırma Yok</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="519"/>
         <source>No Rotate</source>
-        <translation type="unfinished"></translation>
+        <translation>Döndürme Yok</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="520"/>
         <source>No View</source>
-        <translation type="unfinished"></translation>
+        <translation>Görünüm Yok</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="521"/>
         <source>Readonly</source>
-        <translation type="unfinished"></translation>
+        <translation>Salt okunur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="522"/>
         <source>Locked</source>
-        <translation type="unfinished"></translation>
+        <translation>Kilitli</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="523"/>
         <source>Toggle No View</source>
-        <translation type="unfinished"></translation>
+        <translation>Görünüm Yok Aç/Kapat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="524"/>
         <source>Locked Contents</source>
-        <translation type="unfinished"></translation>
+        <translation>Kilitli İçerikler</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="527"/>
         <source>Modify appearance</source>
-        <translation type="unfinished"></translation>
+        <translation>Görünümü değiştir</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="528"/>
@@ -7666,55 +7666,55 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="687"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="688"/>
         <source>Appearance</source>
-        <translation type="unfinished"></translation>
+        <translation>Görünüş</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="528"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="530"/>
         <source>Colors</source>
-        <translation type="unfinished"></translation>
+        <translation>Renkler</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="528"/>
         <source>Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Renk</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="530"/>
         <source>Interior color</source>
-        <translation type="unfinished"></translation>
+        <translation>İç renk</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="533"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="543"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="547"/>
         <source>Transparency</source>
-        <translation type="unfinished"></translation>
+        <translation>Şeffaflık</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="533"/>
         <source>Blend mode</source>
-        <translation type="unfinished"></translation>
+        <translation>Karışım modu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="543"/>
         <source>Fill opacity</source>
-        <translation type="unfinished"></translation>
+        <translation>Dolgu opaklığı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="547"/>
         <source>Stroke opacity</source>
-        <translation type="unfinished"></translation>
+        <translation>Vurgu opaklığı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="552"/>
         <source>Language</source>
-        <translation type="unfinished"></translation>
+        <translation>Dil</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="555"/>
         <source>Modify border</source>
-        <translation type="unfinished"></translation>
+        <translation>Kenarlığı değiştir</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="556"/>
@@ -7722,18 +7722,18 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="570"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="577"/>
         <source>Border</source>
-        <translation type="unfinished"></translation>
+        <translation>Kenarlık</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="556"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="560"/>
         <source>Border Style</source>
-        <translation type="unfinished"></translation>
+        <translation>Kenarlık Stili</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="556"/>
         <source>Width</source>
-        <translation type="unfinished"></translation>
+        <translation>Genişlik</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="560"/>
@@ -7753,38 +7753,38 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="670"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="677"/>
         <source>Style</source>
-        <translation type="unfinished"></translation>
+        <translation>Stil</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="562"/>
         <source>Solid</source>
-        <translation type="unfinished"></translation>
+        <translation>Katı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="563"/>
         <source>Dashed</source>
-        <translation type="unfinished"></translation>
+        <translation>Kesik</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="564"/>
         <source>Beveled</source>
-        <translation type="unfinished"></translation>
+        <translation>Eğimli</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="565"/>
         <source>Inset</source>
-        <translation type="unfinished"></translation>
+        <translation>İlave</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="570"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="577"/>
         <source>Border Effect</source>
-        <translation type="unfinished"></translation>
+        <translation>Kenarlık Etkisi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="572"/>
         <source>Cloudy</source>
-        <translation type="unfinished"></translation>
+        <translation>Bulutlu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="573"/>
@@ -7792,79 +7792,79 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="642"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="711"/>
         <source>None</source>
-        <translation type="unfinished"></translation>
+        <translation>Hiçbiri</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="577"/>
         <source>Intensity</source>
-        <translation type="unfinished"></translation>
+        <translation>Yoğunluk</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="583"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="595"/>
         <source>Sticky note</source>
-        <translation type="unfinished"></translation>
+        <translation>Yapışkan not</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="586"/>
         <source>Comment</source>
-        <translation type="unfinished"></translation>
+        <translation>Yorum</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="587"/>
         <source>Key</source>
-        <translation type="unfinished"></translation>
+        <translation>Anahtar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="588"/>
         <source>Note</source>
-        <translation type="unfinished"></translation>
+        <translation>Not</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="589"/>
         <source>Help</source>
-        <translation type="unfinished"></translation>
+        <translation>Yardım</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="590"/>
         <source>New Paragraph</source>
-        <translation type="unfinished"></translation>
+        <translation>Yeni Paragraf</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="591"/>
         <source>Paragraph</source>
-        <translation type="unfinished"></translation>
+        <translation>Paragraf</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="592"/>
         <source>Insert</source>
-        <translation type="unfinished"></translation>
+        <translation>Ekle</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="595"/>
         <source>Open</source>
-        <translation type="unfinished"></translation>
+        <translation>Aç</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="602"/>
         <source>Invert</source>
-        <translation type="unfinished"></translation>
+        <translation>Ters çevir</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="603"/>
         <source>Outline</source>
-        <translation type="unfinished"></translation>
+        <translation>Anahat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="604"/>
         <source>Push</source>
-        <translation type="unfinished"></translation>
+        <translation>ittir</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="608"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="688"/>
         <source>Alignment</source>
-        <translation type="unfinished"></translation>
+        <translation>Hizala</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="610"/>
@@ -7872,199 +7872,200 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="640"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="670"/>
         <source>Intent</source>
-        <translation type="unfinished"></translation>
+        <translation>Amaç</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="613"/>
         <source>Callout</source>
-        <translation type="unfinished"></translation>
+        <translation>Belirtme çizgileri</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="614"/>
         <source>Typewriter</source>
-        <translation type="unfinished"></translation>
+        <translation>Daktilo</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="617"/>
         <source>Callout line ending</source>
-        <translation type="unfinished"></translation>
+        <translation>Belirtme çizgisi satırı bitişi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="620"/>
         <source>Line start</source>
-        <translation type="unfinished"></translation>
+        <translation>Satır başlangıcı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="622"/>
         <source>Line end</source>
-        <translation type="unfinished"></translation>
+        <translation>Satır sonu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="625"/>
         <source>Leader line length</source>
-        <translation type="unfinished"></translation>
+        <translation>Kılavuz satır uzunluğu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="628"/>
         <source>Leader line extension</source>
-        <translation type="unfinished"></translation>
+        <translation>Kılavuz satır uzantısı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="631"/>
         <source>Leader line offset</source>
-        <translation type="unfinished"></translation>
+        <translation>Kılavuz satır kaydırması</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="636"/>
         <source>Arrow</source>
-        <translation type="unfinished"></translation>
+        <translation>Ok</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="637"/>
         <source>Dimension</source>
-        <translation type="unfinished"></translation>
+        <translation>Boyut</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="643"/>
         <source>Cloud</source>
-        <translation type="unfinished"></translation>
+        <translation>Bulut</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="644"/>
         <source>Line dimension</source>
-        <translation type="unfinished"></translation>
+        <translation>Çizgi boyutu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="645"/>
         <source>Polygon dimension</source>
-        <translation type="unfinished"></translation>
+        <translation>Çokgen boyutu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="648"/>
         <source>Caption</source>
-        <translation type="unfinished"></translation>
+        <translation>Başlık</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="650"/>
         <source>Caption position</source>
-        <translation type="unfinished"></translation>
+        <translation>Başlık konumu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="652"/>
         <source>Inline</source>
-        <translation type="unfinished"></translation>
+        <translation>Satır içi (çizgide)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="653"/>
         <source>Top</source>
-        <translation type="unfinished"></translation>
+        <translation>Üst</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="656"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation>Ad</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="673"/>
         <source>Image</source>
-        <translation type="unfinished"></translation>
+        <translation>Resim</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="674"/>
         <source>Snapshot</source>
-        <translation type="unfinished"></translation>
+        <translation>Anlık görüntü</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="677"/>
         <source>Icon</source>
-        <translation type="unfinished"></translation>
+        <translation>Simge</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="679"/>
         <source>Graph</source>
-        <translation type="unfinished"></translation>
+        <translation>Grafik</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="680"/>
         <source>Push-pin</source>
-        <translation type="unfinished"></translation>
+        <translation>İtme pimi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="681"/>
         <source>Paperclip</source>
-        <translation type="unfinished"></translation>
+        <translation>Ataç</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="682"/>
         <source>Tag</source>
-        <translation type="unfinished"></translation>
+        <translation>Etiket</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="686"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="687"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="688"/>
         <source>Redact</source>
-        <translation type="unfinished"></translation>
+        <translation>Redaksiyon</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="686"/>
         <source>Overlay text</source>
-        <translation type="unfinished"></translation>
+        <translation>Bindirme metni</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="687"/>
         <source>Repeat overlay text</source>
-        <translation type="unfinished"></translation>
+        <translation>Bindirme metnini tekrarla</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="698"/>
         <source>Left</source>
-        <translation type="unfinished"></translation>
+        <translation>Sol</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="699"/>
         <source>Center</source>
-        <translation type="unfinished"></translation>
+        <translation>Merkez</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="700"/>
         <source>Right</source>
-        <translation type="unfinished"></translation>
+        <translation>Sağ</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="714"/>
         <source>Diamond</source>
-        <translation type="unfinished"></translation>
+        <translation>Elmas</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="715"/>
         <source>Open arrow</source>
-        <translation type="unfinished"></translation>
+        <translation>Açık ok</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="716"/>
         <source>Closed arrow</source>
-        <translation type="unfinished"></translation>
+        <translation>Kapalı ok</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="717"/>
         <source>Butt</source>
-        <translation type="unfinished"></translation>
+        <translatorcomment>Farklı anlama da geliyor olabilir</translatorcomment>
+        <translation>Uç</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="718"/>
         <source>Reversed open arrow</source>
-        <translation type="unfinished"></translation>
+        <translation>Ters açık ok</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="719"/>
         <source>Reversed closed arrow</source>
-        <translation type="unfinished"></translation>
+        <translation>Ters kapalı ok</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="720"/>
         <source>Slash</source>
-        <translation type="unfinished"></translation>
+        <translation>Eğik çizgi</translation>
     </message>
 </context>
 <context>
@@ -8088,42 +8089,42 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="138"/>
         <source>Stage %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Aşama %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="146"/>
         <source>Pass %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçilen %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="202"/>
         <source>Simple objects dereferenced and embedded: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Başvurusu kaldırılmış ve gömülü basit nesneler : %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="221"/>
         <source>Null objects entries from dictionaries removed: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Sözlüklerden kaldırılan boş nesne girdileri: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="246"/>
         <source>Unused objects removed: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Kaldırılan kullanılmayan nesneler: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="319"/>
         <source>Identical objects merged: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Birleştirilen özdeş nesneler: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="415"/>
         <source>Object list shrinked by: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Nesne listesi küçültülme oranı: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="465"/>
         <source>Bytes saved by recompressing stream: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Akışın yeniden sıkıştırılmasıyla tasarruf edilen bayt miktarı: %1</translation>
     </message>
 </context>
 <context>
@@ -8140,67 +8141,67 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="56"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="62"/>
         <source>Solid</source>
-        <translation type="unfinished"></translation>
+        <translation>Katı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="57"/>
         <source>Dashed</source>
-        <translation type="unfinished"></translation>
+        <translation>Kesik</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="58"/>
         <source>Dotted</source>
-        <translation type="unfinished"></translation>
+        <translation>Noktalı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="59"/>
         <source>Dash-dot</source>
-        <translation type="unfinished"></translation>
+        <translation>Kısa çizgi nokta</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="60"/>
         <source>Dash-dot-dot</source>
-        <translation type="unfinished"></translation>
+        <translation>Kısa çizgi-nokta-nokta</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="61"/>
         <source>Custom</source>
-        <translation type="unfinished"></translation>
+        <translation>Özel</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="104"/>
         <source>Image</source>
-        <translation type="unfinished"></translation>
+        <translation>Resim</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="111"/>
         <source>Text</source>
-        <translation type="unfinished"></translation>
+        <translation>Metin</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="118"/>
         <source>Style</source>
-        <translation type="unfinished"></translation>
+        <translation>Stil</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="131"/>
         <source>Transformation</source>
-        <translation type="unfinished"></translation>
+        <translation>Dönüşüm</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="355"/>
         <source>Select Image</source>
-        <translation type="unfinished"></translation>
+        <translation>Resim Seç</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="387"/>
         <source>Select Color for Pen</source>
-        <translation type="unfinished"></translation>
+        <translation>Kalem için Renk Seç</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="412"/>
         <source>Select Color for Brush</source>
-        <translation type="unfinished"></translation>
+        <translation>Fırça için Renk Seç</translation>
     </message>
 </context>
 <context>
