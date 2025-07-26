@@ -6178,124 +6178,126 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="14"/>
         <source>Unit Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Birim Ayarları</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="20"/>
         <source>Units</source>
-        <translation type="unfinished"></translation>
+        <translation>Birimler</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="26"/>
         <source>Lengths</source>
-        <translation type="unfinished"></translation>
+        <translation>Uzunluklar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="36"/>
         <source>Areas</source>
-        <translation type="unfinished"></translation>
+        <translation>Alanlar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="46"/>
         <source>Angles</source>
-        <translation type="unfinished"></translation>
+        <translation>Açılar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="66"/>
         <source>Scale 1:</source>
-        <translation type="unfinished"></translation>
+        <translation>Ölçek 1:</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="76"/>
         <source>Appearance</source>
-        <translation type="unfinished"></translation>
+        <translation>Görünüş</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="92"/>
         <source>Font</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazıtipi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="106"/>
         <source>Select...</source>
-        <translation type="unfinished"></translation>
+        <translation>Seç...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="99"/>
         <source>Text Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Metin Rengi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="113"/>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="120"/>
         <source>Select</source>
-        <translation type="unfinished"></translation>
+        <translation>Seç</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="85"/>
         <source>Background Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Arka plan rengi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.ui" line="14"/>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.ui" line="20"/>
         <source>Soft Proofing Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Ekran Provası Ayarları</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.ui" line="39"/>
         <source>Proofing intent</source>
-        <translation type="unfinished"></translation>
+        <translatorcomment>Proofing, baskı işinde prova anlamına geliyor</translatorcomment>
+        <translation>Prova amacı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.ui" line="49"/>
         <source>Proofing profile</source>
-        <translation type="unfinished"></translation>
+        <translation>Prova profili</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.ui" line="59"/>
         <source>Alarm color</source>
-        <translation type="unfinished"></translation>
+        <translation>Alarm rengi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.cpp" line="35"/>
         <source>Auto</source>
-        <translation type="unfinished"></translation>
+        <translation>Otomatik</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.cpp" line="36"/>
         <source>Perceptual</source>
-        <translation type="unfinished"></translation>
+        <translation>Algısal</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.cpp" line="37"/>
         <source>Relative colorimetric</source>
-        <translation type="unfinished"></translation>
+        <translatorcomment>colorimetric, &quot;renk ölçümüne ait&quot;</translatorcomment>
+        <translation>Göreceli renkölçümsel</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.cpp" line="38"/>
         <source>Absolute colorimetric</source>
-        <translation type="unfinished"></translation>
+        <translation>Mutlak renkölçümsel</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.cpp" line="39"/>
         <source>Saturation</source>
-        <translation type="unfinished"></translation>
+        <translation>Doygunluk</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.cpp" line="50"/>
         <source>Select Text Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Metin Rengini Seç</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.cpp" line="57"/>
         <source>Select Background Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Arka plan Rengini Seç</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.cpp" line="65"/>
         <source>Select Font</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazıtipi Seç</translation>
     </message>
 </context>
 <context>
