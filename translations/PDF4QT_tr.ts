@@ -5123,407 +5123,407 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="14"/>
         <source>PDF Viewer</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF Görüntüleyici</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="28"/>
         <source>&amp;File</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Dosya</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="43"/>
         <source>&amp;Go To</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Git</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="47"/>
         <source>Book&amp;mark Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Yer İşareti Ayarları</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="67"/>
         <source>&amp;View</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Görünüm</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="71"/>
         <source>Page La&amp;yout</source>
-        <translation type="unfinished"></translation>
+        <translation>Sa&amp;yfa Düzeni</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="82"/>
         <source>Re&amp;ndering Options</source>
-        <translation type="unfinished"></translation>
+        <translation>İ&amp;şleme Seçenekleri</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="112"/>
         <source>&amp;Tools</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Araçlar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="124"/>
         <source>&amp;Help</source>
-        <translation type="unfinished"></translation>
+        <translation>Y&amp;ardım</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="152"/>
         <source>&amp;Open...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Aç...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="161"/>
         <source>&amp;Close</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Kapat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="170"/>
         <source>&amp;Quit</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Çıkış</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="178"/>
         <source>&amp;Single Page</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Tek Sayfa</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="181"/>
         <source>Ctrl+1</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="189"/>
         <source>&amp;Continuous</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Devamlı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="192"/>
         <source>Ctrl+2</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="200"/>
         <source>Two &amp;Pages</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;İki Sayfa</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="203"/>
         <source>Ctrl+3</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="211"/>
         <source>&amp;Two columns</source>
-        <translation type="unfinished"></translation>
+        <translation>İki &amp;Sütun</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="214"/>
         <source>Ctrl+4</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="222"/>
         <source>&amp;First page on right side</source>
-        <translation type="unfinished"></translation>
+        <translation>S&amp;ağ taraftaki ilk sayfa</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="225"/>
         <source>First page on right side</source>
-        <translation type="unfinished"></translation>
+        <translation>Sağ taraftaki ilk sayfa</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="228"/>
         <source>Ctrl+5</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="237"/>
         <source>Rendering &amp;Errors...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;İşleme Hataları...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="240"/>
         <source>Ctrl+E</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="248"/>
         <source>&amp;Antialiasing</source>
-        <translation type="unfinished"></translation>
+        <translation>Ken&amp;ar Yumuşatma</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="256"/>
         <source>&amp;Text Antialiasing</source>
-        <translation type="unfinished"></translation>
+        <translation>Me&amp;tnin Kenarını Yumuşat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="264"/>
         <source>&amp;Smooth Pictures</source>
-        <translation type="unfinished"></translation>
+        <translation>Pürüz&amp;süz Resimler</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="272"/>
         <source>&amp;Ignore Optional Content Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;İsteğe Bağlı İçerik Ayarlarını Yoksay</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="281"/>
         <source>&amp;Options...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Seçenekler...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="284"/>
         <source>Ctrl+K</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="289"/>
         <source>&amp;Reset to Factory Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Fabrika Ayarlarına Sıfırla</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="298"/>
         <source>&amp;Zoom In</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Yakınlaştır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="307"/>
         <source>Zoom &amp;Out</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Uzaklaştır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="316"/>
         <source>&amp;About...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Hakkında...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="325"/>
         <source>Fit &amp;Page</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Sayfayı Sığdır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="334"/>
         <source>Fit &amp;Width</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Genişliği Sığdır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="337"/>
         <source>W</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="346"/>
         <source>&amp;Fit Height</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Yüksekliği Sığdır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="349"/>
         <source>H</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="358"/>
         <source>Prope&amp;rties...</source>
-        <translation type="unfinished"></translation>
+        <translation>Özellikle&amp;r...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="367"/>
         <source>Send by &amp;E-Mail...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;E-posta ile Gönder...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="379"/>
         <source>Color | &amp;Inverted</source>
-        <translation type="unfinished"></translation>
+        <translation>Renk | &amp;Ters çevrilmiş</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="391"/>
         <source>Color | &amp;Grayscale</source>
-        <translation type="unfinished"></translation>
+        <translation>Renk | &amp;Gri Tonlamalı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="403"/>
         <source>Color | &amp;High Contrast</source>
-        <translation type="unfinished"></translation>
+        <translation>Renk | &amp;Yüksek Kontrast</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="415"/>
         <source>Color | &amp;Monochromatic</source>
-        <translation type="unfinished"></translation>
+        <translation>Renk | &amp;Tek Renkli</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="427"/>
         <source>Color | &amp;Custom</source>
-        <translation type="unfinished"></translation>
+        <translation>Renk | &amp;Özel</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="436"/>
         <source>Rotate &amp;Right</source>
-        <translation type="unfinished"></translation>
+        <translation>Sağa Çevi&amp;r</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="445"/>
         <source>Rotate &amp;Left</source>
-        <translation type="unfinished"></translation>
+        <translation>So&amp;la Çevir</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="454"/>
         <source>&amp;Print...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Yazdır...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="462"/>
         <source>&amp;Display Annotations</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Açıklamaları Görüntüle</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="471"/>
         <source>Go to document &amp;start</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgenin &amp;başına git</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="480"/>
         <source>Go to document &amp;end</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgenin &amp;sonuna git</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="489"/>
         <source>Go to &amp;next page</source>
-        <translation type="unfinished"></translation>
+        <translation>S&amp;onraki sayfaya git</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="498"/>
         <source>Go to &amp;previous page</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Önceki sayfaya git</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="507"/>
         <source>Go &amp;to next line</source>
-        <translation type="unfinished"></translation>
+        <translation>Sonraki satıra gi&amp;t</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="516"/>
         <source>Go t&amp;o previous line</source>
-        <translation type="unfinished"></translation>
+        <translation>Ö&amp;nceki satıra git</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="525"/>
         <source>&amp;Get Source</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Kaynak Dosyaya Eriş</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="534"/>
         <source>&amp;Certificates...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Sertifikalar...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="542"/>
         <source>Automatic &amp;Document Refresh</source>
-        <translation type="unfinished"></translation>
+        <translation>Otomatik &amp;Belge Yenileme</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="545"/>
         <source>Automatically reloads the document if a change made by an external program is detected.</source>
-        <translation type="unfinished"></translation>
+        <translation>Harici bir program tarafından yapılan bir değişiklik algılanırsa belgeyi otomatik olarak yeniden yükler.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="554"/>
         <source>Become a &amp;Sponsor</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Sponsor Olun</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="557"/>
         <source>Become a Sponsor</source>
-        <translation type="unfinished"></translation>
+        <translation>Sponsor Olun</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="566"/>
         <source>&amp;Bookmark Page</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Yer İşareti Sayfası</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="569"/>
         <source>Bookmark Page</source>
-        <translation type="unfinished"></translation>
+        <translation>Yer İşareti Sayfası</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="572"/>
         <source>Bookmark page for fast navigation.</source>
-        <translation type="unfinished"></translation>
+        <translation>Hızlı gezinme için yer işareti sayfası.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="581"/>
         <source>&amp;Go to Next Bookmark</source>
-        <translation type="unfinished"></translation>
+        <translation>Sonraki Yer İşaretine &amp;Git</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="584"/>
         <source>Go to Next Bookmark</source>
-        <translation type="unfinished"></translation>
+        <translation>Sonraki Yer İşaretine Git</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="587"/>
         <source>Navigates to the next bookmarked page.</source>
-        <translation type="unfinished"></translation>
+        <translation>Yer imlerine eklenmiş bir sonraki sayfaya gider.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="596"/>
         <source>Go to Previous Boo&amp;kmark</source>
-        <translation type="unfinished"></translation>
+        <translation>Önce&amp;ki Yer İşaretine Git</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="599"/>
         <source>Navigates to the previous bookmarked page.</source>
-        <translation type="unfinished"></translation>
+        <translation>Yer imlerine eklenen önceki sayfaya gider.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="608"/>
         <source>&amp;Export Bookmarks</source>
-        <translation type="unfinished"></translation>
+        <translation>Y&amp;er İşaretlerini Dışa Aktar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="611"/>
         <source>Export Bookmarks</source>
-        <translation type="unfinished"></translation>
+        <translation>Yer İşaretlerini Dışa Aktar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="614"/>
         <source>Export bookmarks to the file.</source>
-        <translation type="unfinished"></translation>
+        <translation>Yer işaretlerini dosyaya aktar.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="623"/>
         <source>&amp;Import Bookmarks</source>
-        <translation type="unfinished"></translation>
+        <translation>Yer İşaretlerini &amp;İçe Aktar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="626"/>
         <source>Import Bookmarks</source>
-        <translation type="unfinished"></translation>
+        <translation>Yer İşaretlerini İçe Aktar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="629"/>
         <source>Import bookmarks from the file.</source>
-        <translation type="unfinished"></translation>
+        <translation>Yer işaretlerini dosyadan içe aktar.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="641"/>
         <source>&amp;Generate Bookmarks Automatically</source>
-        <translation type="unfinished"></translation>
+        <translation>Yer işaretlerini otomatik olarak &amp;oluşturun</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="644"/>
         <source>Generate Bookmarks Automatically</source>
-        <translation type="unfinished"></translation>
+        <translation>Yer işaretlerini otomatik olarak oluşturun</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="647"/>
         <source>If checked, bookmarks for main document chapters are generated automatically.</source>
-        <translation type="unfinished"></translation>
+        <translation>İşaretlenirse, ana belge bölümleri için yer işaretleri otomatik olarak oluşturulur.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="655"/>
         <source>Display &amp;Render Times</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;İşleme Süresini Görüntüle</translation>
     </message>
 </context>
 <context>
@@ -5531,27 +5531,27 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="14"/>
         <source>Options</source>
-        <translation type="unfinished"></translation>
+        <translation>Seçenekler</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="57"/>
         <source>Engine Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>İşleme Motoru Ayarları</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="65"/>
         <source>Multithreading strategy</source>
-        <translation type="unfinished"></translation>
+        <translation>Çoklu iş parçacığı stratejisi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="75"/>
         <source>Rendering engine</source>
-        <translation type="unfinished"></translation>
+        <translation>İşleme Motoru</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="82"/>
         <source>Prefetch pages</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfaları önceden getir</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="92"/>
@@ -5576,7 +5576,7 @@
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1336"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1343"/>
         <source>Enable</source>
-        <translation type="unfinished"></translation>
+        <translation>Etkinleştir</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="101"/>
@@ -5592,47 +5592,58 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The Prefetch Pages feature is a strategy that can be applied regardless of the rendering method chosen. By pre-rendering pages adjacent to the currently viewed content, this approach minimizes flickering and enhances the smoothness of transitions during scrolling, improving the overall user experience.&lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;When it comes to optimizing the rendering process, the choice of multithreading strategy plays a crucial role. A Single Thread strategy, where rendering tasks are executed sequentially on a single CPU core, might be preferable in environments where simplicity and predictability are key. For more demanding applications, employing a Multi-threading strategy can significantly improve rendering times. Strategies like Load Balanced distribute the workload evenly across CPU cores without delving into content-specific processing, offering a good performance boost. The Maximum Threads strategy takes full advantage of available CPU resources by allocating as many threads as possible to the rendering tasks, achieving optimal performance and minimizing rendering times.&lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This delineation between using QPainter for software rendering and Blend2D for high-performance, multi-threaded rendering allows developers to choose the most appropriate rendering pathway based on their specific performance requirements and the graphical complexity of their application.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Uygulamanızın gereksinimlerine göre uyarlanmış bir işleme yöntemi seçin. QPainter&apos;ı kullanan Yazılım Oluşturma, tüm platformlarda uyumluluğu garanti eden çok yönlü bir seçimdir. Donanım hızlandırmaya doğrudan erişimin çok önemli olmadığı senaryolarda özellikle kullanışlıdır. Qt çerçevesinin bir parçası olan QPainter, çeşitli boyama stilleri, görüntü işleme ve karmaşık grafik dönüşümleri desteğiyle 2B grafikler oluşturmada mükemmeldir ve bu da onu donanım hızlandırmaya güvenmeden ayrıntılı ve sofistike 2B grafikler gerektiren uygulamalar için mükemmel bir araç haline getirir.&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Öte yandan, yüksek performanslı işleme gerektiren uygulamalar için Blend2D kitaplığından yararlanmak cazip bir alternatif sunar. Blend2D, işleme sürecini hızlandırmak için çoklu iş parçacığı kullanan yüksek performanslı bir 2D vektör grafik motorudur. QPainter veya donanım hızlandırmaya dayanmaz, bunun yerine hız ve kalite için optimize edilmiş yazılım tabanlı bir işleme çözümü sunar. Blend2D&apos;nin gelişmiş kenar yumuşatma teknikleri, canlı ve net görüntü kalitesi sağlayarak, işleme performansının ve görüntü kalitesinin çok önemli olduğu uygulamalar için uygun hale getirir.&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Sayfaları Önceden Getir özelliği, seçilen oluşturma yönteminden bağımsız olarak uygulanabilen bir stratejidir. Bu yaklaşım, o anda görüntülenen içeriğe bitişik sayfaları önceden oluşturarak, titremeyi en aza indirir ve kaydırma sırasında geçişlerin düzgünlüğünü artırarak genel kullanıcı deneyimini iyileştirir.&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;İşleme sürecini optimize etmek söz konusu olduğunda, çoklu iş parçacığı stratejisi seçimi çok önemli bir rol oynar. İşleme görevlerinin tek bir CPU çekirdeğinde sıralı olarak yürütüldüğü Tek İş Parçacığı stratejisi, basitlik ve öngörülebilirliğin önemli olduğu ortamlarda tercih edilebilir. Daha zorlu uygulamalar için, Çoklu iş parçacığı stratejisi kullanmak, işleme sürelerini önemli ölçüde iyileştirebilir. Load Balanced gibi stratejiler, içeriğe özel işlemeye dalmadan iş yükünü CPU çekirdekleri arasında eşit olarak dağıtarak iyi bir performans artışı sunar. Maksimum İş Parçacığı stratejisi, işleme görevlerine mümkün olduğunca çok iş parçacığı ayırarak, en iyi performansı elde ederek ve işleme sürelerini en aza indirerek mevcut CPU kaynaklarından tam olarak yararlanır.&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Yazılım oluşturma için QPainter ve yüksek performanslı, çok iş parçacıklı işleme için Blend2D kullanımı arasındaki bu ayrım, geliştiricilerin özel performans gereksinimlerine ve uygulamalarının grafiksel karmaşıklığına göre en uygun işleme yolunu seçmelerine olanak tanır.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="138"/>
         <source>Rendering Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>İşleme Seçenekleri</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="160"/>
         <source>Clip to crop box</source>
-        <translation type="unfinished"></translation>
+        <translation>Kırpma kutusu ile kırp</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="167"/>
         <source>Text antialiasing</source>
-        <translation type="unfinished"></translation>
+        <translation>Metnin kenarını yumuşat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="174"/>
         <source>Ignore optional content</source>
-        <translation type="unfinished"></translation>
+        <translation>İsteğe bağlı içeriği yoksay</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="209"/>
         <source>Smooth pictures</source>
-        <translation type="unfinished"></translation>
+        <translation>Pürüzsüz resimler</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="216"/>
         <source>Display page compile/draw time</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa derleme/çizim süresini görüntüle</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="223"/>
         <source>Antialiasing</source>
-        <translation type="unfinished"></translation>
+        <translation>Kenar yumuşatma</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="230"/>
         <source>Display annotations</source>
-        <translation type="unfinished"></translation>
+        <translation>Açıklamaları görüntüle</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="246"/>
@@ -5647,7 +5658,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Smooth pictures&lt;/span&gt; option enables pictures to be transformed into device space coordinates using a high-quality image transformation method. This generally results in better image quality. When disabled, a default fast transformation is used, potentially reducing image quality if the source DPI and device DPI differ. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Ignore optional content &lt;/span&gt;ignores all optional content settings and renders everything in the content stream. &lt;span style=&quot; font-weight:600;&quot;&gt;Clip to crop box&lt;/span&gt; restricts the rendering area to the page&apos;s crop box, which is usually smaller than the whole page. Graphics outside the crop box aren&apos;t drawn, which can be useful for removing printer marks and similar elements. &lt;span style=&quot; font-weight:600;&quot;&gt;Display page compile/draw time&lt;/span&gt; can be handy for debugging, showing the time taken to compile a page (stored in the cache) and the time taken to render the compiled page contents onto the output device. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Using the &lt;span style=&quot; font-weight:600;&quot;&gt;Display annotations&lt;/span&gt; setting, you can enable or disable the display of annotations. If annotations are disabled, the user will not be able to interact with them. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Görüntü oluşturma ayarları, görüntü oluşturma motorunun sayfa içeriğini nasıl işlediğini ve görüntülenen grafiklerin görünümünü denetler.&lt;span style=&quot; font-weight:600;&quot;&gt;Kenar yumuşatma&lt;/span&gt; dikdörtgenler, vektör grafikleri ve çizgiler gibi boyanmış şekillerin görünümünü düzgünleştirir, ancak metni etkilemez. Öte yandan&lt;span style=&quot; font-weight:600;&quot;&gt;metin kenar yumuşatma&lt;/span&gt;, metin karakterlerinin görünümünü iyileştirir ve diğer öğelere dokunulmaz. Hem &lt;span style=&quot; font-weight:600;&quot;&gt;Kenar yumuşatma &lt;/span&gt;hemde &lt;span style=&quot; font-weight:600;&quot;&gt;Metin Kenarı Yumuşatma&lt;/span&gt;sadece yazılım işleyici için geçerlidir. OpenGL gibi bir donanım işleme (render) motoru kullanıyorsanız, bu ayarlar bir etki yaratmayacaktır çünkü OpenGL, görüntüleri MSAA kenar yumuşatma kullanarak işler (eğer etkinleştirilmişse). &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Pürüzsüz resimler&lt;/span&gt; seçeneği, yüksek kaliteli bir görüntü dönüştürme yöntemi kullanarak resimlerin cihaz uzay koordinatlarına dönüştürülmesini sağlar. Bu genellikle daha iyi görüntü kalitesi sağlar. Devre dışı bırakıldığında, varsayılan hızlı dönüştürme kullanılır ve kaynak DPI ile cihaz DPI farklıysa görüntü kalitesi düşebilir.&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;İsteğe bağlı içeriği yok say &lt;/span&gt;isteğe bağlı içerik ayarlarının tümünü yok sayar ve içerik akışındaki her şeyi görüntüler. &lt;span style=&quot; font-weight:600;&quot;&gt;Kırpma kutusu ile kırp&lt;/span&gt; görüntüleme alanını sayfanın kırpma kutusuyla sınırlar; bu kutu genellikle sayfanın tamamından daha küçüktür. Kırpma kutusu dışındaki grafikler çizilmez, bu da yazıcı işaretlerini ve benzer öğeleri kaldırmak için yararlı olabilir. &lt;span style=&quot; font-weight:600;&quot;&gt;Sayfa derleme/çizim süresini göster&lt;/span&gt; hata ayıklama için kullanışlı olabilir, bir sayfayı derlemek için geçen süreyi (önbellekte saklanır) ve derlenen sayfa içeriğini çıktı aygıtına görüntülemek için geçen süreyi gösterir.&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Ek açıklamaları göster&lt;/span&gt; ayarını kullanarak, ek açıklamaların görüntülenmesini etkinleştirebilir veya devre dışı bırakabilirsiniz. Ek açıklamalar devre dışı bırakılırsa, kullanıcı bunlarla etkileşim kuramaz.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="282"/>
