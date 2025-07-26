@@ -6305,68 +6305,68 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="17"/>
         <source>Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Ayarlar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="24"/>
         <source>Left Document</source>
-        <translation type="unfinished"></translation>
+        <translation>Sol Belge</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="30"/>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="49"/>
         <source>Page Selection:</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa Seçimi:</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="43"/>
         <source>Right Document</source>
-        <translation type="unfinished"></translation>
+        <translation>Sağ Belge</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="62"/>
         <source>Options</source>
-        <translation type="unfinished"></translation>
+        <translation>Seçenekler</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="68"/>
         <source>Compare texts as vector graphics</source>
-        <translation type="unfinished"></translation>
+        <translation>Metinleri vektör grafik olarak karşılaştırın</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="75"/>
         <source>Compare text characters instead of words</source>
-        <translation type="unfinished"></translation>
+        <translation>Sözcükler yerine metin karakterlerini karşılaştırın</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="85"/>
         <source>Transparency | Overlay View</source>
-        <translation type="unfinished"></translation>
+        <translation>Şeffaflık | Bindirme Görünümü</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="110"/>
         <source>Colors</source>
-        <translation type="unfinished"></translation>
+        <translation>Renkler</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="116"/>
         <source>Remove</source>
-        <translation type="unfinished"></translation>
+        <translation>Kaldır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="130"/>
         <source>Add</source>
-        <translation type="unfinished"></translation>
+        <translation>Ekle</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="137"/>
         <source>Replace</source>
-        <translation type="unfinished"></translation>
+        <translation>Değiştir</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="144"/>
         <source>Move</source>
-        <translation type="unfinished"></translation>
+        <translation>Taşı</translation>
     </message>
 </context>
 <context>
@@ -6374,42 +6374,42 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="14"/>
         <source>Dialog</source>
-        <translation type="unfinished"></translation>
+        <translation>Diyalog</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="20"/>
         <source>Sign Method</source>
-        <translation type="unfinished"></translation>
+        <translation>İmza Yöntemi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="26"/>
         <source>Method</source>
-        <translation type="unfinished"></translation>
+        <translation>Yöntem</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="36"/>
         <source>Certificate</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifika</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="46"/>
         <source>Password</source>
-        <translation type="unfinished"></translation>
+        <translation>Parola</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="66"/>
         <source>Parameters</source>
-        <translation type="unfinished"></translation>
+        <translation>Parametreler</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="72"/>
         <source>Reason</source>
-        <translation type="unfinished"></translation>
+        <translation>Sebep</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="86"/>
         <source>Contact Info</source>
-        <translation type="unfinished"></translation>
+        <translation>İletişim Bilgisi</translation>
     </message>
 </context>
 <context>
@@ -6425,32 +6425,32 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../CodeGenerator/codegenerator.cpp" line="1134"/>
         <source>Object</source>
-        <translation type="unfinished"></translation>
+        <translation>Nesne</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/codegenerator.cpp" line="1137"/>
         <source>Array (simple)</source>
-        <translation type="unfinished"></translation>
+        <translation>Dizi (basit)</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/codegenerator.cpp" line="1140"/>
         <source>Array (complex)</source>
-        <translation type="unfinished"></translation>
+        <translation>Dizi (karmaşık)</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/codegenerator.cpp" line="1143"/>
         <source>Dictionary</source>
-        <translation type="unfinished"></translation>
+        <translation>Sözlük</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/codegenerator.cpp" line="1146"/>
         <source>Item (simple), name = &apos;%1&apos;</source>
-        <translation type="unfinished"></translation>
+        <translation>Öğe (basit), ad = &apos;%1&apos;</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/codegenerator.cpp" line="1149"/>
         <source>Item (complex), name = &apos;%1&apos;</source>
-        <translation type="unfinished"></translation>
+        <translation>Öğe (karmaşık), ad = &apos;%1&apos;</translation>
     </message>
 </context>
 <context>
@@ -6474,77 +6474,77 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1596"/>
         <source>Generic</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1602"/>
         <source>Little CMS %1.%2</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1656"/>
         <source>Gray D65, γ = 2.2</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1657"/>
         <source>Gray D50, γ = 2.2</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1658"/>
         <source>Gray D93, γ = 2.2</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1659"/>
         <source>Gray D65, γ = 1.0 (linear)</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1660"/>
         <source>Gray D50, γ = 1.0 (linear)</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1661"/>
         <source>Gray D93, γ = 1.0 (linear)</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1678"/>
         <source>HDTV (ITU-R BT.709)</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1679"/>
         <source>Adobe RGB 1998</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1680"/>
         <source>PAL / SECAM</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1681"/>
         <source>NTSC</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1682"/>
         <source>Adobe Wide Gamut RGB</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1683"/>
         <source>ProPhoto RGB</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1834"/>
         <source>sRGB</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
 </context>
 <context>
@@ -6560,70 +6560,70 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="58"/>
         <source>Create</source>
-        <translation type="unfinished"></translation>
+        <translation>Oluştur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="59"/>
         <source>Open Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Dizini Aç</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="60"/>
         <source>Delete</source>
-        <translation type="unfinished"></translation>
+        <translation>Sil</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="61"/>
         <source>Import</source>
-        <translation type="unfinished"></translation>
+        <translation>İçe Aktar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="96"/>
         <source>Confirm delete</source>
-        <translation type="unfinished"></translation>
+        <translation>Silme işlemini onaylayın</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="96"/>
         <source>Do you want to delete certificate &apos;%1&apos;?</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; sertifikasını silmek istiyor musunuz?</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="101"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="123"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Hata</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="101"/>
         <source>Cannot delete certificate &apos;%1&apos;</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; sertifikası silinemiyor</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="109"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="129"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="133"/>
         <source>Import Certificate</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifikayı İçe Aktar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="109"/>
         <source>Certificate file (*.pfx);;All files (*.*)</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifika dosyası (*.pfx);; Tüm dosyalar (*.*)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="123"/>
         <source>Target file exists. Please rename the certificate file to import.</source>
-        <translation type="unfinished"></translation>
+        <translation>Hedef dosya var. Lütfen içe aktarılacak sertifika dosyasını yeniden adlandırın.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="129"/>
         <source>Certificate &apos;%1&apos; was successfully imported.</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; sertifikası başarıyla içeri aktarıldı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="133"/>
         <source>Error occured during certificate &apos;%1&apos; import.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifika &apos;%1&apos; içeri aktarma işlemi sırasında hata oluştu.</translation>
     </message>
 </context>
 <context>
