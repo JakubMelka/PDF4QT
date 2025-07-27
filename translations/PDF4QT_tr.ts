@@ -13653,32 +13653,32 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="108"/>
         <source>Standard</source>
-        <translation type="unfinished"></translation>
+        <translation>Standart</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="251"/>
         <source>%</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="285"/>
         <source>&amp;Sidebar</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Kenar çubuğu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="295"/>
         <source>Advanced find</source>
-        <translation type="unfinished"></translation>
+        <translation>Gelişmiş bul</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="303"/>
         <source>Ad&amp;vanced Find...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Gelişmiş Bul...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="440"/>
         <source> / %1</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
 </context>
 <context>
@@ -13686,32 +13686,32 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.cpp" line="51"/>
         <source>None</source>
-        <translation type="unfinished"></translation>
+        <translation>Hiçbiri</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.cpp" line="52"/>
         <source>RC4 128-bit | R4</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.cpp" line="53"/>
         <source>AES 128-bit | R4</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.cpp" line="54"/>
         <source>AES 256-bit | R6</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.cpp" line="55"/>
         <source>Certificate Encryption</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifika Şifreleme</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.cpp" line="257"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Hata</translation>
     </message>
 </context>
 <context>
@@ -13719,27 +13719,27 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionstrengthhintwidget.cpp" line="42"/>
         <source>Very weak</source>
-        <translation type="unfinished"></translation>
+        <translation>Çok zayıf</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionstrengthhintwidget.cpp" line="43"/>
         <source>Weak</source>
-        <translation type="unfinished"></translation>
+        <translation>Zayıf</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionstrengthhintwidget.cpp" line="44"/>
         <source>Moderate</source>
-        <translation type="unfinished"></translation>
+        <translation>Makul</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionstrengthhintwidget.cpp" line="45"/>
         <source>Strong</source>
-        <translation type="unfinished"></translation>
+        <translation>Güçlü</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionstrengthhintwidget.cpp" line="46"/>
         <source>Very strong</source>
-        <translation type="unfinished"></translation>
+        <translation>Çok güçlü</translation>
     </message>
 </context>
 <context>
@@ -13747,72 +13747,72 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="58"/>
         <source>Embed (dereference) simple objects, such as int, bool, real</source>
-        <translation type="unfinished"></translation>
+        <translation>tam sayı, mantıksal, gerçek gibi basit nesneleri gömün (referansı kaldırın)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="59"/>
         <source>Remove null objects from dictionary entries</source>
-        <translation type="unfinished"></translation>
+        <translation>Sözlük girişlerinden boş nesneleri kaldırın</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="60"/>
         <source>Remove unused objects (objects unreachable from document root object)</source>
-        <translation type="unfinished"></translation>
+        <translation>Kullanılmayan nesneleri kaldırın (belge kök nesnesinden ulaşılamayan nesneler)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="61"/>
         <source>Merge identical objects</source>
-        <translation type="unfinished"></translation>
+        <translation>Aynı nesneleri birleştir</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="62"/>
         <source>Shrink object storage (squeeze free entries)</source>
-        <translation type="unfinished"></translation>
+        <translation>Nesne depolama alanını küçültün (boş girişleri sıkıştırın)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="63"/>
         <source>Recompress flate streams by maximal compression</source>
-        <translation type="unfinished"></translation>
+        <translation>Flate akışları azami sıkıştırma ile yeniden sıkıştırın</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="65"/>
         <source>Optimize</source>
-        <translation type="unfinished"></translation>
+        <translation>Optimize et</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="117"/>
         <source>Optimization started!</source>
-        <translation type="unfinished"></translation>
+        <translation>Optimizasyon başladı!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="128"/>
         <source>Optimization finished!</source>
-        <translation type="unfinished"></translation>
+        <translation>Optimizasyon tamamlandı!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="138"/>
         <source>Optimized in %1 msecs</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 milisaniye içinde optimize edilmiştir</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="142"/>
         <source>Bytes before optimization: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Optimizasyon öncesi bayt sayısı: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="143"/>
         <source>Bytes after optimization:  %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Optimizasyon sonrası bayt sayısı: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="144"/>
         <source>Bytes saved by optimization: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Optimizasyon tarafından tasarruf edilen bayt miktarı: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="152"/>
         <source>Compression ratio: %1 %</source>
-        <translation type="unfinished"></translation>
+        <translation>Sıkıştırma oranı: %1 %</translation>
     </message>
 </context>
 <context>
@@ -13820,22 +13820,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="780"/>
         <source>Printing document</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge yazdırılıyor</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="841"/>
         <source>Go to action</source>
-        <translation type="unfinished"></translation>
+        <translation>Aksiyona git</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="841"/>
         <source>Failed to go to destination &apos;%1&apos;. Destination wasn&apos;t found.</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; hedefine gidilemedi. Hedef bulunamadı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="889"/>
         <source>Would you like to launch application &apos;%1&apos; in working directory &apos;%2&apos; with parameters &apos;%3&apos;?</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; uygulamasını &apos;%2&apos; çalışma dizininde &apos;%3&apos; parametreleriyle başlatmak ister misiniz?</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="890"/>
@@ -13843,163 +13843,163 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="918"/>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="924"/>
         <source>Launch application</source>
-        <translation type="unfinished"></translation>
+        <translation>Uygulamayı başlat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="905"/>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="924"/>
         <source>Executing application failed. Error code is %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>Uygulama çalıştırılamadı. Hata kodu %1&apos;dir.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="917"/>
         <source>Would you like to launch application &apos;%1&apos;?</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; uygulamasını başlatmak ister misiniz?</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="946"/>
         <source>Would you like to open URL &apos;%1&apos;?</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; URL&apos;sini açmak ister misiniz?</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="947"/>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="952"/>
         <source>Open URL</source>
-        <translation type="unfinished"></translation>
+        <translation>URL&apos;yi Aç</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="952"/>
         <source>Opening url &apos;%1&apos; failed.</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; url&apos;si açılamadı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1164"/>
         <source>Save As</source>
-        <translation type="unfinished"></translation>
+        <translation>Farklı Kaydet</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1164"/>
         <source>Portable Document (*.pdf);;All files (*.*)</source>
-        <translation type="unfinished"></translation>
+        <translation>Taşınabilir Belge (*.pdf);; Tüm dosyalar (*.*)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1199"/>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1326"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Hata</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1235"/>
         <source>Save Document</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgeyi Kaydet</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1236"/>
         <source>Do you wish to save modified document before it is closed?</source>
-        <translation type="unfinished"></translation>
+        <translation>Değiştirilen belgeyi kapatmadan önce kaydetmek ister misiniz?</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1326"/>
         <source>Error while starting email client occured!</source>
-        <translation type="unfinished"></translation>
+        <translation>E-posta istemcisi başlatılırken hata oluştu!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1396"/>
         <source>Permission to change document security is denied.</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge güvenliğini değiştirme izni reddedildi.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1415"/>
         <source>Failed to create security handler.</source>
-        <translation type="unfinished"></translation>
+        <translation>Güvenlik işleyicisi oluşturulamadı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1428"/>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1439"/>
         <source>Reauthorization is required to change document encryption.</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge şifrelemesini değiştirmek için yeniden yetkilendirme gereklidir.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1523"/>
         <source>Encrypted document</source>
-        <translation type="unfinished"></translation>
+        <translation>Şifreli belge</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1523"/>
         <source>Enter password to access document content</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge içeriğine erişmek için parola girin</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1922"/>
         <source>Document &apos;%1&apos; was successfully loaded!</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; belgesi başarıyla yüklendi!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1928"/>
         <source>Document read error: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge okuma hatası: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2121"/>
         <source>%1 - %2</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2303"/>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2310"/>
         <source>Reset Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Ayarları Sıfırla</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2303"/>
         <source>Do you wish to restore the default factory settings of the program? All settings changed by the user will be deleted. Application will be closed.</source>
-        <translation type="unfinished"></translation>
+        <translation>Programın varsayılan fabrika ayarlarını geri yüklemek ister misiniz? Kullanıcı tarafından değiştirilen tüm ayarlar silinecektir. Uygulama kapatılacaktır.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2310"/>
         <source>Default factory settings were restored. Application will be now closed.</source>
-        <translation type="unfinished"></translation>
+        <translation>Fabrika ayarları geri yüklendi. Uygulama şimdi kapatılacak.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2350"/>
         <source>Plugins</source>
-        <translation type="unfinished"></translation>
+        <translation>Eklentiler</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2350"/>
         <source>Plugin on/off state has been changed. Please restart application to apply settings.</source>
-        <translation type="unfinished"></translation>
+        <translation>Eklenti açık/kapalı durumu değiştirildi. Ayarları uygulamak için lütfen uygulamayı yeniden başlatın.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2377"/>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2449"/>
         <source>Select PDF document</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF belgesini seçin</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2377"/>
         <source>PDF document (*.pdf)</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF belgesi (*.pdf)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2434"/>
         <source>Export Bookmarks As</source>
-        <translation type="unfinished"></translation>
+        <translation>Yer İmlerini Dışa Farklı Aktar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2434"/>
         <source>JSON (*.json);;All files (*.*)</source>
-        <translation type="unfinished"></translation>
+        <translation>JSON (*.json);; Tüm dosyalar (*.*)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2449"/>
         <source>JSON (*.json)</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2468"/>
         <source>Rendering of page %1: %2 errors occured.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 sayfasının işlenmesinde: %2 hataları oluştu.</translation>
     </message>
 </context>
 <context>
@@ -14007,12 +14007,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfrecentfilemanager.cpp" line="87"/>
         <source>(&amp;%1) %2</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrecentfilemanager.cpp" line="93"/>
         <source>Recent file dummy &amp;%1</source>
-        <translation type="unfinished"></translation>
+        <translation>Son dosya işlevsiz &amp;%1</translation>
     </message>
 </context>
 <context>
@@ -14021,22 +14021,23 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.cpp" line="261"/>
         <source>%1
 Page %2: %3</source>
-        <translation type="unfinished"></translation>
+        <translation>%1
+Sayfa %2: %3</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.cpp" line="285"/>
         <source>Select output directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Çıktı dizinini seç</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.cpp" line="354"/>
         <source>Cannot write page image to file &apos;%1&apos;, because: %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa görüntüsü &apos;%1&apos; dosyasına yazılamıyor, çünkü: %2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.cpp" line="364"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Hata</translation>
     </message>
 </context>
 <context>
@@ -14480,22 +14481,22 @@ Page %2: %3</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="108"/>
         <source>Standard</source>
-        <translation type="unfinished"></translation>
+        <translation>Standart</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="202"/>
         <source>%</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="220"/>
         <source>&amp;Sidebar</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Kenar çubuğu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="352"/>
         <source> / %1</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
 </context>
 <context>
