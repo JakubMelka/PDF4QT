@@ -3810,7 +3810,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="208"/>
         <source>Authorized as owner</source>
-        <translation>Sahip olarak yetkilendirilmiş</translation>
+        <translation>Sahibi olarak yetkilendirilmiş</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="212"/>
@@ -8954,12 +8954,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="361"/>
         <source>CCITT b2 index out of range.</source>
-        <translation type="unfinished"></translation>
+        <translation>CCITT b2 dizini aralık dışında.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="384"/>
         <source>Invalid horizontal encoding data in CCITT stream.</source>
-        <translation type="unfinished"></translation>
+        <translation>CCITT akışında geçersiz yatay kodlama verileri.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="403"/>
@@ -13236,53 +13236,53 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="115"/>
         <source>Properties</source>
-        <translation type="unfinished"></translation>
+        <translation>Özellikler</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="119"/>
         <source>PDF version</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF Sürümü</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="120"/>
         <source>Title</source>
-        <translation type="unfinished"></translation>
+        <translation>Başlık</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="121"/>
         <source>Subject</source>
-        <translation type="unfinished"></translation>
+        <translation>Konu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="122"/>
         <source>Author</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="123"/>
         <source>Keywords</source>
-        <translation type="unfinished"></translation>
+        <translation>Anahtar kelimeler</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="124"/>
         <source>Creator</source>
-        <translation type="unfinished"></translation>
+        <translation>Oluşturucu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="125"/>
         <source>Producer</source>
-        <translation type="unfinished"></translation>
+        <translation>Yapımcı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="126"/>
         <source>Creation date</source>
-        <translation type="unfinished"></translation>
+        <translation>Oluşturma tarihi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="127"/>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="208"/>
         <source>Modified date</source>
-        <translation type="unfinished"></translation>
+        <translation>Düzenleme tarihi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="133"/>
@@ -13292,7 +13292,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="398"/>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="567"/>
         <source>Yes</source>
-        <translation type="unfinished"></translation>
+        <translation>Evet</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="137"/>
@@ -13302,350 +13302,351 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="398"/>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="567"/>
         <source>No</source>
-        <translation type="unfinished"></translation>
+        <translation>Hayır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="141"/>
         <source>Unknown</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilinmeyen</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="149"/>
         <source>Content</source>
-        <translation type="unfinished"></translation>
+        <translation>İçerik</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="151"/>
         <source>Page count</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa sayısı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="160"/>
         <source>Paper format</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa biçimi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="161"/>
         <source>Paper size</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa boyutu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="163"/>
         <source>Trapped</source>
-        <translation type="unfinished"></translation>
+        <translatorcomment>!!!</translatorcomment>
+        <translation>Sıkışmış</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="170"/>
         <source>Custom properties</source>
-        <translation type="unfinished"></translation>
+        <translation>Özel özellikler</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="190"/>
         <source>File information</source>
-        <translation type="unfinished"></translation>
+        <translation>Dosya bilgileri</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="192"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation>Ad</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="193"/>
         <source>Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Dizin</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="194"/>
         <source>Writable</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazılabilir</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="206"/>
         <source>Size</source>
-        <translation type="unfinished"></translation>
+        <translation>Boyut</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="207"/>
         <source>Created date</source>
-        <translation type="unfinished"></translation>
+        <translation>Oluşturma tarihi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="209"/>
         <source>Last read date</source>
-        <translation type="unfinished"></translation>
+        <translation>Son okuma tarihi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="220"/>
         <source>Security</source>
-        <translation type="unfinished"></translation>
+        <translation>Güvenlik</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="227"/>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="530"/>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="547"/>
         <source>None</source>
-        <translation type="unfinished"></translation>
+        <translation>Hiçbiri</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="231"/>
         <source>Standard</source>
-        <translation type="unfinished"></translation>
+        <translation>Standart</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="235"/>
         <source>Public Key</source>
-        <translation type="unfinished"></translation>
+        <translation>Genel anahtar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="239"/>
         <source>Custom</source>
-        <translation type="unfinished"></translation>
+        <translation>Özel</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="251"/>
         <source>No authorization required</source>
-        <translation type="unfinished"></translation>
+        <translation>Yetkilendirme gerekmez</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="255"/>
         <source>Authorized as owner</source>
-        <translation type="unfinished"></translation>
+        <translation>Sahibi olarak yetkilendirilmiş</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="259"/>
         <source>Authorized as user</source>
-        <translation type="unfinished"></translation>
+        <translation>Kullanıcı olarak yetkilendirildi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="267"/>
         <source>Document encryption</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge şifreleme</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="268"/>
         <source>Authorized as</source>
-        <translation type="unfinished"></translation>
+        <translation>Yetkili</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="272"/>
         <source>Metadata encrypted</source>
-        <translation type="unfinished"></translation>
+        <translation>Meta veri şifrelenmiş</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="273"/>
         <source>Version</source>
-        <translation type="unfinished"></translation>
+        <translation>Sürüm</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="276"/>
         <source>Permissions</source>
-        <translation type="unfinished"></translation>
+        <translation>İzinler</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="282"/>
         <source>Print (low resolution)</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazdır (düşük çözünürlüklü)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="283"/>
         <source>Print (high resolution)</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazdır (yüksek çözünürlüklü)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="284"/>
         <source>Content extraction</source>
-        <translation type="unfinished"></translation>
+        <translation>İçerik çıkarımı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="285"/>
         <source>Content extraction (accessibility)</source>
-        <translation type="unfinished"></translation>
+        <translation>İçerik çıkarımı (erişilebilirlik)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="286"/>
         <source>Page assembling</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa birleştirme</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="287"/>
         <source>Modify content</source>
-        <translation type="unfinished"></translation>
+        <translation>İçeriği değiştir</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="288"/>
         <source>Modify interactive items</source>
-        <translation type="unfinished"></translation>
+        <translation>Etkileşimli öğeleri değiştir</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="289"/>
         <source>Fill form fields</source>
-        <translation type="unfinished"></translation>
+        <translation>Form alanlarını doldur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="368"/>
         <source>TrueType</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="372"/>
         <source>Type0 (CID keyed)</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="376"/>
         <source>Type1 (8 bit keyed)</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="380"/>
         <source>MMType1 (8 bit keyed)</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="384"/>
         <source>Type3 (content streams for font glyphs)</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="392"/>
         <source>Type</source>
-        <translation type="unfinished"></translation>
+        <translation>Tür</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="395"/>
         <source>Font family</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazıtipi ailesi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="398"/>
         <source>Embedded subset</source>
-        <translation type="unfinished"></translation>
+        <translation>Gömülü alt küme</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="445"/>
         <source>Viewer settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Görüntüleyici ayarları</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="446"/>
         <source>Default printer settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Varsayılan yazıcı ayarları</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="452"/>
         <source>Single page</source>
-        <translation type="unfinished"></translation>
+        <translation>Tek Sayfa</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="456"/>
         <source>Continuous column</source>
-        <translation type="unfinished"></translation>
+        <translation>Sürekli sütun</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="461"/>
         <source>Two continuous columns</source>
-        <translation type="unfinished"></translation>
+        <translation>İki sürekli sütun</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="466"/>
         <source>Two pages</source>
-        <translation type="unfinished"></translation>
+        <translation>İki Sayfa</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="478"/>
         <source>Default</source>
-        <translation type="unfinished"></translation>
+        <translation>Varsayılan</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="482"/>
         <source>Show outlines</source>
-        <translation type="unfinished"></translation>
+        <translation>Anahatları göster</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="486"/>
         <source>Show thumbnails</source>
-        <translation type="unfinished"></translation>
+        <translation>Küçük resimleri göster</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="490"/>
         <source>Fullscreen</source>
-        <translation type="unfinished"></translation>
+        <translation>Tam ekran</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="494"/>
         <source>Show optional content</source>
-        <translation type="unfinished"></translation>
+        <translation>İsteğe bağlı içeriği göster</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="498"/>
         <source>Show attachments</source>
-        <translation type="unfinished"></translation>
+        <translation>Ekleri göster</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="510"/>
         <source>Left to right</source>
-        <translation type="unfinished"></translation>
+        <translation>Soldan sağa</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="514"/>
         <source>Right to left</source>
-        <translation type="unfinished"></translation>
+        <translation>Sağdan sola</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="522"/>
         <source>Page layout</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa düzeni</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="523"/>
         <source>View mode</source>
-        <translation type="unfinished"></translation>
+        <translation>Görüntüleme modu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="524"/>
         <source>Writing direction</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazma yönü</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="534"/>
         <source>Application default</source>
-        <translation type="unfinished"></translation>
+        <translation>Uygulama varsayılanı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="541"/>
         <source>Scale</source>
-        <translation type="unfinished"></translation>
+        <translation>Ölçek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="551"/>
         <source>Simplex</source>
-        <translation type="unfinished"></translation>
+        <translation>Tek yönlü</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="555"/>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="559"/>
         <source>Duplex (flip long edge)</source>
-        <translation type="unfinished"></translation>
+        <translation>Çift taraflı (uzun kenarı çevir)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="566"/>
         <source>Duplex mode</source>
-        <translation type="unfinished"></translation>
+        <translation>Çift taraflı modu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="567"/>
         <source>Pick tray by page size</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa boyutuna göre tepsiyi seçin</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="575"/>
         <source>Default print page ranges</source>
-        <translation type="unfinished"></translation>
+        <translation>Varsayılan yazdırma sayfası aralıkları</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="576"/>
         <source>Number of copies</source>
-        <translation type="unfinished"></translation>
+        <translation>Kopya sayısı</translation>
     </message>
 </context>
 <context>
@@ -14045,77 +14046,77 @@ Sayfa %2: %3</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="58"/>
         <source>Remove document info</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge bilgilerini kaldır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="59"/>
         <source>Remove all metadata</source>
-        <translation type="unfinished"></translation>
+        <translation>Tüm meta verilerini kaldır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="60"/>
         <source>Remove outline</source>
-        <translation type="unfinished"></translation>
+        <translation>Anahattı kaldır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="61"/>
         <source>Remove file attachments</source>
-        <translation type="unfinished"></translation>
+        <translation>Dosya eklerini kaldır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="62"/>
         <source>Remove embedded search index</source>
-        <translation type="unfinished"></translation>
+        <translation>Gömülü arama dizinini kaldır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="63"/>
         <source>Remove comments and other markup annotations</source>
-        <translation type="unfinished"></translation>
+        <translation>Yorumları ve diğer işaretleme açıklamalarını kaldır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="64"/>
         <source>Remove page thumbnails</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa küçük resimlerini kaldır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="66"/>
         <source>Sanitize</source>
-        <translation type="unfinished"></translation>
+        <translation>Sterilize et</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="118"/>
         <source>Sanitization started!</source>
-        <translation type="unfinished"></translation>
+        <translation>Sterilizasyon başladı!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="129"/>
         <source>Sanitization finished!</source>
-        <translation type="unfinished"></translation>
+        <translation>Sterilizasyon tamamlandı!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="139"/>
         <source>Sanitized in %1 msecs</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 milisaniye içinde sterilize edildi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="143"/>
         <source>Bytes before sanitization: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Sterilizasyon öncesi bayt sayısı: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="144"/>
         <source>Bytes after sanitization:  %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Sterilizasyon sonrası bayt sayısı: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="145"/>
         <source>Bytes saved by sanitization: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Sterilizasyon ile tasarruf edilen bayt sayısı: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="153"/>
         <source>Compression ratio: %1 %</source>
-        <translation type="unfinished"></translation>
+        <translation>Sıkıştırma oranı: %1 %</translation>
     </message>
 </context>
 <context>
@@ -14504,297 +14505,297 @@ Sayfa %2: %3</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="87"/>
         <source>Engine</source>
-        <translation type="unfinished"></translation>
+        <translation>Motor</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="88"/>
         <source>Rendering</source>
-        <translation type="unfinished"></translation>
+        <translation>İşleme</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="89"/>
         <source>Shading</source>
-        <translation type="unfinished"></translation>
+        <translation>Gölgelendirme</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="90"/>
         <source>Cache</source>
-        <translation type="unfinished"></translation>
+        <translation>Önbellek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="91"/>
         <source>Shortcuts</source>
-        <translation type="unfinished"></translation>
+        <translation>Kısayollar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="92"/>
         <source>Colors | CMS</source>
-        <translation type="unfinished"></translation>
+        <translation>Renkler | CMS</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="93"/>
         <source>Colors | Postprocessing</source>
-        <translation type="unfinished"></translation>
+        <translation>Renk | Son İşleme</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="94"/>
         <source>Security</source>
-        <translation type="unfinished"></translation>
+        <translation>Güvenlik</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="95"/>
         <source>UI</source>
-        <translation type="unfinished"></translation>
+        <translation>Kullanıcı Arabirimi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="96"/>
         <source>Speech</source>
-        <translation type="unfinished"></translation>
+        <translation>Konuşma</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="97"/>
         <source>Forms</source>
-        <translation type="unfinished"></translation>
+        <translation>Formlar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="98"/>
         <source>Signature</source>
-        <translation type="unfinished"></translation>
+        <translation>İmza</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="99"/>
         <source>Plugins</source>
-        <translation type="unfinished"></translation>
+        <translation>Eklentiler</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="110"/>
         <source>Software | QPainter</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazılım | Qpainter</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="111"/>
         <source>Software | Blend2D | Parallel</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazılım | Blend2D | Paralel</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="112"/>
         <source>Software | Blend2D | Sequential</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazılım | Blend2D | Sıralı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="114"/>
         <source>Single thread</source>
-        <translation type="unfinished"></translation>
+        <translation>Tek iş parçacığı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="115"/>
         <source>Multithreading (load balanced)</source>
-        <translation type="unfinished"></translation>
+        <translation>Çoklu İşlemci (yük dengeli)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="116"/>
         <source>Multithreading (maximum threads)</source>
-        <translation type="unfinished"></translation>
+        <translation>Çoklu İşlemci ((azami iş parçacığı))</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="125"/>
         <source>Auto</source>
-        <translation type="unfinished"></translation>
+        <translation>Otomatik</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="126"/>
         <source>Perceptual</source>
-        <translation type="unfinished"></translation>
+        <translation>Algısal</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="127"/>
         <source>Relative colorimetric</source>
-        <translation type="unfinished"></translation>
+        <translation>Göreceli renkölçümsel</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="128"/>
         <source>Absolute colorimetric</source>
-        <translation type="unfinished"></translation>
+        <translation>Mutlak renkölçümsel</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="129"/>
         <source>Saturation</source>
-        <translation type="unfinished"></translation>
+        <translation>Doygunluk</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="131"/>
         <source>Low</source>
-        <translation type="unfinished"></translation>
+        <translation>Düşük</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="132"/>
         <source>Medium</source>
-        <translation type="unfinished"></translation>
+        <translation>Orta</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="133"/>
         <source>High</source>
-        <translation type="unfinished"></translation>
+        <translation>Yüksek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="135"/>
         <source>None</source>
-        <translation type="unfinished"></translation>
+        <translation>Hiçbiri</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="136"/>
         <source>XYZ scaling</source>
-        <translation type="unfinished"></translation>
+        <translation>XYZ ölçeklendirme</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="137"/>
         <source>CAT97 matrix</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="138"/>
         <source>CAT02 matrix</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="139"/>
         <source>Bradford method</source>
-        <translation type="unfinished"></translation>
+        <translation>Bradford yöntemi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="142"/>
         <source>Automatic (or via command line)</source>
-        <translation type="unfinished"></translation>
+        <translation>Otomatik (veya komut satırı üzerinden)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="143"/>
         <source>Light scheme</source>
-        <translation type="unfinished"></translation>
+        <translation>Açık renk şeması</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="144"/>
         <source>Dark scheme</source>
-        <translation type="unfinished"></translation>
+        <translation>Koyu renk şeması</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="147"/>
         <source>Automatic detection</source>
-        <translation type="unfinished"></translation>
+        <translation>Otomatik algılama</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="148"/>
         <source>English</source>
-        <translation type="unfinished"></translation>
+        <translation>İngilizce</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="149"/>
         <source>German</source>
-        <translation type="unfinished"></translation>
+        <translation>Almanca</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="150"/>
         <source>Korean</source>
-        <translation type="unfinished"></translation>
+        <translation>Korece</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="151"/>
         <source>Spanish</source>
-        <translation type="unfinished"></translation>
+        <translation>İspanyolca</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="152"/>
         <source>Czech</source>
-        <translation type="unfinished"></translation>
+        <translation>Çekçe</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="153"/>
         <source>Chinese</source>
-        <translation type="unfinished"></translation>
+        <translation>Çince</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="673"/>
         <source>Type</source>
-        <translation type="unfinished"></translation>
+        <translation>Tür</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="673"/>
         <source>Certificate</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifika</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="673"/>
         <source>Organization</source>
-        <translation type="unfinished"></translation>
+        <translation>Organizasyon</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="673"/>
         <source>Valid from</source>
-        <translation type="unfinished"></translation>
+        <translation>-den beri geçerli</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="673"/>
         <source>Valid to</source>
-        <translation type="unfinished"></translation>
+        <translation>-e kadar geçerli</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="681"/>
         <source>User</source>
-        <translation type="unfinished"></translation>
+        <translation>Kullanıcı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="685"/>
         <source>System</source>
-        <translation type="unfinished"></translation>
+        <translation>Sistem</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="725"/>
         <source>Action</source>
-        <translation type="unfinished"></translation>
+        <translation>Eylem</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="725"/>
         <source>Shortcut</source>
-        <translation type="unfinished"></translation>
+        <translation>Kısayol</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="754"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Hata</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="754"/>
         <source>Shortcut &apos;%1&apos; is invalid for action %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; kısayolu %2 eylemi için geçersiz.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="777"/>
         <source>Active</source>
-        <translation type="unfinished"></translation>
+        <translation>Aktif</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="777"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation>Ad</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="777"/>
         <source>Author</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="777"/>
         <source>Version</source>
-        <translation type="unfinished"></translation>
+        <translation>Sürüm</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="777"/>
         <source>License</source>
-        <translation type="unfinished"></translation>
+        <translation>Lisans</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="891"/>
         <source>Select color profile directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Renk profili dizinini seçin</translation>
     </message>
 </context>
 </TS>
