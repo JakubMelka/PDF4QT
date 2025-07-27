@@ -847,7 +847,7 @@
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="432"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="108"/>
         <source>&amp;Get Source</source>
-        <translation>&amp;Kaynak Dosyaya Eriş</translation>
+        <translation>&amp;Kaynak Koda Eriş</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="441"/>
@@ -1404,12 +1404,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.ui" line="14"/>
         <source>Create Bitonal Document</source>
-        <translation>SiyahBeyaz Belge Oluştur</translation>
+        <translation>Siyah-Beyaz Belge Oluştur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.ui" line="30"/>
         <source>Color to Bitonal Conversion Options</source>
-        <translation>Renkten SiyahBeyaza Dönüştürme Seçenekleri</translation>
+        <translation>Renkten Siyah-Beyaza Dönüştürme Seçenekleri</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.ui" line="36"/>
@@ -2073,7 +2073,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1023"/>
         <source>&amp;Get Source</source>
-        <translation>&amp;Kaynak Dosyaya Eriş</translation>
+        <translation>&amp;Kaynak Koda Eriş</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1032"/>
@@ -2113,17 +2113,17 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1082"/>
         <source>Create &amp;Bitonal Document...</source>
-        <translation>Siyah&amp;Beyaz Belge Oluştur...</translation>
+        <translation>Siyah-&amp;Beyaz Belge Oluştur...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1085"/>
         <source>Create Bitonal Document</source>
-        <translation>SiyahBeyaz Belge Oluştur</translation>
+        <translation>Siyah-Beyaz Belge Oluştur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1088"/>
         <source>Convert the colored images to monochromatic to create a bitonal document.</source>
-        <translation>İki tonlu bir belge oluşturmak için renkli görüntüleri tek renkli hale getirin.</translation>
+        <translation>Siyah-Beyaz bir belge oluşturmak için renkli görüntüleri tek renkli hale getirin.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1097"/>
@@ -5408,7 +5408,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="525"/>
         <source>&amp;Get Source</source>
-        <translation>&amp;Kaynak Dosyaya Eriş</translation>
+        <translation>&amp;Kaynak Koda Eriş</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="534"/>
@@ -5890,7 +5890,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="802"/>
         <source>Bitonal threshold</source>
-        <translation>SiyahBeyaz eşiği</translation>
+        <translation>Siyah-Beyaz eşiği</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="818"/>
@@ -5913,7 +5913,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Ön plan&lt;/span&gt; ve &lt;span style=&quot; font-weight:700;&quot;&gt;arka plan&lt;/span&gt; renkleri, iki rengin kullanıldığı özel bir renk görüntüleme modunu ifade eder. Kağıt arka plan rengiyle çizilir ve ön plan rengi metin ve grafikler için kullanılır. Varsayılan olarak arka plan siyah, ön plan ise yeşildir ve bu renkler göze daha rahat gelir. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Sigmoid fonksiyon eğim parametresi&lt;/span&gt; yüksek kontrastlı renk işleme modunda kullanılan bir parametredir. Bu işleme modu tüm grafikleri yüksek kontrastlı olarak görüntüler. Bu parametre kontrast derecesini etkiler. Küçük bir kontrast değişikliği için değeri 1 ile 5 arasında, orta düzeyde bir kontrast değişikliği için 5 ile 10 arasında ve çok yüksek kontrastlı işleme için 10&apos;dan büyük bir değer ayarlayın. &lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;SiyahBeyaz eşik&lt;/span&gt; SiyahBeyaz görüntüleme renk modunda kullanılır. Siyah ve beyaz renkleri birbirinden ayırır. Ancak, görüntüler için eşik otomatik olarak belirlenir. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Siyah-Beyaz eşik&lt;/span&gt; Siyah-Beyaz görüntüleme renk modunda kullanılır. Siyah ve beyaz renkleri birbirinden ayırır. Ancak, görüntüler için eşik otomatik olarak belirlenir. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="853"/>
@@ -12316,7 +12316,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="67"/>
         <source>Create &amp;Reject Mark</source>
-        <translation>&amp;Reddet İşareti Oluştur</translation>
+        <translation>&amp;Red İşareti Oluştur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="68"/>
@@ -12503,105 +12503,105 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="41"/>
         <source>Statistics by Object Function</source>
-        <translation type="unfinished"></translation>
+        <translation>Nesne Fonksiyonuna Göre İstatistik</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="42"/>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="134"/>
         <source>Statistics by Object Type</source>
-        <translation type="unfinished"></translation>
+        <translation>Nesne Türüne Göre İstatistik</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="85"/>
         <source>Statistics by Object Class</source>
-        <translation type="unfinished"></translation>
+        <translation>Nesne Sınıfına Göre İstatistik</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="86"/>
         <source>Class</source>
-        <translation type="unfinished"></translation>
+        <translation>Sınıf</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="86"/>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="135"/>
         <source>Percentage [%]</source>
-        <translation type="unfinished"></translation>
+        <translation>Yüzde [%]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="86"/>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="135"/>
         <source>Count [#]</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayı [#]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="86"/>
         <source>Space Usage [bytes]</source>
-        <translation type="unfinished"></translation>
+        <translation>Alan Kullanımı [bayt]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="116"/>
         <source>Page</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="117"/>
         <source>Content Stream</source>
-        <translation type="unfinished"></translation>
+        <translation>İçerik Akışı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="118"/>
         <source>Graphic State</source>
-        <translation type="unfinished"></translation>
+        <translation>Grafik Durumu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="119"/>
         <source>Color Space</source>
-        <translation type="unfinished"></translation>
+        <translation>Renk Uzayı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="120"/>
         <source>Pattern</source>
-        <translation type="unfinished"></translation>
+        <translation>Desen</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="121"/>
         <source>Shading</source>
-        <translation type="unfinished"></translation>
+        <translation>Gölgelendirme</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="122"/>
         <source>Image</source>
-        <translation type="unfinished"></translation>
+        <translation>Resim</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="123"/>
         <source>Form</source>
-        <translation type="unfinished"></translation>
+        <translation>Form</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="124"/>
         <source>Font</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazıtipi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="125"/>
         <source>Action</source>
-        <translation type="unfinished"></translation>
+        <translation>Eylem</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="126"/>
         <source>Annotation</source>
-        <translation type="unfinished"></translation>
+        <translation>Açıklama</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="127"/>
         <source>Other</source>
-        <translation type="unfinished"></translation>
+        <translation>Diğer</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="135"/>
         <source>Type</source>
-        <translation type="unfinished"></translation>
+        <translation>Tür</translation>
     </message>
 </context>
 <context>
@@ -12610,117 +12610,117 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="104"/>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="298"/>
         <source>%1 %2 R</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="112"/>
         <source>Part of object %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Nesnenin bir parçası %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="117"/>
         <source>&lt;none&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="123"/>
         <source>Null</source>
-        <translation type="unfinished"></translation>
+        <translation>Boş</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="126"/>
         <source>Bool</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="129"/>
         <source>Integer</source>
-        <translation type="unfinished"></translation>
+        <translation>Tam sayı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="132"/>
         <source>Real</source>
-        <translation type="unfinished"></translation>
+        <translation>Gerçek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="135"/>
         <source>String</source>
-        <translation type="unfinished"></translation>
+        <translation>Dizgi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="138"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation>Ad</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="141"/>
         <source>Array</source>
-        <translation type="unfinished"></translation>
+        <translation>Dizi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="144"/>
         <source>Dictionary</source>
-        <translation type="unfinished"></translation>
+        <translation>Sözlük</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="147"/>
         <source>Stream</source>
-        <translation type="unfinished"></translation>
+        <translation>Akış</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="150"/>
         <source>Reference</source>
-        <translation type="unfinished"></translation>
+        <translation>Referans</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="163"/>
         <source>null</source>
-        <translation type="unfinished"></translation>
+        <translation>boş</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="167"/>
         <source>true</source>
-        <translation type="unfinished"></translation>
+        <translation>doğru</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="167"/>
         <source>false</source>
-        <translation type="unfinished"></translation>
+        <translation>yanlış</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="187"/>
         <source>Array [%1 items]</source>
-        <translation type="unfinished"></translation>
+        <translation>Dizi [%1 öğe]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="191"/>
         <source>Dictionary [%1 items]</source>
-        <translation type="unfinished"></translation>
+        <translation>Sözlük [%1 öğe]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="195"/>
         <source>Stream [%1 items, %2 data bytes]</source>
-        <translation type="unfinished"></translation>
+        <translation>Akış [%1 öğe, %2 veri baytı]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="230"/>
         <source>Invalid color space of the image.</source>
-        <translation type="unfinished"></translation>
+        <translation>Görüntünün renk uzayı geçersiz.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="244"/>
         <source>Image Stream [%1 items, %2 data bytes, %3 x %4 pixels, %5 bits per component]</source>
-        <translation type="unfinished"></translation>
+        <translation>Görüntü Akışı [%1 öğe, %2 veri baytı, %3 x %4 piksel, bileşen başına %5 bit]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="295"/>
         <source>[Unknown]</source>
-        <translation type="unfinished"></translation>
+        <translation>[Bilinmiyor]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="306"/>
         <source>%1 (part)</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 (parça)</translation>
     </message>
 </context>
 <context>
@@ -12728,42 +12728,42 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="57"/>
         <source>Separations</source>
-        <translation type="unfinished"></translation>
+        <translation>Ayrımlar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="58"/>
         <source>Color Warnings | Ink Coverage</source>
-        <translation type="unfinished"></translation>
+        <translation>Renk Uyarıları | Mürekkep Kapsamı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="59"/>
         <source>Color Warnings | Rich Black</source>
-        <translation type="unfinished"></translation>
+        <translation>Renk Uyarıları | Zengin Siyah</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="60"/>
         <source>Ink Coverage</source>
-        <translation type="unfinished"></translation>
+        <translation>Mürekkep Kapsamı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="61"/>
         <source>Shape Channel</source>
-        <translation type="unfinished"></translation>
+        <translation>Şekil Kanalı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="62"/>
         <source>Opacity Channel</source>
-        <translation type="unfinished"></translation>
+        <translation>Opaklık Kanalı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="127"/>
         <source>Process Inks</source>
-        <translation type="unfinished"></translation>
+        <translation>Süreç Mürekkepleri</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="128"/>
         <source>Spot Inks</source>
-        <translation type="unfinished"></translation>
+        <translation>Spot Mürekkepleri</translation>
     </message>
 </context>
 <context>
@@ -12771,17 +12771,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewplugin.cpp" line="47"/>
         <source>&amp;Output Preview</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Çıktı Önizleme</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewplugin.cpp" line="49"/>
         <source>&amp;Ink Coverage</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Mürekkep Kapsamı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewplugin.cpp" line="75"/>
         <source>Output Previe&amp;w</source>
-        <translation type="unfinished"></translation>
+        <translation>Çıktı Önizlem&amp;e</translation>
     </message>
 </context>
 <context>
@@ -12789,54 +12789,54 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="292"/>
         <source>Distribution</source>
-        <translation type="unfinished"></translation>
+        <translation>Dağıtım</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="505"/>
         <source>Process Inks</source>
-        <translation type="unfinished"></translation>
+        <translation>Süreç Mürekkepleri</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="521"/>
         <source>Spot Inks</source>
-        <translation type="unfinished"></translation>
+        <translation>Spot Mürekkepleri</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="549"/>
         <source>Warning | Ink Coverage</source>
-        <translation type="unfinished"></translation>
+        <translation>Uyarı | Mürekkep Kapsamı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="553"/>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="564"/>
         <source>OK</source>
-        <translation type="unfinished"></translation>
+        <translation>TAMAM</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="554"/>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="565"/>
         <source>Failure</source>
-        <translation type="unfinished"></translation>
+        <translation>Başarısız</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="560"/>
         <source>Warning | Rich Black</source>
-        <translation type="unfinished"></translation>
+        <translation>Uyarı | Zengin Siyah</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="579"/>
         <source>Ink Coverage</source>
-        <translation type="unfinished"></translation>
+        <translation>Mürekkep Kapsamı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="598"/>
         <source>Shape/Opacity</source>
-        <translation type="unfinished"></translation>
+        <translation>Şekil/Opaklık</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="604"/>
         <source>Sample Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Örnek Renk</translation>
     </message>
 </context>
 <context>
@@ -12844,32 +12844,32 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/pdfobjectinspectortreeitemmodel.cpp" line="148"/>
         <source>null</source>
-        <translation type="unfinished"></translation>
+        <translation>boş</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/pdfobjectinspectortreeitemmodel.cpp" line="152"/>
         <source>true</source>
-        <translation type="unfinished"></translation>
+        <translation>doğru</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/pdfobjectinspectortreeitemmodel.cpp" line="152"/>
         <source>false</source>
-        <translation type="unfinished"></translation>
+        <translation>yanlış</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/pdfobjectinspectortreeitemmodel.cpp" line="172"/>
         <source>Array [%1 items]</source>
-        <translation type="unfinished"></translation>
+        <translation>Dizi [%1 öğe]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/pdfobjectinspectortreeitemmodel.cpp" line="176"/>
         <source>Dictionary [%1 items]</source>
-        <translation type="unfinished"></translation>
+        <translation>Sözlük [%1 öğe]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/pdfobjectinspectortreeitemmodel.cpp" line="180"/>
         <source>Stream [%1 items, %2 data bytes]</source>
-        <translation type="unfinished"></translation>
+        <translation>Akış [%1 öğe, %2 veri baytı]</translation>
     </message>
 </context>
 <context>
@@ -12877,57 +12877,57 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="58"/>
         <source>Redact &amp;Rectangle</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Dikdörtgeni Düzenle</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="59"/>
         <source>Redact &amp;Text</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Metni Düzenle</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="60"/>
         <source>Redact Text &amp;Selection</source>
-        <translation type="unfinished"></translation>
+        <translation>Metin &amp;Seçimini Düzenle</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="61"/>
         <source>Redact &amp;Page(s)</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Sayfayı(ları) Düzenle</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="62"/>
         <source>Create Redacted &amp;Document</source>
-        <translation type="unfinished"></translation>
+        <translation>Düzenlenmiş &amp;Belge Oluştur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="104"/>
         <source>Redac&amp;t</source>
-        <translation type="unfinished"></translation>
+        <translation>D&amp;üzenle</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="120"/>
         <source>Information</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilgi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="120"/>
         <source>Select text via &apos;Advanced Search&apos; tool, and then redact it using this tool. Select rows in &apos;Result&apos; table to select particular results.</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;Gelişmiş Arama&apos; aracını kullanarak metni seçin ve ardından bu aracı kullanarak metni düzenleyin. ‘Sonuç’ tablosundaki satırları seçerek belirli sonuçları seçin.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="153"/>
         <source>Redact Pages</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfaları Düzenle</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="153"/>
         <source>Page Range to be Redacted</source>
-        <translation type="unfinished"></translation>
+        <translation>Düzenlenecek Sayfa Aralığı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="206"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Hata</translation>
     </message>
 </context>
 <context>
@@ -12935,28 +12935,29 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="44"/>
         <source>Sign digitally</source>
-        <translation type="unfinished"></translation>
+        <translatorcomment>Dijital olarak imzalayın</translatorcomment>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="47"/>
         <source>Sign digitally (invisible signature)</source>
-        <translation type="unfinished"></translation>
+        <translation>Dijital olarak imzalayın (görünmez imza)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="99"/>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="107"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Hata</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="99"/>
         <source>Certificate does not exist.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifika mevcut değil.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="107"/>
         <source>Password to open certificate is invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifikayı açmak için kullanılan şifre geçersiz.</translation>
     </message>
 </context>
 <context>
@@ -12964,126 +12965,126 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="60"/>
         <source>&amp;Activate signature creator</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;İmza oluşturucuyu etkinleştir</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="61"/>
         <source>Create &amp;Text Label</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Metin Etiketi Oluştur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="62"/>
         <source>Create &amp;Freehand Curve</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Serbest El Eğrisi Oluştur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="63"/>
         <source>Create &amp;Accept Mark</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Onay İşareti Oluştur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="64"/>
         <source>Create Reject &amp;Mark</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Red İşareti Oluştur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="65"/>
         <source>Create &amp;Rectangle</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Dikdörtgen Oluştur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="66"/>
         <source>Create R&amp;ounded Rectangle</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Yuvarlatılmış Dikdörtgen Oluştur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="67"/>
         <source>Create &amp;Horizontal Line</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Yatay Çizgi Oluştur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="68"/>
         <source>Create &amp;Vertical Line</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Dikey Çizgi Oluştur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="69"/>
         <source>Create &amp;Line</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Çizgi Oluştur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="70"/>
         <source>Create &amp;Dot</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Nokta Oluştur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="71"/>
         <source>Create SVG &amp;Image</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;SVG Resmi Oluştur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="72"/>
         <source>Clear All &amp;Graphics</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Tüm Grafikleri Temizle</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="73"/>
         <source>Sign &amp;Electronically</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Elektronik Olarak İmzalayın</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="74"/>
         <source>Sign Digitally &amp;With Certificate</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifika &amp;ile Dijital Olarak İmzalayın</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="75"/>
         <source>Certificates &amp;Manager</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifika &amp;Yöneticisi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="200"/>
         <source>Si&amp;gnature</source>
-        <translation type="unfinished"></translation>
+        <translation>İ&amp;mza</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="299"/>
         <source>Confirm Signature</source>
-        <translation type="unfinished"></translation>
+        <translation>İmzayı Onayla</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="299"/>
         <source>Document will be signed electronically. Do you want to continue?</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge elektronik olarak imzalanacaktır. Devam etmek istiyor musunuz?</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="351"/>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="447"/>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="481"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Hata</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="351"/>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="447"/>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="481"/>
         <source>Failed to create digital signature.</source>
-        <translation type="unfinished"></translation>
+        <translation>Dijital imza oluşturulamadı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="491"/>
         <source>Save Signed Document</source>
-        <translation type="unfinished"></translation>
+        <translation>İmzalı Belgeyi Kaydet</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="491"/>
         <source>Portable Document (*.pdf);;All files (*.*)</source>
-        <translation type="unfinished"></translation>
+        <translation>Taşınabilir Belge (*.pdf);; Tüm dosyalar (*.*)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="667"/>
         <source>Signature Toolbox</source>
-        <translation type="unfinished"></translation>
+        <translation>İmza Araç Kutusu</translation>
     </message>
 </context>
 <context>
@@ -13091,22 +13092,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/softproofingplugin.cpp" line="51"/>
         <source>&amp;Soft Proofing</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Ekran Provası</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/softproofingplugin.cpp" line="52"/>
         <source>&amp;Gamut Checking</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Gamut Kontrolü</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/softproofingplugin.cpp" line="53"/>
         <source>Soft &amp;Proofing Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Ekran &amp;Provası Ayarları</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/softproofingplugin.cpp" line="93"/>
         <source>Soft &amp;Proofing</source>
-        <translation type="unfinished"></translation>
+        <translation>Ekran &amp;Provası</translation>
     </message>
 </context>
 <context>
@@ -13122,22 +13123,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfaboutdialog.cpp" line="47"/>
         <source>Library</source>
-        <translation type="unfinished"></translation>
+        <translation>Kütüphane</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfaboutdialog.cpp" line="47"/>
         <source>Version</source>
-        <translation type="unfinished"></translation>
+        <translation>Sürüm</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfaboutdialog.cpp" line="47"/>
         <source>License</source>
-        <translation type="unfinished"></translation>
+        <translation>Lisans</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfaboutdialog.cpp" line="47"/>
         <source>URL</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
 </context>
 <context>
@@ -13153,37 +13154,37 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="46"/>
         <source>Page No.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa No.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="46"/>
         <source>Phrase</source>
-        <translation type="unfinished"></translation>
+        <translation>Deyim</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="46"/>
         <source>Context</source>
-        <translation type="unfinished"></translation>
+        <translation>İçerik</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="126"/>
         <source>Search error</source>
-        <translation type="unfinished"></translation>
+        <translation>Arama hatası</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="126"/>
         <source>Search phrase regular expression has error &apos;%1&apos; near symbol %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>Arama ifadesi düzenli ifadesinde %2 sembolünün yanında ‘%1’ hatası var.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="183"/>
         <source>Results (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>Sonuçlar (%1)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="183"/>
         <source>Results</source>
-        <translation type="unfinished"></translation>
+        <translation>Sonuçlar</translation>
     </message>
 </context>
 <context>
@@ -13212,22 +13213,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="126"/>
         <source>ORIGINAL</source>
-        <translation type="unfinished"></translation>
+        <translation>ORİJİNAL</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="127"/>
         <source>BITONAL</source>
-        <translation type="unfinished"></translation>
+        <translation>SİYAH-BEYAZ</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="135"/>
         <source>Perform</source>
-        <translation type="unfinished"></translation>
+        <translation>Gerçekleştir</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="185"/>
         <source>Converting images...</source>
-        <translation type="unfinished"></translation>
+        <translation>Resimler dönüştürülüyor...</translation>
     </message>
 </context>
 <context>
