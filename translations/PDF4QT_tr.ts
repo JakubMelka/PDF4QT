@@ -4969,7 +4969,7 @@
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="262"/>
         <source>Org. unit</source>
-        <translation>Org. birim</translation>
+        <translation>Org. birimi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="264"/>
@@ -14128,353 +14128,353 @@ Sayfa %2: %3</translation>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="887"/>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="893"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Hata</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="378"/>
         <source>Speech feature is unavailable. No speech engines detected. If you&apos;re using Linux, please install speech libraries like &apos;flite&apos; or &apos;speechd&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Konuşma özelliği kullanılamıyor. Konuşma motoru algılanmadı. Linux kullanıyorsanız, lütfen &apos;flite&apos; veya &apos;speechd&apos; gibi konuşma kitaplıkları yükleyin.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="382"/>
         <source>The speech feature is available, but its options are not properly set. Please check the speech settings in the options dialog.</source>
-        <translation type="unfinished"></translation>
+        <translation>Konuşma özelliği kullanılabilir, ancak seçenekleri düzgün ayarlanmamış. Lütfen seçenekler iletişim kutusundaki konuşma ayarlarını kontrol edin.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="486"/>
         <source>Signature - %1</source>
-        <translation type="unfinished"></translation>
+        <translation>İmza - %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="490"/>
         <source>Timestamp - %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Zaman damgası - %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="501"/>
         <source>Unknown</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilinmeyen</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="519"/>
         <source>Certificate is valid.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifika geçerli.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="525"/>
         <source>Signature is valid.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifika geçerli.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="544"/>
         <source>Hash algorithm: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Sağlama algoritması: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="564"/>
         <source>Certificate validation chain</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifika doğrulama zinciri</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="589"/>
         <source>Protected by RSA method, %1-bit key</source>
-        <translation type="unfinished"></translation>
+        <translation>RSA yöntemi ile korunan, %1 bit anahtar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="593"/>
         <source>Protected by DSA method, %1-bit key</source>
-        <translation type="unfinished"></translation>
+        <translation>DSA yöntemi ile korunan, %1 bit anahtar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="597"/>
         <source>Protected by EC method, %1-bit key</source>
-        <translation type="unfinished"></translation>
+        <translation>EC yöntemi ile korunan, %1 bit anahtar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="601"/>
         <source>Protected by DH method, %1-bit key</source>
-        <translation type="unfinished"></translation>
+        <translation>DH yöntemi ile korunan, %1 bit anahtar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="605"/>
         <source>Unknown protection method, %1-bit key</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilinmeyen koruma yöntemi, %1 bit anahtar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="613"/>
         <source>Country</source>
-        <translation type="unfinished"></translation>
+        <translation>Ülke</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="614"/>
         <source>Organization</source>
-        <translation type="unfinished"></translation>
+        <translation>Organizasyon</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="615"/>
         <source>Org. unit</source>
-        <translation type="unfinished"></translation>
+        <translation>Org. birimi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="616"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation>Ad</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="617"/>
         <source>State</source>
-        <translation type="unfinished"></translation>
+        <translation>Devlet</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="618"/>
         <source>Serial number</source>
-        <translation type="unfinished"></translation>
+        <translation>Seri numara</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="619"/>
         <source>Locality</source>
-        <translation type="unfinished"></translation>
+        <translation>Yer</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="620"/>
         <source>Title</source>
-        <translation type="unfinished"></translation>
+        <translation>Başlık</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="621"/>
         <source>Surname</source>
-        <translation type="unfinished"></translation>
+        <translation>Soyadı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="622"/>
         <source>Forename</source>
-        <translation type="unfinished"></translation>
+        <translation>İlk ad</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="623"/>
         <source>Initials</source>
-        <translation type="unfinished"></translation>
+        <translation>Baş harfler</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="624"/>
         <source>Pseudonym</source>
-        <translation type="unfinished"></translation>
+        <translation>Takma ad</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="625"/>
         <source>Qualifier</source>
-        <translation type="unfinished"></translation>
+        <translation>Niteleyici</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="626"/>
         <source>Email</source>
-        <translation type="unfinished"></translation>
+        <translation>E-Posta</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="649"/>
         <source>Digital signatures</source>
-        <translation type="unfinished"></translation>
+        <translation>Dijital imzalar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="653"/>
         <source>Non-repudiation</source>
-        <translation type="unfinished"></translation>
+        <translation>Onaylama</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="657"/>
         <source>Key encipherement</source>
-        <translation type="unfinished"></translation>
+        <translation>Anahtar şifreleme</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="661"/>
         <source>Application data encipherement</source>
-        <translation type="unfinished"></translation>
+        <translation>Uygulama veri şifrelemesi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="665"/>
         <source>Key agreement</source>
-        <translation type="unfinished"></translation>
+        <translation>Anahtar anlaşma</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="669"/>
         <source>Verify signatures on certificates</source>
-        <translation type="unfinished"></translation>
+        <translation>Sertifikalardaki imzaları doğrulayın</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="673"/>
         <source>Verify signatures on revocation information</source>
-        <translation type="unfinished"></translation>
+        <translation>İptal bilgileri hakkındaki imzaları doğrulayın</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="677"/>
         <source>Encipher data during key agreement</source>
-        <translation type="unfinished"></translation>
+        <translation>Anahtar sözleşmesi sırasında verileri şifreleyin</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="681"/>
         <source>Decipher data during key agreement</source>
-        <translation type="unfinished"></translation>
+        <translation>Anahtar anlaşması sırasında verilerin şifresini çözün</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="685"/>
         <source>Trusted timestamping</source>
-        <translation type="unfinished"></translation>
+        <translation>Güvenilir zaman damgası</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="690"/>
         <source>Key usages</source>
-        <translation type="unfinished"></translation>
+        <translation>Anahtar kullanımlar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="757"/>
         <source>User</source>
-        <translation type="unfinished"></translation>
+        <translation>Kullanıcı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="765"/>
         <source>Page %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="859"/>
         <source>Save to File...</source>
-        <translation type="unfinished"></translation>
+        <translation>Dosyaya Kaydet...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="867"/>
         <source>Save attachment</source>
-        <translation type="unfinished"></translation>
+        <translation>Eki kaydet</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="882"/>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="887"/>
         <source>Failed to save attachment to file. %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Ek, dosyaya kaydedilemedi. %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="893"/>
         <source>Failed to save attachment to file. Attachment is corrupted.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ek, dosyaya kaydedilemedi. Ek bozuk.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="922"/>
         <source>Add to trusted certificates</source>
-        <translation type="unfinished"></translation>
+        <translation>Güvenilen sertifikalara ekle</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="926"/>
         <source>Add to Trusted Certificate Store</source>
-        <translation type="unfinished"></translation>
+        <translation>Güvenilen Sertifika Deposuna Ekle</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="926"/>
         <source>Are you sure want to add &apos;%1&apos; to the trusted certificate store?</source>
-        <translation type="unfinished"></translation>
+        <translation>Güvenilen sertifika deposuna &apos;%1&apos; &apos;i eklemek istediğinizden emin misiniz?</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="930"/>
         <source>Trusted Certificate Store Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Güvenilen Sertifika Deposu Hatası</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="930"/>
         <source>Failed to add certificate to the trusted certificate store.</source>
-        <translation type="unfinished"></translation>
+        <translation>Güvenilen sertifika deposuna sertifika eklenemedi.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1001"/>
         <source>Follow</source>
-        <translation type="unfinished"></translation>
+        <translation>Takip et</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1005"/>
         <source>Delete</source>
-        <translation type="unfinished"></translation>
+        <translation>Sil</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1006"/>
         <source>Insert</source>
-        <translation type="unfinished"></translation>
+        <translation>Ekle</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1007"/>
         <source>Rename</source>
-        <translation type="unfinished"></translation>
+        <translation>Yeniden adlandır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1030"/>
         <source>Font Bold</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazıtipi Kalın</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1031"/>
         <source>Font Italic</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazitipi Eğik</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1039"/>
         <source>Set Target</source>
-        <translation type="unfinished"></translation>
+        <translation>Hedef Ayarla</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1099"/>
         <source>Select Named Destination</source>
-        <translation type="unfinished"></translation>
+        <translation>Adlandırılmış Hedef Seçin</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1110"/>
         <source>OK</source>
-        <translation type="unfinished"></translation>
+        <translation>TAMAM</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1111"/>
         <source>Cancel</source>
-        <translation type="unfinished"></translation>
+        <translation>İptal</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1144"/>
         <source>Named Destination</source>
-        <translation type="unfinished"></translation>
+        <translation>Adlandırılmış Hedef</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1145"/>
         <source>Fit Page</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfayı Sığdır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1146"/>
         <source>Fit Page Horizontally</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfayı Yatay Olarak Sığdır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1147"/>
         <source>Fit Page Vertically</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfayı Dikey Olarak Sığdır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1148"/>
         <source>Fit Rectangle</source>
-        <translation type="unfinished"></translation>
+        <translation>Dikdörtgeni Sığdır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1149"/>
         <source>Fit Bounding Box</source>
-        <translation type="unfinished"></translation>
+        <translation>Sınır Kutusuna Sığdır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1150"/>
         <source>Fit Bounding Box Horizontally</source>
-        <translation type="unfinished"></translation>
+        <translation>Sınırlayıcı kutuyu yatay olarak sığdır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1151"/>
         <source>Fit Bounding Box Vertically</source>
-        <translation type="unfinished"></translation>
+        <translation>Sınırlayıcı kutuyu dikey olarak sığdır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1152"/>
         <source>XYZ</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
 </context>
 <context>
