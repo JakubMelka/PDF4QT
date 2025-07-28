@@ -8966,145 +8966,145 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="424"/>
         <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="435"/>
         <source>Invalid vertical encoding data in CCITT stream.</source>
-        <translation type="unfinished"></translation>
+        <translation>CCITT akışında geçersiz dikey kodlama verileri.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="594"/>
         <source>Invalid index of CCITT changing element a1: a1 = %1, columns = %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>CCITT değiştirme öğesi a1&apos;in geçersiz dizini: a1 = %1, sütunlar = %2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="675"/>
         <source>Invalid CCITT run length code word.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz CCITT çalışma uzunluğu kod sözcüğü.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="697"/>
         <source>Invalid CCITT 2D mode.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz CCITT 2D modu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="198"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="535"/>
         <source>Conversion from gray to output device using CMS failed.</source>
-        <translation type="unfinished"></translation>
+        <translation>CMS kullanılarak griden çıktı aygıtına dönüştürme işlemi başarısız oldu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="210"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="550"/>
         <source>Conversion from gray to output device using CMS failed - invalid data format.</source>
-        <translation type="unfinished"></translation>
+        <translation>CMS kullanılarak griden çıktı aygıtına dönüştürme başarısız oldu - geçersiz veri biçimi.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="222"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="562"/>
         <source>Conversion from RGB to output device using CMS failed.</source>
-        <translation type="unfinished"></translation>
+        <translation>RGB&apos;den çıktı aygıtına CMS kullanılarak dönüştürme işlemi başarısız oldu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="235"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="577"/>
         <source>Conversion from RGB to output device using CMS failed - invalid data format.</source>
-        <translation type="unfinished"></translation>
+        <translation>RGB&apos;den çıktı aygıtına CMS kullanılarak dönüştürme başarısız oldu - geçersiz veri biçimi.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="247"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="589"/>
         <source>Conversion from CMYK to output device using CMS failed.</source>
-        <translation type="unfinished"></translation>
+        <translation>CMS kullanılarak CMYK&apos;dan çıktı aygıtına dönüştürme işlemi başarısız oldu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="265"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="604"/>
         <source>Conversion from CMYK to output device using CMS failed - invalid data format.</source>
-        <translation type="unfinished"></translation>
+        <translation>CMS kullanılarak CMYK&apos;dan çıktı aygıtına dönüştürme başarısız oldu - geçersiz veri biçimi.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="277"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="616"/>
         <source>Conversion from XYZ to output device using CMS failed.</source>
-        <translation type="unfinished"></translation>
+        <translation>CMS kullanılarak XYZ&apos;den çıktı aygıtına dönüştürme işlemi başarısız oldu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="307"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="632"/>
         <source>Conversion from XYZ to output device using CMS failed - invalid data format.</source>
-        <translation type="unfinished"></translation>
+        <translation>XYZ&apos;den çıktı aygıtına CMS kullanılarak dönüştürme işlemi başarısız oldu - geçersiz veri biçimi.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="319"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="701"/>
         <source>Conversion from icc profile space to output device using CMS failed.</source>
-        <translation type="unfinished"></translation>
+        <translation>ICC profil alanından çıktı aygıtına CMS kullanılarak dönüştürme işlemi başarısız oldu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="348"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="723"/>
         <source>Conversion from icc profile space to output device using CMS failed - invalid data format.</source>
-        <translation type="unfinished"></translation>
+        <translation>ICC profil alanından çıktı aygıtına CMS kullanılarak dönüştürme işlemi başarısız oldu - geçersiz veri biçimi.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextflow.cpp" line="315"/>
         <source>Structure tree item for MCID %1 not found.</source>
-        <translation type="unfinished"></translation>
+        <translation>MCID %1 için yapı ağacı öğesi bulunamadı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextflow.cpp" line="710"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextflow.cpp" line="768"/>
         <source>Page %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextflow.cpp" line="740"/>
         <source>Valid tagged document required.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçerli etiketli belge gerekli.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1002"/>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1014"/>
         <source>JBIG2 invalid header - bad referred segments.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 geçersiz başlık - hatalı yönlendirilen segmentler.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1103"/>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1309"/>
         <source>JBIG2 invalid segment type %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 geçersiz segment türü %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1154"/>
         <source>Invalid JBIG2 file header.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz JBIG2 dosya başlığı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1168"/>
         <source>Invalid JBIG2 file header flags.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz JBIG2 dosya başlığı bayrakları.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1176"/>
         <source>Invalid JBIG2 file - unknown number of pages.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz JBIG2 dosyası - bilinmeyen sayıda sayfa.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1182"/>
         <source>Invalid JBIG2 file - invalid number of pages (%1).</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz JBIG2 dosyası - geçersiz sayfa sayısı (%1).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1222"/>
         <source>Invalid JBIG2 file - segment length is not defined.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz JBIG2 dosyası - segment uzunluğu tanımlanmamış.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1320"/>
         <source>JBIG2 bad segment data - handler doesn&apos;t process all segment data - %1 bytes left.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 hatalı segment verisi - işleyici tüm segment verilerini işlemiyor - %1 bayt kaldı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1325"/>
         <source>JBIG2 bad segment data - handler reads %1 bytes past segment end.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 hatalı segment verisi - işleyici segment sonundan %1 bayt sonra okuma yapıyor.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1358"/>
@@ -9113,7 +9113,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1380"/>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1385"/>
         <source>JBIG2 invalid flags for symbol dictionary segment.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 sembol sözlüğü segmenti için geçersiz bayraklar.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1416"/>
@@ -9130,38 +9130,38 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2033"/>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3981"/>
         <source>JBIG2 invalid user huffman code table.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 geçersiz kullanıcı huffman kod tablosu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1469"/>
         <source>JBIG2 invalid number of huffam code table - %1 unused.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 geçersiz huffam kod tablosu sayısı - %1 kullanılmamış.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1479"/>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1496"/>
         <source>JBIG2 trying to use aritmetic decoder context from previous symbol dictionary, but it doesn&apos;t exist.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2, önceki sembol sözlüğünden aritmetik kod çözücü bağlamını kullanmaya çalışıyor, ancak bu bağlam mevcut değil.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1559"/>
         <source>JBIG2 symbol height class has more symbols, than defined in the symbol dictionary header.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 sembol yüksekliği sınıfı, sembol sözlüğü başlığında tanımlanandan daha fazla sembol içerir.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1618"/>
         <source>Trying to use reference bitmap %1, but number of decoded bitmaps is %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 referans bitmap kullanılmaya çalışılıyor, , ancak kodu çözülen bitmap&apos;lerin sayısı %2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1757"/>
         <source>JBIG2 - invalid export flags in symbol dictionary.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 - sembol sözlüğünde geçersiz dışa aktarma bayrakları.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1884"/>
         <source>JBIG2 - invalid huffman table flags in text region segment.</source>
-        <translation type="unfinished"></translation>
+        <translation>JBIG2 - metin bölgesi segmentinde geçersiz huffman tablosu bayrakları.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2049"/>
@@ -9373,58 +9373,58 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="242"/>
         <source>Null</source>
-        <translation type="unfinished"></translation>
+        <translation>Boş</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="245"/>
         <source>Boolean</source>
-        <translation type="unfinished"></translation>
+        <translation>Mantıksal</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="248"/>
         <source>Integer</source>
-        <translation type="unfinished"></translation>
+        <translation>Tam sayı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="251"/>
         <source>Real</source>
-        <translation type="unfinished"></translation>
+        <translation>Gerçek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="254"/>
         <source>String</source>
-        <translation type="unfinished"></translation>
+        <translation>Dizgi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="257"/>
         <source>Name</source>
-        <translation type="unfinished"></translation>
+        <translation>Ad</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="260"/>
         <source>Array</source>
-        <translation type="unfinished"></translation>
+        <translation>Dizi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="263"/>
         <source>Dictionary</source>
-        <translation type="unfinished"></translation>
+        <translation>Sözlük</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="266"/>
         <source>Stream</source>
-        <translation type="unfinished"></translation>
+        <translation>Akış</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="269"/>
         <source>Reference</source>
-        <translation type="unfinished"></translation>
+        <translation>Referans</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="71"/>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="77"/>
         <source>Invalid optional content properties.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz isteğe bağlı içerik özellikleri.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="118"/>
@@ -9432,13 +9432,13 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="144"/>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="168"/>
         <source>Invalid optional content configuration.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz isteğe bağlı içerik yapılandırması.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="231"/>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="253"/>
         <source>Invalid optional content group.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz isteğe bağlı içerik grubu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="496"/>
@@ -9460,22 +9460,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="329"/>
         <source>Reading contents of document...</source>
-        <translation type="unfinished"></translation>
+        <translation>Dokümanın içeriği okunuyor...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="396"/>
         <source>Authorization failed. Bad password provided.</source>
-        <translation type="unfinished"></translation>
+        <translation>Yetkilendirme başarısız. Yanlış şifre girildi.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="425"/>
         <source>Decrypting encrypted contents of document...</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgenin şifrelenmiş içeriğini çözüyor...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="457"/>
         <source>Object stream %1 not found.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 nesne akışı bulunamadı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="463"/>
@@ -9483,7 +9483,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="479"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="500"/>
         <source>Object stream %1 is invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 nesne akışı geçersiz.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="747"/>
@@ -9516,17 +9516,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="905"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1019"/>
         <source>Invalid pattern.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz desen.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="172"/>
         <source>Invalid shading.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz gölgelendirme.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="194"/>
         <source>Pattern color space is not valid for shading patterns.</source>
-        <translation type="unfinished"></translation>
+        <translation>Desen renk uzayı, gölgelendirme desenleri için geçerli değildir.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="223"/>
@@ -9857,17 +9857,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="460"/>
         <source>OK</source>
-        <translation type="unfinished"></translation>
+        <translation>TAMAM</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="463"/>
         <source>Warning</source>
-        <translation type="unfinished"></translation>
+        <translation>Uyarı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="466"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Hata</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="956"/>
@@ -10047,42 +10047,42 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3083"/>
         <source>Gray</source>
-        <translation type="unfinished"></translation>
+        <translation>Gri</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3100"/>
         <source>Red</source>
-        <translation type="unfinished"></translation>
+        <translation>Kırmızı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3111"/>
         <source>Green</source>
-        <translation type="unfinished"></translation>
+        <translation>Yeşil</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3122"/>
         <source>Blue</source>
-        <translation type="unfinished"></translation>
+        <translation>Mavi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3139"/>
         <source>Cyan</source>
-        <translation type="unfinished"></translation>
+        <translation>Camgöbeği</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3150"/>
         <source>Magenta</source>
-        <translation type="unfinished"></translation>
+        <translation>Macenta</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3161"/>
         <source>Yellow</source>
-        <translation type="unfinished"></translation>
+        <translation>Sarı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3172"/>
         <source>Black</source>
-        <translation type="unfinished"></translation>
+        <translation>Siyah</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3188"/>
@@ -10217,82 +10217,82 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="948"/>
         <source>Actions</source>
-        <translation type="unfinished"></translation>
+        <translation>Eylemler</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="950"/>
         <source>JavaScript</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="952"/>
         <source>Attached Files</source>
-        <translation type="unfinished"></translation>
+        <translation>Ekli Dosyalar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="954"/>
         <source>Attached Files Modification</source>
-        <translation type="unfinished"></translation>
+        <translation>Ekli Dosyalarda Değişiklik</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="956"/>
         <source>Collections of Attached Files</source>
-        <translation type="unfinished"></translation>
+        <translation>Ekli Dosya Koleksiyonları</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="958"/>
         <source>Collections of Attached Files (editation)</source>
-        <translation type="unfinished"></translation>
+        <translation>Ekli Dosya Koleksiyonları (düzenleme)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="960"/>
         <source>Digital Signature Validation</source>
-        <translation type="unfinished"></translation>
+        <translation>Dijital İmza Doğrulama</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="962"/>
         <source>Apply Digital Signature</source>
-        <translation type="unfinished"></translation>
+        <translation>Dijital İmza Uygula</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="964"/>
         <source>Digital Signature Validation (with MDP)</source>
-        <translation type="unfinished"></translation>
+        <translation>Dijital İmza Doğrulaması (MDP ile)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="968"/>
         <source>Geospatial 2D Features</source>
-        <translation type="unfinished"></translation>
+        <translation>Jeo-uzamsal 2D Özellikleri</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="970"/>
         <source>Geospatial 3D Features</source>
-        <translation type="unfinished"></translation>
+        <translation>Jeo-uzamsal 3D Özellikleri</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="972"/>
         <source>Navigation for Document Parts</source>
-        <translation type="unfinished"></translation>
+        <translation>Belge Bölümleri için Gezinme</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="974"/>
         <source>Separation Simulation</source>
-        <translation type="unfinished"></translation>
+        <translation>Ayırma Simülasyonu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="976"/>
         <source>Transitions/Presentations</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçişler/Sunumlar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="978"/>
         <source>Encryption</source>
-        <translation type="unfinished"></translation>
+        <translation>Şifreleme</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpage.cpp" line="97"/>
         <source>Invalid page rotation.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz sayfa dönüşümü.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpage.cpp" line="284"/>
@@ -10330,7 +10330,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="436"/>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="538"/>
         <source>zlib code: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>zlib kodu: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="439"/>
@@ -10384,7 +10384,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2414"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2437"/>
         <source>Invalid color space.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz renk uzayı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1783"/>
@@ -10405,7 +10405,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1935"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1984"/>
         <source>Operation cancelled!</source>
-        <translation type="unfinished"></translation>
+        <translation>Operasyon iptal edildi!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2116"/>
@@ -10457,52 +10457,52 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="186"/>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="203"/>
         <source>Page %1 doesn&apos;t exist.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa %1 mevcut değil.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="338"/>
         <source>Start at %1...</source>
-        <translation type="unfinished"></translation>
+        <translation>%1&apos;den başla...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="344"/>
         <source>Rendering document into images.</source>
-        <translation type="unfinished"></translation>
+        <translation>Belgeyi resimlere dönüştürme işlemi.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="357"/>
         <source>Page %1 not found.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sayfa %1 bulunamadı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="418"/>
         <source>Finished at %1...</source>
-        <translation type="unfinished"></translation>
+        <translation>%1&apos;de bitti...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="419"/>
         <source>%1 miliseconds elapsed to render %2 pages...</source>
-        <translation type="unfinished"></translation>
+        <translation>%2 sayfa işlemek için %1 milisaniye geçti...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="569"/>
         <source>Image_%</source>
-        <translation type="unfinished"></translation>
+        <translation>Resim_%</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="651"/>
         <source>Target directory is empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>Hedef dizin boş.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="659"/>
         <source>Target directory &apos;%1&apos; doesn&apos;t exist.</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; hedef dizini mevcut değil.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="665"/>
         <source>File template is empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>Dosya şablonu boş.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="671"/>
@@ -10533,7 +10533,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="336"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="346"/>
         <source>Invalid page contents.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz sayfa içerikleri.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="352"/>
@@ -11010,27 +11010,27 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="928"/>
         <source>Details</source>
-        <translation type="unfinished"></translation>
+        <translation>Detaylar</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="932"/>
         <source>Font</source>
-        <translation type="unfinished"></translation>
+        <translation>Yazıtipi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="936"/>
         <source>Style</source>
-        <translation type="unfinished"></translation>
+        <translation>Stil</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="939"/>
         <source>Yes</source>
-        <translation type="unfinished"></translation>
+        <translation>Evet</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="940"/>
         <source>No</source>
-        <translation type="unfinished"></translation>
+        <translation>Hayır</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="942"/>
@@ -11045,12 +11045,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="944"/>
         <source>Is bold</source>
-        <translation type="unfinished"></translation>
+        <translation>Kalın mı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="945"/>
         <source>Is italics</source>
-        <translation type="unfinished"></translation>
+        <translation>Eğik mi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="946"/>
@@ -11076,72 +11076,72 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="962"/>
         <source>None</source>
-        <translation type="unfinished"></translation>
+        <translation>Hiçbiri</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="966"/>
         <source>Unicode</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="970"/>
         <source>MS Symbol</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="974"/>
         <source>Japanese Shift JIS</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="978"/>
         <source>PRC - Simplified Chinese</source>
-        <translation type="unfinished"></translation>
+        <translation>PRC - Basitleştirilmiş Çince</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="982"/>
         <source>Traditional Chinese</source>
-        <translation type="unfinished"></translation>
+        <translation>Geleneksel Çince</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="986"/>
         <source>Korean Extended Wansung</source>
-        <translation type="unfinished"></translation>
+        <translation>Korece Genişletilmiş Wansung</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="990"/>
         <source>Korean Standard</source>
-        <translation type="unfinished"></translation>
+        <translation>Kore Standardı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="994"/>
         <source>Adobe Standard</source>
-        <translation type="unfinished"></translation>
+        <translation>Adobe Standardı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="998"/>
         <source>Adobe Expert</source>
-        <translation type="unfinished"></translation>
+        <translation>Adobe Uzmanı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1001"/>
         <source>Adobe Custom</source>
-        <translation type="unfinished"></translation>
+        <translation>Adobe Özel</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1005"/>
         <source>Adobe Latin 1</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1009"/>
         <source>Old Latin 1</source>
-        <translation type="unfinished"></translation>
+        <translation>Eski Latin 1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1013"/>
         <source>Apple Roman</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1021"/>
@@ -11171,7 +11171,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1362"/>
         <source>Invalid font type.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz yazıtipi türü.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1471"/>
@@ -11232,69 +11232,69 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2025"/>
         <source>Standard</source>
-        <translation type="unfinished"></translation>
+        <translation>Standart</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2029"/>
         <source>Mac Roman</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2033"/>
         <source>Win Ansi</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2037"/>
         <source>PDF Doc</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2041"/>
         <source>Mac Expert</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2045"/>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2126"/>
         <source>Symbol</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2049"/>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2130"/>
         <source>Zapf Dingbats</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2053"/>
         <source>Mac OS Roman</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2057"/>
         <source>Custom</source>
-        <translation type="unfinished"></translation>
+        <translation>Özel</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2108"/>
         <source>Times Roman</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2115"/>
         <source>Helvetica</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2122"/>
         <source>Courier</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2138"/>
         <source>Standard font</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2292"/>
@@ -11319,7 +11319,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2786"/>
         <source>Character count</source>
-        <translation type="unfinished"></translation>
+        <translation>Karakter sayısı</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2834"/>
@@ -11329,7 +11329,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="74"/>
         <source>Image has not data.</source>
-        <translation type="unfinished"></translation>
+        <translation>Resimde veri yok.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="97"/>
@@ -11344,12 +11344,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="144"/>
         <source>Invalid mask image.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz maske görüntüsü.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="175"/>
         <source>Invalid soft mask object.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz soft maske nesnesi.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="264"/>
@@ -11359,22 +11359,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="273"/>
         <source>Error reading JPEG (DCT) image: %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>JPEG (DCT) görüntüsü okunurken hata oluştu: %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="383"/>
         <source>JPEG 2000 Warning: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>JPEG 2000 Uyarı: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="389"/>
         <source>JPEG 2000 Error: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>JPEG 2000 Hatası: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="479"/>
         <source>Unknown color space for JPEG 2000 image.</source>
-        <translation type="unfinished"></translation>
+        <translation>JPEG 2000 resmi için bilinmeyen renk uzayı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="532"/>
@@ -11456,82 +11456,82 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="854"/>
         <source>Invalid command &apos;%1&apos;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Geçersiz komut &apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="925"/>
         <source>Font &apos;%1&apos; is invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>&apos;%1&apos; yazı tipi geçersiz.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="247"/>
         <source>Info</source>
-        <translation type="unfinished"></translation>
+        <translation>Bilgi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="253"/>
         <source>%1 (%2 replies)</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 (%2 yanıt)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="229"/>
         <source>#%1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="344"/>
         <source>Rounded rectangle</source>
-        <translation type="unfinished"></translation>
+        <translation>Yuvarlatılmış dikdörtgen</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="344"/>
         <source>Rectangle</source>
-        <translation type="unfinished"></translation>
+        <translation>Dikdörtgen</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="1266"/>
         <source>SVG image</source>
-        <translation type="unfinished"></translation>
+        <translation>SVG resmi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="1395"/>
         <source>Dot</source>
-        <translation type="unfinished"></translation>
+        <translation>Nokta</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="1493"/>
         <source>Freehand curve</source>
-        <translation type="unfinished"></translation>
+        <translation>Serbest el eğrisi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="2570"/>
         <source>Text box &apos;%1&apos;</source>
-        <translation type="unfinished"></translation>
+        <translation>Metin kutusu &apos;%1&apos;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="2745"/>
         <source>Image</source>
-        <translation type="unfinished"></translation>
+        <translation>Resim</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="2755"/>
         <source>Path</source>
-        <translation type="unfinished"></translation>
+        <translation>Yol</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfdrawspacecontroller.cpp" line="928"/>
         <source>Compile time:    %1 [ms]</source>
-        <translation type="unfinished"></translation>
+        <translation>Derleme süresi: %1 [ms]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfdrawspacecontroller.cpp" line="930"/>
         <source>Draw time:       %1 [ms]</source>
-        <translation type="unfinished"></translation>
+        <translation>Çizim süresi: %1 [ms]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcompiler.cpp" line="309"/>
         <source>Precompiled page size is too high (%1 kB). Cache size is %2 kB. Increase the cache size!</source>
-        <translation type="unfinished"></translation>
+        <translation>Önceden derlenmiş sayfa boyutu çok yüksek (%1 kB). Önbellek boyutu %2 kB&apos;dir. Önbellek boyutunu artırın!</translation>
     </message>
 </context>
 <context>
