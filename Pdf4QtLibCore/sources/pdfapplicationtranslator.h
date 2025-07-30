@@ -50,7 +50,8 @@ public:
         E_LANGUAGE_SPANISH,
         E_LANGUAGE_CHINESE,
         E_LANGUAGE_FRENCH,
-        E_LANGUAGE_TURKISH
+        E_LANGUAGE_TURKISH,
+        E_LANGUAGE_RUSSIAN
     };
 
     Q_ENUM(ELanguage)

@@ -14613,87 +14613,92 @@ Stránka %2: %3</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="675"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="156"/>
+        <source>Russian</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="676"/>
         <source>Type</source>
         <translation>Typ</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="675"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="676"/>
         <source>Certificate</source>
         <translation>Certifikát</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="675"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="676"/>
         <source>Organization</source>
         <translation>Organizace</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="675"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="676"/>
         <source>Valid from</source>
         <translation>Platný od</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="675"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="676"/>
         <source>Valid to</source>
         <translation>Platný do</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="683"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="684"/>
         <source>User</source>
         <translation>Uživatelský</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="687"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="688"/>
         <source>System</source>
         <translation>Systémový</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="727"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="728"/>
         <source>Action</source>
         <translation>Akce</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="727"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="728"/>
         <source>Shortcut</source>
         <translation>Zkratka</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="756"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="757"/>
         <source>Error</source>
         <translation>Chyba</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="756"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="757"/>
         <source>Shortcut &apos;%1&apos; is invalid for action %2.</source>
         <translation>Klávesová zkratka &apos;%1&apos; není platná pro akci %2.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="779"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="780"/>
         <source>Active</source>
         <translation>Aktivní</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="779"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="780"/>
         <source>Name</source>
         <translation>Jméno</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="779"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="780"/>
         <source>Author</source>
         <translation>Autor</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="779"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="780"/>
         <source>Version</source>
         <translation>Verze</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="779"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="780"/>
         <source>License</source>
         <translation>Licence</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="893"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="894"/>
         <source>Select color profile directory</source>
         <translation>Vybrat adresář s barevnými profily</translation>
     </message>
