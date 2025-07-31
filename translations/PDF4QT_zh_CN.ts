@@ -6672,8 +6672,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="46"/>
-        <source>2048位</source>
-        <translation></translation>
+        <source>2048 bits</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="47"/>
@@ -14740,87 +14740,102 @@ Page %2: %3</source>
         <translation>简体中文</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="673"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="154"/>
+        <source>French</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="155"/>
+        <source>Turkish</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="156"/>
+        <source>Russian</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="676"/>
         <source>Type</source>
         <translation>类型</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="673"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="676"/>
         <source>Certificate</source>
         <translation>证书</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="673"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="676"/>
         <source>Organization</source>
         <translation>组织</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="673"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="676"/>
         <source>Valid from</source>
         <translation>有效期自</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="673"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="676"/>
         <source>Valid to</source>
         <translation>有效期至</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="681"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="684"/>
         <source>User</source>
         <translation>用户</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="685"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="688"/>
         <source>System</source>
         <translation>糸统</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="725"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="728"/>
         <source>Action</source>
         <translation>操作</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="725"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="728"/>
         <source>Shortcut</source>
         <translation>快捷键</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="754"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="757"/>
         <source>Error</source>
         <translation>错误</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="754"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="757"/>
         <source>Shortcut &apos;%1&apos; is invalid for action %2.</source>
         <translation>快捷方式‘%1’对于操作 %2 无效。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="777"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="780"/>
         <source>Active</source>
         <translation>激活</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="777"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="780"/>
         <source>Name</source>
         <translation>名称</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="777"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="780"/>
         <source>Author</source>
         <translation>作者</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="777"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="780"/>
         <source>Version</source>
         <translation>版本</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="777"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="780"/>
         <source>License</source>
         <translation>许可证</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="891"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="894"/>
         <source>Select color profile directory</source>
         <translation>选择颜色配置文件目录</translation>
     </message>
