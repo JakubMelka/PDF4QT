@@ -3089,12 +3089,12 @@
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="851"/>
         <source>Uknown bool value &apos;%1&apos;. Default value is used.</source>
-        <translation>Bilinmeyen mantıksal (bool) değer &apos;%1&apos;. Varsayılan değer kullanılır.</translation>
+        <translation>Bilinmeyen bool değeri &apos;%1&apos;. Varsayılan değer kullanılır.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="864"/>
         <source>Uknown bool value &apos;%1&apos;. GPU rendering is used as default.</source>
-        <translation>Bilinmeyen mantıksal (bool) değer &apos;%1&apos;. GPU işleme varsayılan olarak kullanılır.</translation>
+        <translation>Bilinmeyen bool değeri &apos;%1&apos;. GPU işleme varsayılan olarak kullanılır.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="871"/>
@@ -3877,7 +3877,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="275"/>
         <source>File hashes:</source>
-        <translation>Dosya sağlamaları:</translation>
+        <translation>Dosya hash&apos;leri:</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="278"/>
@@ -4875,7 +4875,7 @@
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="153"/>
         <source>Hash alg.</source>
-        <translation>Sağlama alg.</translation>
+        <translation>Hash alg.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="154"/>
@@ -4926,7 +4926,7 @@
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="204"/>
         <source>Hash algorithm: %1</source>
-        <translation>Sağlama algoritması: %1</translation>
+        <translation>Hash algoritması: %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="205"/>
@@ -5594,7 +5594,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Uygulamanızın gereksinimlerine göre uyarlanmış bir işleme yöntemi seçin. QPainter&apos;ı kullanan Yazılım Oluşturma, tüm platformlarda uyumluluğu garanti eden çok yönlü bir seçimdir. Donanım hızlandırmaya doğrudan erişimin çok önemli olmadığı senaryolarda özellikle kullanışlıdır. Qt çerçevesinin bir parçası olan QPainter, çeşitli boyama stilleri, görüntü işleme ve karmaşık grafik dönüşümleri desteğiyle 2B grafikler oluşturmada mükemmeldir ve bu da onu donanım hızlandırmaya güvenmeden ayrıntılı ve sofistike 2B grafikler gerektiren uygulamalar için mükemmel bir araç haline getirir.&lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Öte yandan, yüksek performanslı işleme gerektiren uygulamalar için Blend2D kitaplığından yararlanmak cazip bir alternatif sunar. Blend2D, işleme sürecini hızlandırmak için çoklu iş parçacığı kullanan yüksek performanslı bir 2D vektör grafik motorudur. QPainter veya donanım hızlandırmaya dayanmaz, bunun yerine hız ve kalite için optimize edilmiş yazılım tabanlı bir işleme çözümü sunar. Blend2D&apos;nin gelişmiş kenar yumuşatma teknikleri, canlı ve net görüntü kalitesi sağlayarak, işleme performansının ve görüntü kalitesinin çok önemli olduğu uygulamalar için uygun hale getirir.&lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Sayfaları Önceden Getir özelliği, seçilen oluşturma yönteminden bağımsız olarak uygulanabilen bir stratejidir. Bu yaklaşım, o anda görüntülenen içeriğe bitişik sayfaları önceden oluşturarak, titremeyi en aza indirir ve kaydırma sırasında geçişlerin düzgünlüğünü artırarak genel kullanıcı deneyimini iyileştirir.&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;İşleme sürecini optimize etmek söz konusu olduğunda, çoklu iş parçacığı stratejisi seçimi çok önemli bir rol oynar. İşleme görevlerinin tek bir CPU çekirdeğinde sıralı olarak yürütüldüğü Tek İş Parçacığı stratejisi, basitlik ve öngörülebilirliğin önemli olduğu ortamlarda tercih edilebilir. Daha zorlu uygulamalar için, Çoklu iş parçacığı stratejisi kullanmak, işleme sürelerini önemli ölçüde iyileştirebilir. Load Balanced gibi stratejiler, içeriğe özel işlemeye dalmadan iş yükünü CPU çekirdekleri arasında eşit olarak dağıtarak iyi bir performans artışı sunar. Maksimum İş Parçacığı stratejisi, işleme görevlerine mümkün olduğunca çok iş parçacığı ayırarak, en iyi performansı elde ederek ve işleme sürelerini en aza indirerek mevcut CPU kaynaklarından tam olarak yararlanır.&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;İşleme sürecini optimize etmek söz konusu olduğunda, çoklu iş parçacığı stratejisi seçimi çok önemli bir rol oynar. İşleme görevlerinin tek bir CPU çekirdeğinde sıralı olarak yürütüldüğü Tek İş Parçacığı stratejisi, basitlik ve öngörülebilirliğin önemli olduğu ortamlarda tercih edilebilir. Daha zorlu uygulamalar için, Çoklu iş parçacığı stratejisi kullanmak, işleme sürelerini önemli ölçüde iyileştirebilir. Load Balanced gibi stratejiler, içeriğe özel işlemeye dalmadan iş yükünü CPU çekirdekleri arasında eşit olarak dağıtarak iyi bir performans artışı sunar. Azami İş Parçacığı stratejisi, işleme görevlerine mümkün olduğunca çok iş parçacığı ayırarak, en iyi performansı elde ederek ve işleme sürelerini en aza indirerek mevcut CPU kaynaklarından tam olarak yararlanır.&lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Yazılım oluşturma için QPainter ve yüksek performanslı, çok iş parçacıklı işleme için Blend2D kullanımı arasındaki bu ayrım, geliştiricilerin özel performans gereksinimlerine ve uygulamalarının grafiksel karmaşıklığına göre en uygun işleme yolunu seçmelerine olanak tanır.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
@@ -5759,7 +5759,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Render motoru önce sayfayı hızlı çizim için derler ve ardından bu derlenmiş sayfaları önbellekte saklar. Bu saklanan sayfalar genellikle önbelleğe alınmamış sayfalardan çok daha hızlı görüntülenir. &lt;span style=&quot; font-weight:600;&quot;&gt;Derlenmiş Sayfa Önbellek Boyutu&lt;/span&gt;, bu derlenmiş sayfalar için bellek sınırını kilobayt cinsinden belirler. İdeal olarak, bu sınır en büyük derlenmiş sayfanın boyutunun en az iki katı kadar olmalıdır. Derlenmiş bir sayfa bu sınırı aşarsa, görüntüleme sırasında bir hata görüntülenir. Bu sınır için daha yüksek bir değer belirlemek görüntüleme motorunu hızlandırabilir, ancak daha fazla işletim belleği tüketir. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Küçük resimler için de bir önbellek vardır. &lt;span style=&quot; font-weight:600;&quot;&gt;Küçük Resim Önbellek Boyutu&lt;/span&gt; bu resimler için ayrılan bellek alanını belirler. Bu değer, ekrandaki tüm küçük resimleri barındıracak kadar büyük olmalıdır. Bu değer ne kadar büyük olursa, küçük resimler o kadar hızlı görüntülenir, ancak bunun bedeli olarak daha fazla işletim belleği tüketilir. Küçük resimler, önceden derlenmiş sayfalar olarak değil, hızlı çizim için bitmap olarak depolanır. &lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;İşleme (Renderlama) sırasında yazı tipleri de önbelleğe alınır. Yazı tipleri için iki düzeyde önbellek vardır: biri genel yazı tipleri için, diğeri ise örneğe özgü yazı tipleri (belirli boyuttaki yazı tipleri) içindir. &lt;span style=&quot; font-weight:600;&quot;&gt;Önbelleğe Alınan Yazı Tipi Sınırı&lt;/span&gt; önbellekte depolanabilecek maksimum yazı tipi sayısını belirler. &lt;span style=&quot; font-weight:600;&quot;&gt;Örnek Yazı Tipi Önbellek Sınırı&lt;/span&gt; depolanabilecek örnek özel yazı tiplerinin maksimum sayısını belirler. Bu önbellek sınırları aşıldığında, yazı tipleri önbellekten kaldırılır. Ancak, bu durum yalnızca başka bir iş parçacığında (sayfaların derlenmesi gibi) herhangi bir işlem yapılmadığında, yarış koşullarını önlemek için gerçekleşir. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;İşleme (Renderlama) sırasında yazı tipleri de önbelleğe alınır. Yazı tipleri için iki düzeyde önbellek vardır: biri genel yazı tipleri için, diğeri ise örneğe özgü yazı tipleri (belirli boyuttaki yazı tipleri) içindir. &lt;span style=&quot; font-weight:600;&quot;&gt;Önbelleğe Alınan Yazı Tipi Sınırı&lt;/span&gt; önbellekte depolanabilecek azami yazı tipi sayısını belirler. &lt;span style=&quot; font-weight:600;&quot;&gt;Örnek Yazı Tipi Önbellek Sınırı&lt;/span&gt; depolanabilecek örnek özel yazı tiplerinin azami sayısını belirler. Bu önbellek sınırları aşıldığında, yazı tipleri önbellekten kaldırılır. Ancak, bu durum yalnızca başka bir iş parçacığında (sayfaların derlenmesi gibi) herhangi bir işlem yapılmadığında, yarış koşullarını önlemek için gerçekleşir. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="537"/>
@@ -9190,12 +9190,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2295"/>
         <source>JBIG2 invalid referenced pattern dictionaries for halftone segment.</source>
-        <translation>Yarım ton segmenti için JBIG2 geçersiz referanslı desen sözlükleri.</translation>
+        <translation>Yarı ton segmenti için JBIG2 geçersiz referanslı desen sözlükleri.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2303"/>
         <source>JBIG2 invalid patterns for halftone segment.</source>
-        <translation>Yarım ton segmenti için JBIG2 geçersiz desenleri.</translation>
+        <translation>Yarı ton segmenti için JBIG2 geçersiz desenleri.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2343"/>
@@ -9205,7 +9205,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2368"/>
         <source>JBIG2 unknown data length for halftone dictionary.</source>
-        <translation>JBIG2 yarım ton sözlüğü için bilinmeyen veri uzunluğu.</translation>
+        <translation>JBIG2 yarı ton sözlüğü için bilinmeyen veri uzunluğu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2418"/>
@@ -9220,7 +9220,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2466"/>
         <source>JBIG2 - invalid bitmap for halftone region.</source>
-        <translation>JBIG2 - yarım ton bölgesi için geçersiz bit eşlem.</translation>
+        <translation>JBIG2 - yarı ton bölgesi için geçersiz bit eşlem.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2488"/>
@@ -9235,17 +9235,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2580"/>
         <source>JBIG2 - invalid flags for generic refinement region.</source>
-        <translation>JBIG2 - genel arıtma bölgesi için geçersiz bayraklar.</translation>
+        <translation>JBIG2 - genel iyileştirme bölgesi için geçersiz bayraklar.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2601"/>
         <source>JBIG2 - operation must be REPLACE for generic refinement region.</source>
-        <translation>JBIG2 - genel arıtma bölgesi için işlem REPLACE olmalıdır.</translation>
+        <translation>JBIG2 - genel iyileştirme bölgesi için işlem REPLACE olmalıdır.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2615"/>
         <source>JBIG2 - invalid referred segments (%1) for generic refinement region.</source>
-        <translation>JBIG2 - genel arıtma bölgesi için geçersiz atıfta bulunulan segmentler (%1).</translation>
+        <translation>JBIG2 - genel iyileştirme bölgesi için geçersiz atıfta bulunulan segmentler (%1).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2620"/>
@@ -9255,7 +9255,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2655"/>
         <source>JBIG2 - invalid bitmap for generic refinement region.</source>
-        <translation>JBIG2 - genel arıtma bölgesi için geçersiz bit eşlem.</translation>
+        <translation>JBIG2 - genel iyileştirme bölgesi için geçersiz bit eşlem.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2715"/>
@@ -9325,37 +9325,37 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3608"/>
         <source>JBIG2 maximum bitmap size exceeded (%1 &gt; %2).</source>
-        <translation>JBIG2 maksimum bitmap boyutu aşıldı (%1 &gt; %2).</translation>
+        <translation>JBIG2 azami bitmap boyutu aşıldı (%1 &gt; %2).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3621"/>
         <source>JBIG2 invalid bitmap size (%1 x %2).</source>
-        <translation>JBIG2 invalid bitmap size (%1 x %2).</translation>
+        <translation>JBIG2 geçersiz bitmap boyutu (%1 x %2).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3626"/>
         <source>JBIG2 invalid bit operation.</source>
-        <translation>JBIG2 invalid bit operation.</translation>
+        <translation>JBIG2 geçersiz bit işlemi.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3638"/>
         <source>JBIG2 can&apos;t read integer.</source>
-        <translation>JBIG2 can&apos;t read integer.</translation>
+        <translation>JBIG2 tamsayıları okuyamaz.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3743"/>
         <source>JBIG2 - invalid bitmap paint operation.</source>
-        <translation>JBIG2 - invalid bitmap paint operation.</translation>
+        <translation>JBIG2 - geçersiz bitmap boyama işlemi.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3753"/>
         <source>JBIG2 - invalid bitmap copy row operation.</source>
-        <translation>JBIG2 - invalid bitmap copy row operation.</translation>
+        <translation>JBIG2 - geçersiz bitmap kopyalama satırı işlemi.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3809"/>
         <source>JBIG2 overflow of prefix bit values in huffman table.</source>
-        <translation>JBIG2 overflow of prefix bit values in huffman table.</translation>
+        <translation>Huffman tablosundaki önek bit değerlerinin JBIG2 taşması.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="242"/>
@@ -9365,7 +9365,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="245"/>
         <source>Boolean</source>
-        <translation>Mantıksal</translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="248"/>
@@ -9457,7 +9457,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="425"/>
         <source>Decrypting encrypted contents of document...</source>
-        <translation>Belgenin şifrelenmiş içeriğini çözüyor...</translation>
+        <translation>Belgenin şifrelenmiş içeriği çözülüyor...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="457"/>
@@ -9625,7 +9625,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="2459"/>
         <source>Invalid lattice form gourad triangle data stream.</source>
-        <translation>Invalid lattice form gourad triangle data stream.</translation>
+        <translation>Geçersiz kafes formu gourad üçgen veri akışı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="2974"/>
@@ -9642,7 +9642,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="3716"/>
         <source>Invalid data in coons patch shading.</source>
-        <translation>Rakun yaması gölgelendirmesinde geçersiz veriler.</translation>
+        <translation>Coons yama gölgelendirmede geçersiz veriler.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="320"/>
@@ -9655,7 +9655,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1642"/>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1715"/>
         <source>Revision %1 of standard security handler is not supported.</source>
-        <translation>Revision %1 of standard security handler is not supported.</translation>
+        <translation>Standart güvenlik işleyicisinin %1 revizyonu desteklenmemektedir.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="365"/>
@@ -9728,13 +9728,13 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1427"/>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1431"/>
         <source>Security permissions are manipulated. Can&apos;t open the document.</source>
-        <translation>Güvenlik izinleri manipüle edildi. Belge açılamıyor.</translation>
+        <translation>Güvenlik izinleri ayarlanmış. Belge açılamıyor.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1540"/>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1664"/>
         <source>Encryption key length (%1) exceeded maximal value of %2.</source>
-        <translation>Şifreleme anahtarı uzunluğu (%1) %2&apos;nin maksimum değerini aştı.</translation>
+        <translation>Şifreleme anahtarı uzunluğu (%1) %2&apos;nin azami değerini aştı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="234"/>
@@ -9809,7 +9809,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="318"/>
         <source>Signed data has different hash function digest.</source>
-        <translation>İmzalı verilerin farklı hash fonksiyonu özeti vardır.</translation>
+        <translation>İmzalı verilerin farklı hash (sağlama) fonksiyonu özeti vardır.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="324"/>
@@ -9859,7 +9859,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="956"/>
         <source>Transformation between blending color space failed.</source>
-        <translation>Karıştırma renk uzayı arasındaki dönüşüm başarısız oldu.</translation>
+        <translation>Karışım renk uzayı arasındaki dönüşüm başarısız oldu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1201"/>
@@ -10014,7 +10014,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2757"/>
         <source>Mesh painting not implemented.</source>
-        <translation>Mesh boyama uygulanmadı.</translation>
+        <translation>Örgü (Mesh) boyama uygulanmadı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2912"/>
@@ -10029,7 +10029,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2967"/>
         <source>Transformation from source color space to target blending color space failed.</source>
-        <translation>Kaynak renk uzayından hedef karıştırma renk uzayına dönüştürme başarısız oldu.</translation>
+        <translation>Kaynak renk uzayından hedef karışım renk uzayına dönüştürme başarısız oldu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3083"/>
@@ -10059,7 +10059,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3150"/>
         <source>Magenta</source>
-        <translation>Macenta</translation>
+        <translation>Macenta (Fuşya)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3161"/>
@@ -10074,7 +10074,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3188"/>
         <source>Process Generic%1</source>
-        <translation>Süreç Genel%1</translation>
+        <translation>Genel Süreç%1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="94"/>
@@ -10154,7 +10154,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="919"/>
         <source>Required features %1 are unsupported. Document processing can be limited.</source>
-        <translation>Gerekli %1 özellikleri desteklenmiyor. Belge işleme sınırlı olabilir.</translation>
+        <translation>Gerekli %1 özellikleri desteklenmiyor. Belge işlenmesi sınırlı olabilir.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="930"/>
@@ -10174,7 +10174,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="936"/>
         <source>Navigation</source>
-        <translation>Navigasyon</translation>
+        <translation>Gezinme</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="938"/>
@@ -10189,7 +10189,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="942"/>
         <source>Multimedia</source>
-        <translation>Multimedya</translation>
+        <translation>Çoklu ortam</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="944"/>
@@ -10264,7 +10264,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="974"/>
         <source>Separation Simulation</source>
-        <translation>Ayırma Simülasyonu</translation>
+        <translation>Ayrılma Simülasyonu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="976"/>
@@ -10285,7 +10285,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfpage.cpp" line="284"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpage.cpp" line="299"/>
         <source>Expected valid kids in page tree.</source>
-        <translation>Expected valid kids in page tree.</translation>
+        <translation>Sayfa ağacında geçerli olması beklenen çocuklar.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpage.cpp" line="290"/>
@@ -10327,7 +10327,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="503"/>
         <source>Failed to initialize flate decompression stream.</source>
-        <translation>Flate dekompresyon akışı başlatılamadı.</translation>
+        <translation>Flate baskı azaltım akışı başlatılamadı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="541"/>
@@ -10352,7 +10352,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="949"/>
         <source>Security handler required, but not provided.</source>
-        <translation>Güvenlik görevlisi gereklidir, ancak sağlanmamaktadır.</translation>
+        <translation>Güvenlik işleyici gereklidir, ancak sağlanmamaktadır.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="536"/>
@@ -10407,17 +10407,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2326"/>
         <source>Can&apos;t determine color name for separation color space.</source>
-        <translation>Ayırma renk alanı için renk adı belirlenemiyor.</translation>
+        <translation>Ayrım renk alanı için renk adı belirlenemiyor.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2334"/>
         <source>Can&apos;t determine alternate color space for separation color space.</source>
-        <translation>Ayırma renk alanı için alternatif renk alanı belirlenemiyor.</translation>
+        <translation>Ayrım renk alanı için alternatif renk alanı belirlenemiyor.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2340"/>
         <source>Can&apos;t determine tint transform for separation color space.</source>
-        <translation>Ayırma renk alanı için renk tonu dönüşümü belirlenemiyor.</translation>
+        <translation>Ayrım renk alanı için renk tonu dönüşümü belirlenemiyor.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2392"/>
@@ -10432,7 +10432,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2570"/>
         <source>Can&apos;t determine alternate color space for DeviceN color space.</source>
-        <translation>DeviceN renk alanı için alternatif renk alanı belirlenemiyor.</translation>
+        <translation>DeviceN renk uzayı için alternatif renk uzayı belirlenemiyor.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2576"/>
@@ -10525,12 +10525,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="352"/>
         <source>Graphic state stack was saved more times, than was restored.</source>
-        <translation>Grafik durum yığını, geri yüklenenden daha fazla kez kaydedilmiştir.</translation>
+        <translation>Grafik durum yığını, geri yüklenenden daha fazla kez kaydedildi.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="531"/>
         <source>Transparency group blending color space is invalid.</source>
-        <translation>Saydamlık grubu karıştırma renk uzayı geçersiz.</translation>
+        <translation>Saydamlık grubu karışım renk uzayı geçersiz.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="588"/>
@@ -10684,7 +10684,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2773"/>
         <source>Font &apos;%1&apos; not found in font dictionary.</source>
-        <translation>Font sözlüğünde ‘%1’ fontu bulunamadı.</translation>
+        <translation>Yazıtipi sözlüğünde ‘%1’ yazıtipi bulunamadı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2778"/>
@@ -10703,12 +10703,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2875"/>
         <source>Invalid parameters of text operator with individual character spacing.</source>
-        <translation>Ayrı karakter aralıklı metin operatörünün geçersiz parametreleri.</translation>
+        <translation>Bireysel karakter aralığına sahip metin operatörünün geçersiz parametreleri.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2924"/>
         <source>Invalid operand of text show operator.</source>
-        <translation>Metin gösterme operatörünün geçersiz operandı.</translation>
+        <translation>Geçersiz operand metin gösterim operatörü.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2966"/>
@@ -10728,12 +10728,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3046"/>
         <source>Color operators are not allowed in uncolored tilling pattern.</source>
-        <translation>Renk operatörlerine renksiz toprak işleme deseninde izin verilmez.</translation>
+        <translation>Renk operatörleri, renksiz döşeme deseninde izin verilmez.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3107"/>
         <source>Reference to optional content expected.</source>
-        <translation>Beklenen isteğe bağlı içeriğe referans.</translation>
+        <translation>Seçmeli içeriğe atıf bekleniyor.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3122"/>
@@ -10758,17 +10758,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3187"/>
         <source>Mismatched begin/end of marked content.</source>
-        <translation>İşaretli içeriğin uyumsuz başlangıcı/sonu.</translation>
+        <translation>İşaretli içeriğin başlangıç/bitiş uyuşmazlığı.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3203"/>
         <source>Compatibility operator begin/end mismatch.</source>
-        <translation>Uyumluluk operatörü başlangıç/bitiş uyuşmazlığı.</translation>
+        <translation>Uyumluluk operatörü başlama/bitiş uyumsuzluğu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3325"/>
         <source>Type 3 font matrix is not invertible.</source>
-        <translation>Tip 3 yazı tipi matrisi ters çevrilebilir değildir.</translation>
+        <translation>Tip 3 yazı tipi matrisi ters çevrilebilir değil.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3410"/>
@@ -10841,7 +10841,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="946"/>
         <source>Number expected for floor function (PostScript engine).</source>
-        <translation>Kat işlevi için beklenen sayı (PostScript motoru).</translation>
+        <translation>Zemin işlevi için beklenen sayı (PostScript motoru).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="959"/>
@@ -10851,7 +10851,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="972"/>
         <source>Number expected for truncate function (PostScript engine).</source>
-        <translation>Truncate işlevi için beklenen sayı (PostScript motoru).</translation>
+        <translation>Kırpma işlevi için beklenen sayı (PostScript motoru).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="983"/>
@@ -10861,7 +10861,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1026"/>
         <source>Logarithm&apos;s input should be positive value  (PostScript engine).</source>
-        <translation>Logaritma girdisi pozitif değer olmalıdır (PostScript motoru).</translation>
+        <translation>Logaritma girdisi pozitif değer olmalıdır  (PostScript motoru).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1039"/>
@@ -10941,7 +10941,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1721"/>
         <source>Invalid program - bad enclosing brackets (PostScript function).</source>
-        <translation>Geçersiz program - kötü çevreleyen parantezler (PostScript işlevi).</translation>
+        <translation>Geçersiz program - hatalı kapatma parantezleri (PostScript işlevi).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1739"/>
@@ -10977,7 +10977,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="469"/>
         <source>Inexact font substitution: font %1 replaced by standard font Times New Roman.</source>
-        <translation>Kesin olmayan yazı tipi değişimi: %1 yazı tipi standart Times New Roman yazı tipiyle değiştirildi.</translation>
+        <translation>Kesin olmayan yazı tipi değişimi: %1 standart yazı tipi Times New Roman yazı tipiyle değiştirildi.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="557"/>
@@ -11078,7 +11078,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="974"/>
         <source>Japanese Shift JIS</source>
-        <translation></translation>
+        <translation>Japonca Shift JIS</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="978"/>
@@ -11187,7 +11187,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1733"/>
         <source>Invalid number (%1) of descendant fonts in CID-keyed font - exactly one is required.</source>
-        <translation>CID anahtarlı yazı tipinde soydan gelen yazı tiplerinin geçersiz sayısı (%1) - tam olarak bir tane gereklidir.</translation>
+        <translation>CID anahtarlı yazı tipindeki alt yazı tiplerinin geçersiz sayısı (%1) - tam olarak bir tane gereklidir.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1828"/>
@@ -11321,7 +11321,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="97"/>
         <source>Soft mask image can&apos;t have mask / soft mask itself.</source>
-        <translation>Yumuşak maske görüntüsünün kendisi maske / yumuşak maskeye sahip olamaz.</translation>
+        <translation>Yumuşak maske görüntüsü, maske / yumuşak maske olamaz.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="102"/>
@@ -11336,7 +11336,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="175"/>
         <source>Invalid soft mask object.</source>
-        <translation>Geçersiz soft maske nesnesi.</translation>
+        <translation>Geçersiz yumuşak maske nesnesi.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="264"/>
@@ -11418,7 +11418,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="803"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="807"/>
         <source>Cannot convert text &apos;%1&apos; to number.</source>
-        <translation>&apos;%1&apos; metni sayıya dönüştürülemiyor.</translation>
+        <translation>&apos;%1&apos; metin sayıya dönüştürülemiyor.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="789"/>
@@ -13729,7 +13729,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="58"/>
         <source>Embed (dereference) simple objects, such as int, bool, real</source>
-        <translation>tam sayı, mantıksal, gerçek gibi basit nesneleri gömün (referansı kaldırın)</translation>
+        <translation>tam sayı, bool, gerçek gibi basit nesneleri gömün (referansı kaldırın)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="59"/>
@@ -14149,7 +14149,7 @@ Sayfa %2: %3</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="544"/>
         <source>Hash algorithm: %1</source>
-        <translation>Sağlama algoritması: %1</translation>
+        <translation>Hash algoritması: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="564"/>
