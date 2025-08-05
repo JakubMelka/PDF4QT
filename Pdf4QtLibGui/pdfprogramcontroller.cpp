@@ -71,6 +71,8 @@
 #include <windows.h>
 #endif
 
+#include "config.h"
+
 #if defined(PDF4QT_USE_PRAGMA_LIB)
 #pragma comment(lib, "Shell32")
 #endif
@@ -2165,23 +2167,11 @@ void PDFProgramController::updatePageLayoutActions()
 void PDFProgramController::loadPlugins()
 {
     QStringList availablePlugins;
-
+    QDir directory(QApplication::applicationDirPath() + "/" PDF4QT_PLUGINS_RELATIVE_PATH);
 #if defined(Q_OS_WIN)
-    QDir directory(QApplication::applicationDirPath() + "/pdfplugins");
     availablePlugins = directory.entryList(QStringList("*.dll"));
 #elif defined(Q_OS_UNIX)
-#ifndef NDEBUG
-    QDir directory(QApplication::applicationDirPath() + "/../pdfplugins");
     availablePlugins = directory.entryList(QStringList("*.so"));
-#else
-    QDir directory(QApplication::applicationDirPath());
-    if (directory.cdUp() &&
-            directory.cd("lib") &&
-            directory.cd("pdf4qt"))
-    {
-        availablePlugins = directory.entryList(QStringList("*.so"));
-    }
-#endif
 #else
     static_assert(false, "Implement this for another OS!");
 #endif
