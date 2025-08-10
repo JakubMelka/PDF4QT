@@ -187,6 +187,14 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addPositionalArgument("right", "Right (new) document to be compared.");
     }
 
+    if (optionFlags.testFlag(Redact))
+    {
+        parser->addPositionalArgument("redacteddocument", "Output redacted document filename.");
+        parser->addOption(QCommandLineOption("redact-copy-title", "Copy source title into the redacted document."));
+        parser->addOption(QCommandLineOption("redact-copy-metadata", "Copy source metadata into the redacted document."));
+        parser->addOption(QCommandLineOption("redact-copy-outline", "Copy source outline into the redacted document."));
+    }
+
     if (optionFlags.testFlag(SignatureVerification))
     {
         parser->addOption(QCommandLineOption("ver-no-user-cert", "Disable user certificate store."));
@@ -412,6 +420,28 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         options.document = positionalArguments.isEmpty() ? QString() : positionalArguments.front();
         options.password = parser->isSet("pswd") ? parser->value("pswd") : QString();
         options.permissiveReading = !parser->isSet("no-permissive-reading");
+    }
+
+    if (optionFlags.testFlag(Redact))
+    {
+        options.redactedDocument = positionalArguments.size() >= 2 ? positionalArguments[1] : QString();
+
+        options.redactOptions = pdf::PDFRedact::None;
+
+        if (parser->isSet("redact-copy-title"))
+        {
+            options.redactOptions |= pdf::PDFRedact::CopyTitle;
+        }
+
+        if (parser->isSet("redact-copy-metadata"))
+        {
+            options.redactOptions |= pdf::PDFRedact::CopyMetadata;
+        }
+
+        if (parser->isSet("redact-copy-outline"))
+        {
+            options.redactOptions |= pdf::PDFRedact::CopyOutline;
+        }
     }
 
     if (optionFlags.testFlag(Separate))

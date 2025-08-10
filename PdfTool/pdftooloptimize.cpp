@@ -23,7 +23,6 @@
 #include "pdftooloptimize.h"
 #include "pdfdocumentwriter.h"
 
-
 namespace pdftool
 {
 

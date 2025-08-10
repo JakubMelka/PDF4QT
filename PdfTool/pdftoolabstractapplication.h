@@ -30,6 +30,7 @@
 #include "pdfrenderer.h"
 #include "pdfcms.h"
 #include "pdfoptimizer.h"
+#include "pdfredact.h"
 
 #include <QtGlobal>
 #include <QString>
@@ -164,6 +165,10 @@ struct PDFToolOptions
     // For option 'CertStoreInstall'
     QString certificateStoreInstallCertificateFile;
 
+    // For option 'Redact'
+    pdf::PDFRedact::Options redactOptions = {};
+    QString redactedDocument;
+
     // For option 'Encrypt'
     pdf::PDFSecurityHandlerFactory::Algorithm encryptionAlgorithm = pdf::PDFSecurityHandlerFactory::Algorithm::AES_256;
     pdf::PDFSecurityHandlerFactory::EncryptContents encryptionContents = pdf::PDFSecurityHandlerFactory::EncryptContents::All;
@@ -257,6 +262,7 @@ public:
         CertStoreInstall                = 0x00400000,       ///< Settings for certificate store install certificate tool
         Encrypt                         = 0x00800000,       ///< Encryption settings
         Diff                            = 0x01000000,       ///< Diff settings (compare documents)
+        Redact                          = 0x02000000,       ///< Settings for Redact tool
     };
     Q_DECLARE_FLAGS(Options, Option)
 

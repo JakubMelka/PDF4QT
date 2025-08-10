@@ -2972,168 +2972,168 @@
         <translation>建议编码： UTF-8 或 %1</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="376"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="384"/>
         <source>Unknown console format &apos;%1&apos;. Defaulting to text console format.</source>
         <translation>未知控制台格式 &apos;%1&apos;。默认为文本控制台格式。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="406"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="414"/>
         <source>Unknown console date/time format &apos;%1&apos;. Defaulting to short date/time format.</source>
         <translation>未知控制台日期/时间格式 &apos;%1&apos;。默认为短日期/时间格式。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="481"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="511"/>
         <source>Unknown text layout analysis algorithm &apos;%1&apos;. Defaulting to automatic algorithm selection.</source>
         <translation>未知文本布局分析算法 &apos;%1&apos;。默认为自动选择算法。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="509"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="539"/>
         <source>Unknown audio format &apos;%1&apos;. Defaulting to mp3 audio format.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="532"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="562"/>
         <source>Image format &apos;%1&apos; is not supported. Defaulting to png.</source>
         <translation>不支持图像格式 &apos;%1&apos;。默认为 png。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="549"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="579"/>
         <source>Image format subtype &apos;%1&apos; is not supported.</source>
         <translation>不支持图像格式子类型 &apos;%1&apos;。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="568"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="598"/>
         <source>Image compression for current format is not supported.</source>
         <translation>不支持对当前格式的图像进行压缩。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="573"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="603"/>
         <source>Invalid compression level &apos;%1&apos;.</source>
         <translation>压缩级别无效&apos;%1&apos;。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="592"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="622"/>
         <source>Image quality settings for current format is not supported.</source>
         <translation>当前格式不支持图像质量设置。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="597"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="627"/>
         <source>Invalid image quality &apos;%1&apos;.</source>
         <translation>图像质量无效 &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="612"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="642"/>
         <source>Optimized write is not supported.</source>
         <translation>不支持优化写入</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="624"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="654"/>
         <source>Progressive scan write is not supported.</source>
         <translation>不支持逐行扫描写入。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="656"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="686"/>
         <source>Invalid image resolution mode &apos;%1&apos;. Defaulting to dpi.</source>
         <translation>无效图像分辨率模式 &apos;%1&apos;。默认为 dpi。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="664"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="694"/>
         <source>Cannot set dpi value, resolution mode must be dpi.</source>
         <translation>无法设置 dpi 值，分辨率模式必须为 dpi。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="675"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="705"/>
         <source>Dpi must be in range from %1 to %2. Defaulting to %3.</source>
         <translation>Dpi 必须在 %1 到 %2 的范围内。默认为 %3。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="682"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="712"/>
         <source>Invalid image dpi value &apos;%1&apos;.</source>
         <translation>图像 dpi 值 &apos;%1&apos; 无效。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="690"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="720"/>
         <source>Cannot set pixel value, resolution mode must be pixel.</source>
         <translation>无法设置像素值，分辨率模式必须为像素。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="701"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="731"/>
         <source>Pixel value must be in range from %1 to %2. Defaulting to %3.</source>
         <translation>像素值必须在 %1 到 %2 的范围内。默认为 %3。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="708"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="738"/>
         <source>Invalid image pixel value &apos;%1&apos;.</source>
         <translation>无效图像像素值 &apos;%1&apos;。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="729"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="759"/>
         <source>Unknown color management system &apos;%1&apos;. Defaulting to lcms.</source>
         <translation>未知色彩管理系统 &apos;%1&apos;。默认为 lcms。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="748"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="778"/>
         <source>Uknown color management system accuracy &apos;%1&apos;. Defaulting to medium.</source>
         <translation>未知色彩管理系统精度&apos;%1&apos;。默认为中。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="775"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="805"/>
         <source>Unknown color adaptation method &apos;%1&apos;. Defaulting to bradford.</source>
         <translation>未知颜色适应方法 &apos;%1&apos;。默认为布拉德福德（bradford）法。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="802"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="832"/>
         <source>Uknown color management system rendering intent &apos;%1&apos;. Defaulting to auto.</source>
         <translation>未知色彩管理系统渲染意图 &apos;%1&apos;。默认为自动。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="851"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="881"/>
         <source>Uknown bool value &apos;%1&apos;. Default value is used.</source>
         <translation>未知布尔值 &apos;%1&apos;。使用默认值。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="864"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="894"/>
         <source>Uknown bool value &apos;%1&apos;. GPU rendering is used as default.</source>
         <translation>未知布尔值&apos;%1&apos;。默认使用 GPU 渲染。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="871"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="901"/>
         <source>Uknown MSAA sample count &apos;%1&apos;. 4 samples are used as default.</source>
         <translation>未知 MSAA 样本计数 &apos;%1&apos;。默认使用 4 个样本。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="880"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="910"/>
         <source>Uknown rasterizer count &apos;%1&apos;. %2 rasterizers are used as default.</source>
         <translation>未知光栅计数&apos;%1&apos;。默认使用 %2 光栅。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="885"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="915"/>
         <source>Invalid raterizer count: %1. Correcting to use %2 rasterizers.</source>
         <translation>光栅化程序计数无效： %1. 更正为使用 %2 光栅。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="944"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="974"/>
         <source>Unknown encryption algorithm &apos;%1&apos;. Defaulting to AES-256 encryption.</source>
         <translation>未知加密算法&apos;%1&apos;。默认为 AES-256 加密。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="967"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="997"/>
         <source>Unknown encryption contents mode &apos;%1&apos;. Defaulting to encrypt all contents.</source>
         <translation>未知加密内容模式 &apos;%1&apos;。默认加密所有内容。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1026"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1056"/>
         <source>Invalid password provided.</source>
         <translation>提供的密码无效。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1032"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1062"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="84"/>
         <source>Error occured during document reading. %1</source>
         <translation>文件读取过程中出现错误。%1</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1045"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1075"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="95"/>
         <source>Warning: %1</source>
         <translation>警告：%1</translation>
@@ -4471,22 +4471,22 @@
         <translation>求和</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftooloptimize.cpp" line="40"/>
+        <location filename="../PdfTool/pdftooloptimize.cpp" line="39"/>
         <source>Optimize</source>
         <translation>优化</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftooloptimize.cpp" line="43"/>
+        <location filename="../PdfTool/pdftooloptimize.cpp" line="42"/>
         <source>Optimize document size using various algorithms.</source>
         <translation>使用多种算法优化文档大小。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftooloptimize.cpp" line="57"/>
+        <location filename="../PdfTool/pdftooloptimize.cpp" line="56"/>
         <source>No optimization option has been set.</source>
         <translation>未设置优化选项。</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftooloptimize.cpp" line="78"/>
+        <location filename="../PdfTool/pdftooloptimize.cpp" line="77"/>
         <source>Failed to write optimize document. %1</source>
         <translation>无法写入优化文档。%1</translation>
     </message>
@@ -5107,6 +5107,26 @@
         <location filename="../PdfTool/pdftoolxml.cpp" line="191"/>
         <source>Export internal data structure to xml.</source>
         <translation>将内部数据结构导出为 xml。</translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolredact.cpp" line="42"/>
+        <source>Redact</source>
+        <translation type="unfinished">修订</translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolredact.cpp" line="45"/>
+        <source>Create a redacted document from the original document.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolredact.cpp" line="59"/>
+        <source>Redacted document file name is not set.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolredact.cpp" line="89"/>
+        <source>Failed to write redacted document. %1</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
