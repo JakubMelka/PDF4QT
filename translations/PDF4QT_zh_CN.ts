@@ -5742,12 +5742,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="297"/>
         <source>Color tolerance</source>
-        <translation type="unfinished"></translation>
+        <translation>颜色容差</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="304"/>
         <source>Minimal mesh resolution ratio</source>
-        <translation type="unfinished"></translation>
+        <translation>最小网格分辨率比率</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="370"/>
