@@ -5240,7 +5240,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="376"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="384"/>
         <source>Unknown console format &apos;%1&apos;. Defaulting to text console format.</source>
 <<<<<<< HEAD
         <translation>Bilinmeyen konsol biçimi &apos;%1&apos;. Varsayılan olarak metin konsolu biçimine ayarlanır.</translation>
@@ -5249,7 +5249,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="406"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="414"/>
         <source>Unknown console date/time format &apos;%1&apos;. Defaulting to short date/time format.</source>
 <<<<<<< HEAD
         <translation>Bilinmeyen konsol tarih/saat biçimi &apos;%1&apos;. Varsayılan olarak kısa tarih/saat biçimine ayarlanır.</translation>
@@ -5258,7 +5258,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="481"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="511"/>
         <source>Unknown text layout analysis algorithm &apos;%1&apos;. Defaulting to automatic algorithm selection.</source>
 <<<<<<< HEAD
         <translation>Bilinmeyen metin düzeni çözümleme algoritması &apos;%1&apos;. Varsayılan olarak otomatik algoritma seçimine ayarlanır.</translation>
@@ -5267,7 +5267,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="509"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="539"/>
         <source>Unknown audio format &apos;%1&apos;. Defaulting to mp3 audio format.</source>
 <<<<<<< HEAD
         <translation>Bilinmeyen ses biçimi &apos;%1&apos;. Varsayılan olarak mp3 ses formatına ayarlanmıştır.</translation>
@@ -5276,7 +5276,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="532"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="562"/>
         <source>Image format &apos;%1&apos; is not supported. Defaulting to png.</source>
 <<<<<<< HEAD
         <translation>Görüntü biçimi &apos;%1&apos; desteklenmez. Varsayılan olarak png&apos;dir.</translation>
@@ -5285,7 +5285,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="549"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="579"/>
         <source>Image format subtype &apos;%1&apos; is not supported.</source>
 <<<<<<< HEAD
         <translation>Görüntü biçimi alt türü &apos;%1&apos; desteklenmez.</translation>
@@ -5294,7 +5294,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="568"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="598"/>
         <source>Image compression for current format is not supported.</source>
 <<<<<<< HEAD
         <translation>Geçerli biçim için resim sıkıştırma desteklenmez.</translation>
@@ -5303,7 +5303,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="573"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="603"/>
         <source>Invalid compression level &apos;%1&apos;.</source>
 <<<<<<< HEAD
         <translation>Geçersiz sıkıştırma düzeyi &apos;%1&apos;.</translation>
@@ -5312,7 +5312,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="592"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="622"/>
         <source>Image quality settings for current format is not supported.</source>
 <<<<<<< HEAD
         <translation>Geçerli format için resim kalitesi ayarları desteklenmez.</translation>
@@ -5321,7 +5321,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="597"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="627"/>
         <source>Invalid image quality &apos;%1&apos;.</source>
 <<<<<<< HEAD
         <translation>Geçersiz resim kalitesi &apos;%1&apos;.</translation>
@@ -5330,7 +5330,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="612"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="642"/>
         <source>Optimized write is not supported.</source>
 <<<<<<< HEAD
         <translation>İyileştirilmiş yazma desteklenmez.</translation>
@@ -5339,7 +5339,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="624"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="654"/>
         <source>Progressive scan write is not supported.</source>
 <<<<<<< HEAD
         <translation>Aşamalı tarama yazımı desteklenmez.</translation>
@@ -5348,7 +5348,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="656"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="686"/>
         <source>Invalid image resolution mode &apos;%1&apos;. Defaulting to dpi.</source>
 <<<<<<< HEAD
         <translation>Geçersiz resim çözünürlüğü modu &apos;%1&apos;. Varsayılan olarak dpi&apos;dir.</translation>
@@ -5357,7 +5357,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="664"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="694"/>
         <source>Cannot set dpi value, resolution mode must be dpi.</source>
 <<<<<<< HEAD
         <translation>Dpi değeri ayarlanamıyor, çözünürlük modu dpi olmalıdır.</translation>
@@ -5366,7 +5366,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="675"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="705"/>
         <source>Dpi must be in range from %1 to %2. Defaulting to %3.</source>
 <<<<<<< HEAD
         <translation>Dpi %1 ile %2 arasında olmalıdır. Varsayılan olarak %3&apos;tür.</translation>
@@ -5375,7 +5375,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="682"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="712"/>
         <source>Invalid image dpi value &apos;%1&apos;.</source>
 <<<<<<< HEAD
         <translation>Geçersiz resim dpi değeri &apos;%1&apos;.</translation>
@@ -5384,7 +5384,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="690"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="720"/>
         <source>Cannot set pixel value, resolution mode must be pixel.</source>
 <<<<<<< HEAD
         <translation>Piksel değeri ayarlanamıyor, çözünürlük modu piksel olmalıdır.</translation>
@@ -5393,7 +5393,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="701"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="731"/>
         <source>Pixel value must be in range from %1 to %2. Defaulting to %3.</source>
 <<<<<<< HEAD
         <translation>Piksel değeri %1 ile %2 arasında olmalıdır. Varsayılan olarak %3&apos;tür.</translation>
@@ -5402,7 +5402,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="708"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="738"/>
         <source>Invalid image pixel value &apos;%1&apos;.</source>
 <<<<<<< HEAD
         <translation>Geçersiz resim piksel değeri &apos;%1&apos;.</translation>
@@ -5411,7 +5411,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="729"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="759"/>
         <source>Unknown color management system &apos;%1&apos;. Defaulting to lcms.</source>
 <<<<<<< HEAD
         <translation>Bilinmeyen renk yönetim sistemi &apos;%1&apos;. Varsayılan olarak lcms&apos;ye ayarlanır.</translation>
@@ -5420,7 +5420,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="748"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="778"/>
         <source>Uknown color management system accuracy &apos;%1&apos;. Defaulting to medium.</source>
 <<<<<<< HEAD
         <translation>Bilinmeyen renk yönetim sistemi doğruluğu &apos;%1&apos;. Varsayılan olarak orta değerdedir.</translation>
@@ -5429,7 +5429,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="775"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="805"/>
         <source>Unknown color adaptation method &apos;%1&apos;. Defaulting to bradford.</source>
 <<<<<<< HEAD
         <translation>Bilinmeyen renk adaptasyon yöntemi &apos;%1&apos;. Varsayılan olarak bradford&apos;a ayarlanıyor.</translation>
@@ -5438,7 +5438,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="802"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="832"/>
         <source>Uknown color management system rendering intent &apos;%1&apos;. Defaulting to auto.</source>
 <<<<<<< HEAD
         <translation>Bilinmeyen renk yönetim sistemi işleme amacı &apos;%1&apos;. Varsayılan olarak otomatik ayarlıdır.</translation>
@@ -5447,7 +5447,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="851"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="881"/>
         <source>Uknown bool value &apos;%1&apos;. Default value is used.</source>
 <<<<<<< HEAD
         <translation>Bilinmeyen bool değeri &apos;%1&apos;. Varsayılan değer kullanılır.</translation>
@@ -5456,7 +5456,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="864"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="894"/>
         <source>Uknown bool value &apos;%1&apos;. GPU rendering is used as default.</source>
 <<<<<<< HEAD
         <translation>Bilinmeyen bool değeri &apos;%1&apos;. GPU işleme varsayılan olarak kullanılır.</translation>
@@ -5465,7 +5465,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="871"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="901"/>
         <source>Uknown MSAA sample count &apos;%1&apos;. 4 samples are used as default.</source>
 <<<<<<< HEAD
         <translation>Bilinmeyen MSAA örnek sayısı &apos;%1&apos;. Varsayılan olarak 4 örnek kullanılır.</translation>
@@ -5474,7 +5474,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="880"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="910"/>
         <source>Uknown rasterizer count &apos;%1&apos;. %2 rasterizers are used as default.</source>
 <<<<<<< HEAD
         <translation>Bilinmeyen pikselleştirici sayısı &apos;%1&apos;. Varsayılan olarak %2 pikselleştiriciler kullanılır.</translation>
@@ -5483,7 +5483,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="885"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="915"/>
         <source>Invalid raterizer count: %1. Correcting to use %2 rasterizers.</source>
 <<<<<<< HEAD
         <translation>Geçersiz değerlendirici sayısı: %1. %2 pikselleştiricileri kullanacak şekilde düzeltiliyor.</translation>
@@ -5492,7 +5492,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="944"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="974"/>
         <source>Unknown encryption algorithm &apos;%1&apos;. Defaulting to AES-256 encryption.</source>
 <<<<<<< HEAD
         <translation>Bilinmeyen şifreleme algoritması &apos;%1&apos;. Varsayılan olarak AES-256 şifrelemesi ayarlanmıştır.</translation>
@@ -5501,7 +5501,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="967"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="997"/>
         <source>Unknown encryption contents mode &apos;%1&apos;. Defaulting to encrypt all contents.</source>
 <<<<<<< HEAD
         <translation>Bilinmeyen şifreleme içeriği modu &apos;%1&apos;. Tüm içeriği şifrelemek için varsayılan ayardır.</translation>
@@ -5510,7 +5510,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1026"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1056"/>
         <source>Invalid password provided.</source>
 <<<<<<< HEAD
         <translation>Geçersiz şifre sağlandı.</translation>
@@ -5519,7 +5519,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1032"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1062"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="84"/>
         <source>Error occured during document reading. %1</source>
 <<<<<<< HEAD
@@ -5529,7 +5529,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1045"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1075"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="95"/>
         <source>Warning: %1</source>
 <<<<<<< HEAD
@@ -7867,7 +7867,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftooloptimize.cpp" line="40"/>
+        <location filename="../PdfTool/pdftooloptimize.cpp" line="39"/>
         <source>Optimize</source>
 <<<<<<< HEAD
         <translation>Optimize et</translation>
@@ -7876,7 +7876,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftooloptimize.cpp" line="43"/>
+        <location filename="../PdfTool/pdftooloptimize.cpp" line="42"/>
         <source>Optimize document size using various algorithms.</source>
 <<<<<<< HEAD
         <translation>Çeşitli algoritmalar kullanarak belge boyutunu optimize edin.</translation>
@@ -7885,7 +7885,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftooloptimize.cpp" line="57"/>
+        <location filename="../PdfTool/pdftooloptimize.cpp" line="56"/>
         <source>No optimization option has been set.</source>
 <<<<<<< HEAD
         <translation>Optimizasyon seçeneği ayarlanmamıştır.</translation>
@@ -7894,7 +7894,7 @@
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
     </message>
     <message>
-        <location filename="../PdfTool/pdftooloptimize.cpp" line="78"/>
+        <location filename="../PdfTool/pdftooloptimize.cpp" line="77"/>
         <source>Failed to write optimize document. %1</source>
 <<<<<<< HEAD
         <translation>Optimize etme belgesi yazılamadı. %1</translation>
@@ -9004,6 +9004,26 @@
 =======
         <translation type="unfinished"></translation>
 >>>>>>> e0286e2383307e3e7e2eddd167bfa7a76300452c
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolredact.cpp" line="42"/>
+        <source>Redact</source>
+        <translation type="unfinished">Redaksiyon</translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolredact.cpp" line="45"/>
+        <source>Create a redacted document from the original document.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolredact.cpp" line="59"/>
+        <source>Redacted document file name is not set.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolredact.cpp" line="89"/>
+        <source>Failed to write redacted document. %1</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
