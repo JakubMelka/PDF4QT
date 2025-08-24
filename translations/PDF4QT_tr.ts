@@ -5112,22 +5112,22 @@
     <message>
         <location filename="../PdfTool/pdftoolredact.cpp" line="42"/>
         <source>Redact</source>
-        <translation type="unfinished">Redaksiyon</translation>
+        <translation>Redaksiyon</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolredact.cpp" line="45"/>
         <source>Create a redacted document from the original document.</source>
-        <translation type="unfinished"></translation>
+        <translation>Orijinal belgeden düzenlenmiş bir belge oluşturun.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolredact.cpp" line="59"/>
         <source>Redacted document file name is not set.</source>
-        <translation type="unfinished"></translation>
+        <translation>Düzenlenmiş belge dosya adı ayarlanmamıştır.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolredact.cpp" line="89"/>
         <source>Failed to write redacted document. %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Düzeltilmiş belge yazılamadı. %1</translation>
     </message>
 </context>
 <context>
