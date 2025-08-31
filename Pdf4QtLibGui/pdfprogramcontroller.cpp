@@ -570,6 +570,10 @@ void PDFProgramController::initialize(Features features,
     {
         connect(action, &QAction::triggered, this, &PDFProgramController::resetSettings);
     }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::ClearRecentFileHistory))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::clearRecentFileHistory);
+    }
     if (QAction* action = m_actionManager->getAction(PDFActionManager::CertificateManager))
     {
         connect(action, &QAction::triggered, this, &PDFProgramController::onActionCertificateManagerTriggered);
@@ -2311,6 +2315,11 @@ void PDFProgramController::resetSettings()
         m_isFactorySettingsBeingRestored = true;
         m_mainWindow->close();
     }
+}
+
+void PDFProgramController::clearRecentFileHistory()
+{
+    m_recentFileManager->clearRecentFiles();
 }
 
 void PDFProgramController::onActionOptionsTriggered()

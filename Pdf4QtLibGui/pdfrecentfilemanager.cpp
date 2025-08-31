@@ -23,6 +23,9 @@
 #include "pdfrecentfilemanager.h"
 #include "pdfdbgheap.h"
 
+#include <QFontMetrics>
+#include <QAction>
+
 namespace pdfviewer
 {
 
@@ -71,6 +74,19 @@ void PDFRecentFileManager::setRecentFilesLimit(int recentFilesLimit)
     }
 }
 
+void PDFRecentFileManager::clearRecentFiles()
+{
+    m_recentFiles.clear();
+    update();
+}
+
+static QString elideText(const QString& text, const QFont& font)
+{
+    QFontMetrics metrics(font);
+    int maxWidth = metrics.horizontalAdvance(QString(32, QChar('x')));
+    return metrics.elidedText(text, Qt::ElideMiddle, maxWidth);
+}
+
 void PDFRecentFileManager::update()
 {
     while (m_recentFiles.size() > m_recentFilesLimit)
@@ -84,7 +100,8 @@ void PDFRecentFileManager::update()
         if (i < m_recentFiles.size())
         {
             recentFileAction->setData(m_recentFiles[i]);
-            recentFileAction->setText(tr("(&%1) %2").arg(i + 1).arg(m_recentFiles[i]));
+            QString elidedText = elideText(m_recentFiles[i], recentFileAction->font());
+            recentFileAction->setText(tr("(&%1) %2").arg(i + 1).arg(elidedText));
             recentFileAction->setVisible(true);
         }
         else

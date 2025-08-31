@@ -109,6 +109,7 @@ public:
         Properties,
         Options,
         ResetToFactorySettings,
+        ClearRecentFileHistory,
         CertificateManager,
         GetSource,
         BecomeSponsor,
@@ -302,6 +303,7 @@ public:
     void finishInitialization();
     void writeSettings();
     void resetSettings();
+    void clearRecentFileHistory();
 
     void performPrint();
     void performSave();

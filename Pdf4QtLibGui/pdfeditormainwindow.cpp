@@ -176,6 +176,7 @@ PDFEditorMainWindow::PDFEditorMainWindow(QWidget* parent) :
     m_actionManager->setAction(PDFActionManager::Properties, ui->actionProperties);
     m_actionManager->setAction(PDFActionManager::Options, ui->actionOptions);
     m_actionManager->setAction(PDFActionManager::ResetToFactorySettings, ui->actionResetToFactorySettings);
+    m_actionManager->setAction(PDFActionManager::ClearRecentFileHistory, ui->actionClearRecentFileHistory);
     m_actionManager->setAction(PDFActionManager::CertificateManager, ui->actionCertificateManager);
     m_actionManager->setAction(PDFActionManager::GetSource, ui->actionGetSource);
     m_actionManager->setAction(PDFActionManager::BecomeSponsor, ui->actionBecomeASponsor);

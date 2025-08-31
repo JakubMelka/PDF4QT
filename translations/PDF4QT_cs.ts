@@ -1559,670 +1559,675 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="131"/>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="776"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="132"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="777"/>
         <source>&amp;Help</source>
         <translation>&amp;Nápověda</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="139"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="140"/>
         <source>&amp;Developer</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="146"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="147"/>
         <source>&amp;Edit</source>
         <translation>&amp;Úpravy</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="170"/>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="784"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="171"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="785"/>
         <source>&amp;Insert</source>
         <translation>Vloži&amp;t</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="174"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="175"/>
         <source>Sticky &amp;Note</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="186"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="187"/>
         <source>&amp;Stamp</source>
         <translation>Raz&amp;ítko</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="191"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="192"/>
         <source>Text Hi&amp;ghlight</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="237"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="238"/>
         <source>&amp;Open...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="246"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="247"/>
         <source>&amp;Close</source>
         <translation type="unfinished">Za&amp;vřít</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="255"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="256"/>
         <source>&amp;Quit</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="263"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="264"/>
         <source>&amp;Single Page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="266"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="267"/>
         <source>Single Page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="269"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="270"/>
         <source>Ctrl+1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="277"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="278"/>
         <source>&amp;Continuous</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="280"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="281"/>
         <source>Continuous</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="283"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="284"/>
         <source>Ctrl+2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="291"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="292"/>
         <source>Two &amp;Pages</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="294"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="295"/>
         <source>Two Pages</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="297"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="298"/>
         <source>Ctrl+3</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="305"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="306"/>
         <source>&amp;Two columns</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="308"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="309"/>
         <source>Two columns</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="311"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="312"/>
         <source>Ctrl+4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="319"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="320"/>
         <source>&amp;First page on right side</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="322"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="323"/>
         <source>First page on right side</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="325"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="326"/>
         <source>Ctrl+5</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="334"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="335"/>
         <source>&amp;Rendering Errors...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="337"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="338"/>
         <source>Ctrl+E</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="345"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="346"/>
         <source>&amp;Antialiasing</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="348"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="349"/>
         <source>Antialiasing</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="356"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="357"/>
         <source>&amp;Text Antialiasing</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="359"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="360"/>
         <source>Text Antialiasing</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="367"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="368"/>
         <source>&amp;Smooth Pictures</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="370"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="371"/>
         <source>Smooth Pictures</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="378"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="379"/>
         <source>&amp;Ignore Optional Content Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="381"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="382"/>
         <source>Ignore Optional Content Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="390"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="391"/>
         <source>&amp;Options...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="393"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="394"/>
         <source>Ctrl+K</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="398"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="399"/>
         <source>Reset to &amp;Factory Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="407"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="408"/>
         <source>&amp;Zoom In</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="416"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="417"/>
         <source>Zoom &amp;Out</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="425"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="426"/>
         <source>&amp;About...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="434"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="435"/>
         <source>Fit &amp;Page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="443"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="444"/>
         <source>Fit &amp;Width</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="446"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="447"/>
         <source>W</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="455"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="456"/>
         <source>&amp;Fit Height</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="458"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="459"/>
         <source>H</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="467"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="468"/>
         <source>Prope&amp;rties...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="476"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="477"/>
         <source>Send by &amp;E-Mail...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="484"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="485"/>
         <source>Show Text &amp;Blocks</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="492"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="493"/>
         <source>Show Text &amp;Lines</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="501"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="502"/>
         <source>&amp;Find</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="510"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="511"/>
         <source>Fin&amp;d Previous</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="519"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="520"/>
         <source>Fi&amp;nd Next</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="531"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="532"/>
         <source>Select te&amp;xt</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="543"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="544"/>
         <source>Select &amp;table</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="552"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="553"/>
         <source>Select &amp;All</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="561"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="562"/>
         <source>Dese&amp;lect</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="570"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="571"/>
         <source>&amp;Copy text</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="582"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="583"/>
         <source>Color | &amp;Inverted</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="594"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="595"/>
         <source>Color | &amp;Grayscale</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="606"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="607"/>
         <source>Color | &amp;High Contrast</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="618"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="619"/>
         <source>Color | &amp;Monochromatic</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="630"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="631"/>
         <source>Color | &amp;Custom</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="639"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="640"/>
         <source>Rotate &amp;Right</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="648"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="649"/>
         <source>Rotate &amp;Left</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="657"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="658"/>
         <source>&amp;Print...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="662"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="663"/>
         <source>Render to &amp;Images...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="674"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="675"/>
         <source>&amp;Magnifier</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="677"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="678"/>
         <source>Magnifier Tool</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="689"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="690"/>
         <source>&amp;Screenshot</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="701"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="702"/>
         <source>&amp;Extract Image</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="709"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="710"/>
         <source>&amp;Display Annotations</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="712"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="713"/>
         <source>Display Annotations</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="721"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="722"/>
         <source>&amp;Undo</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="730"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="731"/>
         <source>&amp;Redo</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="739"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="740"/>
         <source>&amp;Optimize...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="742"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="743"/>
         <source>Optimizes document to reduce file size.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="751"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="752"/>
         <source>Save &amp;As...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="760"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="761"/>
         <source>&amp;Save</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="768"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="769"/>
         <source>&amp;Comment</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="792"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="793"/>
         <source>&amp;Key</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="800"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="801"/>
         <source>&amp;New Paragraph</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="808"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="809"/>
         <source>No&amp;te</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="816"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="817"/>
         <source>&amp;Paragraph</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="828"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="829"/>
         <source>&amp;Hyperlink</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="840"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="841"/>
         <source>&amp;Inline text</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="852"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="853"/>
         <source>Str&amp;aight Line</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="864"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="865"/>
         <source>Pol&amp;yline</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="876"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="877"/>
         <source>&amp;Rectangle</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="888"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="889"/>
         <source>&amp;Polygon</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="900"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="901"/>
         <source>&amp;Ellipse</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="912"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="913"/>
         <source>&amp;Freehand Curve</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="924"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="925"/>
         <source>&amp;Highlight</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="936"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="937"/>
         <source>&amp;Underline</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="948"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="949"/>
         <source>Stri&amp;keout</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="960"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="961"/>
         <source>&amp;Squiggly</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="969"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="970"/>
         <source>Go to document &amp;start</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="978"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="979"/>
         <source>Go to document &amp;end</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="987"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="988"/>
         <source>Go to &amp;next page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="996"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="997"/>
         <source>Go to &amp;previous page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1005"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1006"/>
         <source>Go &amp;to next line</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1014"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1015"/>
         <source>Go t&amp;o previous line</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1023"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1024"/>
         <source>&amp;Get Source</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1032"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1033"/>
         <source>&amp;Encryption...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1041"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1042"/>
         <source>&amp;Certificates...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1050"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1051"/>
         <source>&amp;Sanitize...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1053"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1054"/>
         <source>Sanitize document to remove sensitive information.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1061"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1062"/>
         <source>Automatic &amp;Document Refresh</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1064"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1065"/>
         <source>Automatically reloads the document if a change made by an external program is detected.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1073"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1074"/>
         <source>Become a &amp;Sponsor</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1082"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1083"/>
         <source>Create &amp;Bitonal Document...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1085"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1086"/>
         <source>Create Bitonal Document</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1088"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1089"/>
         <source>Convert the colored images to monochromatic to create a bitonal document.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1097"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1098"/>
         <source>&amp;Bookmark Page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1100"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1101"/>
         <source>Bookmark Page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1103"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1104"/>
         <source>Bookmark page for fast navigation.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1112"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1113"/>
         <source>&amp;Go to Next Bookmark</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1115"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1116"/>
         <source>Go to Next Bookmark</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1118"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1119"/>
         <source>Navigates to the next bookmarked page.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1127"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1128"/>
         <source>Go to Previous Boo&amp;kmark</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1130"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1131"/>
         <source>Go to Previous Bookmark</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1133"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1134"/>
         <source>Navigates to the previous bookmarked page.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1142"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1143"/>
         <source>&amp;Export Bookmarks</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1145"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1146"/>
         <source>Export Bookmarks</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1148"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1149"/>
         <source>Export bookmarks to the file.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1157"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1158"/>
         <source>&amp;Import Bookmarks</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1160"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1161"/>
         <source>Import Bookmarks</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1163"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1164"/>
         <source>Import bookmarks from the file.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1175"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1176"/>
         <source>&amp;Generate Bookmarks Automatically</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1178"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1179"/>
         <source>Generate Bookmarks Automatically</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1181"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1182"/>
         <source>If checked, bookmarks for main document chapters are generated automatically.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1189"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1190"/>
         <source>Display &amp;Render Times</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1192"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1193"/>
         <source>Display Render Times</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1201"/>
+        <source>Clear Recent File History</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -5172,368 +5177,373 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="124"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="125"/>
         <source>&amp;Help</source>
         <translation type="unfinished">&amp;Nápověda</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="152"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="153"/>
         <source>&amp;Open...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="161"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="162"/>
         <source>&amp;Close</source>
         <translation type="unfinished">Za&amp;vřít</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="170"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="171"/>
         <source>&amp;Quit</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="178"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="179"/>
         <source>&amp;Single Page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="181"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="182"/>
         <source>Ctrl+1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="189"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="190"/>
         <source>&amp;Continuous</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="192"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="193"/>
         <source>Ctrl+2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="200"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="201"/>
         <source>Two &amp;Pages</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="203"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="204"/>
         <source>Ctrl+3</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="211"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="212"/>
         <source>&amp;Two columns</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="214"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="215"/>
         <source>Ctrl+4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="222"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="223"/>
         <source>&amp;First page on right side</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="225"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="226"/>
         <source>First page on right side</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="228"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="229"/>
         <source>Ctrl+5</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="237"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="238"/>
         <source>Rendering &amp;Errors...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="240"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="241"/>
         <source>Ctrl+E</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="248"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="249"/>
         <source>&amp;Antialiasing</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="256"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="257"/>
         <source>&amp;Text Antialiasing</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="264"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="265"/>
         <source>&amp;Smooth Pictures</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="272"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="273"/>
         <source>&amp;Ignore Optional Content Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="281"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="282"/>
         <source>&amp;Options...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="284"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="285"/>
         <source>Ctrl+K</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="289"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="290"/>
         <source>&amp;Reset to Factory Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="298"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="299"/>
         <source>&amp;Zoom In</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="307"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="308"/>
         <source>Zoom &amp;Out</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="316"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="317"/>
         <source>&amp;About...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="325"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="326"/>
         <source>Fit &amp;Page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="334"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="335"/>
         <source>Fit &amp;Width</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="337"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="338"/>
         <source>W</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="346"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="347"/>
         <source>&amp;Fit Height</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="349"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="350"/>
         <source>H</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="358"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="359"/>
         <source>Prope&amp;rties...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="367"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="368"/>
         <source>Send by &amp;E-Mail...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="379"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="380"/>
         <source>Color | &amp;Inverted</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="391"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="392"/>
         <source>Color | &amp;Grayscale</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="403"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="404"/>
         <source>Color | &amp;High Contrast</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="415"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="416"/>
         <source>Color | &amp;Monochromatic</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="427"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="428"/>
         <source>Color | &amp;Custom</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="436"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="437"/>
         <source>Rotate &amp;Right</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="445"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="446"/>
         <source>Rotate &amp;Left</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="454"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="455"/>
         <source>&amp;Print...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="462"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="463"/>
         <source>&amp;Display Annotations</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="471"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="472"/>
         <source>Go to document &amp;start</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="480"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="481"/>
         <source>Go to document &amp;end</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="489"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="490"/>
         <source>Go to &amp;next page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="498"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="499"/>
         <source>Go to &amp;previous page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="507"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="508"/>
         <source>Go &amp;to next line</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="516"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="517"/>
         <source>Go t&amp;o previous line</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="525"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="526"/>
         <source>&amp;Get Source</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="534"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="535"/>
         <source>&amp;Certificates...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="542"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="543"/>
         <source>Automatic &amp;Document Refresh</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="545"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="546"/>
         <source>Automatically reloads the document if a change made by an external program is detected.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="554"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="555"/>
         <source>Become a &amp;Sponsor</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="557"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="558"/>
         <source>Become a Sponsor</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="566"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="567"/>
         <source>&amp;Bookmark Page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="569"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="570"/>
         <source>Bookmark Page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="572"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="573"/>
         <source>Bookmark page for fast navigation.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="581"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="582"/>
         <source>&amp;Go to Next Bookmark</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="584"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="585"/>
         <source>Go to Next Bookmark</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="587"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="588"/>
         <source>Navigates to the next bookmarked page.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="596"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="597"/>
         <source>Go to Previous Boo&amp;kmark</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="599"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="600"/>
         <source>Navigates to the previous bookmarked page.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="608"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="609"/>
         <source>&amp;Export Bookmarks</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="611"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="612"/>
         <source>Export Bookmarks</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="614"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="615"/>
         <source>Export bookmarks to the file.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="623"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="624"/>
         <source>&amp;Import Bookmarks</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="626"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="627"/>
         <source>Import Bookmarks</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="629"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="630"/>
         <source>Import bookmarks from the file.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="641"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="642"/>
         <source>&amp;Generate Bookmarks Automatically</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="644"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="645"/>
         <source>Generate Bookmarks Automatically</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="647"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="648"/>
         <source>If checked, bookmarks for main document chapters are generated automatically.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="655"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="656"/>
         <source>Display &amp;Render Times</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="664"/>
+        <source>Clear Recent File History</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -13567,27 +13577,27 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>Standardní</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="251"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="252"/>
         <source>%</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="285"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="286"/>
         <source>&amp;Sidebar</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="295"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="296"/>
         <source>Advanced find</source>
         <translation>Pokročilé hledání</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="303"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="304"/>
         <source>Ad&amp;vanced Find...</source>
         <translation>Po&amp;kročilé hledání...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="440"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="441"/>
         <source> / %1</source>
         <translation></translation>
     </message>
@@ -13729,186 +13739,186 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdfviewer::PDFProgramController</name>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="780"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="784"/>
         <source>Printing document</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="841"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="845"/>
         <source>Go to action</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="841"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="845"/>
         <source>Failed to go to destination &apos;%1&apos;. Destination wasn&apos;t found.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="889"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="893"/>
         <source>Would you like to launch application &apos;%1&apos; in working directory &apos;%2&apos; with parameters &apos;%3&apos;?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="890"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="905"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="918"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="924"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="894"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="909"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="922"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="928"/>
         <source>Launch application</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="905"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="924"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="909"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="928"/>
         <source>Executing application failed. Error code is %1.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="917"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="921"/>
         <source>Would you like to launch application &apos;%1&apos;?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="946"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="950"/>
         <source>Would you like to open URL &apos;%1&apos;?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="947"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="952"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="951"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="956"/>
         <source>Open URL</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="952"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="956"/>
         <source>Opening url &apos;%1&apos; failed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1164"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1168"/>
         <source>Save As</source>
         <translation type="unfinished">Uložit Jako</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1164"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1168"/>
         <source>Portable Document (*.pdf);;All files (*.*)</source>
         <translation type="unfinished">Přenositelný Dokument (*.pdf);;Všechny soubory (*.*)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1199"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1326"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1203"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1330"/>
         <source>Error</source>
         <translation type="unfinished">Chyba</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1235"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1239"/>
         <source>Save Document</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1236"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1240"/>
         <source>Do you wish to save modified document before it is closed?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1326"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1330"/>
         <source>Error while starting email client occured!</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1396"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1400"/>
         <source>Permission to change document security is denied.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1415"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1419"/>
         <source>Failed to create security handler.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1428"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1439"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1432"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1443"/>
         <source>Reauthorization is required to change document encryption.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1523"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1527"/>
         <source>Encrypted document</source>
         <translation type="unfinished">Zašifrovaný dokument</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1523"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1527"/>
         <source>Enter password to access document content</source>
         <translation type="unfinished">Vložte heslo pro přístup k obsahu dokumentu</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1922"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1926"/>
         <source>Document &apos;%1&apos; was successfully loaded!</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1928"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1932"/>
         <source>Document read error: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2121"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2125"/>
         <source>%1 - %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2303"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2310"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2307"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2314"/>
         <source>Reset Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2303"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2307"/>
         <source>Do you wish to restore the default factory settings of the program? All settings changed by the user will be deleted. Application will be closed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2310"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2314"/>
         <source>Default factory settings were restored. Application will be now closed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2350"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2359"/>
         <source>Plugins</source>
         <translation type="unfinished">Přídavné moduly</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2350"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2359"/>
         <source>Plugin on/off state has been changed. Please restart application to apply settings.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2377"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2449"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2386"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2458"/>
         <source>Select PDF document</source>
         <translation type="unfinished">Vybrat PDF dokument</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2377"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2386"/>
         <source>PDF document (*.pdf)</source>
         <translation type="unfinished">PDF dokument (*.pdf)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2434"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2443"/>
         <source>Export Bookmarks As</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2434"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2443"/>
         <source>JSON (*.json);;All files (*.*)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2449"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2458"/>
         <source>JSON (*.json)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2468"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2477"/>
         <source>Rendering of page %1: %2 errors occured.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -13916,12 +13926,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdfviewer::PDFRecentFileManager</name>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfrecentfilemanager.cpp" line="87"/>
+        <location filename="../Pdf4QtLibGui/pdfrecentfilemanager.cpp" line="104"/>
         <source>(&amp;%1) %2</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfrecentfilemanager.cpp" line="93"/>
+        <location filename="../Pdf4QtLibGui/pdfrecentfilemanager.cpp" line="110"/>
         <source>Recent file dummy &amp;%1</source>
         <translation>Nedávný soubor &amp;%1</translation>
     </message>
@@ -14395,17 +14405,17 @@ Stránka %2: %3</translation>
         <translation type="unfinished">Standardní</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="202"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="203"/>
         <source>%</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="220"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="221"/>
         <source>&amp;Sidebar</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="352"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="353"/>
         <source> / %1</source>
         <translation></translation>
     </message>

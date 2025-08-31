@@ -62,6 +62,9 @@ public:
     /// Sets a new limit of recent files count
     void setRecentFilesLimit(int recentFilesLimit);
 
+    /// Removes all recent files
+    void clearRecentFiles();
+
     /// Returns list of recent files actions
     const std::array<QAction*, MAXIMUM_RECENT_FILES>& getActions() const { return m_actions; }
 
