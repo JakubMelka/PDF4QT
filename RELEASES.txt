@@ -1,5 +1,6 @@
 CURRENT:
  - Issue #303: Add Dockerfile for Simplified PDF4QT Setup with Qt 6.9.1 and All Dependencies
+ - Issue #301: Russian Language file
  - Issue #296: Redaction annotation support in PdfTool 
  - Issue #279: qt_add_translations uses options only in qt 6.9
  - Issue #284: Scaling dimensions [Enhancements, Features] 
