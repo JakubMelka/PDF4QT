@@ -2228,7 +2228,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1201"/>
         <source>Clear Recent File History</source>
-        <translation type="unfinished"></translation>
+        <translation>清除最近文件记录</translation>
     </message>
 </context>
 <context>
@@ -5544,7 +5544,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="664"/>
         <source>Clear Recent File History</source>
-        <translation type="unfinished"></translation>
+        <translation>清除最近文件记录</translation>
     </message>
 </context>
 <context>
