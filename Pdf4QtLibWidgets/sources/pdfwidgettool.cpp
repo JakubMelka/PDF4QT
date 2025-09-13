@@ -40,6 +40,7 @@
 #include <QApplication>
 #include <QStylePainter>
 #include <QStyleOptionTitleBar>
+#include <QVector2D>
 
 #include "pdfdbgheap.h"
 
@@ -1531,6 +1532,38 @@ QPointF PDFPickTool::getSnappedPoint() const
     return m_snapper.getSnappedPoint();
 }
 
+QPointF PDFPickTool::getStaticOrthogonalPoint(const QPointF& referencePoint, const QPointF& originalPoint)
+{
+    QPointF p1(referencePoint.x(), originalPoint.y());
+    QPointF p2(originalPoint.x(), referencePoint.y());
+
+    QVector2D v1(originalPoint - p1);
+    QVector2D v2(originalPoint - p2);
+
+    const qreal length1 = v1.length();
+    const qreal length2 = v2.length();
+
+    if (length1 < length2)
+    {
+        return p1;
+    }
+    else
+    {
+        return p2;
+    }
+}
+
+QPointF PDFPickTool::getOrthogonalPoint(const QPointF& originalPoint) const
+{
+    if (m_pickedPoints.empty())
+    {
+        return originalPoint;
+    }
+
+    QPointF referencePoint = m_pickedPoints.back();
+    return getStaticOrthogonalPoint(referencePoint, originalPoint);
+}
+
 void PDFPickTool::setCustomSnapPoints(PDFInteger pageIndex, const std::vector<QPointF>& snapPoints)
 {
     if (m_pageIndex == pageIndex)
@@ -1595,6 +1628,15 @@ QColor PDFPickTool::getSelectionRectangleColor() const
 void PDFPickTool::setSelectionRectangleColor(QColor selectionRectangleColor)
 {
     m_selectionRectangleColor = selectionRectangleColor;
+}
+
+void PDFPickTool::makeLastPointOrthogonal()
+{
+    auto pickedPointsCount = m_pickedPoints.size();
+    if (pickedPointsCount >= 2)
+    {
+        m_pickedPoints[pickedPointsCount - 1] = getStaticOrthogonalPoint(m_pickedPoints[pickedPointsCount - 2], m_pickedPoints[pickedPointsCount - 1]);
+    }
 }
 
 void PDFPickTool::setDrawSelectionRectangle(bool drawSelectionRectangle)

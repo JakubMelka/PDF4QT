@@ -379,6 +379,9 @@ public:
     PDFInteger getPageIndex() const { return m_pageIndex; }
     const std::vector<QPointF>& getPickedPoints() const { return m_pickedPoints; }
 
+    static QPointF getStaticOrthogonalPoint(const QPointF& referencePoint, const QPointF& originalPoint);
+    QPointF getOrthogonalPoint(const QPointF& originalPoint) const;
+
     /// Sets custom snap points for given page. If points on page aren't currently picked,
     /// function does nothing. Snap data are not updated.
     /// \param pageIndex pageIndex
@@ -394,6 +397,8 @@ public:
 
     QColor getSelectionRectangleColor() const;
     void setSelectionRectangleColor(QColor selectionRectangleColor);
+
+    void makeLastPointOrthogonal();
 
 signals:
     void pointPicked(pdf::PDFInteger pageIndex, QPointF pagePoint);

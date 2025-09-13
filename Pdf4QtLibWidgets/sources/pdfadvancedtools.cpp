@@ -33,6 +33,8 @@
 #include <QInputDialog>
 #include <QColorDialog>
 #include <QKeyEvent>
+#include <QVector2D>
+#include <QApplication>
 
 #include "pdfdbgheap.h"
 
@@ -229,6 +231,11 @@ void PDFCreateLineTypeTool::onPointPicked(PDFInteger pageIndex, QPointF pagePoin
     Q_UNUSED(pageIndex);
     Q_UNUSED(pagePoint);
 
+    if (isOrthogonalMode())
+    {
+        m_pickTool->makeLastPointOrthogonal();
+    }
+
     if (m_type == Type::Line && m_pickTool->getPickedPoints().size() == 2)
     {
         finishDefinition();
@@ -378,6 +385,27 @@ void PDFCreateLineTypeTool::setFillColor(const QColor& fillColor)
     m_fillColor = fillColor;
 }
 
+bool PDFCreateLineTypeTool::canHaveOrthogonalMode() const
+{
+    switch (m_type)
+    {
+    case Type::Line:
+    case Type::PolyLine:
+    case Type::Polygon:
+        return true;
+
+    case Type::Rectangle:
+        break;
+    }
+
+    return false;
+}
+
+bool PDFCreateLineTypeTool::isOrthogonalMode() const
+{
+    return canHaveOrthogonalMode() && m_orthogonalMode;
+}
+
 QColor PDFCreateLineTypeTool::getStrokeColor() const
 {
     return m_strokeColor;
@@ -401,6 +429,21 @@ void PDFCreateLineTypeTool::setPenWidth(PDFReal penWidth)
 void PDFCreateLineTypeTool::keyPressEvent(QWidget* widget, QKeyEvent* event)
 {
     Q_UNUSED(widget);
+
+    if (event->key() == Qt::Key_O && canHaveOrthogonalMode())
+    {
+        m_orthogonalMode = !m_orthogonalMode;
+        Q_EMIT getProxy()->repaintNeeded();
+
+        if (m_orthogonalMode)
+        {
+            Q_EMIT messageDisplayRequest(tr("Orthogonal mode is enabled."), 5000);
+        }
+        else
+        {
+            Q_EMIT messageDisplayRequest(tr("Orthogonal mode is disabled."), 5000);
+        }
+    }
 
     switch (m_type)
     {
@@ -489,7 +532,13 @@ void PDFCreateLineTypeTool::drawPage(QPainter* painter,
         return;
     }
 
-    QPointF mousePoint = pagePointToDevicePointMatrix.inverted().map(m_pickTool->getSnappedPoint());
+    QPointF snappedPoint = m_pickTool->getSnappedPoint();
+    QPointF mousePoint = pagePointToDevicePointMatrix.inverted().map(snappedPoint);
+
+    if (isOrthogonalMode())
+    {
+        mousePoint = m_pickTool->getOrthogonalPoint(mousePoint);
+    }
 
     painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
 
@@ -544,6 +593,16 @@ void PDFCreateLineTypeTool::drawPage(QPainter* painter,
         default:
             Q_ASSERT(false);
             break;
+    }
+}
+
+void PDFCreateLineTypeTool::setActiveImpl(bool active)
+{
+    BaseClass::setActiveImpl(active);
+
+    if (active)
+    {
+        Q_EMIT messageDisplayRequest(tr("Use key 'C' to show/hide large cross. Use key 'O' to switch on/off orthogonal mode."), 25000);
     }
 }
 

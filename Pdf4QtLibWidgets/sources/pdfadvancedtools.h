@@ -143,6 +143,7 @@ public:
                           const QTransform& pagePointToDevicePointMatrix,
                           const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
+    virtual void setActiveImpl(bool active) override;
 
     PDFReal getPenWidth() const;
     void setPenWidth(PDFReal penWidth);
@@ -154,6 +155,9 @@ public:
     void setFillColor(const QColor& fillColor);
 
 private:
+    bool canHaveOrthogonalMode() const;
+    bool isOrthogonalMode() const;
+
     void onPointPicked(PDFInteger pageIndex, QPointF pagePoint);
     void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
     void finishDefinition();
@@ -166,6 +170,7 @@ private:
     QColor m_fillColor;
     PDFInteger m_rectPageIndex = 0;
     QRectF m_rectOnPage;
+    bool m_orthogonalMode = false;
 };
 
 /// Tool that creates ellipse annotation.
