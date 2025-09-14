@@ -529,7 +529,7 @@
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="88"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="168"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="170"/>
         <source>Ctrl+O</source>
         <translation type="unfinished"></translation>
     </message>
@@ -540,7 +540,7 @@
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="96"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="516"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="518"/>
         <source>Ctrl+W</source>
         <translation type="unfinished"></translation>
     </message>
@@ -597,391 +597,396 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="115"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="117"/>
         <source>&amp;Make</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="123"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="125"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="42"/>
         <source>&amp;Help</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="132"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="134"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="50"/>
         <source>&amp;Toolbars</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="137"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="139"/>
         <source>&amp;Regroup</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="162"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="164"/>
         <source>&amp;Add Documents...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="165"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="167"/>
         <source>Add Documents</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="177"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="179"/>
         <source>C&amp;lose</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="180"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="182"/>
         <source>Alt+F4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="189"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="191"/>
         <source>Clone &amp;Selection</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="192"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="194"/>
         <source>Ctrl+L</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="201"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="203"/>
         <source>Re&amp;move Selection</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="204"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="206"/>
         <source>Del</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="213"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="215"/>
         <source>Restore Removed &amp;Items</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="216"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="218"/>
         <source>Ctrl+Shift+R</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="225"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="227"/>
         <source>Insert &amp;PDF</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="228"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="230"/>
         <source>Insert PDF</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="231"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="233"/>
         <source>Ctrl+I</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="240"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="242"/>
         <source>&amp;Insert Image</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="243"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="245"/>
         <source>Ctrl+Alt+I</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="252"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="254"/>
         <source>Insert &amp;Empty Page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="255"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="257"/>
         <source>Ctrl+Shift+I</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="264"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="266"/>
         <source>Cu&amp;t</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="267"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="269"/>
         <source>Ctrl+X</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="276"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="278"/>
         <source>&amp;Copy</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="279"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="281"/>
         <source>Ctrl+C</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="288"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="290"/>
         <source>&amp;Paste</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="291"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="293"/>
         <source>Ctrl+V</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="300"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="302"/>
         <source>Repl&amp;ace Selection</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="303"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="305"/>
         <source>Ctrl+Alt+R</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="312"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="314"/>
         <source>Select &amp;None</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="315"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="317"/>
         <source>Ctrl+N</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="324"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="326"/>
         <source>Select &amp;All</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="327"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="329"/>
         <source>Ctrl+A</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="336"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="338"/>
         <source>Select &amp;Even</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="339"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="341"/>
         <source>F9</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="348"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="350"/>
         <source>Select &amp;Odd</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="351"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="353"/>
         <source>F10</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="360"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="362"/>
         <source>Select &amp;Portrait</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="363"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="365"/>
         <source>F11</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="372"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="374"/>
         <source>Select &amp;Landscape</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="375"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="377"/>
         <source>F12</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="384"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="386"/>
         <source>Rotate &amp;Right</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="387"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="389"/>
         <source>F4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="396"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="398"/>
         <source>Rotate &amp;Left</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="399"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="401"/>
         <source>Shift+F4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="408"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="410"/>
         <source>&amp;Zoom In</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="411"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="413"/>
         <source>Ctrl++</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="420"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="422"/>
         <source>Zoo&amp;m Out</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="423"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="425"/>
         <source>Ctrl+-</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="432"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="434"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="108"/>
         <source>&amp;Get Source</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="441"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="443"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="117"/>
         <source>&amp;About...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="444"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="446"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="120"/>
         <source>F1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="453"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="455"/>
         <source>&amp;United Document...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="456"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="458"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="150"/>
         <source>F5</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="465"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="467"/>
         <source>&amp;Separate to Multiple Documents...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="468"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="470"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="186"/>
         <source>F6</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="477"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="479"/>
         <source>Separate to Multiple Documents (&amp;Grouped)...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="480"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="482"/>
         <source>F7</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="489"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="491"/>
         <source>&amp;Group</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="492"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="494"/>
         <source>Ctrl+G</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="501"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="503"/>
         <source>U&amp;ngroup</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="504"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="506"/>
         <source>Ctrl+Shift+G</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="513"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="515"/>
         <source>&amp;Clear</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="525"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="527"/>
         <source>Regroup by &amp;Even/Odd Pages</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="534"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="536"/>
         <source>Regroup by Re&amp;verse</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="543"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="545"/>
         <source>Regroup by &amp;Page Pairs</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="552"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="554"/>
         <source>Regroup by &amp;Outline</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="561"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="563"/>
         <source>Regroup by &amp;Alternating Pages</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="570"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="572"/>
         <source>Regroup by Alternating Pages (&amp;Reversed Order)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="579"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="581"/>
         <source>&amp;Invert Selection</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="588"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="590"/>
         <source>&amp;Undo</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="591"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="593"/>
         <source>Ctrl+Z</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="600"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="602"/>
         <source>Re&amp;do</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="603"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="605"/>
         <source>Ctrl+Y</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="608"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="610"/>
         <source>&amp;Prepare Icon Theme</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="617"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="619"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="372"/>
         <source>Become a &amp;Sponsor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="627"/>
+        <source>Show Document Title in Items</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -11748,105 +11753,105 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdfpagemaster::MainWindow</name>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="154"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="155"/>
         <source>&amp;Main</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="165"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="166"/>
         <source>&amp;Insert</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="168"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="169"/>
         <source>&amp;Select</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="171"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="172"/>
         <source>&amp;Regroup</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="174"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="175"/>
         <source>&amp;Zoom</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="177"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="178"/>
         <source>Ma&amp;ke</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="259"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="868"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="260"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="874"/>
         <source>Select PDF document(s)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="259"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="868"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="897"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="260"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="874"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="903"/>
         <source>PDF document (*.pdf)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="286"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="287"/>
         <source>Select</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="293"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="294"/>
         <source>Regroup</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="371"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="372"/>
         <source>Encrypted document</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="371"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="372"/>
         <source>Enter password to access document &apos;%1&apos;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="394"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="400"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="725"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="811"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="824"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="833"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="395"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="401"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="731"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="817"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="830"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="839"/>
         <source>Error</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="394"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="395"/>
         <source>Document security doesn&apos;t permit to organize pages.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="725"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="731"/>
         <source>No documents to assemble.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="824"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="830"/>
         <source>Document with given filename already exists.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="849"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="855"/>
         <source>Images (*.%1)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="850"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="856"/>
         <source>Select Image(s)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="897"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="903"/>
         <source>Select PDF document</source>
         <translation type="unfinished"></translation>
     </message>
@@ -11877,52 +11882,52 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdfpagemaster::PageItemModel</name>
     <message>
-        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="955"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="981"/>
         <source>Page Group</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="991"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1021"/>
         <source>Document collection</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="992"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1023"/>
         <source>Page Count: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1026"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1057"/>
         <source>Image</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1026"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1057"/>
         <source>Images</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1031"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1063"/>
         <source>Blank Page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1031"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1063"/>
         <source>Blank Pages</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1041"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1074"/>
         <source>#BBBB00@Collection</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1045"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1078"/>
         <source>#D98335@Blank</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1049"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1082"/>
         <source>#24A5EA@Image</source>
         <translation type="unfinished"></translation>
     </message>

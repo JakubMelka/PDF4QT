@@ -93,7 +93,7 @@ void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& opti
     textRect.setTop(textOffset);
     textRect.setHeight(option.fontMetrics.lineSpacing());
     painter->setPen(option.palette.color(QPalette::Normal, QPalette::Text));
-    painter->drawText(textRect, Qt::AlignCenter | Qt::TextSingleLine, item->groupName);
+    painter->drawText(textRect, Qt::AlignCenter | Qt::TextSingleLine, m_model->getItemDisplayText(item));
     textRect.translate(0, textRect.height());
     painter->drawText(textRect, Qt::AlignCenter | Qt::TextSingleLine, item->pagesCaption);
 

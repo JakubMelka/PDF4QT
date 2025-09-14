@@ -32,8 +32,10 @@ namespace pdfpagemaster
 {
 
 PageItemModel::PageItemModel(QObject* parent) :
-    QAbstractItemModel(parent)
+    QAbstractItemModel(parent),
+    m_showTitleInDescription(false)
 {
+
 }
 
 QVariant PageItemModel::headerData(int section, Qt::Orientation orientation, int role) const
@@ -93,12 +95,12 @@ QVariant PageItemModel::data(const QModelIndex& index, int role) const
     switch (role)
     {
         case Qt::DisplayRole:
-            return item->groupName;
+            return getItemDisplayText(item);
 
         case Qt::ToolTipRole:
         {
             QStringList texts;
-            texts << QString("<b>%1</b>").arg(item->groupName);
+            texts << QString("<b>%1</b>").arg(getItemDisplayText(item));
 
             if (item->isGrouped())
             {
@@ -588,6 +590,11 @@ void PageItemModel::rotateRight(const QModelIndexList& list)
     Q_EMIT dataChanged(index(rowMin, 0, QModelIndex()), index(rowMax, 0, QModelIndex()));
 }
 
+QString PageItemModel::getItemDisplayText(const PageGroupItem *item) const
+{
+    return isUseTitleInDescription() ? item->groupNameWithTitle : item->groupNameWithoutTitle;
+}
+
 void PageItemModel::regroupReversed(const QModelIndexList& list)
 {
     if (list.empty())
@@ -911,6 +918,24 @@ void PageItemModel::clearUndoRedo()
     m_redoSteps.clear();
 }
 
+bool PageItemModel::isUseTitleInDescription() const
+{
+    return m_showTitleInDescription;
+}
+
+void PageItemModel::setShowTitleInDescription(bool newShowTitleInDescription)
+{
+    m_showTitleInDescription = newShowTitleInDescription;
+
+    const int rowCount = this->rowCount(QModelIndex());
+    const int columnCount = this->columnCount(QModelIndex());
+
+    if (rowCount > 0)
+    {
+        Q_EMIT dataChanged(index(0, 0, QModelIndex()), index(rowCount - 1, columnCount - 1, QModelIndex()));
+    }
+}
+
 void PageItemModel::createDocumentGroup(int index, const QModelIndex& insertIndex)
 {
     const DocumentItem& item = m_documents.at(index);
@@ -919,7 +944,8 @@ void PageItemModel::createDocumentGroup(int index, const QModelIndex& insertInde
     pageSet.addInterval(1, pageCount);
 
     PageGroupItem newItem;
-    newItem.groupName = getGroupNameFromDocument(index);
+    newItem.groupNameWithTitle = getGroupNameFromDocument(index, true);
+    newItem.groupNameWithoutTitle = getGroupNameFromDocument(index, false);
     newItem.pagesCaption = pageSet.toText(true);
 
     if (pageCount > 1)
@@ -948,7 +974,7 @@ void PageItemModel::createDocumentGroup(int index, const QModelIndex& insertInde
     endInsertRows();
 }
 
-QString PageItemModel::getGroupNameFromDocument(int index) const
+QString PageItemModel::getGroupNameFromDocument(int index, bool useTitle) const
 {
     if (index == -1)
     {
@@ -957,10 +983,13 @@ QString PageItemModel::getGroupNameFromDocument(int index) const
 
     const DocumentItem& item = m_documents.at(index);
 
-    QString title = item.document.getInfo()->title;
-    if (!title.isEmpty())
+    if (useTitle)
     {
-        return title;
+        QString title = item.document.getInfo()->title;
+        if (!title.isEmpty())
+        {
+            return title;
+        }
     }
 
     QFileInfo fileInfo(item.fileName);
@@ -983,12 +1012,14 @@ void PageItemModel::updateItemCaptionAndTags(PageGroupItem& item) const
             }
         }
 
-        item.groupName = getGroupNameFromDocument(*documentIndices.begin());
+        item.groupNameWithTitle = getGroupNameFromDocument(*documentIndices.begin(), true);
+        item.groupNameWithoutTitle = getGroupNameFromDocument(*documentIndices.begin(), false);
         item.pagesCaption = pageSet.toText(true);
     }
     else
     {
-        item.groupName = tr("Document collection");
+        item.groupNameWithTitle = tr("Document collection");
+        item.groupNameWithoutTitle = item.groupNameWithTitle;
         item.pagesCaption = tr("Page Count: %1").arg(item.groups.size());
     }
 
@@ -1023,12 +1054,14 @@ void PageItemModel::updateItemCaptionAndTags(PageGroupItem& item) const
 
     if (imageCount == pageCount)
     {
-        item.groupName = imageCount == 1 ? tr("Image") : tr("Images");
+        item.groupNameWithTitle = imageCount == 1 ? tr("Image") : tr("Images");
+        item.groupNameWithoutTitle = item.groupNameWithTitle;
     }
 
     if (emptyPageCount == pageCount)
     {
-        item.groupName = emptyPageCount == 1 ? tr("Blank Page") : tr("Blank Pages");
+        item.groupNameWithTitle = emptyPageCount == 1 ? tr("Blank Page") : tr("Blank Pages");
+        item.groupNameWithoutTitle = item.groupNameWithTitle;
     }
 
     item.tags.clear();

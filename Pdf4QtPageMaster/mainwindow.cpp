@@ -106,6 +106,7 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->actionRegroup_by_Alternating_Pages->setData(int(Operation::RegroupAlternatingPages));
     ui->actionRegroup_by_Alternating_Pages_Reversed_Order->setData(int(Operation::RegroupAlternatingPagesReversed));
     ui->actionPrepare_Icon_Theme->setData(int(Operation::PrepareIconTheme));
+    ui->actionShow_Document_Title_in_Items->setData(int(Operation::ShowDocumentTitle));
 
     m_iconTheme.registerAction(ui->actionAddDocuments, ":/pdfpagemaster/resources/open.svg");
     m_iconTheme.registerAction(ui->actionClose, ":/pdfpagemaster/resources/close.svg");
@@ -481,6 +482,7 @@ bool MainWindow::canPerformOperation(Operation operation) const
         case Operation::BecomeSponsor:
         case Operation::About:
         case Operation::PrepareIconTheme:
+        case Operation::ShowDocumentTitle:
             return true;
 
         case Operation::InvertSelection:
@@ -691,6 +693,10 @@ void MainWindow::performOperation(Operation operation)
 
         case Operation::PrepareIconTheme:
             m_iconTheme.prepareTheme();
+            break;
+
+        case Operation::ShowDocumentTitle:
+            m_model->setShowTitleInDescription(ui->actionShow_Document_Title_in_Items->isChecked());
             break;
 
         case Operation::Unite:

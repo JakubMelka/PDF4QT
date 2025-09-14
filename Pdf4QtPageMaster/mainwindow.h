@@ -104,7 +104,8 @@ public:
         GetSource,
         BecomeSponsor,
         About,
-        PrepareIconTheme
+        PrepareIconTheme,
+        ShowDocumentTitle,
     };
 
 protected:

@@ -44,7 +44,8 @@ enum PageType
 
 struct PageGroupItem
 {
-    QString groupName;
+    QString groupNameWithTitle;
+    QString groupNameWithoutTitle;
     QString pagesCaption;
     QStringList tags;
 
@@ -193,6 +194,8 @@ public:
         bool isTwoDocuments() const { return isDocumentOnly() && documentCount == 2; }
     };
 
+    QString getItemDisplayText(const PageGroupItem* item) const;
+
     SelectionInfo getSelectionInfo(const QModelIndexList& list) const;
 
     void regroupReversed(const QModelIndexList& list);
@@ -207,11 +210,14 @@ public:
     void undo();
     void redo();
 
+    bool isUseTitleInDescription() const;
+    void setShowTitleInDescription(bool newShowTitleInDescription);
+
 private:
     static const int MAX_UNDO_REDO_STEPS = 10;
 
     void createDocumentGroup(int index, const QModelIndex& insertIndex);
-    QString getGroupNameFromDocument(int index) const;
+    QString getGroupNameFromDocument(int index, bool useTitle) const;
     void updateItemCaptionAndTags(PageGroupItem& item) const;
     void insertEmptyPage(const QModelIndex& index);
 
@@ -251,6 +257,8 @@ private:
 
     std::vector<UndoRedoStep> m_undoSteps; // Oldest step is first, newest step is last
     std::vector<UndoRedoStep> m_redoSteps;
+
+    bool m_showTitleInDescription;
 };
 
 }   // namespace pdfpagemaster

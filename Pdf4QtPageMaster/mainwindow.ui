@@ -109,6 +109,8 @@
     <addaction name="separator"/>
     <addaction name="actionZoom_In"/>
     <addaction name="actionZoom_Out"/>
+    <addaction name="separator"/>
+    <addaction name="actionShow_Document_Title_in_Items"/>
    </widget>
    <widget class="QMenu" name="menuMake">
     <property name="title">
@@ -615,6 +617,17 @@
    </property>
    <property name="text">
     <string>Become a &amp;Sponsor</string>
+   </property>
+  </action>
+  <action name="actionShow_Document_Title_in_Items">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Show Document Title in Items</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
    </property>
   </action>
  </widget>
