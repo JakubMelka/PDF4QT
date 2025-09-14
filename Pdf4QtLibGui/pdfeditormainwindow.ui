@@ -40,6 +40,8 @@
     <addaction name="separator"/>
     <addaction name="actionProperties"/>
     <addaction name="separator"/>
+    <addaction name="actionClearRecentFileHistory"/>
+    <addaction name="separator"/>
     <addaction name="actionQuit"/>
    </widget>
    <widget class="QMenu" name="menuGoTo">
@@ -123,7 +125,6 @@
     <addaction name="separator"/>
     <addaction name="actionOptions"/>
     <addaction name="actionResetToFactorySettings"/>
-    <addaction name="actionClearRecentFileHistory"/>
     <addaction name="separator"/>
     <addaction name="actionCertificateManager"/>
    </widget>
@@ -1198,7 +1199,7 @@
   </action>
   <action name="actionClearRecentFileHistory">
    <property name="text">
-    <string>Clear Recent File History</string>
+    <string>Clear Recent File &amp;History</string>
    </property>
    <property name="menuRole">
     <enum>QAction::MenuRole::NoRole</enum>

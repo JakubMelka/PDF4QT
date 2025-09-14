@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #313: Remove history UX improvement
  - Issue #306: Unable to delete the recent files history. 
  - Issue #303: Add Dockerfile for Simplified PDF4QT Setup with Qt 6.9.1 and All Dependencies
  - Issue #301: Russian Language file

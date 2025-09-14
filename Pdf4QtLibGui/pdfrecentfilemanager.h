@@ -66,11 +66,14 @@ public:
     void clearRecentFiles();
 
     /// Returns list of recent files actions
-    const std::array<QAction*, MAXIMUM_RECENT_FILES>& getActions() const { return m_actions; }
+    const std::array<QAction*, MAXIMUM_RECENT_FILES>& getActions() const;
 
     static constexpr int getMinimumRecentFiles() { return 1; }
     static constexpr int getDefaultRecentFiles() { return DEFAULT_RECENT_FILES; }
     static constexpr int getMaximumRecentFiles() { return MAXIMUM_RECENT_FILES; }
+
+    QAction* getClearRecentFileHistoryAction() const;
+    void setClearRecentFileHistoryAction(QAction* newClearRecentFileHistoryAction);
 
 signals:
     void fileOpenRequest(QString fileName);
@@ -79,11 +82,15 @@ private:
     /// Updates recent files actions / recent file list
     void update();
 
+    /// Updates clear recent file action
+    void updateClearRecentFileAction();
+
     /// Reaction on recent file action triggered
     void onRecentFileActionTriggered();
 
     int m_recentFilesLimit;
     std::array<QAction*, MAXIMUM_RECENT_FILES> m_actions;
+    QAction* m_clearRecentFileHistoryAction;
     QStringList m_recentFiles;
 };
 

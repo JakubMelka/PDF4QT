@@ -170,8 +170,9 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
 
     for (QAction* action : m_programController->getRecentFileManager()->getActions())
     {
-        ui->menuFile->insertAction(ui->actionQuit, action);
+        ui->menuFile->insertAction(ui->actionClearRecentFileHistory, action);
     }
+    m_programController->getRecentFileManager()->setClearRecentFileHistoryAction(ui->actionClearRecentFileHistory);
     ui->menuFile->insertSeparator(ui->actionQuit);
 
     connect(ui->actionQuit, &QAction::triggered, this, &PDFViewerMainWindow::onActionQuitTriggered);

@@ -32,7 +32,8 @@ namespace pdfviewer
 PDFRecentFileManager::PDFRecentFileManager(QObject* parent) :
     BaseClass(parent),
     m_recentFilesLimit(DEFAULT_RECENT_FILES),
-    m_actions()
+    m_actions(),
+    m_clearRecentFileHistoryAction(nullptr)
 {
     // Initialize actions
     int index = 0;
@@ -80,6 +81,11 @@ void PDFRecentFileManager::clearRecentFiles()
     update();
 }
 
+const std::array<QAction*, PDFRecentFileManager::MAXIMUM_RECENT_FILES>& PDFRecentFileManager::getActions() const
+{
+    return m_actions;
+}
+
 static QString elideText(const QString& text, const QFont& font)
 {
     QFontMetrics metrics(font);
@@ -111,6 +117,16 @@ void PDFRecentFileManager::update()
             recentFileAction->setVisible(false);
         }
     }
+
+    updateClearRecentFileAction();
+}
+
+void PDFRecentFileManager::updateClearRecentFileAction()
+{
+    if (m_clearRecentFileHistoryAction)
+    {
+        m_clearRecentFileHistoryAction->setEnabled(!m_recentFiles.isEmpty());
+    }
 }
 
 void PDFRecentFileManager::onRecentFileActionTriggered()
@@ -123,6 +139,17 @@ void PDFRecentFileManager::onRecentFileActionTriggered()
     {
         Q_EMIT fileOpenRequest(data.toString());
     }
+}
+
+QAction* PDFRecentFileManager::getClearRecentFileHistoryAction() const
+{
+    return m_clearRecentFileHistoryAction;
+}
+
+void PDFRecentFileManager::setClearRecentFileHistoryAction(QAction* newClearRecentFileHistoryAction)
+{
+    m_clearRecentFileHistoryAction = newClearRecentFileHistoryAction;
+    updateClearRecentFileAction();
 }
 
 }   // namespace pdfviewer
