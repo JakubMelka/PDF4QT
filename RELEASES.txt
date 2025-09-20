@@ -1,4 +1,6 @@
 CURRENT:
+
+V: 1.5.2.0 27.4.2025
  - Issue #313: Remove history UX improvement
  - Issue #310: Docpage organiser uses PDF title rather than filename
  - Issue #306: Unable to delete the recent files history. 

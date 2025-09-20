@@ -23,6 +23,23 @@
   <content_rating type="oars-1.1"/>
   <launchable type="desktop-id">io.github.JakubMelka.Pdf4qt.desktop</launchable>
   <releases>
+    <release version="1.5.2.0" date="2025-09-20">
+      <description>
+        <ul>
+          <li>Issue #313: Remove history UX improvement</li>
+          <li>Issue #310: Docpage organiser uses PDF title rather than filename</li>
+          <li>Issue #306: Unable to delete the recent files history.</li>
+          <li>Issue #303: Add Dockerfile for Simplified PDF4QT Setup with Qt 6.9.1 and All Dependencies</li>
+          <li>Issue #301: Russian Language file</li>
+          <li>Issue #296: Redaction annotation support in PdfTool</li>
+          <li>Issue #295: Request: Make page layout choice persist between files</li>
+          <li>Issue #279: qt_add_translations uses options only in qt 6.9</li>
+          <li>Issue #284: Scaling dimensions [Enhancements, Features]</li>
+          <li>Issue #281: install API headers for reuse by other applications ?</li>
+          <li>Issue #251: Let user lock direction of lines/polylines when pressing keybinding (e.g. shift)</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.5.1.0" date="2025-04-27">
       <description>
         <ul>
