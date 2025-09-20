@@ -107,8 +107,21 @@ void LaunchDialog::startProgram(const QString& program)
 {
 #ifndef Q_OS_WIN
     QString appDir = qgetenv("APPDIR");
-    QString internalToolPath = appDir.isEmpty() ? QString("./%1").arg(program)
-                                                : QString("%1/usr/bin/%2").arg(appDir, program);
+    QString flatpakAppDir = qgetenv("FLATPAKAPPDIR");
+    QString internalToolPath;
+
+    if (!flatpakAppDir.isEmpty())
+    {
+        internalToolPath = QString("%1/bin/%2").arg(flatpakAppDir, program);
+    }
+    else if (!appDir.isEmpty())
+    {
+        internalToolPath = QString("%1/usr/bin/%2").arg(appDir, program);
+    }
+    else
+    {
+        internalToolPath = QString("./%1").arg(program);
+    }
 
     qint64 pid = 0;
     if (!QProcess::startDetached(internalToolPath, {}, QString(), &pid))

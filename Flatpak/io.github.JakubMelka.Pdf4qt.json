@@ -1,14 +1,17 @@
 {
     "app-id": "io.github.JakubMelka.Pdf4qt",
-    "runtime": "org.kde.Sdk",
+    "runtime": "org.kde.Platform",
     "runtime-version": "6.9",
+    "runtime-branch": "stable",
     "sdk": "org.kde.Sdk",
+    "sdk-branch": "stable",
     "command": "Pdf4QtEditor",
     "finish-args": [
         "--socket=fallback-x11",
         "--socket=wayland",
         "--device=dri",
-        "--share=ipc"
+        "--share=ipc",
+        "--filesystem=host"
     ],
     "cleanup": [
     ],
@@ -16,6 +19,9 @@
       "env": {
         "PKG_CONFIG_PATH": "/app/lib64/pkgconfig:/app/lib/pkgconfig"
       }
+    },
+    "environment": {
+      "FLATPAKAPPDIR": "/app"
     },
     "modules": [
         {
