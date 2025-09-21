@@ -32,9 +32,14 @@ message("VCPKG Enabled: " ${VCPKG_TOOLCHAIN})
 option(PDF4QT_INSTALL_DEPENDENCIES "Install dependencies" ${VCPKG_TOOLCHAIN})
 option(PDF4QT_INSTALL_QT_DEPENDENCIES "Install Qt dependencies" ${VCPKG_TOOLCHAIN})
 option(PDF4QT_INSTALL_INCLUDE "Install include headers" ON)
+option(PDF4QT_FLATPAK_BUILD "Special flag for Flatpak" OFF)
 
 add_compile_definitions(PDF4QT_PROJECT_VERSION="${PDF4QT_VERSION}")
 add_compile_definitions(QT_NO_EMIT)
+
+if(PDF4QT_FLATPAK_BUILD)
+    add_compile_definitions(PDF4QT_FLATPAK_BUILD)
+endif()
 
 if(WIN32 AND MSVC)
     option(PDF4QT_INSTALL_MSVC_REDISTRIBUTABLE "Install MSVC redistributable package" ON)
