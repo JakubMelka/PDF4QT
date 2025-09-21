@@ -107,7 +107,11 @@ void LaunchDialog::startProgram(const QString& program)
 {
 #ifndef Q_OS_WIN
     QString appDir = qgetenv("APPDIR");
-    QString flatpakAppDir = qgetenv("FLATPAKAPPDIR");
+#if defined(PDF4QT_FLATPAK_BUILD)
+    QString flatpakAppDir = "/app";
+#else
+    QString flatpakAppDir;
+#endif
     QString internalToolPath;
 
     if (!flatpakAppDir.isEmpty())
