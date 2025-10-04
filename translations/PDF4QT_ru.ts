@@ -495,12 +495,12 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="116"/>
+        <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="133"/>
         <source>Error</source>
         <translation>Ошибка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="116"/>
+        <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="133"/>
         <source>Failed to start process &apos;%1&apos;</source>
         <translation type="unfinished"></translation>
     </message>
@@ -8890,7 +8890,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfblendfunction.cpp" line="244"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1017"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1092"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="2758"/>
         <source>Unknown</source>
         <translation type="unfinished"></translation>
@@ -10921,357 +10921,357 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="360"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="380"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="435"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="455"/>
         <source>Inexact font substitution: font %1 replaced by %2 using font family %3.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="402"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="477"/>
         <source>Inexact font substitution: font %1 replaced by %2.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="415"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="490"/>
         <source>FontConfig error building pattern for font %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="469"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="544"/>
         <source>Inexact font substitution: font %1 replaced by standard font Times New Roman.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="557"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="632"/>
         <source>Fontconfig error</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="762"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="837"/>
         <source>Glyph for simple font character code &apos;%1&apos; not found.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="800"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="875"/>
         <source>Glyph for composite font character with cid &apos;%1&apos; not found.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="928"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1003"/>
         <source>Details</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="936"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1011"/>
         <source>Style</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="932"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1007"/>
         <source>Font</source>
         <translation>Шрифт</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="939"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1014"/>
         <source>Yes</source>
         <translation>Да</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="940"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1015"/>
         <source>No</source>
         <translation>Нет</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="942"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1017"/>
         <source>Glyph count</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="943"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1018"/>
         <source>Is CID keyed</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="944"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1019"/>
         <source>Is bold</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="945"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1020"/>
         <source>Is italics</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="946"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1021"/>
         <source>Has vertical writing system</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="947"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1022"/>
         <source>Has SFNT storage scheme</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="948"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1023"/>
         <source>Has glyph names</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="952"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2067"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1027"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2155"/>
         <source>Encoding</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="962"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1037"/>
         <source>None</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="966"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1041"/>
         <source>Unicode</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="970"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1045"/>
         <source>MS Symbol</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="974"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1049"/>
         <source>Japanese Shift JIS</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="978"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1053"/>
         <source>PRC - Simplified Chinese</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="982"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1057"/>
         <source>Traditional Chinese</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="986"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1061"/>
         <source>Korean Extended Wansung</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="990"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1065"/>
         <source>Korean Standard</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="994"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1069"/>
         <source>Adobe Standard</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="998"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1073"/>
         <source>Adobe Expert</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1001"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1076"/>
         <source>Adobe Custom</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1005"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1080"/>
         <source>Adobe Latin 1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1009"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1084"/>
         <source>Old Latin 1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1013"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1088"/>
         <source>Apple Roman</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1021"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1096"/>
         <source>Platform/Encoding = %1 %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1112"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1187"/>
         <source>FreeType error code %1: %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1201"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1274"/>
         <source>Can&apos;t load system font &apos;%1&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1308"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1381"/>
         <source>Invalid font encoding.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1344"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1417"/>
         <source>Font object must be a dictionary.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1362"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1435"/>
         <source>Invalid font type.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1471"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1481"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1487"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1557"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1567"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1573"/>
         <source>Invalid differences in encoding entry of the font.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1493"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1536"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1579"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1622"/>
         <source>Invalid encoding entry of the font.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1721"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1807"/>
         <source>Invalid CMAP in CID-keyed font.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1727"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1739"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1813"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1825"/>
         <source>Invalid descendant font in CID-keyed font.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1733"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1819"/>
         <source>Invalid number (%1) of descendant fonts in CID-keyed font - exactly one is required.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1828"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1914"/>
         <source>Invalid Type 3 font matrix.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1835"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1921"/>
         <source>Invalid Type 3 font character content streams.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1844"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1930"/>
         <source>Invalid Type 3 font character range (from %1 to %2).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1850"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1857"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1936"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1943"/>
         <source>Invalid Type 3 font encoding.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1875"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1890"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1961"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1976"/>
         <source>Invalid differences in encoding entry of type 3 font.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2025"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2113"/>
         <source>Standard</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2029"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2117"/>
         <source>Mac Roman</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2033"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2121"/>
         <source>Win Ansi</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2037"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2125"/>
         <source>PDF Doc</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2041"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2129"/>
         <source>Mac Expert</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2045"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2126"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2133"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2213"/>
         <source>Symbol</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2049"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2130"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2137"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2217"/>
         <source>Zapf Dingbats</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2053"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2141"/>
         <source>Mac OS Roman</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2057"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2145"/>
         <source>Custom</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2108"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2195"/>
         <source>Times Roman</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2115"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2202"/>
         <source>Helvetica</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2122"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2209"/>
         <source>Courier</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2138"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2225"/>
         <source>Standard font</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2292"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2379"/>
         <source>Can&apos;t load CID font mapping named &apos;%1&apos;.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2331"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2418"/>
         <source>Can&apos;t fetch code from CMap definition.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2341"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2428"/>
         <source>Can&apos;t fetch CID from CMap definition.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2375"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2462"/>
         <source>Can&apos;t use cmap inside cmap file.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2786"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2873"/>
         <source>Character count</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2834"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2921"/>
         <source>Content stream for type 3 font character code &apos;%1&apos; not found.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -13828,120 +13828,120 @@ li.checked::marker { content: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1203"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1330"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1342"/>
         <source>Error</source>
         <translation>Ошибка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1239"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1251"/>
         <source>Save Document</source>
         <translation type="unfinished">Сохранить документ</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1240"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1252"/>
         <source>Do you wish to save modified document before it is closed?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1330"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1342"/>
         <source>Error while starting email client occured!</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1400"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1412"/>
         <source>Permission to change document security is denied.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1419"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1431"/>
         <source>Failed to create security handler.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1432"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1443"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1444"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1455"/>
         <source>Reauthorization is required to change document encryption.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1527"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1539"/>
         <source>Encrypted document</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1527"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1539"/>
         <source>Enter password to access document content</source>
         <translation type="unfinished">Введите пароль для доступа к содержимому документа</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1926"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1938"/>
         <source>Document &apos;%1&apos; was successfully loaded!</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1932"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1944"/>
         <source>Document read error: %1</source>
         <translation type="unfinished">Ошибка чтения документа: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2125"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2146"/>
         <source>%1 - %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2307"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2314"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2328"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2335"/>
         <source>Reset Settings</source>
         <translation>Сбросить настройки</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2307"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2328"/>
         <source>Do you wish to restore the default factory settings of the program? All settings changed by the user will be deleted. Application will be closed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2314"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2335"/>
         <source>Default factory settings were restored. Application will be now closed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2359"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2380"/>
         <source>Plugins</source>
         <translation>Плагины</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2359"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2380"/>
         <source>Plugin on/off state has been changed. Please restart application to apply settings.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2386"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2458"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2407"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2479"/>
         <source>Select PDF document</source>
         <translation>Выбрать PDF документ</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2386"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2407"/>
         <source>PDF document (*.pdf)</source>
         <translation>PDF документ (*.pdf)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2443"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2464"/>
         <source>Export Bookmarks As</source>
         <translation>Экспортировать закладки как</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2443"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2464"/>
         <source>JSON (*.json);;All files (*.*)</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2458"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2479"/>
         <source>JSON (*.json)</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2477"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2498"/>
         <source>Rendering of page %1: %2 errors occured.</source>
         <translation type="unfinished"></translation>
     </message>

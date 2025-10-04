@@ -1,4 +1,6 @@
 CURRENT:
+ - Issue #146: Incorrect fonts displayed on Linux
+
 
 V: 1.5.2.0 27.4.2025
  - Issue #313: Remove history UX improvement
