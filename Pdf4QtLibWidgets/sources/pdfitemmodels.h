@@ -85,6 +85,7 @@ public:
     const PDFTreeItem* getChild(int index) const { return m_children.at(index); }
     PDFTreeItem* getChild(int index) { return m_children.at(index); }
     const PDFTreeItem* getParent() const { return m_parent; }
+    PDFTreeItem* getParent() { return m_parent; }
     PDFTreeItem* takeChild(int index);
 
 private:

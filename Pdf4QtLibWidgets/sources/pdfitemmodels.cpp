@@ -655,7 +655,20 @@ bool PDFOutlineTreeItemModel::dropMimeData(const QMimeData* data, Qt::DropAction
         {
             QModelIndex targetIndex = this->index(row, column, parent);
             PDFOutlineTreeItem* targetTreeItem = static_cast<PDFOutlineTreeItem*>(targetIndex.internalPointer());
-            *targetTreeItem->getOutlineItem() = *item;
+            PDFOutlineItem* targetOutlineItem = targetTreeItem->getOutlineItem();
+            *targetOutlineItem = *item;
+
+            while (targetTreeItem->getChildCount() > 0)
+            {
+                delete targetTreeItem->takeChild(0);
+            }
+
+            const size_t childCount = targetOutlineItem->getChildCount();
+            for (size_t i = 0; i < childCount; ++i)
+            {
+                targetTreeItem->addCreatedChild(new PDFOutlineTreeItem(nullptr, targetOutlineItem->getChildPtr(i)));
+            }
+
             return true;
         }
     }
@@ -716,30 +729,28 @@ bool PDFOutlineTreeItemModel::removeRows(int row, int count, const QModelIndex& 
 
 bool PDFOutlineTreeItemModel::moveRows(const QModelIndex& sourceParent, int sourceRow, int count, const QModelIndex& destinationParent, int destinationChild)
 {
-    if (sourceRow < 0 || count <= 0 || (sourceParent == destinationParent && (sourceRow == destinationChild || sourceRow + count <= destinationChild)))
+    if (!m_editable || count <= 0 || sourceRow < 0 || !m_rootItem)
     {
         return false;
     }
 
-    PDFOutlineTreeItem* sourceNode = nullptr;
-    PDFOutlineTreeItem* destNode = nullptr;
+    PDFOutlineTreeItem* sourceNode = sourceParent.isValid()
+        ? static_cast<PDFOutlineTreeItem*>(sourceParent.internalPointer())
+        : static_cast<PDFOutlineTreeItem*>(m_rootItem.get());
+    PDFOutlineTreeItem* destNode = destinationParent.isValid()
+        ? static_cast<PDFOutlineTreeItem*>(destinationParent.internalPointer())
+        : static_cast<PDFOutlineTreeItem*>(m_rootItem.get());
 
-    if (sourceParent.isValid())
+    if (!sourceNode || !destNode)
     {
-        sourceNode = static_cast<PDFOutlineTreeItem*>(sourceParent.internalPointer());
-    }
-    else
-    {
-        sourceNode = static_cast<PDFOutlineTreeItem*>(m_rootItem.get());
+        return false;
     }
 
-    if (destinationParent.isValid())
+    PDFOutlineItem* sourceOutline = sourceNode->getOutlineItem();
+    PDFOutlineItem* destOutline = destNode->getOutlineItem();
+    if (!sourceOutline || !destOutline)
     {
-        destNode = static_cast<PDFOutlineTreeItem*>(destinationParent.internalPointer());
-    }
-    else
-    {
-        destNode = static_cast<PDFOutlineTreeItem*>(m_rootItem.get());
+        return false;
     }
 
     if (sourceRow + count > sourceNode->getChildCount())
@@ -747,26 +758,61 @@ bool PDFOutlineTreeItemModel::moveRows(const QModelIndex& sourceParent, int sour
         return false;
     }
 
-    if (destinationChild < 0)
+    auto* firstMovedNode = static_cast<PDFOutlineTreeItem*>(sourceNode->getChild(sourceRow));
+    for (PDFOutlineTreeItem* ancestor = destNode; ancestor; ancestor = static_cast<PDFOutlineTreeItem*>(ancestor->getParent()))
     {
-        destinationChild = 0;
+        if (ancestor == firstMovedNode)
+        {
+            return false;
+        }
     }
 
-    beginRemoveRows(sourceParent, sourceRow, sourceRow + count - 1);
-    QList<PDFOutlineTreeItem*> nodesToMove;
+    int moveDestination = destinationChild;
+    const int destChildCount = destNode->getChildCount();
+    if (moveDestination < 0 || moveDestination > destChildCount)
+    {
+        moveDestination = destChildCount;
+    }
+
+    if (sourceParent == destinationParent && moveDestination >= sourceRow && moveDestination <= sourceRow + count)
+    {
+        return false;
+    }
+
+    if (!beginMoveRows(sourceParent, sourceRow, sourceRow + count - 1, destinationParent, moveDestination))
+    {
+        return false;
+    }
+
+    int insertionRow = moveDestination;
+    if (sourceParent == destinationParent && moveDestination > sourceRow)
+    {
+        insertionRow -= count;
+    }
+
+    QList<QSharedPointer<PDFOutlineItem>> outlineItems;
+    outlineItems.reserve(count);
     for (int i = 0; i < count; ++i)
     {
-        nodesToMove.append(static_cast<PDFOutlineTreeItem*>(sourceNode->takeChild(sourceRow)));
+        outlineItems.append(sourceOutline->getChildPtr(static_cast<size_t>(sourceRow + i)));
     }
-    endRemoveRows();
 
-    beginInsertRows(destinationParent, destinationChild, destinationChild + count - 1);
-    for (PDFOutlineTreeItem* node : nodesToMove)
+    QList<PDFOutlineTreeItem*> treeItems;
+    treeItems.reserve(count);
+    for (int i = count - 1; i >= 0; --i)
     {
-        destNode->insertCreatedChild(destinationChild++, node);
+        const int index = sourceRow + i;
+        treeItems.prepend(static_cast<PDFOutlineTreeItem*>(sourceNode->takeChild(index)));
+        sourceOutline->removeChild(static_cast<size_t>(index));
     }
-    endInsertRows();
 
+    for (int i = 0; i < count; ++i)
+    {
+        destNode->insertCreatedChild(insertionRow + i, treeItems.at(i));
+        destOutline->insertChild(static_cast<size_t>(insertionRow + i), outlineItems.at(i));
+    }
+
+    endMoveRows();
     return true;
 }
 

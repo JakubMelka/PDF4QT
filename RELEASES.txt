@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #269: Nested Bookmarks loses children when moving. 
  - Issue #146: Incorrect fonts displayed on Linux
 
 
