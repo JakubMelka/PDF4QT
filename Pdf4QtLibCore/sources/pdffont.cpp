@@ -85,6 +85,8 @@ static constexpr std::array S_DEFAULT_CJK_FONTS =
     PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "KaiTi" },
     PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "SimLi" },
     PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "SimLiU" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "STSong-Light" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "STSong-Light,Bold" },
 
     PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeCNS, true, "Ming" },
     PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeCNS, false, "Fangti" },
@@ -112,7 +114,7 @@ static constexpr std::array S_FONT_REPLACEMENTS
     PDF_Font_Replacement{"Utopia-Italic", "Georgia"},
     PDF_Font_Replacement{"Utopia-Semibold", "Georgia"},
     PDF_Font_Replacement{"Utopia-SemiboldItalic", "Georgia"},
-    PDF_Font_Replacement{"Utopia", "Georgia"},
+    PDF_Font_Replacement{"Utopia", "Georgia"}
 };
 
 /// Storage class for system fonts
