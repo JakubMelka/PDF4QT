@@ -82,7 +82,7 @@ jobs:
 
       - name: 'VCPKG: Install Project Dependencies'
         run: |
-          ./vcpkg install tbb openssl lcms zlib openjpeg freetype ijg-libjpeg libpng blend2d brotli bzip2 --triplet x64-linux-release
+          ./vcpkg install tbb openssl lcms zlib openjpeg freetype libjpeg-turbo libpng blend2d brotli bzip2 --triplet x64-linux-release
         working-directory: vcpkg
         
       - name: Install Qt

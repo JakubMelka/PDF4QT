@@ -110,7 +110,7 @@ jobs:
 
       - name: 'VCPKG: Install project dependencies'
         run: |
-          .\vcpkg install tbb openssl lcms zlib openjpeg freetype ijg-libjpeg libpng blend2d brotli bzip2 hwloc vcpkg-cmake vcpkg-cmake-config vcpkg-cmake-get-vars --triplet x64-windows
+          .\vcpkg install tbb openssl lcms zlib openjpeg freetype libjpeg-turbo libpng blend2d brotli bzip2 hwloc vcpkg-cmake vcpkg-cmake-config vcpkg-cmake-get-vars --triplet x64-windows
         working-directory: vcpkg
         
       - name: Install Qt
