@@ -118,6 +118,7 @@ public:
         SendByMail,
         RenderToImages,
         Optimize,
+        OptimizeImages,
         Sanitize,
         RemoveExternalLinks,
         PageGeometry,
@@ -364,6 +365,7 @@ private:
     void onActionSendByEMailTriggered();
     void onActionRenderToImagesTriggered();
     void onActionOptimizeTriggered();
+    void onActionOptimizeImagesTriggered();
     void onActionSanitizeTriggered();
     void onActionRemoveExternalLinksTriggered();
     void onActionPageGeometryTriggered();

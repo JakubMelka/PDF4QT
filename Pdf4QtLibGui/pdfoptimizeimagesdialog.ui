@@ -1,0 +1,450 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>PDFOptimizeImagesDialog</class>
+ <widget class="QDialog" name="PDFOptimizeImagesDialog">
+  <property name="windowTitle">
+   <string>Optimize Images</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="0" column="0">
+    <widget class="QListWidget" name="imageListWidget">
+     <property name="minimumSize">
+      <size>
+       <width>280</width>
+       <height>400</height>
+      </size>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="1">
+    <layout class="QVBoxLayout" name="rightLayout">
+     <item>
+      <widget class="QGroupBox" name="globalGroupBox">
+       <property name="title">
+        <string>Global Settings</string>
+       </property>
+       <layout class="QFormLayout" name="globalFormLayout">
+        <item row="0" column="0">
+         <widget class="QLabel" name="modeLabel">
+          <property name="text">
+           <string>Mode</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QComboBox" name="modeComboBox"/>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="colorModeLabel">
+          <property name="text">
+           <string>Color mode</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QComboBox" name="colorModeComboBox"/>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="goalLabel">
+          <property name="text">
+           <string>Goal</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QComboBox" name="goalComboBox"/>
+        </item>
+        <item row="3" column="0">
+         <widget class="QCheckBox" name="keepOriginalCheckBox">
+          <property name="text">
+           <string>Keep original if larger</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="1">
+         <widget class="QCheckBox" name="preserveAlphaCheckBox">
+          <property name="text">
+           <string>Preserve transparency</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QTabWidget" name="profilesTabWidget">
+       <property name="currentIndex">
+        <number>0</number>
+       </property>
+       <widget class="QWidget" name="colorTab">
+        <attribute name="title">
+         <string>Color</string>
+        </attribute>
+        <layout class="QFormLayout" name="colorFormLayout">
+         <item row="0" column="0">
+          <widget class="QLabel" name="colorAlgLabel">
+           <property name="text">
+            <string>Algorithm</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QComboBox" name="colorAlgComboBox"/>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="colorDpiLabel">
+           <property name="text">
+            <string>Target DPI</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QSpinBox" name="colorDpiSpinBox">
+           <property name="maximum">
+            <number>1200</number>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="colorResampleLabel">
+           <property name="text">
+            <string>Resample</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QComboBox" name="colorResampleComboBox"/>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="colorJpegLabel">
+           <property name="text">
+            <string>JPEG quality</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QSpinBox" name="colorJpegQualitySpinBox">
+           <property name="maximum">
+            <number>100</number>
+           </property>
+           <property name="value">
+            <number>85</number>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="colorJpxLabel">
+           <property name="text">
+            <string>JPEG2000 rate</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <widget class="QDoubleSpinBox" name="colorJpxRateSpinBox">
+           <property name="decimals">
+            <number>2</number>
+           </property>
+           <property name="maximum">
+            <double>10.00</double>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="0">
+          <widget class="QCheckBox" name="colorPredictorCheckBox">
+           <property name="text">
+            <string>PNG predictor</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="grayTab">
+        <attribute name="title">
+         <string>Grayscale</string>
+        </attribute>
+        <layout class="QFormLayout" name="grayFormLayout">
+         <item row="0" column="0">
+          <widget class="QLabel" name="grayAlgLabel">
+           <property name="text">
+            <string>Algorithm</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QComboBox" name="grayAlgComboBox"/>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="grayDpiLabel">
+           <property name="text">
+            <string>Target DPI</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QSpinBox" name="grayDpiSpinBox">
+           <property name="maximum">
+            <number>1200</number>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="grayResampleLabel">
+           <property name="text">
+            <string>Resample</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QComboBox" name="grayResampleComboBox"/>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="grayJpegLabel">
+           <property name="text">
+            <string>JPEG quality</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QSpinBox" name="grayJpegQualitySpinBox">
+           <property name="maximum">
+            <number>100</number>
+           </property>
+           <property name="value">
+            <number>85</number>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="grayJpxLabel">
+           <property name="text">
+            <string>JPEG2000 rate</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <widget class="QDoubleSpinBox" name="grayJpxRateSpinBox">
+           <property name="decimals">
+            <number>2</number>
+           </property>
+           <property name="maximum">
+            <double>10.00</double>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="0">
+          <widget class="QCheckBox" name="grayPredictorCheckBox">
+           <property name="text">
+            <string>PNG predictor</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="bitonalTab">
+        <attribute name="title">
+         <string>Bitonal</string>
+        </attribute>
+        <layout class="QFormLayout" name="bitonalFormLayout">
+         <item row="0" column="0">
+          <widget class="QLabel" name="bitonalAlgLabel">
+           <property name="text">
+            <string>Algorithm</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QComboBox" name="bitonalAlgComboBox"/>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="bitonalDpiLabel">
+           <property name="text">
+            <string>Target DPI</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QSpinBox" name="bitonalDpiSpinBox">
+           <property name="maximum">
+            <number>1200</number>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="bitonalResampleLabel">
+           <property name="text">
+            <string>Resample</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QComboBox" name="bitonalResampleComboBox"/>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="bitonalThresholdLabel">
+           <property name="text">
+            <string>Threshold</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <layout class="QHBoxLayout" name="bitonalThresholdLayout">
+           <item>
+            <widget class="QSpinBox" name="bitonalThresholdSpinBox">
+             <property name="maximum">
+              <number>255</number>
+             </property>
+             <property name="value">
+              <number>128</number>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="bitonalThresholdAutoCheckBox">
+             <property name="text">
+              <string>Auto</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item row="4" column="0">
+          <widget class="QCheckBox" name="bitonalPredictorCheckBox">
+           <property name="text">
+            <string>PNG predictor</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </widget>
+     </item>
+     <item>
+      <widget class="QGroupBox" name="selectedGroupBox">
+       <property name="title">
+        <string>Selected Image</string>
+       </property>
+       <layout class="QVBoxLayout" name="selectedLayout">
+        <item>
+         <widget class="QCheckBox" name="imageEnabledCheckBox">
+          <property name="text">
+           <string>Enable compression for this image</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QCheckBox" name="imageOverrideCheckBox">
+          <property name="text">
+           <string>Override settings for this image</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="imageInfoLabel">
+          <property name="text">
+           <string/>
+          </property>
+          <property name="wordWrap">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QGroupBox" name="previewGroupBox">
+       <property name="title">
+        <string>Preview</string>
+       </property>
+       <layout class="QVBoxLayout" name="previewLayout">
+        <item>
+         <layout class="QHBoxLayout" name="previewImagesLayout">
+          <item>
+           <layout class="QVBoxLayout" name="previewBeforeLayout">
+            <item>
+             <widget class="QLabel" name="previewBeforeLabel">
+              <property name="text">
+               <string>Before</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="previewBeforeImageLabel">
+              <property name="minimumSize">
+               <size>
+                <width>180</width>
+                <height>180</height>
+               </size>
+              </property>
+              <property name="frameShape">
+               <enum>QFrame::StyledPanel</enum>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <layout class="QVBoxLayout" name="previewAfterLayout">
+            <item>
+             <widget class="QLabel" name="previewAfterLabel">
+              <property name="text">
+               <string>After</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="previewAfterImageLabel">
+              <property name="minimumSize">
+               <size>
+                <width>180</width>
+                <height>180</height>
+               </size>
+              </property>
+              <property name="frameShape">
+               <enum>QFrame::StyledPanel</enum>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <widget class="QLabel" name="previewInfoLabel">
+          <property name="text">
+           <string/>
+          </property>
+          <property name="wordWrap">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QDialogButtonBox" name="buttonBox">
+       <property name="standardButtons">
+        <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

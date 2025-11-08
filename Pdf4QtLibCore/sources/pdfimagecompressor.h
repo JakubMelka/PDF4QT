@@ -20,27 +20,43 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef PDFTOOLOPTIMIZE_H
-#define PDFTOOLOPTIMIZE_H
+#ifndef PDFIMAGECOMPRESSOR_H
+#define PDFIMAGECOMPRESSOR_H
 
-#include "pdftoolabstractapplication.h"
+#include "pdfglobal.h"
+#include "pdfobject.h"
 
-namespace pdftool
+#include <QImage>
+#include <QPointF>
+
+#include <limits>
+#include <vector>
+
+namespace pdf
 {
+class PDFDocument;
 
-/// Command-line application that optimizes a document using selected algorithms.
-/// Applies PDFOptimizer and/or PDFImageOptimizer based on supplied options.
-class PDFToolOptimize : public PDFToolAbstractApplication
+/// Helper responsible for gathering image statistics needed for compression.
+class PDF4QTLIBCORESHARED_EXPORT PDFImageCompressor
 {
 public:
-    /// Returns command metadata such as name/description/command string.
-    virtual QString getStandardString(StandardString standardString) const override;
-    /// Executes the optimization workflow using parsed options.
-    virtual int execute(const PDFToolOptions& options) override;
-    /// Returns the supported option flags for this tool.
-    virtual Options getOptionsFlags() const override;
+    struct ImageStatistics
+    {
+        PDFObjectReference reference;
+        QImage image;
+        QPointF minimalDpi = QPointF(std::numeric_limits<double>::infinity(),
+                                     std::numeric_limits<double>::infinity());
+    };
+
+    using ImageStatisticsList = std::vector<ImageStatistics>;
+
+    /// Collects all image XObjects from the document and computes their
+    /// analysis data required for compression decisions.
+    /// \param document Processed document
+    /// \return Collected statistics for every unique image reference
+    ImageStatisticsList collectImages(const PDFDocument* document) const;
 };
 
-}   // namespace pdftool
+}   // namespace pdf
 
-#endif // PDFTOOLOPTIMIZE_H
+#endif // PDFIMAGECOMPRESSOR_H

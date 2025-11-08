@@ -617,7 +617,7 @@ protected:
     /// \param image Image
     /// \param stream Stream, from which image originated
     /// \returns true, if image is successfully processed
-    virtual bool performOriginalImagePainting(const PDFImage& image, const PDFStream* stream);
+    virtual bool performOriginalImagePainting(const PDFImage& image, const PDFStream* stream, PDFObjectReference reference);
 
     /// This function has to be implemented in the client drawing implementation, it should
     /// draw the image.
@@ -1043,7 +1043,7 @@ private:
     PDFObject readObjectFromOperandStack(size_t startPosition) const;
 
     /// Implementation of painting of XObject image
-    void paintXObjectImage(const PDFStream* stream);
+    void paintXObjectImage(const PDFStream* stream, PDFObjectReference reference);
 
     /// Report warning about color operators in uncolored tiling pattern
     void reportWarningAboutColorOperatorsInUTP();
