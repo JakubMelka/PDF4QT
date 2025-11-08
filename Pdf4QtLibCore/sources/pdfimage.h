@@ -28,6 +28,7 @@
 #include "pdfoperationcontrol.h"
 
 #include <QByteArray>
+#include <QSize>
 
 class QByteArray;
 
@@ -78,6 +79,38 @@ public:
                                 bool isSoftMask,
                                 RenderingIntent renderingIntent,
                                 PDFRenderErrorReporter* errorReporter);
+
+    enum class ImageCompression
+    {
+        Flate,          ///< FlateDecode compressed data with PNG predictor
+        JPEG,           ///< DCTDecode
+        JPEG2000,       ///< JPXDecode
+        RunLength       ///< RunLengthDecode
+    };
+
+    enum class ImageColorMode
+    {
+        Preserve,       ///< Preserve source characteristics
+        Color,          ///< Force DeviceRGB output
+        Grayscale,      ///< Force DeviceGray output
+        Monochrome      ///< 1-bit DeviceGray with decode array [0 1]
+    };
+
+    struct ImageEncodeOptions
+    {
+        ImageCompression compression = ImageCompression::Flate;
+        ImageColorMode colorMode = ImageColorMode::Preserve;
+        QSize targetSize;                       ///< Invalid size keeps original dimensions
+        int jpegQuality = 85;                   ///< 0-100 quality for baseline JPEG
+        float jpeg2000Rate = 0.0f;              ///< >0 for lossy ratio, 0.0 for lossless
+        int monochromeThreshold = 128;          ///< Threshold for monochrome conversion (<0 selects automatic)
+        bool enablePngPredictor = true;         ///< Adds PNG predictor metadata for Flate
+    };
+
+    /// Creates PDF stream representing supplied image.
+    static PDFStream createStreamFromImage(const QImage& image,
+                                           const ImageEncodeOptions& options,
+                                           PDFRenderErrorReporter* reporter = nullptr);
 
     /// Returns image transformed from image data and color space
     QImage getImage(const PDFCMS* cms,
