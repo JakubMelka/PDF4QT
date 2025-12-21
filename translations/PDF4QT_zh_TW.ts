@@ -3588,7 +3588,7 @@
         <location filename="../PdfTool/pdftoolrender.cpp" line="335"/>
         <location filename="../PdfTool/pdftoolrender.cpp" line="371"/>
         <source>Page No.</source>
-        <translation>頁碼</translation>
+        <translation>頁碼.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="204"/>
@@ -6949,17 +6949,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1253"/>
         <source>Page no. %1 was moved to a page no. %2.</source>
-        <translation>頁碼 %1 已移動到頁碼 %2.</translation>
+        <translation>頁碼.%1 已移動到頁碼.%2。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1256"/>
         <source>Page no. %1 was added.</source>
-        <translation type="unfinished">頁碼 %1已增加。</translation>
+        <translation>頁碼.%1 已增加。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1259"/>
         <source>Page no. %1 was removed.</source>
-        <translation type="unfinished">頁碼 %1已移除。</translation>
+        <translation>頁碼.%1 已移除。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1262"/>
@@ -7253,7 +7253,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="58"/>
         <source>Page No.</source>
-        <translation type="unfinished">頁碼.</translation>
+        <translation>頁碼.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="61"/>
@@ -13196,7 +13196,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="46"/>
         <source>Page No.</source>
-        <translation type="unfinished">頁碼.</translation>
+        <translation>頁碼.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="46"/>
