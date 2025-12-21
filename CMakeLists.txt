@@ -67,7 +67,7 @@ else()
     find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg Xml PrintSupport TextToSpeech Test)
 endif()
 
-qt_standard_project_setup(I18N_TRANSLATED_LANGUAGES en de cs es ko zh_CN fr tr ru)
+qt_standard_project_setup(I18N_TRANSLATED_LANGUAGES en de cs es ko zh_CN zh_TW fr tr ru)
 
 find_package(OpenSSL REQUIRED)
 find_package(ZLIB REQUIRED)
