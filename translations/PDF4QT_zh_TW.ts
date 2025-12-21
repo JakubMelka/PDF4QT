@@ -482,12 +482,12 @@
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="66"/>
         <source>Simplify your viewing experience. This lightweight viewer offers essential viewing functions in a clean, user-friendly interface.</source>
-        <translation>簡化觀看體驗。這款輕巧的查看器以簡潔、用戶友好的界面提供基本的查看功能。</translation>
+        <translation>簡化觀看體驗。這款輕巧的檢視器以簡潔、用戶友好的界面提供基本的檢視功能。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="67"/>
         <source>Spot differences effortlessly. This tool allows users to open two documents and receive a detailed list of differences. View these differences in a page-to-page window where they are clearly marked. Save these differences into an XML file for future reference.</source>
-        <translation>輕鬆發現差異。該工具允許用戶打開兩個文檔，並獲得詳細的差異列表。在頁與頁之間的窗口中查看這些差異，這些差異都有清晰的標記。將這些差異保存到XML文件中，以備將來參考。</translation>
+        <translation>輕鬆發現差異。該工具允許用戶打開兩個文檔，並獲得詳細的差異列表。在頁與頁之間的視窗中檢視這些差異，這些差異都有清晰的標記。將這些差異保存到XML文件中，以備將來參考。</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="68"/>
@@ -1068,22 +1068,22 @@
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="267"/>
         <source>View &amp;Differences</source>
-        <translation>查看差異(&amp;D)</translation>
+        <translation>檢視差異(&amp;D)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="279"/>
         <source>View &amp;Left</source>
-        <translation>查看左邊(&amp;L)</translation>
+        <translation>檢視左邊(&amp;L)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="291"/>
         <source>View &amp;Right</source>
-        <translation>查看右邊(&amp;R)</translation>
+        <translation>檢視右邊(&amp;R)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="303"/>
         <source>View &amp;Overlay</source>
-        <translation>查看重疊部分(&amp;O)</translation>
+        <translation>檢視重疊部分(&amp;O)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="315"/>
@@ -1546,7 +1546,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="73"/>
         <source>&amp;View</source>
-        <translation>查看(&amp;V)</translation>
+        <translation>檢視(&amp;V)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="77"/>
@@ -5976,16 +5976,16 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;If the application launch is permitted, a message box appears after the &lt;span style=&quot; font-weight:600;&quot;&gt;Launch&lt;/span&gt; action is triggered, asking the user if they want to execute an external application. If the user confirms the dialog, the external application executes (for example, using the Windows function &lt;span style=&quot; font-weight:600;&quot;&gt;ShellExecute&lt;/span&gt;). When this option is turned off, no dialog appears and the external application never executes. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;If the &lt;span style=&quot; font-weight:600;&quot;&gt;URI link&lt;/span&gt; launch is allowed, a message box appears asking the user if they want to open the URI link. If the user confirms the dialog, the URI link is opened by the default web browser (or default application if the URI links to the file system). &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Users should exercise caution with these settings and only confirm execution if the document is safe and comes from a reliable source. Launching external applications and following URI links can pose risks to the user&apos;s computer. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+        <translation type="unfinished">&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
 hr { height: 1px; border-width: 0; }
 li.unchecked::marker { content: &quot;\2610&quot;; }
 li.checked::marker { content: &quot;\2612&quot;; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;如果允許啟動應用程序，則在觸發 &lt;span style=&quot; font-weight:600;&quot;&gt;啟動&lt;/span&gt;操作後會出現一個消息框，詢問用戶是否要執行外部應用程序。 如果用戶確認對話框，外部應用程序將執行（例如，使用 Windows 函數 &lt;span style=&quot; font-weight:600;&quot;&gt;Shell腳本&lt;/span&gt;)。關閉此選項時，不會出現任何對話框，外部應用程序也不會執行。&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;If the &lt;span style=&quot; font-weight:600;&quot;&gt;URI link&lt;/span&gt; 如果允許啟動，則會出現一個消息框，詢問用戶是否要打開 URI 鏈接。如果用戶確認，則預設 Web 瀏覽器（如果 URI 鏈接到文件系統，則由預設應用程序）打開 URI 鏈接。 &lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;用戶應謹慎使用這些設置，並且僅在文檔安全且來源可靠的情況下才確認執行。啟動外部應用程序並跟蹤 URI 鏈接可能會給用戶的計算機帶來風險。 &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;如果允許啟動應用程式,在觸發&lt;span style=&quot; font-weight:600;&quot;&gt;啟動&lt;/span&gt;動作後會出現訊息方塊,詢問使用者是否要執行外部應用程式。如果使用者確認對話方塊,外部應用程式就會執行(例如,使用 Windows 函式 &lt;span style=&quot; font-weight:600;&quot;&gt;ShellExecute&lt;/span&gt;)。當此選項關閉時,不會出現對話方塊,且外部應用程式永遠不會執行。&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;如果允許&lt;span style=&quot; font-weight:600;&quot;&gt;URI 連結&lt;/span&gt;啟動,會出現訊息方塊詢問使用者是否要開啟 URI 連結。如果使用者確認對話方塊,URI 連結會由預設網頁瀏覽器開啟(或如果 URI 連結到檔案系統,則由預設應用程式開啟)。&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;使用者在使用這些設定時應謹慎行事,只有在文件安全且來自可靠來源時才確認執行。啟動外部應用程式和追蹤 URI 連結可能對使用者的電腦構成風險。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="926"/>
@@ -11591,7 +11591,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="151"/>
         <source>Show Popup Window</source>
-        <translation>顯示彈出窗口</translation>
+        <translation>顯示彈出視窗</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="152"/>
