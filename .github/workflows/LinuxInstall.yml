@@ -110,6 +110,7 @@ jobs:
           version=$(cat "pdf4qt/build/version.txt")
           echo "Version: $version"
           echo "appimagefilename=PDF4QT-$version-x86_64.AppImage" >> $GITHUB_ENV
+          echo "appimage_update_info=gh-releases-zsync|JakubMelka|PDF4QT|latest|PDF4QT-*-x86_64.AppImage.zsync" >> $GITHUB_ENV
           echo "AppImage file name: PDF4QT-$version-x86_64.AppImage"
         env:
           appimagefilename: ${{ env.appimagefilename }}
@@ -125,7 +126,7 @@ jobs:
       - name: Sign and Repack AppImage
         working-directory: pdf4qt/build
         run: |
-          appimagetool -s --sign-key "${{ secrets.PGP_KEY_ID }}" install/ ${{ env.appimagefilename }}
+          appimagetool -u "${{ env.appimage_update_info }}" -s --sign-key "${{ secrets.PGP_KEY_ID }}" install/ ${{ env.appimagefilename }}
           
       - name: Manual signature
         run: |
@@ -149,6 +150,15 @@ jobs:
         with:
           name: ${{ env.appimagefilename }}.sig
           path: ./pdf4qt/build/${{ env.appimagefilename }}.sig
+          retention-days: 30
+          if-no-files-found: warn
+          compression-level: 0
+          
+      - name: Upload AppImage zsync File
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.appimagefilename }}.zsync
+          path: ./pdf4qt/build/${{ env.appimagefilename }}.zsync
           retention-days: 30
           if-no-files-found: warn
           compression-level: 0
