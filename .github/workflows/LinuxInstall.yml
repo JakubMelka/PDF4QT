@@ -9,7 +9,7 @@ jobs:
     env:
       VCPKG_OVERLAY_PORTS: ${{ github.workspace }}/pdf4qt/vcpkg/overlays/linux:${{ github.workspace }}/pdf4qt/vcpkg/overlays/general
       VCPKG_INSTALLED_DIR: ${{ github.workspace }}/vcpkg_installed
-      GNUPGHOME: ${{ runner.temp }}/gnupg
+      GNUPGHOME: ${{ github.workspace }}/gnupg
 
     steps:
       - name: Install dependencies
@@ -40,7 +40,7 @@ jobs:
         run: |
           echo "${{ secrets.PGP_PRIVATE_KEY }}" | gpg --batch --import
           for keygrip in $(gpg --list-secret-keys --with-keygrip "${{ secrets.PGP_KEY_ID }}" | grep Keygrip | awk '{print $3}'); do
-            echo "${{ secrets.PGP_PASSPHRASE }}" | "$(gpgconf --list-dirs libexecdir)"/gpg-preset-passphrase --preset $keygrip
+            echo "${{ secrets.PGP_PASSPHRASE }}" | "$(gpgconf --list-dirs libexecdir)/gpg-preset-passphrase" --preset "$keygrip"
           done
         env:
           GNUPGHOME: ${{ env.GNUPGHOME }}
@@ -79,7 +79,6 @@ jobs:
           path: |
             ./vcpkg/downloads
             ./vcpkg/packages
-            ./vcpkg/buildtrees
             ./vcpkg_installed
           key: ${{ runner.os }}-vcpkg-v2-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json') }}
           restore-keys: |
@@ -175,7 +174,6 @@ jobs:
           compression-level: 0
 
       - name: Cleanup GPG home
-        if: always()
         run: |
           rm -rf "$GNUPGHOME"
         env:

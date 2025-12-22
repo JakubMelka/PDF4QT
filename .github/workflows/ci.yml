@@ -13,6 +13,8 @@ jobs:
     env:
       VCPKG_OVERLAY_PORTS: ${{ github.workspace }}/pdf4qt/vcpkg/overlays/linux:${{ github.workspace }}/pdf4qt/vcpkg/overlays/general
       VCPKG_INSTALLED_DIR: ${{ github.workspace }}/vcpkg_installed
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/vcpkg/binary-cache
 
     steps:
       - name: Checkout repository
@@ -31,8 +33,6 @@ jobs:
           cd vcpkg
           ./bootstrap-vcpkg.sh
           ./vcpkg integrate install
-          echo "VCPKG_ROOT=${{ github.workspace }}/vcpkg" >> $GITHUB_ENV
-          echo "VCPKG_DEFAULT_BINARY_CACHE=${{ github.workspace }}/vcpkg/binary-cache" >> $GITHUB_ENV
         
       - name: 'VCPKG: Cache vcpkg dependencies'
         uses: actions/cache@v4
@@ -40,7 +40,6 @@ jobs:
           path: |
             ./vcpkg/downloads
             ./vcpkg/packages
-            ./vcpkg/buildtrees
             ./vcpkg_installed
           key: ${{ runner.os }}-vcpkg-v2-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json') }}
           restore-keys: |
@@ -48,7 +47,7 @@ jobs:
 
       - name: 'VCPKG: Install project dependencies'
         run: |
-          ./vcpkg install --x-manifest-root=${{ github.workspace }}/pdf4qt --x-install-root=${VCPKG_INSTALLED_DIR} --clean-buildtrees-after-build --clean-packages-after-build
+          ./vcpkg install --x-manifest-root=$GITHUB_WORKSPACE/pdf4qt --x-install-root=$VCPKG_INSTALLED_DIR --clean-buildtrees-after-build --clean-packages-after-build
         working-directory: vcpkg
         
       - name: Install Qt
@@ -87,6 +86,8 @@ jobs:
     env:
       VCPKG_OVERLAY_PORTS: ${{ github.workspace }}\pdf4qt\vcpkg\overlays\general
       VCPKG_INSTALLED_DIR: ${{ github.workspace }}\vcpkg_installed
+      VCPKG_ROOT: ${{ github.workspace }}\vcpkg
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}\vcpkg\binary-cache
 
     steps:
       - name: Checkout repository
@@ -101,8 +102,6 @@ jobs:
           cd vcpkg
           .\bootstrap-vcpkg.bat -disableMetrics
           .\vcpkg integrate install
-          Add-Content -Path $env:GITHUB_ENV -Value "VCPKG_ROOT=$($env:GITHUB_WORKSPACE)\vcpkg"
-          Add-Content -Path $env:GITHUB_ENV -Value "VCPKG_DEFAULT_BINARY_CACHE=$($env:GITHUB_WORKSPACE)\vcpkg\binary-cache"
 
       - name: 'VCPKG: Cache vcpkg dependencies'
         uses: actions/cache@v4
