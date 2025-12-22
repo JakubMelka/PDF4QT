@@ -6,6 +6,8 @@ on:
 jobs:
   build_ubuntu:
     runs-on: ubuntu-22.04
+    env:
+      VCPKG_OVERLAY_PORTS: ${{ github.workspace }}/pdf4qt/vcpkg/overlays/linux;${{ github.workspace }}/pdf4qt/vcpkg/overlays/general
 
     steps:
       - name: Install dependencies
@@ -100,7 +102,7 @@ jobs:
       - name: Build Project
         working-directory: pdf4qt
         run: |
-          cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_VCPKG_BUILD_TYPE=Release -DVCPKG_OVERLAY_PORTS=vcpkg/overlays -DPDF4QT_INSTALL_TO_USR=ON
+          cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_VCPKG_BUILD_TYPE=Release -DVCPKG_OVERLAY_PORTS="vcpkg/overlays/linux;vcpkg/overlays/general" -DPDF4QT_INSTALL_TO_USR=ON
           cmake --build build --target all release_translations -j6
           cmake --install build
           
