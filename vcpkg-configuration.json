@@ -1,5 +1,5 @@
 {
   "overlay-ports": [
-     "vcpkg/overlays"
+     "vcpkg/overlays/general"
   ]
 }
