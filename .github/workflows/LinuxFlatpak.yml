@@ -31,7 +31,17 @@ jobs:
           flatpak list
 
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+
+      - name: Cache Flatpak builder artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/flatpak-builder
+            ~/.var/cache/flatpak-builder
+          key: ${{ runner.os }}-flatpak-${{ hashFiles('Flatpak/*.json') }}
+          restore-keys: |
+            ${{ runner.os }}-flatpak-
 
       - name: Inject Git commit hash into Flatpak manifest
         run: |

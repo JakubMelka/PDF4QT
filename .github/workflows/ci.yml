@@ -12,6 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VCPKG_OVERLAY_PORTS: ${{ github.workspace }}/pdf4qt/vcpkg/overlays/linux:${{ github.workspace }}/pdf4qt/vcpkg/overlays/general
+      VCPKG_INSTALLED_DIR: ${{ github.workspace }}/vcpkg_installed
 
     steps:
       - name: Checkout repository
@@ -22,8 +23,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt update
-          sudo apt install -y libcups2 libcups2-dev
-          sudo apt install -y libfontconfig1-dev
+          sudo apt install -y libcups2 libcups2-dev libfontconfig1-dev
           
       - name: 'VCPKG: Set up VCPKG'
         run: |
@@ -31,6 +31,8 @@ jobs:
           cd vcpkg
           ./bootstrap-vcpkg.sh
           ./vcpkg integrate install
+          echo "VCPKG_ROOT=${{ github.workspace }}/vcpkg" >> $GITHUB_ENV
+          echo "VCPKG_DEFAULT_BINARY_CACHE=${{ github.workspace }}/vcpkg/binary-cache" >> $GITHUB_ENV
         
       - name: 'VCPKG: Cache vcpkg dependencies'
         uses: actions/cache@v4
@@ -38,13 +40,15 @@ jobs:
           path: |
             ./vcpkg/downloads
             ./vcpkg/packages
-          key: ${{ runner.os }}-vcpkg-v2-${{ hashFiles('**/vcpkg.json') }}
+            ./vcpkg/buildtrees
+            ./vcpkg_installed
+          key: ${{ runner.os }}-vcpkg-v2-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json') }}
           restore-keys: |
             ${{ runner.os }}-vcpkg-v2-
 
       - name: 'VCPKG: Install project dependencies'
         run: |
-          ./vcpkg install tbb openssl lcms zlib openjpeg freetype libjpeg-turbo libpng blend2d
+          ./vcpkg install --x-manifest-root=${{ github.workspace }}/pdf4qt --x-install-root=${VCPKG_INSTALLED_DIR} --clean-buildtrees-after-build --clean-packages-after-build
         working-directory: vcpkg
         
       - name: Install Qt
@@ -80,6 +84,9 @@ jobs:
 
   build_windows:
     runs-on: windows-latest
+    env:
+      VCPKG_OVERLAY_PORTS: ${{ github.workspace }}\pdf4qt\vcpkg\overlays\general
+      VCPKG_INSTALLED_DIR: ${{ github.workspace }}\vcpkg_installed
 
     steps:
       - name: Checkout repository
@@ -88,13 +95,14 @@ jobs:
           path: pdf4qt
 
       - name: 'VCPKG: Set up VCPKG'
+        shell: pwsh
         run: |
           git clone --depth=1 https://github.com/microsoft/vcpkg.git
           cd vcpkg
           .\bootstrap-vcpkg.bat -disableMetrics
           .\vcpkg integrate install
-          set VCPKG_ROOT=${env:GITHUB_WORKSPACE}\vcpkg\
-          set "VCPKG_BINARY_SOURCES=clear;files,${env:GITHUB_WORKSPACE}\vcpkg\archives,readwrite"
+          Add-Content -Path $env:GITHUB_ENV -Value "VCPKG_ROOT=$($env:GITHUB_WORKSPACE)\vcpkg"
+          Add-Content -Path $env:GITHUB_ENV -Value "VCPKG_DEFAULT_BINARY_CACHE=$($env:GITHUB_WORKSPACE)\vcpkg\binary-cache"
 
       - name: 'VCPKG: Cache vcpkg dependencies'
         uses: actions/cache@v4
@@ -104,12 +112,15 @@ jobs:
             ./vcpkg/packages
             ./vcpkg/installed
             ./vcpkg/archives
-          key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/vcpkg.json') }}
+          key: ${{ runner.os }}-vcpkg-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json') }}
+          restore-keys: |
+            ${{ runner.os }}-vcpkg-
 
 
       - name: 'VCPKG: Install project dependencies'
         run: |
-          .\vcpkg install tbb openssl lcms zlib openjpeg freetype libjpeg-turbo libpng blend2d --triplet x64-windows
+          $manifestRoot = Join-Path $env:GITHUB_WORKSPACE 'pdf4qt'
+          .\vcpkg install --triplet x64-windows --x-manifest-root=$manifestRoot --x-install-root=$env:VCPKG_INSTALLED_DIR --clean-buildtrees-after-build --clean-packages-after-build
         working-directory: vcpkg
         
       - name: Install Qt
@@ -130,7 +141,6 @@ jobs:
         shell: pwsh
         run: |
           cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_VCPKG_BUILD_TYPE=Release -DPDF4QT_INSTALL_QT_DEPENDENCIES=ON -DPDF4QT_INSTALL_DEPENDENCIES=ON -DCMAKE_TOOLCHAIN_FILE="${env:GITHUB_WORKSPACE}\vcpkg\scripts\buildsystems\vcpkg.cmake" -DPDF4QT_QT_ROOT="${env:Qt6_DIR}" -DPDF4QT_INSTALL_MSVC_REDISTRIBUTABLE=ON -DPDF4QT_INSTALL_PREPARE_WIX_INSTALLER=ON -DPDF4QT_INSTALL_TO_USR=ON 
-          cmake --build build --target help
           cmake --build build --target release_translations --config Release -j6
           cmake --build build --config Release -j6
           cmake --install build --config Release
