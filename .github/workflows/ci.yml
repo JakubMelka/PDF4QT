@@ -21,6 +21,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: pdf4qt
+
+      - name: Prepare vcpkg directories
+        run: |
+          mkdir -p "$VCPKG_ROOT"
+          mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
           
       - name: Install Dependencies
         run: |
@@ -94,6 +99,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: pdf4qt
+
+      - name: Prepare vcpkg directories
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_ROOT | Out-Null
+          New-Item -ItemType Directory -Force -Path $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
 
       - name: 'VCPKG: Set up VCPKG'
         shell: pwsh
