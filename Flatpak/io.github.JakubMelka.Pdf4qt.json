@@ -94,7 +94,7 @@
                 {
                     "type": "git",
                     "url": "https://github.com/asmjit/asmjit.git",
-                    "commit": "7bed2b0e1427fab185eea2da8ab4b9fb5b1f45a9"
+                    "commit": "c87860217e43e2a06060fcaae5b468f6a55b9963"
                 }
             ]
         },
@@ -109,7 +109,7 @@
                 {
                     "type": "git",
                     "url": "https://github.com/blend2d/blend2d.git",
-                    "commit": "7eb92c2946fb35c23c09dbdc6e98d835679d7f82"
+                    "commit": "6dbc2cefbc996379e07104e34519a440b49b15d7"
                 }
             ]
         },

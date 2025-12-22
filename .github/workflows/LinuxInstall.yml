@@ -6,39 +6,44 @@ on:
 jobs:
   build_ubuntu:
     runs-on: ubuntu-22.04
+    env:
+      VCPKG_OVERLAY_PORTS: ${{ github.workspace }}/pdf4qt/vcpkg/overlays/linux:${{ github.workspace }}/pdf4qt/vcpkg/overlays/general
+      VCPKG_INSTALLED_DIR: ${{ github.workspace }}/vcpkg_installed
+      GNUPGHOME: ${{ github.workspace }}/gnupg
 
     steps:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libxcb-cursor0 libfuse2
-          sudo apt-get install -y libspeechd2
-          sudo apt-get install -y gnupg2 wget
-          sudo apt-get install -y appstream
-          sudo apt-get install -y libcups2 libcups2-dev
+          sudo apt-get install -y libxcb-cursor0 libfuse2 libspeechd2 gnupg2 wget appstream libcups2 libcups2-dev
           wget -c "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
           chmod +x appimagetool-x86_64.AppImage
           sudo mv appimagetool-x86_64.AppImage /usr/local/bin/appimagetool
+
+      - name: Prepare GPG home
+        run: |
+          rm -rf "$GNUPGHOME"
+          install -d -m 700 "$GNUPGHOME"
           
       - name: Configure GPG
         run: |
-          mkdir -p ~/.gnupg
-          echo "use-agent" >> ~/.gnupg/gpg.conf
-          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
-          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
-          echo "allow-preset-passphrase" >> ~/.gnupg/gpg-agent.conf
+          echo "use-agent" >> "$GNUPGHOME/gpg.conf"
+          echo "pinentry-mode loopback" >> "$GNUPGHOME/gpg.conf"
+          echo "allow-loopback-pinentry" >> "$GNUPGHOME/gpg-agent.conf"
+          echo "allow-preset-passphrase" >> "$GNUPGHOME/gpg-agent.conf"
           gpgconf --kill gpg-agent
           echo "GPG configuration complete."
-          chmod 700 ~/.gnupg
+        env:
+          GNUPGHOME: ${{ env.GNUPGHOME }}
 
       - name: Import PGP private key
         run: |
           echo "${{ secrets.PGP_PRIVATE_KEY }}" | gpg --batch --import
           for keygrip in $(gpg --list-secret-keys --with-keygrip "${{ secrets.PGP_KEY_ID }}" | grep Keygrip | awk '{print $3}'); do
-            echo "${{ secrets.PGP_PASSPHRASE }}" | "$(gpgconf --list-dirs libexecdir)"/gpg-preset-passphrase --preset $keygrip
+            echo "${{ secrets.PGP_PASSPHRASE }}" | "$(gpgconf --list-dirs libexecdir)/gpg-preset-passphrase" --preset "$keygrip"
           done
         env:
-          GNUPGHOME: /home/runner/.gnupg    
+          GNUPGHOME: ${{ env.GNUPGHOME }}
           
       - name: Create Test signature
         run: |
@@ -46,23 +51,21 @@ jobs:
           echo "TEST" >> ~/test_without_passphrase.txt
           gpg --batch --yes --verbose --passphrase "${{ secrets.PGP_PASSPHRASE }}" --pinentry-mode loopback --detach-sign --local-user "${{ secrets.PGP_KEY_ID }}" --output ~/test_with_passphrase.txt.sig ~/test_with_passphrase.txt
           gpg --batch --yes --verbose --pinentry-mode loopback --detach-sign --local-user "${{ secrets.PGP_KEY_ID }}" --output ~/test_without_passphrase.txt.sig ~/test_without_passphrase.txt
+        env:
+          GNUPGHOME: ${{ env.GNUPGHOME }}
 
       - name: Verify Test signature
         run: |
           gpg --batch --yes --verbose --verify ~/test_with_passphrase.txt.sig ~/test_with_passphrase.txt
           gpg --batch --yes --verbose --verify ~/test_without_passphrase.txt.sig ~/test_without_passphrase.txt
+        env:
+          GNUPGHOME: ${{ env.GNUPGHOME }}
           
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           path: pdf4qt
           
-      - name: Set up GCC
-        uses: egor-tensin/setup-gcc@v1
-        with:
-          version: 11
-          platform: x64
-
       - name: 'VCPKG: Set up VCPKG'
         run: |
           git clone --depth=1 https://github.com/microsoft/vcpkg.git
@@ -76,17 +79,18 @@ jobs:
           path: |
             ./vcpkg/downloads
             ./vcpkg/packages
-          key: ${{ runner.os }}-vcpkg-v2-${{ hashFiles('**/vcpkg.json') }}
+            ./vcpkg_installed
+          key: ${{ runner.os }}-vcpkg-v2-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json') }}
           restore-keys: |
             ${{ runner.os }}-vcpkg-v2-
 
       - name: 'VCPKG: Install Project Dependencies'
         run: |
-          ./vcpkg install tbb openssl lcms zlib openjpeg freetype libjpeg-turbo libpng blend2d brotli bzip2 --triplet x64-linux-release
+          ./vcpkg install --triplet x64-linux-release --x-manifest-root=${{ github.workspace }}/pdf4qt --x-install-root=$VCPKG_INSTALLED_DIR --clean-buildtrees-after-build --clean-packages-after-build
         working-directory: vcpkg
         
       - name: Install Qt
-        uses: jurplel/install-qt-action@v3
+        uses: jurplel/install-qt-action@v4
         with:
           version: '6.9.0'
           host: 'linux'
@@ -100,7 +104,7 @@ jobs:
       - name: Build Project
         working-directory: pdf4qt
         run: |
-          cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_VCPKG_BUILD_TYPE=Release -DVCPKG_OVERLAY_PORTS=vcpkg/overlays -DPDF4QT_INSTALL_TO_USR=ON
+          cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_VCPKG_BUILD_TYPE=Release -DPDF4QT_INSTALL_TO_USR=ON
           cmake --build build --target all release_translations -j6
           cmake --install build
           
@@ -127,15 +131,21 @@ jobs:
         working-directory: pdf4qt/build
         run: |
           appimagetool -u "${{ env.appimage_update_info }}" -s --sign-key "${{ secrets.PGP_KEY_ID }}" install/ ${{ env.appimagefilename }}
+        env:
+          GNUPGHOME: ${{ env.GNUPGHOME }}
           
       - name: Manual signature
         run: |
           gpg --batch --yes --verbose --pinentry-mode loopback --detach-sign --passphrase "${{ secrets.PGP_PASSPHRASE }}" --local-user "${{ secrets.PGP_KEY_ID }}" --output pdf4qt/build/${{ env.appimagefilename }}.sig pdf4qt/build/${{ env.appimagefilename }}
+        env:
+          GNUPGHOME: ${{ env.GNUPGHOME }}
 
       - name: Verify AppImage Detached Signature
         run: |
           echo "${{ secrets.PGP_PUBLIC_KEY }}" | gpg --batch --import
           gpg --verify pdf4qt/build/${{ env.appimagefilename }}.sig pdf4qt/build/${{ env.appimagefilename }}
+        env:
+          GNUPGHOME: ${{ env.GNUPGHOME }}
 
       - name: Upload AppImage Package
         uses: actions/upload-artifact@v4
@@ -162,3 +172,9 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
           compression-level: 0
+
+      - name: Cleanup GPG home
+        run: |
+          rm -rf "$GNUPGHOME"
+        env:
+          GNUPGHOME: ${{ env.GNUPGHOME }}
