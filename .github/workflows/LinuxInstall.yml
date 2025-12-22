@@ -7,7 +7,7 @@ jobs:
   build_ubuntu:
     runs-on: ubuntu-22.04
     env:
-      VCPKG_OVERLAY_PORTS: ${{ github.workspace }}/pdf4qt/vcpkg/overlays/linux;${{ github.workspace }}/pdf4qt/vcpkg/overlays/general
+      VCPKG_OVERLAY_PORTS: ${{ github.workspace }}/pdf4qt/vcpkg/overlays/linux:${{ github.workspace }}/pdf4qt/vcpkg/overlays/general
 
     steps:
       - name: Install dependencies
