@@ -547,6 +547,7 @@ void PDFDrawWidget::wheelEvent(QWheelEvent* event)
     }
 
     Qt::KeyboardModifiers keyboardModifiers = QApplication::keyboardModifiers();
+    const bool shiftModifier = keyboardModifiers.testFlag(Qt::ShiftModifier);
 
     PDFDrawWidgetProxy* proxy = m_widget->getDrawWidgetProxy();
     if (keyboardModifiers.testFlag(Qt::ControlModifier))
@@ -563,10 +564,27 @@ void PDFDrawWidget::wheelEvent(QWheelEvent* event)
         // Move Up/Down. Angle is negative, if wheel is scrolled down. First we try to scroll by pixel delta.
         // Otherwise we compute scroll using angle.
         QPoint scrollByPixels = event->pixelDelta();
+        if (!scrollByPixels.isNull() && shiftModifier)
+        {
+            if (scrollByPixels.x() == 0)
+            {
+                scrollByPixels.setX(scrollByPixels.y());
+            }
+            scrollByPixels.setY(0);
+        }
+
         if (scrollByPixels.isNull())
         {
-            const QPoint angleDelta = event->angleDelta();
-            const bool shiftModifier = keyboardModifiers.testFlag(Qt::ShiftModifier);
+            QPoint angleDelta = event->angleDelta();
+            if (shiftModifier)
+            {
+                if (angleDelta.x() == 0)
+                {
+                    angleDelta.setX(angleDelta.y());
+                }
+                angleDelta.setY(0);
+            }
+
             int stepVertical = 0;
             int stepHorizontal = shiftModifier ? m_widget->getHorizontalScrollbar()->pageStep() : m_widget->getHorizontalScrollbar()->singleStep();
 
