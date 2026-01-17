@@ -237,7 +237,7 @@ protected:
     virtual void performInterceptInstruction(Operator currentOperator, ProcessOrder processOrder, const QByteArray& operatorAsText) override;
     virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule) override;
     virtual bool isContentKindSuppressed(ContentKind kind) const override;
-    virtual bool performOriginalImagePainting(const PDFImage& image, const PDFStream* stream) override;
+    virtual bool performOriginalImagePainting(const PDFImage& image, const PDFStream* stream, PDFObjectReference reference) override;
     virtual void performImagePainting(const QImage& image) override;
     virtual void performClipping(const QPainterPath& path, Qt::FillRule fillRule) override;
     virtual void performSaveGraphicState(ProcessOrder order) override;

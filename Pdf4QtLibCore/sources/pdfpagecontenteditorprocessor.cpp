@@ -138,9 +138,9 @@ void PDFPageContentEditorProcessor::performProcessTextSequence(const TextSequenc
     }
 }
 
-bool PDFPageContentEditorProcessor::performOriginalImagePainting(const PDFImage& image, const PDFStream* stream)
+bool PDFPageContentEditorProcessor::performOriginalImagePainting(const PDFImage& image, const PDFStream* stream, PDFObjectReference reference)
 {
-    BaseClass::performOriginalImagePainting(image, stream);
+    BaseClass::performOriginalImagePainting(image, stream, reference);
 
     PDFObject imageObject = PDFObject::createStream(std::make_shared<PDFStream>(*stream));
     m_content.addContentImage(*getGraphicState(), std::move(imageObject), QImage());
