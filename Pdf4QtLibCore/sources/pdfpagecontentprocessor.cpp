@@ -396,10 +396,11 @@ void PDFPageContentProcessor::performClipping(const QPainterPath& path, Qt::Fill
     Q_UNUSED(fillRule);
 }
 
-bool PDFPageContentProcessor::performOriginalImagePainting(const PDFImage& image, const PDFStream* stream)
+bool PDFPageContentProcessor::performOriginalImagePainting(const PDFImage& image, const PDFStream* stream, PDFObjectReference reference)
 {
     Q_UNUSED(image);
     Q_UNUSED(stream);
+    Q_UNUSED(reference);
     return false;
 }
 
@@ -692,7 +693,7 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
 
                         QByteArray buffer = content.mid(startDataPosition, dataLength);
                         PDFStream imageStream(std::move(*dictionary), std::move(buffer));
-                        paintXObjectImage(&imageStream);
+                        paintXObjectImage(&imageStream, PDFObjectReference());
                     }
                     else
                     {
@@ -2983,7 +2984,7 @@ void PDFPageContentProcessor::operatorShadingPaintShape(PDFPageContentProcessor:
     processPathPainting(boundingRectPath, false, true, false, boundingRectPath.fillRule());
 }
 
-void PDFPageContentProcessor::paintXObjectImage(const PDFStream* stream)
+void PDFPageContentProcessor::paintXObjectImage(const PDFStream* stream, PDFObjectReference reference)
 {
     if (isContentKindSuppressed(ContentKind::Images))
     {
@@ -3009,7 +3010,7 @@ void PDFPageContentProcessor::paintXObjectImage(const PDFStream* stream)
 
     PDFImage pdfImage = PDFImage::createImage(m_document, stream, qMove(colorSpace), false, m_graphicState.getRenderingIntent(), this);
 
-    if (!performOriginalImagePainting(pdfImage, stream))
+    if (!performOriginalImagePainting(pdfImage, stream, reference))
     {
         QImage image = pdfImage.getImage(m_CMS, this, m_operationControl);
 
@@ -3085,7 +3086,14 @@ void PDFPageContentProcessor::operatorPaintXObject(PDFOperandName name)
 
     if (m_xobjectDictionary)
     {
-        const PDFObject& object = m_document->getObject(m_xobjectDictionary->get(name.name));
+        const PDFObject& entry = m_xobjectDictionary->get(name.name);
+        PDFObjectReference reference;
+        if (entry.isReference())
+        {
+            reference = entry.getReference();
+        }
+
+        const PDFObject& object = m_document->getObject(entry);
         if (object.isStream())
         {
             const PDFStream* stream = object.getStream();
@@ -3112,7 +3120,7 @@ void PDFPageContentProcessor::operatorPaintXObject(PDFOperandName name)
             QByteArray subtype = loader.readNameFromDictionary(streamDictionary, "Subtype");
             if (subtype == "Image")
             {
-                paintXObjectImage(stream);
+                paintXObjectImage(stream, reference);
             }
             else if (subtype == "Form")
             {
