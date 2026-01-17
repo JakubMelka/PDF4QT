@@ -39,9 +39,70 @@
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QStyleOptionButton>
+#include <QDrag>
+#include <QMimeData>
+#include <QDataStream>
 
 namespace pdf
 {
+
+namespace
+{
+constexpr quint32 kAnnotationDragMagic = 0x5044414E; // "PDAN"
+constexpr quint32 kAnnotationDragVersion = 1;
+const char* kAnnotationDragMimeType = "application/x-pdf4qt-annotation";
+
+struct AnnotationDragPayload
+{
+    PDFObjectReference annotationReference;
+    PDFObjectReference pageReference;
+    QRectF rect;
+    QPointF cursorOffset;
+};
+
+QByteArray serializePayload(const AnnotationDragPayload& payload)
+{
+    QByteArray data;
+    QDataStream stream(&data, QIODevice::WriteOnly);
+    stream.setVersion(QDataStream::Qt_6_0);
+    stream << kAnnotationDragMagic << kAnnotationDragVersion;
+    stream << qint32(payload.annotationReference.objectNumber) << qint32(payload.annotationReference.generation);
+    stream << qint32(payload.pageReference.objectNumber) << qint32(payload.pageReference.generation);
+    stream << payload.rect << payload.cursorOffset;
+    return data;
+}
+
+bool deserializePayload(const QMimeData* data, AnnotationDragPayload& payload)
+{
+    if (!data || !data->hasFormat(kAnnotationDragMimeType))
+    {
+        return false;
+    }
+
+    QByteArray raw = data->data(kAnnotationDragMimeType);
+    QDataStream stream(&raw, QIODevice::ReadOnly);
+    stream.setVersion(QDataStream::Qt_6_0);
+
+    quint32 magic = 0;
+    quint32 version = 0;
+    stream >> magic >> version;
+    if (magic != kAnnotationDragMagic || version != kAnnotationDragVersion)
+    {
+        return false;
+    }
+
+    qint32 annotObj = 0;
+    qint32 annotGen = 0;
+    qint32 pageObj = 0;
+    qint32 pageGen = 0;
+    stream >> annotObj >> annotGen >> pageObj >> pageGen;
+    stream >> payload.rect >> payload.cursorOffset;
+
+    payload.annotationReference = PDFObjectReference(annotObj, annotGen);
+    payload.pageReference = PDFObjectReference(pageObj, pageGen);
+    return payload.annotationReference.isValid() && payload.pageReference.isValid();
+}
+}
 
 PDFWidgetAnnotationManager::PDFWidgetAnnotationManager(PDFDrawWidgetProxy* proxy, QObject* parent) :
     BaseClass(proxy->getFontCache(), proxy->getCMSManager(), proxy->getOptionalContentActivity(), proxy->getMeshQualitySettings(), proxy->getFeatures(), Target::View, parent),
@@ -90,6 +151,21 @@ void PDFWidgetAnnotationManager::mousePressEvent(QWidget* widget, QMouseEvent* e
     Q_UNUSED(widget);
 
     updateFromMouseEvent(event);
+
+    if (event->button() == Qt::LeftButton)
+    {
+        if (beginAnnotationDrag(event))
+        {
+            event->accept();
+            return;
+        }
+
+        if (getLinkActionAtPosition(event->pos()))
+        {
+            event->accept();
+            return;
+        }
+    }
 
     // Show context menu?
     if (event->button() == Qt::RightButton)
@@ -165,7 +241,178 @@ void PDFWidgetAnnotationManager::showAnnotationMenu(PDFObjectReference annotatio
 void PDFWidgetAnnotationManager::mouseDoubleClickEvent(QWidget* widget, QMouseEvent* event)
 {
     Q_UNUSED(widget);
-    Q_UNUSED(event);
+
+    if (m_dragState.isActive)
+    {
+        return;
+    }
+
+    updateFromMouseEvent(event);
+
+    PDFWidget* pdfWidget = m_proxy->getWidget();
+    PDFWidgetSnapshot snapshot = m_proxy->getSnapshot();
+
+    for (const PDFWidgetSnapshot::SnapshotItem& snapshotItem : snapshot.items)
+    {
+        PageAnnotations& pageAnnotations = getPageAnnotations(snapshotItem.pageIndex);
+        for (PageAnnotation& pageAnnotation : pageAnnotations.annotations)
+        {
+            if (!pageAnnotation.isHovered || pageAnnotation.annotation->isReplyTo())
+            {
+                continue;
+            }
+
+            const PDFMarkupAnnotation* markupAnnotation = pageAnnotation.annotation->asMarkupAnnotation();
+            if (!markupAnnotation)
+            {
+                continue;
+            }
+
+            QDialog* dialog = createDialogForMarkupAnnotations(pdfWidget, pageAnnotation, pageAnnotations);
+
+            if (const PageAnnotation* popupAnnotation = pageAnnotations.getPopupAnnotation(pageAnnotation))
+            {
+                QPoint popupPoint = snapshotItem.pageToDeviceMatrix.map(popupAnnotation->annotation->getRectangle().bottomLeft()).toPoint();
+                popupPoint = pdfWidget->mapToGlobal(popupPoint);
+                dialog->move(popupPoint);
+            }
+            else if (markupAnnotation->getRectangle().isValid())
+            {
+                QPoint popupPoint = snapshotItem.pageToDeviceMatrix.map(markupAnnotation->getRectangle().bottomRight()).toPoint();
+                popupPoint = pdfWidget->mapToGlobal(popupPoint);
+                dialog->move(popupPoint);
+            }
+
+            dialog->exec();
+            return;
+        }
+    }
+}
+
+bool PDFWidgetAnnotationManager::canAcceptAnnotationDrag(const QMimeData* data) const
+{
+    AnnotationDragPayload payload;
+    if (!deserializePayload(data, payload))
+    {
+        return false;
+    }
+
+    if (!m_document)
+    {
+        return false;
+    }
+
+    PDFAnnotationPtr annotation = PDFAnnotation::parse(&m_document->getStorage(), payload.annotationReference);
+    if (!annotation)
+    {
+        return false;
+    }
+
+    return annotation->getType() != AnnotationType::Link;
+}
+
+bool PDFWidgetAnnotationManager::handleAnnotationDrop(const QMimeData* data, const QPoint& widgetPos, Qt::DropAction action)
+{
+    AnnotationDragPayload payload;
+    if (!deserializePayload(data, payload))
+    {
+        return false;
+    }
+
+    if (!m_document)
+    {
+        return false;
+    }
+
+    PDFAnnotationPtr annotation = PDFAnnotation::parse(&m_document->getStorage(), payload.annotationReference);
+    if (!annotation || annotation->getType() == AnnotationType::Link)
+    {
+        return false;
+    }
+
+    QPointF pagePoint;
+    const PDFInteger pageIndex = m_proxy->getPageUnderPoint(widgetPos, &pagePoint);
+    if (pageIndex < 0)
+    {
+        return false;
+    }
+
+    const PDFObjectReference targetPageReference = m_document->getCatalog()->getPage(pageIndex)->getPageReference();
+    if (!targetPageReference.isValid())
+    {
+        return false;
+    }
+
+    const QPointF newTopLeft = pagePoint - payload.cursorOffset;
+    const QPointF delta = newTopLeft - payload.rect.topLeft();
+
+    PDFDocumentModifier modifier(m_document);
+    modifier.markAnnotationsChanged();
+    PDFDocumentBuilder* builder = modifier.getBuilder();
+
+    PDFObjectReference targetAnnotation = payload.annotationReference;
+    if (action == Qt::CopyAction)
+    {
+        targetAnnotation = copyAnnotationToPage(builder, targetPageReference, payload.annotationReference);
+    }
+    else if (targetPageReference != payload.pageReference)
+    {
+        builder->removeAnnotation(payload.pageReference, payload.annotationReference);
+
+        PDFObjectFactory pageFactory;
+        pageFactory.beginDictionary();
+        pageFactory.beginDictionaryItem("P");
+        pageFactory << targetPageReference;
+        pageFactory.endDictionaryItem();
+        pageFactory.endDictionary();
+        builder->mergeTo(payload.annotationReference, pageFactory.takeObject());
+
+        PDFObjectFactory annotsFactory;
+        annotsFactory.beginDictionary();
+        annotsFactory.beginDictionaryItem("Annots");
+        annotsFactory.beginArray();
+        annotsFactory << payload.annotationReference;
+        annotsFactory.endArray();
+        annotsFactory.endDictionaryItem();
+        annotsFactory.endDictionary();
+        builder->appendTo(targetPageReference, annotsFactory.takeObject());
+    }
+
+    if (!targetAnnotation.isValid())
+    {
+        return false;
+    }
+
+    if (qFuzzyIsNull(delta.x()) && qFuzzyIsNull(delta.y()) && action != Qt::CopyAction && targetPageReference == payload.pageReference)
+    {
+        return false;
+    }
+
+    if (translateAnnotation(builder, targetAnnotation, delta))
+    {
+        builder->updateAnnotationAppearanceStreams(targetAnnotation);
+    }
+
+    if (action != Qt::CopyAction)
+    {
+        const PDFObject& annotationObject = m_document->getObjectByReference(payload.annotationReference);
+        const PDFDictionary* annotationDictionary = m_document->getDictionaryFromObject(annotationObject);
+        if (annotationDictionary)
+        {
+            PDFObject popupObject = annotationDictionary->get("Popup");
+            if (popupObject.isReference())
+            {
+                translateAnnotation(builder, popupObject.getReference(), delta);
+            }
+        }
+    }
+
+    if (modifier.finalize())
+    {
+        Q_EMIT documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+    }
+
+    return true;
 }
 
 void PDFWidgetAnnotationManager::mouseReleaseEvent(QWidget* widget, QMouseEvent* event)
@@ -173,6 +420,21 @@ void PDFWidgetAnnotationManager::mouseReleaseEvent(QWidget* widget, QMouseEvent*
     Q_UNUSED(widget);
 
     updateFromMouseEvent(event);
+
+    if (event->button() == Qt::LeftButton)
+    {
+        if (m_dragState.isActive)
+        {
+            m_dragState = DragState();
+        }
+
+        if (const PDFAction* linkAction = getLinkActionAtPosition(event->pos()))
+        {
+            Q_EMIT actionTriggered(linkAction);
+            event->accept();
+            return;
+        }
+    }
 }
 
 void PDFWidgetAnnotationManager::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
@@ -180,6 +442,28 @@ void PDFWidgetAnnotationManager::mouseMoveEvent(QWidget* widget, QMouseEvent* ev
     Q_UNUSED(widget);
 
     updateFromMouseEvent(event);
+
+    if (m_dragState.isActive)
+    {
+        m_dragState.isCopy = event->modifiers().testFlag(Qt::ControlModifier);
+
+        if (!m_dragState.isDragging)
+        {
+            const int distance = (event->pos() - m_dragState.startDevicePos).manhattanLength();
+            if (distance >= QApplication::startDragDistance())
+            {
+                m_dragState.isDragging = true;
+                startAnnotationDrag(event);
+                event->accept();
+                return;
+            }
+        }
+
+        if (m_dragState.isDragging)
+        {
+            m_cursor = QCursor(m_dragState.isCopy ? Qt::DragCopyCursor : Qt::ClosedHandCursor);
+        }
+    }
 }
 
 void PDFWidgetAnnotationManager::wheelEvent(QWidget* widget, QWheelEvent* event)
@@ -257,7 +541,6 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
                     }
                 }
 
-                const PDFAction* linkAction = nullptr;
                 const AnnotationType annotationType = pageAnnotation.annotation->getType();
                 if (annotationType == AnnotationType::Link)
                 {
@@ -270,7 +553,6 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
                     if (activationPath.contains(event->pos()) && linkAnnotation->getAction())
                     {
                         m_cursor = QCursor(Qt::PointingHandCursor);
-                        linkAction = linkAnnotation->getAction();
                     }
                 }
                 if (annotationType == AnnotationType::Widget)
@@ -285,37 +567,6 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
                     }
                 }
 
-                // Generate popup window
-                if (event->type() == QEvent::MouseButtonPress && event->button() == Qt::LeftButton)
-                {
-                    const PDFMarkupAnnotation* markupAnnotation = pageAnnotation.annotation->asMarkupAnnotation();
-                    if (markupAnnotation)
-                    {
-                        QDialog* dialog = createDialogForMarkupAnnotations(widget, pageAnnotation, pageAnnotations);
-
-                        // Set proper dialog position - according to the popup annotation. If we
-                        // do not have popup annotation, then try to use annotations rectangle.
-                        if (const PageAnnotation* popupAnnotation = pageAnnotations.getPopupAnnotation(pageAnnotation))
-                        {
-                            QPoint popupPoint = snapshotItem.pageToDeviceMatrix.map(popupAnnotation->annotation->getRectangle().bottomLeft()).toPoint();
-                            popupPoint = widget->mapToGlobal(popupPoint);
-                            dialog->move(popupPoint);
-                        }
-                        else if (markupAnnotation->getRectangle().isValid())
-                        {
-                            QPoint popupPoint = snapshotItem.pageToDeviceMatrix.map(markupAnnotation->getRectangle().bottomRight()).toPoint();
-                            popupPoint = widget->mapToGlobal(popupPoint);
-                            dialog->move(popupPoint);
-                        }
-
-                        dialog->exec();
-                    }
-
-                    if (linkAction)
-                    {
-                        Q_EMIT actionTriggered(linkAction);
-                    }
-                }
             }
             else
             {
@@ -338,6 +589,243 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
     {
         Q_EMIT widget->getDrawWidgetProxy()->repaintNeeded();
     }
+}
+
+bool PDFWidgetAnnotationManager::beginAnnotationDrag(QMouseEvent* event)
+{
+    if (!m_document)
+    {
+        return false;
+    }
+
+    m_dragState = DragState();
+    m_dragState.isCopy = event->modifiers().testFlag(Qt::ControlModifier);
+
+    PDFWidgetSnapshot snapshot = m_proxy->getSnapshot();
+
+    for (const PDFWidgetSnapshot::SnapshotItem& snapshotItem : snapshot.items)
+    {
+        PageAnnotations& pageAnnotations = getPageAnnotations(snapshotItem.pageIndex);
+        for (PageAnnotation& pageAnnotation : pageAnnotations.annotations)
+        {
+            if (!pageAnnotation.isHovered || pageAnnotation.annotation->isReplyTo())
+            {
+                continue;
+            }
+
+            if (!PDFAnnotation::isTypeEditable(pageAnnotation.annotation->getType()))
+            {
+                continue;
+            }
+
+            if (pageAnnotation.annotation->getType() == AnnotationType::Link)
+            {
+                continue;
+            }
+
+            const PDFAnnotation::Flags flags = pageAnnotation.annotation->getEffectiveFlags();
+            if (flags.testFlag(PDFAnnotation::Locked) || flags.testFlag(PDFAnnotation::ReadOnly))
+            {
+                continue;
+            }
+
+            m_dragState.isActive = true;
+            m_dragState.startDevicePos = event->pos();
+            m_dragState.pageIndex = snapshotItem.pageIndex;
+            m_dragState.pageToDevice = snapshotItem.pageToDeviceMatrix;
+            bool invertible = false;
+            m_dragState.deviceToPage = snapshotItem.pageToDeviceMatrix.inverted(&invertible);
+            if (!invertible)
+            {
+                m_dragState = DragState();
+                return false;
+            }
+            m_dragState.annotationReference = pageAnnotation.annotation->getSelfReference();
+            m_dragState.pageReference = pageAnnotation.annotation->getPageReference();
+
+            if (!m_dragState.pageReference.isValid())
+            {
+                m_dragState.pageReference = m_document->getCatalog()->getPage(snapshotItem.pageIndex)->getPageReference();
+            }
+
+            m_dragState.originalRect = pageAnnotation.annotation->getRectangle();
+            if (!m_dragState.originalRect.isValid())
+            {
+                m_dragState = DragState();
+                return false;
+            }
+
+            QPointF pagePoint = m_dragState.deviceToPage.map(event->pos());
+            m_dragState.cursorOffset = pagePoint - m_dragState.originalRect.topLeft();
+
+            const PDFObject& annotationObject = m_document->getObjectByReference(m_dragState.annotationReference);
+            const PDFDictionary* annotationDictionary = m_document->getDictionaryFromObject(annotationObject);
+            PDFDocumentDataLoaderDecorator loader(m_document);
+            if (annotationDictionary)
+            {
+                m_dragState.originalQuadPoints = loader.readNumberArrayFromDictionary(annotationDictionary, "QuadPoints");
+                PDFObject popupObject = annotationDictionary->get("Popup");
+                if (popupObject.isReference())
+                {
+                    m_dragState.popupReference = popupObject.getReference();
+                }
+            }
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void PDFWidgetAnnotationManager::startAnnotationDrag(QMouseEvent* event)
+{
+    if (!m_dragState.isActive || !event)
+    {
+        return;
+    }
+
+    AnnotationDragPayload payload;
+    payload.annotationReference = m_dragState.annotationReference;
+    payload.pageReference = m_dragState.pageReference;
+    payload.rect = m_dragState.originalRect;
+    payload.cursorOffset = m_dragState.cursorOffset;
+
+    QMimeData* mimeData = new QMimeData();
+    mimeData->setData(kAnnotationDragMimeType, serializePayload(payload));
+
+    QDrag* drag = new QDrag(m_proxy->getWidget()->getDrawWidget()->getWidget());
+    drag->setMimeData(mimeData);
+
+    const Qt::DropAction defaultAction = m_dragState.isCopy ? Qt::CopyAction : Qt::MoveAction;
+    drag->exec(Qt::CopyAction | Qt::MoveAction, defaultAction);
+
+    m_dragState = DragState();
+}
+
+const PDFAction* PDFWidgetAnnotationManager::getLinkActionAtPosition(QPoint widgetPos) const
+{
+    PDFWidgetSnapshot snapshot = m_proxy->getSnapshot();
+    for (const PDFWidgetSnapshot::SnapshotItem& snapshotItem : snapshot.items)
+    {
+        const PageAnnotations& pageAnnotations = getPageAnnotations(snapshotItem.pageIndex);
+        for (const PageAnnotation& pageAnnotation : pageAnnotations.annotations)
+        {
+            if (!pageAnnotation.isHovered)
+            {
+                continue;
+            }
+
+            if (pageAnnotation.annotation->getType() != AnnotationType::Link)
+            {
+                continue;
+            }
+
+            const PDFLinkAnnotation* linkAnnotation = dynamic_cast<const PDFLinkAnnotation*>(pageAnnotation.annotation.data());
+            if (!linkAnnotation || !linkAnnotation->getAction())
+            {
+                continue;
+            }
+
+            QPainterPath activationPath = linkAnnotation->getActivationRegion().getPath();
+            activationPath = snapshotItem.pageToDeviceMatrix.map(activationPath);
+            if (activationPath.contains(widgetPos))
+            {
+                return linkAnnotation->getAction();
+            }
+        }
+    }
+
+    return nullptr;
+}
+
+bool PDFWidgetAnnotationManager::translateAnnotation(PDFDocumentBuilder* builder,
+                                                     PDFObjectReference annotationReference,
+                                                     const QPointF& delta)
+{
+    if (!builder || !annotationReference.isValid())
+    {
+        return false;
+    }
+
+    const PDFObjectStorage* storage = builder->getStorage();
+    const PDFObject& annotationObject = storage->getObjectByReference(annotationReference);
+    const PDFDictionary* annotationDictionary = storage->getDictionaryFromObject(annotationObject);
+    if (!annotationDictionary)
+    {
+        return false;
+    }
+
+    PDFDocumentDataLoaderDecorator loader(storage);
+    QRectF rect = loader.readRectangle(annotationDictionary->get("Rect"), QRectF());
+    if (!rect.isValid())
+    {
+        return false;
+    }
+
+    QRectF translatedRect = rect.translated(delta);
+    PDFDictionary dictionaryCopy = *annotationDictionary;
+
+    PDFObjectFactory rectFactory;
+    rectFactory << translatedRect;
+    dictionaryCopy.setEntry(PDFInplaceOrMemoryString("Rect"), rectFactory.takeObject());
+
+    if (annotationDictionary->hasKey("QuadPoints"))
+    {
+        std::vector<PDFReal> quadPoints = loader.readNumberArrayFromDictionary(annotationDictionary, "QuadPoints");
+        if (quadPoints.size() % 2 == 0)
+        {
+            for (size_t i = 0; i < quadPoints.size(); i += 2)
+            {
+                quadPoints[i] += delta.x();
+                quadPoints[i + 1] += delta.y();
+            }
+
+            PDFObjectFactory quadFactory;
+            quadFactory << quadPoints;
+            dictionaryCopy.setEntry(PDFInplaceOrMemoryString("QuadPoints"), quadFactory.takeObject());
+        }
+    }
+
+    builder->setObject(annotationReference, PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(dictionaryCopy))));
+    return true;
+}
+
+PDFObjectReference PDFWidgetAnnotationManager::copyAnnotationToPage(PDFDocumentBuilder* builder,
+                                                                    PDFObjectReference pageReference,
+                                                                    PDFObjectReference annotationReference)
+{
+    if (!builder || !pageReference.isValid() || !annotationReference.isValid())
+    {
+        return PDFObjectReference();
+    }
+
+    PDFObjectReference copiedAnnotation = builder->addObject(builder->getObjectByReference(annotationReference));
+
+    PDFObjectFactory factory;
+    factory.beginDictionary();
+    factory.beginDictionaryItem("P");
+    factory << pageReference;
+    factory.endDictionaryItem();
+    factory.beginDictionaryItem("Popup");
+    factory << PDFObject();
+    factory.endDictionaryItem();
+    factory.beginDictionaryItem("IRT");
+    factory << PDFObject();
+    factory.endDictionaryItem();
+    factory.endDictionary();
+    builder->mergeTo(copiedAnnotation, factory.takeObject());
+
+    factory.beginDictionary();
+    factory.beginDictionaryItem("Annots");
+    factory.beginArray();
+    factory << copiedAnnotation;
+    factory.endArray();
+    factory.endDictionaryItem();
+    factory.endDictionary();
+    builder->appendTo(pageReference, factory.takeObject());
+
+    return copiedAnnotation;
 }
 
 void PDFWidgetAnnotationManager::onShowPopupAnnotation()

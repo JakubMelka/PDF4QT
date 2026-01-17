@@ -36,6 +36,9 @@
 #include <QApplication>
 #include <QPixmapCache>
 #include <QColorSpace>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
 
 #include "pdfdbgheap.h"
 
@@ -238,6 +241,7 @@ PDFDrawWidget::PDFDrawWidget(PDFWidget* widget, QWidget* parent) :
 {
     this->setFocusPolicy(Qt::StrongFocus);
     this->setMouseTracking(true);
+    this->setAcceptDrops(true);
 
     QObject::connect(&m_autoScrollTimer, &QTimer::timeout, this, &PDFDrawWidget::onAutoScrollTimeout);
 }
@@ -464,6 +468,48 @@ void PDFDrawWidget::mouseMoveEvent(QMouseEvent* event)
     performMouseOperation(event->pos());
     updateCursor();
     event->accept();
+}
+
+void PDFDrawWidget::dragEnterEvent(QDragEnterEvent* event)
+{
+    event->ignore();
+
+    PDFWidgetAnnotationManager* annotationManager = m_widget->getAnnotationManager();
+    if (annotationManager && annotationManager->canAcceptAnnotationDrag(event->mimeData()))
+    {
+        const Qt::DropAction action = event->keyboardModifiers().testFlag(Qt::ControlModifier) ? Qt::CopyAction : Qt::MoveAction;
+        event->setDropAction(action);
+        event->accept();
+    }
+}
+
+void PDFDrawWidget::dragMoveEvent(QDragMoveEvent* event)
+{
+    event->ignore();
+
+    PDFWidgetAnnotationManager* annotationManager = m_widget->getAnnotationManager();
+    if (annotationManager && annotationManager->canAcceptAnnotationDrag(event->mimeData()))
+    {
+        const Qt::DropAction action = event->keyboardModifiers().testFlag(Qt::ControlModifier) ? Qt::CopyAction : Qt::MoveAction;
+        event->setDropAction(action);
+        event->accept();
+    }
+}
+
+void PDFDrawWidget::dropEvent(QDropEvent* event)
+{
+    event->ignore();
+
+    PDFWidgetAnnotationManager* annotationManager = m_widget->getAnnotationManager();
+    if (annotationManager && annotationManager->canAcceptAnnotationDrag(event->mimeData()))
+    {
+        const Qt::DropAction action = event->keyboardModifiers().testFlag(Qt::ControlModifier) ? Qt::CopyAction : Qt::MoveAction;
+        if (annotationManager->handleAnnotationDrop(event->mimeData(), event->position().toPoint(), action))
+        {
+            event->setDropAction(action);
+            event->accept();
+        }
+    }
 }
 
 void PDFDrawWidget::updateCursor()
