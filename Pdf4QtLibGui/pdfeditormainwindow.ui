@@ -165,6 +165,7 @@
     <addaction name="actionOptimize"/>
     <addaction name="separator"/>
     <addaction name="actionSanitize"/>
+    <addaction name="actionRemoveExternalLinks"/>
     <addaction name="actionCreateBitonalDocument"/>
    </widget>
    <widget class="QMenu" name="menuInsert">
@@ -1053,6 +1054,14 @@
    </property>
    <property name="toolTip">
     <string>Sanitize document to remove sensitive information.</string>
+   </property>
+  </action>
+  <action name="actionRemoveExternalLinks">
+   <property name="text">
+    <string>Remove External &amp;Links</string>
+   </property>
+   <property name="toolTip">
+    <string>Remove all external link annotations from the document.</string>
    </property>
   </action>
   <action name="actionAutomaticDocumentRefresh">

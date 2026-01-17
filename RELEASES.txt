@@ -2,6 +2,7 @@ CURRENT:
  - Issue #341: Embed AppImage update information 
  - Issue #339: (zh_TW)Traditional Chinese Translation File 
  - Issue #333: ijg-libjpeg obsoleted in vcpkg 
+ - Issue #329: How to remove "External links"
  - Issue #269: Nested Bookmarks loses children when moving. 
  - Issue #179: Signature: Adding .jpg or .png image crashes PDF4QT
  - Issue #146: Incorrect fonts displayed on Linux

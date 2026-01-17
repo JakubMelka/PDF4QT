@@ -44,6 +44,8 @@ add_executable(PdfTool
     pdftoolinkcoverage.cpp 
     pdftooloptimize.cpp 
     pdftoolrender.cpp 
+    pdftoolremoveexternallinks.cpp
+    pdftoolremoveexternallinks.h
     pdftoolseparate.cpp 
     pdftoolstatistics.cpp 
     pdftoolunite.cpp 

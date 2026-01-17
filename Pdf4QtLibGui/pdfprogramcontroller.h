@@ -118,6 +118,7 @@ public:
         RenderToImages,
         Optimize,
         Sanitize,
+        RemoveExternalLinks,
         CreateBitonalDocument,
         Encryption,
         FitPage,
@@ -361,6 +362,7 @@ private:
     void onActionRenderToImagesTriggered();
     void onActionOptimizeTriggered();
     void onActionSanitizeTriggered();
+    void onActionRemoveExternalLinksTriggered();
     void onActionCreateBitonalDocumentTriggered();
     void onActionEncryptionTriggered();
     void onActionFitPageTriggered();

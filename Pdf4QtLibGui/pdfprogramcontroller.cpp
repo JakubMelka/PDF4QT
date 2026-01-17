@@ -514,6 +514,10 @@ void PDFProgramController::initialize(Features features,
     {
         connect(action, &QAction::triggered, this, &PDFProgramController::onActionSanitizeTriggered);
     }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::RemoveExternalLinks))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionRemoveExternalLinksTriggered);
+    }
     if (QAction* action = m_actionManager->getAction(PDFActionManager::CreateBitonalDocument))
     {
         connect(action, &QAction::triggered, this, &PDFProgramController::onActionCreateBitonalDocumentTriggered);
@@ -1373,6 +1377,67 @@ void PDFProgramController::onActionSanitizeTriggered()
     }
 }
 
+void PDFProgramController::onActionRemoveExternalLinksTriggered()
+{
+    if (!m_pdfDocument)
+    {
+        return;
+    }
+
+    pdf::PDFDocumentModifier modifier(m_pdfDocument.data());
+    pdf::PDFDocumentBuilder* builder = modifier.getBuilder();
+    builder->flattenPageTree();
+
+    const pdf::PDFObjectStorage* storage = builder->getStorage();
+    pdf::PDFDocumentDataLoaderDecorator loader(storage);
+
+    std::vector<std::pair<pdf::PDFObjectReference, pdf::PDFObjectReference>> annotationsToRemove;
+    std::vector<pdf::PDFObjectReference> pageReferences = builder->getPages();
+
+    for (const pdf::PDFObjectReference pageReference : pageReferences)
+    {
+        const pdf::PDFObject& pageObject = storage->getObjectByReference(pageReference);
+        const pdf::PDFDictionary* pageDictionary = storage->getDictionaryFromObject(pageObject);
+        if (!pageDictionary)
+        {
+            continue;
+        }
+
+        std::vector<pdf::PDFObjectReference> annotationReferences = loader.readReferenceArrayFromDictionary(pageDictionary, "Annots");
+        for (const pdf::PDFObjectReference& annotationReference : annotationReferences)
+        {
+            pdf::PDFAnnotationPtr annotation = pdf::PDFAnnotation::parse(storage, annotationReference);
+            if (pdf::PDFAnnotation::isExternalLinkAnnotation(annotation.data()))
+            {
+                annotationsToRemove.emplace_back(pageReference, annotationReference);
+            }
+        }
+    }
+
+    if (annotationsToRemove.empty())
+    {
+        QMessageBox::information(m_mainWindow, QApplication::applicationDisplayName(), tr("No external link annotations found."));
+        m_mainWindowInterface->setStatusBarMessage(tr("No external link annotations found."), 4000);
+        return;
+    }
+
+    for (const auto& item : annotationsToRemove)
+    {
+        builder->removeAnnotation(item.first, item.second);
+    }
+    modifier.markAnnotationsChanged();
+
+    if (modifier.finalize())
+    {
+        pdf::PDFModifiedDocument document(modifier.getDocument(), m_optionalContentActivity, modifier.getFlags());
+        onDocumentModified(qMove(document));
+    }
+
+    QMessageBox::information(m_mainWindow, QApplication::applicationDisplayName(),
+                             tr("External link annotations removed: %1.").arg(annotationsToRemove.size()));
+    m_mainWindowInterface->setStatusBarMessage(tr("External link annotations removed: %1.").arg(annotationsToRemove.size()), 4000);
+}
+
 void PDFProgramController::onActionCreateBitonalDocumentTriggered()
 {
     auto cms = m_CMSManager->getCurrentCMS();
@@ -1709,6 +1774,7 @@ void PDFProgramController::updateActionsAvailability()
     m_actionManager->setEnabled(PDFActionManager::RenderToImages, hasValidDocument && canPrint);
     m_actionManager->setEnabled(PDFActionManager::Optimize, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::Sanitize, hasValidDocument);
+    m_actionManager->setEnabled(PDFActionManager::RemoveExternalLinks, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::CreateBitonalDocument, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::Encryption, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::Save, hasValidDocument);
