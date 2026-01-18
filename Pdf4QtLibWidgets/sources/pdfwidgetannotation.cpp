@@ -30,7 +30,10 @@
 #include "pdfdocumentbuilder.h"
 
 #include <algorithm>
+#include <QImage>
 #include <QMenu>
+#include <QPainter>
+#include <QPixmap>
 #include <QDialog>
 #include <QApplication>
 #include <QMouseEvent>
@@ -763,6 +766,16 @@ bool PDFWidgetAnnotationManager::beginAnnotationDrag(QMouseEvent* event)
                 }
             }
 
+            const PDFPage* page = m_document->getCatalog()->getPage(snapshotItem.pageIndex);
+            if (page)
+            {
+                m_dragState.dragPixmap = createAnnotationDragPixmap(pageAnnotation,
+                                                                    snapshotItem.pageToDeviceMatrix,
+                                                                    page,
+                                                                    m_dragState.cursorOffset,
+                                                                    m_dragState.dragHotSpot);
+            }
+
             return true;
         }
     }
@@ -788,12 +801,106 @@ void PDFWidgetAnnotationManager::startAnnotationDrag(QMouseEvent* event)
 
     QDrag* drag = new QDrag(m_proxy->getWidget()->getDrawWidget()->getWidget());
     drag->setMimeData(mimeData);
+    if (!m_dragState.dragPixmap.isNull())
+    {
+        drag->setPixmap(m_dragState.dragPixmap);
+        drag->setHotSpot(m_dragState.dragHotSpot);
+    }
 
     const Qt::DropAction defaultAction = m_dragState.isCopy ? Qt::CopyAction : Qt::MoveAction;
     m_suppressLinkActivationOnRelease = true;
     drag->exec(Qt::CopyAction | Qt::MoveAction, defaultAction);
 
     m_dragState = DragState();
+}
+
+QPixmap PDFWidgetAnnotationManager::createAnnotationDragPixmap(const PageAnnotation& pageAnnotation,
+                                                               const QTransform& pagePointToDevicePointMatrix,
+                                                               const PDFPage* page,
+                                                               const QPointF& cursorOffset,
+                                                               QPoint& hotSpot) const
+{
+    hotSpot = QPoint();
+
+    if (!page || !pageAnnotation.annotation)
+    {
+        return QPixmap();
+    }
+
+    QRectF annotationRect = pageAnnotation.annotation->getRectangle();
+    QWidget* deviceWidget = m_proxy->getWidget()->getDrawWidget()->getWidget();
+    if (!deviceWidget)
+    {
+        return QPixmap();
+    }
+
+    QRectF deviceRectF = pagePointToDevicePointMatrix.mapRect(annotationRect).normalized();
+    if (deviceRectF.isEmpty())
+    {
+        return QPixmap();
+    }
+
+    QRect deviceRect = deviceRectF.toAlignedRect();
+    if (deviceRect.isEmpty())
+    {
+        return QPixmap();
+    }
+    const int minSize = 12;
+    if (deviceRect.width() < minSize || deviceRect.height() < minSize)
+    {
+        const QPoint center = deviceRect.center();
+        const int width = std::max(deviceRect.width(), minSize);
+        const int height = std::max(deviceRect.height(), minSize);
+        deviceRect = QRect(center.x() - width / 2, center.y() - height / 2, width, height);
+    }
+
+    const qreal dpr = deviceWidget->devicePixelRatioF();
+    const QSize imageSize = (QSizeF(deviceRect.size()) * dpr).toSize();
+    if (imageSize.isEmpty())
+    {
+        return QPixmap();
+    }
+
+    QImage image(imageSize, QImage::Format_ARGB32_Premultiplied);
+    image.setDevicePixelRatio(dpr);
+    image.fill(Qt::transparent);
+    const int dpmX = qRound(deviceWidget->logicalDpiX() / 0.0254);
+    const int dpmY = qRound(deviceWidget->logicalDpiY() / 0.0254);
+    if (dpmX > 0 && dpmY > 0)
+    {
+        image.setDotsPerMeterX(dpmX);
+        image.setDotsPerMeterY(dpmY);
+    }
+
+    QPainter painter(&image);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setOpacity(0.6);
+
+    painter.save();
+    painter.setOpacity(1.0);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(90, 160, 255, 80));
+    painter.drawRect(QRect(QPoint(0, 0), deviceRect.size()));
+    painter.restore();
+
+    painter.save();
+    painter.setOpacity(1.0);
+    painter.setPen(QPen(QColor(40, 110, 220, 180), 1.0));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRect(QRect(QPoint(0, 0), deviceRect.size()));
+    painter.restore();
+
+    const QPointF cursorPoint = annotationRect.topLeft() + cursorOffset;
+    const QPointF cursorDevicePoint = pagePointToDevicePointMatrix.map(cursorPoint);
+    QPoint computedHotSpot = cursorDevicePoint.toPoint() - deviceRect.topLeft();
+    if (computedHotSpot.x() < 0 || computedHotSpot.y() < 0 ||
+        computedHotSpot.x() >= deviceRect.width() || computedHotSpot.y() >= deviceRect.height())
+    {
+        computedHotSpot = QPoint(deviceRect.width() / 2, deviceRect.height() / 2);
+    }
+    hotSpot = computedHotSpot;
+
+    return QPixmap::fromImage(image);
 }
 
 const PDFAction* PDFWidgetAnnotationManager::getLinkActionAtPosition(QPoint widgetPos) const

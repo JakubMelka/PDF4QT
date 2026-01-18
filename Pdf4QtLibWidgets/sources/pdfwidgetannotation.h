@@ -27,6 +27,8 @@
 #include "pdfannotation.h"
 #include "pdfdocumentdrawinterface.h"
 
+#include <QPixmap>
+
 class QMimeData;
 
 namespace pdf
@@ -89,6 +91,11 @@ private:
     void updateFromMouseEvent(QMouseEvent* event);
     bool beginAnnotationDrag(QMouseEvent* event);
     void startAnnotationDrag(QMouseEvent* event);
+    QPixmap createAnnotationDragPixmap(const PageAnnotation& pageAnnotation,
+                                       const QTransform& pagePointToDevicePointMatrix,
+                                       const PDFPage* page,
+                                       const QPointF& cursorOffset,
+                                       QPoint& hotSpot) const;
     const PDFAction* getLinkActionAtPosition(QPoint widgetPos) const;
     bool translateAnnotation(PDFDocumentBuilder* builder, PDFObjectReference annotationReference, const QPointF& delta);
     PDFObjectReference copyAnnotationToPage(PDFDocumentBuilder* builder,
@@ -141,6 +148,8 @@ private:
         QRectF originalRect;
         std::vector<PDFReal> originalQuadPoints;
         QPointF cursorOffset;
+        QPixmap dragPixmap;
+        QPoint dragHotSpot;
     };
     DragState m_dragState;
 };
