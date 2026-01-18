@@ -987,6 +987,23 @@ bool PDFWidgetAnnotationManager::translateAnnotation(PDFDocumentBuilder* builder
         }
     }
 
+    if (annotationDictionary->hasKey("Vertices"))
+    {
+        std::vector<PDFReal> vertices = loader.readNumberArrayFromDictionary(annotationDictionary, "Vertices");
+        if (vertices.size() % 2 == 0)
+        {
+            for (size_t i = 0; i < vertices.size(); i += 2)
+            {
+                vertices[i] += delta.x();
+                vertices[i + 1] += delta.y();
+            }
+
+            PDFObjectFactory verticesFactory;
+            verticesFactory << vertices;
+            dictionaryCopy.setEntry(PDFInplaceOrMemoryString("Vertices"), verticesFactory.takeObject());
+        }
+    }
+
     builder->setObject(annotationReference, PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(dictionaryCopy))));
     return true;
 }
