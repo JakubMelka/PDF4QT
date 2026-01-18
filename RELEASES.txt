@@ -1,4 +1,6 @@
 CURRENT:
+
+V: 1.5.3.0 18.1.2026
  - Issue #341: Embed AppImage update information 
  - Issue #339: (zh_TW)Traditional Chinese Translation File 
  - Issue #333: ijg-libjpeg obsoleted in vcpkg 
@@ -8,7 +10,7 @@ CURRENT:
  - Issue #146: Incorrect fonts displayed on Linux
  - Issue #144: Text notes - drag and drop annotations
 
-V: 1.5.2.0 27.4.2025
+V: 1.5.2.0 20.9.2025
  - Issue #313: Remove history UX improvement
  - Issue #310: Docpage organiser uses PDF title rather than filename
  - Issue #306: Unable to delete the recent files history. 
