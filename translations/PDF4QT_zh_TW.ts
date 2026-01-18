@@ -1565,7 +1565,7 @@
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="133"/>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="778"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="779"/>
         <source>&amp;Help</source>
         <translation>幫助(&amp;H)</translation>
     </message>
@@ -1580,658 +1580,668 @@
         <translation>編輯(&amp;E)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="172"/>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="786"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="173"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="787"/>
         <source>&amp;Insert</source>
         <translation>插入(&amp;I)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="176"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="177"/>
         <source>Sticky &amp;Note</source>
         <translation>便籤(&amp;N)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="188"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="189"/>
         <source>&amp;Stamp</source>
         <translation>印章(&amp;S)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="193"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="194"/>
         <source>Text Hi&amp;ghlight</source>
         <translation>文本高亮(&amp;G)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="239"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="240"/>
         <source>&amp;Open...</source>
         <translation>打開(&amp;O)...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="248"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="249"/>
         <source>&amp;Close</source>
         <translation>關閉(&amp;C)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="257"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="258"/>
         <source>&amp;Quit</source>
         <translation>退出(&amp;Q)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="265"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="266"/>
         <source>&amp;Single Page</source>
         <translation>一頁(&amp;S)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="268"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="269"/>
         <source>Single Page</source>
         <translation>一頁</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="271"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="272"/>
         <source>Ctrl+1</source>
         <translation>Ctrl+1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="279"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="280"/>
         <source>&amp;Continuous</source>
         <translation>連續(&amp;C)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="282"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="283"/>
         <source>Continuous</source>
         <translation>連續</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="285"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="286"/>
         <source>Ctrl+2</source>
         <translation>Ctrl+2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="293"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="294"/>
         <source>Two &amp;Pages</source>
         <translation>二頁(&amp;P)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="296"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="297"/>
         <source>Two Pages</source>
         <translation>二頁</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="299"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="300"/>
         <source>Ctrl+3</source>
         <translation>Ctrl+3</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="307"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="308"/>
         <source>&amp;Two columns</source>
         <translation>二列(&amp;T)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="310"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="311"/>
         <source>Two columns</source>
         <translation>二列</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="313"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="314"/>
         <source>Ctrl+4</source>
         <translation>Ctrl+4</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="321"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="322"/>
         <source>&amp;First page on right side</source>
         <translation>右側第一頁(&amp;F)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="324"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="325"/>
         <source>First page on right side</source>
         <translation>右側第一頁</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="327"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="328"/>
         <source>Ctrl+5</source>
         <translation>Ctrl+5</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="336"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="337"/>
         <source>&amp;Rendering Errors...</source>
         <translation>渲染錯誤(&amp;R)...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="339"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="340"/>
         <source>Ctrl+E</source>
         <translation>Ctrl+E</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="347"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="348"/>
         <source>&amp;Antialiasing</source>
         <translation>抗鋸齒(&amp;A)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="350"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="351"/>
         <source>Antialiasing</source>
         <translation>抗鋸齒</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="358"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="359"/>
         <source>&amp;Text Antialiasing</source>
         <translation>文本抗鋸齒(&amp;T)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="361"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="362"/>
         <source>Text Antialiasing</source>
         <translation>文本抗鋸齒</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="369"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="370"/>
         <source>&amp;Smooth Pictures</source>
         <translation>平滑圖像(&amp;S)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="372"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="373"/>
         <source>Smooth Pictures</source>
         <translation>圖像平滑</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="380"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="381"/>
         <source>&amp;Ignore Optional Content Settings</source>
         <translation>忽略選用內容設置(&amp;I)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="383"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="384"/>
         <source>Ignore Optional Content Settings</source>
         <translation>忽略選用內容設置</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="392"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="393"/>
         <source>&amp;Options...</source>
         <translation>選項(&amp;O)...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="395"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="396"/>
         <source>Ctrl+K</source>
         <translation>Ctrl+K</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="400"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="401"/>
         <source>Reset to &amp;Factory Settings</source>
         <translation>重置為預設值(&amp;F)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="409"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="410"/>
         <source>&amp;Zoom In</source>
         <translation>放大(&amp;Z)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="418"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="419"/>
         <source>Zoom &amp;Out</source>
         <translation>縮小(&amp;O)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="427"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="428"/>
         <source>&amp;About...</source>
         <translation>關於(&amp;A)...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="436"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="437"/>
         <source>Fit &amp;Page</source>
         <translation>適合頁面(&amp;P)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="445"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="446"/>
         <source>Fit &amp;Width</source>
         <translation>適合寬度(&amp;W)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="448"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="449"/>
         <source>W</source>
         <translation>W</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="457"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="458"/>
         <source>&amp;Fit Height</source>
         <translation>適合高度(&amp;H)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="460"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="461"/>
         <source>H</source>
         <translation>H</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="469"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="470"/>
         <source>Prope&amp;rties...</source>
         <translation>屬性(&amp;R)...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="478"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="479"/>
         <source>Send by &amp;E-Mail...</source>
         <translation>通過電子信件發送(&amp;E)...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="486"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="487"/>
         <source>Show Text &amp;Blocks</source>
         <translation>顯示文本塊(&amp;B)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="494"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="495"/>
         <source>Show Text &amp;Lines</source>
         <translation>顯示文本行(&amp;L)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="503"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="504"/>
         <source>&amp;Find</source>
         <translation>搜尋(&amp;F)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="512"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="513"/>
         <source>Fin&amp;d Previous</source>
         <translation>搜尋上一個(&amp;P)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="521"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="522"/>
         <source>Fi&amp;nd Next</source>
         <translation>搜尋下一個(&amp;N)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="533"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="534"/>
         <source>Select te&amp;xt</source>
         <translation>選取文本(&amp;X)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="545"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="546"/>
         <source>Select &amp;table</source>
         <translation>選取表格(&amp;T)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="554"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="555"/>
         <source>Select &amp;All</source>
         <translation>選取全部(&amp;A)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="563"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="564"/>
         <source>Dese&amp;lect</source>
         <translation>取消選擇(&amp;L)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="572"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="573"/>
         <source>&amp;Copy text</source>
         <translation>複製文本(&amp;C)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="584"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="585"/>
         <source>Color | &amp;Inverted</source>
         <translation>顏色 | 反色(&amp;I)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="596"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="597"/>
         <source>Color | &amp;Grayscale</source>
         <translation>顏色 | 灰度(&amp;G)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="608"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="609"/>
         <source>Color | &amp;High Contrast</source>
         <translation>顏色 | 高對比度(&amp;H)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="620"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="621"/>
         <source>Color | &amp;Monochromatic</source>
         <translation>顏色 | 黑白(&amp;M)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="632"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="633"/>
         <source>Color | &amp;Custom</source>
         <translation>顏色 | 定製(&amp;C)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="641"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="642"/>
         <source>Rotate &amp;Right</source>
         <translation>右旋(&amp;R)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="650"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="651"/>
         <source>Rotate &amp;Left</source>
         <translation>左旋(&amp;L)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="659"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="660"/>
         <source>&amp;Print...</source>
         <translation>列印(&amp;P)...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="664"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="665"/>
         <source>Render to &amp;Images...</source>
         <translation>渲染為圖像(&amp;I)...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="676"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="677"/>
         <source>&amp;Magnifier</source>
         <translation>放大鏡(&amp;M)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="679"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="680"/>
         <source>Magnifier Tool</source>
         <translation>放大鏡工具</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="691"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="692"/>
         <source>&amp;Screenshot</source>
         <translation>截圖(&amp;S)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="703"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="704"/>
         <source>&amp;Extract Image</source>
         <translation>提取圖像(&amp;E)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="711"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="712"/>
         <source>&amp;Display Annotations</source>
         <translation>顯示註釋(&amp;D)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="714"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="715"/>
         <source>Display Annotations</source>
         <translation>顯示註釋</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="723"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="724"/>
         <source>&amp;Undo</source>
         <translation>撤銷(&amp;U)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="732"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="733"/>
         <source>&amp;Redo</source>
         <translation>重做(&amp;R)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="741"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="742"/>
         <source>&amp;Optimize...</source>
         <translation>最佳化(&amp;O)...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="744"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="745"/>
         <source>Optimizes document to reduce file size.</source>
         <translation>最佳化文檔以減小文件。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="753"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="754"/>
         <source>Save &amp;As...</source>
         <translation>另存為(&amp;A)...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="762"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="763"/>
         <source>&amp;Save</source>
         <translation>保存(&amp;S)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="770"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="771"/>
         <source>&amp;Comment</source>
         <translation>評論(&amp;C)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="794"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="795"/>
         <source>&amp;Key</source>
         <translation>線索(&amp;K)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="802"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="803"/>
         <source>&amp;New Paragraph</source>
         <translation>新段落(&amp;N)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="810"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="811"/>
         <source>No&amp;te</source>
         <translation>備註(&amp;T)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="818"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="819"/>
         <source>&amp;Paragraph</source>
         <translation>段落(&amp;P)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="830"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="831"/>
         <source>&amp;Hyperlink</source>
         <translation>超連結(&amp;H)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="842"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="843"/>
         <source>&amp;Inline text</source>
         <translation>內聯文本(&amp;I)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="854"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="855"/>
         <source>Str&amp;aight Line</source>
         <translation>直線(&amp;A)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="866"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="867"/>
         <source>Pol&amp;yline</source>
         <translation>折線(&amp;Y)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="878"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="879"/>
         <source>&amp;Rectangle</source>
         <translation>矩形(&amp;R)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="890"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="891"/>
         <source>&amp;Polygon</source>
         <translation>多邊形(&amp;P)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="902"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="903"/>
         <source>&amp;Ellipse</source>
         <translation>橢圓(&amp;E)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="914"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="915"/>
         <source>&amp;Freehand Curve</source>
         <translation>曲線(&amp;F)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="926"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="927"/>
         <source>&amp;Highlight</source>
         <translation>高亮(&amp;H)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="938"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="939"/>
         <source>&amp;Underline</source>
         <translation>下劃線(&amp;U)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="950"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="951"/>
         <source>Stri&amp;keout</source>
         <translation>刪除線(&amp;K)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="962"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="963"/>
         <source>&amp;Squiggly</source>
         <translation>波浪線(&amp;S)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="971"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="972"/>
         <source>Go to document &amp;start</source>
         <translation>跳轉到文檔開始(&amp;S)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="980"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="981"/>
         <source>Go to document &amp;end</source>
         <translation>跳轉到文檔結尾(&amp;E)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="989"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="990"/>
         <source>Go to &amp;next page</source>
         <translation>跳轉到下一頁(&amp;N)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="998"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="999"/>
         <source>Go to &amp;previous page</source>
         <translation>跳轉到上一頁(&amp;P)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1007"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1008"/>
         <source>Go &amp;to next line</source>
         <translation>跳轉到下一行(&amp;T)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1016"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1017"/>
         <source>Go t&amp;o previous line</source>
         <translation>跳轉到下一行(&amp;O)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1025"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1026"/>
         <source>&amp;Get Source</source>
         <translation>獲取源碼(&amp;G)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1034"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1035"/>
         <source>&amp;Encryption...</source>
         <translation>加密(&amp;E)...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1043"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1044"/>
         <source>&amp;Certificates...</source>
         <translation>證書(&amp;C)...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1052"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1053"/>
         <source>&amp;Sanitize...</source>
         <translation>淨化(&amp;S)...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1055"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1056"/>
         <source>Sanitize document to remove sensitive information.</source>
         <translation>對文件進行淨化，移除敏感資訊。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1063"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1061"/>
+        <source>Remove External &amp;Links</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1064"/>
+        <source>Remove all external link annotations from the document.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1072"/>
         <source>Automatic &amp;Document Refresh</source>
         <translation>自動刷新文檔(&amp;D)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1066"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1075"/>
         <source>Automatically reloads the document if a change made by an external program is detected.</source>
         <translation>如果檢測到外部程序所做的更改，則自動重新加載文檔。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1075"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1084"/>
         <source>Become a &amp;Sponsor</source>
         <translation>成為贊助人(&amp;S)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1084"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1093"/>
         <source>Create &amp;Bitonal Document...</source>
         <translation>創建黑白文檔(&amp;B)...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1087"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1096"/>
         <source>Create Bitonal Document</source>
         <translation>創建黑白文檔</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1090"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1099"/>
         <source>Convert the colored images to monochromatic to create a bitonal document.</source>
         <translation>將彩色圖像轉換為單色，創建黑白文檔。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1099"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1108"/>
         <source>&amp;Bookmark Page</source>
         <translation>收藏頁面(&amp;B)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1102"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1111"/>
         <source>Bookmark Page</source>
         <translation>收藏頁面</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1105"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1114"/>
         <source>Bookmark page for fast navigation.</source>
         <translation>收藏頁面以快速導航。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1114"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1123"/>
         <source>&amp;Go to Next Bookmark</source>
         <translation>跳轉下一個書籤(&amp;G)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1117"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1126"/>
         <source>Go to Next Bookmark</source>
         <translation>跳轉下一個書籤</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1120"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1129"/>
         <source>Navigates to the next bookmarked page.</source>
         <translation>導航到下一個書籤頁。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1129"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1138"/>
         <source>Go to Previous Boo&amp;kmark</source>
         <translation>跳轉上一個書籤(&amp;K)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1132"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1141"/>
         <source>Go to Previous Bookmark</source>
         <translation>跳轉上一個書籤</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1135"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1144"/>
         <source>Navigates to the previous bookmarked page.</source>
         <translation>導航到上一個書籤頁。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1144"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1153"/>
         <source>&amp;Export Bookmarks</source>
         <translation>導出書籤(&amp;E)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1147"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1156"/>
         <source>Export Bookmarks</source>
         <translation>導出書籤</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1150"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1159"/>
         <source>Export bookmarks to the file.</source>
         <translation>導出書籤到文件。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1159"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1168"/>
         <source>&amp;Import Bookmarks</source>
         <translation>導入書籤(&amp;I)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1162"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1171"/>
         <source>Import Bookmarks</source>
         <translation>導入書籤</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1165"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1174"/>
         <source>Import bookmarks from the file.</source>
         <translation>從文檔導入書籤。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1177"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1186"/>
         <source>&amp;Generate Bookmarks Automatically</source>
         <translation>自動生成書籤(&amp;G)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1180"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1189"/>
         <source>Generate Bookmarks Automatically</source>
         <translation>自動生成書籤</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1183"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1192"/>
         <source>If checked, bookmarks for main document chapters are generated automatically.</source>
         <translation>如果選中，則會自動生成主要文檔章節的書籤。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1191"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1200"/>
         <source>Display &amp;Render Times</source>
         <translation>顯示渲染時間(&amp;R)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1194"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1203"/>
         <source>Display Render Times</source>
         <translation>顯示渲染時間</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1202"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1211"/>
         <source>Clear Recent File &amp;History</source>
         <translation>清除最近檔案紀錄(&amp;H)</translation>
     </message>
@@ -5138,6 +5148,41 @@
         <source>Failed to write redacted document. %1</source>
         <translation>寫入遮蔽後的文件失敗。%1</translation>
     </message>
+    <message>
+        <location filename="../PdfTool/pdftoolremoveexternallinks.cpp" line="110"/>
+        <source>Remove external links</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolremoveexternallinks.cpp" line="113"/>
+        <source>Remove all external link annotations from a document.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolremoveexternallinks.cpp" line="135"/>
+        <source>Remove External Links</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolremoveexternallinks.cpp" line="139"/>
+        <source>No external link annotations found.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolremoveexternallinks.cpp" line="145"/>
+        <source>External link annotations removed: %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolremoveexternallinks.cpp" line="151"/>
+        <source>Failed to create modified document.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolremoveexternallinks.cpp" line="159"/>
+        <source>Failed to write document. %1</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>PDFViewerMainWindow</name>
@@ -6493,7 +6538,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFAttachmentsTreeItemModel</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfitemmodels.cpp" line="871"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfitemmodels.cpp" line="917"/>
         <source>Files</source>
         <translation>文檔</translation>
     </message>
@@ -6794,130 +6839,136 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFDependentLibraryInfo</name>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="257"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="260"/>
         <source>Qt</source>
         <translation>Qt</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="258"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="261"/>
         <source>LGPLv3</source>
         <translation>LGPLv3</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="260"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="263"/>
         <source>https://www.qt.io/</source>
         <translation>https://www.qt.io/</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="265"/>
         <source>libjpeg</source>
-        <translation>libjpeg</translation>
+        <translation type="vanished">libjpeg</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="266"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="269"/>
         <source>permissive + ack.</source>
         <translation>允許+確認.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="267"/>
         <source>https://www.ijg.org/</source>
-        <translation>https://www.ijg.org</translation>
+        <translation type="vanished">https://www.ijg.org</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="269"/>
         <source>%1</source>
-        <translation>%1</translation>
+        <translation type="vanished">%1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="271"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="312"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="311"/>
         <source>%1.%2</source>
         <translation>%1.%2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="284"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="283"/>
         <source>FreeType</source>
         <translation>FreeType</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="285"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="268"/>
+        <source>libjpeg-turbo</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="270"/>
+        <source>https://libjpeg-turbo.org/</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="284"/>
         <source>FTL</source>
         <translation>FTL</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="286"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="285"/>
         <source>%1.%2.%3</source>
         <translation>%1.%2.%3</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="287"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="286"/>
         <source>https://www.freetype.org/index.html</source>
         <translation>https://www.freetype.org/index.html</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="292"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="291"/>
         <source>OpenJPEG</source>
         <translation>OpenJPEG</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="293"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="311"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="292"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="310"/>
         <source>2-clause MIT license</source>
         <translation>2-clause MIT license</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="295"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="294"/>
         <source>https://www.openjpeg.org/</source>
         <translation>https://www.openjpeg.org/</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="300"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="299"/>
         <source>OpenSSL</source>
         <translation>OpenSSL</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="301"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="300"/>
         <source>Apache 2.0</source>
         <translation>Apache 2.0</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="303"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="302"/>
         <source>https://www.openssl.org/</source>
         <translation>https://www.openssl.org/</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="310"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="309"/>
         <source>LittleCMS</source>
         <translation>LittleCMS</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="313"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="312"/>
         <source>http://www.littlecms.com/</source>
         <translation>http://www.littlecms.com/</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="318"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="317"/>
         <source>zlib</source>
         <translation>zlib</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="319"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="331"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="318"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="330"/>
         <source>zlib specific</source>
         <translation>zlib 專用</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="321"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="320"/>
         <source>https://zlib.net/</source>
         <translation>https://zlib.net/</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="330"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="329"/>
         <source>Blend2D</source>
         <translation>Blend2D</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="333"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="332"/>
         <source>https://blend2d.com/</source>
         <translation>https://blend2d.com/</translation>
     </message>
@@ -8177,7 +8228,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFOutlineTreeItemModel</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfitemmodels.cpp" line="679"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfitemmodels.cpp" line="692"/>
         <source>Item %1</source>
         <translation>項目 %1</translation>
     </message>
@@ -8770,142 +8821,142 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>回覆</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3012"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3033"/>
         <source>&amp;Approved</source>
         <translation>批准(&amp;A)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3013"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3034"/>
         <source>APPROVED</source>
         <translation>批准</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3017"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3038"/>
         <source>As &amp;Is</source>
         <translation type="unfinished">保持原狀(&amp;I)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3018"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3039"/>
         <source>AS IS</source>
         <translation>保持原狀</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3022"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3043"/>
         <source>&amp;Confidential</source>
         <translation>保密(&amp;C)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3023"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3044"/>
         <source>CONFIDENTIAL</source>
         <translation>保密</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3027"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3048"/>
         <source>&amp;Departmental</source>
         <translation>部門相關(&amp;D)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3028"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3049"/>
         <source>DEPARTMENTAL</source>
         <translation>部門相關</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3032"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3053"/>
         <source>Dra&amp;ft</source>
         <translation>草稿(&amp;F)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3033"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3054"/>
         <source>DRAFT</source>
         <translation>草稿</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3037"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3058"/>
         <source>&amp;Experimental</source>
         <translation>實驗性功能(&amp;E)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3038"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3059"/>
         <source>EXPERIMENTAL</source>
         <translation>實驗性功能</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3042"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3063"/>
         <source>E&amp;xpired</source>
         <translation>已過期(&amp;X)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3043"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3064"/>
         <source>EXPIRED</source>
         <translation>已過期</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3047"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3068"/>
         <source>Fina&amp;l</source>
         <translation>最終版(&amp;L)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3048"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3069"/>
         <source>FINAL</source>
         <translation>最終版</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3052"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3073"/>
         <source>For Co&amp;mment</source>
         <translation type="unfinished">待審核(&amp;m)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3053"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3074"/>
         <source>FOR COMMENT</source>
         <translation>待審核</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3057"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3078"/>
         <source>For P&amp;ublic Release</source>
         <translation>公開發布(&amp;U)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3058"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3079"/>
         <source>FOR PUBLIC RELEASE</source>
         <translation>公開發布</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3062"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3083"/>
         <source>Not A&amp;pproved</source>
         <translation>未批准(&amp;P)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3063"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3084"/>
         <source>NOT APPROVED</source>
         <translation>未批准</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3067"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3088"/>
         <source>N&amp;ot For Public Release</source>
         <translation>不可公開發布(&amp;O)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3068"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3089"/>
         <source>NOT FOR PUBLIC RELEASE</source>
         <translation>不可公開發布</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3072"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3093"/>
         <source>&amp;Sold</source>
         <translation>已售(&amp;S)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3073"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3094"/>
         <source>SOLD</source>
         <translation>已售</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3077"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3098"/>
         <source>&amp;Top Secret</source>
         <translation>絕密(&amp;T)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3078"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3099"/>
         <source>TOP SECRET</source>
         <translation>絕密</translation>
     </message>
@@ -8986,7 +9037,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfblendfunction.cpp" line="244"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1092"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1094"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="2758"/>
         <source>Unknown</source>
         <translation>未知</translation>
@@ -10150,14 +10201,14 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>無法獲取子流-緩衝區中剩餘 %1 比特。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="446"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="452"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="471"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="445"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="451"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="470"/>
         <source>Can&apos;t convert &apos;%1&apos; to a number.</source>
         <translation type="unfinished">無法將&apos;%1&apos;轉換為數字。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="458"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="457"/>
         <source>Closed interval [%1, %2] is invalid.</source>
         <translation>閉區間 [%1, %2] 無效。</translation>
     </message>
@@ -11017,357 +11068,357 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>堆棧包含的值多於輸出大小（剩餘 %1）（PostScript 函數）。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="435"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="455"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="437"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="457"/>
         <source>Inexact font substitution: font %1 replaced by %2 using font family %3.</source>
         <translation>字型替換不精確：字型 %1 被使用字型系列 %3 的 %2 替換。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="477"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="479"/>
         <source>Inexact font substitution: font %1 replaced by %2.</source>
         <translation>字型替換不精確：字型 %1 被 %2 替換。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="490"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="492"/>
         <source>FontConfig error building pattern for font %1</source>
         <translation>FontConfig 為字型 %1 構建模式時出錯</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="544"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="546"/>
         <source>Inexact font substitution: font %1 replaced by standard font Times New Roman.</source>
         <translation>字型替換不精確：字型 %1 被標準字型 Times New Roman 替換。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="632"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="634"/>
         <source>Fontconfig error</source>
         <translation>Fontconfig 錯誤</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="837"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="839"/>
         <source>Glyph for simple font character code &apos;%1&apos; not found.</source>
         <translation>未找到簡單字型字符代碼&apos;%1&apos;的字形。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="875"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="877"/>
         <source>Glyph for composite font character with cid &apos;%1&apos; not found.</source>
         <translation>未找到 cid 為&apos;%1&apos;的複合字型字符的字形。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1003"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1005"/>
         <source>Details</source>
         <translation>詳情</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1007"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1009"/>
         <source>Font</source>
         <translation>字型</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1011"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1013"/>
         <source>Style</source>
         <translation>樣式</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1014"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1016"/>
         <source>Yes</source>
         <translation>是</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1015"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1017"/>
         <source>No</source>
         <translation>不</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1017"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1019"/>
         <source>Glyph count</source>
         <translation>字形數量</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1018"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1020"/>
         <source>Is CID keyed</source>
         <translation>是否已輸入 CID</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1019"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1021"/>
         <source>Is bold</source>
         <translation>是粗體</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1020"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1022"/>
         <source>Is italics</source>
         <translation>是斜體</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1021"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1023"/>
         <source>Has vertical writing system</source>
         <translation>具有垂直書寫系統</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1022"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1024"/>
         <source>Has SFNT storage scheme</source>
         <translation>擁有SFNT存儲方案</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1023"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1025"/>
         <source>Has glyph names</source>
         <translation>有字形名稱</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1027"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2155"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1029"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2157"/>
         <source>Encoding</source>
         <translation>編碼</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1037"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1039"/>
         <source>None</source>
         <translation>無</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1041"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1043"/>
         <source>Unicode</source>
         <translation>Unicode</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1045"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1047"/>
         <source>MS Symbol</source>
         <translation>MS Symbol</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1049"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1051"/>
         <source>Japanese Shift JIS</source>
         <translation>日語 Shift JIS</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1053"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1055"/>
         <source>PRC - Simplified Chinese</source>
         <translation>簡體中文</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1057"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1059"/>
         <source>Traditional Chinese</source>
         <translation>繁體中文</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1061"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1063"/>
         <source>Korean Extended Wansung</source>
         <translation>韓語Extended Wansung</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1065"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1067"/>
         <source>Korean Standard</source>
         <translation>韓語 標準</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1069"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1071"/>
         <source>Adobe Standard</source>
         <translation>Adobe 標準</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1073"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1075"/>
         <source>Adobe Expert</source>
         <translation>Adobe 專家</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1076"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1078"/>
         <source>Adobe Custom</source>
         <translation>Adobe 定製</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1080"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1082"/>
         <source>Adobe Latin 1</source>
         <translation>Adobe Latin 1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1084"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1086"/>
         <source>Old Latin 1</source>
         <translation>Old Latin 1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1088"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1090"/>
         <source>Apple Roman</source>
         <translation>Apple Roman</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1096"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1098"/>
         <source>Platform/Encoding = %1 %2</source>
         <translation>平臺/編碼 = %1 %2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1187"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1189"/>
         <source>FreeType error code %1: %2</source>
         <translation>FreeType 錯誤代碼 %1: %2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1274"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1276"/>
         <source>Can&apos;t load system font &apos;%1&apos;.</source>
         <translation>無法加載系統字型 &apos;%1&apos;。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1381"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1383"/>
         <source>Invalid font encoding.</source>
         <translation>無效的字型編碼。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1417"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1419"/>
         <source>Font object must be a dictionary.</source>
         <translation>字型物件必須是詞典。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1435"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1437"/>
         <source>Invalid font type.</source>
         <translation>無效的字型類型。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1557"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1567"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1573"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1559"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1569"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1575"/>
         <source>Invalid differences in encoding entry of the font.</source>
         <translation>字型編碼條目中的無效差異。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1579"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1622"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1581"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1624"/>
         <source>Invalid encoding entry of the font.</source>
         <translation>字型的編碼條目無效。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1807"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1809"/>
         <source>Invalid CMAP in CID-keyed font.</source>
         <translation>CID 鍵控字型中的 CMAP 無效。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1813"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1825"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1815"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1827"/>
         <source>Invalid descendant font in CID-keyed font.</source>
         <translation>CID 鍵控字型中的後代字型無效。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1819"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1821"/>
         <source>Invalid number (%1) of descendant fonts in CID-keyed font - exactly one is required.</source>
         <translation>CID 鍵控字型中的後代字型數量（%1）無效 - 只需要一個。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1914"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1916"/>
         <source>Invalid Type 3 font matrix.</source>
         <translation>無效的 Type 3 字型矩陣。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1921"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1923"/>
         <source>Invalid Type 3 font character content streams.</source>
         <translation>無效的 Type 3 字型字符內容流。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1930"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1932"/>
         <source>Invalid Type 3 font character range (from %1 to %2).</source>
         <translation>Type 3 字型字符範圍無效（從 %1 到 %2）。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1936"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1943"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1938"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1945"/>
         <source>Invalid Type 3 font encoding.</source>
         <translation>無效的 Type 3 字型編碼。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1961"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1976"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1963"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1978"/>
         <source>Invalid differences in encoding entry of type 3 font.</source>
         <translation>類型 3 字型的編碼條目中的無效差異。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2113"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2115"/>
         <source>Standard</source>
         <translation>標準</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2117"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2119"/>
         <source>Mac Roman</source>
         <translation>Mac Roman</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2121"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2123"/>
         <source>Win Ansi</source>
         <translation>Win Ansi</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2125"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2127"/>
         <source>PDF Doc</source>
         <translation>PDF Doc</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2129"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2131"/>
         <source>Mac Expert</source>
         <translation>Mac Expert</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2133"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2213"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2135"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2215"/>
         <source>Symbol</source>
         <translation>Symbol</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2137"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2217"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2139"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2219"/>
         <source>Zapf Dingbats</source>
         <translation>Zapf Dingbats</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2141"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2143"/>
         <source>Mac OS Roman</source>
         <translation>Mac OS Roman</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2145"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2147"/>
         <source>Custom</source>
         <translation>自定義</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2195"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2197"/>
         <source>Times Roman</source>
         <translation>Times Roman</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2202"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2204"/>
         <source>Helvetica</source>
         <translation>Helvetica</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2209"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2211"/>
         <source>Courier</source>
         <translation>Courier</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2225"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2227"/>
         <source>Standard font</source>
         <translation>標準字型</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2379"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2381"/>
         <source>Can&apos;t load CID font mapping named &apos;%1&apos;.</source>
         <translation>無法加載名為&apos;%1&apos;的 CID 字型映射。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2418"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2420"/>
         <source>Can&apos;t fetch code from CMap definition.</source>
         <translation>無法從 CMap 定義中擷取代碼。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2428"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2430"/>
         <source>Can&apos;t fetch CID from CMap definition.</source>
         <translation>無法從 CMap 定義中擷取 CID。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2462"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2464"/>
         <source>Can&apos;t use cmap inside cmap file.</source>
         <translation>無法在 cmap 文件中使用 cmap。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2873"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2875"/>
         <source>Character count</source>
         <translation>字符數</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2921"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2923"/>
         <source>Content stream for type 3 font character code &apos;%1&apos; not found.</source>
         <translation>未找到類型 3 字型字符代碼&apos;%1&apos;的內容流。</translation>
     </message>
@@ -11447,74 +11498,73 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>每個組件的位數無效 (%1)。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="614"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="651"/>
         <source>Invalid XML text.</source>
         <translation>XML 文本無效。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="645"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="682"/>
         <source>Error during converting text to font encoding. Some characters were not converted: &apos;%1&apos;.</source>
         <translation type="unfinished">將文本轉換為字型編碼時出錯。某些字符未轉換：&apos;%1&apos;。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="650"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="687"/>
         <source>Text font not defined!</source>
         <translation>文本字型未定義！</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="687"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="724"/>
         <source>Invalid rendering mode &apos;%1&apos;. Valid values are 0-7.</source>
         <translation>渲染模式「%1」無效。有效值為 0-7。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="702"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="717"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="732"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="747"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="762"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="779"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="803"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="807"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="739"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="754"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="769"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="784"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="799"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="816"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="840"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="844"/>
         <source>Cannot convert text &apos;%1&apos; to number.</source>
         <translation>無法將文本&apos;%1&apos;轉換為數字。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="789"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="826"/>
         <source>Text font command requires two attributes - font and size.</source>
         <translation>文本字型命令需要兩個屬性——字型和大小。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="816"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="853"/>
         <source>Text translation command requires two attributes - x and y.</source>
         <translation>文本翻譯命令需要兩個屬性 - x 和 y。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="840"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="877"/>
         <source>Invalid text matrix parameters.</source>
         <translation>文本矩陣參數無效。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="849"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="886"/>
         <source>Set text matrix command requires six elements - m11, m12, m21, m22, x, y.</source>
         <translation>設置文本矩陣命令需要六個元素 - m11，m12，m21，m22，x，y。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="854"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="891"/>
         <source>Invalid command &apos;%1&apos;.</source>
         <translation>無效命令&apos;%1&apos;。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="925"/>
         <source>Font &apos;%1&apos; is invalid.</source>
-        <translation>字型 &apos;%1&apos;無效。</translation>
+        <translation type="vanished">字型 &apos;%1&apos;無效。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="247"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="626"/>
         <source>Info</source>
         <translation>資訊</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="253"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="632"/>
         <source>%1 (%2 replies)</source>
         <translation>%1（%2 條回覆）</translation>
     </message>
@@ -11582,37 +11632,37 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFWidgetAnnotationManager</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="150"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="279"/>
         <source>Annotation</source>
         <translation>註釋</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="151"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="280"/>
         <source>Show Popup Window</source>
         <translation>顯示彈出視窗</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="152"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="281"/>
         <source>Copy to Multiple Pages</source>
         <translation>複製到多頁</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="153"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="282"/>
         <source>Edit</source>
         <translation>編輯</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="154"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="283"/>
         <source>Delete</source>
         <translation>刪除</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="370"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="1075"/>
         <source>Copy Annotation</source>
         <translation>複製註釋</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="370"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="1075"/>
         <source>Copy Annotation onto Multiple Pages</source>
         <translation>複製註釋到多頁</translation>
     </message>
@@ -13697,27 +13747,27 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>標準</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="253"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="254"/>
         <source>%</source>
         <translation>%</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="287"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="288"/>
         <source>&amp;Sidebar</source>
         <translation>側邊欄(&amp;S)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="297"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="298"/>
         <source>Advanced find</source>
         <translation>進階搜尋</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="305"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="306"/>
         <source>Ad&amp;vanced Find...</source>
         <translation>進階搜尋(&amp;V)...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="442"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="443"/>
         <source> / %1</source>
         <translation> / %1</translation>
     </message>
@@ -13859,186 +13909,198 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdfviewer::PDFProgramController</name>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="784"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="788"/>
         <source>Printing document</source>
         <translation>列印文檔</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="845"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="849"/>
         <source>Go to action</source>
         <translation>跳轉到操作</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="845"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="849"/>
         <source>Failed to go to destination &apos;%1&apos;. Destination wasn&apos;t found.</source>
         <translation>無法前往目的地&apos;%1&apos;。未找到目的地。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="893"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="897"/>
         <source>Would you like to launch application &apos;%1&apos; in working directory &apos;%2&apos; with parameters &apos;%3&apos;?</source>
         <translation>您想在工作目錄&apos;%2&apos;中使用參數&apos;%3&apos;啟動應用程序&apos;%1&apos;嗎？</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="894"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="909"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="922"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="928"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="898"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="913"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="926"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="932"/>
         <source>Launch application</source>
         <translation>啟動程序</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="909"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="928"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="913"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="932"/>
         <source>Executing application failed. Error code is %1.</source>
         <translation>執行應用程序失敗。錯誤代碼為 %1。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="921"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="925"/>
         <source>Would you like to launch application &apos;%1&apos;?</source>
         <translation>您想啟動應用程序&apos;%1&apos;嗎？</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="950"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="954"/>
         <source>Would you like to open URL &apos;%1&apos;?</source>
         <translation>您想打開 URL&apos;%1&apos;嗎？</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="951"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="956"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="955"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="960"/>
         <source>Open URL</source>
         <translation>打開 URL</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="956"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="960"/>
         <source>Opening url &apos;%1&apos; failed.</source>
         <translation type="unfinished">未能打開 URL&apos;%1&apos;。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1168"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1172"/>
         <source>Save As</source>
         <translation>另存為</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1168"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1172"/>
         <source>Portable Document (*.pdf);;All files (*.*)</source>
         <translation>便攜式文檔（*.pdf);所有檔案（*.*）</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1203"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1342"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1207"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1346"/>
         <source>Error</source>
         <translation>錯誤</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1251"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1255"/>
         <source>Save Document</source>
         <translation>保存文檔</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1252"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1256"/>
         <source>Do you wish to save modified document before it is closed?</source>
         <translation>你想在關閉前保存已修改的文檔嗎？</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1342"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1346"/>
         <source>Error while starting email client occured!</source>
         <translation>啟動電子信件客戶端時發生錯誤！</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1412"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1419"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1420"/>
+        <source>No external link annotations found.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1437"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1438"/>
+        <source>External link annotations removed: %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1477"/>
         <source>Permission to change document security is denied.</source>
         <translation>更改文檔安全性的權限被拒絕。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1431"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1496"/>
         <source>Failed to create security handler.</source>
         <translation>無法創建安全處理程序。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1444"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1455"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1509"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1520"/>
         <source>Reauthorization is required to change document encryption.</source>
         <translation>更改文檔加密需要重新授權。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1539"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1604"/>
         <source>Encrypted document</source>
         <translation>加密文檔</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1539"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1604"/>
         <source>Enter password to access document content</source>
         <translation>請輸入密碼以存取文件內容</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1938"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2004"/>
         <source>Document &apos;%1&apos; was successfully loaded!</source>
         <translation>文檔 &apos;%1&apos;已成功加載！</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1944"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2010"/>
         <source>Document read error: %1</source>
         <translation>文檔讀取錯誤：%1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2146"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2212"/>
         <source>%1 - %2</source>
         <translation>%1 - %2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2328"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2335"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2394"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2401"/>
         <source>Reset Settings</source>
         <translation>重置設置</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2328"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2394"/>
         <source>Do you wish to restore the default factory settings of the program? All settings changed by the user will be deleted. Application will be closed.</source>
         <translation>您是否要恢復程式的預設值設定？使用者所更改的所有設定都將被刪除，程式將會關閉。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2335"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2401"/>
         <source>Default factory settings were restored. Application will be now closed.</source>
         <translation>已恢復成預設值設定，程式將關閉。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2380"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2446"/>
         <source>Plugins</source>
         <translation>插件</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2380"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2446"/>
         <source>Plugin on/off state has been changed. Please restart application to apply settings.</source>
         <translation>插件的開啟/關閉狀態已更改。請重新啟動應用程序以應用設置。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2407"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2479"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2473"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2545"/>
         <source>Select PDF document</source>
         <translation>選取PDF文檔</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2407"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2473"/>
         <source>PDF document (*.pdf)</source>
         <translation>PDF文檔(*.pdf)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2464"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2530"/>
         <source>Export Bookmarks As</source>
         <translation>導出書籤為</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2464"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2530"/>
         <source>JSON (*.json);;All files (*.*)</source>
         <translation>JSON (*.json);;所有檔案(*.*)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2479"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2545"/>
         <source>JSON (*.json)</source>
         <translation>JSON (*.json)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2498"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2564"/>
         <source>Rendering of page %1: %2 errors occured.</source>
         <translation>頁面 %1 的渲染：發生了 %2 個錯誤。</translation>
     </message>
@@ -14749,106 +14811,115 @@ Page %2: %3</source>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="153"/>
-        <source>Chinese</source>
-        <translation>簡體中文</translation>
+        <source>Chinese (Simplified)</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="154"/>
+        <source>Chinese (Traditional)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Chinese</source>
+        <translation type="vanished">簡體中文</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="155"/>
         <source>French</source>
         <translation type="unfinished">法文</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="155"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="156"/>
         <source>Turkish</source>
         <translation type="unfinished">土耳其語</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="156"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="157"/>
         <source>Russian</source>
         <translation type="unfinished">俄文</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="676"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="677"/>
         <source>Type</source>
         <translation>類型</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="676"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="677"/>
         <source>Certificate</source>
         <translation>證書</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="676"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="677"/>
         <source>Organization</source>
         <translation>組織</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="676"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="677"/>
         <source>Valid from</source>
         <translation>有效期自</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="676"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="677"/>
         <source>Valid to</source>
         <translation>有效期至</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="684"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="685"/>
         <source>User</source>
         <translation>用戶</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="688"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="689"/>
         <source>System</source>
         <translation>糸統</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="728"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="729"/>
         <source>Action</source>
         <translation>操作</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="728"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="729"/>
         <source>Shortcut</source>
         <translation>快捷鍵</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="757"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="758"/>
         <source>Error</source>
         <translation>錯誤</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="757"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="758"/>
         <source>Shortcut &apos;%1&apos; is invalid for action %2.</source>
         <translation>快捷方式‘%1’對於操作 %2 無效。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="780"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="781"/>
         <source>Active</source>
         <translation>啟用</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="780"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="781"/>
         <source>Name</source>
         <translation>名稱</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="780"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="781"/>
         <source>Author</source>
         <translation>作者</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="780"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="781"/>
         <source>Version</source>
         <translation>版本</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="780"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="781"/>
         <source>License</source>
         <translation>許可證</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="894"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="895"/>
         <source>Select color profile directory</source>
         <translation>選擇色彩設定檔目錄</translation>
     </message>
