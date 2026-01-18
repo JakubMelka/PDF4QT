@@ -27,9 +27,14 @@
 #include "pdfannotation.h"
 #include "pdfdocumentdrawinterface.h"
 
+#include <QPixmap>
+
+class QMimeData;
+
 namespace pdf
 {
 
+struct PDFWidgetSnapshot;
 class PDFDrawWidgetProxy;
 
 /// Annotation manager for GUI rendering, it also manages annotations widgets
@@ -75,12 +80,27 @@ public:
                             pdf::PDFObjectReference pageReference,
                             QPoint globalMenuPosition);
 
+    bool canAcceptAnnotationDrag(const QMimeData* data) const;
+    bool handleAnnotationDrop(const QMimeData* data, const QPoint& widgetPos, Qt::DropAction action);
+
 signals:
     void actionTriggered(const PDFAction* action);
     void documentModified(PDFModifiedDocument document);
 
 private:
     void updateFromMouseEvent(QMouseEvent* event);
+    bool beginAnnotationDrag(QMouseEvent* event);
+    void startAnnotationDrag(QMouseEvent* event);
+    QPixmap createAnnotationDragPixmap(const PageAnnotation& pageAnnotation,
+                                       const QTransform& pagePointToDevicePointMatrix,
+                                       const PDFPage* page,
+                                       const QPointF& cursorOffset,
+                                       QPoint& hotSpot) const;
+    const PDFAction* getLinkActionAtPosition(QPoint widgetPos) const;
+    bool translateAnnotation(PDFDocumentBuilder* builder, PDFObjectReference annotationReference, const QPointF& delta);
+    PDFObjectReference copyAnnotationToPage(PDFDocumentBuilder* builder,
+                                            PDFObjectReference pageReference,
+                                            PDFObjectReference annotationReference);
 
     void onShowPopupAnnotation();
     void onCopyAnnotation();
@@ -111,6 +131,27 @@ private:
     QPoint m_editableAnnotationGlobalPosition; ///< Position, where action on annotation was executed
     PDFObjectReference m_editableAnnotation;    ///< Annotation to be edited or deleted
     PDFObjectReference m_editableAnnotationPage;    ///< Page of annotation above
+    bool m_suppressLinkActivationOnRelease = false;
+
+    struct DragState
+    {
+        bool isActive = false;
+        bool isDragging = false;
+        bool isCopy = false;
+        QPoint startDevicePos;
+        PDFInteger pageIndex = -1;
+        QTransform pageToDevice;
+        QTransform deviceToPage;
+        PDFObjectReference annotationReference;
+        PDFObjectReference pageReference;
+        PDFObjectReference popupReference;
+        QRectF originalRect;
+        std::vector<PDFReal> originalQuadPoints;
+        QPointF cursorOffset;
+        QPixmap dragPixmap;
+        QPoint dragHotSpot;
+    };
+    DragState m_dragState;
 };
 
 }   // namespace pdf
