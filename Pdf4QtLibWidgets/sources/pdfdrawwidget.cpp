@@ -477,7 +477,7 @@ void PDFDrawWidget::dragEnterEvent(QDragEnterEvent* event)
     PDFWidgetAnnotationManager* annotationManager = m_widget->getAnnotationManager();
     if (annotationManager && annotationManager->canAcceptAnnotationDrag(event->mimeData()))
     {
-        const Qt::DropAction action = event->keyboardModifiers().testFlag(Qt::ControlModifier) ? Qt::CopyAction : Qt::MoveAction;
+        const Qt::DropAction action = event->modifiers().testFlag(Qt::ControlModifier) ? Qt::CopyAction : Qt::MoveAction;
         event->setDropAction(action);
         event->accept();
     }
@@ -490,7 +490,7 @@ void PDFDrawWidget::dragMoveEvent(QDragMoveEvent* event)
     PDFWidgetAnnotationManager* annotationManager = m_widget->getAnnotationManager();
     if (annotationManager && annotationManager->canAcceptAnnotationDrag(event->mimeData()))
     {
-        const Qt::DropAction action = event->keyboardModifiers().testFlag(Qt::ControlModifier) ? Qt::CopyAction : Qt::MoveAction;
+        const Qt::DropAction action = event->modifiers().testFlag(Qt::ControlModifier) ? Qt::CopyAction : Qt::MoveAction;
         event->setDropAction(action);
         event->accept();
     }
@@ -503,7 +503,7 @@ void PDFDrawWidget::dropEvent(QDropEvent* event)
     PDFWidgetAnnotationManager* annotationManager = m_widget->getAnnotationManager();
     if (annotationManager && annotationManager->canAcceptAnnotationDrag(event->mimeData()))
     {
-        const Qt::DropAction action = event->keyboardModifiers().testFlag(Qt::ControlModifier) ? Qt::CopyAction : Qt::MoveAction;
+        const Qt::DropAction action = event->modifiers().testFlag(Qt::ControlModifier) ? Qt::CopyAction : Qt::MoveAction;
         if (annotationManager->handleAnnotationDrop(event->mimeData(), event->position().toPoint(), action))
         {
             event->setDropAction(action);

@@ -29,6 +29,7 @@
 #include "pdfobjecteditorwidget.h"
 #include "pdfdocumentbuilder.h"
 
+#include <algorithm>
 #include <QMenu>
 #include <QDialog>
 #include <QApplication>
@@ -101,6 +102,55 @@ bool deserializePayload(const QMimeData* data, AnnotationDragPayload& payload)
     payload.annotationReference = PDFObjectReference(annotObj, annotGen);
     payload.pageReference = PDFObjectReference(pageObj, pageGen);
     return payload.annotationReference.isValid() && payload.pageReference.isValid();
+}
+
+bool removeAnnotationReferenceFromPage(PDFDocumentBuilder* builder,
+                                       PDFObjectReference pageReference,
+                                       PDFObjectReference annotationReference)
+{
+    if (!builder || !pageReference.isValid() || !annotationReference.isValid())
+    {
+        return false;
+    }
+
+    const PDFObjectStorage* storage = builder->getStorage();
+    if (!storage)
+    {
+        return false;
+    }
+
+    const PDFDictionary* pageDictionary = storage->getDictionaryFromObject(storage->getObjectByReference(pageReference));
+    if (!pageDictionary)
+    {
+        return false;
+    }
+
+    PDFDocumentDataLoaderDecorator loader(storage);
+    std::vector<PDFObjectReference> annots = loader.readReferenceArrayFromDictionary(pageDictionary, "Annots");
+    const auto newEnd = std::remove(annots.begin(), annots.end(), annotationReference);
+    if (newEnd == annots.end())
+    {
+        return false;
+    }
+
+    annots.erase(newEnd, annots.end());
+
+    PDFObjectFactory factory;
+    factory.beginDictionary();
+    factory.beginDictionaryItem("Annots");
+    if (!annots.empty())
+    {
+        factory << annots;
+    }
+    else
+    {
+        factory << PDFObject();
+    }
+    factory.endDictionaryItem();
+    factory.endDictionary();
+
+    builder->mergeTo(pageReference, factory.takeObject());
+    return true;
 }
 }
 
@@ -351,13 +401,25 @@ bool PDFWidgetAnnotationManager::handleAnnotationDrop(const QMimeData* data, con
     PDFDocumentBuilder* builder = modifier.getBuilder();
 
     PDFObjectReference targetAnnotation = payload.annotationReference;
+    PDFObjectReference popupReference;
     if (action == Qt::CopyAction)
     {
         targetAnnotation = copyAnnotationToPage(builder, targetPageReference, payload.annotationReference);
     }
     else if (targetPageReference != payload.pageReference)
     {
-        builder->removeAnnotation(payload.pageReference, payload.annotationReference);
+        const PDFObject& annotationObject = m_document->getObjectByReference(payload.annotationReference);
+        const PDFDictionary* annotationDictionary = m_document->getDictionaryFromObject(annotationObject);
+        if (annotationDictionary)
+        {
+            PDFObject popupObject = annotationDictionary->get("Popup");
+            if (popupObject.isReference())
+            {
+                popupReference = popupObject.getReference();
+            }
+        }
+
+        removeAnnotationReferenceFromPage(builder, payload.pageReference, payload.annotationReference);
 
         PDFObjectFactory pageFactory;
         pageFactory.beginDictionary();
@@ -376,6 +438,29 @@ bool PDFWidgetAnnotationManager::handleAnnotationDrop(const QMimeData* data, con
         annotsFactory.endDictionaryItem();
         annotsFactory.endDictionary();
         builder->appendTo(targetPageReference, annotsFactory.takeObject());
+
+        if (popupReference.isValid())
+        {
+            removeAnnotationReferenceFromPage(builder, payload.pageReference, popupReference);
+
+            PDFObjectFactory popupPageFactory;
+            popupPageFactory.beginDictionary();
+            popupPageFactory.beginDictionaryItem("P");
+            popupPageFactory << targetPageReference;
+            popupPageFactory.endDictionaryItem();
+            popupPageFactory.endDictionary();
+            builder->mergeTo(popupReference, popupPageFactory.takeObject());
+
+            PDFObjectFactory popupAnnotsFactory;
+            popupAnnotsFactory.beginDictionary();
+            popupAnnotsFactory.beginDictionaryItem("Annots");
+            popupAnnotsFactory.beginArray();
+            popupAnnotsFactory << popupReference;
+            popupAnnotsFactory.endArray();
+            popupAnnotsFactory.endDictionaryItem();
+            popupAnnotsFactory.endDictionary();
+            builder->appendTo(targetPageReference, popupAnnotsFactory.takeObject());
+        }
     }
 
     if (!targetAnnotation.isValid())
@@ -423,6 +508,13 @@ void PDFWidgetAnnotationManager::mouseReleaseEvent(QWidget* widget, QMouseEvent*
 
     if (event->button() == Qt::LeftButton)
     {
+        if (m_suppressLinkActivationOnRelease)
+        {
+            m_suppressLinkActivationOnRelease = false;
+            event->accept();
+            return;
+        }
+
         if (m_dragState.isActive)
         {
             m_dragState = DragState();
@@ -698,6 +790,7 @@ void PDFWidgetAnnotationManager::startAnnotationDrag(QMouseEvent* event)
     drag->setMimeData(mimeData);
 
     const Qt::DropAction defaultAction = m_dragState.isCopy ? Qt::CopyAction : Qt::MoveAction;
+    m_suppressLinkActivationOnRelease = true;
     drag->exec(Qt::CopyAction | Qt::MoveAction, defaultAction);
 
     m_dragState = DragState();

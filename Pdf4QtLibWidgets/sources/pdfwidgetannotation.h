@@ -124,6 +124,7 @@ private:
     QPoint m_editableAnnotationGlobalPosition; ///< Position, where action on annotation was executed
     PDFObjectReference m_editableAnnotation;    ///< Annotation to be edited or deleted
     PDFObjectReference m_editableAnnotationPage;    ///< Page of annotation above
+    bool m_suppressLinkActivationOnRelease = false;
 
     struct DragState
     {
