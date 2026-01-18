@@ -227,6 +227,25 @@
       <Component Id="cmptransko" Directory="dir_translations" Guid="{B959062A-9893-4891-A862-69DFA83E36FA}">
         <File Id="filtransko" KeyPath="yes" Source="$(var.MyInstallDir)\translations\PDF4QT_ko.qm" />
       </Component>
+      <Component Id="cmptransfr" Directory="dir_translations" Guid="{ADB92655-5718-4F73-B2B9-1F9F58ADE2EF}">
+        <File Id="filtransfr" KeyPath="yes" Source="$(var.MyInstallDir)\translations\PDF4QT_fr.qm" />
+      </Component>
+      <Component Id="cmptransru" Directory="dir_translations" Guid="{994A80C7-F748-428C-A51F-4578A5698B7E}">
+        <File Id="filtransru" KeyPath="yes" Source="$(var.MyInstallDir)\translations\PDF4QT_ru.qm" />
+      </Component>
+      <Component Id="cmptranstr" Directory="dir_translations" Guid="{3C6E123C-3975-43DB-93F2-55EAF484F30E}">
+        <File Id="filtranstr" KeyPath="yes" Source="$(var.MyInstallDir)\translations\PDF4QT_tr.qm" />
+      </Component>
+      <Component Id="cmptranszhcn" Directory="dir_translations" Guid="{6275178D-82EF-430A-8443-A01BFBCD9E09}">
+        <File Id="filtranszhcn" KeyPath="yes" Source="$(var.MyInstallDir)\translations\PDF4QT_zh_CN.qm" />
+      </Component>
+      <Component Id="cmptranszhtw" Directory="dir_translations" Guid="{D9F7DADC-193E-4BB3-8CF0-B1D469ED79FF}">
+        <File Id="filtranszhtw" KeyPath="yes" Source="$(var.MyInstallDir)\translations\PDF4QT_zh_TW.qm" />
+      </Component>
+
+      <Component Id="cmpturbojpeg" Directory="dir_imageformats" Guid="{F6E7CB0D-650B-4E2C-BE9F-FCD67446AFB2}">
+        <File Id="filturbojpeg" KeyPath="yes" Source="$(var.MyInstallDir)\jpeg62.dll" />
+      </Component>
 
     </ComponentGroup>
   </Fragment>
