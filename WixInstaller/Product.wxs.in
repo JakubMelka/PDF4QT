@@ -243,7 +243,7 @@
         <File Id="filtranszhtw" KeyPath="yes" Source="$(var.MyInstallDir)\translations\PDF4QT_zh_TW.qm" />
       </Component>
 
-      <Component Id="cmpturbojpeg" Directory="dir_imageformats" Guid="{F6E7CB0D-650B-4E2C-BE9F-FCD67446AFB2}">
+      <Component Id="cmpturbojpeg" Directory="INSTALLFOLDER" Guid="{F6E7CB0D-650B-4E2C-BE9F-FCD67446AFB2}">
         <File Id="filturbojpeg" KeyPath="yes" Source="$(var.MyInstallDir)\jpeg62.dll" />
       </Component>
 
