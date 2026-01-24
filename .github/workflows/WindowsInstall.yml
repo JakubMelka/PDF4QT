@@ -207,13 +207,6 @@ jobs:
         run: |
           MakeAppx pack /d ".\pdf4qt\build\install\usr\bin" /p ".\pdf4qt\build\install\JakubMelka.PDF4QT_${{ env.pdf4qt_version }}.msix"
           
-      - name: Sign MSIX Package
-        shell: pwsh
-        if: vars.SIGN_MSI == 'true'     
-        run: |
-          signtool.exe sign /sha1 ${{ secrets.SM_CODE_SIGNING_CERT_SHA1_HASH }} /tr http://timestamp.digicert.com /td SHA256 /fd SHA256 ".\pdf4qt\build\install\JakubMelka.PDF4QT_${{ env.pdf4qt_version }}.msix"        
-          signtool.exe verify /v /pa ".\pdf4qt\build\install\JakubMelka.PDF4QT_${{ env.pdf4qt_version }}.msix"
-        
       - name: Upload ZIP directory
         uses: actions/upload-artifact@v4
         with:
