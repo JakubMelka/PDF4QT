@@ -1,6 +1,6 @@
 CURRENT:
 
-V: 1.5.3.1 22.1.2026
+V: 1.5.3.0 22.1.2026
  - Windows installer fix
 
 V: 1.5.3.0 18.1.2026 - removed
