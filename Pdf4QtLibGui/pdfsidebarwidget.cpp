@@ -53,6 +53,7 @@
 #include <QPushButton>
 #include <QStandardItemModel>
 #include <QSortFilterProxyModel>
+#include <limits>
 
 #include "pdfdbgheap.h"
 
@@ -1039,6 +1040,8 @@ void PDFSidebarWidget::onOutlineTreeViewContextMenuRequested(const QPoint& pos)
     QMenu* submenu = new QMenu(tr("Set Target"), &contextMenu);
     QAction* targetAction = contextMenu.addMenu(submenu);
     targetAction->setEnabled(sourceIndex.isValid());
+    const pdf::PDFActionGoTo* currentGoToAction = dynamic_cast<const pdf::PDFActionGoTo*>(m_outlineTreeModel->getAction(sourceIndex));
+    const bool canInheritZoom = currentGoToAction && currentGoToAction->getDestination().getDestinationType() == pdf::DestinationType::XYZ;
 
     auto createOnSetTarget = [this, sourceIndex](pdf::DestinationType destinationType)
     {
@@ -1150,6 +1153,34 @@ void PDFSidebarWidget::onOutlineTreeViewContextMenuRequested(const QPoint& pos)
     submenu->addAction(tr("Fit Bounding Box Horizontally"), createOnSetTargetPage(pdf::DestinationType::FitBH));
     submenu->addAction(tr("Fit Bounding Box Vertically"), createOnSetTargetPage(pdf::DestinationType::FitBV));
     submenu->addAction(tr("XYZ"), createOnSetTarget(pdf::DestinationType::XYZ));
+    submenu->addSeparator();
+
+    auto onInheritZoom = [this, sourceIndex]()
+    {
+        if (!sourceIndex.isValid())
+        {
+            return;
+        }
+
+        const pdf::PDFAction* action = m_outlineTreeModel->getAction(sourceIndex);
+        const pdf::PDFActionGoTo* goToAction = dynamic_cast<const pdf::PDFActionGoTo*>(action);
+        if (!goToAction)
+        {
+            return;
+        }
+
+        pdf::PDFDestination destination = goToAction->getDestination();
+        if (destination.getDestinationType() != pdf::DestinationType::XYZ)
+        {
+            return;
+        }
+
+        destination.setZoom(std::numeric_limits<pdf::PDFReal>::quiet_NaN());
+        m_outlineTreeModel->setDestination(sourceIndex, destination);
+    };
+
+    QAction* inheritZoomAction = submenu->addAction(tr("Inherit Zoom"), onInheritZoom);
+    inheritZoomAction->setEnabled(canInheritZoom);
 
     contextMenu.exec(ui->outlineTreeView->mapToGlobal(pos));
 }

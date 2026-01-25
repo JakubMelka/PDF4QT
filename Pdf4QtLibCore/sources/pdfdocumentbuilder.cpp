@@ -33,6 +33,8 @@
 #include <QPainter>
 #include <QPdfWriter>
 
+#include <cmath>
+
 #include "pdfdbgheap.h"
 
 namespace pdf
@@ -149,6 +151,53 @@ PDFObjectFactory& PDFObjectFactory::operator<<(const PDFDestination& destination
         }
 
         *this << WrapName(type);
+
+        auto appendNumberOrNull = [this](PDFReal value)
+        {
+            if (std::isfinite(value))
+            {
+                *this << value;
+            }
+            else
+            {
+                *this << PDFObject();
+            }
+        };
+
+        switch (destination.getDestinationType())
+        {
+            case DestinationType::XYZ:
+                appendNumberOrNull(destination.getLeft());
+                appendNumberOrNull(destination.getTop());
+                appendNumberOrNull(destination.getZoom());
+                break;
+
+            case DestinationType::FitH:
+                appendNumberOrNull(destination.getTop());
+                break;
+
+            case DestinationType::FitV:
+                appendNumberOrNull(destination.getLeft());
+                break;
+
+            case DestinationType::FitR:
+                appendNumberOrNull(destination.getLeft());
+                appendNumberOrNull(destination.getBottom());
+                appendNumberOrNull(destination.getRight());
+                appendNumberOrNull(destination.getTop());
+                break;
+
+            case DestinationType::FitBH:
+                appendNumberOrNull(destination.getTop());
+                break;
+
+            case DestinationType::FitBV:
+                appendNumberOrNull(destination.getLeft());
+                break;
+
+            default:
+                break;
+        }
 
         endArray();
     }
