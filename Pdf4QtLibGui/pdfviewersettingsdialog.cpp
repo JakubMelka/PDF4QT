@@ -143,6 +143,11 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     ui->colorSchemeCombo->addItem(tr("Light scheme"), static_cast<int>(PDFViewerSettings::LightScheme));
     ui->colorSchemeCombo->addItem(tr("Dark scheme"), static_cast<int>(PDFViewerSettings::DarkScheme));
 
+    ui->sidebarButtonIconSizeComboBox->addItem(tr("Small"), static_cast<int>(PDFViewerSettings::SidebarButtonIconSizeSmall));
+    ui->sidebarButtonIconSizeComboBox->addItem(tr("Medium"), static_cast<int>(PDFViewerSettings::SidebarButtonIconSizeMedium));
+    ui->sidebarButtonIconSizeComboBox->addItem(tr("Large"), static_cast<int>(PDFViewerSettings::SidebarButtonIconSizeLarge));
+    ui->sidebarButtonIconSizeComboBox->addItem(tr("Very Large"), static_cast<int>(PDFViewerSettings::SidebarButtonIconSizeVeryLarge));
+
     // Langauges
     ui->languageCombo->addItem(tr("Automatic detection"), static_cast<int>(pdf::PDFApplicationTranslator::E_LANGUAGE_AUTOMATIC_SELECTION));
     ui->languageCombo->addItem(tr("English"), static_cast<int>(pdf::PDFApplicationTranslator::E_LANGUAGE_ENGLISH));
@@ -329,6 +334,7 @@ void PDFViewerSettingsDialog::loadData()
     ui->developerModeCheckBox->setChecked(m_settings.m_allowDeveloperMode);
     ui->logicalPixelZoomCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::LogicalSizeZooming));
     ui->colorSchemeCombo->setCurrentIndex(ui->colorSchemeCombo->findData(static_cast<int>(m_settings.m_colorScheme)));
+    ui->sidebarButtonIconSizeComboBox->setCurrentIndex(ui->sidebarButtonIconSizeComboBox->findData(static_cast<int>(m_settings.m_sidebarButtonIconSize)));
     ui->languageCombo->setCurrentIndex(ui->languageCombo->findData(static_cast<int>(m_settings.m_language)));
 
     // CMS
@@ -428,6 +434,10 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->colorSchemeCombo)
     {
         m_settings.m_colorScheme = static_cast<PDFViewerSettings::ColorScheme>(ui->colorSchemeCombo->currentData().toInt());
+    }
+    else if (sender == ui->sidebarButtonIconSizeComboBox)
+    {
+        m_settings.m_sidebarButtonIconSize = static_cast<PDFViewerSettings::SidebarButtonIconSize>(ui->sidebarButtonIconSizeComboBox->currentData().toInt());
     }
     else if (sender == ui->renderingEngineComboBox)
     {

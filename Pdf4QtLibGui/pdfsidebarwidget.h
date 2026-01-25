@@ -114,6 +114,7 @@ signals:
 private:
     void updateGUI(Page preferredPage);
     void updateButtons();
+    void updatePageButtonIconSize();
     void updateSignatures(const std::vector<pdf::PDFSignatureVerificationResult>& signatures);
     void updateNotes();
 

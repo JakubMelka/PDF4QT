@@ -35,7 +35,7 @@
       </size>
      </property>
      <property name="horizontalScrollBarPolicy">
-      <enum>Qt::ScrollBarAlwaysOff</enum>
+      <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
      </property>
      <property name="widgetResizable">
       <bool>false</bool>
@@ -97,7 +97,7 @@
             <bool>true</bool>
            </property>
            <property name="toolButtonStyle">
-            <enum>Qt::ToolButtonTextUnderIcon</enum>
+            <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
            </property>
            <property name="flat" stdset="0">
             <bool>true</bool>
@@ -129,7 +129,7 @@
             <bool>true</bool>
            </property>
            <property name="toolButtonStyle">
-            <enum>Qt::ToolButtonTextUnderIcon</enum>
+            <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
            </property>
            <property name="flat" stdset="0">
             <bool>true</bool>
@@ -161,7 +161,7 @@
             <bool>true</bool>
            </property>
            <property name="toolButtonStyle">
-            <enum>Qt::ToolButtonTextUnderIcon</enum>
+            <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
            </property>
            <property name="flat" stdset="0">
             <bool>true</bool>
@@ -193,7 +193,7 @@
             <bool>true</bool>
            </property>
            <property name="toolButtonStyle">
-            <enum>Qt::ToolButtonTextUnderIcon</enum>
+            <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
            </property>
            <property name="flat" stdset="0">
             <bool>true</bool>
@@ -225,7 +225,7 @@
             <bool>true</bool>
            </property>
            <property name="toolButtonStyle">
-            <enum>Qt::ToolButtonTextUnderIcon</enum>
+            <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
            </property>
            <property name="flat" stdset="0">
             <bool>true</bool>
@@ -257,7 +257,7 @@
             <bool>true</bool>
            </property>
            <property name="toolButtonStyle">
-            <enum>Qt::ToolButtonTextUnderIcon</enum>
+            <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
            </property>
            <property name="flat" stdset="0">
             <bool>true</bool>
@@ -289,7 +289,7 @@
             <bool>true</bool>
            </property>
            <property name="toolButtonStyle">
-            <enum>Qt::ToolButtonTextUnderIcon</enum>
+            <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
            </property>
           </widget>
          </item>
@@ -318,19 +318,19 @@
             <string>Ctrl+S</string>
            </property>
            <property name="toolButtonStyle">
-            <enum>Qt::ToolButtonTextUnderIcon</enum>
+            <enum>Qt::ToolButtonStyle::ToolButtonTextUnderIcon</enum>
            </property>
           </widget>
          </item>
          <item>
           <spacer name="buttonSpacer">
            <property name="orientation">
-            <enum>Qt::Vertical</enum>
+            <enum>Qt::Orientation::Vertical</enum>
            </property>
            <property name="sizeHint" stdset="0">
             <size>
-             <width>20</width>
-             <height>40</height>
+             <width>0</width>
+             <height>0</height>
             </size>
            </property>
           </spacer>
@@ -444,7 +444,7 @@
              <number>3</number>
             </property>
             <property name="orientation">
-             <enum>Qt::Horizontal</enum>
+             <enum>Qt::Orientation::Horizontal</enum>
             </property>
            </widget>
           </item>
@@ -454,16 +454,16 @@
        <item>
         <widget class="QListView" name="thumbnailsListView">
          <property name="movement">
-          <enum>QListView::Static</enum>
+          <enum>QListView::Movement::Static</enum>
          </property>
          <property name="resizeMode">
-          <enum>QListView::Adjust</enum>
+          <enum>QListView::ResizeMode::Adjust</enum>
          </property>
          <property name="viewMode">
-          <enum>QListView::IconMode</enum>
+          <enum>QListView::ViewMode::IconMode</enum>
          </property>
          <property name="itemAlignment">
-          <set>Qt::AlignBottom|Qt::AlignHCenter</set>
+          <set>Qt::AlignmentFlag::AlignBottom|Qt::AlignmentFlag::AlignHCenter</set>
          </property>
         </widget>
        </item>
@@ -527,7 +527,7 @@
        <item>
         <widget class="QListView" name="bookmarksView">
          <property name="editTriggers">
-          <set>QAbstractItemView::NoEditTriggers</set>
+          <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
          </property>
          <property name="wordWrap">
           <bool>true</bool>
@@ -584,7 +584,7 @@
        <item>
         <widget class="QTreeView" name="notesTreeView">
          <property name="contextMenuPolicy">
-          <enum>Qt::CustomContextMenu</enum>
+          <enum>Qt::ContextMenuPolicy::CustomContextMenu</enum>
          </property>
          <property name="wordWrap">
           <bool>true</bool>
@@ -612,7 +612,7 @@
             <number>10</number>
            </property>
            <property name="orientation">
-            <enum>Qt::Horizontal</enum>
+            <enum>Qt::Orientation::Horizontal</enum>
            </property>
           </widget>
          </item>
@@ -632,7 +632,7 @@
             <number>10</number>
            </property>
            <property name="orientation">
-            <enum>Qt::Horizontal</enum>
+            <enum>Qt::Orientation::Horizontal</enum>
            </property>
           </widget>
          </item>
@@ -652,7 +652,7 @@
             <number>100</number>
            </property>
            <property name="orientation">
-            <enum>Qt::Horizontal</enum>
+            <enum>Qt::Orientation::Horizontal</enum>
            </property>
           </widget>
          </item>
@@ -703,7 +703,7 @@
          <item>
           <spacer name="horizontalSpacer">
            <property name="orientation">
-            <enum>Qt::Horizontal</enum>
+            <enum>Qt::Orientation::Horizontal</enum>
            </property>
            <property name="sizeHint" stdset="0">
             <size>

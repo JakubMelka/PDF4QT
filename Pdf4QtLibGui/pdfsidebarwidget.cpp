@@ -206,6 +206,8 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
 
     selectPage(Invalid);
     updateButtons();
+    updatePageButtonIconSize();
+    connect(m_settings, &PDFViewerSettings::settingsChanged, this, &PDFSidebarWidget::updatePageButtonIconSize);
 }
 
 PDFSidebarWidget::~PDFSidebarWidget()
@@ -454,6 +456,60 @@ void PDFSidebarWidget::updateButtons()
         if (pageInfo.second.button)
         {
             pageInfo.second.button->setEnabled(!isEmpty(pageInfo.first));
+        }
+    }
+}
+
+void PDFSidebarWidget::updatePageButtonIconSize()
+{
+    const QSize baseIconSize(64, 64);
+    const int baseButtonWidth = 96;
+
+    qreal scale = 1.0;
+    switch (m_settings->getSettings().m_sidebarButtonIconSize)
+    {
+        case PDFViewerSettings::SidebarButtonIconSizeSmall:
+            scale = 0.4;
+            break;
+
+        case PDFViewerSettings::SidebarButtonIconSizeMedium:
+            scale = 0.7;
+            break;
+
+        case PDFViewerSettings::SidebarButtonIconSizeLarge:
+            scale = 1.0;
+            break;
+
+        case PDFViewerSettings::SidebarButtonIconSizeVeryLarge:
+            scale = 1.25;
+            break;
+
+        default:
+            break;
+    }
+
+    const bool showText = m_settings->getSettings().m_sidebarButtonIconSize >= PDFViewerSettings::SidebarButtonIconSizeLarge;
+    const Qt::ToolButtonStyle buttonStyle = showText ? Qt::ToolButtonTextUnderIcon : Qt::ToolButtonIconOnly;
+
+    QSize iconSize(qRound(baseIconSize.width() * scale),
+                   qRound(baseIconSize.height() * scale));
+    iconSize.setWidth(qMax(8, iconSize.width()));
+    iconSize.setHeight(qMax(8, iconSize.height()));
+    const int buttonWidth = qMax(8, qRound(baseButtonWidth * scale));
+
+    ui->scrollArea->setMinimumWidth(buttonWidth);
+    ui->scrollAreaWidgetContents->setMinimumWidth(buttonWidth);
+
+    ui->scrollArea->updateGeometry();
+    ui->scrollAreaWidgetContents->updateGeometry();
+
+    for (const auto& pageInfo : m_pageInfo)
+    {
+        if (pageInfo.second.button)
+        {
+            pageInfo.second.button->setIconSize(iconSize);
+            pageInfo.second.button->setMinimumWidth(buttonWidth);
+            pageInfo.second.button->setToolButtonStyle(buttonStyle);
         }
     }
 }

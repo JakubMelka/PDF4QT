@@ -56,6 +56,14 @@ public:
         DarkScheme
     };
 
+    enum SidebarButtonIconSize
+    {
+        SidebarButtonIconSizeSmall,
+        SidebarButtonIconSizeMedium,
+        SidebarButtonIconSizeLarge,
+        SidebarButtonIconSizeVeryLarge
+    };
+
     struct Settings
     {
         Settings();
@@ -111,6 +119,7 @@ public:
 
         // UI Dark/Light mode settings
         ColorScheme m_colorScheme;
+        SidebarButtonIconSize m_sidebarButtonIconSize;
 
         // Language
         pdf::PDFApplicationTranslator::ELanguage m_language;
