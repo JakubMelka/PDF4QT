@@ -1,6 +1,7 @@
 CURRENT:
  - Issue #352: Icon size of the sidebar
  - Issue #349: Add inherit zoom to bookmark zoom options
+ - Issue #324: [regression] Menu text not rendered with correct color 
 
 V: 1.5.3.1 22.1.2026
  - Windows installer fix

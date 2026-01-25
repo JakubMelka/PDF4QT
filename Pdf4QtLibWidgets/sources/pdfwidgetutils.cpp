@@ -38,6 +38,7 @@
 #include <QApplication>
 #include <QStyleHints>
 #include <QStyleFactory>
+#include <QOperatingSystemVersion>
 
 #include "pdfdbgheap.h"
 
@@ -194,6 +195,19 @@ void PDFWidgetUtils::setDarkTheme(bool isLightTheme, bool isDarkTheme)
 
     if (PDFWidgetUtils::isDarkTheme())
     {
+#ifdef Q_OS_WIN
+        const QOperatingSystemVersion currentOS = QOperatingSystemVersion::current();
+
+        if (currentOS.type() == QOperatingSystemVersion::Windows &&
+            currentOS < QOperatingSystemVersion::Windows11)
+        {
+            if (QStyle* fusionStyle = QStyleFactory::create("Fusion"))
+            {
+                QApplication::setStyle(fusionStyle);
+            }
+        }
+#endif
+
         QPalette darkPalette = QApplication::palette();
 
         // Basic colors
