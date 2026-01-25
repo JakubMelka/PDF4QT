@@ -1083,28 +1083,61 @@ void PDFProgramController::initializeToolManager()
     connect(m_toolManager, &pdf::PDFToolManager::documentModified, this, &PDFProgramController::onDocumentModified);
 
     // Add special tools
-    pdf::PDFCreateStickyNoteTool* createStickyNoteTool = new pdf::PDFCreateStickyNoteTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, m_actionManager->getActionGroup(PDFActionManager::CreateStickyNoteGroup), this);
-    m_toolManager->addTool(createStickyNoteTool);
-    pdf::PDFCreateHyperlinkTool* createHyperlinkTool = new pdf::PDFCreateHyperlinkTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, m_actionManager->getAction(PDFActionManager::CreateHyperlink), this);
-    m_toolManager->addTool(createHyperlinkTool);
-    pdf::PDFCreateFreeTextTool* createFreeTextTool = new pdf::PDFCreateFreeTextTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, m_actionManager->getAction(PDFActionManager::CreateInlineText), this);
-    m_toolManager->addTool(createFreeTextTool);
-    pdf::PDFCreateLineTypeTool* createStraightLineTool = new pdf::PDFCreateLineTypeTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::PDFCreateLineTypeTool::Type::Line, m_actionManager->getAction(PDFActionManager::CreateStraightLine), this);
-    m_toolManager->addTool(createStraightLineTool);
-    pdf::PDFCreateLineTypeTool* createPolylineTool = new pdf::PDFCreateLineTypeTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::PDFCreateLineTypeTool::Type::PolyLine, m_actionManager->getAction(PDFActionManager::CreatePolyline), this);
-    m_toolManager->addTool(createPolylineTool);
-    pdf::PDFCreateLineTypeTool* createRectangleTool = new pdf::PDFCreateLineTypeTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::PDFCreateLineTypeTool::Type::Rectangle, m_actionManager->getAction(PDFActionManager::CreateRectangle), this);
-    m_toolManager->addTool(createRectangleTool);
-    pdf::PDFCreateLineTypeTool* createPolygonTool = new pdf::PDFCreateLineTypeTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::PDFCreateLineTypeTool::Type::Polygon, m_actionManager->getAction(PDFActionManager::CreatePolygon), this);
-    m_toolManager->addTool(createPolygonTool);
-    pdf::PDFCreateEllipseTool* createEllipseTool = new pdf::PDFCreateEllipseTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, m_actionManager->getAction(PDFActionManager::CreateEllipse), this);
-    m_toolManager->addTool(createEllipseTool);
-    pdf::PDFCreateFreehandCurveTool* createFreehandCurveTool = new pdf::PDFCreateFreehandCurveTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, m_actionManager->getAction(PDFActionManager::CreateFreehandCurve), this);
-    m_toolManager->addTool(createFreehandCurveTool);
-    pdf::PDFCreateStampTool* createStampTool = new pdf::PDFCreateStampTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, m_actionManager->getActionGroup(PDFActionManager::CreateStampGroup), this);
-    m_toolManager->addTool(createStampTool);
-    pdf::PDFCreateHighlightTextTool* createHighlightTextTool = new pdf::PDFCreateHighlightTextTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, m_actionManager->getActionGroup(PDFActionManager::CreateTextHighlightGroup), this);
-    m_toolManager->addTool(createHighlightTextTool);
+    if (QActionGroup* stickyNoteGroup = m_actionManager->getActionGroup(PDFActionManager::CreateStickyNoteGroup))
+    {
+        pdf::PDFCreateStickyNoteTool* createStickyNoteTool = new pdf::PDFCreateStickyNoteTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, stickyNoteGroup, this);
+        m_toolManager->addTool(createStickyNoteTool);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::CreateHyperlink))
+    {
+        pdf::PDFCreateHyperlinkTool* createHyperlinkTool = new pdf::PDFCreateHyperlinkTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, action, this);
+        m_toolManager->addTool(createHyperlinkTool);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::CreateInlineText))
+    {
+        pdf::PDFCreateFreeTextTool* createFreeTextTool = new pdf::PDFCreateFreeTextTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, action, this);
+        m_toolManager->addTool(createFreeTextTool);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::CreateStraightLine))
+    {
+        pdf::PDFCreateLineTypeTool* createStraightLineTool = new pdf::PDFCreateLineTypeTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::PDFCreateLineTypeTool::Type::Line, action, this);
+        m_toolManager->addTool(createStraightLineTool);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::CreatePolyline))
+    {
+        pdf::PDFCreateLineTypeTool* createPolylineTool = new pdf::PDFCreateLineTypeTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::PDFCreateLineTypeTool::Type::PolyLine, action, this);
+        m_toolManager->addTool(createPolylineTool);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::CreateRectangle))
+    {
+        pdf::PDFCreateLineTypeTool* createRectangleTool = new pdf::PDFCreateLineTypeTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::PDFCreateLineTypeTool::Type::Rectangle, action, this);
+        m_toolManager->addTool(createRectangleTool);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::CreatePolygon))
+    {
+        pdf::PDFCreateLineTypeTool* createPolygonTool = new pdf::PDFCreateLineTypeTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, pdf::PDFCreateLineTypeTool::Type::Polygon, action, this);
+        m_toolManager->addTool(createPolygonTool);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::CreateEllipse))
+    {
+        pdf::PDFCreateEllipseTool* createEllipseTool = new pdf::PDFCreateEllipseTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, action, this);
+        m_toolManager->addTool(createEllipseTool);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::CreateFreehandCurve))
+    {
+        pdf::PDFCreateFreehandCurveTool* createFreehandCurveTool = new pdf::PDFCreateFreehandCurveTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, action, this);
+        m_toolManager->addTool(createFreehandCurveTool);
+    }
+    if (QActionGroup* stampGroup = m_actionManager->getActionGroup(PDFActionManager::CreateStampGroup))
+    {
+        pdf::PDFCreateStampTool* createStampTool = new pdf::PDFCreateStampTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, stampGroup, this);
+        m_toolManager->addTool(createStampTool);
+    }
+    if (QActionGroup* highlightGroup = m_actionManager->getActionGroup(PDFActionManager::CreateTextHighlightGroup))
+    {
+        pdf::PDFCreateHighlightTextTool* createHighlightTextTool = new pdf::PDFCreateHighlightTextTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, highlightGroup, this);
+        m_toolManager->addTool(createHighlightTextTool);
+    }
 }
 
 void PDFProgramController::onActionGoToDocumentStartTriggered()

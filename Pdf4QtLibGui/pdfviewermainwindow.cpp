@@ -122,6 +122,12 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_actionManager->setAction(PDFActionManager::Quit, ui->actionQuit);
     m_actionManager->setAction(PDFActionManager::ZoomIn, ui->actionZoom_In);
     m_actionManager->setAction(PDFActionManager::ZoomOut, ui->actionZoom_Out);
+    m_actionManager->setAction(PDFActionManager::Find, ui->actionFind);
+    m_actionManager->setAction(PDFActionManager::FindPrevious, ui->actionFindPrevious);
+    m_actionManager->setAction(PDFActionManager::FindNext, ui->actionFindNext);
+    m_actionManager->setAction(PDFActionManager::SelectTextAll, ui->actionSelectTextAll);
+    m_actionManager->setAction(PDFActionManager::DeselectText, ui->actionDeselectText);
+    m_actionManager->setAction(PDFActionManager::CopyText, ui->actionCopyText);
     m_actionManager->setAction(PDFActionManager::RotateRight, ui->actionRotateRight);
     m_actionManager->setAction(PDFActionManager::RotateLeft, ui->actionRotateLeft);
     m_actionManager->setAction(PDFActionManager::Print, ui->actionPrint);
@@ -160,6 +166,9 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_actionManager->setAction(PDFActionManager::PageLayoutTwoPages, ui->actionPageLayoutTwoPages);
     m_actionManager->setAction(PDFActionManager::PageLayoutTwoColumns, ui->actionPageLayoutTwoColumns);
     m_actionManager->setAction(PDFActionManager::PageLayoutFirstPageOnRightSide, ui->actionFirstPageOnRightSide);
+    m_actionManager->setAction(PDFActionManager::ToolSelectText, ui->actionSelectText);
+    m_actionManager->setAction(PDFActionManager::ToolSelectTable, ui->actionSelectTable);
+    m_actionManager->setAction(PDFActionManager::ToolMagnifier, ui->actionMagnifier);
     m_actionManager->setAction(PDFActionManager::BookmarkPage, ui->actionBookmarkPage);
     m_actionManager->setAction(PDFActionManager::BookmarkGoToNext, ui->actionGotoNextBookmark);
     m_actionManager->setAction(PDFActionManager::BookmarkGoToPrevious, ui->actionGotoPreviousBookmark);
@@ -213,8 +222,14 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     ui->mainToolBar->addAction(ui->actionFitHeight);
     ui->mainToolBar->addSeparator();
 
+    // Tools
+    ui->mainToolBar->addAction(ui->actionSelectText);
+    ui->mainToolBar->addAction(ui->actionSelectTable);
+    ui->mainToolBar->addAction(ui->actionMagnifier);
+    ui->mainToolBar->addSeparator();
+
     // Special tools
-    m_programController->initialize(PDFProgramController::TextToSpeech, this, this, m_actionManager, m_progress);
+    m_programController->initialize(PDFProgramController::Features(PDFProgramController::TextToSpeech | PDFProgramController::Tools), this, this, m_actionManager, m_progress);
     setCentralWidget(m_programController->getPdfWidget());
     setFocusProxy(m_programController->getPdfWidget());
 

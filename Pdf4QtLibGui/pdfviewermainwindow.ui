@@ -64,6 +64,21 @@
     <addaction name="actionGotoNextBookmark"/>
     <addaction name="menuBookmarkSettings"/>
    </widget>
+   <widget class="QMenu" name="menuEdit">
+    <property name="title">
+     <string>&amp;Edit</string>
+    </property>
+    <addaction name="actionFind"/>
+    <addaction name="actionFindPrevious"/>
+    <addaction name="actionFindNext"/>
+    <addaction name="separator"/>
+    <addaction name="actionSelectText"/>
+    <addaction name="actionCopyText"/>
+    <addaction name="actionSelectTextAll"/>
+    <addaction name="actionDeselectText"/>
+    <addaction name="separator"/>
+    <addaction name="actionSelectTable"/>
+   </widget>
    <widget class="QMenu" name="menuView">
     <property name="title">
      <string>&amp;View</string>
@@ -113,6 +128,7 @@
     <property name="title">
      <string>&amp;Tools</string>
     </property>
+    <addaction name="actionMagnifier"/>
     <addaction name="separator"/>
     <addaction name="actionRendering_Errors"/>
     <addaction name="separator"/>
@@ -130,6 +146,7 @@
     <addaction name="actionAbout"/>
    </widget>
    <addaction name="menuFile"/>
+   <addaction name="menuEdit"/>
    <addaction name="menuView"/>
    <addaction name="menuGoTo"/>
    <addaction name="menuTools"/>
@@ -462,6 +479,99 @@
    </property>
    <property name="text">
     <string>&amp;Display Annotations</string>
+   </property>
+  </action>
+  <action name="actionFind">
+   <property name="icon">
+    <iconset resource="pdf4qtlibgui.qrc">
+     <normaloff>:/resources/find.svg</normaloff>:/resources/find.svg</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Find</string>
+   </property>
+  </action>
+  <action name="actionFindPrevious">
+   <property name="icon">
+    <iconset resource="pdf4qtlibgui.qrc">
+     <normaloff>:/resources/find-previous.svg</normaloff>:/resources/find-previous.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Fin&amp;d Previous</string>
+   </property>
+  </action>
+  <action name="actionFindNext">
+   <property name="icon">
+    <iconset resource="pdf4qtlibgui.qrc">
+     <normaloff>:/resources/find-next.svg</normaloff>:/resources/find-next.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Fi&amp;nd Next</string>
+   </property>
+  </action>
+  <action name="actionSelectText">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pdf4qtlibgui.qrc">
+     <normaloff>:/resources/select-text.svg</normaloff>:/resources/select-text.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Select te&amp;xt</string>
+   </property>
+  </action>
+  <action name="actionSelectTable">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pdf4qtlibgui.qrc">
+     <normaloff>:/resources/select-table.svg</normaloff>:/resources/select-table.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Select &amp;table</string>
+   </property>
+  </action>
+  <action name="actionSelectTextAll">
+   <property name="icon">
+    <iconset resource="pdf4qtlibgui.qrc">
+     <normaloff>:/resources/select-all-text.svg</normaloff>:/resources/select-all-text.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Select &amp;All</string>
+   </property>
+  </action>
+  <action name="actionDeselectText">
+   <property name="icon">
+    <iconset resource="pdf4qtlibgui.qrc">
+     <normaloff>:/resources/deselect-text.svg</normaloff>:/resources/deselect-text.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Dese&amp;lect</string>
+   </property>
+  </action>
+  <action name="actionCopyText">
+   <property name="icon">
+    <iconset resource="pdf4qtlibgui.qrc">
+     <normaloff>:/resources/copy-text.svg</normaloff>:/resources/copy-text.svg</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Copy text</string>
+   </property>
+  </action>
+  <action name="actionMagnifier">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pdf4qtlibgui.qrc">
+     <normaloff>:/resources/magnifier.svg</normaloff>:/resources/magnifier.svg</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Magnifier</string>
+   </property>
+   <property name="toolTip">
+    <string>Magnifier Tool</string>
    </property>
   </action>
   <action name="actionGoToDocumentStart">
