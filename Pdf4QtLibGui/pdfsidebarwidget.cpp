@@ -497,8 +497,9 @@ void PDFSidebarWidget::updatePageButtonIconSize()
     iconSize.setHeight(qMax(8, iconSize.height()));
     const int buttonWidth = qMax(8, qRound(baseButtonWidth * scale));
 
-    ui->scrollArea->setMinimumWidth(buttonWidth);
-    ui->scrollAreaWidgetContents->setMinimumWidth(buttonWidth);
+    ui->scrollArea->setWidgetResizable(true);
+    ui->scrollArea->setFixedWidth(buttonWidth);
+    ui->scrollAreaWidgetContents->setFixedWidth(buttonWidth);
 
     ui->scrollArea->updateGeometry();
     ui->scrollAreaWidgetContents->updateGeometry();
@@ -508,7 +509,7 @@ void PDFSidebarWidget::updatePageButtonIconSize()
         if (pageInfo.second.button)
         {
             pageInfo.second.button->setIconSize(iconSize);
-            pageInfo.second.button->setMinimumWidth(buttonWidth);
+            pageInfo.second.button->setFixedWidth(buttonWidth);
             pageInfo.second.button->setToolButtonStyle(buttonStyle);
         }
     }
