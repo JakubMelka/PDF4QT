@@ -163,6 +163,7 @@
     <addaction name="separator"/>
     <addaction name="actionEncryption"/>
     <addaction name="actionOptimize"/>
+    <addaction name="actionOptimizeImages"/>
     <addaction name="separator"/>
     <addaction name="actionSanitize"/>
     <addaction name="actionRemoveExternalLinks"/>
@@ -743,6 +744,18 @@
    </property>
    <property name="statusTip">
     <string>Optimizes document to reduce file size.</string>
+   </property>
+  </action>
+  <action name="actionOptimizeImages">
+   <property name="icon">
+    <iconset resource="pdf4qtlibgui.qrc">
+     <normaloff>:/resources/optimize.svg</normaloff>:/resources/optimize.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Optimize &amp;Images...</string>
+   </property>
+   <property name="statusTip">
+    <string>Optimizes embedded images to reduce file size.</string>
    </property>
   </action>
   <action name="actionSave_As">

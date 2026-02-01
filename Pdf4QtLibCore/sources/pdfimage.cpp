@@ -66,7 +66,25 @@ static int clampThreshold(int threshold)
     return std::clamp(threshold, 0, 255);
 }
 
-static QImage flattenImageToArgb32(const QImage& source, bool& hadTransparency)
+static Qt::TransformationMode getTransformationMode(PDFImage::ResampleFilter filter)
+{
+    switch (filter)
+    {
+        case PDFImage::ResampleFilter::Nearest:
+            return Qt::FastTransformation;
+
+        case PDFImage::ResampleFilter::Bilinear:
+        case PDFImage::ResampleFilter::Bicubic:
+        case PDFImage::ResampleFilter::Lanczos:
+            return Qt::SmoothTransformation;
+    }
+
+    return Qt::SmoothTransformation;
+}
+
+static QImage normalizeImageToArgb32(const QImage& source,
+                                     PDFImage::AlphaHandling alphaHandling,
+                                     bool& hadTransparency)
 {
     QImage normalized = source.convertToFormat(QImage::Format_RGBA8888);
     if (normalized.isNull())
@@ -99,11 +117,17 @@ static QImage flattenImageToArgb32(const QImage& source, bool& hadTransparency)
                 hadTransparency = true;
             }
 
-            const int blendedR = (r * a + 255 * (255 - a)) / 255;
-            const int blendedG = (g * a + 255 * (255 - a)) / 255;
-            const int blendedB = (b * a + 255 * (255 - a)) / 255;
-
-            dst[x] = qRgba(blendedR, blendedG, blendedB, 255);
+            if (alphaHandling == PDFImage::AlphaHandling::DropAlphaPreserveColors)
+            {
+                dst[x] = qRgba(r, g, b, 255);
+            }
+            else
+            {
+                const int blendedR = (r * a + 255 * (255 - a)) / 255;
+                const int blendedG = (g * a + 255 * (255 - a)) / 255;
+                const int blendedB = (b * a + 255 * (255 - a)) / 255;
+                dst[x] = qRgba(blendedR, blendedG, blendedB, 255);
+            }
             src += 4;
         }
     }
@@ -123,7 +147,7 @@ static PreparedImageData prepareImageData(const QImage& source,
     QImage working = source;
     if (options.targetSize.isValid() && !options.targetSize.isEmpty() && options.targetSize != working.size())
     {
-        working = source.scaled(options.targetSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        working = source.scaled(options.targetSize, Qt::IgnoreAspectRatio, getTransformationMode(options.resampleFilter));
     }
 
     if (working.width() <= 0 || working.height() <= 0)
@@ -145,7 +169,7 @@ static PreparedImageData prepareImageData(const QImage& source,
     prepared.width = working.width();
     prepared.height = working.height();
     bool hadTransparency = false;
-    QImage flattened = flattenImageToArgb32(working, hadTransparency);
+    QImage flattened = normalizeImageToArgb32(working, options.alphaHandling, hadTransparency);
 
     if (resolvedMode == PDFImage::ImageColorMode::Monochrome && !supportsBinaryMonochrome)
     {
@@ -250,7 +274,7 @@ static PreparedImageData prepareImageData(const QImage& source,
             throw PDFException(PDFTranslationContext::tr("Unsupported image color mode."));
     }
 
-    if (hadTransparency && reporter)
+    if (hadTransparency && reporter && options.alphaHandling == PDFImage::AlphaHandling::FlattenToWhite)
     {
         reporter->reportRenderErrorOnce(RenderErrorType::Warning,
             PDFTranslationContext::tr("Image alpha channel was composited onto white background during encoding."));

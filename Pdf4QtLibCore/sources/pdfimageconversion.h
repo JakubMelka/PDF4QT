@@ -40,7 +40,9 @@ public:
     enum class ConversionMethod
     {
         Automatic,  ///< The threshold is determined automatically using an algorithm.
-        Manual      ///< The threshold is manually provided by the user.
+        Manual,     ///< The threshold is manually provided by the user.
+        Adaptive,   ///< Adaptive local thresholding.
+        Dither      ///< Error diffusion dither.
     };
 
     /// Sets the image to be converted using the specified conversion method.
@@ -87,8 +89,12 @@ public:
 
 private:
     int calculateOtsu1DThreshold() const;
+    QImage convertAdaptive() const;
+    QImage convertDithered(int threshold) const;
 
     static constexpr int DEFAULT_THRESHOLD = 128;
+    static constexpr int ADAPTIVE_WINDOW_RADIUS = 8;
+    static constexpr int ADAPTIVE_OFFSET = 8;
 
     QImage m_image;
     QImage m_convertedImage;

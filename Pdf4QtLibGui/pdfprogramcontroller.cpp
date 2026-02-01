@@ -37,6 +37,7 @@
 #include "pdfundoredomanager.h"
 #include "pdfrendertoimagesdialog.h"
 #include "pdfoptimizedocumentdialog.h"
+#include "pdfoptimizeimagesdialog.h"
 #include "pdfsanitizedocumentdialog.h"
 #include "pdfcreatebitonaldocumentdialog.h"
 #include "pdfviewersettingsdialog.h"
@@ -509,6 +510,10 @@ void PDFProgramController::initialize(Features features,
     if (QAction* action = m_actionManager->getAction(PDFActionManager::Optimize))
     {
         connect(action, &QAction::triggered, this, &PDFProgramController::onActionOptimizeTriggered);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::OptimizeImages))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionOptimizeImagesTriggered);
     }
     if (QAction* action = m_actionManager->getAction(PDFActionManager::Sanitize))
     {
@@ -1398,6 +1403,18 @@ void PDFProgramController::onActionOptimizeTriggered()
     }
 }
 
+void PDFProgramController::onActionOptimizeImagesTriggered()
+{
+    PDFOptimizeImagesDialog dialog(m_pdfDocument.data(), m_progress, m_mainWindow);
+
+    if (dialog.exec() == QDialog::Accepted)
+    {
+        pdf::PDFDocumentPointer pointer(new pdf::PDFDocument(dialog.takeOptimizedDocument()));
+        pdf::PDFModifiedDocument document(qMove(pointer), m_optionalContentActivity, pdf::PDFModifiedDocument::ModificationFlags(pdf::PDFModifiedDocument::Reset | pdf::PDFModifiedDocument::PreserveUndoRedo));
+        onDocumentModified(qMove(document));
+    }
+}
+
 void PDFProgramController::onActionSanitizeTriggered()
 {
     PDFSanitizeDocumentDialog dialog(m_pdfDocument.data(), m_mainWindow);
@@ -1806,6 +1823,7 @@ void PDFProgramController::updateActionsAvailability()
     m_actionManager->setEnabled(PDFActionManager::Print, hasValidDocument && canPrint);
     m_actionManager->setEnabled(PDFActionManager::RenderToImages, hasValidDocument && canPrint);
     m_actionManager->setEnabled(PDFActionManager::Optimize, hasValidDocument);
+    m_actionManager->setEnabled(PDFActionManager::OptimizeImages, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::Sanitize, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::RemoveExternalLinks, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::CreateBitonalDocument, hasValidDocument);

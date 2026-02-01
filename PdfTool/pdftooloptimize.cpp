@@ -22,6 +22,7 @@
 
 #include "pdftooloptimize.h"
 #include "pdfdocumentwriter.h"
+#include "pdfimageoptimizer.h"
 
 namespace pdftool
 {
@@ -51,7 +52,7 @@ QString PDFToolOptimize::getStandardString(PDFToolAbstractApplication::StandardS
 
 int PDFToolOptimize::execute(const PDFToolOptions& options)
 {
-    if (!options.optimizeFlags)
+    if (!options.optimizeFlags && !options.imageOptimizationSettings.enabled)
     {
         PDFConsole::writeError(PDFToolTranslationContext::tr("No optimization option has been set."), options.outputCodec);
         return ErrorInvalidArguments;
@@ -64,11 +65,20 @@ int PDFToolOptimize::execute(const PDFToolOptions& options)
         return ErrorDocumentReading;
     }
 
-    pdf::PDFOptimizer optimizer(options.optimizeFlags, nullptr);
-    QObject::connect(&optimizer, &pdf::PDFOptimizer::optimizationProgress, &optimizer, [&options](QString text) { PDFConsole::writeError(text, options.outputCodec); }, Qt::DirectConnection);
-    optimizer.setDocument(&document);
-    optimizer.optimize();
-    document = optimizer.takeOptimizedDocument();
+    if (options.imageOptimizationSettings.enabled)
+    {
+        pdf::PDFImageOptimizer imageOptimizer;
+        document = imageOptimizer.optimize(&document, options.imageOptimizationSettings);
+    }
+
+    if (options.optimizeFlags)
+    {
+        pdf::PDFOptimizer optimizer(options.optimizeFlags, nullptr);
+        QObject::connect(&optimizer, &pdf::PDFOptimizer::optimizationProgress, &optimizer, [&options](QString text) { PDFConsole::writeError(text, options.outputCodec); }, Qt::DirectConnection);
+        optimizer.setDocument(&document);
+        optimizer.optimize();
+        document = optimizer.takeOptimizedDocument();
+    }
 
     pdf::PDFDocumentWriter writer(nullptr);
     pdf::PDFOperationResult result = writer.write(options.document, &document, true);

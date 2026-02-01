@@ -96,6 +96,20 @@ public:
         Monochrome      ///< 1-bit DeviceGray with decode array [0 1]
     };
 
+    enum class ResampleFilter
+    {
+        Nearest,
+        Bilinear,
+        Bicubic,
+        Lanczos
+    };
+
+    enum class AlphaHandling
+    {
+        FlattenToWhite,         ///< Composite onto white background
+        DropAlphaPreserveColors ///< Keep RGB values, drop alpha (for separate soft mask)
+    };
+
     struct ImageEncodeOptions
     {
         ImageCompression compression = ImageCompression::Flate;
@@ -105,6 +119,8 @@ public:
         float jpeg2000Rate = 0.0f;              ///< >0 for lossy ratio, 0.0 for lossless
         int monochromeThreshold = 128;          ///< Threshold for monochrome conversion (<0 selects automatic)
         bool enablePngPredictor = true;         ///< Adds PNG predictor metadata for Flate
+        ResampleFilter resampleFilter = ResampleFilter::Bicubic; ///< Resampling filter for scaling
+        AlphaHandling alphaHandling = AlphaHandling::FlattenToWhite;
     };
 
     /// Creates PDF stream representing supplied image.

@@ -117,6 +117,7 @@ public:
         SendByMail,
         RenderToImages,
         Optimize,
+        OptimizeImages,
         Sanitize,
         RemoveExternalLinks,
         CreateBitonalDocument,
@@ -361,6 +362,7 @@ private:
     void onActionSendByEMailTriggered();
     void onActionRenderToImagesTriggered();
     void onActionOptimizeTriggered();
+    void onActionOptimizeImagesTriggered();
     void onActionSanitizeTriggered();
     void onActionRemoveExternalLinksTriggered();
     void onActionCreateBitonalDocumentTriggered();
