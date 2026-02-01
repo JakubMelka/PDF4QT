@@ -229,10 +229,7 @@ QImage PDFImageConversion::convertAdaptive() const
 
     const int width = source.width();
     const int height = source.height();
-
     const int radius = ADAPTIVE_WINDOW_RADIUS;
-    const int diameter = radius * 2 + 1;
-    const int area = diameter * diameter;
 
     std::vector<int> integral((width + 1) * (height + 1), 0);
 
@@ -244,7 +241,7 @@ QImage PDFImageConversion::convertAdaptive() const
         {
             rowSum += row[x - 1];
             const int idx = y * (width + 1) + x;
-            integral[idx] = integral[idx - (width + 1)] + rowSum;
+            integral.at(idx) = integral.at(idx - (width + 1)) + rowSum;
         }
     }
 
@@ -304,7 +301,7 @@ QImage PDFImageConversion::convertDithered(int threshold) const
         const uchar* row = source.constScanLine(y);
         for (int x = 0; x < width; ++x)
         {
-            buffer[y * width + x] = row[x];
+            buffer.at(y * width + x) = row[x];
         }
     }
 
@@ -323,18 +320,18 @@ QImage PDFImageConversion::convertDithered(int threshold) const
 
             if (x + 1 < width)
             {
-                buffer[index + 1] += error * 7.0f / 16.0f;
+                buffer.at(index + 1) += error * 7.0f / 16.0f;
             }
             if (y + 1 < height)
             {
                 if (x > 0)
                 {
-                    buffer[index + width - 1] += error * 3.0f / 16.0f;
+                    buffer.at(index + width - 1) += error * 3.0f / 16.0f;
                 }
-                buffer[index + width] += error * 5.0f / 16.0f;
+                buffer.at(index + width) += error * 5.0f / 16.0f;
                 if (x + 1 < width)
                 {
-                    buffer[index + width + 1] += error * 1.0f / 16.0f;
+                    buffer.at(index + width + 1) += error * 1.0f / 16.0f;
                 }
             }
         }

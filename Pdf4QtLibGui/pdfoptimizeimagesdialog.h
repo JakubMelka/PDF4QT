@@ -24,6 +24,7 @@
 #define PDFOPTIMIZEIMAGESDIALOG_H
 
 #include "pdfimageoptimizer.h"
+#include "pdfdocument.h"
 
 #include <QDialog>
 #include <QFuture>
@@ -40,37 +41,56 @@ class PDFOptimizeImagesDialog;
 namespace pdfviewer
 {
 
+/// Dialog that previews and executes image optimization for a document.
+/// Provides global settings and per-image overrides, then runs the optimizer
+/// asynchronously to keep the UI responsive.
 class PDFOptimizeImagesDialog : public QDialog
 {
     Q_OBJECT
 
 public:
+    /// Creates the dialog for a document.
+    /// \param document Source document (not owned).
+    /// \param progress Progress reporter (may be null).
+    /// \param parent Parent widget.
     explicit PDFOptimizeImagesDialog(const pdf::PDFDocument* document,
                                      pdf::PDFProgress* progress,
                                      QWidget* parent);
     virtual ~PDFOptimizeImagesDialog() override;
 
+    /// Returns the optimized document (moves the stored instance).
+    /// Call after optimization is finished.
     pdf::PDFDocument takeOptimizedDocument() { return qMove(m_optimizedDocument); }
 
 private:
+    /// UI state and settings for a single image row.
     struct ImageEntry
     {
-        pdf::PDFImageOptimizer::ImageInfo info;
-        bool enabled = true;
-        bool overrideEnabled = false;
-        pdf::PDFImageOptimizer::Settings overrideSettings = pdf::PDFImageOptimizer::Settings::createDefault();
+        pdf::PDFImageOptimizer::ImageInfo info; ///< Image metadata and pixels.
+        bool enabled = true; ///< Whether this image participates in optimization.
+        bool overrideEnabled = false; ///< Whether per-image settings override global settings.
+        pdf::PDFImageOptimizer::Settings overrideSettings = pdf::PDFImageOptimizer::Settings::createDefault(); ///< Custom settings.
     };
 
+    /// Populates the internal list of images and initializes UI state.
     void loadImages();
+    /// Refreshes control states, summaries, and enablement.
     void updateUi();
+    /// Refreshes the preview panel for the current selection.
     void updatePreview();
+    /// Refreshes widgets related to the currently selected image.
     void updateSelectedImageUi();
 
+    /// Loads settings values into UI widgets.
     void loadSettingsToUi(const pdf::PDFImageOptimizer::Settings& settings);
+    /// Reads UI widget values into the supplied settings instance.
     void applyUiToSettings(pdf::PDFImageOptimizer::Settings& settings);
+    /// Returns active settings for the current selection (global or override).
     pdf::PDFImageOptimizer::Settings& activeSettings();
 
+    /// Returns the selected image entry or null if none is selected.
     ImageEntry* getSelectedEntry();
+    /// Returns the selected image entry or null if none is selected.
     const ImageEntry* getSelectedEntry() const;
 
 private slots:

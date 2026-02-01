@@ -28,11 +28,16 @@
 namespace pdftool
 {
 
+/// Command-line application that optimizes a document using selected algorithms.
+/// Applies PDFOptimizer and/or PDFImageOptimizer based on supplied options.
 class PDFToolOptimize : public PDFToolAbstractApplication
 {
 public:
+    /// Returns command metadata such as name/description/command string.
     virtual QString getStandardString(StandardString standardString) const override;
+    /// Executes the optimization workflow using parsed options.
     virtual int execute(const PDFToolOptions& options) override;
+    /// Returns the supported option flags for this tool.
     virtual Options getOptionsFlags() const override;
 };
 

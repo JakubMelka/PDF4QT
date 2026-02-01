@@ -192,7 +192,8 @@ pdf::PDFDocument ImageOptimizerTest::createDocumentWithImage(const QImage& image
         pdf::PDFDictionary dict = *imageStream.getDictionary();
         dict.setEntry(pdf::PDFInplaceOrMemoryString("SMask"), pdf::PDFObject::createReference(maskRef));
         const QByteArray* content = imageStream.getContent();
-        imageStream = pdf::PDFStream(std::move(dict), content ? *content : QByteArray());
+        QByteArray contentDereferenced = content ? *content : QByteArray();
+        imageStream = pdf::PDFStream(std::move(dict), std::move(contentDereferenced));
     }
 
     pdf::PDFObjectReference imageRef = builder.addObject(
@@ -202,7 +203,7 @@ pdf::PDFDocument ImageOptimizerTest::createDocumentWithImage(const QImage& image
     pdf::PDFDictionary contentDict;
     contentDict.addEntry(pdf::PDFInplaceOrMemoryString(pdf::PDF_STREAM_DICT_LENGTH),
                          pdf::PDFObject::createInteger(content.size()));
-    pdf::PDFStream contentStream(std::move(contentDict), content);
+    pdf::PDFStream contentStream(std::move(contentDict), std::move(content));
     pdf::PDFObjectReference contentRef = builder.addObject(
         pdf::PDFObject::createStream(std::make_shared<pdf::PDFStream>(contentStream)));
 
@@ -310,7 +311,7 @@ void ImageOptimizerTest::test_optimizer_keeps_original_if_larger()
     const pdf::PDFDictionary* dictionary = stream->getDictionary();
     QVERIFY(dictionary);
 
-    const pdf::PDFObject& filterObject = optimized.getObject(dictionary->get(PDF_STREAM_DICT_FILTER));
+    const pdf::PDFObject& filterObject = optimized.getObject(dictionary->get(pdf::PDF_STREAM_DICT_FILTER));
     QVERIFY(filterObject.isName());
     QCOMPARE(QString::fromLatin1(filterObject.getString()), QString("RunLengthDecode"));
 }
