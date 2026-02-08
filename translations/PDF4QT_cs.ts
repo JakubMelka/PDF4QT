@@ -726,7 +726,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="290"/>
         <source>&amp;Paste</source>
-        <translation>V&amp;lo?it</translation>
+        <translation>V&amp;ložit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="293"/>
@@ -951,7 +951,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="581"/>
         <source>&amp;Invert Selection</source>
-        <translation>&amp;Obr?tit v?b?r</translation>
+        <translation>&amp;Obrátit výběr</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="590"/>
@@ -1848,7 +1848,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="564"/>
         <source>Dese&amp;lect</source>
-        <translation>Zru?it &amp;v?b?r</translation>
+        <translation>Zrušit &amp;výběr</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="573"/>
@@ -2048,12 +2048,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="972"/>
         <source>Go to document &amp;start</source>
-        <translation>P?ej?t na za??te&amp;k dokumentu</translation>
+        <translation>Přejít na začáte&amp;k dokumentu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="981"/>
         <source>Go to document &amp;end</source>
-        <translation>P?ej?t na &amp;konec dokumentu</translation>
+        <translation>Přejít na &amp;konec dokumentu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="990"/>
@@ -5479,7 +5479,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="550"/>
         <source>Dese&amp;lect</source>
-        <translation>Zru?it &amp;v?b?r</translation>
+        <translation>Zrušit &amp;výběr</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="559"/>
@@ -5499,12 +5499,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="583"/>
         <source>Go to document &amp;start</source>
-        <translation>P?ej?t na za??te&amp;k dokumentu</translation>
+        <translation>Přejít na začáte&amp;k dokumentu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="592"/>
         <source>Go to document &amp;end</source>
-        <translation>P?ej?t na &amp;konec dokumentu</translation>
+        <translation>Přejít na &amp;konec dokumentu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="601"/>
@@ -12257,7 +12257,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="130"/>
         <source>Clear Te&amp;xt Stream</source>
-        <translation>Vymazat tex&amp;tov? proud</translation>
+        <translation>Vymazat tex&amp;tový proud</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="171"/>
@@ -13224,7 +13224,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/softproofingplugin.cpp" line="51"/>
         <source>&amp;Soft Proofing</source>
-        <translation>&amp;M?kk? n?tisk</translation>
+        <translation>&amp;Měkký nátisk</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/softproofingplugin.cpp" line="52"/>

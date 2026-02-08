@@ -6550,7 +6550,7 @@ li.checked::marker { contenu&#xa0;: &quot;\2612&quot;&#xa0;; }
     <name>QAbstractSpinBox</name>
     <message>
         <source>Step &amp;down</source>
-        <translation>&amp;Diminuer</translation>
+        <translation type="vanished">&amp;Diminuer</translation>
     </message>
     <message>
         <source>&amp;Step up</source>
@@ -6860,7 +6860,7 @@ li.checked::marker { contenu&#xa0;: &quot;\2612&quot;&#xa0;; }
     </message>
     <message>
         <source>Hu&amp;e:</source>
-        <translation>&amp;Teinte&#xa0;:</translation>
+        <translation type="vanished">&amp;Teinte&#xa0;:</translation>
     </message>
     <message>
         <source>&amp;HTML:</source>
@@ -7495,7 +7495,7 @@ Voulez-vous quand même le supprimer&#xa0;?</translation>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation>&amp;Nom de fichier&#xa0;:</translation>
+        <translation type="vanished">&amp;Nom de fichier&#xa0;:</translation>
     </message>
     <message>
         <source>Alt+Left</source>
@@ -7926,7 +7926,7 @@ Veuillez vérifier que le nom du fichier est correct.</translation>
     </message>
     <message>
         <source>Wr&amp;iting System</source>
-        <translation>&amp;Système d&apos;écriture</translation>
+        <translation type="vanished">&amp;Système d&apos;écriture</translation>
     </message>
     <message>
         <source>Select Font</source>
@@ -7942,7 +7942,7 @@ Veuillez vérifier que le nom du fichier est correct.</translation>
     </message>
     <message>
         <source>Stri&amp;keout</source>
-        <translation>&amp;Barré</translation>
+        <translation type="vanished">&amp;Barré</translation>
     </message>
 </context>
 <context>
@@ -8823,7 +8823,7 @@ Veuillez vérifier que le nom du fichier est correct.</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation>&amp;Laisser au premier plan</translation>
+        <translation type="vanished">&amp;Laisser au premier plan</translation>
     </message>
     <message>
         <source>&amp;Close</source>
@@ -10479,7 +10479,7 @@ Veuillez choisir un nom de fichier différent.</translation>
     </message>
     <message>
         <source>Output &amp;file:</source>
-        <translation>&amp;Fichier de sortie&#xa0;:</translation>
+        <translation type="vanished">&amp;Fichier de sortie&#xa0;:</translation>
     </message>
     <message>
         <source>P&amp;roperties</source>
