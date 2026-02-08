@@ -5209,391 +5209,446 @@
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="69"/>
+        <source>&amp;Edit</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="84"/>
         <source>&amp;View</source>
         <translation>&amp;Görünüm</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="73"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="88"/>
         <source>Page La&amp;yout</source>
         <translation>Sa&amp;yfa Düzeni</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="84"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="99"/>
         <source>Re&amp;ndering Options</source>
         <translation>İ&amp;şleme Seçenekleri</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="114"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="129"/>
         <source>&amp;Tools</source>
         <translation>&amp;Araçlar</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="126"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="142"/>
         <source>&amp;Help</source>
         <translation>Y&amp;ardım</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="154"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="171"/>
         <source>&amp;Open...</source>
         <translation>&amp;Aç...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="163"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="180"/>
         <source>&amp;Close</source>
         <translation>&amp;Kapat</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="172"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="189"/>
         <source>&amp;Quit</source>
         <translation>&amp;Çıkış</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="180"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="197"/>
         <source>&amp;Single Page</source>
         <translation>&amp;Tek Sayfa</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="183"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="200"/>
         <source>Ctrl+1</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="191"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="208"/>
         <source>&amp;Continuous</source>
         <translation>&amp;Devamlı</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="194"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="211"/>
         <source>Ctrl+2</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="202"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="219"/>
         <source>Two &amp;Pages</source>
         <translation>&amp;İki Sayfa</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="205"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="222"/>
         <source>Ctrl+3</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="213"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="230"/>
         <source>&amp;Two columns</source>
         <translation>İki &amp;Sütun</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="216"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="233"/>
         <source>Ctrl+4</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="224"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="241"/>
         <source>&amp;First page on right side</source>
         <translation>S&amp;ağ taraftaki ilk sayfa</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="227"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="244"/>
         <source>First page on right side</source>
         <translation>Sağ taraftaki ilk sayfa</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="230"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="247"/>
         <source>Ctrl+5</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="239"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="256"/>
         <source>Rendering &amp;Errors...</source>
         <translation>&amp;İşleme Hataları...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="242"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="259"/>
         <source>Ctrl+E</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="250"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="267"/>
         <source>&amp;Antialiasing</source>
         <translation>Ken&amp;ar Yumuşatma</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="258"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="275"/>
         <source>&amp;Text Antialiasing</source>
         <translation>Me&amp;tnin Kenarını Yumuşat</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="266"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="283"/>
         <source>&amp;Smooth Pictures</source>
         <translation>Pürüz&amp;süz Resimler</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="274"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="291"/>
         <source>&amp;Ignore Optional Content Settings</source>
         <translation>&amp;İsteğe Bağlı İçerik Ayarlarını Yoksay</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="283"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="300"/>
         <source>&amp;Options...</source>
         <translation>&amp;Seçenekler...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="286"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="303"/>
         <source>Ctrl+K</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="291"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="308"/>
         <source>&amp;Reset to Factory Settings</source>
         <translation>&amp;Fabrika Ayarlarına Sıfırla</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="300"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="317"/>
         <source>&amp;Zoom In</source>
         <translation>&amp;Yakınlaştır</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="309"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="326"/>
         <source>Zoom &amp;Out</source>
         <translation>&amp;Uzaklaştır</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="318"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="335"/>
         <source>&amp;About...</source>
         <translation>&amp;Hakkında...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="327"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="344"/>
         <source>Fit &amp;Page</source>
         <translation>&amp;Sayfayı Sığdır</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="336"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="353"/>
         <source>Fit &amp;Width</source>
         <translation>&amp;Genişliği Sığdır</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="339"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="356"/>
         <source>W</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="348"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="365"/>
         <source>&amp;Fit Height</source>
         <translation>&amp;Yüksekliği Sığdır</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="351"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="368"/>
         <source>H</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="360"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="377"/>
         <source>Prope&amp;rties...</source>
         <translation>Özellikle&amp;r...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="369"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="386"/>
         <source>Send by &amp;E-Mail...</source>
         <translation>&amp;E-posta ile Gönder...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="381"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="398"/>
         <source>Color | &amp;Inverted</source>
         <translation>Renk | &amp;Ters çevrilmiş</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="393"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="410"/>
         <source>Color | &amp;Grayscale</source>
         <translation>Renk | &amp;Gri Tonlamalı</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="405"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="422"/>
         <source>Color | &amp;High Contrast</source>
         <translation>Renk | &amp;Yüksek Kontrast</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="417"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="434"/>
         <source>Color | &amp;Monochromatic</source>
         <translation>Renk | &amp;Tek Renkli</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="429"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="446"/>
         <source>Color | &amp;Custom</source>
         <translation>Renk | &amp;Özel</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="438"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="455"/>
         <source>Rotate &amp;Right</source>
         <translation>Sağa Çevi&amp;r</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="447"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="464"/>
         <source>Rotate &amp;Left</source>
         <translation>So&amp;la Çevir</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="456"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="473"/>
         <source>&amp;Print...</source>
         <translation>&amp;Yazdır...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="464"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="481"/>
         <source>&amp;Display Annotations</source>
         <translation>&amp;Açıklamaları Görüntüle</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="473"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="490"/>
+        <source>&amp;Find</source>
+        <translation type="unfinished">&amp;Bul</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="499"/>
+        <source>Fin&amp;d Previous</source>
+        <translation type="unfinished">&amp;Öncekini Bul</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="508"/>
+        <source>Fi&amp;nd Next</source>
+        <translation type="unfinished">&amp;Sonrakini Bul</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="520"/>
+        <source>Select te&amp;xt</source>
+        <translation type="unfinished">&amp;Metin Seçimi</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="532"/>
+        <source>Select &amp;table</source>
+        <translation type="unfinished">&amp;Tablo Seçimi</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="541"/>
+        <source>Select &amp;All</source>
+        <translation type="unfinished">T&amp;ümünü Seç</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="550"/>
+        <source>Dese&amp;lect</source>
+        <translation type="unfinished">Seçimi Ka&amp;ldır</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="559"/>
+        <source>&amp;Copy text</source>
+        <translation type="unfinished">Metni &amp;Kopyala</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="571"/>
+        <source>&amp;Magnifier</source>
+        <translation type="unfinished">&amp;Büyüteç</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="574"/>
+        <source>Magnifier Tool</source>
+        <translation type="unfinished">Büyüteç Araçları</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="583"/>
         <source>Go to document &amp;start</source>
         <translation>Belgenin &amp;başına git</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="482"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="592"/>
         <source>Go to document &amp;end</source>
         <translation>Belgenin &amp;sonuna git</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="491"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="601"/>
         <source>Go to &amp;next page</source>
         <translation>S&amp;onraki sayfaya git</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="500"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="610"/>
         <source>Go to &amp;previous page</source>
         <translation>&amp;Önceki sayfaya git</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="509"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="619"/>
         <source>Go &amp;to next line</source>
         <translation>Sonraki satıra gi&amp;t</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="518"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="628"/>
         <source>Go t&amp;o previous line</source>
         <translation>Ö&amp;nceki satıra git</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="527"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="637"/>
         <source>&amp;Get Source</source>
         <translation>&amp;Kaynak Koda Eriş</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="536"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="646"/>
         <source>&amp;Certificates...</source>
         <translation>&amp;Sertifikalar...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="544"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="654"/>
         <source>Automatic &amp;Document Refresh</source>
         <translation>Otomatik &amp;Belge Yenileme</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="547"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="657"/>
         <source>Automatically reloads the document if a change made by an external program is detected.</source>
         <translation>Harici bir program tarafından yapılan bir değişiklik algılanırsa belgeyi otomatik olarak yeniden yükler.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="556"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="666"/>
         <source>Become a &amp;Sponsor</source>
         <translation>&amp;Sponsor Olun</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="559"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="669"/>
         <source>Become a Sponsor</source>
         <translation>Sponsor Olun</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="568"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="678"/>
         <source>&amp;Bookmark Page</source>
         <translation>&amp;Yer İşareti Sayfası</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="571"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="681"/>
         <source>Bookmark Page</source>
         <translation>Yer İşareti Sayfası</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="574"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="684"/>
         <source>Bookmark page for fast navigation.</source>
         <translation>Hızlı gezinme için yer işareti sayfası.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="583"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="693"/>
         <source>&amp;Go to Next Bookmark</source>
         <translation>Sonraki Yer İşaretine &amp;Git</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="586"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="696"/>
         <source>Go to Next Bookmark</source>
         <translation>Sonraki Yer İşaretine Git</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="589"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="699"/>
         <source>Navigates to the next bookmarked page.</source>
         <translation>Yer imlerine eklenmiş bir sonraki sayfaya gider.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="598"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="708"/>
         <source>Go to Previous Boo&amp;kmark</source>
         <translation>Önce&amp;ki Yer İşaretine Git</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="601"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="711"/>
         <source>Navigates to the previous bookmarked page.</source>
         <translation>Yer imlerine eklenen önceki sayfaya gider.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="610"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="720"/>
         <source>&amp;Export Bookmarks</source>
         <translation>Y&amp;er İşaretlerini Dışa Aktar</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="613"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="723"/>
         <source>Export Bookmarks</source>
         <translation>Yer İşaretlerini Dışa Aktar</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="616"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="726"/>
         <source>Export bookmarks to the file.</source>
         <translation>Yer işaretlerini dosyaya aktar.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="625"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="735"/>
         <source>&amp;Import Bookmarks</source>
         <translation>Yer İşaretlerini &amp;İçe Aktar</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="628"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="738"/>
         <source>Import Bookmarks</source>
         <translation>Yer İşaretlerini İçe Aktar</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="631"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="741"/>
         <source>Import bookmarks from the file.</source>
         <translation>Yer işaretlerini dosyadan içe aktar.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="643"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="753"/>
         <source>&amp;Generate Bookmarks Automatically</source>
         <translation>Yer işaretlerini otomatik olarak &amp;oluşturun</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="646"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="756"/>
         <source>Generate Bookmarks Automatically</source>
         <translation>Yer işaretlerini otomatik olarak oluşturun</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="649"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="759"/>
         <source>If checked, bookmarks for main document chapters are generated automatically.</source>
         <translation>İşaretlenirse, ana belge bölümleri için yer işaretleri otomatik olarak oluşturulur.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="657"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="767"/>
         <source>Display &amp;Render Times</source>
         <translation>&amp;İşleme Süresini Görüntüle</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="665"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="775"/>
         <source>Clear Recent File &amp;History</source>
         <translation type="unfinished"></translation>
     </message>
@@ -5640,13 +5695,13 @@
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="861"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="882"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="948"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1007"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1237"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1244"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1315"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1322"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1336"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1343"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1043"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1247"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1254"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1325"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1332"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1346"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1353"/>
         <source>Enable</source>
         <translation>Etkinleştir</translation>
     </message>
@@ -6036,17 +6091,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>Azami yineleme adımları</translation>
     </message>
     <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="969"/>
+        <source>Sidebar button icon size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="976"/>
         <source>Magnifier size</source>
         <translation>Büyüteç boyutu</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="969"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1036"/>
         <source>Use logical pixels when zooming</source>
         <translation>Yakınlaştırma sırasında mantıksal pikselleri kullan</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1014"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1010"/>
         <source>px</source>
         <translation></translation>
     </message>
@@ -6066,22 +6126,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>En son kullanılan dosyaların azami sayısı</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1040"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1050"/>
         <source>Developer mode</source>
         <translation>Geliştirici modu</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1030"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1026"/>
         <source>Color Scheme (GUI)</source>
         <translation>Renk Şeması (GUI)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1047"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1057"/>
         <source>Language</source>
         <translation>Dil</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1059"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1069"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6104,42 +6164,42 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Geri alma/yineleme&lt;/span&gt; adım sayısını belirleyerek, belge düzenleme sırasında kullanılabilir geri alma/yineleme adımlarının sayısını kontrol edebilirsiniz. Azami geri alma adım sayısını sıfıra ayarlamak, geri alma/yineleme işlevini devre dışı bırakır. Ayrıca, sıfır olmayan bir geri alma adım sayısı ve sıfır bir yineleme adım sayısı ayarlayabilirsiniz; bu durumda, yalnızca geri alma eylemleri kullanılabilir olur ve yineleme eylemleri devre dışı bırakılır. Değişiklikler bellek kullanımı için optimize edilmiştir, bu nedenle her geri alma/yineleme adımı, değiştirilmemiş nesneleri diğerleriyle paylaşır. Bu, kabaca söylemek gerekirse, 50 MB&apos;lık bir belgeye 10 değişiklik yapmak yaklaşık 51 MB bellek tüketebilir anlamına gelir. Gerçek bellek kullanımı, değişikliklerin kapsamına bağlıdır, ancak değişiklikler genellikle az sayıda nesneyi etkilediği için (örneğin, bir form alanını düzenlemek veya bir açıklamayı değiştirmek) genellikle asgari düzeydedir. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1094"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1104"/>
         <source>Speech Settings</source>
         <translation>Konuşma Ayarları</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1102"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1112"/>
         <source>Voice</source>
         <translation>Ses</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1109"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1119"/>
         <source>Pitch</source>
         <translation>Ton</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1116"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1126"/>
         <source>Volume</source>
         <translation>Ses seviyesi</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1123"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1133"/>
         <source>Rate</source>
         <translation>Tempo</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1130"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1140"/>
         <source>Voice synthetiser</source>
         <translation>Ses sentezleyici</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1137"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1147"/>
         <source>Locale</source>
         <translation>Konum</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1182"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1192"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6158,22 +6218,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Belgeleri okumak için metin okuma özelliğini etkinleştirmek üzere konuşma ayarlarını yapılandırın. Bu ayarlar metin okuma işlevi için varsayılan ayarlar olarak işlev görür, ancak bazıları daha sonra ayarlanabilir. &apos;Ton&apos; ayarı -1,0 ile 1,0 arasında değişebilir ve 0,0 varsayılan değer olarak kullanılır. Benzer şekilde, ‘Hız’ -1,0 ile 1,0 arasında değişebilir ve 0,0 normal konuşma akışını gösterir. Son olarak, &apos;Ses Seviyesi&apos; 0,0 ile 1,0 arasında ayarlanabilir. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1215"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1225"/>
         <source>Form Settings</source>
         <translation>Form Ayarları</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1223"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1233"/>
         <source>Highlight form fields</source>
         <translation>Form alanlarını vurgula</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1230"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1240"/>
         <source>Highlight required form fields</source>
         <translation>Gerekli form alanlarını vurgulayın</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1253"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1263"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6192,47 +6252,47 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Sağlanan ayarları kullanarak form alanlarının görünümünü özelleştirebilirsiniz. Bu ayarlar arasında düzenlenebilir alanları vurgulamak için bir seçenek de bulunmaktadır. Gerekli form alanlarını ayrı ayrı kırmızı renkle vurgulayabilir, diğer alanları ise mavi renkle vurgulayabilirsiniz. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1286"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1296"/>
         <source>Digital Signature Verification</source>
         <translation>Dijital İmza Doğrulama</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1294"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1304"/>
         <source>Ignore expired certificates</source>
         <translation>Süresi dolan sertifikaları yoksay</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1301"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1311"/>
         <source>Signature verification</source>
         <translation>İmza doğrulama</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1308"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1318"/>
         <source>Strict mode</source>
         <translation>Sıkı mod</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1329"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1339"/>
         <source>Use system certificate store</source>
         <translation>Sistem sertifika deposunu kullan</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1359"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1369"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Trusted certificate store&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Güvenilen sertifika deposu&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1388"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1398"/>
         <source>Remove</source>
         <translation>Kaldır</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1404"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1414"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;These are the settings for digital signature verification. Digital signatures are verified as strictly as possible to prevent any malicious content or signature manipulation. Verification can also be disabled, if not required. When &lt;span style=&quot; font-weight:600;&quot;&gt;Strict mode&lt;/span&gt; is enabled, every warning is treated as an error. You have the option to ignore the certificate expiration date, but this should only be done if you fully understand the potential risks involved. Verification uses a list of trusted certificates. System certificates can be added to this list, and you can also manage your own list of trusted certificates.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Bunlar dijital imza doğrulama ayarlarıdır. Dijital imzalar, kötü niyetli içerik veya imza manipülasyonunu önlemek için mümkün olduğunca sıkı bir şekilde doğrulanır. Doğrulama, gerekli değilse devre dışı bırakılabilir. &lt;span style=&quot; font-weight:600;&quot;&gt;Sıkı mod&lt;/span&gt; etkinleştirildiğinde, her uyarı bir hata olarak değerlendirilir. Sertifika son kullanma tarihini yok sayma seçeneğiniz vardır, ancak bunu yalnızca ilgili potansiyel riskleri tam olarak anladıysanız yapmalısınız. Doğrulama, güvenilir sertifikalar listesini kullanır. Sistem sertifikaları bu listeye eklenebilir ve ayrıca kendi güvenilir sertifikalar listenizi de yönetebilirsiniz.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1433"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1443"/>
         <source>Plugins</source>
         <translation>Eklentiler</translation>
     </message>
@@ -8649,12 +8709,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFTranslationContext</name>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfaction.cpp" line="62"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfaction.cpp" line="64"/>
         <source>Circular dependence in actions found.</source>
         <translation>Eylemlerde döngüsel bağımlılık tespit edildi.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfaction.cpp" line="75"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfaction.cpp" line="77"/>
         <source>Invalid action.</source>
         <translation>Geçersiz eylem.</translation>
     </message>
@@ -13946,143 +14006,143 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>&apos;%1&apos; url&apos;si açılamadı.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1172"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1205"/>
         <source>Save As</source>
         <translation>Farklı Kaydet</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1172"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1205"/>
         <source>Portable Document (*.pdf);;All files (*.*)</source>
         <translation>Taşınabilir Belge (*.pdf);; Tüm dosyalar (*.*)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1207"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1346"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1240"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1379"/>
         <source>Error</source>
         <translation>Hata</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1255"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1288"/>
         <source>Save Document</source>
         <translation>Belgeyi Kaydet</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1256"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1289"/>
         <source>Do you wish to save modified document before it is closed?</source>
         <translation>Değiştirilen belgeyi kapatmadan önce kaydetmek ister misiniz?</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1346"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1379"/>
         <source>Error while starting email client occured!</source>
         <translation>E-posta istemcisi başlatılırken hata oluştu!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1419"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1420"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1452"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1453"/>
         <source>No external link annotations found.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1437"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1438"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1470"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1471"/>
         <source>External link annotations removed: %1.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1477"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1510"/>
         <source>Permission to change document security is denied.</source>
         <translation>Belge güvenliğini değiştirme izni reddedildi.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1496"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1529"/>
         <source>Failed to create security handler.</source>
         <translation>Güvenlik işleyicisi oluşturulamadı.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1509"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1520"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1542"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1553"/>
         <source>Reauthorization is required to change document encryption.</source>
         <translation>Belge şifrelemesini değiştirmek için yeniden yetkilendirme gereklidir.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1604"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1637"/>
         <source>Encrypted document</source>
         <translation>Şifreli belge</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1604"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1637"/>
         <source>Enter password to access document content</source>
         <translation>Belge içeriğine erişmek için parola girin</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2004"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2037"/>
         <source>Document &apos;%1&apos; was successfully loaded!</source>
         <translation>&apos;%1&apos; belgesi başarıyla yüklendi!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2010"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2043"/>
         <source>Document read error: %1</source>
         <translation>Belge okuma hatası: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2212"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2245"/>
         <source>%1 - %2</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2394"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2401"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2427"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2434"/>
         <source>Reset Settings</source>
         <translation>Ayarları Sıfırla</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2394"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2427"/>
         <source>Do you wish to restore the default factory settings of the program? All settings changed by the user will be deleted. Application will be closed.</source>
         <translation>Programın varsayılan fabrika ayarlarını geri yüklemek ister misiniz? Kullanıcı tarafından değiştirilen tüm ayarlar silinecektir. Uygulama kapatılacaktır.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2401"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2434"/>
         <source>Default factory settings were restored. Application will be now closed.</source>
         <translation>Fabrika ayarları geri yüklendi. Uygulama şimdi kapatılacak.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2446"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2479"/>
         <source>Plugins</source>
         <translation>Eklentiler</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2446"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2479"/>
         <source>Plugin on/off state has been changed. Please restart application to apply settings.</source>
         <translation>Eklenti açık/kapalı durumu değiştirildi. Ayarları uygulamak için lütfen uygulamayı yeniden başlatın.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2473"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2545"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2506"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2578"/>
         <source>Select PDF document</source>
         <translation>PDF belgesini seçin</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2473"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2506"/>
         <source>PDF document (*.pdf)</source>
         <translation>PDF belgesi (*.pdf)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2530"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2563"/>
         <source>Export Bookmarks As</source>
         <translation>Yer İmlerini Dışa Farklı Aktar</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2530"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2563"/>
         <source>JSON (*.json);;All files (*.*)</source>
         <translation>JSON (*.json);; Tüm dosyalar (*.*)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2545"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2578"/>
         <source>JSON (*.json)</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2564"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2597"/>
         <source>Rendering of page %1: %2 errors occured.</source>
         <translation>%1 sayfasının işlenmesinde: %2 hataları oluştu.</translation>
     </message>
@@ -14206,359 +14266,377 @@ Sayfa %2: %3</translation>
 <context>
     <name>pdfviewer::PDFSidebarWidget</name>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="378"/>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="382"/>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="882"/>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="887"/>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="893"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="383"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="387"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="942"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="947"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="953"/>
         <source>Error</source>
         <translation>Hata</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="378"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="383"/>
         <source>Speech feature is unavailable. No speech engines detected. If you&apos;re using Linux, please install speech libraries like &apos;flite&apos; or &apos;speechd&apos;.</source>
         <translation>Konuşma özelliği kullanılamıyor. Konuşma motoru algılanmadı. Linux kullanıyorsanız, lütfen &apos;flite&apos; veya &apos;speechd&apos; gibi konuşma kitaplıkları yükleyin.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="382"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="387"/>
         <source>The speech feature is available, but its options are not properly set. Please check the speech settings in the options dialog.</source>
         <translation>Konuşma özelliği kullanılabilir, ancak seçenekleri düzgün ayarlanmamış. Lütfen seçenekler iletişim kutusundaki konuşma ayarlarını kontrol edin.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="486"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="546"/>
         <source>Signature - %1</source>
         <translation>İmza - %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="490"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="550"/>
         <source>Timestamp - %1</source>
         <translation>Zaman damgası - %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="501"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="561"/>
         <source>Unknown</source>
         <translation>Bilinmeyen</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="519"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="579"/>
         <source>Certificate is valid.</source>
         <translation>Sertifika geçerli.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="525"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="585"/>
         <source>Signature is valid.</source>
         <translation>Sertifika geçerli.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="544"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="604"/>
         <source>Hash algorithm: %1</source>
         <translation>Hash algoritması: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="564"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="624"/>
         <source>Certificate validation chain</source>
         <translation>Sertifika doğrulama zinciri</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="589"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="649"/>
         <source>Protected by RSA method, %1-bit key</source>
         <translation>RSA yöntemi ile korunan, %1 bit anahtar</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="593"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="653"/>
         <source>Protected by DSA method, %1-bit key</source>
         <translation>DSA yöntemi ile korunan, %1 bit anahtar</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="597"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="657"/>
         <source>Protected by EC method, %1-bit key</source>
         <translation>EC yöntemi ile korunan, %1 bit anahtar</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="601"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="661"/>
         <source>Protected by DH method, %1-bit key</source>
         <translation>DH yöntemi ile korunan, %1 bit anahtar</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="605"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="665"/>
         <source>Unknown protection method, %1-bit key</source>
         <translation>Bilinmeyen koruma yöntemi, %1 bit anahtar</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="613"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="673"/>
         <source>Country</source>
         <translation>Ülke</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="614"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="674"/>
         <source>Organization</source>
         <translation>Organizasyon</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="615"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="675"/>
         <source>Org. unit</source>
         <translation>Org. birimi</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="616"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="676"/>
         <source>Name</source>
         <translation>Ad</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="617"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="677"/>
         <source>State</source>
         <translation>Devlet</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="618"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="678"/>
         <source>Serial number</source>
         <translation>Seri numara</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="619"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="679"/>
         <source>Locality</source>
         <translation>Yer</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="620"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="680"/>
         <source>Title</source>
         <translation>Başlık</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="621"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="681"/>
         <source>Surname</source>
         <translation>Soyadı</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="622"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="682"/>
         <source>Forename</source>
         <translation>İlk ad</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="623"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="683"/>
         <source>Initials</source>
         <translation>Baş harfler</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="624"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="684"/>
         <source>Pseudonym</source>
         <translation>Takma ad</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="625"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="685"/>
         <source>Qualifier</source>
         <translation>Niteleyici</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="626"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="686"/>
         <source>Email</source>
         <translation>E-Posta</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="649"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="709"/>
         <source>Digital signatures</source>
         <translation>Dijital imzalar</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="653"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="713"/>
         <source>Non-repudiation</source>
         <translation>Onaylama</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="657"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="717"/>
         <source>Key encipherement</source>
         <translation>Anahtar şifreleme</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="661"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="721"/>
         <source>Application data encipherement</source>
         <translation>Uygulama veri şifrelemesi</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="665"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="725"/>
         <source>Key agreement</source>
         <translation>Anahtar anlaşma</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="669"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="729"/>
         <source>Verify signatures on certificates</source>
         <translation>Sertifikalardaki imzaları doğrulayın</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="673"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="733"/>
         <source>Verify signatures on revocation information</source>
         <translation>İptal bilgileri hakkındaki imzaları doğrulayın</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="677"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="737"/>
         <source>Encipher data during key agreement</source>
         <translation>Anahtar sözleşmesi sırasında verileri şifreleyin</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="681"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="741"/>
         <source>Decipher data during key agreement</source>
         <translation>Anahtar anlaşması sırasında verilerin şifresini çözün</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="685"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="745"/>
         <source>Trusted timestamping</source>
         <translation>Güvenilir zaman damgası</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="690"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="750"/>
         <source>Key usages</source>
         <translation>Anahtar kullanımlar</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="757"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="817"/>
         <source>User</source>
         <translation>Kullanıcı</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="765"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="825"/>
         <source>Page %1</source>
         <translation>Sayfa %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="859"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="919"/>
         <source>Save to File...</source>
         <translation>Dosyaya Kaydet...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="867"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="927"/>
         <source>Save attachment</source>
         <translation>Eki kaydet</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="882"/>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="887"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="942"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="947"/>
         <source>Failed to save attachment to file. %1</source>
         <translation>Ek, dosyaya kaydedilemedi. %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="893"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="953"/>
         <source>Failed to save attachment to file. Attachment is corrupted.</source>
         <translation>Ek, dosyaya kaydedilemedi. Ek bozuk.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="922"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="982"/>
         <source>Add to trusted certificates</source>
         <translation>Güvenilen sertifikalara ekle</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="926"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="986"/>
         <source>Add to Trusted Certificate Store</source>
         <translation>Güvenilen Sertifika Deposuna Ekle</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="926"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="986"/>
         <source>Are you sure want to add &apos;%1&apos; to the trusted certificate store?</source>
         <translation>Güvenilen sertifika deposuna &apos;%1&apos; &apos;i eklemek istediğinizden emin misiniz?</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="930"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="990"/>
         <source>Trusted Certificate Store Error</source>
         <translation>Güvenilen Sertifika Deposu Hatası</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="930"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="990"/>
         <source>Failed to add certificate to the trusted certificate store.</source>
         <translation>Güvenilen sertifika deposuna sertifika eklenemedi.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1001"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1061"/>
         <source>Follow</source>
         <translation>Takip et</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1005"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1065"/>
         <source>Delete</source>
         <translation>Sil</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1006"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1066"/>
         <source>Insert</source>
         <translation>Ekle</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1007"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1067"/>
         <source>Rename</source>
         <translation>Yeniden adlandır</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1030"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1090"/>
         <source>Font Bold</source>
         <translation>Yazıtipi Kalın</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1031"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1091"/>
         <source>Font Italic</source>
         <translation>Yazitipi Eğik</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1039"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1099"/>
         <source>Set Target</source>
         <translation>Hedef Ayarla</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1099"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1161"/>
         <source>Select Named Destination</source>
         <translation>Adlandırılmış Hedef Seçin</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1110"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1172"/>
         <source>OK</source>
         <translation>TAMAM</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1111"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1173"/>
         <source>Cancel</source>
         <translation>İptal</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1144"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1206"/>
         <source>Named Destination</source>
         <translation>Adlandırılmış Hedef</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1145"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1207"/>
         <source>Fit Page</source>
         <translation>Sayfayı Sığdır</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1146"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1208"/>
         <source>Fit Page Horizontally</source>
         <translation>Sayfayı Yatay Olarak Sığdır</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1147"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1209"/>
         <source>Fit Page Vertically</source>
         <translation>Sayfayı Dikey Olarak Sığdır</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1148"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1210"/>
         <source>Fit Rectangle</source>
         <translation>Dikdörtgeni Sığdır</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1149"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1211"/>
         <source>Fit Bounding Box</source>
         <translation>Sınır Kutusuna Sığdır</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1150"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1212"/>
         <source>Fit Bounding Box Horizontally</source>
         <translation>Sınırlayıcı kutuyu yatay olarak sığdır</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1151"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1213"/>
         <source>Fit Bounding Box Vertically</source>
         <translation>Sınırlayıcı kutuyu dikey olarak sığdır</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1152"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1214"/>
         <source>XYZ</source>
         <translation></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1281"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1319"/>
+        <source>Inherit Zoom for All Chapters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1282"/>
+        <source>%1 link(s) will be fixed to inherit zoom.
+
+Do you want to perform this action?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1317"/>
+        <source>Inherit Zoom</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -14569,17 +14647,17 @@ Sayfa %2: %3</translation>
         <translation>Standart</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="204"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="213"/>
         <source>%</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="222"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="237"/>
         <source>&amp;Sidebar</source>
         <translation>&amp;Kenar çubuğu</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="354"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="369"/>
         <source> / %1</source>
         <translation></translation>
     </message>
@@ -14713,6 +14791,7 @@ Sayfa %2: %3</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="132"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="147"/>
         <source>Medium</source>
         <translation>Orta</translation>
     </message>
@@ -14762,42 +14841,57 @@ Sayfa %2: %3</translation>
         <translation>Koyu renk şeması</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="147"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="146"/>
+        <source>Small</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="148"/>
+        <source>Large</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="149"/>
+        <source>Very Large</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="152"/>
         <source>Automatic detection</source>
         <translation>Otomatik algılama</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="148"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="153"/>
         <source>English</source>
         <translation>İngilizce</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="149"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="154"/>
         <source>German</source>
         <translation>Almanca</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="150"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="155"/>
         <source>Korean</source>
         <translation>Korece</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="151"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="156"/>
         <source>Spanish</source>
         <translation>İspanyolca</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="152"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="157"/>
         <source>Czech</source>
         <translation>Çekçe</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="153"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="158"/>
         <source>Chinese (Simplified)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="154"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="159"/>
         <source>Chinese (Traditional)</source>
         <translation type="unfinished"></translation>
     </message>
@@ -14806,102 +14900,102 @@ Sayfa %2: %3</translation>
         <translation type="vanished">Çince</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="155"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="160"/>
         <source>French</source>
         <translation>Fransızca</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="156"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="161"/>
         <source>Turkish</source>
         <translation>Türkçe</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="157"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="162"/>
         <source>Russian</source>
         <translation>Rusça</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="677"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="687"/>
         <source>Type</source>
         <translation>Tür</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="677"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="687"/>
         <source>Certificate</source>
         <translation>Sertifika</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="677"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="687"/>
         <source>Organization</source>
         <translation>Organizasyon</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="677"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="687"/>
         <source>Valid from</source>
         <translation>-den beri geçerli</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="677"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="687"/>
         <source>Valid to</source>
         <translation>-e kadar geçerli</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="685"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="695"/>
         <source>User</source>
         <translation>Kullanıcı</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="689"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="699"/>
         <source>System</source>
         <translation>Sistem</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="729"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="739"/>
         <source>Action</source>
         <translation>Eylem</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="729"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="739"/>
         <source>Shortcut</source>
         <translation>Kısayol</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="758"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="768"/>
         <source>Error</source>
         <translation>Hata</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="758"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="768"/>
         <source>Shortcut &apos;%1&apos; is invalid for action %2.</source>
         <translation>&apos;%1&apos; kısayolu %2 eylemi için geçersiz.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="781"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="791"/>
         <source>Active</source>
         <translation>Aktif</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="781"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="791"/>
         <source>Name</source>
         <translation>Ad</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="781"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="791"/>
         <source>Author</source>
         <translation>Yazar</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="781"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="791"/>
         <source>Version</source>
         <translation>Sürüm</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="781"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="791"/>
         <source>License</source>
         <translation>Lisans</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="895"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="905"/>
         <source>Select color profile directory</source>
         <translation>Renk profili dizinini seçin</translation>
     </message>

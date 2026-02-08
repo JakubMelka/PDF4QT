@@ -53,6 +53,8 @@
 #include <QPushButton>
 #include <QStandardItemModel>
 #include <QSortFilterProxyModel>
+#include <cmath>
+#include <functional>
 #include <limits>
 
 #include "pdfdbgheap.h"
@@ -1236,8 +1238,86 @@ void PDFSidebarWidget::onOutlineTreeViewContextMenuRequested(const QPoint& pos)
         m_outlineTreeModel->setDestination(sourceIndex, destination);
     };
 
+    auto countInheritableZoomLinks = [this]() -> int
+    {
+        int count = 0;
+
+        std::function<void(const QModelIndex&)> visitItems = [this, &count, &visitItems](const QModelIndex& parentIndex)
+        {
+            const int itemCount = m_outlineTreeModel->rowCount(parentIndex);
+            for (int row = 0; row < itemCount; ++row)
+            {
+                const QModelIndex itemIndex = m_outlineTreeModel->index(row, 0, parentIndex);
+                const pdf::PDFAction* action = m_outlineTreeModel->getAction(itemIndex);
+                const pdf::PDFActionGoTo* goToAction = dynamic_cast<const pdf::PDFActionGoTo*>(action);
+
+                if (goToAction)
+                {
+                    const pdf::PDFDestination destination = goToAction->getDestination();
+                    if (destination.getDestinationType() == pdf::DestinationType::XYZ &&
+                        !std::isnan(destination.getZoom()))
+                    {
+                        ++count;
+                    }
+                }
+
+                visitItems(itemIndex);
+            }
+        };
+
+        visitItems(QModelIndex());
+        return count;
+    };
+
+    auto onInheritZoomForAllChapters = [this, countInheritableZoomLinks]()
+    {
+        const int linksToFix = countInheritableZoomLinks();
+        if (linksToFix <= 0)
+        {
+            return;
+        }
+
+        const QMessageBox::StandardButton result = QMessageBox::warning(this,
+                                                                        tr("Inherit Zoom for All Chapters"),
+                                                                        tr("%1 link(s) will be fixed to inherit zoom.\n\nDo you want to perform this action?").arg(linksToFix),
+                                                                        QMessageBox::Yes | QMessageBox::No,
+                                                                        QMessageBox::No);
+        if (result != QMessageBox::Yes)
+        {
+            return;
+        }
+
+        std::function<void(const QModelIndex&)> visitItems = [this, &visitItems](const QModelIndex& parentIndex)
+        {
+            const int itemCount = m_outlineTreeModel->rowCount(parentIndex);
+            for (int row = 0; row < itemCount; ++row)
+            {
+                const QModelIndex itemIndex = m_outlineTreeModel->index(row, 0, parentIndex);
+                const pdf::PDFAction* action = m_outlineTreeModel->getAction(itemIndex);
+                const pdf::PDFActionGoTo* goToAction = dynamic_cast<const pdf::PDFActionGoTo*>(action);
+
+                if (goToAction)
+                {
+                    pdf::PDFDestination destination = goToAction->getDestination();
+                    if (destination.getDestinationType() == pdf::DestinationType::XYZ &&
+                        !std::isnan(destination.getZoom()))
+                    {
+                        destination.setZoom(std::numeric_limits<pdf::PDFReal>::quiet_NaN());
+                        m_outlineTreeModel->setDestination(itemIndex, destination);
+                    }
+                }
+
+                visitItems(itemIndex);
+            }
+        };
+
+        visitItems(QModelIndex());
+    };
+
     QAction* inheritZoomAction = submenu->addAction(tr("Inherit Zoom"), onInheritZoom);
     inheritZoomAction->setEnabled(canInheritZoom);
+    QAction* inheritZoomForAllAction = submenu->addAction(tr("Inherit Zoom for All Chapters"), onInheritZoomForAllChapters);
+    inheritZoomForAllAction->setEnabled(countInheritableZoomLinks() > 0);
 
     contextMenu.exec(ui->outlineTreeView->mapToGlobal(pos));
 }
