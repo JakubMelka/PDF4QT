@@ -582,46 +582,46 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="70"/>
         <source>&amp;Edit</source>
-        <translation>&amp;Úpravy</translation>
+        <translation>&amp;Upravit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="92"/>
         <source>&amp;Insert</source>
-        <translation>Vloži&amp;t</translation>
+        <translation>&amp;Vložit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="100"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="63"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="67"/>
         <source>&amp;View</source>
-        <translation>&amp;Zobrazit</translation>
+        <translation>&amp;Pohled</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="117"/>
         <source>&amp;Make</source>
-        <translation>V&amp;ytvořit</translation>
+        <translation>&amp;Vyrobit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="125"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="42"/>
         <source>&amp;Help</source>
-        <translation>&amp;Nápověda</translation>
+        <translation>&amp;Pomoc</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="134"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="50"/>
         <source>&amp;Toolbars</source>
-        <translation>Lišty nástro&amp;jů</translation>
+        <translation>&amp;Panely nástrojů</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="139"/>
         <source>&amp;Regroup</source>
-        <translation>Přes&amp;kupit</translation>
+        <translation>&amp;Přeskupit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="164"/>
         <source>&amp;Add Documents...</source>
-        <translation>Přidat dokum&amp;enty...</translation>
+        <translation>&amp;Přidat dokumenty...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="167"/>
@@ -631,7 +631,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="179"/>
         <source>C&amp;lose</source>
-        <translation>Za&amp;vřít</translation>
+        <translation>&amp;Blízko</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="182"/>
@@ -641,7 +641,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="191"/>
         <source>Clone &amp;Selection</source>
-        <translation>Klonovat &amp;Selekci</translation>
+        <translation>Klonovat &amp;výběr</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="194"/>
@@ -651,7 +651,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="203"/>
         <source>Re&amp;move Selection</source>
-        <translation>&amp;Odstranit Selekci</translation>
+        <translation>Odebrat &amp;odstranit výběr</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="206"/>
@@ -661,7 +661,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="215"/>
         <source>Restore Removed &amp;Items</source>
-        <translation>O&amp;bnovit Smazané Položky</translation>
+        <translation>Obnovit odstraněné &amp;položky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="218"/>
@@ -671,7 +671,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="227"/>
         <source>Insert &amp;PDF</source>
-        <translation>Vložte &amp;PDF</translation>
+        <translation>Vložit &amp;PDF</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="230"/>
@@ -686,7 +686,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="242"/>
         <source>&amp;Insert Image</source>
-        <translation>&amp;Vložte obrázek</translation>
+        <translation>&amp;Vložit obrázek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="245"/>
@@ -696,7 +696,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="254"/>
         <source>Insert &amp;Empty Page</source>
-        <translation>Vložte &amp;Prázdnou stránku</translation>
+        <translation>Vložit &amp;prázdnou stránku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="257"/>
@@ -706,7 +706,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="266"/>
         <source>Cu&amp;t</source>
-        <translation>Vyj&amp;mout</translation>
+        <translation>&amp;Střih</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="269"/>
@@ -716,7 +716,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="278"/>
         <source>&amp;Copy</source>
-        <translation>&amp;Kopírovat</translation>
+        <translation>&amp;Kopie</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="281"/>
@@ -726,7 +726,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="290"/>
         <source>&amp;Paste</source>
-        <translation>V&amp;ložit</translation>
+        <translation>V&amp;lo?it</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="293"/>
@@ -736,7 +736,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="302"/>
         <source>Repl&amp;ace Selection</source>
-        <translation>Repl&amp;ace Výběr</translation>
+        <translation>Nahradit &amp;výběr</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="305"/>
@@ -746,7 +746,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="314"/>
         <source>Select &amp;None</source>
-        <translation>Vybrat &amp;Nic</translation>
+        <translation>Vyberte &amp;Žádné</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="317"/>
@@ -756,7 +756,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="326"/>
         <source>Select &amp;All</source>
-        <translation>Vybrat &amp;Vše</translation>
+        <translation>Vyberte &amp;Vše</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="329"/>
@@ -766,7 +766,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="338"/>
         <source>Select &amp;Even</source>
-        <translation>Vybrat &amp;Sudé</translation>
+        <translation>Vybrat s&amp;ud?</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="341"/>
@@ -776,7 +776,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="350"/>
         <source>Select &amp;Odd</source>
-        <translation>Vybrat &amp;Liché</translation>
+        <translation>Vyberte &amp;Liché</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="353"/>
@@ -786,7 +786,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="362"/>
         <source>Select &amp;Portrait</source>
-        <translation>Vybrat &amp;Na výšku</translation>
+        <translation>Vyberte &amp;Portrét</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="365"/>
@@ -796,7 +796,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="374"/>
         <source>Select &amp;Landscape</source>
-        <translation>Vybrat &amp;Na šířku</translation>
+        <translation>Vyberte &amp;Na šířku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="377"/>
@@ -836,7 +836,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="422"/>
         <source>Zoo&amp;m Out</source>
-        <translation>&amp;Oddálit</translation>
+        <translation>Zoo&amp;m Out</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="425"/>
@@ -864,7 +864,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="455"/>
         <source>&amp;United Document...</source>
-        <translation>&amp;Sjednotit dokument...</translation>
+        <translation>&amp;Sjednocený dokument...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="458"/>
@@ -875,7 +875,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="467"/>
         <source>&amp;Separate to Multiple Documents...</source>
-        <translation>&amp;Oddělit do více dokumentů...</translation>
+        <translation>&amp;Oddělit na více dokumentů...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="470"/>
@@ -886,7 +886,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="479"/>
         <source>Separate to Multiple Documents (&amp;Grouped)...</source>
-        <translation>Rozdělit na více dokumentů (&amp;Grouped)...</translation>
+        <translation>Oddělit do více dokumentů (&amp;seskupené)...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="482"/>
@@ -921,42 +921,42 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="527"/>
         <source>Regroup by &amp;Even/Odd Pages</source>
-        <translation>Seskupit podle &amp;Sudých/lichých stránek</translation>
+        <translation>Přeskupit podle &amp;sudých/lichých stránek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="536"/>
         <source>Regroup by Re&amp;verse</source>
-        <translation>Seskupit O&amp;bráceně</translation>
+        <translation>Seskupit v &amp;obr?cen?m po?ad?</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="545"/>
         <source>Regroup by &amp;Page Pairs</source>
-        <translation>Seskupit podle &amp;dvojic stránek</translation>
+        <translation>Přeskupit podle &amp;párů stránek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="554"/>
         <source>Regroup by &amp;Outline</source>
-        <translation>Seskupit podle obsa&amp;hu</translation>
+        <translation>Seskupit podle &amp;osnovy</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="563"/>
         <source>Regroup by &amp;Alternating Pages</source>
-        <translation>Seskupit podle &amp;alternujících stránek</translation>
+        <translation>Přeskupit podle &amp;alternujících stránek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="572"/>
         <source>Regroup by Alternating Pages (&amp;Reversed Order)</source>
-        <translation>Přeskupit podle alternujících stránek (&amp;Obrácené pořadí)</translation>
+        <translation>Přeskupit podle střídání stránek (&amp;Obrácené pořadí)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="581"/>
         <source>&amp;Invert Selection</source>
-        <translation>&amp;Invertovat výběr</translation>
+        <translation>&amp;Obr?tit v?b?r</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="590"/>
         <source>&amp;Undo</source>
-        <translation>&amp;Zpět</translation>
+        <translation>&amp;Vrátit zpět</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="593"/>
@@ -966,7 +966,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="602"/>
         <source>Re&amp;do</source>
-        <translation>&amp;Dopředu</translation>
+        <translation>&amp;Předělat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="605"/>
@@ -976,13 +976,13 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="610"/>
         <source>&amp;Prepare Icon Theme</source>
-        <translation>&amp;Připravte motiv ikon</translation>
+        <translation>&amp;Připravit motiv ikony</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="619"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="372"/>
         <source>Become a &amp;Sponsor</source>
-        <translation>Staňte se spon&amp;zorem</translation>
+        <translation>Staňte se &amp;sponzorem</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="627"/>
@@ -998,22 +998,22 @@
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="76"/>
         <source>&amp;Filter</source>
-        <translation>&amp;Filtrovat</translation>
+        <translation>&amp;Filtr</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="129"/>
         <source>Open &amp;Left...</source>
-        <translation>Otevřít &amp;levý...</translation>
+        <translation>Otevřít &amp;vlevo...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="138"/>
         <source>Open &amp;Right...</source>
-        <translation>Otevřít &amp;pravý...</translation>
+        <translation>Otevřít &amp;vpravo...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="159"/>
         <source>&amp;Close</source>
-        <translation>Za&amp;vřít</translation>
+        <translation>&amp;Blízko</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="162"/>
@@ -1023,7 +1023,7 @@
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="171"/>
         <source>&amp;Previous Difference</source>
-        <translation>Předchozí ro&amp;zdíl</translation>
+        <translation>&amp;Předchozí rozdíl</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="174"/>
@@ -1033,17 +1033,17 @@
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="183"/>
         <source>&amp;Next Difference</source>
-        <translation>&amp;Následující rozdíl</translation>
+        <translation>&amp;Další rozdíl</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="195"/>
         <source>Create Compare &amp;Report...</source>
-        <translation>Vytvořit porovnat &amp;přehled...</translation>
+        <translation>Vytvořit &amp;přehled porovnání...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="207"/>
         <source>Filter &amp;Text</source>
-        <translation>Filtr &amp;Text</translation>
+        <translation>Filtr &amp;textu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="219"/>
@@ -1053,7 +1053,7 @@
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="231"/>
         <source>Filter &amp;Images</source>
-        <translation>Filtrujte &amp;obrázky</translation>
+        <translation>Filtrovat &amp;obrázky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="243"/>
@@ -1068,22 +1068,22 @@
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="267"/>
         <source>View &amp;Differences</source>
-        <translation>Zobrazit roz&amp;díly</translation>
+        <translation>Zobrazit &amp;rozdíly</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="279"/>
         <source>View &amp;Left</source>
-        <translation>Zobrazit &amp;levý</translation>
+        <translation>Zobrazit &amp;vlevo</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="291"/>
         <source>View &amp;Right</source>
-        <translation>Zobrazit &amp;pravý</translation>
+        <translation>Zobrazit &amp;vpravo</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="303"/>
         <source>View &amp;Overlay</source>
-        <translation>Zobrazit pře&amp;kryv</translation>
+        <translation>Zobrazit &amp;překryvnou vrstvu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="315"/>
@@ -1103,17 +1103,17 @@
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="339"/>
         <source>S&amp;ynchronize View with Differences</source>
-        <translation>S&amp;ynchronize zobrazení s rozdíly</translation>
+        <translation>S&amp;synchronizovat zobrazení s rozdíly</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="351"/>
         <source>Display &amp;Differences</source>
-        <translation>Zobrazit &amp;rozdíly</translation>
+        <translation>Zobrazit &amp;Rozdíly</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="363"/>
         <source>Display &amp;Markers</source>
-        <translation>Zobrazit &amp;Značky</translation>
+        <translation>Zobrazit &amp;značky</translation>
     </message>
 </context>
 <context>
@@ -1308,7 +1308,7 @@
         <location filename="../Pdf4QtPageMaster/aboutdialog.ui" line="26"/>
         <location filename="../Pdf4QtDiff/aboutdialog.ui" line="26"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;PdfForQtViewer&lt;/span&gt;&lt;/p&gt;&lt;p&gt;Copyright 2018-2025 Jakub Melka. All rights reserved.&lt;/p&gt;&lt;p&gt;THE SOFTWARE IS PROVIDED &amp;quot;AS IS&amp;quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR ANYONE DISTRIBUTING THE SOFTWARE BE LIABLE FOR ANY DAMAGES OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&amp;lt;html&amp;gt;&amp;lt;head/&amp;gt;&amp;lt;body&amp;gt;&amp;lt;p&amp;gt;&amp;lt;span style=&amp;quot; font-weight:600;&amp;quot;&amp;gt;PdfForQtViewer&amp;lt;/span&amp;gt;&amp;lt;/p&amp;gt;&amp;lt;p&amp;gt;Copyright 2018-2025 Jakub Melka. Všechna práva vyhrazena.&amp;lt;/p&amp;gt;&amp;lt;p&amp;gt;SOFTWARE JE POSKYTOVÁN &amp;amp;quot;JAK JE&amp;amp;quot;, BEZ ZÁRUKY JAKÉHOKOLI DRUHU, VÝSLOVNÉ NEBO PŘEDPOKLÁDANÉ, VČETNĚ OMEZENÍ OBCHODOVATELNOST, VHODNOST PRO KONKRÉTNÍ ÚČEL, VLASTNICTVÍ A NEPORUŠENÍ PRÁV. V ŽÁDNÉM PŘÍPADĚ NEBUDE DRŽITEL AUTORSKÝCH PRÁV ANI NIKDO DISTRIBUJÍCÍ SOFTWARE ODPOVĚDNÍ ZA JAKÉKOLI ŠKODY ČI JINÉ ODPOVĚDNOSTI, AŤ VE SMLOUVĚ, ODPOVĚDNOSTI, ČI JINAK, VYPLÝVAJÍCÍ Z POUŽÍVÁNÍ SOFTWARU NEBO V SOUVISLOSTI S NÍM SOFTWARE.&amp;lt;/p&amp;gt;&amp;lt;/body&amp;gt;&amp;lt;/html&amp;gt;</translation>
+        <translation>&amp;lt;html&amp;gt;&amp;lt;head/&amp;gt;&amp;lt;body&amp;gt;&amp;lt;p&amp;gt;&amp;lt;span style=&amp;quot; font-weight:600;&amp;quot;&amp;gt;PdfForQtViewer&amp;lt;/span&amp;gt;&amp;lt;/p&amp;gt;&amp;lt;p&amp;gt;Copyright 2018-2025 Jakub Melka. Všechna práva vyhrazena.&amp;lt;/p&amp;gt;&amp;lt;p&amp;gt;SOFTWARE JE POSKYTOVÁN &amp;quot;JAK JE&amp;quot;, BEZ ZÁRUKY JAKÉHOKOLI DRUHU, VÝSLOVNÉ NEBO PŘEDPOKLÁDANÉ, VČETNĚ OMEZENÍ OBCHODOVATELNOST, VHODNOST PRO KONKRÉTNÍ ÚČEL, VLASTNICTVÍ A NEPORUŠENÍ PRÁV. V ŽÁDNÉM PŘÍPADĚ NEBUDE DRŽITEL AUTORSKÝCH PRÁV ANI NIKDO DISTRIBUJÍCÍ SOFTWARE ODPOVĚDNÍ ZA JAKÉKOLI ŠKODY ČI JINÉ ODPOVĚDNOSTI, AŤ VE SMLOUVĚ, ODPOVĚDNOSTI, ČI JINAK, VYPLÝVAJÍCÍ Z POUŽÍVÁNÍ SOFTWARU NEBO V SOUVISLOSTI S NÍM SOFTWARE.&amp;lt;/p&amp;gt;&amp;lt;/body&amp;gt;&amp;lt;/html&amp;gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfaboutdialog.ui" line="74"/>
@@ -1513,12 +1513,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="161"/>
         <source>Display &amp;&amp; Print</source>
-        <translation>Zobrazení &amp;&amp; Tisk</translation>
+        <translation>Zobrazit &amp;&amp; Tisk</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="167"/>
         <source>Display &amp;&amp; Print Settings</source>
-        <translation>Nastavení - Zobrazení &amp;&amp; Tisk</translation>
+        <translation>Nastavení zobrazení &amp;&amp; tisku</translation>
     </message>
 </context>
 <context>
@@ -1536,89 +1536,89 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="49"/>
         <source>&amp;Go To</source>
-        <translation>&amp;amp;Přejít na</translation>
+        <translation>&amp;Přejít na</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="53"/>
         <source>Book&amp;mark Settings</source>
-        <translation>Book&amp;amp;mark Nastavení</translation>
+        <translation>Nastavení &amp;záložek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="73"/>
         <source>&amp;View</source>
-        <translation>&amp;Zobrazit</translation>
+        <translation>&amp;Pohled</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="77"/>
         <source>Page La&amp;yout</source>
-        <translation>Stránka La&amp;amp;yout</translation>
+        <translation>Rozložení &amp;stránky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="88"/>
         <source>Re&amp;ndering Options</source>
-        <translation>Možnosti Re&amp;amp;ndering</translation>
+        <translation>Možnosti &amp;vykreslování</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="118"/>
         <source>&amp;Tools</source>
-        <translation>&amp;amp;Nástroje</translation>
+        <translation>&amp;Nástroje</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="133"/>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="779"/>
         <source>&amp;Help</source>
-        <translation>&amp;Nápověda</translation>
+        <translation>&amp;Pomoc</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="141"/>
         <source>&amp;Developer</source>
-        <translation>&amp;amp;Vývojář</translation>
+        <translation>&amp;Vývojář</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="148"/>
         <source>&amp;Edit</source>
-        <translation>&amp;Úpravy</translation>
+        <translation>&amp;Upravit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="173"/>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="787"/>
         <source>&amp;Insert</source>
-        <translation>Vloži&amp;t</translation>
+        <translation>&amp;Vložit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="177"/>
         <source>Sticky &amp;Note</source>
-        <translation>Sticky &amp;amp;Poznámka</translation>
+        <translation>Nalepovací &amp;Poznámka</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="189"/>
         <source>&amp;Stamp</source>
-        <translation>Raz&amp;ítko</translation>
+        <translation>&amp;Razítko</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="194"/>
         <source>Text Hi&amp;ghlight</source>
-        <translation>Napište zprávu Hi&amp;amp;ghlight</translation>
+        <translation>&amp;Zvýraznit text</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="240"/>
         <source>&amp;Open...</source>
-        <translation>&amp;amp;Otevřít...</translation>
+        <translation>&amp;OTEVŘENO...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="249"/>
         <source>&amp;Close</source>
-        <translation>Za&amp;vřít</translation>
+        <translation>&amp;Blízko</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="258"/>
         <source>&amp;Quit</source>
-        <translation>&amp;amp;Konec</translation>
+        <translation>&amp;Přestat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="266"/>
         <source>&amp;Single Page</source>
-        <translation>&amp;amp;Jedna stránka</translation>
+        <translation>&amp;Jedna stránka</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="269"/>
@@ -1633,7 +1633,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="280"/>
         <source>&amp;Continuous</source>
-        <translation>&amp;amp;Nepřetržitý</translation>
+        <translation>&amp;Nepřetržitý</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="283"/>
@@ -1648,7 +1648,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="294"/>
         <source>Two &amp;Pages</source>
-        <translation>Dvě &amp;amp;stránky</translation>
+        <translation>Dvě &amp;stránky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="297"/>
@@ -1663,7 +1663,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="308"/>
         <source>&amp;Two columns</source>
-        <translation>&amp;amp;Dva sloupce</translation>
+        <translation>&amp;Dva sloupce</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="311"/>
@@ -1678,7 +1678,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="322"/>
         <source>&amp;First page on right side</source>
-        <translation>&amp;amp;První stránka na pravé straně</translation>
+        <translation>&amp;První strana na pravé straně</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="325"/>
@@ -1693,7 +1693,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="337"/>
         <source>&amp;Rendering Errors...</source>
-        <translation>&amp;amp;Chyby vykreslování...</translation>
+        <translation>&amp;Chyby vykreslování...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="340"/>
@@ -1703,7 +1703,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="348"/>
         <source>&amp;Antialiasing</source>
-        <translation>&amp;amp;Antialiasing</translation>
+        <translation>&amp;Vyhlazení</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="351"/>
@@ -1713,7 +1713,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="359"/>
         <source>&amp;Text Antialiasing</source>
-        <translation>&amp;amp;Vyhlazování textu</translation>
+        <translation>&amp;Vyhlazování textu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="362"/>
@@ -1723,7 +1723,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="370"/>
         <source>&amp;Smooth Pictures</source>
-        <translation>&amp;amp;Smooth Pictures</translation>
+        <translation>&amp;Jemné obrázky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="373"/>
@@ -1733,7 +1733,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="381"/>
         <source>&amp;Ignore Optional Content Settings</source>
-        <translation>&amp;amp;Ignorovat volitelná nastavení obsahu</translation>
+        <translation>&amp;Ignorovat volitelná nastavení obsahu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="384"/>
@@ -1743,7 +1743,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="393"/>
         <source>&amp;Options...</source>
-        <translation>&amp;amp;Možnosti...</translation>
+        <translation>&amp;Možnosti...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="396"/>
@@ -1753,32 +1753,32 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="401"/>
         <source>Reset to &amp;Factory Settings</source>
-        <translation>Obnovte tovární nastavení &amp;amp;</translation>
+        <translation>Obnovit &amp;tovární nastavení</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="410"/>
         <source>&amp;Zoom In</source>
-        <translation>&amp;amp;Přiblížit</translation>
+        <translation>&amp;Přiblížit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="419"/>
         <source>Zoom &amp;Out</source>
-        <translation>Oddálit &amp;amp;Oddálit</translation>
+        <translation>&amp;Oddálit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="428"/>
         <source>&amp;About...</source>
-        <translation>&amp;amp;O...</translation>
+        <translation>&amp;O...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="437"/>
         <source>Fit &amp;Page</source>
-        <translation>Přizpůsobit &amp;amp;stránce</translation>
+        <translation>Přizpůsobit &amp;stránku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="446"/>
         <source>Fit &amp;Width</source>
-        <translation>Přizpůsobit &amp;amp;šířce</translation>
+        <translation>Přizpůsobit &amp;šířce</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="449"/>
@@ -1788,7 +1788,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="458"/>
         <source>&amp;Fit Height</source>
-        <translation>&amp;amp;Přizpůsobená výška</translation>
+        <translation>&amp;Přizpůsobit výšku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="461"/>
@@ -1798,112 +1798,112 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="470"/>
         <source>Prope&amp;rties...</source>
-        <translation>Prope&amp;amp;rties...</translation>
+        <translation>&amp;Vlastnosti...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="479"/>
         <source>Send by &amp;E-Mail...</source>
-        <translation>Odeslat e-mailem &amp;amp;...</translation>
+        <translation>Odeslat &amp;e-mailem...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="487"/>
         <source>Show Text &amp;Blocks</source>
-        <translation>Zobrazit text &amp;amp;Blocks</translation>
+        <translation>Zobrazit &amp;bloky textu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="495"/>
         <source>Show Text &amp;Lines</source>
-        <translation>Zobrazit text &amp;amp;řádky</translation>
+        <translation>Zobrazit &amp;řádky textu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="504"/>
         <source>&amp;Find</source>
-        <translation>&amp;amp;Najít</translation>
+        <translation>&amp;Nalézt</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="513"/>
         <source>Fin&amp;d Previous</source>
-        <translation>Fin&amp;amp;d Předchozí</translation>
+        <translation>Najít a najít &amp;Předchozí</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="522"/>
         <source>Fi&amp;nd Next</source>
-        <translation>Fi&amp;amp;nd Další</translation>
+        <translation>&amp;Najít další</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="534"/>
         <source>Select te&amp;xt</source>
-        <translation>Vyberte te&amp;amp;xt</translation>
+        <translation>Vyberte te&amp;xt</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="546"/>
         <source>Select &amp;table</source>
-        <translation>Vyberte tabulku &amp;amp;</translation>
+        <translation>Vyberte &amp;tabulku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="555"/>
         <source>Select &amp;All</source>
-        <translation>Vyberte &amp;amp;All</translation>
+        <translation>Vyberte &amp;Vše</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="564"/>
         <source>Dese&amp;lect</source>
-        <translation>Dese&amp;amp;lect</translation>
+        <translation>Zru?it &amp;v?b?r</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="573"/>
         <source>&amp;Copy text</source>
-        <translation>&amp;amp;Kopírovat text</translation>
+        <translation>&amp;Kopírovat text</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="585"/>
         <source>Color | &amp;Inverted</source>
-        <translation>Barva | &amp;amp;Inverted</translation>
+        <translation>Barva | &amp;Obráceno</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="597"/>
         <source>Color | &amp;Grayscale</source>
-        <translation>Barva | &amp;amp;Stupně šedi</translation>
+        <translation>Barva | &amp;Stupně šedi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="609"/>
         <source>Color | &amp;High Contrast</source>
-        <translation>Barva | &amp;amp;Vysoký kontrast</translation>
+        <translation>Barva | &amp;Vysoký kontrast</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="621"/>
         <source>Color | &amp;Monochromatic</source>
-        <translation>Barva | &amp;amp;Monochromatický</translation>
+        <translation>Barva | &amp;Monochromatický</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="633"/>
         <source>Color | &amp;Custom</source>
-        <translation>Barva | &amp;amp;Vlastní</translation>
+        <translation>Barva | &amp;Vlastn?</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="642"/>
         <source>Rotate &amp;Right</source>
-        <translation>Otočit &amp;amp;doprava</translation>
+        <translation>Otočit &amp;doprava</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="651"/>
         <source>Rotate &amp;Left</source>
-        <translation>Otočit &amp;amp;doleva</translation>
+        <translation>Otočit &amp;doleva</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="660"/>
         <source>&amp;Print...</source>
-        <translation>&amp;amp;Tisk...</translation>
+        <translation>&amp;Vytisknout...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="665"/>
         <source>Render to &amp;Images...</source>
-        <translation>Vykreslit do &amp;amp;obrázků...</translation>
+        <translation>Vykreslit do &amp;obrázků...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="677"/>
         <source>&amp;Magnifier</source>
-        <translation>&amp;amp;Lupa</translation>
+        <translation>&amp;Lupa</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="680"/>
@@ -1913,17 +1913,17 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="692"/>
         <source>&amp;Screenshot</source>
-        <translation>&amp;amp;Snímek obrazovky</translation>
+        <translation>&amp;Snímek obrazovky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="704"/>
         <source>&amp;Extract Image</source>
-        <translation>&amp;amp;Extrahovat obrázek</translation>
+        <translation>&amp;Extrahovat obrázek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="712"/>
         <source>&amp;Display Annotations</source>
-        <translation>&amp;amp;Zobrazit anotace</translation>
+        <translation>&amp;Zobrazit anotace</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="715"/>
@@ -1933,17 +1933,17 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="724"/>
         <source>&amp;Undo</source>
-        <translation>&amp;amp;Zpět</translation>
+        <translation>&amp;Vrátit zpět</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="733"/>
         <source>&amp;Redo</source>
-        <translation>&amp;amp;Opakovat</translation>
+        <translation>&amp;Předělat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="742"/>
         <source>&amp;Optimize...</source>
-        <translation>&amp;amp;Optimalizovat...</translation>
+        <translation>&amp;Optimalizovat...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="745"/>
@@ -1953,147 +1953,147 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="754"/>
         <source>Save &amp;As...</source>
-        <translation>Uložit &amp;amp;jako...</translation>
+        <translation>Uložit &amp;jako...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="763"/>
         <source>&amp;Save</source>
-        <translation>&amp;amp;Uložit</translation>
+        <translation>&amp;Uložit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="771"/>
         <source>&amp;Comment</source>
-        <translation>&amp;amp;Komentář</translation>
+        <translation>&amp;Komentář</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="795"/>
         <source>&amp;Key</source>
-        <translation>&amp;amp;Klíč</translation>
+        <translation>&amp;Klíč</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="803"/>
         <source>&amp;New Paragraph</source>
-        <translation>&amp;amp;Nový odstavec</translation>
+        <translation>&amp;Nový odstavec</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="811"/>
         <source>No&amp;te</source>
-        <translation>Ne&amp;amp;te</translation>
+        <translation>&amp;Poznámka</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="819"/>
         <source>&amp;Paragraph</source>
-        <translation>&amp;amp;Odstavec</translation>
+        <translation>&amp;Odstavec</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="831"/>
         <source>&amp;Hyperlink</source>
-        <translation>&amp;amp;Hypertextový odkaz</translation>
+        <translation>&amp;Hypertextový odkaz</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="843"/>
         <source>&amp;Inline text</source>
-        <translation>&amp;amp;Vložený text</translation>
+        <translation>&amp;Vložený text</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="855"/>
         <source>Str&amp;aight Line</source>
-        <translation>Str&amp;amp;aight Line</translation>
+        <translation>&amp;Přímka</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="867"/>
         <source>Pol&amp;yline</source>
-        <translation>Pol&amp;amp;yline</translation>
+        <translation>Pol&amp;lyline</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="879"/>
         <source>&amp;Rectangle</source>
-        <translation>&amp;amp;Obdélník</translation>
+        <translation>&amp;Obdélník</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="891"/>
         <source>&amp;Polygon</source>
-        <translation>&amp;amp;Polygon</translation>
+        <translation>&amp;Polygon</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="903"/>
         <source>&amp;Ellipse</source>
-        <translation>&amp;amp;Elipsa</translation>
+        <translation>&amp;Elipsa</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="915"/>
         <source>&amp;Freehand Curve</source>
-        <translation>&amp;amp;Křivka od ruky</translation>
+        <translation>&amp;Křivka od ruky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="927"/>
         <source>&amp;Highlight</source>
-        <translation>&amp;amp;Zvýrazněte</translation>
+        <translation>&amp;Zvýraznit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="939"/>
         <source>&amp;Underline</source>
-        <translation>&amp;amp;Podtrhněte</translation>
+        <translation>&amp;Zdůraznit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="951"/>
         <source>Stri&amp;keout</source>
-        <translation>Stri&amp;amp;keout</translation>
+        <translation>&amp;Přeškrtnout</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="963"/>
         <source>&amp;Squiggly</source>
-        <translation>&amp;amp;Zkrouceně</translation>
+        <translation>&amp;Zkrouceně</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="972"/>
         <source>Go to document &amp;start</source>
-        <translation>Přejděte na dokument &amp;amp;start</translation>
+        <translation>P?ej?t na za??te&amp;k dokumentu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="981"/>
         <source>Go to document &amp;end</source>
-        <translation>Přejděte na dokument &amp;amp;end</translation>
+        <translation>P?ej?t na &amp;konec dokumentu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="990"/>
         <source>Go to &amp;next page</source>
-        <translation>Přejděte na &amp;amp;další stránku</translation>
+        <translation>Přejít na &amp;další stránku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="999"/>
         <source>Go to &amp;previous page</source>
-        <translation>Přejít na &amp;amp;předchozí stránku</translation>
+        <translation>Přejít na &amp;předchozí stránku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1008"/>
         <source>Go &amp;to next line</source>
-        <translation>Přejít &amp;amp;na další řádek</translation>
+        <translation>Přejít &amp;na další řádek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1017"/>
         <source>Go t&amp;o previous line</source>
-        <translation>Přejít na t&amp;amp;o předchozí řádek</translation>
+        <translation>Přejít na &amp;předchozí řádek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1026"/>
         <source>&amp;Get Source</source>
-        <translation>&amp;amp;Získat zdroj</translation>
+        <translation>&amp;Získat zdroj</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1035"/>
         <source>&amp;Encryption...</source>
-        <translation>&amp;amp;Šifrování...</translation>
+        <translation>&amp;Šifrování...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1044"/>
         <source>&amp;Certificates...</source>
-        <translation>&amp;amp;Certifikáty...</translation>
+        <translation>&amp;Certifikáty...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1053"/>
         <source>&amp;Sanitize...</source>
-        <translation>&amp;amp;Dezinfikujte...</translation>
+        <translation>&amp;Dezinfikovat...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1056"/>
@@ -2103,7 +2103,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1061"/>
         <source>Remove External &amp;Links</source>
-        <translation>Odebrat externí &amp;amp;Links</translation>
+        <translation>Odebrat externí &amp;odkazy</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1064"/>
@@ -2113,7 +2113,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1072"/>
         <source>Automatic &amp;Document Refresh</source>
-        <translation>Automatická aktualizace &amp;amp;dokumentu</translation>
+        <translation>Automatická &amp;aktualizace dokumentu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1075"/>
@@ -2123,12 +2123,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1084"/>
         <source>Become a &amp;Sponsor</source>
-        <translation>Staňte se sponzorem &amp;amp;</translation>
+        <translation>Staňte se &amp;sponzorem</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1093"/>
         <source>Create &amp;Bitonal Document...</source>
-        <translation>Vytvořit &amp;amp;Bitonální dokument...</translation>
+        <translation>Vytvořit &amp;bitonální dokument...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1096"/>
@@ -2143,7 +2143,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1108"/>
         <source>&amp;Bookmark Page</source>
-        <translation>&amp;amp;Záložka stránky</translation>
+        <translation>&amp;Přidat stránku do záložek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1111"/>
@@ -2158,7 +2158,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1123"/>
         <source>&amp;Go to Next Bookmark</source>
-        <translation>&amp;amp;Přejít na další záložku</translation>
+        <translation>&amp;Přejít na další záložku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1126"/>
@@ -2173,7 +2173,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1138"/>
         <source>Go to Previous Boo&amp;kmark</source>
-        <translation>Přejít na Předchozí Boo&amp;amp;kmark</translation>
+        <translation>Přejít na předchozí záložku&amp;značku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1141"/>
@@ -2188,7 +2188,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1153"/>
         <source>&amp;Export Bookmarks</source>
-        <translation>&amp;amp;Exportovat záložky</translation>
+        <translation>&amp;Exportovat záložky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1156"/>
@@ -2203,7 +2203,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1168"/>
         <source>&amp;Import Bookmarks</source>
-        <translation>&amp;amp;Importovat záložky</translation>
+        <translation>&amp;Importovat záložky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1171"/>
@@ -2218,7 +2218,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1186"/>
         <source>&amp;Generate Bookmarks Automatically</source>
-        <translation>&amp;amp;Generovat záložky automaticky</translation>
+        <translation>&amp;Vytvářet záložky automaticky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1189"/>
@@ -2233,7 +2233,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1200"/>
         <source>Display &amp;Render Times</source>
-        <translation>Zobrazit &amp;amp;Doby vykreslení</translation>
+        <translation>Zobrazit &amp;Doby vykreslení</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1203"/>
@@ -2243,7 +2243,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1211"/>
         <source>Clear Recent File &amp;History</source>
-        <translation>Vymazat poslední soubor &amp;amp;History</translation>
+        <translation>Vymazat &amp;historii posledních souborů</translation>
     </message>
 </context>
 <context>
@@ -5199,62 +5199,62 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="45"/>
         <source>&amp;Go To</source>
-        <translation>&amp;amp;Přejít na</translation>
+        <translation>&amp;Přejít na</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="49"/>
         <source>Book&amp;mark Settings</source>
-        <translation>Book&amp;amp;mark Nastavení</translation>
+        <translation>Nastavení &amp;záložek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="69"/>
         <source>&amp;Edit</source>
-        <translation>&amp;Úpravy</translation>
+        <translation>&amp;Upravit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="84"/>
         <source>&amp;View</source>
-        <translation>&amp;Zobrazit</translation>
+        <translation>&amp;Pohled</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="88"/>
         <source>Page La&amp;yout</source>
-        <translation>Stránka La&amp;amp;yout</translation>
+        <translation>Rozložení &amp;stránky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="99"/>
         <source>Re&amp;ndering Options</source>
-        <translation>Možnosti Re&amp;amp;ndering</translation>
+        <translation>Možnosti &amp;vykreslování</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="129"/>
         <source>&amp;Tools</source>
-        <translation>&amp;amp;Nástroje</translation>
+        <translation>&amp;Nástroje</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="142"/>
         <source>&amp;Help</source>
-        <translation>&amp;Nápověda</translation>
+        <translation>&amp;Pomoc</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="171"/>
         <source>&amp;Open...</source>
-        <translation>&amp;amp;Otevřít...</translation>
+        <translation>&amp;OTEVŘENO...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="180"/>
         <source>&amp;Close</source>
-        <translation>Za&amp;vřít</translation>
+        <translation>&amp;Blízko</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="189"/>
         <source>&amp;Quit</source>
-        <translation>&amp;amp;Konec</translation>
+        <translation>&amp;Přestat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="197"/>
         <source>&amp;Single Page</source>
-        <translation>&amp;amp;Jedna stránka</translation>
+        <translation>&amp;Jedna stránka</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="200"/>
@@ -5264,7 +5264,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="208"/>
         <source>&amp;Continuous</source>
-        <translation>&amp;amp;Nepřetržitý</translation>
+        <translation>&amp;Nepřetržitý</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="211"/>
@@ -5274,7 +5274,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="219"/>
         <source>Two &amp;Pages</source>
-        <translation>Dvě &amp;amp;stránky</translation>
+        <translation>Dvě &amp;stránky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="222"/>
@@ -5284,7 +5284,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="230"/>
         <source>&amp;Two columns</source>
-        <translation>&amp;amp;Dva sloupce</translation>
+        <translation>&amp;Dva sloupce</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="233"/>
@@ -5294,7 +5294,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="241"/>
         <source>&amp;First page on right side</source>
-        <translation>&amp;amp;První stránka na pravé straně</translation>
+        <translation>&amp;První strana na pravé straně</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="244"/>
@@ -5309,7 +5309,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="256"/>
         <source>Rendering &amp;Errors...</source>
-        <translation>Vykreslování &amp;amp;Chyby...</translation>
+        <translation>&amp;Chyby vykreslování...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="259"/>
@@ -5319,27 +5319,27 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="267"/>
         <source>&amp;Antialiasing</source>
-        <translation>&amp;amp;Antialiasing</translation>
+        <translation>&amp;Vyhlazení</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="275"/>
         <source>&amp;Text Antialiasing</source>
-        <translation>&amp;amp;Vyhlazování textu</translation>
+        <translation>&amp;Vyhlazování textu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="283"/>
         <source>&amp;Smooth Pictures</source>
-        <translation>&amp;amp;Smooth Pictures</translation>
+        <translation>&amp;Jemné obrázky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="291"/>
         <source>&amp;Ignore Optional Content Settings</source>
-        <translation>&amp;amp;Ignorovat volitelná nastavení obsahu</translation>
+        <translation>&amp;Ignorovat volitelná nastavení obsahu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="300"/>
         <source>&amp;Options...</source>
-        <translation>&amp;amp;Možnosti...</translation>
+        <translation>&amp;Možnosti...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="303"/>
@@ -5349,32 +5349,32 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="308"/>
         <source>&amp;Reset to Factory Settings</source>
-        <translation>&amp;amp;Obnovit tovární nastavení</translation>
+        <translation>&amp;Obnovit na tovární nastavení</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="317"/>
         <source>&amp;Zoom In</source>
-        <translation>&amp;amp;Přiblížit</translation>
+        <translation>&amp;Přiblížit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="326"/>
         <source>Zoom &amp;Out</source>
-        <translation>Oddálit &amp;amp;Oddálit</translation>
+        <translation>&amp;Oddálit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="335"/>
         <source>&amp;About...</source>
-        <translation>&amp;amp;O...</translation>
+        <translation>&amp;O...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="344"/>
         <source>Fit &amp;Page</source>
-        <translation>Přizpůsobit &amp;amp;stránce</translation>
+        <translation>Přizpůsobit &amp;stránku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="353"/>
         <source>Fit &amp;Width</source>
-        <translation>Přizpůsobit &amp;amp;šířce</translation>
+        <translation>Přizpůsobit &amp;šířce</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="356"/>
@@ -5384,7 +5384,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="365"/>
         <source>&amp;Fit Height</source>
-        <translation>&amp;amp;Přizpůsobená výška</translation>
+        <translation>&amp;Přizpůsobit výšku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="368"/>
@@ -5394,102 +5394,102 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="377"/>
         <source>Prope&amp;rties...</source>
-        <translation>Prope&amp;amp;rties...</translation>
+        <translation>&amp;Vlastnosti...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="386"/>
         <source>Send by &amp;E-Mail...</source>
-        <translation>Odeslat e-mailem &amp;amp;...</translation>
+        <translation>Odeslat &amp;e-mailem...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="398"/>
         <source>Color | &amp;Inverted</source>
-        <translation>Barva | &amp;amp;Inverted</translation>
+        <translation>Barva | &amp;Obráceno</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="410"/>
         <source>Color | &amp;Grayscale</source>
-        <translation>Barva | &amp;amp;Stupně šedi</translation>
+        <translation>Barva | &amp;Stupně šedi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="422"/>
         <source>Color | &amp;High Contrast</source>
-        <translation>Barva | &amp;amp;Vysoký kontrast</translation>
+        <translation>Barva | &amp;Vysoký kontrast</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="434"/>
         <source>Color | &amp;Monochromatic</source>
-        <translation>Barva | &amp;amp;Monochromatický</translation>
+        <translation>Barva | &amp;Monochromatický</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="446"/>
         <source>Color | &amp;Custom</source>
-        <translation>Barva | &amp;amp;Vlastní</translation>
+        <translation>Barva | &amp;Vlastn?</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="455"/>
         <source>Rotate &amp;Right</source>
-        <translation>Otočit &amp;amp;doprava</translation>
+        <translation>Otočit &amp;doprava</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="464"/>
         <source>Rotate &amp;Left</source>
-        <translation>Otočit &amp;amp;doleva</translation>
+        <translation>Otočit &amp;doleva</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="473"/>
         <source>&amp;Print...</source>
-        <translation>&amp;amp;Tisk...</translation>
+        <translation>&amp;Vytisknout...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="481"/>
         <source>&amp;Display Annotations</source>
-        <translation>&amp;amp;Zobrazit anotace</translation>
+        <translation>&amp;Zobrazit anotace</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="490"/>
         <source>&amp;Find</source>
-        <translation>&amp;amp;Najít</translation>
+        <translation>&amp;Nalézt</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="499"/>
         <source>Fin&amp;d Previous</source>
-        <translation>Fin&amp;amp;d Předchozí</translation>
+        <translation>Najít a najít &amp;Předchozí</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="508"/>
         <source>Fi&amp;nd Next</source>
-        <translation>Fi&amp;amp;nd Další</translation>
+        <translation>&amp;Najít další</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="520"/>
         <source>Select te&amp;xt</source>
-        <translation>Vyberte te&amp;amp;xt</translation>
+        <translation>Vyberte te&amp;xt</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="532"/>
         <source>Select &amp;table</source>
-        <translation>Vyberte tabulku &amp;amp;</translation>
+        <translation>Vyberte &amp;tabulku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="541"/>
         <source>Select &amp;All</source>
-        <translation>Vyberte &amp;amp;All</translation>
+        <translation>Vyberte &amp;Vše</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="550"/>
         <source>Dese&amp;lect</source>
-        <translation>Dese&amp;amp;lect</translation>
+        <translation>Zru?it &amp;v?b?r</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="559"/>
         <source>&amp;Copy text</source>
-        <translation>&amp;amp;Kopírovat text</translation>
+        <translation>&amp;Kopírovat text</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="571"/>
         <source>&amp;Magnifier</source>
-        <translation>&amp;amp;Lupa</translation>
+        <translation>&amp;Lupa</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="574"/>
@@ -5499,47 +5499,47 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="583"/>
         <source>Go to document &amp;start</source>
-        <translation>Přejděte na dokument &amp;amp;start</translation>
+        <translation>P?ej?t na za??te&amp;k dokumentu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="592"/>
         <source>Go to document &amp;end</source>
-        <translation>Přejděte na dokument &amp;amp;end</translation>
+        <translation>P?ej?t na &amp;konec dokumentu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="601"/>
         <source>Go to &amp;next page</source>
-        <translation>Přejděte na &amp;amp;další stránku</translation>
+        <translation>Přejít na &amp;další stránku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="610"/>
         <source>Go to &amp;previous page</source>
-        <translation>Přejít na &amp;amp;předchozí stránku</translation>
+        <translation>Přejít na &amp;předchozí stránku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="619"/>
         <source>Go &amp;to next line</source>
-        <translation>Přejít &amp;amp;na další řádek</translation>
+        <translation>Přejít &amp;na další řádek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="628"/>
         <source>Go t&amp;o previous line</source>
-        <translation>Přejít na t&amp;amp;o předchozí řádek</translation>
+        <translation>Přejít na &amp;předchozí řádek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="637"/>
         <source>&amp;Get Source</source>
-        <translation>&amp;amp;Získat zdroj</translation>
+        <translation>&amp;Získat zdroj</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="646"/>
         <source>&amp;Certificates...</source>
-        <translation>&amp;amp;Certifikáty...</translation>
+        <translation>&amp;Certifikáty...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="654"/>
         <source>Automatic &amp;Document Refresh</source>
-        <translation>Automatická aktualizace &amp;amp;dokumentu</translation>
+        <translation>Automatická &amp;aktualizace dokumentu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="657"/>
@@ -5549,7 +5549,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="666"/>
         <source>Become a &amp;Sponsor</source>
-        <translation>Staňte se sponzorem &amp;amp;</translation>
+        <translation>Staňte se &amp;sponzorem</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="669"/>
@@ -5559,7 +5559,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="678"/>
         <source>&amp;Bookmark Page</source>
-        <translation>&amp;amp;Záložka stránky</translation>
+        <translation>&amp;Přidat stránku do záložek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="681"/>
@@ -5574,7 +5574,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="693"/>
         <source>&amp;Go to Next Bookmark</source>
-        <translation>&amp;amp;Přejít na další záložku</translation>
+        <translation>&amp;Přejít na další záložku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="696"/>
@@ -5589,7 +5589,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="708"/>
         <source>Go to Previous Boo&amp;kmark</source>
-        <translation>Přejít na Předchozí Boo&amp;amp;kmark</translation>
+        <translation>Přejít na předchozí záložku&amp;značku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="711"/>
@@ -5599,7 +5599,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="720"/>
         <source>&amp;Export Bookmarks</source>
-        <translation>&amp;amp;Exportovat záložky</translation>
+        <translation>&amp;Exportovat záložky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="723"/>
@@ -5614,7 +5614,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="735"/>
         <source>&amp;Import Bookmarks</source>
-        <translation>&amp;amp;Importovat záložky</translation>
+        <translation>&amp;Importovat záložky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="738"/>
@@ -5629,7 +5629,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="753"/>
         <source>&amp;Generate Bookmarks Automatically</source>
-        <translation>&amp;amp;Generovat záložky automaticky</translation>
+        <translation>&amp;Vytvářet záložky automaticky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="756"/>
@@ -5644,12 +5644,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="767"/>
         <source>Display &amp;Render Times</source>
-        <translation>Zobrazit &amp;amp;Doby vykreslení</translation>
+        <translation>Zobrazit &amp;Doby vykreslení</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="775"/>
         <source>Clear Recent File &amp;History</source>
-        <translation>Vymazat poslední soubor &amp;amp;History</translation>
+        <translation>Vymazat &amp;historii posledních souborů</translation>
     </message>
 </context>
 <context>
@@ -8869,7 +8869,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3033"/>
         <source>&amp;Approved</source>
-        <translation>&amp;amp;Schváleno</translation>
+        <translation>&amp;Schválený</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3034"/>
@@ -8879,7 +8879,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3038"/>
         <source>As &amp;Is</source>
-        <translation>Jako &amp;amp;Je</translation>
+        <translation>Jak &amp;je</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3039"/>
@@ -8889,7 +8889,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3043"/>
         <source>&amp;Confidential</source>
-        <translation>&amp;amp;Důvěrné</translation>
+        <translation>&amp;Důvěrné</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3044"/>
@@ -8899,7 +8899,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3048"/>
         <source>&amp;Departmental</source>
-        <translation>&amp;amp;Oddělení</translation>
+        <translation>&amp;Resortní</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3049"/>
@@ -8909,7 +8909,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3053"/>
         <source>Dra&amp;ft</source>
-        <translation>Dra&amp;amp;ft</translation>
+        <translation>&amp;Návrh</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3054"/>
@@ -8919,7 +8919,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3058"/>
         <source>&amp;Experimental</source>
-        <translation>&amp;amp;Experimentální</translation>
+        <translation>&amp;Experimentální</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3059"/>
@@ -8929,7 +8929,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3063"/>
         <source>E&amp;xpired</source>
-        <translation>E&amp;amp;x vypršela</translation>
+        <translation>&amp;vypršela</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3064"/>
@@ -8939,7 +8939,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3068"/>
         <source>Fina&amp;l</source>
-        <translation>Fina&amp;amp;l</translation>
+        <translation>&amp;Finále</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3069"/>
@@ -8949,7 +8949,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3073"/>
         <source>For Co&amp;mment</source>
-        <translation>Pro Co&amp;amp;mment</translation>
+        <translation>Pro &amp;komentář</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3074"/>
@@ -8959,7 +8959,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3078"/>
         <source>For P&amp;ublic Release</source>
-        <translation>Pro P&amp;amp;veřejné vydání</translation>
+        <translation>Pro veřejné &amp;vydání</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3079"/>
@@ -8969,7 +8969,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3083"/>
         <source>Not A&amp;pproved</source>
-        <translation>Není schváleno A&amp;amp;</translation>
+        <translation>Ne&amp;schváleno</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3084"/>
@@ -8979,7 +8979,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3088"/>
         <source>N&amp;ot For Public Release</source>
-        <translation>N&amp;amp;ot Pro veřejné vydání</translation>
+        <translation>Není pro veřejné &amp;vydání</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3089"/>
@@ -8989,7 +8989,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3093"/>
         <source>&amp;Sold</source>
-        <translation>&amp;amp;Prodáno</translation>
+        <translation>&amp;Prodáno</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3094"/>
@@ -8999,7 +8999,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3098"/>
         <source>&amp;Top Secret</source>
-        <translation>&amp;amp;Přísně tajné</translation>
+        <translation>&amp;Přísně tajné</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3099"/>
@@ -11755,7 +11755,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtDiff/differencesdockwidget.cpp" line="103"/>
         <source>Differen&amp;ces</source>
-        <translation>Rozdíl&amp;amp;ces</translation>
+        <translation>&amp;Rozdíly</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/differencesdockwidget.cpp" line="207"/>
@@ -11811,7 +11811,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="145"/>
         <source>&amp;View</source>
-        <translation>&amp;Zobrazit</translation>
+        <translation>&amp;Pohled</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="237"/>
@@ -11912,7 +11912,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.cpp" line="54"/>
         <source>S&amp;ettings</source>
-        <translation>Nastav&amp;ení</translation>
+        <translation>N&amp;nastavení</translation>
     </message>
 </context>
 <context>
@@ -11948,27 +11948,27 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="166"/>
         <source>&amp;Insert</source>
-        <translation>Vloži&amp;t</translation>
+        <translation>&amp;Vložit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="169"/>
         <source>&amp;Select</source>
-        <translation>Vy&amp;brat</translation>
+        <translation>&amp;Vybrat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="172"/>
         <source>&amp;Regroup</source>
-        <translation>Přes&amp;kupit</translation>
+        <translation>&amp;Přeskupit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="175"/>
         <source>&amp;Zoom</source>
-        <translation>Přiblížení</translation>
+        <translation>&amp;Přiblížit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="178"/>
         <source>Ma&amp;ke</source>
-        <translation>Vy&amp;tvořit</translation>
+        <translation>&amp;Vytvořit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="260"/>
@@ -12192,77 +12192,77 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="76"/>
         <source>&amp;Create Text Stream for Audio Book</source>
-        <translation>&amp;amp;Vytvořit textový proud pro zvukovou knihu</translation>
+        <translation>&amp;Vytvořit textový proud pro zvukovou knihu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="80"/>
         <source>Synchronize Selection from &amp;Table to Graphics</source>
-        <translation>Synchronizujte výběr z &amp;amp;tabulky do grafiky</translation>
+        <translation>Synchronizovat výběr z &amp;tabulky do grafiky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="85"/>
         <source>Synchronize Selection from &amp;Graphics to Table</source>
-        <translation>Synchronizujte výběr z &amp;amp;Graphics do tabulky</translation>
+        <translation>Synchronizovat výběr z &amp;grafiky do tabulky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="90"/>
         <source>&amp;Activate Selection</source>
-        <translation>&amp;amp;Aktivovat výběr</translation>
+        <translation>&amp;Aktivovat výběr</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="94"/>
         <source>&amp;Deactivate Selection</source>
-        <translation>&amp;amp;Deaktivovat výběr</translation>
+        <translation>&amp;Deaktivovat výběr</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="98"/>
         <source>Select by &amp;Rectangle</source>
-        <translation>Vybrat podle &amp;amp;Rectangle</translation>
+        <translation>Vybrat podle &amp;obdélníku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="102"/>
         <source>Select by Contained &amp;Text</source>
-        <translation>Vybrat podle obsaženého &amp;amp;Textu</translation>
+        <translation>Vybrat podle Obsaženého &amp;textu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="106"/>
         <source>Select by Regular &amp;Expression</source>
-        <translation>Vyberte podle běžného výrazu &amp;amp;</translation>
+        <translation>Vyberte podle regulárního &amp;výrazu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="110"/>
         <source>Select by Page &amp;List</source>
-        <translation>Vybrat podle stránky &amp;amp;List</translation>
+        <translation>Vybrat podle &amp;seznamu stránek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="114"/>
         <source>Restore &amp;Original Text</source>
-        <translation>Obnovit &amp;amp;původní text</translation>
+        <translation>Obnovit &amp;původní text</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="118"/>
         <source>Move Selection &amp;Up</source>
-        <translation>Přesunout výběr &amp;amp;nahoru</translation>
+        <translation>Přesunout výběr &amp;nahoru</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="122"/>
         <source>Move Selection &amp;Down</source>
-        <translation>Přesunout výběr &amp;amp;dolů</translation>
+        <translation>Přesunout výběr &amp;dolů</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="126"/>
         <source>Create Audio &amp;Book</source>
-        <translation>Vytvořit zvukovou &amp;amp;knihu</translation>
+        <translation>Vytvořit audio &amp;knihu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="130"/>
         <source>Clear Te&amp;xt Stream</source>
-        <translation>Vymazat Te&amp;amp;xt Stream</translation>
+        <translation>Vymazat tex&amp;tov? proud</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="171"/>
         <source>&amp;Audio Book</source>
-        <translation>&amp;amp;Zvuková kniha</translation>
+        <translation>&amp;Zvuková kniha</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="307"/>
@@ -12356,17 +12356,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="50"/>
         <source>&amp;Horizontal Dimension</source>
-        <translation>&amp;Vodorovná kóta</translation>
+        <translation>&amp;Horizontální rozměr</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="51"/>
         <source>&amp;Vertical Dimension</source>
-        <translation>Svislá &amp;kóta</translation>
+        <translation>&amp;Vertikální rozměr</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="52"/>
         <source>&amp;Linear Dimension</source>
-        <translation>&amp;Liniová kóta</translation>
+        <translation>&amp;Lineární kóta</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="53"/>
@@ -12376,7 +12376,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="54"/>
         <source>&amp;Rectangle Perimeter</source>
-        <translation>Obvod o&amp;bdélníka</translation>
+        <translation>&amp;Obvod obdélníku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="55"/>
@@ -12386,22 +12386,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="56"/>
         <source>R&amp;ectangle Area</source>
-        <translation>Ploc&amp;ha obdélníka</translation>
+        <translation>&amp;Obdélníková oblast</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="57"/>
         <source>An&amp;gle</source>
-        <translation>Ú&amp;hel</translation>
+        <translation>&amp;Úhel</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="93"/>
         <source>&amp;Show Dimensions</source>
-        <translation>&amp;Zobrazid kóty</translation>
+        <translation>&amp;Zobrazit rozměry</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="94"/>
         <source>&amp;Clear Dimensions</source>
-        <translation>S&amp;mazat kóty</translation>
+        <translation>&amp;Jasné rozměry</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="95"/>
@@ -12411,7 +12411,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="151"/>
         <source>&amp;Dimensions</source>
-        <translation>Kót&amp;y</translation>
+        <translation>&amp;Rozměry</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="279"/>
@@ -12429,72 +12429,72 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="63"/>
         <source>&amp;Edit page content</source>
-        <translation>&amp;amp;Upravit obsah stránky</translation>
+        <translation>&amp;Upravit obsah stránky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="64"/>
         <source>Create &amp;Text Label</source>
-        <translation>Vytvořte &amp;amp;Textový štítek</translation>
+        <translation>Vytvořit &amp;textový štítek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="65"/>
         <source>Create &amp;Freehand Curve</source>
-        <translation>Vytvořte &amp;amp;Křivku od ruky</translation>
+        <translation>Vytvořit &amp;volnou křivku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="66"/>
         <source>Create &amp;Accept Mark</source>
-        <translation>Vytvořit &amp;amp;Accept Mark</translation>
+        <translation>Vytvořit &amp;Přijmout Označit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="67"/>
         <source>Create &amp;Reject Mark</source>
-        <translation>Vytvořit &amp;amp;Reject Mark</translation>
+        <translation>Vytvořit &amp;Odmítnout značku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="68"/>
         <source>Create R&amp;ectangle</source>
-        <translation>Vytvořte obdélník R&amp;amp;</translation>
+        <translation>Vytvořit ob&amp;délník</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="69"/>
         <source>&amp;Create Rounded Rectangle</source>
-        <translation>&amp;amp;Vytvořit zaoblený obdélník</translation>
+        <translation>&amp;Vytvořit zaoblený obdélník</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="70"/>
         <source>Create &amp;Horizontal Line</source>
-        <translation>Vytvořte &amp;amp;Horizontální čáru</translation>
+        <translation>Vytvořit &amp;vodorovnou čáru</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="71"/>
         <source>Create &amp;Vertical Line</source>
-        <translation>Vytvořte &amp;amp;Vertikální čáru</translation>
+        <translation>Vytvořit &amp;svislou čáru</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="72"/>
         <source>Create L&amp;ine</source>
-        <translation>Vytvořit L&amp;amp;ine</translation>
+        <translation>Vytvořit &amp;linii</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="73"/>
         <source>Create &amp;Dot</source>
-        <translation>Vytvořte &amp;amp;Dot</translation>
+        <translation>Vytvořit &amp;tečku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="74"/>
         <source>Create &amp;SVG Image</source>
-        <translation>Vytvořte obrázek &amp;amp;SVG</translation>
+        <translation>Vytvořit obrázek &amp;SVG</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="75"/>
         <source>Clear A&amp;ll Graphics</source>
-        <translation>Vymazat grafiku A&amp;amp;ll</translation>
+        <translation>Vymazat A&amp;všechnu grafiku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="189"/>
         <source>Ed&amp;itor</source>
-        <translation>Ed&amp;amp;itor</translation>
+        <translation>&amp;Editor</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="309"/>
@@ -12618,17 +12618,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectorplugin.cpp" line="51"/>
         <source>Object &amp;Inspector</source>
-        <translation>Proh&amp;lížeč Objektů</translation>
+        <translation>&amp;Inspektor objektů</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectorplugin.cpp" line="57"/>
         <source>Object &amp;Statistics</source>
-        <translation>&amp;Statistika Objektů</translation>
+        <translation>&amp;Statistika objektu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectorplugin.cpp" line="88"/>
         <source>O&amp;bject Inspector</source>
-        <translation>Prohlížeč O&amp;bjektů</translation>
+        <translation>O&amp;objektový inspektor</translation>
     </message>
 </context>
 <context>
@@ -12904,17 +12904,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewplugin.cpp" line="47"/>
         <source>&amp;Output Preview</source>
-        <translation>&amp;amp;Náhled výstupu</translation>
+        <translation>&amp;Náhled výstupu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewplugin.cpp" line="49"/>
         <source>&amp;Ink Coverage</source>
-        <translation>&amp;amp;Pokrytí inkoustem</translation>
+        <translation>&amp;Pokrytí inkoustem</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewplugin.cpp" line="75"/>
         <source>Output Previe&amp;w</source>
-        <translation>Náhled výstupu&amp;amp;w</translation>
+        <translation>Náhled&amp;w výstupu</translation>
     </message>
 </context>
 <context>
@@ -13010,22 +13010,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="58"/>
         <source>Redact &amp;Rectangle</source>
-        <translation>&amp;Redigovat obdélník</translation>
+        <translation>Opravit &amp;obdélník</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="59"/>
         <source>Redact &amp;Text</source>
-        <translation>Redigovat &amp;text</translation>
+        <translation>Redigovat &amp;Text</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="60"/>
         <source>Redact Text &amp;Selection</source>
-        <translation>Redigovat výběr te&amp;xtu</translation>
+        <translation>Upravit &amp;výběr textu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="61"/>
         <source>Redact &amp;Page(s)</source>
-        <translation>Upravit &amp;amp;stránky</translation>
+        <translation>Upravit &amp;stránky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="62"/>
@@ -13035,7 +13035,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="104"/>
         <source>Redac&amp;t</source>
-        <translation>Redigova&amp;t</translation>
+        <translation>&amp;Redigovat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="120"/>
@@ -13097,87 +13097,87 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="60"/>
         <source>&amp;Activate signature creator</source>
-        <translation>&amp;amp;Aktivovat tvůrce podpisu</translation>
+        <translation>&amp;Aktivovat tvůrce podpisu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="61"/>
         <source>Create &amp;Text Label</source>
-        <translation>Vytvořte &amp;amp;Textový štítek</translation>
+        <translation>Vytvořit &amp;textový štítek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="62"/>
         <source>Create &amp;Freehand Curve</source>
-        <translation>Vytvořte &amp;amp;Křivku od ruky</translation>
+        <translation>Vytvořit &amp;volnou křivku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="63"/>
         <source>Create &amp;Accept Mark</source>
-        <translation>Vytvořit &amp;amp;Accept Mark</translation>
+        <translation>Vytvořit &amp;Přijmout Označit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="64"/>
         <source>Create Reject &amp;Mark</source>
-        <translation>Vytvořit Odmítnout &amp;amp;Mark</translation>
+        <translation>Vytvořit Odmítnout &amp;Označit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="65"/>
         <source>Create &amp;Rectangle</source>
-        <translation>Vytvořte &amp;amp;Rectangle</translation>
+        <translation>Vytvořit &amp;obdélník</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="66"/>
         <source>Create R&amp;ounded Rectangle</source>
-        <translation>Vytvořte R&amp;amp;ounded Rectangle</translation>
+        <translation>Vytvořit &amp;zaoblený obdélník</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="67"/>
         <source>Create &amp;Horizontal Line</source>
-        <translation>Vytvořte &amp;amp;Horizontální čáru</translation>
+        <translation>Vytvořit &amp;vodorovnou čáru</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="68"/>
         <source>Create &amp;Vertical Line</source>
-        <translation>Vytvořte &amp;amp;Vertikální čáru</translation>
+        <translation>Vytvořit &amp;svislou čáru</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="69"/>
         <source>Create &amp;Line</source>
-        <translation>Vytvořit &amp;amp;Line</translation>
+        <translation>Vytvořit &amp;čáru</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="70"/>
         <source>Create &amp;Dot</source>
-        <translation>Vytvořte &amp;amp;Dot</translation>
+        <translation>Vytvořit &amp;tečku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="71"/>
         <source>Create SVG &amp;Image</source>
-        <translation>Vytvořte obrázek SVG &amp;amp;</translation>
+        <translation>Vytvořit &amp;obrázek SVG</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="72"/>
         <source>Clear All &amp;Graphics</source>
-        <translation>Vymazat vše &amp;amp;Graphics</translation>
+        <translation>Vymazat vše &amp;grafiku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="73"/>
         <source>Sign &amp;Electronically</source>
-        <translation>Podepište &amp;amp;Elektronicky</translation>
+        <translation>&amp;Podepsat elektronicky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="74"/>
         <source>Sign Digitally &amp;With Certificate</source>
-        <translation>Podepisujte digitálně &amp;amp;S certifikátem</translation>
+        <translation>Podepisujte digitálně &amp;s certifikátem</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="75"/>
         <source>Certificates &amp;Manager</source>
-        <translation>Certifikáty &amp;amp;Manager</translation>
+        <translation>Certifikáty &amp;Správce</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="200"/>
         <source>Si&amp;gnature</source>
-        <translation>Si&amp;amp;přirození</translation>
+        <translation>&amp;Podpis</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="299"/>
@@ -13224,22 +13224,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/softproofingplugin.cpp" line="51"/>
         <source>&amp;Soft Proofing</source>
-        <translation>&amp;amp;Soft Proofing</translation>
+        <translation>&amp;M?kk? n?tisk</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/softproofingplugin.cpp" line="52"/>
         <source>&amp;Gamut Checking</source>
-        <translation>&amp;amp;Kontrola gamutu</translation>
+        <translation>&amp;Kontrola gamutu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/softproofingplugin.cpp" line="53"/>
         <source>Soft &amp;Proofing Settings</source>
-        <translation>Soft &amp;amp;Nastavení nátisku</translation>
+        <translation>Nastavení měkkého &amp;nátisku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/softproofingplugin.cpp" line="93"/>
         <source>Soft &amp;Proofing</source>
-        <translation>Měkký &amp;amp;Proofing</translation>
+        <translation>Měkká &amp;a korektura</translation>
     </message>
 </context>
 <context>
@@ -13795,7 +13795,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="288"/>
         <source>&amp;Sidebar</source>
-        <translation>&amp;amp;Postranní panel</translation>
+        <translation>&amp;Postranní panel</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="298"/>
@@ -14151,12 +14151,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfrecentfilemanager.cpp" line="110"/>
         <source>(&amp;%1) %2</source>
-        <translation>(&amp;amp;%1) %2</translation>
+        <translation>(&amp;%1) %2</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrecentfilemanager.cpp" line="116"/>
         <source>Recent file dummy &amp;%1</source>
-        <translation>Nedávný soubor &amp;%1</translation>
+        <translation>Falešný soubor posledního souboru &amp;%1</translation>
     </message>
 </context>
 <context>
@@ -14655,7 +14655,7 @@ Chcete tuto akci provést?</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="237"/>
         <source>&amp;Sidebar</source>
-        <translation>&amp;amp;Postranní panel</translation>
+        <translation>&amp;Postranní panel</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="369"/>
