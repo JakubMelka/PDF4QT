@@ -52,17 +52,17 @@
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="36"/>
         <source>File template</source>
-        <translation>modèle de fichier</translation>
+        <translation>Modèle de fichier</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="43"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;In a template file name, you can use symbols &apos;#&apos; for output document number (means output document index, not input document) or &apos;@&apos; for page number of input document (if document contains more pages, it is a page number of a original document), or &apos;%&apos; for index of input document. Use more &apos;#&apos; or &apos;@&apos; or &apos;%&apos; for setting minimal number of digits (if number has less digits, the they are padded with zero).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Dans un nom de fichier modèle, vous pouvez utiliser les symboles « # » pour le numéro du document de sortie (signifie l'index du document de sortie, pas le document d'entrée) ou « @ » pour le numéro de page du document d'entrée (si le document contient plus de pages, il s'agit du numéro de page d'un document original), ou « % » pour l'index du document d'entrée. Utilisez plus de « # », « @ » ou « % » pour définir un nombre minimal de chiffres (si le numéro comporte moins de chiffres, ils sont complétés par zéro).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Dans un nom de fichier modèle, vous pouvez utiliser les symboles « # » pour le numéro du document de sortie (signifie l&apos;index du document de sortie, pas le document d&apos;entrée) ou « @ » pour le numéro de page du document d&apos;entrée (si le document contient plus de pages, il s&apos;agit du numéro de page d&apos;un document original), ou « % » pour l&apos;index du document d&apos;entrée. Utilisez plus de «&#xa0;#&#xa0;», «&#xa0;@&#xa0;» ou «&#xa0;%&#xa0;» pour définir un nombre minimal de chiffres (si le numéro comporte moins de chiffres, ils sont complétés par zéro).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="53"/>
         <source>Overwrite existing files</source>
-        <translation>écraser les fichiers existants</translation>
+        <translation>Écraser les fichiers existants</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="60"/>
@@ -72,7 +72,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="67"/>
         <source>Generate into directory</source>
-        <translation>générer dans le répertoire</translation>
+        <translation>Générer dans le répertoire</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="74"/>
@@ -159,12 +159,12 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="20"/>
         <source>Redacted document</source>
-        <translation>document rédigé</translation>
+        <translation>Document rédigé</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="26"/>
         <source>Output file name</source>
-        <translation>nom du fichier de sortie</translation>
+        <translation>Nom du fichier de sortie</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="36"/>
@@ -179,7 +179,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="52"/>
         <source>Fill redacted area with color:</source>
-        <translation>remplissez la zone expurgée avec la couleur :</translation>
+        <translation>remplissez la zone expurgée avec la couleur&#xa0;:</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="68"/>
@@ -266,7 +266,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="304"/>
         <source>sq. in</source>
-        <translation>² po</translation>
+        <translation>²&#xa0;po</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="305"/>
@@ -334,7 +334,7 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="86"/>
         <source>Data type</source>
-        <translation>type de données</translation>
+        <translation>Type de données</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="112"/>
@@ -344,7 +344,7 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="119"/>
         <source>Item type</source>
-        <translation>type d'élément</translation>
+        <translation>Type d&apos;élément</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="126"/>
@@ -354,7 +354,7 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="133"/>
         <source>Text description / C++ code</source>
-        <translation>description textuelle / code C++</translation>
+        <translation>Description textuelle / code C++</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="181"/>
@@ -379,7 +379,7 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="209"/>
         <source>New Sibling</source>
-        <translation>nouveau frère ou sœur</translation>
+        <translation>Nouveau frère ou sœur</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="230"/>
@@ -424,17 +424,17 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="281"/>
         <source>Set code header (*.h)</source>
-        <translation>définir l'en-tête de code (*.h)</translation>
+        <translation>Définir l&apos;en-tête de code (*.h)</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="286"/>
         <source>Set code source (*.cpp)</source>
-        <translation>définir la source du code (*.cpp)</translation>
+        <translation>Définir la source du code (*.cpp)</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="291"/>
         <source>Generate code</source>
-        <translation>générer du code</translation>
+        <translation>Générer du code</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="294"/>
@@ -444,55 +444,55 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="299"/>
         <source>Set code header XFA</source>
-        <translation>définir l'en-tête de code XFA</translation>
+        <translation>Définir l&apos;en-tête de code XFA</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="304"/>
         <source>Set code source XFA</source>
-        <translation>définir la source du code XFA</translation>
+        <translation>Définir la source du code XFA</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="309"/>
         <source>Generate XFA code</source>
-        <translation>générer du code XFA</translation>
+        <translation>Générer du code XFA</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="314"/>
         <source>Set XFA description</source>
-        <translation>définir la description XFA</translation>
+        <translation>Définir la description XFA</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="394"/>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="407"/>
         <source>Select XML definition file</source>
-        <translation>sélectionnez le fichier de définition XML</translation>
+        <translation>Sélectionnez le fichier de définition XML</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="428"/>
         <source>Create function</source>
-        <translation>créer une fonction</translation>
+        <translation>Créer une fonction</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="428"/>
         <source>Enter function name</source>
-        <translation>saisissez le nom de la fonction</translation>
+        <translation>Saisissez le nom de la fonction</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="510"/>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="538"/>
         <source>Select cpp header</source>
-        <translation>sélectionnez l'en-tête cpp</translation>
+        <translation>Sélectionnez l&apos;en-tête cpp</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="520"/>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="548"/>
         <source>Select cpp source</source>
-        <translation>sélectionnez la source cpp</translation>
+        <translation>Sélectionnez la source cpp</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="558"/>
         <source>Select xml definition</source>
-        <translation>sélectionnez la définition XML</translation>
+        <translation>Sélectionnez la définition XML</translation>
     </message>
 </context>
 <context>
@@ -500,12 +500,12 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/inkcoveragedialog.ui" line="14"/>
         <source>Ink Coverage Calculator</source>
-        <translation>Calculateur de couverture d'encre</translation>
+        <translation>Calculateur de couverture d&apos;encre</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/inkcoveragedialog.ui" line="20"/>
         <source>Ink Coverage</source>
-        <translation>couverture d'encre</translation>
+        <translation>Couverture d&apos;encre</translation>
     </message>
 </context>
 <context>
@@ -531,7 +531,7 @@
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.ui" line="14"/>
         <source>Launch Application</source>
-        <translation>Lancer l'application</translation>
+        <translation>Lancer l&apos;application</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="60"/>
@@ -556,7 +556,7 @@
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="65"/>
         <source>Go beyond basic browsing. This tool packs a punch with a host of advanced features, including encryption, document reading, digital signature verification, annotation editing, and even support for searching text using regular expressions. Turn pages into images, and enhance your PDF interactions with multiple available plugins.</source>
-        <translation>allez au-delà de la navigation de base. Cet outil est doté d'une multitude de fonctionnalités avancées, notamment le cryptage, la lecture de documents, la vérification de signature numérique, l'édition d'annotations et même la prise en charge de la recherche de texte à l'aide d'expressions régulières. Transformez les pages en images et améliorez vos interactions PDF avec plusieurs plugins disponibles.</translation>
+        <translation>allez au-delà de la navigation de base. Cet outil est doté d&apos;une multitude de fonctionnalités avancées, notamment le cryptage, la lecture de documents, la vérification de signature numérique, l&apos;édition d&apos;annotations et même la prise en charge de la recherche de texte à l&apos;aide d&apos;expressions régulières. Transformez les pages en images et améliorez vos interactions PDF avec plusieurs plugins disponibles.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="66"/>
@@ -566,7 +566,7 @@
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="67"/>
         <source>Spot differences effortlessly. This tool allows users to open two documents and receive a detailed list of differences. View these differences in a page-to-page window where they are clearly marked. Save these differences into an XML file for future reference.</source>
-        <translation>repérez les différences sans effort. Cet outil permet aux utilisateurs d'ouvrir deux documents et de recevoir une liste détaillée des différences. Affichez ces différences dans une fenêtre de page à page où elles sont clairement indiquées. Enregistrez ces différences dans un fichier XML pour référence future.</translation>
+        <translation>repérez les différences sans effort. Cet outil permet aux utilisateurs d&apos;ouvrir deux documents et de recevoir une liste détaillée des différences. Affichez ces différences dans une fenêtre de page à page où elles sont clairement indiquées. Enregistrez ces différences dans un fichier XML pour référence future.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="68"/>
@@ -581,7 +581,7 @@
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="133"/>
         <source>Failed to start process &apos;%1&apos;</source>
-        <translation>échec du démarrage du processus '%1'</translation>
+        <translation>échec du démarrage du processus &apos;%1&apos;</translation>
     </message>
 </context>
 <context>
@@ -711,7 +711,7 @@
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="14"/>
         <source>JBIG2 Image Viewer</source>
-        <translation>Visionneuse d'images JBIG2</translation>
+        <translation>Visionneuse d&apos;images JBIG2</translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="36"/>
@@ -748,7 +748,7 @@
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="101"/>
         <source>Add JBIG2 image</source>
-        <translation>ajouter une image JBIG2</translation>
+        <translation>Ajouter une image JBIG2</translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="104"/>
@@ -766,7 +766,7 @@
         <location filename="../JBIG2_Viewer/mainwindow.cpp" line="66"/>
         <location filename="../JBIG2_Viewer/mainwindow.cpp" line="103"/>
         <source>Open image</source>
-        <translation>image ouverte</translation>
+        <translation>Image ouverte</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="17"/>
@@ -783,12 +783,12 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="70"/>
         <source>&amp;Edit</source>
-        <translation>&amp;modifier</translation>
+        <translation>&amp;Modifier</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="92"/>
         <source>&amp;Insert</source>
-        <translation>&amp;insérer</translation>
+        <translation>&amp;Insérer</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="100"/>
@@ -812,7 +812,7 @@
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="134"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="50"/>
         <source>&amp;Toolbars</source>
-        <translation>&amp;barres d'outils</translation>
+        <translation>&amp;Barres d&apos;outils</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="139"/>
@@ -842,7 +842,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="191"/>
         <source>Clone &amp;Selection</source>
-        <translation>sélection &amp;de clone</translation>
+        <translation>Sélection &amp;de clone</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="194"/>
@@ -862,7 +862,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="215"/>
         <source>Restore Removed &amp;Items</source>
-        <translation>restaurer les &amp;éléments supprimés</translation>
+        <translation>Restaurer les &amp;éléments supprimés</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="218"/>
@@ -872,12 +872,12 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="227"/>
         <source>Insert &amp;PDF</source>
-        <translation>insérer &amp;un PDF</translation>
+        <translation>Insérer &amp;un PDF</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="230"/>
         <source>Insert PDF</source>
-        <translation>insérer un PDF</translation>
+        <translation>Insérer un PDF</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="233"/>
@@ -947,7 +947,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="314"/>
         <source>Select &amp;None</source>
-        <translation>sélectionnez &amp;Aucun</translation>
+        <translation>Sélectionnez &amp;Aucun</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="317"/>
@@ -967,7 +967,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="338"/>
         <source>Select &amp;Even</source>
-        <translation>sélectionnez &amp;Paire</translation>
+        <translation>Sélectionnez &amp;Paire</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="341"/>
@@ -977,7 +977,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="350"/>
         <source>Select &amp;Odd</source>
-        <translation>sélectionnez &amp;Impair</translation>
+        <translation>Sélectionnez &amp;Impair</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="353"/>
@@ -987,7 +987,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="362"/>
         <source>Select &amp;Portrait</source>
-        <translation>sélectionnez &amp;Portrait</translation>
+        <translation>Sélectionnez &amp;Portrait</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="365"/>
@@ -997,7 +997,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="374"/>
         <source>Select &amp;Landscape</source>
-        <translation>sélectionnez &amp;Paysage</translation>
+        <translation>Sélectionnez &amp;Paysage</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="377"/>
@@ -1027,7 +1027,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="410"/>
         <source>&amp;Zoom In</source>
-        <translation>&amp;zoom avant</translation>
+        <translation>&amp;Zoom avant</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="413"/>
@@ -1037,7 +1037,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="422"/>
         <source>Zoo&amp;m Out</source>
-        <translation>&amp;zoom arrière</translation>
+        <translation>&amp;Zoom arrière</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="425"/>
@@ -1076,7 +1076,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="467"/>
         <source>&amp;Separate to Multiple Documents...</source>
-        <translation>&amp;séparer en plusieurs documents...</translation>
+        <translation>&amp;Séparer en plusieurs documents...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="470"/>
@@ -1137,7 +1137,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="554"/>
         <source>Regroup by &amp;Outline</source>
-        <translation>regrouper par &amp;plan</translation>
+        <translation>Regrouper par &amp;plan</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="563"/>
@@ -1167,7 +1167,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="602"/>
         <source>Re&amp;do</source>
-        <translation>&amp;refaire</translation>
+        <translation>&amp;Refaire</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="605"/>
@@ -1177,7 +1177,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="610"/>
         <source>&amp;Prepare Icon Theme</source>
-        <translation>&amp;Préparer le thème d'icône</translation>
+        <translation>&amp;Préparer le thème d&apos;icône</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="619"/>
@@ -1194,12 +1194,12 @@
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="55"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="147"/>
         <source>&amp;Compare</source>
-        <translation>&amp;comparer</translation>
+        <translation>&amp;Comparer</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="76"/>
         <source>&amp;Filter</source>
-        <translation>&amp;filtre</translation>
+        <translation>&amp;Filtre</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="129"/>
@@ -1224,7 +1224,7 @@
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="171"/>
         <source>&amp;Previous Difference</source>
-        <translation>&amp;différence précédente</translation>
+        <translation>&amp;Différence précédente</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="174"/>
@@ -1234,17 +1234,17 @@
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="183"/>
         <source>&amp;Next Difference</source>
-        <translation>&amp;prochaine différence</translation>
+        <translation>&amp;Prochaine différence</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="195"/>
         <source>Create Compare &amp;Report...</source>
-        <translation>créer un &amp;rapport de comparaison...</translation>
+        <translation>Créer un &amp;rapport de comparaison...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="207"/>
         <source>Filter &amp;Text</source>
-        <translation>texte &amp;du filtre</translation>
+        <translation>Texte &amp;du filtre</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="219"/>
@@ -1254,22 +1254,22 @@
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="231"/>
         <source>Filter &amp;Images</source>
-        <translation>filtrer &amp;les images</translation>
+        <translation>Filtrer &amp;les images</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="243"/>
         <source>Filter &amp;Shading</source>
-        <translation>Filtrer &amp;l'ombrage</translation>
+        <translation>Filtrer &amp;l&apos;ombrage</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="255"/>
         <source>Filter &amp;Page Movement</source>
-        <translation>filtrer &amp;le mouvement des pages</translation>
+        <translation>Filtrer &amp;le mouvement des pages</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="267"/>
         <source>View &amp;Differences</source>
-        <translation>afficher &amp;les différences</translation>
+        <translation>Afficher &amp;les différences</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="279"/>
@@ -1289,12 +1289,12 @@
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="315"/>
         <source>&amp;Show Pages with Differences</source>
-        <translation>&amp;afficher les pages présentant des différences</translation>
+        <translation>&amp;Afficher les pages présentant des différences</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="318"/>
         <source>Show Pages with Differences</source>
-        <translation>afficher les pages présentant des différences</translation>
+        <translation>Afficher les pages présentant des différences</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="327"/>
@@ -1309,12 +1309,12 @@
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="351"/>
         <source>Display &amp;Differences</source>
-        <translation>affichage &amp;des différences</translation>
+        <translation>Affichage &amp;des différences</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="363"/>
         <source>Display &amp;Markers</source>
-        <translation>afficher &amp;les marqueurs</translation>
+        <translation>Afficher &amp;les marqueurs</translation>
     </message>
 </context>
 <context>
@@ -1322,7 +1322,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.ui" line="14"/>
         <source>Object Inspector</source>
-        <translation>Inspecteur d'objets</translation>
+        <translation>Inspecteur d&apos;objets</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.ui" line="24"/>
@@ -1332,7 +1332,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.ui" line="48"/>
         <source>Current Object</source>
-        <translation>objet actuel</translation>
+        <translation>Objet actuel</translation>
     </message>
 </context>
 <context>
@@ -1340,7 +1340,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.ui" line="14"/>
         <source>Object Statistics</source>
-        <translation>Statistiques d'objet</translation>
+        <translation>Statistiques d&apos;objet</translation>
     </message>
 </context>
 <context>
@@ -1391,7 +1391,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="14"/>
         <source>Output Preview</source>
-        <translation>aperçu de la sortie</translation>
+        <translation>Aperçu de la sortie</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="58"/>
@@ -1421,7 +1421,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="95"/>
         <source>Simulate paper color</source>
-        <translation>simuler la couleur du papier</translation>
+        <translation>Simuler la couleur du papier</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="144"/>
@@ -1441,17 +1441,17 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="170"/>
         <source>Vector graphics</source>
-        <translation>graphiques vectoriels</translation>
+        <translation>Graphiques vectoriels</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="180"/>
         <source>Shading patterns</source>
-        <translation>modèles d'ombrage</translation>
+        <translation>Modèles d&apos;ombrage</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="190"/>
         <source>Tiling patterns</source>
-        <translation>modèles de mosaïque</translation>
+        <translation>Modèles de mosaïque</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="193"/>
@@ -1461,23 +1461,23 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="216"/>
         <source>Color Warnings</source>
-        <translation>avertissements de couleur</translation>
+        <translation>Avertissements de couleur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="222"/>
         <source>Alarm color</source>
-        <translation>couleur de l'alarme</translation>
+        <translation>Couleur de l&apos;alarme</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="229"/>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="259"/>
         <source> %</source>
-        <translation>%</translation>
+        <translation> %</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="245"/>
         <source>Coverage limit</source>
-        <translation>limite de couverture</translation>
+        <translation>Limite de couverture</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="252"/>
@@ -1487,7 +1487,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="272"/>
         <source>Rich black limit</source>
-        <translation>limite de noir riche</translation>
+        <translation>Limite de noir riche</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="282"/>
@@ -1509,14 +1509,14 @@
         <location filename="../Pdf4QtPageMaster/aboutdialog.ui" line="26"/>
         <location filename="../Pdf4QtDiff/aboutdialog.ui" line="26"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;PdfForQtViewer&lt;/span&gt;&lt;/p&gt;&lt;p&gt;Copyright 2018-2025 Jakub Melka. All rights reserved.&lt;/p&gt;&lt;p&gt;THE SOFTWARE IS PROVIDED &amp;quot;AS IS&amp;quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR ANYONE DISTRIBUTING THE SOFTWARE BE LIABLE FOR ANY DAMAGES OR OTHER LIABILITY, WHETHER IN CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=" font-weight:600;"&gt;PdfForQtViewer&lt;/span&gt;&lt;/p&gt;&lt;p&gt;Copyright 2018-2025 Jakub Melka. Tous droits réservés.&lt;/p&gt;&lt;p&gt;LE LOGICIEL EST FOURNI « &amp;EN L'ÉTAT », SANS GARANTIE D'AUCUNE SORTE, EXPRESSE OU IMPLICITE, Y COMPRIS MAIS SANS LIMITATION LES GARANTIES DE QUALITÉ MARCHANDE, D'ADAPTATION À UN USAGE PARTICULIER, DE TITRE ET DE NON-VIOLATION. EN AUCUN CAS LES TITULAIRES DES DROITS D'AUTEUR OU TOUTE PERSONNE DISTRIBUANT LE LOGICIEL NE SERONT RESPONSABLES DE TOUT DOMMAGE OU AUTRE RESPONSABILITÉ, QUE CE SOIT PAR CONTRAT, DÉLIT OU AUTRE, DÉCOULANT DE, DE OU EN RELATION AVEC LE LOGICIEL OU L'UTILISATION OU D'AUTRES AFFAIRES DANS LE LOGICIEL.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;PdfForQtViewer&lt;/span&gt;&lt;/p&gt;&lt;p&gt;Copyright 2018-2025 Jakub Melka. Tous droits réservés.&lt;/p&gt;&lt;p&gt;LE LOGICIEL EST FOURNI «&#xa0;&amp;EN L&apos;ÉTAT&#xa0;», SANS GARANTIE D&apos;AUCUNE SORTE, EXPRESSE OU IMPLICITE, Y COMPRIS MAIS SANS LIMITATION LES GARANTIES DE QUALITÉ MARCHANDE, D&apos;ADAPTATION À UN USAGE PARTICULIER, DE TITRE ET DE NON-VIOLATION. EN AUCUN CAS LES TITULAIRES DES DROITS D&apos;AUTEUR OU TOUTE PERSONNE DISTRIBUANT LE LOGICIEL NE SERONT RESPONSABLES DE TOUT DOMMAGE OU AUTRE RESPONSABILITÉ, QUE CE SOIT PAR CONTRAT, DÉLIT OU AUTRE, DÉCOULANT DE, DE OU EN RELATION AVEC LE LOGICIEL OU L&apos;UTILISATION OU D&apos;AUTRES AFFAIRES DANS LE LOGICIEL.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfaboutdialog.ui" line="74"/>
         <location filename="../Pdf4QtPageMaster/aboutdialog.ui" line="74"/>
         <location filename="../Pdf4QtDiff/aboutdialog.ui" line="74"/>
         <source>Used libraries</source>
-        <translation>bibliothèques utilisées</translation>
+        <translation>Bibliothèques utilisées</translation>
     </message>
 </context>
 <context>
@@ -1529,7 +1529,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="24"/>
         <source>Search for</source>
-        <translation>recherchez</translation>
+        <translation>Recherchez</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="30"/>
@@ -1544,27 +1544,27 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="43"/>
         <source>Whole words only</source>
-        <translation>mots entiers uniquement</translation>
+        <translation>Mots entiers uniquement</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="50"/>
         <source>Remove soft hyphen at end of line</source>
-        <translation>supprimez le trait d'union souple en fin de ligne</translation>
+        <translation>supprimez le trait d&apos;union souple en fin de ligne</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="57"/>
         <source>Search for:</source>
-        <translation>recherchez :</translation>
+        <translation>Recherchez&#xa0;:</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="64"/>
         <source>Case sensitive</source>
-        <translation>sensible à la casse</translation>
+        <translation>Sensible à la casse</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="74"/>
         <source>Use regular expressions</source>
-        <translation>utiliser des expressions régulières</translation>
+        <translation>Utiliser des expressions régulières</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="81"/>
@@ -1574,7 +1574,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="91"/>
         <source>Regular Expression Settings</source>
-        <translation>paramètres d'expression régulière</translation>
+        <translation>Paramètres d&apos;expression régulière</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="97"/>
@@ -1584,7 +1584,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="107"/>
         <source>Multiline matching (enables search using &apos;^&apos; and &apos;$&apos; to mark line beginnings/endings)</source>
-        <translation>correspondance multiligne (permet la recherche à l'aide de « ^ » et « $ » pour marquer les débuts/fins de ligne)</translation>
+        <translation>correspondance multiligne (permet la recherche à l&apos;aide de «&#xa0;^&#xa0;» et «&#xa0;$&#xa0;» pour marquer les débuts/fins de ligne)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="131"/>
@@ -1620,12 +1620,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.ui" line="36"/>
         <source>Automatic (Otsu&apos;s 1D method)</source>
-        <translation>Automatique (méthode 1D d'Otsu)</translation>
+        <translation>Automatique (méthode 1D d&apos;Otsu)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.ui" line="56"/>
         <source>User-Defined Intensity Threshold (0-255):</source>
-        <translation>Seuil d'intensité défini par l'utilisateur (0-255) :</translation>
+        <translation>Seuil d&apos;intensité défini par l&apos;utilisateur (0-255)&#xa0;:</translation>
     </message>
 </context>
 <context>
@@ -1638,7 +1638,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="20"/>
         <source>Create Self Signed Certificate</source>
-        <translation>créer un certificat auto-signé</translation>
+        <translation>Créer un certificat auto-signé</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="26"/>
@@ -1653,7 +1653,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="47"/>
         <source>Organization Unit</source>
-        <translation>unité d'organisation</translation>
+        <translation>Unité d&apos;organisation</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="54"/>
@@ -1668,17 +1668,17 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="102"/>
         <source>Key length</source>
-        <translation>longueur de la clé</translation>
+        <translation>Longueur de la clé</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="109"/>
         <source>Valid till</source>
-        <translation>valable jusqu'à</translation>
+        <translation>Valable jusqu&apos;à</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="128"/>
         <source>Certificate file</source>
-        <translation>fichier de certificat</translation>
+        <translation>Fichier de certificat</translation>
     </message>
 </context>
 <context>
@@ -1686,7 +1686,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="14"/>
         <source>Document Properties</source>
-        <translation>propriétés du document</translation>
+        <translation>Propriétés du document</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="24"/>
@@ -1697,7 +1697,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="59"/>
         <source>File Information</source>
-        <translation>informations sur le fichier</translation>
+        <translation>Informations sur le fichier</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="89"/>
@@ -1719,7 +1719,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="167"/>
         <source>Display &amp;&amp; Print Settings</source>
-        <translation>Afficher les paramètres d'impression &amp;&amp;</translation>
+        <translation>Afficher les paramètres d&apos;impression &amp;&amp;</translation>
     </message>
 </context>
 <context>
@@ -1737,7 +1737,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="49"/>
         <source>&amp;Go To</source>
-        <translation>&amp;accédez à</translation>
+        <translation>&amp;Accédez à</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="53"/>
@@ -1757,7 +1757,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="88"/>
         <source>Re&amp;ndering Options</source>
-        <translation>&amp;options de rendu</translation>
+        <translation>&amp;Options de rendu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="118"/>
@@ -1778,23 +1778,23 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="148"/>
         <source>&amp;Edit</source>
-        <translation>&amp;modifier</translation>
+        <translation>&amp;Modifier</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="173"/>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="787"/>
         <source>&amp;Insert</source>
-        <translation>&amp;insérer</translation>
+        <translation>&amp;Insérer</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="177"/>
         <source>Sticky &amp;Note</source>
-        <translation>pense-&amp;bête</translation>
+        <translation>Pense-&amp;bête</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="189"/>
         <source>&amp;Stamp</source>
-        <translation>&amp;tampon</translation>
+        <translation>&amp;Tampon</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="194"/>
@@ -1819,12 +1819,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="266"/>
         <source>&amp;Single Page</source>
-        <translation>&amp;page unique</translation>
+        <translation>&amp;Page unique</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="269"/>
         <source>Single Page</source>
-        <translation>page unique</translation>
+        <translation>Page unique</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="272"/>
@@ -1834,7 +1834,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="280"/>
         <source>&amp;Continuous</source>
-        <translation>&amp;continu</translation>
+        <translation>&amp;Continu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="283"/>
@@ -1849,12 +1849,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="294"/>
         <source>Two &amp;Pages</source>
-        <translation>deux &amp;pages</translation>
+        <translation>Deux&#xa0;&amp;pages</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="297"/>
         <source>Two Pages</source>
-        <translation>deux pages</translation>
+        <translation>Deux&#xa0;pages</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="300"/>
@@ -1864,12 +1864,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="308"/>
         <source>&amp;Two columns</source>
-        <translation>&amp;deux colonnes</translation>
+        <translation>&amp;Deux&#xa0;colonnes</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="311"/>
         <source>Two columns</source>
-        <translation>deux colonnes</translation>
+        <translation>Deux&#xa0;colonnes</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="314"/>
@@ -1879,7 +1879,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="322"/>
         <source>&amp;First page on right side</source>
-        <translation>&amp;première page sur le côté droit</translation>
+        <translation>&amp;Première page sur le côté droit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="325"/>
@@ -1894,7 +1894,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="337"/>
         <source>&amp;Rendering Errors...</source>
-        <translation>&amp;erreurs de rendu...</translation>
+        <translation>&amp;Erreurs de rendu...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="340"/>
@@ -1914,32 +1914,32 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="359"/>
         <source>&amp;Text Antialiasing</source>
-        <translation>&amp;anticrénelage de texte</translation>
+        <translation>&amp;Anticrénelage de texte</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="362"/>
         <source>Text Antialiasing</source>
-        <translation>anticrénelage de texte</translation>
+        <translation>Anticrénelage de texte</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="370"/>
         <source>&amp;Smooth Pictures</source>
-        <translation>&amp;images fluides</translation>
+        <translation>&amp;Images fluides</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="373"/>
         <source>Smooth Pictures</source>
-        <translation>images fluides</translation>
+        <translation>Images fluides</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="381"/>
         <source>&amp;Ignore Optional Content Settings</source>
-        <translation>&amp;ignorer les paramètres de contenu facultatifs</translation>
+        <translation>&amp;Ignorer les paramètres de contenu facultatifs</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="384"/>
         <source>Ignore Optional Content Settings</source>
-        <translation>ignorer les paramètres de contenu facultatifs</translation>
+        <translation>Ignorer les paramètres de contenu facultatifs</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="393"/>
@@ -1954,17 +1954,17 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="401"/>
         <source>Reset to &amp;Factory Settings</source>
-        <translation>Réinitialisation aux &amp;paramètres d'usine</translation>
+        <translation>Réinitialisation aux &amp;paramètres d&apos;usine</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="410"/>
         <source>&amp;Zoom In</source>
-        <translation>&amp;zoom avant</translation>
+        <translation>&amp;Zoom avant</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="419"/>
         <source>Zoom &amp;Out</source>
-        <translation>zoom &amp;arrière</translation>
+        <translation>Zoom &amp;arrière</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="428"/>
@@ -2034,12 +2034,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="534"/>
         <source>Select te&amp;xt</source>
-        <translation>sélectionnez &amp;le texte</translation>
+        <translation>Sélectionnez &amp;le texte</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="546"/>
         <source>Select &amp;table</source>
-        <translation>sélectionnez &amp;le tableau</translation>
+        <translation>Sélectionnez &amp;le tableau</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="555"/>
@@ -2049,12 +2049,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="564"/>
         <source>Dese&amp;lect</source>
-        <translation>&amp;désélectionner</translation>
+        <translation>&amp;Désélectionner</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="573"/>
         <source>&amp;Copy text</source>
-        <translation>&amp;copier le texte</translation>
+        <translation>&amp;Copier le texte</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="585"/>
@@ -2099,7 +2099,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="665"/>
         <source>Render to &amp;Images...</source>
-        <translation>rendu en &amp;images...</translation>
+        <translation>Rendu en &amp;images...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="677"/>
@@ -2109,27 +2109,27 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="680"/>
         <source>Magnifier Tool</source>
-        <translation>outil Loupe</translation>
+        <translation>Outil Loupe</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="692"/>
         <source>&amp;Screenshot</source>
-        <translation>&amp;capture d'écran</translation>
+        <translation>&amp;Capture d&apos;écran</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="704"/>
         <source>&amp;Extract Image</source>
-        <translation>&amp;Extraire l'image</translation>
+        <translation>&amp;Extraire l&apos;image</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="712"/>
         <source>&amp;Display Annotations</source>
-        <translation>&amp;afficher les annotations</translation>
+        <translation>&amp;Afficher les annotations</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="715"/>
         <source>Display Annotations</source>
-        <translation>afficher les annotations</translation>
+        <translation>Afficher les annotations</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="724"/>
@@ -2164,17 +2164,17 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="771"/>
         <source>&amp;Comment</source>
-        <translation>&amp;commentaire</translation>
+        <translation>&amp;Commentaire</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="795"/>
         <source>&amp;Key</source>
-        <translation>&amp;clé</translation>
+        <translation>&amp;Clé</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="803"/>
         <source>&amp;New Paragraph</source>
-        <translation>&amp;nouveau paragraphe</translation>
+        <translation>&amp;Nouveau paragraphe</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="811"/>
@@ -2184,17 +2184,17 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="819"/>
         <source>&amp;Paragraph</source>
-        <translation>&amp;paragraphe</translation>
+        <translation>&amp;Paragraphe</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="831"/>
         <source>&amp;Hyperlink</source>
-        <translation>&amp;lien hypertexte</translation>
+        <translation>&amp;Lien hypertexte</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="843"/>
         <source>&amp;Inline text</source>
-        <translation>&amp;texte en ligne</translation>
+        <translation>&amp;Texte en ligne</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="855"/>
@@ -2209,7 +2209,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="879"/>
         <source>&amp;Rectangle</source>
-        <translation>&amp;rectangle</translation>
+        <translation>&amp;Rectangle</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="891"/>
@@ -2229,7 +2229,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="927"/>
         <source>&amp;Highlight</source>
-        <translation>&amp;surligner</translation>
+        <translation>&amp;Surligner</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="939"/>
@@ -2284,7 +2284,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1035"/>
         <source>&amp;Encryption...</source>
-        <translation>&amp;cryptage...</translation>
+        <translation>&amp;Cryptage...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1044"/>
@@ -2304,7 +2304,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1061"/>
         <source>Remove External &amp;Links</source>
-        <translation>supprimer les &amp;liens externes</translation>
+        <translation>Supprimer les &amp;liens externes</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1064"/>
@@ -2314,7 +2314,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1072"/>
         <source>Automatic &amp;Document Refresh</source>
-        <translation>actualisation &amp;automatique des documents</translation>
+        <translation>Actualisation &amp;automatique des documents</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1075"/>
@@ -2344,12 +2344,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1108"/>
         <source>&amp;Bookmark Page</source>
-        <translation>&amp;page de favoris</translation>
+        <translation>&amp;Page de favoris</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1111"/>
         <source>Bookmark Page</source>
-        <translation>page de favoris</translation>
+        <translation>Page de favoris</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1114"/>
@@ -2369,7 +2369,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1129"/>
         <source>Navigates to the next bookmarked page.</source>
-        <translation>permet d'accéder à la page marquée de signet suivante.</translation>
+        <translation>permet d&apos;accéder à la page marquée de signet suivante.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1138"/>
@@ -2379,12 +2379,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1141"/>
         <source>Go to Previous Bookmark</source>
-        <translation>accéder au signet précédent</translation>
+        <translation>Accéder au signet précédent</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1144"/>
         <source>Navigates to the previous bookmarked page.</source>
-        <translation>permet d'accéder à la page précédente mise en signet.</translation>
+        <translation>permet d&apos;accéder à la page précédente mise en signet.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1153"/>
@@ -2404,12 +2404,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1168"/>
         <source>&amp;Import Bookmarks</source>
-        <translation>&amp;importer des signets</translation>
+        <translation>&amp;Importer des signets</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1171"/>
         <source>Import Bookmarks</source>
-        <translation>importer des signets</translation>
+        <translation>Importer des signets</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1174"/>
@@ -2419,12 +2419,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1186"/>
         <source>&amp;Generate Bookmarks Automatically</source>
-        <translation>&amp;générer automatiquement des signets</translation>
+        <translation>&amp;Générer automatiquement des signets</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1189"/>
         <source>Generate Bookmarks Automatically</source>
-        <translation>générer automatiquement des signets</translation>
+        <translation>Générer automatiquement des signets</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1192"/>
@@ -2444,7 +2444,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1211"/>
         <source>Clear Recent File &amp;History</source>
-        <translation>effacer l'historique &amp;des fichiers récents</translation>
+        <translation>effacer l&apos;historique &amp;des fichiers récents</translation>
     </message>
 </context>
 <context>
@@ -2452,22 +2452,22 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="14"/>
         <source>Encryption Settings</source>
-        <translation>paramètres de cryptage</translation>
+        <translation>Paramètres de cryptage</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="20"/>
         <source>Encryption Method</source>
-        <translation>méthode de cryptage</translation>
+        <translation>Méthode de cryptage</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="26"/>
         <source>Encryption algorithm</source>
-        <translation>algorithme de chiffrement</translation>
+        <translation>Algorithme de chiffrement</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="36"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Select encryption algorithm. AES-256 is strongly recommended, because older encryption algorithm can be potentially broken. Select older algorithms (as AES-128 or RC4) only, if you need backward compatibility. Also, choose a strong password to ensure strong encryption.&lt;/p&gt;&lt;p&gt;Public key security using certificate is also supported. In that case, you must select a certificate with private key, and this certificate is then used to encrypt data. User, which wants to open document encrypted with certificate, must have a private key to the certificae.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Sélectionnez l'algorithme de cryptage. AES-256 est fortement recommandé, car les anciens algorithmes de chiffrement peuvent être potentiellement endommagés. Sélectionnez uniquement des algorithmes plus anciens (comme AES-128 ou RC4) si vous avez besoin d'une compatibilité ascendante. Choisissez également un mot de passe fort pour garantir un cryptage fort.&lt;/p&gt;&lt;p&gt;La sécurité par clé publique à l'aide d'un certificat est également prise en charge. Dans ce cas, vous devez sélectionner un certificat avec clé privée, et ce certificat est ensuite utilisé pour chiffrer les données. L'utilisateur qui souhaite ouvrir un document crypté avec un certificat doit disposer d'une clé privée pour le certificat.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Sélectionnez l&apos;algorithme de cryptage. AES-256 est fortement recommandé, car les anciens algorithmes de chiffrement peuvent être potentiellement endommagés. Sélectionnez uniquement des algorithmes plus anciens (comme AES-128 ou RC4) si vous avez besoin d&apos;une compatibilité ascendante. Choisissez également un mot de passe fort pour garantir un cryptage fort.&lt;/p&gt;&lt;p&gt;La sécurité par clé publique à l&apos;aide d&apos;un certificat est également prise en charge. Dans ce cas, vous devez sélectionner un certificat avec clé privée, et ce certificat est ensuite utilisé pour chiffrer les données. L&apos;utilisateur qui souhaite ouvrir un document crypté avec un certificat doit disposer d&apos;une clé privée pour le certificat.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="46"/>
@@ -2487,7 +2487,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="92"/>
         <source>Password (owner access)</source>
-        <translation>mot de passe (accès propriétaire)</translation>
+        <translation>Mot de passe (accès propriétaire)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="102"/>
@@ -2502,12 +2502,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="118"/>
         <source>Encrypt all document contets except metadata</source>
-        <translation>chiffrer tous les contenus de documents, à l'exception des métadonnées</translation>
+        <translation>chiffrer tous les contenus de documents, à l&apos;exception des métadonnées</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="125"/>
         <source>Encrypt file attachments only</source>
-        <translation>chiffrer uniquement les pièces jointes</translation>
+        <translation>Chiffrer uniquement les pièces jointes</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="135"/>
@@ -2522,7 +2522,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="148"/>
         <source>Fill interactive forms</source>
-        <translation>remplir des formulaires interactifs</translation>
+        <translation>Remplir des formulaires interactifs</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="155"/>
@@ -2537,7 +2537,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="169"/>
         <source>Modify document contents</source>
-        <translation>modifier le contenu du document</translation>
+        <translation>Modifier le contenu du document</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="176"/>
@@ -2552,7 +2552,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="190"/>
         <source>Copy/extract document content</source>
-        <translation>copier/extraire le contenu du document</translation>
+        <translation>Copier/extraire le contenu du document</translation>
     </message>
 </context>
 <context>
@@ -2560,12 +2560,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.ui" line="14"/>
         <source>Document optimization</source>
-        <translation>optimisation du document</translation>
+        <translation>Optimisation du document</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.ui" line="20"/>
         <source>Optimization Settings</source>
-        <translation>paramètres d'optimisation</translation>
+        <translation>Paramètres d&apos;optimisation</translation>
     </message>
 </context>
 <context>
@@ -2583,7 +2583,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="30"/>
         <source>Text Content</source>
-        <translation>contenu textuel</translation>
+        <translation>Contenu textuel</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="43"/>
@@ -2593,7 +2593,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="49"/>
         <source>Image Content</source>
-        <translation>Contenu de l'image</translation>
+        <translation>Contenu de l&apos;image</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="57"/>
@@ -2613,7 +2613,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="113"/>
         <source>Load Image</source>
-        <translation>Charger l'image</translation>
+        <translation>Charger l&apos;image</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="139"/>
@@ -2629,7 +2629,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="155"/>
         <source>Pen Style</source>
-        <translation>style de stylet</translation>
+        <translation>Style de stylet</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="162"/>
@@ -2639,17 +2639,17 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="179"/>
         <source>Brush Style</source>
-        <translation>style de pinceau</translation>
+        <translation>Style de pinceau</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="186"/>
         <source>Pen Width</source>
-        <translation>largeur du stylet</translation>
+        <translation>Largeur du stylet</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="193"/>
         <source>Stroke path</source>
-        <translation>chemin de trait</translation>
+        <translation>Chemin de trait</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="216"/>
@@ -2659,7 +2659,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="237"/>
         <source>Fill path</source>
-        <translation>remplir le chemin</translation>
+        <translation>Remplir le chemin</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="245"/>
@@ -2669,27 +2669,27 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="253"/>
         <source>Translation in Y</source>
-        <translation>traduction en Y</translation>
+        <translation>Traduction en Y</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="270"/>
         <source>Translation in X</source>
-        <translation>traduction en X</translation>
+        <translation>Traduction en X</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="287"/>
         <source>Scale in X</source>
-        <translation>échelle en X</translation>
+        <translation>Échelle en X</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="324"/>
         <source>Scale in Y</source>
-        <translation>échelle en Y</translation>
+        <translation>Échelle en Y</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="331"/>
         <source>Shear factor</source>
-        <translation>facteur de cisaillement</translation>
+        <translation>Facteur de cisaillement</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="351"/>
@@ -2704,12 +2704,12 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="375"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;s&lt;span style=&quot; vertical-align:sub;&quot;&gt;x&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;s&lt;span style=" vertical-align:sub;"&gt;x&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;s&lt;span style=&quot; vertical-align:sub;&quot;&gt;x&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="382"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;s&lt;span style=&quot; vertical-align:sub;&quot;&gt;y&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;s&lt;span style=" vertical-align:sub;"&gt;y&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;s&lt;span style=&quot; vertical-align:sub;&quot;&gt;y&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="389"/>
@@ -2719,12 +2719,12 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="396"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;t&lt;span style=&quot; vertical-align:sub;&quot;&gt;x&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;t&lt;span style=" vertical-align:sub;"&gt;x&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;t&lt;span style=&quot; vertical-align:sub;&quot;&gt;x&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="403"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;t&lt;span style=&quot; vertical-align:sub;&quot;&gt;y&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;t&lt;span style=" vertical-align:sub;"&gt;y&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;t&lt;span style=&quot; vertical-align:sub;&quot;&gt;y&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
 </context>
 <context>
@@ -2732,22 +2732,22 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="14"/>
         <source>Style Settings</source>
-        <translation>paramètres de style</translation>
+        <translation>Paramètres de style</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="20"/>
         <source>Text Alignment</source>
-        <translation>alignement du texte</translation>
+        <translation>Alignement du texte</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="27"/>
         <source>Pen Style</source>
-        <translation>style de stylet</translation>
+        <translation>Style de stylet</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="70"/>
         <source>Pen Width</source>
-        <translation>largeur du stylet</translation>
+        <translation>Largeur du stylet</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="77"/>
@@ -2774,12 +2774,12 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="198"/>
         <source>Text Angle</source>
-        <translation>angle du texte</translation>
+        <translation>Angle du texte</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="219"/>
         <source>Brush Style</source>
-        <translation>style de pinceau</translation>
+        <translation>Style de pinceau</translation>
     </message>
 </context>
 <context>
@@ -2787,7 +2787,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="17"/>
         <source>Content editor</source>
-        <translation>éditeur de contenu</translation>
+        <translation>Éditeur de contenu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="24"/>
@@ -2802,47 +2802,47 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="38"/>
         <source>Align to Top</source>
-        <translation>aligner sur le haut</translation>
+        <translation>Aligner sur le haut</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="45"/>
         <source>Align to Vertical Center</source>
-        <translation>aligner sur le centre vertical</translation>
+        <translation>Aligner sur le centre vertical</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="52"/>
         <source>Align to Bottom</source>
-        <translation>aligner vers le bas</translation>
+        <translation>Aligner vers le bas</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="59"/>
         <source>Set Same Width</source>
-        <translation>définir la même largeur</translation>
+        <translation>Définir la même largeur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="66"/>
         <source>Set Same Height</source>
-        <translation>définir la même hauteur</translation>
+        <translation>Définir la même hauteur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="73"/>
         <source>Set Same Size</source>
-        <translation>définir la même taille</translation>
+        <translation>Définir la même taille</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="80"/>
         <source>Align to Left</source>
-        <translation>aligner à gauche</translation>
+        <translation>Aligner à gauche</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="87"/>
         <source>Align to Horizontal Center</source>
-        <translation>aligner sur le centre horizontal</translation>
+        <translation>Aligner sur le centre horizontal</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="94"/>
         <source>Align to Right</source>
-        <translation>aligner à droite</translation>
+        <translation>Aligner à droite</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="101"/>
@@ -2862,27 +2862,27 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="125"/>
         <source>Layout Tools</source>
-        <translation>outils de mise en page</translation>
+        <translation>Outils de mise en page</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="131"/>
         <source>Make Horizontal Layout</source>
-        <translation>créer une disposition horizontale</translation>
+        <translation>Créer une disposition horizontale</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="138"/>
         <source>Make Vertical Layout</source>
-        <translation>créer une disposition verticale</translation>
+        <translation>Créer une disposition verticale</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="145"/>
         <source>Make Form Layout</source>
-        <translation>créer une mise en page de formulaire</translation>
+        <translation>Créer une mise en page de formulaire</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="152"/>
         <source>Make Grid Layout</source>
-        <translation>créer une disposition en grille</translation>
+        <translation>Créer une disposition en grille</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="162"/>
@@ -2900,22 +2900,22 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="14"/>
         <source>Render Document to Images</source>
-        <translation>rendu du document en images</translation>
+        <translation>Rendu du document en images</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="20"/>
         <source>Output Files Settings</source>
-        <translation>paramètres des fichiers de sortie</translation>
+        <translation>Paramètres des fichiers de sortie</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="26"/>
         <source>Pages to render</source>
-        <translation>pages à afficher</translation>
+        <translation>Pages à afficher</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="33"/>
         <source>File template</source>
-        <translation>modèle de fichier</translation>
+        <translation>Modèle de fichier</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="40"/>
@@ -2925,7 +2925,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="47"/>
         <source>Generate into directory</source>
-        <translation>générer dans le répertoire</translation>
+        <translation>Générer dans le répertoire</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="54"/>
@@ -2935,12 +2935,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="67"/>
         <source>Pages:</source>
-        <translation>Pages :</translation>
+        <translation>Pages&#xa0;:</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="80"/>
         <source>Image Resolution</source>
-        <translation>résolution de l'image</translation>
+        <translation>Résolution de l&apos;image</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="86"/>
@@ -2960,7 +2960,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="107"/>
         <source> dots/inch</source>
-        <translation>points/pouce</translation>
+        <translation> points/pouce</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="126"/>
@@ -2970,7 +2970,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="148"/>
         <source>Image Format Settings</source>
-        <translation>paramètres de format d'image</translation>
+        <translation>Paramètres de format d&apos;image</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="154"/>
@@ -2990,7 +2990,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="188"/>
         <source>Optimized write</source>
-        <translation>écriture optimisée</translation>
+        <translation>Écriture optimisée</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="198"/>
@@ -3005,7 +3005,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="215"/>
         <source>Progressive scan write</source>
-        <translation>écriture par analyse progressive</translation>
+        <translation>Écriture par analyse progressive</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="222"/>
@@ -3019,7 +3019,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfrenderingerrorswidget.ui" line="14"/>
         <source>Rendering errors</source>
-        <translation>erreurs de rendu</translation>
+        <translation>Erreurs de rendu</translation>
     </message>
 </context>
 <context>
@@ -3040,27 +3040,27 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.ui" line="20"/>
         <source>All pages</source>
-        <translation>toutes les pages</translation>
+        <translation>Toutes les pages</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.ui" line="30"/>
         <source>Even pages</source>
-        <translation>pages paires</translation>
+        <translation>Pages paires</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.ui" line="37"/>
         <source>Odd pages</source>
-        <translation>pages impaires</translation>
+        <translation>Pages impaires</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.ui" line="44"/>
         <source>Custom page range:</source>
-        <translation>plage de pages personnalisée :</translation>
+        <translation>Plage de pages personnalisée&#xa0;:</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.ui" line="51"/>
         <source>Visible pages</source>
-        <translation>pages visibles</translation>
+        <translation>Pages visibles</translation>
     </message>
 </context>
 <context>
@@ -3114,7 +3114,7 @@
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="384"/>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="574"/>
         <source>Search text or wildcard...</source>
-        <translation>recherche de texte ou de caractère générique...</translation>
+        <translation>Recherche de texte ou de caractère générique...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="421"/>
@@ -3152,12 +3152,12 @@
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="69"/>
         <source>PDFTool help</source>
-        <translation>aide PDFTool</translation>
+        <translation>Aide PDFTool</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="72"/>
         <source>List of available commands</source>
-        <translation>liste des commandes disponibles</translation>
+        <translation>Liste des commandes disponibles</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="76"/>
@@ -3180,22 +3180,22 @@
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="118"/>
         <source>Text Encoding</source>
-        <translation>encodage de texte</translation>
+        <translation>Encodage de texte</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="120"/>
         <source>When you redirect console to a file, then specific codec is used to transform output text to target encoding. UTF-8 encoding is used by default. For XML output, you should use only UTF-8 codec. Available codecs:</source>
-        <translation>lorsque vous redirigez la console vers un fichier, un codec spécifique est utilisé pour transformer le texte de sortie en codage cible. Le codage UTF-8 est utilisé par défaut. Pour la sortie XML, vous devez utiliser uniquement le codec UTF-8. Codecs disponibles :</translation>
+        <translation>lorsque vous redirigez la console vers un fichier, un codec spécifique est utilisé pour transformer le texte de sortie en codage cible. Le codage UTF-8 est utilisé par défaut. Pour la sortie XML, vous devez utiliser uniquement le codec UTF-8. Codecs disponibles&#xa0;:</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="131"/>
         <source>Suggested codec: UTF-8 or %1</source>
-        <translation>Codec suggéré : UTF-8 ou %1</translation>
+        <translation>Codec suggéré&#xa0;: UTF-8 ou %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="384"/>
         <source>Unknown console format &apos;%1&apos;. Defaulting to text console format.</source>
-        <translation>format de console inconnu '%1'. Par défaut, le format de console texte.</translation>
+        <translation>format de console inconnu &apos;%1&apos;. Par défaut, le format de console texte.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="414"/>
@@ -3205,7 +3205,7 @@
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="511"/>
         <source>Unknown text layout analysis algorithm &apos;%1&apos;. Defaulting to automatic algorithm selection.</source>
-        <translation>algorithme d'analyse de la mise en page du texte inconnu '%1'. Par défaut, sélection automatique de l'algorithme.</translation>
+        <translation>algorithme d&apos;analyse de la mise en page du texte inconnu &apos;%1&apos;. Par défaut, sélection automatique de l&apos;algorithme.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="539"/>
@@ -3215,17 +3215,17 @@
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="562"/>
         <source>Image format &apos;%1&apos; is not supported. Defaulting to png.</source>
-        <translation>le format d'image « %1 » n'est pas pris en charge. Par défaut en png.</translation>
+        <translation>le format d&apos;image « %1 » n&apos;est pas pris en charge. Par défaut en png.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="579"/>
         <source>Image format subtype &apos;%1&apos; is not supported.</source>
-        <translation>le sous-type de format d'image « %1 » n'est pas pris en charge.</translation>
+        <translation>le sous-type de format d&apos;image « %1 » n&apos;est pas pris en charge.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="598"/>
         <source>Image compression for current format is not supported.</source>
-        <translation>la compression d'image pour le format actuel n'est pas prise en charge.</translation>
+        <translation>la compression d&apos;image pour le format actuel n&apos;est pas prise en charge.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="603"/>
@@ -3235,27 +3235,27 @@
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="622"/>
         <source>Image quality settings for current format is not supported.</source>
-        <translation>les paramètres de qualité d'image pour le format actuel ne sont pas pris en charge.</translation>
+        <translation>les paramètres de qualité d&apos;image pour le format actuel ne sont pas pris en charge.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="627"/>
         <source>Invalid image quality &apos;%1&apos;.</source>
-        <translation>qualité d'image « %1 » non valide.</translation>
+        <translation>qualité d&apos;image « %1 » non valide.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="642"/>
         <source>Optimized write is not supported.</source>
-        <translation>l'écriture optimisée n'est pas prise en charge.</translation>
+        <translation>l&apos;écriture optimisée n&apos;est pas prise en charge.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="654"/>
         <source>Progressive scan write is not supported.</source>
-        <translation>l'écriture par analyse progressive n'est pas prise en charge.</translation>
+        <translation>l&apos;écriture par analyse progressive n&apos;est pas prise en charge.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="686"/>
         <source>Invalid image resolution mode &apos;%1&apos;. Defaulting to dpi.</source>
-        <translation>mode de résolution d'image non valide « %1 ». Par défaut, dpi.</translation>
+        <translation>mode de résolution d&apos;image non valide « %1 ». Par défaut, dpi.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="694"/>
@@ -3270,7 +3270,7 @@
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="712"/>
         <source>Invalid image dpi value &apos;%1&apos;.</source>
-        <translation>valeur dpi de l'image non valide "%1".</translation>
+        <translation>valeur dpi de l&apos;image non valide &quot;%1&quot;.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="720"/>
@@ -3285,12 +3285,12 @@
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="738"/>
         <source>Invalid image pixel value &apos;%1&apos;.</source>
-        <translation>valeur de pixel d'image non valide '%1'.</translation>
+        <translation>valeur de pixel d&apos;image non valide&#xa0;&apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="759"/>
         <source>Unknown color management system &apos;%1&apos;. Defaulting to lcms.</source>
-        <translation>système de gestion des couleurs inconnu '%1'. Par défaut, lcms.</translation>
+        <translation>système de gestion des couleurs inconnu &apos;%1&apos;. Par défaut, lcms.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="778"/>
@@ -3300,64 +3300,64 @@
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="805"/>
         <source>Unknown color adaptation method &apos;%1&apos;. Defaulting to bradford.</source>
-        <translation>méthode d'adaptation des couleurs inconnue '%1'. Par défaut à Bradford.</translation>
+        <translation>méthode d&apos;adaptation des couleurs inconnue &apos;%1&apos;. Par défaut à Bradford.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="832"/>
         <source>Uknown color management system rendering intent &apos;%1&apos;. Defaulting to auto.</source>
-        <translation>intention de rendu du système de gestion des couleurs inconnue "%1". Par défaut, auto.</translation>
+        <translation>intention de rendu du système de gestion des couleurs inconnue &quot;%1&quot;. Par défaut, auto.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="881"/>
         <source>Uknown bool value &apos;%1&apos;. Default value is used.</source>
-        <translation>valeur booléenne inconnue '%1'. La valeur par défaut est utilisée.</translation>
+        <translation>valeur booléenne inconnue &apos;%1&apos;. La valeur par défaut est utilisée.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="894"/>
         <source>Uknown bool value &apos;%1&apos;. GPU rendering is used as default.</source>
-        <translation>valeur booléenne inconnue '%1'. Le rendu GPU est utilisé par défaut.</translation>
+        <translation>valeur booléenne inconnue &apos;%1&apos;. Le rendu GPU est utilisé par défaut.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="901"/>
         <source>Uknown MSAA sample count &apos;%1&apos;. 4 samples are used as default.</source>
-        <translation>nombre d'échantillons MSAA inconnu '%1'. 4 échantillons sont utilisés par défaut.</translation>
+        <translation>nombre d&apos;échantillons MSAA inconnu &apos;%1&apos;. 4 échantillons sont utilisés par défaut.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="910"/>
         <source>Uknown rasterizer count &apos;%1&apos;. %2 rasterizers are used as default.</source>
-        <translation>nombre de rastériseurs inconnu '%1'. Les rastériseurs %2 sont utilisés par défaut.</translation>
+        <translation>nombre de rastériseurs inconnu&#xa0;&apos;%1&apos;. Les rastériseurs %2 sont utilisés par défaut.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="915"/>
         <source>Invalid raterizer count: %1. Correcting to use %2 rasterizers.</source>
-        <translation>nombre d'évaluateurs non valide : %1. Correction pour utiliser les rastériseurs %2.</translation>
+        <translation>nombre d&apos;évaluateurs non valide&#xa0;: %1. Correction pour utiliser les rastériseurs %2.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="974"/>
         <source>Unknown encryption algorithm &apos;%1&apos;. Defaulting to AES-256 encryption.</source>
-        <translation>algorithme de chiffrement inconnu '%1'. Par défaut, le cryptage AES-256.</translation>
+        <translation>algorithme de chiffrement inconnu &apos;%1&apos;. Par défaut, le cryptage AES-256.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="997"/>
         <source>Unknown encryption contents mode &apos;%1&apos;. Defaulting to encrypt all contents.</source>
-        <translation>mode de contenu de cryptage inconnu '%1'. Par défaut, crypter tout le contenu.</translation>
+        <translation>mode de contenu de cryptage inconnu &apos;%1&apos;. Par défaut, crypter tout le contenu.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1056"/>
         <source>Invalid password provided.</source>
-        <translation>mot de passe fourni non valide.</translation>
+        <translation>Mot de passe fourni non valide.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1062"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="84"/>
         <source>Error occured during document reading. %1</source>
-        <translation>une erreur s'est produite lors de la lecture du document. %1</translation>
+        <translation>une erreur s&apos;est produite lors de la lecture du document. %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1075"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="95"/>
         <source>Warning: %1</source>
-        <translation>Avertissement : %1</translation>
+        <translation>Avertissement&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="42"/>
@@ -3377,7 +3377,7 @@
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="125"/>
         <source>Attached files overview</source>
-        <translation>présentation des fichiers joints</translation>
+        <translation>Présentation des fichiers joints</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="128"/>
@@ -3398,27 +3398,27 @@
         <location filename="../PdfTool/pdftoolattachments.cpp" line="129"/>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="168"/>
         <source>File name</source>
-        <translation>nom du fichier</translation>
+        <translation>Nom du fichier</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="130"/>
         <source>Mime type</source>
-        <translation>type MIME</translation>
+        <translation>Type MIME</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="131"/>
         <source>Mime type description</source>
-        <translation>description du type MIME</translation>
+        <translation>Description du type MIME</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="132"/>
         <source>File description</source>
-        <translation>description du fichier</translation>
+        <translation>Description du fichier</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="133"/>
         <source>Packed size [bytes]</source>
-        <translation>taille compressée [octets]</translation>
+        <translation>Taille compressée [octets]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="161"/>
@@ -3429,24 +3429,24 @@
         <location filename="../PdfTool/pdftoolattachments.cpp" line="196"/>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="202"/>
         <source>Failed to save attachment to file. %1</source>
-        <translation>échec de l'enregistrement de la pièce jointe dans le fichier. %1</translation>
+        <translation>échec de l&apos;enregistrement de la pièce jointe dans le fichier. %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="136"/>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="142"/>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="214"/>
         <source>SAPI Error: Cannot enumerate SAPI voices.</source>
-        <translation>Erreur SAPI : Impossible d'énumérer les voix SAPI.</translation>
+        <translation>Erreur SAPI&#xa0;: Impossible d&apos;énumérer les voix SAPI.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="237"/>
         <source>Available voices for given settings:</source>
-        <translation>Voix disponibles pour les paramètres donnés :</translation>
+        <translation>Voix disponibles pour les paramètres donnés&#xa0;:</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="240"/>
         <source>Voice list</source>
-        <translation>liste vocale</translation>
+        <translation>Liste vocale</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="243"/>
@@ -3504,7 +3504,7 @@
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="286"/>
         <source>Audio book voices</source>
-        <translation>voix de livres audio</translation>
+        <translation>Voix de livres audio</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="289"/>
@@ -3524,12 +3524,12 @@
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="399"/>
         <source>No suitable voice found.</source>
-        <translation>aucune voix appropriée trouvée.</translation>
+        <translation>Aucune voix appropriée trouvée.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="405"/>
         <source>Invalid voice.</source>
-        <translation>voix invalide.</translation>
+        <translation>Voix invalide.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="416"/>
@@ -3540,7 +3540,7 @@
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="423"/>
         <source>Cannot create voice.</source>
-        <translation>impossible de créer de la voix.</translation>
+        <translation>Impossible de créer de la voix.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="439"/>
@@ -3555,7 +3555,7 @@
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="42"/>
         <source>Certificate Store</source>
-        <translation>magasin de certificats</translation>
+        <translation>Magasin de certificats</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="45"/>
@@ -3599,13 +3599,13 @@
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="87"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="314"/>
         <source>Valid from</source>
-        <translation>valable à partir du</translation>
+        <translation>Valable à partir du</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="88"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="322"/>
         <source>Valid to</source>
-        <translation>valable jusqu'à</translation>
+        <translation>Valable jusqu&apos;à</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="100"/>
@@ -3630,7 +3630,7 @@
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="185"/>
         <source>Cannot open file &apos;%1&apos;. %2</source>
-        <translation>impossible d'ouvrir le fichier « %1 ». %2</translation>
+        <translation>impossible d&apos;ouvrir le fichier « %1 ». %2</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="198"/>
@@ -3640,7 +3640,7 @@
     <message>
         <location filename="../PdfTool/pdftoolcolorprofiles.cpp" line="39"/>
         <source>Color Profiles List</source>
-        <translation>liste des profils de couleurs</translation>
+        <translation>Liste des profils de couleurs</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcolorprofiles.cpp" line="42"/>
@@ -3650,7 +3650,7 @@
     <message>
         <location filename="../PdfTool/pdftoolcolorprofiles.cpp" line="55"/>
         <source>Available Color Profiles</source>
-        <translation>profils de couleurs disponibles</translation>
+        <translation>Profils de couleurs disponibles</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcolorprofiles.cpp" line="71"/>
@@ -3661,22 +3661,22 @@
     <message>
         <location filename="../PdfTool/pdftoolcolorprofiles.cpp" line="94"/>
         <source>Output Profiles</source>
-        <translation>profils de sortie</translation>
+        <translation>Profils de sortie</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcolorprofiles.cpp" line="95"/>
         <source>Gray Profiles</source>
-        <translation>profils gris</translation>
+        <translation>Profils gris</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcolorprofiles.cpp" line="96"/>
         <source>RGB Profiles</source>
-        <translation>profils RVB</translation>
+        <translation>Profils RVB</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcolorprofiles.cpp" line="97"/>
         <source>CMYK Profiles</source>
-        <translation>profils CMJN</translation>
+        <translation>Profils CMJN</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldecrypt.cpp" line="40"/>
@@ -3686,22 +3686,22 @@
     <message>
         <location filename="../PdfTool/pdftooldecrypt.cpp" line="43"/>
         <source>Remove encryption from a document (with only owner access only).</source>
-        <translation>supprimez le cryptage d'un document (avec accès uniquement au propriétaire).</translation>
+        <translation>supprimez le cryptage d&apos;un document (avec accès uniquement au propriétaire).</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldecrypt.cpp" line="61"/>
         <source>Authorization as owner failed. Encryption removal is not permitted if authorized as user only.</source>
-        <translation>l'autorisation en tant que propriétaire a échoué. La suppression du cryptage n'est pas autorisée si elle est autorisée en tant qu'utilisateur uniquement.</translation>
+        <translation>l&apos;autorisation en tant que propriétaire a échoué. La suppression du cryptage n&apos;est pas autorisée si elle est autorisée en tant qu&apos;utilisateur uniquement.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldecrypt.cpp" line="68"/>
         <source>Document is not encrypted.</source>
-        <translation>le document n'est pas chiffré.</translation>
+        <translation>Le document n&apos;est pas chiffré.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldiff.cpp" line="41"/>
         <source>Compare documents</source>
-        <translation>comparer les documents</translation>
+        <translation>Comparer les documents</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldiff.cpp" line="44"/>
@@ -3718,12 +3718,12 @@
         <location filename="../PdfTool/pdftooldiff.cpp" line="74"/>
         <location filename="../PdfTool/pdftoolunite.cpp" line="93"/>
         <source>Cannot open document &apos;%1&apos;.</source>
-        <translation>impossible d'ouvrir le document '%1'.</translation>
+        <translation>impossible d&apos;ouvrir le document &apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldiff.cpp" line="98"/>
         <source>Difference Report</source>
-        <translation>rapport de différence</translation>
+        <translation>Rapport de Différence</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldiff.cpp" line="101"/>
@@ -3733,12 +3733,12 @@
     <message>
         <location filename="../PdfTool/pdftooldiff.cpp" line="106"/>
         <source>Left Page</source>
-        <translation>page de gauche</translation>
+        <translation>Page de gauche</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldiff.cpp" line="107"/>
         <source>Right Page</source>
-        <translation>page de droite</translation>
+        <translation>Page de droite</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolencrypt.cpp" line="40"/>
@@ -3753,17 +3753,17 @@
     <message>
         <location filename="../PdfTool/pdftoolencrypt.cpp" line="77"/>
         <source>Authorization as owner failed. Encryption change is not permitted if authorized as user only.</source>
-        <translation>l'autorisation en tant que propriétaire a échoué. La modification du cryptage n'est pas autorisée si elle est autorisée en tant qu'utilisateur uniquement.</translation>
+        <translation>l&apos;autorisation en tant que propriétaire a échoué. La modification du cryptage n&apos;est pas autorisée si elle est autorisée en tant qu&apos;utilisateur uniquement.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="111"/>
         <source>Fetch images</source>
-        <translation>récupérer des images</translation>
+        <translation>Récupérer des images</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="114"/>
         <source>Fetch image content from document.</source>
-        <translation>récupérer le contenu de l'image à partir du document.</translation>
+        <translation>récupérer le contenu de l&apos;image à partir du document.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="135"/>
@@ -3787,7 +3787,7 @@
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="202"/>
         <source>Image No.</source>
-        <translation>numéro d'image.</translation>
+        <translation>Numéro d&apos;image.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="203"/>
@@ -3795,38 +3795,38 @@
         <location filename="../PdfTool/pdftoolrender.cpp" line="335"/>
         <location filename="../PdfTool/pdftoolrender.cpp" line="371"/>
         <source>Page No.</source>
-        <translation>numéro de page</translation>
+        <translation>Numéro de page.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="204"/>
         <source>Width [pixels]</source>
-        <translation>largeur [pixels]</translation>
+        <translation>Largeur [pixels]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="205"/>
         <source>Height [pixels]</source>
-        <translation>hauteur [pixels]</translation>
+        <translation>Hauteur [pixels]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="206"/>
         <source>Size [bytes]</source>
-        <translation>taille [octets]</translation>
+        <translation>Taille [octets]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="207"/>
         <source>Stored to</source>
-        <translation>stockée dans</translation>
+        <translation>Stockée dans</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="248"/>
         <location filename="../PdfTool/pdftoolrender.cpp" line="96"/>
         <source>Cannot write page image to file &apos;%1&apos;, because: %2.</source>
-        <translation>impossible d'écrire l'image de la page dans le fichier '%1', car : %2.</translation>
+        <translation>impossible d&apos;écrire l&apos;image de la page dans le fichier &apos;%1&apos;, car&#xa0;: %2.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchtext.cpp" line="39"/>
         <source>Fetch text</source>
-        <translation>récupérer le texte</translation>
+        <translation>Récupérer le texte</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchtext.cpp" line="42"/>
@@ -3847,12 +3847,12 @@
         <location filename="../PdfTool/pdftoolinfo.cpp" line="71"/>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="68"/>
         <source>Information about document %1</source>
-        <translation>informations sur le document %1</translation>
+        <translation>Informations sur le document %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="74"/>
         <source>Properties:</source>
-        <translation>Propriétés :</translation>
+        <translation>Propriétés&#xa0;:</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="77"/>
@@ -3905,12 +3905,12 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="95"/>
         <source>Creation date</source>
-        <translation>date de création</translation>
+        <translation>Date de création</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="96"/>
         <source>Modified date</source>
-        <translation>date de modification</translation>
+        <translation>Date de modification</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="103"/>
@@ -3971,17 +3971,17 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="142"/>
         <source>Form type</source>
-        <translation>type de formulaire</translation>
+        <translation>Type de formulaire</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="145"/>
         <source>Page count</source>
-        <translation>nombre de pages</translation>
+        <translation>Nombre de pages</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="153"/>
         <source>Paper format</source>
-        <translation>format papier</translation>
+        <translation>Format papier</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="154"/>
@@ -3991,7 +3991,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="169"/>
         <source>File size</source>
-        <translation>taille du fichier</translation>
+        <translation>Taille du fichier</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="172"/>
@@ -4007,7 +4007,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="188"/>
         <source>Public Key</source>
-        <translation>clé publique</translation>
+        <translation>Clé publique</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="192"/>
@@ -4018,17 +4018,17 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="204"/>
         <source>No authorization required</source>
-        <translation>aucune autorisation requise</translation>
+        <translation>Aucune autorisation requise</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="208"/>
         <source>Authorized as owner</source>
-        <translation>autorisé en tant que propriétaire</translation>
+        <translation>Autorisé en tant que propriétaire</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="212"/>
         <source>Authorized as user</source>
-        <translation>autorisé en tant qu'utilisateur</translation>
+        <translation>Autorisé en tant qu&apos;utilisateur</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="220"/>
@@ -4043,7 +4043,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="226"/>
         <source>Metadata encrypted</source>
-        <translation>métadonnées chiffrées</translation>
+        <translation>Métadonnées chiffrées</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="231"/>
@@ -4058,7 +4058,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="239"/>
         <source>Copy content</source>
-        <translation>copier le contenu</translation>
+        <translation>Copier le contenu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="243"/>
@@ -4073,17 +4073,17 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="251"/>
         <source>Modify content</source>
-        <translation>modifier le contenu</translation>
+        <translation>Modifier le contenu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="255"/>
         <source>Modify interactive items</source>
-        <translation>modifier les éléments interactifs</translation>
+        <translation>Modifier les éléments interactifs</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="259"/>
         <source>Form filling</source>
-        <translation>remplissage de formulaire</translation>
+        <translation>Remplissage de formulaire</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="264"/>
@@ -4098,7 +4098,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="275"/>
         <source>File hashes:</source>
-        <translation>hachages de fichiers :</translation>
+        <translation>Hachages de fichiers&#xa0;:</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="278"/>
@@ -4138,12 +4138,12 @@
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="42"/>
         <source>Info about used fonts</source>
-        <translation>informations sur les polices utilisées</translation>
+        <translation>Informations sur les polices utilisées</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="45"/>
         <source>Retrieve informations about font usage in a document.</source>
-        <translation>récupère des informations sur l'utilisation des polices dans un document.</translation>
+        <translation>récupère des informations sur l&apos;utilisation des polices dans un document.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="173"/>
@@ -4153,7 +4153,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="177"/>
         <source>Type 1 (8 bit)</source>
-        <translation>Type 1 (8 bits)</translation>
+        <translation>Type&#xa0;1 (8&#xa0;bits)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="181"/>
@@ -4209,7 +4209,7 @@
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="292"/>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="352"/>
         <source>Font Name</source>
-        <translation>nom de la police</translation>
+        <translation>Nom de la police</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="293"/>
@@ -4267,7 +4267,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="353"/>
         <source>Substituted by Font</source>
-        <translation>remplacée par la police</translation>
+        <translation>Remplacée par la police</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="354"/>
@@ -4282,17 +4282,17 @@
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="395"/>
         <source>Font Character Maps</source>
-        <translation>mappages de caractères de police</translation>
+        <translation>Mappages de caractères de police</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="405"/>
         <source>Character Map for Font &apos;%1&apos;</source>
-        <translation>table de caractères pour la police '%1'</translation>
+        <translation>table de caractères pour la police &apos;%1&apos;</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="409"/>
         <source>Glyph Index</source>
-        <translation>index des glyphes</translation>
+        <translation>Index des glyphes</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="410"/>
@@ -4302,7 +4302,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfoinks.cpp" line="39"/>
         <source>Info about used inks</source>
-        <translation>informations sur les encres utilisées</translation>
+        <translation>Informations sur les encres utilisées</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfoinks.cpp" line="42"/>
@@ -4317,7 +4317,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfoinks.cpp" line="69"/>
         <source>Ink list</source>
-        <translation>liste d'encres</translation>
+        <translation>Liste d&apos;encres</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfoinks.cpp" line="75"/>
@@ -4337,7 +4337,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="42"/>
         <source>Retrieve informations about JavaScript usage in a document.</source>
-        <translation>récupérez des informations sur l'utilisation de JavaScript dans un document.</translation>
+        <translation>récupérez des informations sur l&apos;utilisation de JavaScript dans un document.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="76"/>
@@ -4347,7 +4347,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="79"/>
         <source>JavaScript Usage Overview</source>
-        <translation>Présentation de l'utilisation de JavaScript</translation>
+        <translation>Présentation de l&apos;utilisation de JavaScript</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="83"/>
@@ -4358,17 +4358,17 @@
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="84"/>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="78"/>
         <source>Page Number</source>
-        <translation>numéro de page</translation>
+        <translation>Numéro de page</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="85"/>
         <source>Code Size</source>
-        <translation>taille du code</translation>
+        <translation>Taille du code</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="86"/>
         <source>Code Snippet</source>
-        <translation>extrait de code</translation>
+        <translation>Extrait de code</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="98"/>
@@ -4413,7 +4413,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfometadata.cpp" line="39"/>
         <source>Extract document metadata</source>
-        <translation>extraire les métadonnées du document</translation>
+        <translation>Extraire les métadonnées du document</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfometadata.cpp" line="42"/>
@@ -4428,7 +4428,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="39"/>
         <source>Info (Named Destinations)</source>
-        <translation>informations (destinations nommées)</translation>
+        <translation>Informations (destinations nommées)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="42"/>
@@ -4519,7 +4519,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfopageboxes.cpp" line="39"/>
         <source>Info (page boxes)</source>
-        <translation>informations (zones de page)</translation>
+        <translation>Informations (zones de page)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfopageboxes.cpp" line="42"/>
@@ -4569,7 +4569,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="57"/>
         <source>Structure Tree</source>
-        <translation>arborescence de la structure</translation>
+        <translation>Arborescence de la structure</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="70"/>
@@ -4609,17 +4609,17 @@
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="201"/>
         <source>Alternative description</source>
-        <translation>description alternative</translation>
+        <translation>Description alternative</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="205"/>
         <source>Expanded form</source>
-        <translation>formulaire développé</translation>
+        <translation>Formulaire développé</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="209"/>
         <source>Actual text</source>
-        <translation>texte réel</translation>
+        <translation>Texte réel</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="213"/>
@@ -4629,12 +4629,12 @@
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="238"/>
         <source>Marked Content Reference %1</source>
-        <translation>référence du contenu marqué %1</translation>
+        <translation>Référence du contenu marqué %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="244"/>
         <source>Structure Object Reference [%1 %2 R]</source>
-        <translation>Référence de l'objet de structure [%1 %2 R]</translation>
+        <translation>Référence de l&apos;objet de structure [%1 %2 R]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="257"/>
@@ -4644,7 +4644,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="260"/>
         <source>Examine structure tree in tagged document.</source>
-        <translation>examinez l'arborescence de la structure dans le document balisé.</translation>
+        <translation>examinez l&apos;arborescence de la structure dans le document balisé.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="283"/>
@@ -4659,22 +4659,22 @@
     <message>
         <location filename="../PdfTool/pdftoolinkcoverage.cpp" line="39"/>
         <source>Ink coverage</source>
-        <translation>couverture d'encre</translation>
+        <translation>Couverture d&apos;encre</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinkcoverage.cpp" line="42"/>
         <source>Calculate ink coverage of the selected pages, or a whole document.</source>
-        <translation>calculez la couverture d'encre des pages sélectionnées ou d'un document entier.</translation>
+        <translation>calculez la couverture d&apos;encre des pages sélectionnées ou d&apos;un document entier.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinkcoverage.cpp" line="96"/>
         <source>Ink Coverage</source>
-        <translation>couverture d'encre</translation>
+        <translation>Couverture d&apos;encre</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinkcoverage.cpp" line="99"/>
         <source>Ink Coverage by Page</source>
-        <translation>couverture d'encre par page</translation>
+        <translation>Couverture d&apos;encre par page</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinkcoverage.cpp" line="127"/>
@@ -4699,22 +4699,22 @@
     <message>
         <location filename="../PdfTool/pdftooloptimize.cpp" line="42"/>
         <source>Optimize document size using various algorithms.</source>
-        <translation>optimisez la taille du document à l'aide de divers algorithmes.</translation>
+        <translation>optimisez la taille du document à l&apos;aide de divers algorithmes.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooloptimize.cpp" line="56"/>
         <source>No optimization option has been set.</source>
-        <translation>aucune option d'optimisation n'a été définie.</translation>
+        <translation>aucune option d&apos;optimisation n&apos;a été définie.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooloptimize.cpp" line="77"/>
         <source>Failed to write optimize document. %1</source>
-        <translation>échec de l'écriture du document d'optimisation. %1</translation>
+        <translation>échec de l&apos;écriture du document d&apos;optimisation. %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="44"/>
         <source>Render document</source>
-        <translation>document de rendu</translation>
+        <translation>Document de rendu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="47"/>
@@ -4724,12 +4724,12 @@
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="65"/>
         <source>Render document %1</source>
-        <translation>document de rendu %1</translation>
+        <translation>Document de rendu %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="110"/>
         <source>Benchmark rendering</source>
-        <translation>rendu de référence</translation>
+        <translation>Rendu de référence</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="113"/>
@@ -4755,7 +4755,7 @@
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="311"/>
         <source>Pages rendered</source>
-        <translation>pages rendues</translation>
+        <translation>Pages rendues</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="311"/>
@@ -4765,7 +4765,7 @@
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="312"/>
         <source>Total compile time</source>
-        <translation>temps total de compilation</translation>
+        <translation>Temps total de compilation</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="312"/>
@@ -4780,22 +4780,22 @@
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="313"/>
         <source>Total render time</source>
-        <translation>temps de rendu total</translation>
+        <translation>Temps de rendu total</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="314"/>
         <source>Total wait time</source>
-        <translation>temps d'attente total</translation>
+        <translation>Temps d&apos;attente total</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="315"/>
         <source>Total write time</source>
-        <translation>temps d'écriture total</translation>
+        <translation>Temps d&apos;écriture total</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="316"/>
         <source>Total time</source>
-        <translation>durée totale</translation>
+        <translation>Durée totale</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="317"/>
@@ -4805,7 +4805,7 @@
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="318"/>
         <source>Rendering speed (per core)</source>
-        <translation>vitesse de rendu (par cœur)</translation>
+        <translation>Vitesse de rendu (par cœur)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="318"/>
@@ -4815,7 +4815,7 @@
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="319"/>
         <source>Rendering speed (wall time)</source>
-        <translation>vitesse de rendu (temps de mur)</translation>
+        <translation>Vitesse de rendu (temps de mur)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="319"/>
@@ -4825,7 +4825,7 @@
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="320"/>
         <source>Compile time ratio</source>
-        <translation>rapport du temps de compilation</translation>
+        <translation>Rapport du temps de compilation</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="320"/>
@@ -4838,17 +4838,17 @@
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="321"/>
         <source>Render time ratio</source>
-        <translation>rapport du temps de rendu</translation>
+        <translation>Rapport du temps de rendu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="322"/>
         <source>Wait time ratio</source>
-        <translation>taux de temps d'attente</translation>
+        <translation>Taux de temps d&apos;attente</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="323"/>
         <source>Write time ratio</source>
-        <translation>rapport de temps d'écriture</translation>
+        <translation>Rapport de temps d&apos;écriture</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="332"/>
@@ -4858,32 +4858,32 @@
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="336"/>
         <source>Compile Time [msec]</source>
-        <translation>temps de compilation [msec]</translation>
+        <translation>Temps de compilation [msec]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="337"/>
         <source>Render Time [msec]</source>
-        <translation>temps de rendu [msec]</translation>
+        <translation>Temps de rendu [msec]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="338"/>
         <source>Wait Time [msec]</source>
-        <translation>temps d'attente [msec]</translation>
+        <translation>Temps d&apos;attente [msec]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="339"/>
         <source>Write Time [msec]</source>
-        <translation>Temps d'écriture [msec]</translation>
+        <translation>Temps d&apos;écriture [msec]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="340"/>
         <source>Total Time [msec]</source>
-        <translation>durée totale [msec]</translation>
+        <translation>Durée totale [msec]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="368"/>
         <source>Rendering Errors</source>
-        <translation>erreurs de rendu</translation>
+        <translation>Erreurs de rendu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="373"/>
@@ -4903,12 +4903,12 @@
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="399"/>
         <source>Not implemented</source>
-        <translation>non implémentée</translation>
+        <translation>Non implémentée</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="403"/>
         <source>Not supported</source>
-        <translation>non pris en charge</translation>
+        <translation>Non pris en charge</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="407"/>
@@ -4918,17 +4918,17 @@
     <message>
         <location filename="../PdfTool/pdftoolremoveexternallinks.cpp" line="110"/>
         <source>Remove external links</source>
-        <translation>supprimer les liens externes</translation>
+        <translation>Supprimer les liens externes</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolremoveexternallinks.cpp" line="113"/>
         <source>Remove all external link annotations from a document.</source>
-        <translation>supprimez toutes les annotations de liens externes d'un document.</translation>
+        <translation>supprimez toutes les annotations de liens externes d&apos;un document.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolremoveexternallinks.cpp" line="135"/>
         <source>Remove External Links</source>
-        <translation>supprimer les liens externes</translation>
+        <translation>Supprimer les liens externes</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolremoveexternallinks.cpp" line="139"/>
@@ -4938,7 +4938,7 @@
     <message>
         <location filename="../PdfTool/pdftoolremoveexternallinks.cpp" line="145"/>
         <source>External link annotations removed: %1.</source>
-        <translation>annotations de lien externe supprimées : %1.</translation>
+        <translation>annotations de lien externe supprimées&#xa0;: %1.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolremoveexternallinks.cpp" line="151"/>
@@ -4948,32 +4948,32 @@
     <message>
         <location filename="../PdfTool/pdftoolremoveexternallinks.cpp" line="159"/>
         <source>Failed to write document. %1</source>
-        <translation>échec de l'écriture du document. %1</translation>
+        <translation>échec de l&apos;écriture du document. %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolseparate.cpp" line="44"/>
         <source>Extract pages</source>
-        <translation>extraire des pages</translation>
+        <translation>Extraire des pages</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolseparate.cpp" line="47"/>
         <source>Separate document into single page documents.</source>
-        <translation>divisez le document en documents d'une seule page.</translation>
+        <translation>divisez le document en documents d&apos;une seule page.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolseparate.cpp" line="83"/>
         <source>File template is empty.</source>
-        <translation>le modèle de fichier est vide.</translation>
+        <translation>Le modèle de fichier est vide.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolseparate.cpp" line="89"/>
         <source>File template must contain character &apos;%&apos; for page number.</source>
-        <translation>le modèle de fichier doit contenir le caractère « % » pour le numéro de page.</translation>
+        <translation>le modèle de fichier doit contenir le caractère «&#xa0;%&#xa0;» pour le numéro de page.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolseparate.cpp" line="120"/>
         <source>File &apos;%1&apos; already exists. Page %2 was not extracted.</source>
-        <translation>le fichier « %1 » existe déjà. La page %2 n'a pas été extraite.</translation>
+        <translation>le fichier « %1 » existe déjà. La page %2 n&apos;a pas été extraite.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="42"/>
@@ -4983,7 +4983,7 @@
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="72"/>
         <source>Statistics by Object Class</source>
-        <translation>statistiques par classe d'objet</translation>
+        <translation>Statistiques par classe d&apos;objet</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="75"/>
@@ -5005,17 +5005,17 @@
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="78"/>
         <source>Space Usage [bytes]</source>
-        <translation>utilisation de l'espace [octets]</translation>
+        <translation>Utilisation de l&apos;espace [octets]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="110"/>
         <source>Content Stream</source>
-        <translation>flux de contenu</translation>
+        <translation>Flux de contenu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="111"/>
         <source>Graphic State</source>
-        <translation>état graphique</translation>
+        <translation>État graphique</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="112"/>
@@ -5055,12 +5055,12 @@
     <message>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="128"/>
         <source>Statistics by Object Type</source>
-        <translation>statistiques par type d'objet</translation>
+        <translation>Statistiques par type d&apos;objet</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolunite.cpp" line="44"/>
         <source>Merge documents</source>
-        <translation>fusionner des documents</translation>
+        <translation>Fusionner des documents</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolunite.cpp" line="47"/>
@@ -5080,12 +5080,12 @@
     <message>
         <location filename="../PdfTool/pdftoolunite.cpp" line="99"/>
         <source>Document doesn&apos;t allow to assemble pages.</source>
-        <translation>le document ne permet pas d'assembler des pages.</translation>
+        <translation>le document ne permet pas d&apos;assembler des pages.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="42"/>
         <source>Signature verification</source>
-        <translation>vérification de la signature</translation>
+        <translation>Vérification de la signature</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="45"/>
@@ -5095,7 +5095,7 @@
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="60"/>
         <source>No document specified.</source>
-        <translation>aucun document spécifié.</translation>
+        <translation>Aucun document spécifié.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="116"/>
@@ -5116,17 +5116,17 @@
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="148"/>
         <source>Signed by</source>
-        <translation>signée par</translation>
+        <translation>Signée par</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="151"/>
         <source>Signing date</source>
-        <translation>date de signature</translation>
+        <translation>Date de signature</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="152"/>
         <source>Timestamp date</source>
-        <translation>date d'horodatage</translation>
+        <translation>Date d&apos;horodatage</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="153"/>
@@ -5141,7 +5141,7 @@
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="155"/>
         <source>Signed whole</source>
-        <translation>entièrement signée</translation>
+        <translation>Entièrement signée</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="171"/>
@@ -5157,62 +5157,62 @@
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="199"/>
         <source>Signed by: %1</source>
-        <translation>signée par : %1</translation>
+        <translation>Signée par&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="200"/>
         <source>Certificate status: %1</source>
-        <translation>État du certificat : %1</translation>
+        <translation>État du certificat&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="201"/>
         <source>Signature status: %1</source>
-        <translation>État de la signature : %1</translation>
+        <translation>État de la signature&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="202"/>
         <source>Signing date: %1</source>
-        <translation>Date de signature : %1</translation>
+        <translation>Date de signature&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="203"/>
         <source>Timestamp date: %1</source>
-        <translation>Date d'horodatage : %1</translation>
+        <translation>Date d&apos;horodatage&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="204"/>
         <source>Hash algorithm: %1</source>
-        <translation>Algorithme de hachage : %1</translation>
+        <translation>Algorithme de hachage&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="205"/>
         <source>Handler: %1</source>
-        <translation>Gestionnaire : %1</translation>
+        <translation>Gestionnaire&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="206"/>
         <source>Is whole document signed: %1</source>
-        <translation>Le document entier est-il signé : %1</translation>
+        <translation>Le document entier est-il signé&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="210"/>
         <source>Byte range covered by signature: %1</source>
-        <translation>plage d'octets couverte par la signature : %1</translation>
+        <translation>plage d&apos;octets couverte par la signature&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="215"/>
         <source>Errors:</source>
-        <translation>Erreurs :</translation>
+        <translation>Erreurs&#xa0;:</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="226"/>
         <source>Warnings:</source>
-        <translation>Avertissements :</translation>
+        <translation>Avertissements&#xa0;:</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="241"/>
         <source>Certificate No. #%1</source>
-        <translation>numéro de certificat #%1</translation>
+        <translation>Numéro de certificat #%1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="262"/>
@@ -5227,7 +5227,7 @@
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="265"/>
         <source>Serial number</source>
-        <translation>numéro de série</translation>
+        <translation>Numéro de série</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="266"/>
@@ -5292,12 +5292,12 @@
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="304"/>
         <source>Encryption method</source>
-        <translation>méthode de cryptage</translation>
+        <translation>Méthode de cryptage</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="331"/>
         <source>Digital signatures</source>
-        <translation>signatures numériques</translation>
+        <translation>Signatures numériques</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="335"/>
@@ -5307,22 +5307,22 @@
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="339"/>
         <source>Key encipherement</source>
-        <translation>chiffrement de clé</translation>
+        <translation>Chiffrement de clé</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="343"/>
         <source>Application data encipherement</source>
-        <translation>chiffrement des données d'application</translation>
+        <translation>Chiffrement des données d&apos;application</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="347"/>
         <source>Key agreement</source>
-        <translation>accord clé</translation>
+        <translation>Accord clé</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="351"/>
         <source>Verify signatures on certificates</source>
-        <translation>vérifier les signatures sur les certificats</translation>
+        <translation>Vérifier les signatures sur les certificats</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="355"/>
@@ -5332,22 +5332,22 @@
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="359"/>
         <source>Encipher data during key agreement</source>
-        <translation>chiffrer les données pendant l'accord de clé</translation>
+        <translation>chiffrer les données pendant l&apos;accord de clé</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="363"/>
         <source>Decipher data during key agreement</source>
-        <translation>déchiffrer les données lors de l'accord de clé</translation>
+        <translation>déchiffrer les données lors de l&apos;accord de clé</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="367"/>
         <source>Trusted timestamping</source>
-        <translation>horodatage fiable</translation>
+        <translation>Horodatage fiable</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="371"/>
         <source>Key usage</source>
-        <translation>utilisation des clés</translation>
+        <translation>Utilisation des clés</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="389"/>
@@ -5357,7 +5357,7 @@
     <message>
         <location filename="../PdfTool/pdftoolxml.cpp" line="188"/>
         <source>XML export</source>
-        <translation>exportation XML</translation>
+        <translation>Exportation XML</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolxml.cpp" line="191"/>
@@ -5377,7 +5377,7 @@
     <message>
         <location filename="../PdfTool/pdftoolredact.cpp" line="59"/>
         <source>Redacted document file name is not set.</source>
-        <translation>le nom du fichier du document rédigé n'est pas défini.</translation>
+        <translation>le nom du fichier du document rédigé n&apos;est pas défini.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolredact.cpp" line="89"/>
@@ -5400,7 +5400,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="45"/>
         <source>&amp;Go To</source>
-        <translation>&amp;accédez à</translation>
+        <translation>&amp;Accédez à</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="49"/>
@@ -5410,7 +5410,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="69"/>
         <source>&amp;Edit</source>
-        <translation>&amp;modifier</translation>
+        <translation>&amp;Modifier</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="84"/>
@@ -5425,7 +5425,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="99"/>
         <source>Re&amp;ndering Options</source>
-        <translation>&amp;options de rendu</translation>
+        <translation>&amp;Options de rendu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="129"/>
@@ -5455,7 +5455,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="197"/>
         <source>&amp;Single Page</source>
-        <translation>&amp;page unique</translation>
+        <translation>&amp;Page unique</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="200"/>
@@ -5465,7 +5465,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="208"/>
         <source>&amp;Continuous</source>
-        <translation>&amp;continu</translation>
+        <translation>&amp;Continu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="211"/>
@@ -5475,7 +5475,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="219"/>
         <source>Two &amp;Pages</source>
-        <translation>deux &amp;pages</translation>
+        <translation>Deux&#xa0;&amp;pages</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="222"/>
@@ -5485,7 +5485,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="230"/>
         <source>&amp;Two columns</source>
-        <translation>&amp;deux colonnes</translation>
+        <translation>&amp;Deux&#xa0;colonnes</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="233"/>
@@ -5495,7 +5495,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="241"/>
         <source>&amp;First page on right side</source>
-        <translation>&amp;première page sur le côté droit</translation>
+        <translation>&amp;Première page sur le côté droit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="244"/>
@@ -5510,7 +5510,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="256"/>
         <source>Rendering &amp;Errors...</source>
-        <translation>erreurs &amp;de rendu...</translation>
+        <translation>Erreurs &amp;de rendu...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="259"/>
@@ -5525,17 +5525,17 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="275"/>
         <source>&amp;Text Antialiasing</source>
-        <translation>&amp;anticrénelage de texte</translation>
+        <translation>&amp;Anticrénelage de texte</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="283"/>
         <source>&amp;Smooth Pictures</source>
-        <translation>&amp;images fluides</translation>
+        <translation>&amp;Images fluides</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="291"/>
         <source>&amp;Ignore Optional Content Settings</source>
-        <translation>&amp;ignorer les paramètres de contenu facultatifs</translation>
+        <translation>&amp;Ignorer les paramètres de contenu facultatifs</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="300"/>
@@ -5550,17 +5550,17 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="308"/>
         <source>&amp;Reset to Factory Settings</source>
-        <translation>&amp;Réinitialisation aux paramètres d'usine</translation>
+        <translation>&amp;Réinitialisation aux paramètres d&apos;usine</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="317"/>
         <source>&amp;Zoom In</source>
-        <translation>&amp;zoom avant</translation>
+        <translation>&amp;Zoom avant</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="326"/>
         <source>Zoom &amp;Out</source>
-        <translation>zoom &amp;arrière</translation>
+        <translation>Zoom &amp;arrière</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="335"/>
@@ -5645,7 +5645,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="481"/>
         <source>&amp;Display Annotations</source>
-        <translation>&amp;afficher les annotations</translation>
+        <translation>&amp;Afficher les annotations</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="490"/>
@@ -5665,12 +5665,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="520"/>
         <source>Select te&amp;xt</source>
-        <translation>sélectionnez &amp;le texte</translation>
+        <translation>Sélectionnez &amp;le texte</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="532"/>
         <source>Select &amp;table</source>
-        <translation>sélectionnez &amp;le tableau</translation>
+        <translation>Sélectionnez &amp;le tableau</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="541"/>
@@ -5680,12 +5680,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="550"/>
         <source>Dese&amp;lect</source>
-        <translation>&amp;désélectionner</translation>
+        <translation>&amp;Désélectionner</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="559"/>
         <source>&amp;Copy text</source>
-        <translation>&amp;copier le texte</translation>
+        <translation>&amp;Copier le texte</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="571"/>
@@ -5695,7 +5695,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="574"/>
         <source>Magnifier Tool</source>
-        <translation>outil Loupe</translation>
+        <translation>Outil Loupe</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="583"/>
@@ -5740,7 +5740,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="654"/>
         <source>Automatic &amp;Document Refresh</source>
-        <translation>actualisation &amp;automatique des documents</translation>
+        <translation>Actualisation &amp;automatique des documents</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="657"/>
@@ -5760,12 +5760,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="678"/>
         <source>&amp;Bookmark Page</source>
-        <translation>&amp;page de favoris</translation>
+        <translation>&amp;Page de favoris</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="681"/>
         <source>Bookmark Page</source>
-        <translation>page de favoris</translation>
+        <translation>Page de favoris</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="684"/>
@@ -5785,7 +5785,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="699"/>
         <source>Navigates to the next bookmarked page.</source>
-        <translation>permet d'accéder à la page marquée de signet suivante.</translation>
+        <translation>permet d&apos;accéder à la page marquée de signet suivante.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="708"/>
@@ -5795,7 +5795,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="711"/>
         <source>Navigates to the previous bookmarked page.</source>
-        <translation>permet d'accéder à la page précédente mise en signet.</translation>
+        <translation>permet d&apos;accéder à la page précédente mise en signet.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="720"/>
@@ -5815,12 +5815,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="735"/>
         <source>&amp;Import Bookmarks</source>
-        <translation>&amp;importer des signets</translation>
+        <translation>&amp;Importer des signets</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="738"/>
         <source>Import Bookmarks</source>
-        <translation>importer des signets</translation>
+        <translation>Importer des signets</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="741"/>
@@ -5830,12 +5830,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="753"/>
         <source>&amp;Generate Bookmarks Automatically</source>
-        <translation>&amp;générer automatiquement des signets</translation>
+        <translation>&amp;Générer automatiquement des signets</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="756"/>
         <source>Generate Bookmarks Automatically</source>
-        <translation>générer automatiquement des signets</translation>
+        <translation>Générer automatiquement des signets</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="759"/>
@@ -5850,7 +5850,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="775"/>
         <source>Clear Recent File &amp;History</source>
-        <translation>effacer l'historique &amp;des fichiers récents</translation>
+        <translation>effacer l&apos;historique &amp;des fichiers récents</translation>
     </message>
 </context>
 <context>
@@ -5863,22 +5863,22 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="57"/>
         <source>Engine Settings</source>
-        <translation>paramètres du moteur</translation>
+        <translation>Paramètres du moteur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="65"/>
         <source>Multithreading strategy</source>
-        <translation>stratégie multithreading</translation>
+        <translation>Stratégie multithreading</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="75"/>
         <source>Rendering engine</source>
-        <translation>moteur de rendu</translation>
+        <translation>Moteur de rendu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="82"/>
         <source>Prefetch pages</source>
-        <translation>pages de prélecture</translation>
+        <translation>Pages de prélecture</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="92"/>
@@ -5919,48 +5919,48 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The Prefetch Pages feature is a strategy that can be applied regardless of the rendering method chosen. By pre-rendering pages adjacent to the currently viewed content, this approach minimizes flickering and enhances the smoothness of transitions during scrolling, improving the overall user experience.&lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;When it comes to optimizing the rendering process, the choice of multithreading strategy plays a crucial role. A Single Thread strategy, where rendering tasks are executed sequentially on a single CPU core, might be preferable in environments where simplicity and predictability are key. For more demanding applications, employing a Multi-threading strategy can significantly improve rendering times. Strategies like Load Balanced distribute the workload evenly across CPU cores without delving into content-specific processing, offering a good performance boost. The Maximum Threads strategy takes full advantage of available CPU resources by allocating as many threads as possible to the rendering tasks, achieving optimal performance and minimizing rendering times.&lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This delineation between using QPainter for software rendering and Blend2D for high-performance, multi-threaded rendering allows developers to choose the most appropriate rendering pathway based on their specific performance requirements and the graphical complexity of their application.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" "http://www.w3.org/TR/REC-html40/strict.dtd"&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name="qrichtext" content="1" /&gt;&lt;meta charset="utf-8" /&gt;&lt;style type="text/css"&gt;
-p, li { espace blanc : pré-enveloppement ; }
-h { hauteur : 1px ; largeur de bordure : 0 ; }
-li.unchecked::marker { content: "\2610"; }
-li.checked::marker { contenu : "\2612" ; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=" font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;"&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;Sélectionnez une méthode de rendu adaptée aux exigences de votre application. Software Rendering, utilisant QPainter, est un choix polyvalent qui garantit la compatibilité sur toutes les plates-formes. C'est particulièrement utile dans les scénarios où l'accès direct à l'accélération matérielle n'est pas crucial. QPainter, qui fait partie du framework Qt, excelle dans le rendu de graphiques 2D avec la prise en charge de divers styles de peinture, de traitements d'images et de transformations graphiques complexes, ce qui en fait un excellent outil pour les applications nécessitant des graphiques 2D détaillés et sophistiqués sans dépendre de l'accélération matérielle.&lt;/p&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;D'autre part, pour les applications qui exigent un rendu haute performance, l'exploitation de la bibliothèque Blend2D offre une alternative intéressante. Blend2D est un moteur graphique vectoriel 2D hautes performances qui utilise le multithreading pour accélérer le processus de rendu. Il ne s'appuie pas sur QPainter ou sur l'accélération matérielle, mais propose plutôt une solution de rendu logicielle optimisée pour la vitesse et la qualité. Les techniques avancées d'anticrénelage de Blend2D garantissent une qualité d'image nette et claire, ce qui le rend adapté aux applications où les performances de rendu et la qualité d'image sont primordiales.&lt;/p&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;La fonctionnalité Prefetch Pages est une stratégie qui peut être appliquée quelle que soit la méthode de rendu choisie. En pré-rendu les pages adjacentes au contenu actuellement consulté, cette approche minimise le scintillement et améliore la fluidité des transitions pendant le défilement, améliorant ainsi l'expérience utilisateur globale.&lt;/p&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;Lorsqu'il s'agit d'optimiser le processus de rendu, le choix de la stratégie multithreading joue un rôle crucial. Une stratégie Single Thread, dans laquelle les tâches de rendu sont exécutées séquentiellement sur un seul cœur de processeur, peut être préférable dans les environnements où la simplicité et la prévisibilité sont essentielles. Pour les applications plus exigeantes, l'utilisation d'une stratégie multithreading peut améliorer considérablement les temps de rendu. Des stratégies telles que Load Balanced répartissent la charge de travail uniformément entre les cœurs de processeur sans se lancer dans le traitement spécifique au contenu, offrant ainsi une bonne amélioration des performances. La stratégie Maximum Threads tire pleinement parti des ressources CPU disponibles en allouant autant de threads que possible aux tâches de rendu, obtenant ainsi des performances optimales et minimisant les temps de rendu.&lt;/p&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;Cette distinction entre l'utilisation de QPainter pour le rendu logiciel et de Blend2D pour un rendu multithread hautes performances permet aux développeurs de choisir la voie de rendu la plus appropriée en fonction de leurs exigences de performances spécifiques et de la complexité graphique de leur application.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { espace blanc&#xa0;: pré-enveloppement&#xa0;; }
+h { hauteur&#xa0;: 1px&#xa0;; largeur de bordure&#xa0;: 0&#xa0;; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { contenu&#xa0;: &quot;\2612&quot;&#xa0;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Sélectionnez une méthode de rendu adaptée aux exigences de votre application. Software Rendering, utilisant QPainter, est un choix polyvalent qui garantit la compatibilité sur toutes les plates-formes. C&apos;est particulièrement utile dans les scénarios où l&apos;accès direct à l&apos;accélération matérielle n&apos;est pas crucial. QPainter, qui fait partie du framework Qt, excelle dans le rendu de graphiques 2D avec la prise en charge de divers styles de peinture, de traitements d&apos;images et de transformations graphiques complexes, ce qui en fait un excellent outil pour les applications nécessitant des graphiques 2D détaillés et sophistiqués sans dépendre de l&apos;accélération matérielle.&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;D&apos;autre part, pour les applications qui exigent un rendu haute performance, l&apos;exploitation de la bibliothèque Blend2D offre une alternative intéressante. Blend2D est un moteur graphique vectoriel 2D hautes performances qui utilise le multithreading pour accélérer le processus de rendu. Il ne s&apos;appuie pas sur QPainter ou sur l&apos;accélération matérielle, mais propose plutôt une solution de rendu logicielle optimisée pour la vitesse et la qualité. Les techniques avancées d&apos;anticrénelage de Blend2D garantissent une qualité d&apos;image nette et claire, ce qui le rend adapté aux applications où les performances de rendu et la qualité d&apos;image sont primordiales.&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;La fonctionnalité Prefetch Pages est une stratégie qui peut être appliquée quelle que soit la méthode de rendu choisie. En pré-rendu les pages adjacentes au contenu actuellement consulté, cette approche minimise le scintillement et améliore la fluidité des transitions pendant le défilement, améliorant ainsi l&apos;expérience utilisateur globale.&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Lorsqu&apos;il s&apos;agit d&apos;optimiser le processus de rendu, le choix de la stratégie multithreading joue un rôle crucial. Une stratégie Single Thread, dans laquelle les tâches de rendu sont exécutées séquentiellement sur un seul cœur de processeur, peut être préférable dans les environnements où la simplicité et la prévisibilité sont essentielles. Pour les applications plus exigeantes, l&apos;utilisation d&apos;une stratégie multithreading peut améliorer considérablement les temps de rendu. Des stratégies telles que Load Balanced répartissent la charge de travail uniformément entre les cœurs de processeur sans se lancer dans le traitement spécifique au contenu, offrant ainsi une bonne amélioration des performances. La stratégie Maximum Threads tire pleinement parti des ressources CPU disponibles en allouant autant de threads que possible aux tâches de rendu, obtenant ainsi des performances optimales et minimisant les temps de rendu.&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Cette distinction entre l&apos;utilisation de QPainter pour le rendu logiciel et de Blend2D pour un rendu multithread hautes performances permet aux développeurs de choisir la voie de rendu la plus appropriée en fonction de leurs exigences de performances spécifiques et de la complexité graphique de leur application.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="138"/>
         <source>Rendering Settings</source>
-        <translation>paramètres de rendu</translation>
+        <translation>Paramètres de rendu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="160"/>
         <source>Clip to crop box</source>
-        <translation>clipser sur la zone de recadrage</translation>
+        <translation>Clipser sur la zone de recadrage</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="167"/>
         <source>Text antialiasing</source>
-        <translation>anticrénelage de texte</translation>
+        <translation>Anticrénelage de texte</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="174"/>
         <source>Ignore optional content</source>
-        <translation>ignorer le contenu facultatif</translation>
+        <translation>Ignorer le contenu facultatif</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="209"/>
         <source>Smooth pictures</source>
-        <translation>images fluides</translation>
+        <translation>Images fluides</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="216"/>
         <source>Display page compile/draw time</source>
-        <translation>Afficher le temps de compilation/d'affichage de la page</translation>
+        <translation>Afficher le temps de compilation/d&apos;affichage de la page</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="223"/>
@@ -5970,7 +5970,7 @@ li.checked::marker { contenu : "\2612" ; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="230"/>
         <source>Display annotations</source>
-        <translation>afficher les annotations</translation>
+        <translation>Afficher les annotations</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="246"/>
@@ -5985,37 +5985,37 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Smooth pictures&lt;/span&gt; option enables pictures to be transformed into device space coordinates using a high-quality image transformation method. This generally results in better image quality. When disabled, a default fast transformation is used, potentially reducing image quality if the source DPI and device DPI differ. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Ignore optional content &lt;/span&gt;ignores all optional content settings and renders everything in the content stream. &lt;span style=&quot; font-weight:600;&quot;&gt;Clip to crop box&lt;/span&gt; restricts the rendering area to the page&apos;s crop box, which is usually smaller than the whole page. Graphics outside the crop box aren&apos;t drawn, which can be useful for removing printer marks and similar elements. &lt;span style=&quot; font-weight:600;&quot;&gt;Display page compile/draw time&lt;/span&gt; can be handy for debugging, showing the time taken to compile a page (stored in the cache) and the time taken to render the compiled page contents onto the output device. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Using the &lt;span style=&quot; font-weight:600;&quot;&gt;Display annotations&lt;/span&gt; setting, you can enable or disable the display of annotations. If annotations are disabled, the user will not be able to interact with them. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" "http://www.w3.org/TR/REC-html40/strict.dtd"&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name="qrichtext" content="1" /&gt;&lt;meta charset="utf-8" /&gt;&lt;style type="text/css"&gt;
-p, li { espace blanc : pré-enveloppement ; }
-h { hauteur : 1px ; largeur de bordure : 0 ; }
-li.unchecked::marker { content: "\2610"; }
-li.checked::marker { contenu : "\2612" ; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=" font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;"&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;Les paramètres de rendu contrôlent la manière dont le moteur de rendu gère le contenu de la page et l'apparence des graphiques affichés. &lt;span style=" font-weight:600;"&gt;Antialiasing&lt;/span&gt; adoucit l'apparence des formes peintes, telles que les rectangles, les graphiques vectoriels et les lignes, mais n'affecte pas le texte. &lt;span style=" font-weight:600;"&gt;Antialiasing du texte&lt;/span&gt;, quant à lui, affine l'apparence des caractères du texte, laissant les autres éléments intacts. &lt;span style=" font-weight:600;"&gt;Antialiasing &lt;/span&gt;et &lt;span style=" font-weight:600;"&gt;Text antialiasing &lt;/span&gt;ne sont pertinents que pour le moteur de rendu logiciel. Si vous utilisez un moteur de rendu matériel comme OpenGL, ces paramètres n'auront aucun impact car OpenGL restitue les images à l'aide de l'anticrénelage MSAA (si activé). &lt;/p&gt;
-L'option &lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;&lt;span style=" font-weight:600;"&gt;Images fluides&lt;/span&gt; permet de transformer les images en coordonnées spatiales de l'appareil à l'aide d'une méthode de transformation d'image de haute qualité. Cela se traduit généralement par une meilleure qualité d’image. Lorsqu'elle est désactivée, une transformation rapide par défaut est utilisée, réduisant potentiellement la qualité de l'image si le DPI source et le DPI du périphérique diffèrent. &lt;/p&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;&lt;span style=" font-weight:600;"&gt;Ignorer le contenu facultatif &lt;/span&gt;ignore tous les paramètres de contenu facultatif et restitue tout dans le flux de contenu. &lt;span style=" font-weight:600;"&gt;Clip to crop box&lt;/span&gt; restreint la zone de rendu à la zone de recadrage de la page, qui est généralement plus petite que la page entière. Les graphiques en dehors de la zone de recadrage ne sont pas dessinés, ce qui peut être utile pour supprimer les marques d'imprimante et les éléments similaires. &lt;span style=" font-weight:600;"&gt;Afficher le temps de compilation/dessin de la page&lt;/span&gt; peut être pratique pour le débogage, indiquant le temps nécessaire pour compiler une page (stockée dans le cache) et le temps nécessaire pour restituer le contenu de la page compilée sur le périphérique de sortie. &lt;/p&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;À l'aide du paramètre &lt;span style=" font-weight:600;"&gt;Afficher les annotations&lt;/span&gt;, vous pouvez activer ou désactiver l'affichage des annotations. Si les annotations sont désactivées, l'utilisateur ne pourra pas interagir avec elles. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { espace blanc&#xa0;: pré-enveloppement&#xa0;; }
+h { hauteur&#xa0;: 1px&#xa0;; largeur de bordure&#xa0;: 0&#xa0;; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { contenu&#xa0;: &quot;\2612&quot;&#xa0;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Les paramètres de rendu contrôlent la manière dont le moteur de rendu gère le contenu de la page et l&apos;apparence des graphiques affichés. &lt;span style=&quot; font-weight:600;&quot;&gt;Antialiasing&lt;/span&gt; adoucit l&apos;apparence des formes peintes, telles que les rectangles, les graphiques vectoriels et les lignes, mais n&apos;affecte pas le texte. &lt;span style=&quot; font-weight:600;&quot;&gt;Antialiasing du texte&lt;/span&gt;, quant à lui, affine l&apos;apparence des caractères du texte, laissant les autres éléments intacts. &lt;span style=&quot; font-weight:600;&quot;&gt;Antialiasing &lt;/span&gt;et &lt;span style=&quot; font-weight:600;&quot;&gt;Text antialiasing &lt;/span&gt;ne sont pertinents que pour le moteur de rendu logiciel. Si vous utilisez un moteur de rendu matériel comme OpenGL, ces paramètres n&apos;auront aucun impact car OpenGL restitue les images à l&apos;aide de l&apos;anticrénelage MSAA (si activé). &lt;/p&gt;
+L&apos;option &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Images fluides&lt;/span&gt; permet de transformer les images en coordonnées spatiales de l&apos;appareil à l&apos;aide d&apos;une méthode de transformation d&apos;image de haute qualité. Cela se traduit généralement par une meilleure qualité d’image. Lorsqu&apos;elle est désactivée, une transformation rapide par défaut est utilisée, réduisant potentiellement la qualité de l&apos;image si le DPI source et le DPI du périphérique diffèrent. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Ignorer le contenu facultatif &lt;/span&gt;ignore tous les paramètres de contenu facultatif et restitue tout dans le flux de contenu. &lt;span style=&quot; font-weight:600;&quot;&gt;Clip to crop box&lt;/span&gt; restreint la zone de rendu à la zone de recadrage de la page, qui est généralement plus petite que la page entière. Les graphiques en dehors de la zone de recadrage ne sont pas dessinés, ce qui peut être utile pour supprimer les marques d&apos;imprimante et les éléments similaires. &lt;span style=&quot; font-weight:600;&quot;&gt;Afficher le temps de compilation/dessin de la page&lt;/span&gt; peut être pratique pour le débogage, indiquant le temps nécessaire pour compiler une page (stockée dans le cache) et le temps nécessaire pour restituer le contenu de la page compilée sur le périphérique de sortie. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;À l&apos;aide du paramètre &lt;span style=&quot; font-weight:600;&quot;&gt;Afficher les annotations&lt;/span&gt;, vous pouvez activer ou désactiver l&apos;affichage des annotations. Si les annotations sont désactivées, l&apos;utilisateur ne pourra pas interagir avec elles. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="282"/>
         <source>Shading Settings</source>
-        <translation>paramètres d'ombrage</translation>
+        <translation>Paramètres d&apos;ombrage</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="290"/>
         <source>Preferred mesh resolution ratio</source>
-        <translation>rapport de résolution de maillage préféré</translation>
+        <translation>Rapport de résolution de maillage préféré</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="297"/>
         <source>Color tolerance</source>
-        <translation>tolérance de couleur</translation>
+        <translation>Tolérance de couleur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="304"/>
         <source>Minimal mesh resolution ratio</source>
-        <translation>rapport de résolution de maillage minimal</translation>
+        <translation>Rapport de résolution de maillage minimal</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="370"/>
@@ -6030,32 +6030,32 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The &lt;span style=&quot; font-weight:600;&quot;&gt;Preferred mesh resolution ratio&lt;/span&gt; should be set to optimize the balance between the performance of mesh generation and the quality of the mesh. The optimal triangle size is computed as follows: the total meshing area (typically a page) is multiplied by this ratio to determine the triangle size. For example, if we have an A4 page (210 mm x 297 mm), and the ratio is set to 0.01, then the optimal triangle size is computed as 297 * 0.01 = ~3 mm. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The &lt;span style=&quot; font-weight:600;&quot;&gt;Minimal mesh resolution ratio&lt;/span&gt; is a ratio that determines the minimal triangle size. At this boundary, no triangles are subdivided, regardless of color variation or shape quality. This ratio should be set to a value at which a user can barely recognize patterns on the screen (for example, the triangle size should be &amp;lt; 1 mm). However, this also affects performance, as too many triangles can be generated. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Color tolerance&lt;/span&gt; is the threshold at which two colors are recognized as different. The comparison is done component-wise, so if at least one color component exceeds this parameter, the colors are treated as different. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" "http://www.w3.org/TR/REC-html40/strict.dtd"&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name="qrichtext" content="1" /&gt;&lt;meta charset="utf-8" /&gt;&lt;style type="text/css"&gt;
-p, li { espace blanc : pré-enveloppement ; }
-h { hauteur : 1px ; largeur de bordure : 0 ; }
-li.unchecked::marker { content: "\2610"; }
-li.checked::marker { contenu : "\2612" ; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=" font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;"&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;Shading est exécuté selon des critères de qualité de maillage, impliquant &lt;span style=" font-weight:600;"&gt;tolérance de couleur&lt;/span&gt; et tolérance de forme. Si la couleur des sommets d'un triangle dans le maillage est trop différente (dépassant la tolérance de couleur définie), alors le maillage est affiné et le triangle est subdivisé. Certains ombrages sont définis par des motifs, tels que &lt;span style=" font-style:italic;"&gt;Coons patch shading&lt;/span&gt; ou &lt;span style=" font-style:italic;"&gt;Tensor product patch shading&lt;/span&gt;, qui sont également pris en compte lors du maillage. &lt;/p&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;Le &lt;span style=" font-weight:600;"&gt;Rapport de résolution de maillage préféré&lt;/span&gt; doit être défini pour optimiser l'équilibre entre les performances de génération de maillage et la qualité du maillage. La taille optimale du triangle est calculée comme suit : la zone de maillage totale (généralement une page) est multipliée par ce rapport pour déterminer la taille du triangle. Par exemple, si nous avons une page A4 (210 mm x 297 mm) et que le rapport est défini sur 0,01, alors la taille optimale du triangle est calculée comme suit : 297 * 0,01 = ~3 mm. &lt;/p&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;Le &lt;span style=" font-weight:600;"&gt;Rapport minimal de résolution de maillage&lt;/span&gt; est un rapport qui détermine la taille minimale du triangle. À cette limite, aucun triangle n'est subdivisé, quelle que soit la variation de couleur ou la qualité de la forme. Ce &amp;rapport doit être défini sur une valeur à laquelle un utilisateur peut à peine reconnaître les motifs sur l'écran (par exemple, la taille du triangle doit être de 1 mm). Cependant, cela affecte également les performances, car trop de triangles peuvent être générés. &lt;/p&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;&lt;span style=" font-weight:600;"&gt;Tolérance de couleur&lt;/span&gt; est le seuil auquel deux couleurs sont reconnues comme différentes. La comparaison est effectuée par composant, donc si au moins un composant de couleur dépasse ce paramètre, les couleurs sont traitées comme différentes. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { espace blanc&#xa0;: pré-enveloppement&#xa0;; }
+h { hauteur&#xa0;: 1px&#xa0;; largeur de bordure&#xa0;: 0&#xa0;; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { contenu&#xa0;: &quot;\2612&quot;&#xa0;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Shading est exécuté selon des critères de qualité de maillage, impliquant &lt;span style=&quot; font-weight:600;&quot;&gt;tolérance de couleur&lt;/span&gt; et tolérance de forme. Si la couleur des sommets d&apos;un triangle dans le maillage est trop différente (dépassant la tolérance de couleur définie), alors le maillage est affiné et le triangle est subdivisé. Certains ombrages sont définis par des motifs, tels que &lt;span style=&quot; font-style:italic;&quot;&gt;Coons patch shading&lt;/span&gt; ou &lt;span style=&quot; font-style:italic;&quot;&gt;Tensor product patch shading&lt;/span&gt;, qui sont également pris en compte lors du maillage. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Le &lt;span style=&quot; font-weight:600;&quot;&gt;Rapport de résolution de maillage préféré&lt;/span&gt; doit être défini pour optimiser l&apos;équilibre entre les performances de génération de maillage et la qualité du maillage. La taille optimale du triangle est calculée comme suit&#xa0;: la zone de maillage totale (généralement une page) est multipliée par ce rapport pour déterminer la taille du triangle. Par exemple, si nous avons une page A4 (210 mm x 297 mm) et que le rapport est défini sur 0,01, alors la taille optimale du triangle est calculée comme suit : 297 * 0,01 = ~3 mm. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Le &lt;span style=&quot; font-weight:600;&quot;&gt;Rapport minimal de résolution de maillage&lt;/span&gt; est un rapport qui détermine la taille minimale du triangle. À cette limite, aucun triangle n&apos;est subdivisé, quelle que soit la variation de couleur ou la qualité de la forme. Ce &amp;rapport doit être défini sur une valeur à laquelle un utilisateur peut à peine reconnaître les motifs sur l&apos;écran (par exemple, la taille du triangle doit être de 1&#xa0;mm). Cependant, cela affecte également les performances, car trop de triangles peuvent être générés. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Tolérance de couleur&lt;/span&gt; est le seuil auquel deux couleurs sont reconnues comme différentes. La comparaison est effectuée par composant, donc si au moins un composant de couleur dépasse ce paramètre, les couleurs sont traitées comme différentes. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="406"/>
         <source>Cache Settings</source>
-        <translation>paramètres de cache</translation>
+        <translation>Paramètres de cache</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="414"/>
         <source>Thumbnail image cache size</source>
-        <translation>taille du cache des images miniatures</translation>
+        <translation>Taille du cache des images miniatures</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="421"/>
         <source>Cached font limit</source>
-        <translation>limite de polices mises en cache</translation>
+        <translation>Limite de polices mises en cache</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="444"/>
@@ -6066,12 +6066,12 @@ li.checked::marker { contenu : "\2612" ; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="460"/>
         <source>Compiled page cache size</source>
-        <translation>taille du cache de page compilée</translation>
+        <translation>Taille du cache de page compilée</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="483"/>
         <source>Cached instanced font limit</source>
-        <translation>limite de polices instanciées mises en cache</translation>
+        <translation>Limite de polices instanciées mises en cache</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="502"/>
@@ -6085,16 +6085,16 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The rendering engine first compiles the page to enable quick drawing and then stores these compiled pages in a cache. These stored pages usually render much quicker than non-cached pages. The &lt;span style=&quot; font-weight:600;&quot;&gt;Compiled Page Cache Size&lt;/span&gt; sets the memory limit for these compiled pages, measured in kilobytes. Ideally, this limit should be at least twice as large as the size of the largest compiled page. If a compiled page exceeds this limit, an error will be displayed during rendering. Setting a higher value for this limit can speed up the rendering engine, but it will consume more operating memory. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;There is also a cache for thumbnail images. The &lt;span style=&quot; font-weight:600;&quot;&gt;Thumbnail Image Cache Size&lt;/span&gt; determines the memory space allocated for these images. This value should be set large enough to accommodate all thumbnail images on the screen. The larger this value is, the quicker thumbnails will display, but at the cost of consuming more operating memory. Please note that thumbnails are stored as bitmaps for rapid drawing, not as precompiled pages. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;During rendering, fonts are cached as well. There are two levels of cache for fonts: one for general fonts and one for instance-specific fonts (fonts at a specific size). The &lt;span style=&quot; font-weight:600;&quot;&gt;Cached Font Limit&lt;/span&gt; sets the maximum number of fonts that can be stored in the cache. The &lt;span style=&quot; font-weight:600;&quot;&gt;Instanced Font Cache Limit&lt;/span&gt; sets the maximum number of instance-specific fonts that can be stored. If these cache limits are exceeded, fonts are removed from the cache. However, this only happens when no operation in another thread (like compiling pages) is being performed to avoid race conditions. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" "http://www.w3.org/TR/REC-html40/strict.dtd"&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name="qrichtext" content="1" /&gt;&lt;meta charset="utf-8" /&gt;&lt;style type="text/css"&gt;
-p, li { espace blanc : pré-enveloppement ; }
-h { hauteur : 1px ; largeur de bordure : 0 ; }
-li.unchecked::marker { content: "\2610"; }
-li.checked::marker { contenu : "\2612" ; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=" font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;"&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;Le moteur de rendu compile d'abord la page pour permettre un dessin rapide, puis stocke ces pages compilées dans un cache. Ces pages stockées s'affichent généralement beaucoup plus rapidement que les pages non mises en cache. La &lt;span style=" font-weight:600;"&gt;Compiled Page Cache Size&lt;/span&gt; définit la limite de mémoire pour ces pages compilées, mesurée en kilo-octets. Idéalement, cette limite devrait être au moins deux fois plus grande que la taille de la plus grande page compilée. Si une page compilée dépasse cette limite, une erreur sera affichée lors du rendu. Définir une valeur plus élevée pour cette limite peut accélérer le moteur de rendu, mais cela consommera plus de mémoire d'exploitation. &lt;/p&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;Il existe également un cache pour les images miniatures. La &lt;span style=" font-weight:600;"&gt;Thumbnail Image Cache Size&lt;/span&gt; détermine l'espace mémoire alloué à ces images. Cette valeur doit être suffisamment grande pour accueillir toutes les images miniatures à l'écran. Plus cette valeur est grande, plus les vignettes s'afficheront rapidement, mais au prix d'une consommation de mémoire d'exploitation plus importante. Veuillez noter que les vignettes sont stockées sous forme de bitmaps pour un dessin rapide, et non sous forme de pages précompilées. &lt;/p&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;Pendant le rendu, les polices sont également mises en cache. Il existe deux niveaux de cache pour les polices : un pour les polices générales et un pour les polices spécifiques à une instance (polices d'une taille spécifique). La &lt;span style=" font-weight:600;"&gt;Cached Font Limit&lt;/span&gt; définit le nombre maximum de polices pouvant être stockées dans le cache. La &lt;span style=" font-weight:600;"&gt;Instanced Font Cache Limit&lt;/span&gt; définit le nombre maximum de polices spécifiques à une instance pouvant être stockées. Si ces limites de cache sont dépassées, les polices sont supprimées du cache. Cependant, cela ne se produit que lorsqu'aucune opération dans un autre thread (comme la compilation de pages) n'est effectuée pour éviter les conditions de concurrence. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { espace blanc&#xa0;: pré-enveloppement&#xa0;; }
+h { hauteur&#xa0;: 1px&#xa0;; largeur de bordure&#xa0;: 0&#xa0;; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { contenu&#xa0;: &quot;\2612&quot;&#xa0;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Le moteur de rendu compile d&apos;abord la page pour permettre un dessin rapide, puis stocke ces pages compilées dans un cache. Ces pages stockées s&apos;affichent généralement beaucoup plus rapidement que les pages non mises en cache. La &lt;span style=&quot; font-weight:600;&quot;&gt;Compiled Page Cache Size&lt;/span&gt; définit la limite de mémoire pour ces pages compilées, mesurée en kilo-octets. Idéalement, cette limite devrait être au moins deux fois plus grande que la taille de la plus grande page compilée. Si une page compilée dépasse cette limite, une erreur sera affichée lors du rendu. Définir une valeur plus élevée pour cette limite peut accélérer le moteur de rendu, mais cela consommera plus de mémoire d&apos;exploitation. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Il existe également un cache pour les images miniatures. La &lt;span style=&quot; font-weight:600;&quot;&gt;Thumbnail Image Cache Size&lt;/span&gt; détermine l&apos;espace mémoire alloué à ces images. Cette valeur doit être suffisamment grande pour accueillir toutes les images miniatures à l&apos;écran. Plus cette valeur est grande, plus les vignettes s&apos;afficheront rapidement, mais au prix d&apos;une consommation de mémoire d&apos;exploitation plus importante. Veuillez noter que les vignettes sont stockées sous forme de bitmaps pour un dessin rapide, et non sous forme de pages précompilées. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Pendant le rendu, les polices sont également mises en cache. Il existe deux niveaux de cache pour les polices&#xa0;: un pour les polices générales et un pour les polices spécifiques à une instance (polices d&apos;une taille spécifique). La &lt;span style=&quot; font-weight:600;&quot;&gt;Cached Font Limit&lt;/span&gt; définit le nombre maximum de polices pouvant être stockées dans le cache. La &lt;span style=&quot; font-weight:600;&quot;&gt;Instanced Font Cache Limit&lt;/span&gt; définit le nombre maximum de polices spécifiques à une instance pouvant être stockées. Si ces limites de cache sont dépassées, les polices sont supprimées du cache. Cependant, cela ne se produit que lorsqu&apos;aucune opération dans un autre thread (comme la compilation de pages) n&apos;est effectuée pour éviter les conditions de concurrence. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="537"/>
@@ -6104,17 +6104,17 @@ li.checked::marker { contenu : "\2612" ; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="569"/>
         <source>Color management system settings</source>
-        <translation>paramètres du système de gestion des couleurs</translation>
+        <translation>Paramètres du système de gestion des couleurs</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="580"/>
         <source>Black point compensation</source>
-        <translation>compensation du point noir</translation>
+        <translation>Compensation du point noir</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="587"/>
         <source>Device gray color profile</source>
-        <translation>profil de couleur gris de l'appareil</translation>
+        <translation>Profil de couleur gris de l&apos;appareil</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="600"/>
@@ -6124,42 +6124,42 @@ li.checked::marker { contenu : "\2612" ; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="610"/>
         <source>Additional color profile directory</source>
-        <translation>répertoire de profils de couleurs supplémentaire</translation>
+        <translation>Répertoire de profils de couleurs supplémentaire</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="617"/>
         <source>White paper color transformed</source>
-        <translation>couleur du livre blanc transformée</translation>
+        <translation>Couleur du livre blanc transformée</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="631"/>
         <source>Output color profile</source>
-        <translation>profil de couleur de sortie</translation>
+        <translation>Profil de couleur de sortie</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="652"/>
         <source>Rendering intent</source>
-        <translation>intention de rendu</translation>
+        <translation>Intention de rendu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="665"/>
         <source>Consider document output intents</source>
-        <translation>prendre en compte les intentions de sortie du document</translation>
+        <translation>Prendre en compte les intentions de sortie du document</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="672"/>
         <source>Device RGB color profile</source>
-        <translation>profil de couleur RVB de l'appareil</translation>
+        <translation>Profil de couleur RVB de l&apos;appareil</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="679"/>
         <source>Color management system</source>
-        <translation>système de gestion des couleurs</translation>
+        <translation>Système de gestion des couleurs</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="686"/>
         <source>Device CMYK color profile</source>
-        <translation>profil de couleur CMJN de l'appareil</translation>
+        <translation>Profil de couleur CMJN de l&apos;appareil</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="698"/>
@@ -6169,7 +6169,7 @@ li.checked::marker { contenu : "\2612" ; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="713"/>
         <source>Color adaptation method (XYZ whitepoint)</source>
-        <translation>méthode d'adaptation des couleurs (point blanc XYZ)</translation>
+        <translation>méthode d&apos;adaptation des couleurs (point blanc XYZ)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="722"/>
@@ -6183,16 +6183,16 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The &lt;span style=&quot; font-weight:600;&quot;&gt;Color Management System&lt;/span&gt; governs input and output color profiles and color transformations. This system allows for accurate color representation as defined in the PDF document. For faster color transformations, select &apos;Generic&apos; to disable this functionality. The &lt;span style=&quot; font-weight:600;&quot;&gt;Rendering Intent&lt;/span&gt; selection influences the way colors are transformed. While rendering intents are often defined within the PDF document&apos;s content streams, you have the option to override them by selecting a different intent from &apos;Auto&apos;. The &lt;span style=&quot; font-weight:600;&quot;&gt;Accuracy&lt;/span&gt; setting determines the precision of the color transformation, with higher accuracy consuming more memory. The &lt;span style=&quot; font-weight:600;&quot;&gt;Black Point Compensation&lt;/span&gt; adjusts for black colors that fall outside the gamut. The &lt;span style=&quot; font-weight:600;&quot;&gt;White Paper Color Transformed&lt;/span&gt; setting affects the color of the underlying white paper - enabling this will transform pure white from the device RGB profile to the output profile. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The &lt;span style=&quot; font-weight:600;&quot;&gt;Output Color Profile&lt;/span&gt; specifies the output (target) rendering profile. This profile should align with the color space that your screen uses to display colors. Additionally, you can set the color spaces for &lt;span style=&quot; font-weight:600;&quot;&gt;gray/RGB/CMYK&lt;/span&gt; device color spaces. These are used to transform gray/RGB/CMYK colors to the output color profile. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;A document may contain output intents, which can be used for transforming between color spaces. If the &lt;span style=&quot; font-weight:600;&quot;&gt;Consider Document Output Intents&lt;/span&gt; option is checked, the color management system will verify whether the document contains output intents. If such intents are present, they will be used for color transformation as device color spaces (gray/RGB/CMYK). &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" "http://www.w3.org/TR/REC-html40/strict.dtd"&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name="qrichtext" content="1" /&gt;&lt;meta charset="utf-8" /&gt;&lt;style type="text/css"&gt;
-p, li { espace blanc : pré-enveloppement ; }
-h { hauteur : 1px ; largeur de bordure : 0 ; }
-li.unchecked::marker { content: "\2610"; }
-li.checked::marker { contenu : "\2612" ; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=" font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;"&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;Le &lt;span style=" font-weight:600;"&gt;Color Management System&lt;/span&gt; régit les profils de couleurs d'entrée et de sortie et les transformations de couleurs. Ce système permet une représentation précise des couleurs telle que définie dans le document PDF. Pour des transformations de couleurs plus rapides, sélectionnez « Générique » pour désactiver cette fonctionnalité. La sélection &lt;span style=" font-weight:600;"&gt;Rendering Intent&lt;/span&gt; influence la façon dont les couleurs sont transformées. Bien que les intentions de rendu soient souvent définies dans les flux de contenu du document PDF, vous avez la possibilité de les remplacer en sélectionnant une intention différente de « Auto ». Le paramètre &lt;span style=" font-weight:600;"&gt;Accuracy&lt;/span&gt; détermine la précision de la transformation des couleurs, une précision plus élevée consommant plus de mémoire. La &lt;span style=" font-weight:600;"&gt;Black Point Compensation&lt;/span&gt; s'ajuste aux couleurs noires qui ne font pas partie de la gamme. Le paramètre &lt;span style=" font-weight:600;"&gt;White Paper Color Transformed&lt;/span&gt; affecte la couleur du papier blanc sous-jacent - cette activation transformera le blanc pur du profil RVB de l'appareil en profil de sortie. &lt;/p&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;Le &lt;span style=" font-weight:600;"&gt;Output Color Profile&lt;/span&gt; spécifie le profil de rendu de sortie (cible). Ce profil doit s'aligner sur l'espace colorimétrique que votre écran utilise pour afficher les couleurs. De plus, vous pouvez définir les espaces colorimétriques pour les espaces colorimétriques du périphérique &lt;span style=" font-weight:600;"&gt;gray/RGB/CMYK&lt;/span&gt;. Ceux-ci sont utilisés pour transformer les couleurs gris/RVB/CMYK en profil de couleur de sortie. &lt;/p&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;Un document peut contenir des intentions de sortie, qui peuvent être utilisées pour la transformation entre les espaces colorimétriques. Si l'option &lt;span style=" font-weight:600;"&gt;Considérer les intentions de sortie du document&lt;/span&gt; est cochée, le système de gestion des couleurs vérifiera si le document contient des intentions de sortie. Si de telles intentions sont présentes, elles seront utilisées pour la transformation des couleurs en tant qu'espaces colorimétriques du périphérique (gris/RVB/CMYK). &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { espace blanc&#xa0;: pré-enveloppement&#xa0;; }
+h { hauteur&#xa0;: 1px&#xa0;; largeur de bordure&#xa0;: 0&#xa0;; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { contenu&#xa0;: &quot;\2612&quot;&#xa0;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Le &lt;span style=&quot; font-weight:600;&quot;&gt;Color Management System&lt;/span&gt; régit les profils de couleurs d&apos;entrée et de sortie et les transformations de couleurs. Ce système permet une représentation précise des couleurs telle que définie dans le document PDF. Pour des transformations de couleurs plus rapides, sélectionnez «&#xa0;Générique&#xa0;» pour désactiver cette fonctionnalité. La sélection &lt;span style=&quot; font-weight:600;&quot;&gt;Rendering Intent&lt;/span&gt; influence la façon dont les couleurs sont transformées. Bien que les intentions de rendu soient souvent définies dans les flux de contenu du document PDF, vous avez la possibilité de les remplacer en sélectionnant une intention différente de «&#xa0;Auto&#xa0;». Le paramètre &lt;span style=&quot; font-weight:600;&quot;&gt;Accuracy&lt;/span&gt; détermine la précision de la transformation des couleurs, une précision plus élevée consommant plus de mémoire. La &lt;span style=&quot; font-weight:600;&quot;&gt;Black Point Compensation&lt;/span&gt; s&apos;ajuste aux couleurs noires qui ne font pas partie de la gamme. Le paramètre &lt;span style=&quot; font-weight:600;&quot;&gt;White Paper Color Transformed&lt;/span&gt; affecte la couleur du papier blanc sous-jacent - cette activation transformera le blanc pur du profil RVB de l&apos;appareil en profil de sortie. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Le &lt;span style=&quot; font-weight:600;&quot;&gt;Output Color Profile&lt;/span&gt; spécifie le profil de rendu de sortie (cible). Ce profil doit s&apos;aligner sur l&apos;espace colorimétrique que votre écran utilise pour afficher les couleurs. De plus, vous pouvez définir les espaces colorimétriques pour les espaces colorimétriques du périphérique &lt;span style=&quot; font-weight:600;&quot;&gt;gray/RGB/CMYK&lt;/span&gt;. Ceux-ci sont utilisés pour transformer les couleurs gris/RVB/CMYK en profil de couleur de sortie. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Un document peut contenir des intentions de sortie, qui peuvent être utilisées pour la transformation entre les espaces colorimétriques. Si l&apos;option &lt;span style=&quot; font-weight:600;&quot;&gt;Considérer les intentions de sortie du document&lt;/span&gt; est cochée, le système de gestion des couleurs vérifiera si le document contient des intentions de sortie. Si de telles intentions sont présentes, elles seront utilisées pour la transformation des couleurs en tant qu&apos;espaces colorimétriques du périphérique (gris/RVB/CMYK). &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="757"/>
@@ -6202,22 +6202,22 @@ li.checked::marker { contenu : "\2612" ; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="768"/>
         <source>Sigmoid function slope parameter</source>
-        <translation>paramètre de pente de la fonction sigmoïde</translation>
+        <translation>Paramètre de pente de la fonction sigmoïde</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="775"/>
         <source>Foreground color</source>
-        <translation>couleur de premier plan</translation>
+        <translation>Couleur de premier plan</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="785"/>
         <source>Background color</source>
-        <translation>couleur d'arrière-plan</translation>
+        <translation>Couleur d&apos;arrière-plan</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="802"/>
         <source>Bitonal threshold</source>
-        <translation>seuil bitonal</translation>
+        <translation>Seuil bitonal</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="818"/>
@@ -6231,31 +6231,31 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Foreground&lt;/span&gt; and &lt;span style=&quot; font-weight:700;&quot;&gt;background&lt;/span&gt; colors refer to a custom colors rendering mode, where two colors are used - the paper is drawn with the background color, and the foreground color is used for text and graphics. By default, the background is black and the foreground is green, which is easy on the eyes. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Sigmoid function slope parameter&lt;/span&gt; is a parameter in high contrast color rendering. This rendering mode displays all graphics in high contrast. This parameter affects the degree of contrast. Set the value from 1 to 5 for a small contrast change, from 5 to 10 for a medium contrast change, and more than 10 for very high contrast rendering. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Bitonal threshold&lt;/span&gt; is used in the bitonal rendering color mode. It distinguishes between black and white colors. However, the threshold for images is determined automatically. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" "http://www.w3.org/TR/REC-html40/strict.dtd"&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name="qrichtext" content="1" /&gt;&lt;meta charset="utf-8" /&gt;&lt;style type="text/css"&gt;
-p, li { espace blanc : pré-enveloppement ; }
-h { hauteur : 1px ; largeur de bordure : 0 ; }
-li.unchecked::marker { content: "\2610"; }
-li.checked::marker { contenu : "\2612" ; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=" font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;"&gt;
-Les couleurs &lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;&lt;span style=" font-weight:700;"&gt;Foreground&lt;/span&gt; et &lt;span style=" font-weight:700;"&gt;background&lt;/span&gt; font référence à un mode de rendu des couleurs personnalisé, dans lequel deux couleurs sont utilisées : le papier est dessiné avec la couleur d'arrière-plan et la couleur de premier plan est utilisée pour le texte et les graphiques. Par défaut, l’arrière-plan est noir et le premier plan est vert, ce qui est agréable pour les yeux. &lt;/p&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;&lt;span style=" font-weight:700;"&gt;Paramètre de pente de la fonction sigmoïde&lt;/span&gt; est un paramètre de rendu des couleurs à contraste élevé. Ce mode de rendu affiche tous les graphiques avec un contraste élevé. Ce paramètre affecte le degré de contraste. Réglez la valeur de 1 à 5 pour un petit changement de contraste, de 5 à 10 pour un changement de contraste moyen et plus de 10 pour un rendu à très haut contraste. &lt;/p&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;&lt;span style=" font-weight:700;"&gt;Seuil bitonal&lt;/span&gt; est utilisé dans le mode couleur de rendu bitonal. Il fait la distinction entre les couleurs noir et blanc. Cependant, le seuil pour les images est déterminé automatiquement. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { espace blanc&#xa0;: pré-enveloppement&#xa0;; }
+h { hauteur&#xa0;: 1px&#xa0;; largeur de bordure&#xa0;: 0&#xa0;; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { contenu&#xa0;: &quot;\2612&quot;&#xa0;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+Les couleurs &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Foreground&lt;/span&gt; et &lt;span style=&quot; font-weight:700;&quot;&gt;background&lt;/span&gt; font référence à un mode de rendu des couleurs personnalisé, dans lequel deux couleurs sont utilisées : le papier est dessiné avec la couleur d&apos;arrière-plan et la couleur de premier plan est utilisée pour le texte et les graphiques. Par défaut, l’arrière-plan est noir et le premier plan est vert, ce qui est agréable pour les yeux. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Paramètre de pente de la fonction sigmoïde&lt;/span&gt; est un paramètre de rendu des couleurs à contraste élevé. Ce mode de rendu affiche tous les graphiques avec un contraste élevé. Ce paramètre affecte le degré de contraste. Réglez la valeur de 1 à 5 pour un petit changement de contraste, de 5 à 10 pour un changement de contraste moyen et plus de 10 pour un rendu à très haut contraste. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Seuil bitonal&lt;/span&gt; est utilisé dans le mode couleur de rendu bitonal. Il fait la distinction entre les couleurs noir et blanc. Cependant, le seuil pour les images est déterminé automatiquement. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="853"/>
         <source>Security Settings</source>
-        <translation>paramètres de sécurité</translation>
+        <translation>Paramètres de sécurité</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="868"/>
         <source>Allow URI link launch</source>
-        <translation>autoriser le lancement du lien URI</translation>
+        <translation>Autoriser le lancement du lien URI</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="875"/>
         <source>Allow application launch</source>
-        <translation>autoriser le lancement de l'application</translation>
+        <translation>Autoriser le lancement de l&apos;application</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="891"/>
@@ -6269,46 +6269,46 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;If the application launch is permitted, a message box appears after the &lt;span style=&quot; font-weight:600;&quot;&gt;Launch&lt;/span&gt; action is triggered, asking the user if they want to execute an external application. If the user confirms the dialog, the external application executes (for example, using the Windows function &lt;span style=&quot; font-weight:600;&quot;&gt;ShellExecute&lt;/span&gt;). When this option is turned off, no dialog appears and the external application never executes. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;If the &lt;span style=&quot; font-weight:600;&quot;&gt;URI link&lt;/span&gt; launch is allowed, a message box appears asking the user if they want to open the URI link. If the user confirms the dialog, the URI link is opened by the default web browser (or default application if the URI links to the file system). &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Users should exercise caution with these settings and only confirm execution if the document is safe and comes from a reliable source. Launching external applications and following URI links can pose risks to the user&apos;s computer. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" "http://www.w3.org/TR/REC-html40/strict.dtd"&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name="qrichtext" content="1" /&gt;&lt;meta charset="utf-8" /&gt;&lt;style type="text/css"&gt;
-p, li { espace blanc : pré-enveloppement ; }
-h { hauteur : 1px ; largeur de bordure : 0 ; }
-li.unchecked::marker { content: "\2610"; }
-li.checked::marker { contenu : "\2612" ; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=" font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;"&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;Si le lancement de l'application est autorisé, une boîte de message apparaît après le déclenchement de l'action &lt;span style=" font-weight:600;"&gt;Launch&lt;/span&gt;, demandant à l'utilisateur s'il souhaite exécuter une application externe. Si l'utilisateur confirme la boîte de dialogue, l'application externe s'exécute (par exemple, en utilisant la fonction Windows &lt;span style=" font-weight:600;"&gt;ShellExecute&lt;/span&gt;). Lorsque cette option est désactivée, aucune boîte de dialogue n'apparaît et l'application externe ne s'exécute jamais. &lt;/p&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;Si le lancement du lien &lt;span style=" font-weight:600;"&gt;URI&lt;/span&gt; est autorisé, une boîte de message apparaît demandant à l'utilisateur s'il souhaite ouvrir le lien URI. Si l'utilisateur confirme la boîte de dialogue, le lien URI est ouvert par le navigateur Web par défaut (ou l'application par défaut si l'URI est lié au système de fichiers). &lt;/p&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;Les utilisateurs doivent faire preuve de prudence avec ces paramètres et confirmer l'exécution uniquement si le document est sûr et provient d'une source fiable. Le lancement d'applications externes et le suivi de liens URI peuvent présenter des risques pour l'ordinateur de l'utilisateur. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { espace blanc&#xa0;: pré-enveloppement&#xa0;; }
+h { hauteur&#xa0;: 1px&#xa0;; largeur de bordure&#xa0;: 0&#xa0;; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { contenu&#xa0;: &quot;\2612&quot;&#xa0;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Si le lancement de l&apos;application est autorisé, une boîte de message apparaît après le déclenchement de l&apos;action &lt;span style=&quot; font-weight:600;&quot;&gt;Launch&lt;/span&gt;, demandant à l&apos;utilisateur s&apos;il souhaite exécuter une application externe. Si l&apos;utilisateur confirme la boîte de dialogue, l&apos;application externe s&apos;exécute (par exemple, en utilisant la fonction Windows &lt;span style=&quot; font-weight:600;&quot;&gt;ShellExecute&lt;/span&gt;). Lorsque cette option est désactivée, aucune boîte de dialogue n&apos;apparaît et l&apos;application externe ne s&apos;exécute jamais. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Si le lancement du lien &lt;span style=&quot; font-weight:600;&quot;&gt;URI&lt;/span&gt; est autorisé, une boîte de message apparaît demandant à l&apos;utilisateur s&apos;il souhaite ouvrir le lien URI. Si l&apos;utilisateur confirme la boîte de dialogue, le lien URI est ouvert par le navigateur Web par défaut (ou l&apos;application par défaut si l&apos;URI est lié au système de fichiers). &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Les utilisateurs doivent faire preuve de prudence avec ces paramètres et confirmer l&apos;exécution uniquement si le document est sûr et provient d&apos;une source fiable. Le lancement d&apos;applications externes et le suivi de liens URI peuvent présenter des risques pour l&apos;ordinateur de l&apos;utilisateur. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="926"/>
         <source>UI Settings</source>
-        <translation>paramètres de l'interface utilisateur</translation>
+        <translation>Paramètres de l&apos;interface utilisateur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="934"/>
         <source>Maximum redo steps</source>
-        <translation>nombre maximal d'étapes de rétablissement</translation>
+        <translation>Nombre maximal d&apos;étapes de rétablissement</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="962"/>
         <source>Magnifier zoom</source>
-        <translation>zoom de la loupe</translation>
+        <translation>Zoom de la loupe</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="969"/>
         <source>Sidebar button icon size</source>
-        <translation>taille de l'icône du bouton de la barre latérale</translation>
+        <translation>Taille de l&apos;icône du bouton de la barre latérale</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="976"/>
         <source>Magnifier size</source>
-        <translation>taille de la loupe</translation>
+        <translation>Taille de la loupe</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="993"/>
         <source>Maximum undo steps</source>
-        <translation>nombre maximal d'étapes d'annulation</translation>
+        <translation>Nombre maximal d&apos;étapes d&apos;annulation</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1000"/>
@@ -6323,7 +6323,7 @@ li.checked::marker { contenu : "\2612" ; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1026"/>
         <source>Color Scheme (GUI)</source>
-        <translation>schéma de couleurs (GUI)</translation>
+        <translation>Schéma de couleurs (GUI)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1036"/>
@@ -6333,7 +6333,7 @@ li.checked::marker { contenu : "\2612" ; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1050"/>
         <source>Developer mode</source>
-        <translation>mode développeur</translation>
+        <translation>Mode développeur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1057"/>
@@ -6352,16 +6352,16 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The &apos;Maximum count of recent files&apos; setting controls the number of recent files displayed in the menu. When a document is opened, it is added to the top of the recent files list. The list is then truncated from the bottom if the number of recent files exceeds the maximum. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Magnifier tool settings&lt;/span&gt; determine the appearance of the magnifier. The magnifier tool enlarges the area under the mouse cursor. You can specify the size of the magnifier (in &lt;span style=&quot; font-weight:600;&quot;&gt;logical&lt;/span&gt; pixels) and its zoom level. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;By specifying the &lt;span style=&quot; font-weight:600;&quot;&gt;undo/redo&lt;/span&gt; step count, you control the number of undo/redo steps available during document editing. Setting the maximum undo step count to zero disables the undo/redo function. You can also set a nonzero undo step count and a zero redo step count, which would make only undo actions available, with redo actions disabled. Changes are optimized for memory usage, so each undo/redo step shares unmodified objects with others. This means that, roughly speaking, making 10 modifications to a 50 MB document may consume around 51 MB of memory. Actual memory usage depends on the extent of the changes but is usually minimal as changes typically affect a small number of objects (for example, editing a form field or modifying an annotation). &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" "http://www.w3.org/TR/REC-html40/strict.dtd"&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name="qrichtext" content="1" /&gt;&lt;meta charset="utf-8" /&gt;&lt;style type="text/css"&gt;
-p, li { espace blanc : pré-enveloppement ; }
-h { hauteur : 1px ; largeur de bordure : 0 ; }
-li.unchecked::marker { content: "\2610"; }
-li.checked::marker { contenu : "\2612" ; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=" font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;"&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;Le paramètre « Nombre maximum de fichiers récents » contrôle le nombre de fichiers récents affichés dans le menu. Lorsqu'un document est ouvert, il est ajouté en haut de la liste des fichiers récents. La liste est alors tronquée depuis le bas si le nombre de fichiers récents dépasse le maximum. &lt;/p&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;&lt;span style=" font-weight:600;"&gt;Paramètres de l'outil Loupe&lt;/span&gt; déterminent l'apparence de la loupe. L'outil Loupe agrandit la zone sous le curseur de la souris. Vous pouvez spécifier la taille de la loupe (en &lt;span style=" font-weight:600;"&gt;logical&lt;/span&gt; pixels) et son niveau de zoom. &lt;/p&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;En spécifiant le nombre d'étapes &lt;span style=" font-weight:600;"&gt;undo/redo&lt;/span&gt;, vous contrôlez le nombre d'étapes d'annulation/rétablissement disponibles lors de l'édition du document. Régler le nombre maximum d'étapes d'annulation à zéro désactive la fonction d'annulation/rétablissement. Vous pouvez également définir un nombre d'étapes d'annulation différent de zéro et un nombre d'étapes de rétablissement nul, ce qui rendrait uniquement les actions d'annulation disponibles, les actions de rétablissement étant désactivées. Les modifications sont optimisées pour l'utilisation de la mémoire, de sorte que chaque étape d'annulation/rétablissement partage des objets non modifiés avec d'autres. Cela signifie qu'en gros, apporter 10 modifications à un document de 50 Mo peut consommer environ 51 Mo de mémoire. L'utilisation réelle de la mémoire dépend de l'étendue des modifications, mais elle est généralement minime car les modifications affectent généralement un petit nombre d'objets (par exemple, la modification d'un champ de formulaire ou la modification d'une annotation). &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { espace blanc&#xa0;: pré-enveloppement&#xa0;; }
+h { hauteur&#xa0;: 1px&#xa0;; largeur de bordure&#xa0;: 0&#xa0;; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { contenu&#xa0;: &quot;\2612&quot;&#xa0;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Le paramètre «&#xa0;Nombre maximum de fichiers récents&#xa0;» contrôle le nombre de fichiers récents affichés dans le menu. Lorsqu&apos;un document est ouvert, il est ajouté en haut de la liste des fichiers récents. La liste est alors tronquée depuis le bas si le nombre de fichiers récents dépasse le maximum. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Paramètres de l&apos;outil Loupe&lt;/span&gt; déterminent l&apos;apparence de la loupe. L&apos;outil Loupe agrandit la zone sous le curseur de la souris. Vous pouvez spécifier la taille de la loupe (en &lt;span style=&quot; font-weight:600;&quot;&gt;logical&lt;/span&gt; pixels) et son niveau de zoom. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;En spécifiant le nombre d&apos;étapes &lt;span style=&quot; font-weight:600;&quot;&gt;undo/redo&lt;/span&gt;, vous contrôlez le nombre d&apos;étapes d&apos;annulation/rétablissement disponibles lors de l&apos;édition du document. Régler le nombre maximum d&apos;étapes d&apos;annulation à zéro désactive la fonction d&apos;annulation/rétablissement. Vous pouvez également définir un nombre d&apos;étapes d&apos;annulation différent de zéro et un nombre d&apos;étapes de rétablissement nul, ce qui rendrait uniquement les actions d&apos;annulation disponibles, les actions de rétablissement étant désactivées. Les modifications sont optimisées pour l&apos;utilisation de la mémoire, de sorte que chaque étape d&apos;annulation/rétablissement partage des objets non modifiés avec d&apos;autres. Cela signifie qu&apos;en gros, apporter 10 modifications à un document de 50 Mo peut consommer environ 51 Mo de mémoire. L&apos;utilisation réelle de la mémoire dépend de l&apos;étendue des modifications, mais elle est généralement minime car les modifications affectent généralement un petit nombre d&apos;objets (par exemple, la modification d&apos;un champ de formulaire ou la modification d&apos;une annotation). &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1104"/>
@@ -6391,7 +6391,7 @@ li.checked::marker { contenu : "\2612" ; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1140"/>
         <source>Voice synthetiser</source>
-        <translation>synthétiseur vocal</translation>
+        <translation>Synthétiseur vocal</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1147"/>
@@ -6408,29 +6408,29 @@ li.unchecked::marker { content: &quot;\2610&quot;; }
 li.checked::marker { content: &quot;\2612&quot;; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Configure the speech settings to enable the text-to-speech feature for reading documents. While these settings act as defaults for the text-to-speech function, some can be adjusted later on. The &apos;Pitch&apos; setting can vary from -1.0 to 1.0, with 0.0 serving as the default value. Similarly, the &apos;Rate&apos; can range from -1.0 to 1.0, with 0.0 denoting a normal speech flow. Lastly, &apos;Volume&apos; can be adjusted between 0.0 and 1.0. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" "http://www.w3.org/TR/REC-html40/strict.dtd"&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name="qrichtext" content="1" /&gt;&lt;meta charset="utf-8" /&gt;&lt;style type="text/css"&gt;
-p, li { espace blanc : pré-enveloppement ; }
-h { hauteur : 1px ; largeur de bordure : 0 ; }
-li.unchecked::marker { content: "\2610"; }
-li.checked::marker { contenu : "\2612" ; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=" font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;"&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;Configurez les paramètres vocaux pour activer la fonction de synthèse vocale pour la lecture de documents. Bien que ces paramètres servent de paramètres par défaut pour la fonction de synthèse vocale, certains peuvent être ajustés ultérieurement. Le paramètre « Pitch » peut varier de -1,0 à 1,0, 0,0 étant la valeur par défaut. De même, le « taux » peut varier de -1,0 à 1,0, 0,0 indiquant un flux vocal normal. Enfin, le « Volume » peut être ajusté entre 0,0 et 1,0. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { espace blanc&#xa0;: pré-enveloppement&#xa0;; }
+h { hauteur&#xa0;: 1px&#xa0;; largeur de bordure&#xa0;: 0&#xa0;; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { contenu&#xa0;: &quot;\2612&quot;&#xa0;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Configurez les paramètres vocaux pour activer la fonction de synthèse vocale pour la lecture de documents. Bien que ces paramètres servent de paramètres par défaut pour la fonction de synthèse vocale, certains peuvent être ajustés ultérieurement. Le paramètre «&#xa0;Pitch&#xa0;» peut varier de -1,0 à 1,0, 0,0 étant la valeur par défaut. De même, le «&#xa0;taux&#xa0;» peut varier de -1,0 à 1,0, 0,0 indiquant un flux vocal normal. Enfin, le «&#xa0;Volume&#xa0;» peut être ajusté entre 0,0 et 1,0. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1225"/>
         <source>Form Settings</source>
-        <translation>paramètres du formulaire</translation>
+        <translation>Paramètres du formulaire</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1233"/>
         <source>Highlight form fields</source>
-        <translation>mettre en surbrillance les champs du formulaire</translation>
+        <translation>Mettre en surbrillance les champs du formulaire</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1240"/>
         <source>Highlight required form fields</source>
-        <translation>mettre en surbrillance les champs de formulaire requis</translation>
+        <translation>Mettre en surbrillance les champs de formulaire requis</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1263"/>
@@ -6442,44 +6442,44 @@ li.unchecked::marker { content: &quot;\2610&quot;; }
 li.checked::marker { content: &quot;\2612&quot;; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;You can customize the appearance of form fields using the provided settings, including the option to highlight editable fields. You can separately highlight required form fields in red, while other fields can be emphasized in blue. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" "http://www.w3.org/TR/REC-html40/strict.dtd"&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name="qrichtext" content="1" /&gt;&lt;meta charset="utf-8" /&gt;&lt;style type="text/css"&gt;
-p, li { espace blanc : pré-enveloppement ; }
-h { hauteur : 1px ; largeur de bordure : 0 ; }
-li.unchecked::marker { content: "\2610"; }
-li.checked::marker { contenu : "\2612" ; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=" font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;"&gt;
-&lt;p style=" margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"&gt;Vous pouvez personnaliser l'apparence des champs de formulaire à l'aide des paramètres fournis, y compris l'option permettant de mettre en évidence les champs modifiables. Vous pouvez mettre en évidence séparément les champs de formulaire requis en rouge, tandis que les autres champs peuvent être soulignés en bleu. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { espace blanc&#xa0;: pré-enveloppement&#xa0;; }
+h { hauteur&#xa0;: 1px&#xa0;; largeur de bordure&#xa0;: 0&#xa0;; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { contenu&#xa0;: &quot;\2612&quot;&#xa0;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Vous pouvez personnaliser l&apos;apparence des champs de formulaire à l&apos;aide des paramètres fournis, y compris l&apos;option permettant de mettre en évidence les champs modifiables. Vous pouvez mettre en évidence séparément les champs de formulaire requis en rouge, tandis que les autres champs peuvent être soulignés en bleu. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1296"/>
         <source>Digital Signature Verification</source>
-        <translation>vérification de la signature numérique</translation>
+        <translation>Vérification de la signature numérique</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1304"/>
         <source>Ignore expired certificates</source>
-        <translation>ignorer les certificats expirés</translation>
+        <translation>Ignorer les certificats expirés</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1311"/>
         <source>Signature verification</source>
-        <translation>vérification de la signature</translation>
+        <translation>Vérification de la signature</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1318"/>
         <source>Strict mode</source>
-        <translation>mode strict</translation>
+        <translation>Mode strict</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1339"/>
         <source>Use system certificate store</source>
-        <translation>utiliser le magasin de certificats système</translation>
+        <translation>Utiliser le magasin de certificats système</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1369"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Trusted certificate store&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=" font-weight:600;"&gt;Magasin de certificats de confiance&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Magasin de certificats de confiance&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1398"/>
@@ -6489,7 +6489,7 @@ li.checked::marker { contenu : "\2612" ; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1414"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;These are the settings for digital signature verification. Digital signatures are verified as strictly as possible to prevent any malicious content or signature manipulation. Verification can also be disabled, if not required. When &lt;span style=&quot; font-weight:600;&quot;&gt;Strict mode&lt;/span&gt; is enabled, every warning is treated as an error. You have the option to ignore the certificate expiration date, but this should only be done if you fully understand the potential risks involved. Verification uses a list of trusted certificates. System certificates can be added to this list, and you can also manage your own list of trusted certificates.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Ce sont les paramètres de vérification de la signature numérique. Les signatures numériques sont vérifiées aussi strictement que possible pour empêcher tout contenu malveillant ou manipulation de signature. La vérification peut également être désactivée, si elle n'est pas requise. Lorsque &lt;span style=" font-weight:600;"&gt;Strict mode&lt;/span&gt; est activé, chaque avertissement est traité comme une erreur. Vous avez la possibilité d'ignorer la date d'expiration du certificat, mais cela ne doit être fait que si vous comprenez parfaitement les risques potentiels encourus. La vérification utilise une liste de certificats de confiance. Des certificats système peuvent être ajoutés à cette liste et vous pouvez également gérer votre propre liste de certificats de confiance.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Ce sont les paramètres de vérification de la signature numérique. Les signatures numériques sont vérifiées aussi strictement que possible pour empêcher tout contenu malveillant ou manipulation de signature. La vérification peut également être désactivée, si elle n&apos;est pas requise. Lorsque &lt;span style=&quot; font-weight:600;&quot;&gt;Strict mode&lt;/span&gt; est activé, chaque avertissement est traité comme une erreur. Vous avez la possibilité d&apos;ignorer la date d&apos;expiration du certificat, mais cela ne doit être fait que si vous comprenez parfaitement les risques potentiels encourus. La vérification utilise une liste de certificats de confiance. Des certificats système peuvent être ajoutés à cette liste et vous pouvez également gérer votre propre liste de certificats de confiance.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1443"/>
@@ -6550,7 +6550,7 @@ li.checked::marker { contenu : "\2612" ; }
     <name>QAbstractSpinBox</name>
     <message>
         <source>Step &amp;down</source>
-        <translation type="vanished">&amp;Diminuer</translation>
+        <translation>&amp;Diminuer</translation>
     </message>
     <message>
         <source>&amp;Step up</source>
@@ -6860,7 +6860,7 @@ li.checked::marker { contenu : "\2612" ; }
     </message>
     <message>
         <source>Hu&amp;e:</source>
-        <translation type="vanished">&amp;Teinte&#xa0;:</translation>
+        <translation>&amp;Teinte&#xa0;:</translation>
     </message>
     <message>
         <source>&amp;HTML:</source>
@@ -7495,7 +7495,7 @@ Voulez-vous quand même le supprimer&#xa0;?</translation>
     </message>
     <message>
         <source>File &amp;name:</source>
-        <translation type="vanished">&amp;Nom de fichier&#xa0;:</translation>
+        <translation>&amp;Nom de fichier&#xa0;:</translation>
     </message>
     <message>
         <source>Alt+Left</source>
@@ -7926,7 +7926,7 @@ Veuillez vérifier que le nom du fichier est correct.</translation>
     </message>
     <message>
         <source>Wr&amp;iting System</source>
-        <translation type="vanished">&amp;Système d&apos;écriture</translation>
+        <translation>&amp;Système d&apos;écriture</translation>
     </message>
     <message>
         <source>Select Font</source>
@@ -7942,7 +7942,7 @@ Veuillez vérifier que le nom du fichier est correct.</translation>
     </message>
     <message>
         <source>Stri&amp;keout</source>
-        <translation type="vanished">&amp;Barré</translation>
+        <translation>&amp;Barré</translation>
     </message>
 </context>
 <context>
@@ -8823,7 +8823,7 @@ Veuillez vérifier que le nom du fichier est correct.</translation>
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation type="vanished">&amp;Laisser au premier plan</translation>
+        <translation>&amp;Laisser au premier plan</translation>
     </message>
     <message>
         <source>&amp;Close</source>
@@ -10479,7 +10479,7 @@ Veuillez choisir un nom de fichier différent.</translation>
     </message>
     <message>
         <source>Output &amp;file:</source>
-        <translation type="vanished">&amp;Fichier de sortie&#xa0;:</translation>
+        <translation>&amp;Fichier de sortie&#xa0;:</translation>
     </message>
     <message>
         <source>P&amp;roperties</source>
@@ -13196,7 +13196,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtPageMaster/selectoutlinetoregroupdialog.ui" line="14"/>
         <source>Select Outline</source>
-        <translation>sélectionnez Plan</translation>
+        <translation>Sélectionnez Plan</translation>
     </message>
 </context>
 <context>
@@ -13204,7 +13204,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="14"/>
         <source>Unit Settings</source>
-        <translation>paramètres de l'unité</translation>
+        <translation>Paramètres de l&apos;unité</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="20"/>
@@ -13229,7 +13229,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="66"/>
         <source>Scale 1:</source>
-        <translation>Échelle 1 :</translation>
+        <translation>Échelle&#xa0;1&#xa0;:</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="76"/>
@@ -13239,7 +13239,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="85"/>
         <source>Background Color</source>
-        <translation>couleur d'arrière-plan</translation>
+        <translation>Couleur d&apos;arrière-plan</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="92"/>
@@ -13249,7 +13249,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="99"/>
         <source>Text Color</source>
-        <translation>couleur du texte</translation>
+        <translation>Couleur du texte</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="106"/>
@@ -13265,12 +13265,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.cpp" line="50"/>
         <source>Select Text Color</source>
-        <translation>sélectionnez la couleur du texte</translation>
+        <translation>Sélectionnez la couleur du texte</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.cpp" line="57"/>
         <source>Select Background Color</source>
-        <translation>sélectionnez la couleur d'arrière-plan</translation>
+        <translation>Sélectionnez la couleur d&apos;arrière-plan</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.cpp" line="65"/>
@@ -13281,22 +13281,22 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.ui" line="14"/>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.ui" line="20"/>
         <source>Soft Proofing Settings</source>
-        <translation>paramètres de vérification écran</translation>
+        <translation>Paramètres de vérification écran</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.ui" line="39"/>
         <source>Proofing intent</source>
-        <translation>intention de vérification</translation>
+        <translation>Intention de vérification</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.ui" line="49"/>
         <source>Proofing profile</source>
-        <translation>profil de vérification</translation>
+        <translation>Profil de vérification</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.ui" line="59"/>
         <source>Alarm color</source>
-        <translation>couleur de l'alarme</translation>
+        <translation>Couleur de l&apos;alarme</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.cpp" line="35"/>
@@ -13334,18 +13334,18 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="24"/>
         <source>Left Document</source>
-        <translation>document de gauche</translation>
+        <translation>Document de gauche</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="30"/>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="49"/>
         <source>Page Selection:</source>
-        <translation>Sélection de la page :</translation>
+        <translation>Sélection de la page&#xa0;:</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="43"/>
         <source>Right Document</source>
-        <translation>bon document</translation>
+        <translation>Bon document</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/settingsdockwidget.ui" line="62"/>
@@ -13403,7 +13403,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="20"/>
         <source>Sign Method</source>
-        <translation>méthode de signature</translation>
+        <translation>Méthode de signature</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="26"/>
@@ -13433,7 +13433,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="86"/>
         <source>Contact Info</source>
-        <translation>informations de contact</translation>
+        <translation>Informations de contact</translation>
     </message>
 </context>
 <context>
@@ -13469,12 +13469,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../CodeGenerator/codegenerator.cpp" line="1146"/>
         <source>Item (simple), name = &apos;%1&apos;</source>
-        <translation>élément (simple), nom = '%1'</translation>
+        <translation>élément (simple), nom = &apos;%1&apos;</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/codegenerator.cpp" line="1149"/>
         <source>Item (complex), name = &apos;%1&apos;</source>
-        <translation>élément (complexe), nom = '%1'</translation>
+        <translation>élément (complexe), nom = &apos;%1&apos;</translation>
     </message>
 </context>
 <context>
@@ -13482,7 +13482,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcompiler.cpp" line="548"/>
         <source>Indexing document contents...</source>
-        <translation>indexation du contenu du document...</translation>
+        <translation>Indexation du contenu du document...</translation>
     </message>
 </context>
 <context>
@@ -13576,7 +13576,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatelisthelper.cpp" line="89"/>
         <source>Password protected</source>
-        <translation>protégé par mot de passe</translation>
+        <translation>Protégé par mot de passe</translation>
     </message>
 </context>
 <context>
@@ -13604,12 +13604,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="96"/>
         <source>Confirm delete</source>
-        <translation>confirmer la suppression</translation>
+        <translation>Confirmer la suppression</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="96"/>
         <source>Do you want to delete certificate &apos;%1&apos;?</source>
-        <translation>souhaitez-vous supprimer le certificat « %1 » ?</translation>
+        <translation>souhaitez-vous supprimer le certificat «&#xa0;%1&#xa0;»&#xa0;?</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="101"/>
@@ -13620,19 +13620,19 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="101"/>
         <source>Cannot delete certificate &apos;%1&apos;</source>
-        <translation>impossible de supprimer le certificat '%1'</translation>
+        <translation>impossible de supprimer le certificat &apos;%1&apos;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="109"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="129"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="133"/>
         <source>Import Certificate</source>
-        <translation>certificat d'importation</translation>
+        <translation>Certificat d&apos;importation</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="109"/>
         <source>Certificate file (*.pfx);;All files (*.*)</source>
-        <translation>fichier de certificat (*.pfx); Tous les fichiers (*.*)</translation>
+        <translation>fichier de certificat (*.pfx);&#xa0;Tous les fichiers (*.*)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="123"/>
@@ -13647,7 +13647,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="133"/>
         <source>Error occured during certificate &apos;%1&apos; import.</source>
-        <translation>une erreur s'est produite lors de l'importation du certificat « %1 ».</translation>
+        <translation>une erreur s&apos;est produite lors de l&apos;importation du certificat « %1 ».</translation>
     </message>
 </context>
 <context>
@@ -13655,17 +13655,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="45"/>
         <source>1024 bits</source>
-        <translation>1 024 bits</translation>
+        <translation>1&#xa0;024&#xa0;bits</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="46"/>
         <source>2048 bits</source>
-        <translation>2 048 bits</translation>
+        <translation>2&#xa0;048&#xa0;bits</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="47"/>
         <source>4096 bits</source>
-        <translation>4 096 bits</translation>
+        <translation>4&#xa0;096&#xa0;bits</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="106"/>
@@ -13694,22 +13694,22 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="117"/>
         <source>Reentered password is not equal to the first one!</source>
-        <translation>le mot de passe saisi n'est pas égal au premier !</translation>
+        <translation>le mot de passe saisi n&apos;est pas égal au premier&#xa0;!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="145"/>
         <source>Please enter a name!</source>
-        <translation>veuillez saisir un nom !</translation>
+        <translation>Veuillez saisir un nom&#xa0;!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="152"/>
         <source>Please enter an organization name!</source>
-        <translation>veuillez saisir le nom d'une organisation !</translation>
+        <translation>veuillez saisir le nom d&apos;une organisation&#xa0;!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.cpp" line="159"/>
         <source>Please enter an email address!</source>
-        <translation>veuillez saisir une adresse e-mail !</translation>
+        <translation>veuillez saisir une adresse e-mail&#xa0;!</translation>
     </message>
 </context>
 <context>
@@ -13743,7 +13743,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="137"/>
         <source>Enter url address of the hyperlink</source>
-        <translation>saisissez l'adresse URL du lien hypertexte</translation>
+        <translation>saisissez l&apos;adresse URL du lien hypertexte</translation>
     </message>
 </context>
 <context>
@@ -13751,17 +13751,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="440"/>
         <source>Orthogonal mode is enabled.</source>
-        <translation>le mode orthogonal est activé.</translation>
+        <translation>Le mode orthogonal est activé.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="444"/>
         <source>Orthogonal mode is disabled.</source>
-        <translation>le mode orthogonal est désactivé.</translation>
+        <translation>Le mode orthogonal est désactivé.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="605"/>
         <source>Use key &apos;C&apos; to show/hide large cross. Use key &apos;O&apos; to switch on/off orthogonal mode.</source>
-        <translation>utilisez la touche « C » pour afficher/masquer une grande croix. Utilisez la touche « O » pour activer/désactiver le mode orthogonal.</translation>
+        <translation>utilisez la touche «&#xa0;C&#xa0;» pour afficher/masquer une grande croix. Utilisez la touche «&#xa0;O&#xa0;» pour activer/désactiver le mode orthogonal.</translation>
     </message>
 </context>
 <context>
@@ -13769,7 +13769,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditortools.cpp" line="422"/>
         <source>Select Image</source>
-        <translation>sélectionner une image</translation>
+        <translation>Sélectionner une image</translation>
     </message>
 </context>
 <context>
@@ -13777,7 +13777,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="88"/>
         <source>Sticky note</source>
-        <translation>pense-bête</translation>
+        <translation>Pense-bête</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="88"/>
@@ -13846,7 +13846,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="292"/>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="310"/>
         <source>2-clause MIT license</source>
-        <translation>licence MIT à 2 clauses</translation>
+        <translation>licence MIT à 2&#xa0;clauses</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="294"/>
@@ -13861,7 +13861,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="300"/>
         <source>Apache 2.0</source>
-        <translation>Apache 2.0</translation>
+        <translation>Apache&#xa0;2.0</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="302"/>
@@ -13925,12 +13925,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="194"/>
         <source>Invalid page range.</source>
-        <translation>plage de pages non valide.</translation>
+        <translation>Plage de pages non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="202"/>
         <source>Comparing documents.</source>
-        <translation>comparaison de documents.</translation>
+        <translation>Comparaison de documents.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1253"/>
@@ -13965,12 +13965,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1271"/>
         <source>Removed shading from page %1.</source>
-        <translation>suppression de l'ombrage de la page %1.</translation>
+        <translation>suppression de l&apos;ombrage de la page %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1274"/>
         <source>Added text character to page %1.</source>
-        <translation>ajout d'un caractère de texte à la page %1.</translation>
+        <translation>ajout d&apos;un caractère de texte à la page %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1277"/>
@@ -13980,12 +13980,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1280"/>
         <source>Added image to page %1.</source>
-        <translation>ajout d'une image à la page %1.</translation>
+        <translation>ajout d&apos;une image à la page %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1283"/>
         <source>Added shading to page %1.</source>
-        <translation>ajout d'un ombrage à la page %1.</translation>
+        <translation>ajout d&apos;un ombrage à la page %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1286"/>
@@ -14010,72 +14010,72 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1339"/>
         <source>Page moved</source>
-        <translation>page déplacée</translation>
+        <translation>Page déplacée</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1341"/>
         <source>Page added</source>
-        <translation>page ajoutée</translation>
+        <translation>Page ajoutée</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1343"/>
         <source>Page removed</source>
-        <translation>page supprimée</translation>
+        <translation>Page supprimée</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1345"/>
         <source>Removed text character</source>
-        <translation>caractère de texte supprimé</translation>
+        <translation>Caractère de texte supprimé</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1347"/>
         <source>Removed vector graphics</source>
-        <translation>graphiques vectoriels supprimés</translation>
+        <translation>Graphiques vectoriels supprimés</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1349"/>
         <source>Removed image</source>
-        <translation>image supprimée</translation>
+        <translation>Image supprimée</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1351"/>
         <source>Removed shading</source>
-        <translation>ombrage supprimé</translation>
+        <translation>Ombrage supprimé</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1353"/>
         <source>Added text character</source>
-        <translation>caractère de texte ajouté</translation>
+        <translation>Caractère de texte ajouté</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1355"/>
         <source>Added vector graphics</source>
-        <translation>ajout de graphiques vectoriels</translation>
+        <translation>Ajout de graphiques vectoriels</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1357"/>
         <source>Added image</source>
-        <translation>image ajoutée</translation>
+        <translation>Image ajoutée</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1359"/>
         <source>Added shading</source>
-        <translation>ajout d'un ombrage</translation>
+        <translation>Ajout d&apos;un ombrage</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1361"/>
         <source>Text added</source>
-        <translation>texte ajouté</translation>
+        <translation>Texte ajouté</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1363"/>
         <source>Text removed</source>
-        <translation>texte supprimé</translation>
+        <translation>Texte supprimé</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdiff.cpp" line="1365"/>
         <source>Text replaced</source>
-        <translation>texte remplacé</translation>
+        <translation>Texte remplacé</translation>
     </message>
 </context>
 <context>
@@ -14083,7 +14083,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="35"/>
         <source>Empty page list.</source>
-        <translation>liste de pages vide.</translation>
+        <translation>Liste de pages vide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="62"/>
@@ -14101,17 +14101,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="211"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="218"/>
         <source>Missing image.</source>
-        <translation>image manquante.</translation>
+        <translation>Image manquante.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="239"/>
         <source>Error occured during page creation.</source>
-        <translation>une erreur s'est produite lors de la création de la page.</translation>
+        <translation>une erreur s&apos;est produite lors de la création de la page.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="577"/>
         <source>Document %1</source>
-        <translation>document %1</translation>
+        <translation>Document %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="582"/>
@@ -14139,32 +14139,32 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="77"/>
         <source>File &apos;%1&apos; doesn&apos;t exist.</source>
-        <translation>le fichier « %1 » n'existe pas.</translation>
+        <translation>le fichier « %1 » n&apos;existe pas.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="97"/>
         <source>Device is not opened for reading.</source>
-        <translation>l'appareil n'est pas ouvert en lecture.</translation>
+        <translation>l&apos;appareil n&apos;est pas ouvert en lecture.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="109"/>
         <source>Can&apos;t open device for reading.</source>
-        <translation>impossible d'ouvrir l'appareil en lecture.</translation>
+        <translation>impossible d&apos;ouvrir l&apos;appareil en lecture.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="119"/>
         <source>End of file marking was not found.</source>
-        <translation>le marquage de fin de fichier n'a pas été trouvé.</translation>
+        <translation>le marquage de fin de fichier n&apos;a pas été trouvé.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="162"/>
         <source>Header of PDF file was not found.</source>
-        <translation>l'en-tête du fichier PDF est introuvable.</translation>
+        <translation>l&apos;en-tête du fichier PDF est introuvable.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="168"/>
         <source>Version of the PDF file is not valid.</source>
-        <translation>la version du fichier PDF n'est pas valide.</translation>
+        <translation>la version du fichier PDF n&apos;est pas valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="177"/>
@@ -14178,17 +14178,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="216"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="222"/>
         <source>Can&apos;t read object at position %1.</source>
-        <translation>impossible de lire l'objet à la position %1.</translation>
+        <translation>impossible de lire l&apos;objet à la position %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="353"/>
         <source>Invalid trailer dictionary.</source>
-        <translation>dictionnaire de bande-annonce non valide.</translation>
+        <translation>Dictionnaire de bande-annonce non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="564"/>
         <source>Empty xref table.</source>
-        <translation>table de xréfs vide.</translation>
+        <translation>Table de xréfs vide.</translation>
     </message>
 </context>
 <context>
@@ -14196,42 +14196,42 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="151"/>
         <source>Document info was removed.</source>
-        <translation>les informations sur le document ont été supprimées.</translation>
+        <translation>Les informations sur le document ont été supprimées.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="169"/>
         <source>Metadata streams removed: %1</source>
-        <translation>flux de métadonnées supprimés : %1</translation>
+        <translation>Flux de métadonnées supprimés&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="184"/>
         <source>Outline was removed.</source>
-        <translation>le contour a été supprimé.</translation>
+        <translation>Le contour a été supprimé.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="194"/>
         <source>File attachments removed: %1.</source>
-        <translation>pièces jointes supprimées : %1.</translation>
+        <translation>Pièces jointes supprimées&#xa0;: %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="222"/>
         <source>Embedded files were removed.</source>
-        <translation>les fichiers intégrés ont été supprimés.</translation>
+        <translation>Les fichiers intégrés ont été supprimés.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="254"/>
         <source>Search index was removed.</source>
-        <translation>l'index de recherche a été supprimé.</translation>
+        <translation>L&apos;index de recherche a été supprimé.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="265"/>
         <source>Markup annotations removed: %1.</source>
-        <translation>annotations de balisage supprimées : %1.</translation>
+        <translation>Annotations de balisage supprimées&#xa0;: %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="293"/>
         <source>Page thumbnails removed: %1.</source>
-        <translation>miniatures de page supprimées : %1.</translation>
+        <translation>Miniatures de page supprimées&#xa0;: %1.</translation>
     </message>
 </context>
 <context>
@@ -14239,7 +14239,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="58"/>
         <source>Page No.</source>
-        <translation>numéro de page</translation>
+        <translation>Numéro de page.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextfloweditormodel.cpp" line="61"/>
@@ -14294,7 +14294,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentwriter.cpp" line="189"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentwriter.cpp" line="255"/>
         <source>Writing of encrypted documents is not supported.</source>
-        <translation>l'écriture de documents cryptés n'est pas prise en charge.</translation>
+        <translation>l&apos;écriture de documents cryptés n&apos;est pas prise en charge.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentwriter.cpp" line="204"/>
@@ -14306,7 +14306,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentwriter.cpp" line="246"/>
         <source>Device is not writable.</source>
-        <translation>l'appareil n'est pas accessible en écriture.</translation>
+        <translation>L&apos;appareil n&apos;est pas accessible en écriture.</translation>
     </message>
 </context>
 <context>
@@ -14314,7 +14314,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="995"/>
         <source>Edit Annotation</source>
-        <translation>modifier l'annotation</translation>
+        <translation>Modifier l&apos;annotation</translation>
     </message>
 </context>
 <context>
@@ -14336,12 +14336,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="421"/>
         <source>Case sensitive</source>
-        <translation>sensible à la casse</translation>
+        <translation>Sensible à la casse</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="422"/>
         <source>Whole words only</source>
-        <translation>mots entiers uniquement</translation>
+        <translation>Mots entiers uniquement</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="423"/>
@@ -14356,7 +14356,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="448"/>
         <source>Search text</source>
-        <translation>texte de recherche</translation>
+        <translation>Texte de recherche</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="666"/>
@@ -14392,27 +14392,27 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="146"/>
         <source>Invalid format of number. Character &apos;%1&apos; appeared.</source>
-        <translation>format de numéro non valide. Le personnage '%1' est apparu.</translation>
+        <translation>format de numéro non valide. Le personnage &apos;%1&apos; est apparu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="153"/>
         <source>Both &apos;+&apos; and &apos;-&apos; appeared in number. Invalid format of number.</source>
-        <translation>« + » et « - » apparaissent en nombre. Format de numéro non valide.</translation>
+        <translation>«&#xa0;+&#xa0;» et «&#xa0;-&#xa0;» apparaissent en nombre. Format de numéro non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="158"/>
         <source>Bad format of number - no digits appeared.</source>
-        <translation>mauvais format du numéro - aucun chiffre n'est apparu.</translation>
+        <translation>mauvais format du numéro - aucun chiffre n&apos;est apparu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="164"/>
         <source>Real number overflow.</source>
-        <translation>dépassement de nombre réel.</translation>
+        <translation>Dépassement de nombre réel.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="330"/>
         <source>Hexadecimal number must follow character &apos;#&apos; in the name.</source>
-        <translation>le nombre hexadécimal doit suivre le caractère « # » dans le nom.</translation>
+        <translation>le nombre hexadécimal doit suivre le caractère «&#xa0;#&#xa0;» dans le nom.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="411"/>
@@ -14422,28 +14422,28 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="415"/>
         <source>Unexpected end of stream reached while scanning hexadecimal string.</source>
-        <translation>fin inattendue du flux atteinte lors de l'analyse de la chaîne hexadécimale.</translation>
+        <translation>fin inattendue du flux atteinte lors de l&apos;analyse de la chaîne hexadécimale.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="431"/>
         <source>Invalid character &apos;%1&apos;</source>
-        <translation>caractère non valide « %1 »</translation>
+        <translation>caractère non valide «&#xa0;%1&#xa0;»</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="478"/>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="482"/>
         <source>Unexpected character &apos;%1&apos; in the stream.</source>
-        <translation>caractère inattendu « %1 » dans le flux.</translation>
+        <translation>caractère inattendu «&#xa0;%1&#xa0;» dans le flux.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="500"/>
         <source>Trying to seek stream position to %1 bytes from the start, byte offset is invalid.</source>
-        <translation>tentative de recherche de la position du flux sur %1 octets depuis le début, le décalage d'octet n'est pas valide.</translation>
+        <translation>tentative de recherche de la position du flux sur %1 octets depuis le début, le décalage d&apos;octet n&apos;est pas valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="552"/>
         <source>Can&apos;t read %1 bytes from the input stream. Input stream end reached.</source>
-        <translation>impossible de lire les octets %1 du flux d'entrée. Fin du flux d’entrée atteinte.</translation>
+        <translation>impossible de lire les octets %1 du flux d&apos;entrée. Fin du flux d’entrée atteinte.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="612"/>
@@ -14497,7 +14497,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="612"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="617"/>
         <source>Free text</source>
-        <translation>texte libre</translation>
+        <translation>Texte libre</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="489"/>
@@ -14555,7 +14555,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="497"/>
         <source>Strike Out</source>
-        <translation>barré</translation>
+        <translation>Barré</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="498"/>
@@ -14579,7 +14579,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="501"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="677"/>
         <source>File attachment</source>
-        <translation>pièce jointe</translation>
+        <translation>Pièce jointe</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="502"/>
@@ -14612,7 +14612,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="509"/>
         <source>Annotation name</source>
-        <translation>nom de l'annotation</translation>
+        <translation>Nom de l&apos;annotation</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="510"/>
@@ -14655,7 +14655,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="518"/>
         <source>No Zoom</source>
-        <translation>pas de zoom</translation>
+        <translation>Pas de zoom</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="519"/>
@@ -14680,17 +14680,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="523"/>
         <source>Toggle No View</source>
-        <translation>basculer sur Aucune vue</translation>
+        <translation>Basculer sur Aucune vue</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="524"/>
         <source>Locked Contents</source>
-        <translation>contenu verrouillé</translation>
+        <translation>Contenu verrouillé</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="527"/>
         <source>Modify appearance</source>
-        <translation>modifier l'apparence</translation>
+        <translation>Modifier l&apos;apparence</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="528"/>
@@ -14718,7 +14718,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="530"/>
         <source>Interior color</source>
-        <translation>couleur intérieure</translation>
+        <translation>Couleur intérieure</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="533"/>
@@ -14730,12 +14730,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="533"/>
         <source>Blend mode</source>
-        <translation>mode Fusion</translation>
+        <translation>Mode Fusion</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="543"/>
         <source>Fill opacity</source>
-        <translation>remplir l'opacité</translation>
+        <translation>Remplir l&apos;opacité</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="547"/>
@@ -14750,7 +14750,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="555"/>
         <source>Modify border</source>
-        <translation>modifier la bordure</translation>
+        <translation>Modifier la bordure</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="556"/>
@@ -14764,7 +14764,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="556"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="560"/>
         <source>Border Style</source>
-        <translation>style de bordure</translation>
+        <translation>Style de bordure</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="556"/>
@@ -14815,7 +14815,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="570"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="577"/>
         <source>Border Effect</source>
-        <translation>effet de bordure</translation>
+        <translation>Effet de bordure</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="572"/>
@@ -14839,7 +14839,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="583"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="595"/>
         <source>Sticky note</source>
-        <translation>pense-bête</translation>
+        <translation>Pense-bête</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="586"/>
@@ -14864,7 +14864,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="590"/>
         <source>New Paragraph</source>
-        <translation>nouveau paragraphe</translation>
+        <translation>Nouveau paragraphe</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="591"/>
@@ -14923,32 +14923,32 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="617"/>
         <source>Callout line ending</source>
-        <translation>fin de la ligne de légende</translation>
+        <translation>Fin de la ligne de légende</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="620"/>
         <source>Line start</source>
-        <translation>début de ligne</translation>
+        <translation>Début de ligne</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="622"/>
         <source>Line end</source>
-        <translation>fin de ligne</translation>
+        <translation>Fin de ligne</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="625"/>
         <source>Leader line length</source>
-        <translation>longueur de la ligne de repère</translation>
+        <translation>Longueur de la ligne de repère</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="628"/>
         <source>Leader line extension</source>
-        <translation>extension de la ligne de repère</translation>
+        <translation>Extension de la ligne de repère</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="631"/>
         <source>Leader line offset</source>
-        <translation>décalage de la ligne de repère</translation>
+        <translation>Décalage de la ligne de repère</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="636"/>
@@ -14968,12 +14968,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="644"/>
         <source>Line dimension</source>
-        <translation>dimension de ligne</translation>
+        <translation>Dimension de ligne</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="645"/>
         <source>Polygon dimension</source>
-        <translation>dimension du polygone</translation>
+        <translation>Dimension du polygone</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="648"/>
@@ -14983,7 +14983,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="650"/>
         <source>Caption position</source>
-        <translation>position de la légende</translation>
+        <translation>Position de la légende</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="652"/>
@@ -15045,12 +15045,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="686"/>
         <source>Overlay text</source>
-        <translation>texte superposé</translation>
+        <translation>Texte superposé</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="687"/>
         <source>Repeat overlay text</source>
-        <translation>répéter le texte de superposition</translation>
+        <translation>Répéter le texte de superposition</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="698"/>
@@ -15075,12 +15075,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="715"/>
         <source>Open arrow</source>
-        <translation>flèche d'ouverture</translation>
+        <translation>Flèche d&apos;ouverture</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="716"/>
         <source>Closed arrow</source>
-        <translation>flèche fermée</translation>
+        <translation>Flèche fermée</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="717"/>
@@ -15090,12 +15090,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="718"/>
         <source>Reversed open arrow</source>
-        <translation>flèche ouverte inversée</translation>
+        <translation>Flèche ouverte inversée</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="719"/>
         <source>Reversed closed arrow</source>
-        <translation>flèche fermée inversée</translation>
+        <translation>Flèche fermée inversée</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="720"/>
@@ -15124,7 +15124,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="138"/>
         <source>Stage %1</source>
-        <translation>étape %1</translation>
+        <translation>Étape %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="146"/>
@@ -15134,32 +15134,32 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="202"/>
         <source>Simple objects dereferenced and embedded: %1</source>
-        <translation>Objets simples déréférencés et intégrés : %1</translation>
+        <translation>Objets simples déréférencés et intégrés&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="221"/>
         <source>Null objects entries from dictionaries removed: %1</source>
-        <translation>entrées d'objets nuls des dictionnaires supprimées : %1</translation>
+        <translation>entrées d&apos;objets nuls des dictionnaires supprimées&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="246"/>
         <source>Unused objects removed: %1</source>
-        <translation>Objets inutilisés supprimés : %1</translation>
+        <translation>Objets inutilisés supprimés&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="319"/>
         <source>Identical objects merged: %1</source>
-        <translation>Objets identiques fusionnés : %1</translation>
+        <translation>Objets identiques fusionnés&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="415"/>
         <source>Object list shrinked by: %1</source>
-        <translation>liste d'objets réduite de : %1</translation>
+        <translation>liste d&apos;objets réduite de&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptimizer.cpp" line="465"/>
         <source>Bytes saved by recompressing stream: %1</source>
-        <translation>octets enregistrés par recompression du flux : %1</translation>
+        <translation>octets enregistrés par recompression du flux&#xa0;: %1</translation>
     </message>
 </context>
 <context>
@@ -15167,7 +15167,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfitemmodels.cpp" line="692"/>
         <source>Item %1</source>
-        <translation>élément %1</translation>
+        <translation>Élément %1</translation>
     </message>
 </context>
 <context>
@@ -15226,17 +15226,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="355"/>
         <source>Select Image</source>
-        <translation>sélectionner une image</translation>
+        <translation>Sélectionner une image</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="387"/>
         <source>Select Color for Pen</source>
-        <translation>sélectionnez la couleur du stylet</translation>
+        <translation>Sélectionnez la couleur du stylet</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="412"/>
         <source>Select Color for Brush</source>
-        <translation>sélectionnez la couleur du pinceau</translation>
+        <translation>Sélectionnez la couleur du pinceau</translation>
     </message>
 </context>
 <context>
@@ -15301,7 +15301,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="269"/>
         <source>Edit Item</source>
-        <translation>modifier l'élément</translation>
+        <translation>Modifier l&apos;élément</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="307"/>
@@ -15321,12 +15321,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="425"/>
         <source>Select Color for Pen</source>
-        <translation>sélectionnez la couleur du stylet</translation>
+        <translation>Sélectionnez la couleur du stylet</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="466"/>
         <source>Select Color for Brush</source>
-        <translation>sélectionnez la couleur du pinceau</translation>
+        <translation>Sélectionnez la couleur du pinceau</translation>
     </message>
 </context>
 <context>
@@ -15334,7 +15334,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="795"/>
         <source>Stream ended inside array.</source>
-        <translation>le flux s'est terminé à l'intérieur du tableau.</translation>
+        <translation>Le flux s&apos;est terminé à l&apos;intérieur du tableau.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="820"/>
@@ -15354,7 +15354,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="853"/>
         <source>Stream length is not specified.</source>
-        <translation>la longueur du flux n'est pas spécifiée.</translation>
+        <translation>la longueur du flux n&apos;est pas spécifiée.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="859"/>
@@ -15374,22 +15374,22 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="892"/>
         <source>Can&apos;t open stream data stored in external file &apos;%1&apos;.</source>
-        <translation>impossible d'ouvrir les données de flux stockées dans le fichier externe « %1 ».</translation>
+        <translation>impossible d&apos;ouvrir les données de flux stockées dans le fichier externe «&#xa0;%1&#xa0;».</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="909"/>
         <source>End of stream should end in keyword &apos;endstream&apos;.</source>
-        <translation>la fin du flux doit se terminer par le mot-clé « endstream ».</translation>
+        <translation>la fin du flux doit se terminer par le mot-clé «&#xa0;endstream&#xa0;».</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="931"/>
         <source>Cannot read object. Unexpected token appeared.</source>
-        <translation>impossible de lire l'objet. Un jeton inattendu est apparu.</translation>
+        <translation>impossible de lire l&apos;objet. Un jeton inattendu est apparu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="937"/>
         <source>Cannot read object. End of stream reached.</source>
-        <translation>impossible de lire l'objet. Fin du flux atteinte.</translation>
+        <translation>impossible de lire l&apos;objet. Fin du flux atteinte.</translation>
     </message>
 </context>
 <context>
@@ -15397,27 +15397,27 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="671"/>
         <source>Cyclical reference found while parsing object %1 %2.</source>
-        <translation>référence cyclique trouvée lors de l'analyse de l'objet %1 %2.</translation>
+        <translation>référence cyclique trouvée lors de l&apos;analyse de l&apos;objet %1 %2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="82"/>
         <source>Function dictionary expected.</source>
-        <translation>dictionnaire de fonctions attendu.</translation>
+        <translation>Dictionnaire de fonctions attendu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="93"/>
         <source>Fuction has invalid domain.</source>
-        <translation>la fonction a un domaine non valide.</translation>
+        <translation>La fonction a un domaine non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="98"/>
         <source>Fuction has invalid range.</source>
-        <translation>la fonction a une plage non valide.</translation>
+        <translation>La fonction a une plage non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="113"/>
         <source>Sampled function has invalid sample size.</source>
-        <translation>la fonction échantillonnée a une taille d'échantillon non valide.</translation>
+        <translation>la fonction échantillonnée a une taille d&apos;échantillon non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="118"/>
@@ -15427,12 +15427,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="142"/>
         <source>Sampled function hasn&apos;t any output.</source>
-        <translation>la fonction échantillonnée n'a aucune sortie.</translation>
+        <translation>la fonction échantillonnée n&apos;a aucune sortie.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="147"/>
         <source>Sampled function has invalid encode array.</source>
-        <translation>la fonction échantillonnée a un tableau d'encodage non valide.</translation>
+        <translation>la fonction échantillonnée a un tableau d&apos;encodage non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="152"/>
@@ -15442,12 +15442,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="182"/>
         <source>Not enough samples for sampled function.</source>
-        <translation>pas assez d'échantillons pour la fonction échantillonnée.</translation>
+        <translation>pas assez d&apos;échantillons pour la fonction échantillonnée.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="206"/>
         <source>Exponential function can have only one input value.</source>
-        <translation>la fonction exponentielle ne peut avoir qu'une seule valeur d'entrée.</translation>
+        <translation>la fonction exponentielle ne peut avoir qu&apos;une seule valeur d&apos;entrée.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="211"/>
@@ -15468,32 +15468,32 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="253"/>
         <source>Stitching function can have only one input value.</source>
-        <translation>la fonction d'assemblage ne peut avoir qu'une seule valeur d'entrée.</translation>
+        <translation>la fonction d&apos;assemblage ne peut avoir qu&apos;une seule valeur d&apos;entrée.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="264"/>
         <source>Stitching function has different function count. Expected %1, actual %2.</source>
-        <translation>la fonction d'assemblage a un nombre de fonctions différent. %1 attendu, %2 réel.</translation>
+        <translation>la fonction d&apos;assemblage a un nombre de fonctions différent. %1 attendu, %2 réel.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="272"/>
         <source>Stitching function has invalid encode array. Expected %1 items, actual %2.</source>
-        <translation>la fonction d'assemblage a un tableau d'encodage non valide. Éléments %1 attendus, %2 réels.</translation>
+        <translation>la fonction d&apos;assemblage a un tableau d&apos;encodage non valide. Éléments %1 attendus, %2 réels.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="301"/>
         <source>Functions in stitching function has different number of output variables.</source>
-        <translation>les fonctions de la fonction d'assemblage ont un nombre différent de variables de sortie.</translation>
+        <translation>les fonctions de la fonction d&apos;assemblage ont un nombre différent de variables de sortie.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="309"/>
         <source>Stitching function has invalid functions.</source>
-        <translation>la fonction d'assemblage a des fonctions non valides.</translation>
+        <translation>la fonction d&apos;assemblage a des fonctions non valides.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="314"/>
         <source>Stitching function hasn&apos;t functions array.</source>
-        <translation>la fonction d'assemblage n'a pas de tableau de fonctions.</translation>
+        <translation>la fonction d&apos;assemblage n&apos;a pas de tableau de fonctions.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="327"/>
@@ -15503,7 +15503,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="335"/>
         <source>Invalid function type: %1.</source>
-        <translation>type de fonction non valide : %1.</translation>
+        <translation>Type de fonction non valide&#xa0;: %1.</translation>
     </message>
 </context>
 <context>
@@ -15511,7 +15511,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="1583"/>
         <source>Use key &apos;C&apos; to show/hide large cross.</source>
-        <translation>utilisez la touche « C » pour afficher/masquer une grande croix.</translation>
+        <translation>utilisez la touche «&#xa0;C&#xa0;» pour afficher/masquer une grande croix.</translation>
     </message>
 </context>
 <context>
@@ -15524,7 +15524,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfrenderingerrorswidget.cpp" line="42"/>
         <source>Error type</source>
-        <translation>type d'erreur</translation>
+        <translation>Type d&apos;erreur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfrenderingerrorswidget.cpp" line="42"/>
@@ -15544,12 +15544,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfrenderingerrorswidget.cpp" line="74"/>
         <source>Not implemented</source>
-        <translation>non implémentée</translation>
+        <translation>Non implémentée</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfrenderingerrorswidget.cpp" line="80"/>
         <source>Not supported</source>
-        <translation>non pris en charge</translation>
+        <translation>Non pris en charge</translation>
     </message>
 </context>
 <context>
@@ -15565,17 +15565,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="2355"/>
         <source>User password contains invalid characters: %1.</source>
-        <translation>le mot de passe utilisateur contient des caractères non valides : %1.</translation>
+        <translation>le mot de passe utilisateur contient des caractères non valides&#xa0;: %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="2365"/>
         <source>Owner password contains invalid characters: %1.</source>
-        <translation>le mot de passe du propriétaire contient des caractères non valides : %1.</translation>
+        <translation>le mot de passe du propriétaire contient des caractères non valides&#xa0;: %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="2381"/>
         <source>Invalid certificate or password.</source>
-        <translation>certificat ou mot de passe invalide.</translation>
+        <translation>Certificat ou mot de passe invalide.</translation>
     </message>
 </context>
 <context>
@@ -15610,7 +15610,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfaction.cpp" line="77"/>
         <source>Invalid action.</source>
-        <translation>action non valide.</translation>
+        <translation>Action non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="204"/>
@@ -15628,7 +15628,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="210"/>
         <source>Free Text</source>
-        <translation>texte libre</translation>
+        <translation>Texte libre</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="216"/>
@@ -15668,7 +15668,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="237"/>
         <source>Strike Out</source>
-        <translation>barré</translation>
+        <translation>Barré</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="240"/>
@@ -15693,7 +15693,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="252"/>
         <source>File Attachment</source>
-        <translation>pièce jointe</translation>
+        <translation>Pièce jointe</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="255"/>
@@ -15719,7 +15719,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="267"/>
         <source>Printer Mark</source>
-        <translation>Marque de l'imprimante</translation>
+        <translation>Marque de l&apos;imprimante</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="270"/>
@@ -15760,7 +15760,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3033"/>
         <source>&amp;Approved</source>
-        <translation>&amp;approuvé</translation>
+        <translation>&amp;Approuvé</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3034"/>
@@ -15770,7 +15770,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3038"/>
         <source>As &amp;Is</source>
-        <translation>tel &amp;quel</translation>
+        <translation>Tel &amp;quel</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3039"/>
@@ -15780,7 +15780,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3043"/>
         <source>&amp;Confidential</source>
-        <translation>&amp;confidentiel</translation>
+        <translation>&amp;Confidentiel</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3044"/>
@@ -15800,7 +15800,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3053"/>
         <source>Dra&amp;ft</source>
-        <translation>&amp;brouillon</translation>
+        <translation>&amp;Brouillon</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3054"/>
@@ -15810,7 +15810,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3058"/>
         <source>&amp;Experimental</source>
-        <translation>&amp;expérimental</translation>
+        <translation>&amp;Expérimental</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3059"/>
@@ -15820,7 +15820,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3063"/>
         <source>E&amp;xpired</source>
-        <translation>&amp;expiré</translation>
+        <translation>&amp;Expiré</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3064"/>
@@ -15830,7 +15830,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3068"/>
         <source>Fina&amp;l</source>
-        <translation>&amp;final</translation>
+        <translation>&amp;Final</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3069"/>
@@ -15840,7 +15840,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3073"/>
         <source>For Co&amp;mment</source>
-        <translation>pour &amp;commentaires</translation>
+        <translation>Pour &amp;commentaires</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3074"/>
@@ -15860,7 +15860,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3083"/>
         <source>Not A&amp;pproved</source>
-        <translation>non &amp;approuvé</translation>
+        <translation>Non &amp;approuvé</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3084"/>
@@ -15870,7 +15870,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3088"/>
         <source>N&amp;ot For Public Release</source>
-        <translation>&amp;pas destiné au public</translation>
+        <translation>&amp;Pas destiné au public</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3089"/>
@@ -15890,7 +15890,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3098"/>
         <source>&amp;Top Secret</source>
-        <translation>&amp;Top Secret</translation>
+        <translation>&amp;Top&#xa0;Secret</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3099"/>
@@ -15982,7 +15982,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="355"/>
         <source>Invalid pass encoding data in CCITT stream.</source>
-        <translation>données d'encodage de passe non valides dans le flux CCITT.</translation>
+        <translation>données d&apos;encodage de passe non valides dans le flux CCITT.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="361"/>
@@ -16004,93 +16004,93 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="594"/>
         <source>Invalid index of CCITT changing element a1: a1 = %1, columns = %2.</source>
-        <translation>index non valide de l'élément de modification CCITT a1 : a1 = %1, colonnes = %2.</translation>
+        <translation>index non valide de l&apos;élément de modification CCITT a1&#xa0;: a1 = %1, colonnes = %2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="675"/>
         <source>Invalid CCITT run length code word.</source>
-        <translation>mot de code de longueur d'exécution CCITT non valide.</translation>
+        <translation>mot de code de longueur d&apos;exécution CCITT non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="697"/>
         <source>Invalid CCITT 2D mode.</source>
-        <translation>mode CCITT 2D non valide.</translation>
+        <translation>Mode CCITT 2D non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="198"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="535"/>
         <source>Conversion from gray to output device using CMS failed.</source>
-        <translation>la conversion du gris vers le périphérique de sortie à l'aide du CMS a échoué.</translation>
+        <translation>la conversion du gris vers le périphérique de sortie à l&apos;aide du CMS a échoué.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="210"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="550"/>
         <source>Conversion from gray to output device using CMS failed - invalid data format.</source>
-        <translation>échec de la conversion du gris vers le périphérique de sortie à l'aide du CMS - format de données non valide.</translation>
+        <translation>échec de la conversion du gris vers le périphérique de sortie à l&apos;aide du CMS - format de données non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="222"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="562"/>
         <source>Conversion from RGB to output device using CMS failed.</source>
-        <translation>la conversion du RVB vers le périphérique de sortie à l'aide du CMS a échoué.</translation>
+        <translation>la conversion du RVB vers le périphérique de sortie à l&apos;aide du CMS a échoué.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="235"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="577"/>
         <source>Conversion from RGB to output device using CMS failed - invalid data format.</source>
-        <translation>échec de la conversion du RVB vers le périphérique de sortie à l'aide du CMS - format de données non valide.</translation>
+        <translation>échec de la conversion du RVB vers le périphérique de sortie à l&apos;aide du CMS - format de données non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="247"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="589"/>
         <source>Conversion from CMYK to output device using CMS failed.</source>
-        <translation>la conversion de CMJN vers le périphérique de sortie à l'aide de CMS a échoué.</translation>
+        <translation>la conversion de CMJN vers le périphérique de sortie à l&apos;aide de CMS a échoué.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="265"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="604"/>
         <source>Conversion from CMYK to output device using CMS failed - invalid data format.</source>
-        <translation>échec de la conversion de CMJN vers le périphérique de sortie à l'aide de CMS - format de données non valide.</translation>
+        <translation>échec de la conversion de CMJN vers le périphérique de sortie à l&apos;aide de CMS - format de données non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="277"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="616"/>
         <source>Conversion from XYZ to output device using CMS failed.</source>
-        <translation>la conversion de XYZ vers le périphérique de sortie à l'aide de CMS a échoué.</translation>
+        <translation>la conversion de XYZ vers le périphérique de sortie à l&apos;aide de CMS a échoué.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="307"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="632"/>
         <source>Conversion from XYZ to output device using CMS failed - invalid data format.</source>
-        <translation>échec de la conversion de XYZ vers le périphérique de sortie à l'aide de CMS - format de données non valide.</translation>
+        <translation>échec de la conversion de XYZ vers le périphérique de sortie à l&apos;aide de CMS - format de données non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="319"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="701"/>
         <source>Conversion from icc profile space to output device using CMS failed.</source>
-        <translation>la conversion de l'espace de profil icc vers le périphérique de sortie à l'aide du CMS a échoué.</translation>
+        <translation>la conversion de l&apos;espace de profil icc vers le périphérique de sortie à l&apos;aide du CMS a échoué.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="348"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="723"/>
         <source>Conversion from icc profile space to output device using CMS failed - invalid data format.</source>
-        <translation>échec de la conversion de l'espace de profil icc vers le périphérique de sortie à l'aide du CMS - format de données non valide.</translation>
+        <translation>échec de la conversion de l&apos;espace de profil icc vers le périphérique de sortie à l&apos;aide du CMS - format de données non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextflow.cpp" line="315"/>
         <source>Structure tree item for MCID %1 not found.</source>
-        <translation>élément d'arborescence structurelle pour MCID %1 introuvable.</translation>
+        <translation>élément d&apos;arborescence structurelle pour MCID %1 introuvable.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextflow.cpp" line="710"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextflow.cpp" line="768"/>
         <source>Page %1</source>
-        <translation>page %1</translation>
+        <translation>Page %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextflow.cpp" line="740"/>
         <source>Valid tagged document required.</source>
-        <translation>document balisé valide requis.</translation>
+        <translation>Document balisé valide requis.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1002"/>
@@ -16107,12 +16107,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1154"/>
         <source>Invalid JBIG2 file header.</source>
-        <translation>en-tête de fichier JBIG2 non valide.</translation>
+        <translation>En-tête de fichier JBIG2 non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1168"/>
         <source>Invalid JBIG2 file header flags.</source>
-        <translation>indicateurs d'en-tête de fichier JBIG2 non valides.</translation>
+        <translation>indicateurs d&apos;en-tête de fichier JBIG2 non valides.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1176"/>
@@ -16127,7 +16127,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1222"/>
         <source>Invalid JBIG2 file - segment length is not defined.</source>
-        <translation>fichier JBIG2 non valide - la longueur du segment n'est pas définie.</translation>
+        <translation>fichier JBIG2 non valide - la longueur du segment n&apos;est pas définie.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1320"/>
@@ -16163,7 +16163,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2033"/>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3981"/>
         <source>JBIG2 invalid user huffman code table.</source>
-        <translation>table de codes Huffman d'utilisateur non valide JBIG2.</translation>
+        <translation>table de codes Huffman d&apos;utilisateur non valide JBIG2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1469"/>
@@ -16174,27 +16174,27 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1479"/>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1496"/>
         <source>JBIG2 trying to use aritmetic decoder context from previous symbol dictionary, but it doesn&apos;t exist.</source>
-        <translation>JBIG2 essaie d'utiliser le contexte du décodeur aritmétique du dictionnaire de symboles précédent, mais il n'existe pas.</translation>
+        <translation>JBIG2 essaie d&apos;utiliser le contexte du décodeur aritmétique du dictionnaire de symboles précédent, mais il n&apos;existe pas.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1559"/>
         <source>JBIG2 symbol height class has more symbols, than defined in the symbol dictionary header.</source>
-        <translation>la classe de hauteur de symbole JBIG2 contient plus de symboles que ce qui est défini dans l'en-tête du dictionnaire de symboles.</translation>
+        <translation>la classe de hauteur de symbole JBIG2 contient plus de symboles que ce qui est défini dans l&apos;en-tête du dictionnaire de symboles.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1618"/>
         <source>Trying to use reference bitmap %1, but number of decoded bitmaps is %2.</source>
-        <translation>tentative d'utilisation du bitmap de référence %1, mais le nombre de bitmaps décodés est %2.</translation>
+        <translation>tentative d&apos;utilisation du bitmap de référence %1, mais le nombre de bitmaps décodés est %2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1757"/>
         <source>JBIG2 - invalid export flags in symbol dictionary.</source>
-        <translation>JBIG2 - indicateurs d'exportation non valides dans le dictionnaire de symboles.</translation>
+        <translation>JBIG2&#xa0;-&#xa0;indicateurs d&apos;exportation non valides dans le dictionnaire de symboles.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1884"/>
         <source>JBIG2 - invalid huffman table flags in text region segment.</source>
-        <translation>JBIG2 - indicateurs de table Huffman non valides dans le segment de la région de texte.</translation>
+        <translation>JBIG2&#xa0;-&#xa0;indicateurs de table Huffman non valides dans le segment de la région de texte.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2049"/>
@@ -16246,7 +16246,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2343"/>
         <source>JBIG2 halftoning with more than 8 grayscale bit planes not supported (current bitplanes: %1).</source>
-        <translation>demi-teintes JBIG2 avec plus de 8 plans de bits en niveaux de gris non pris en charge (plans de bits actuels : %1).</translation>
+        <translation>demi-teintes JBIG2 avec plus de 8 plans de bits en niveaux de gris non pris en charge (plans de bits actuels&#xa0;: %1).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2368"/>
@@ -16271,22 +16271,22 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2488"/>
         <source>JBIG2 - malformed generic region flags.</source>
-        <translation>JBIG2 - indicateurs de région génériques mal formés.</translation>
+        <translation>JBIG2&#xa0;-&#xa0;indicateurs de région génériques mal formés.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2523"/>
         <source>JBIG2 - end of data byte sequence not found for generic region.</source>
-        <translation>JBIG2 - fin de la séquence d'octets de données introuvable pour la région générique.</translation>
+        <translation>JBIG2 - fin de la séquence d&apos;octets de données introuvable pour la région générique.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2580"/>
         <source>JBIG2 - invalid flags for generic refinement region.</source>
-        <translation>JBIG2 - indicateurs non valides pour la région de raffinement générique.</translation>
+        <translation>JBIG2&#xa0;-&#xa0;indicateurs non valides pour la région de raffinement générique.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2601"/>
         <source>JBIG2 - operation must be REPLACE for generic refinement region.</source>
-        <translation>JBIG2 - l'opération doit être REPLACE pour la région de raffinement générique.</translation>
+        <translation>JBIG2 - l&apos;opération doit être REPLACE pour la région de raffinement générique.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2615"/>
@@ -16331,17 +16331,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2810"/>
         <source>JBIG2 unknown extension %1 necessary for decoding the image.</source>
-        <translation>extension inconnue JBIG2 %1 nécessaire au décodage de l'image.</translation>
+        <translation>extension inconnue JBIG2 %1 nécessaire au décodage de l&apos;image.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2819"/>
         <source>JBIG2 segment with unknown extension has not defined length.</source>
-        <translation>le segment JBIG2 avec une extension inconnue n'a pas de longueur définie.</translation>
+        <translation>le segment JBIG2 avec une extension inconnue n&apos;a pas de longueur définie.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2834"/>
         <source>JBIG2 segment %1 is not a bitmap.</source>
-        <translation>le segment JBIG2 %1 n'est pas un bitmap.</translation>
+        <translation>le segment JBIG2 %1 n&apos;est pas un bitmap.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2850"/>
@@ -16356,7 +16356,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3506"/>
         <source>JBIG2 region segment information flags are invalid.</source>
-        <translation>les indicateurs d'informations sur le segment de région JBIG2 ne sont pas valides.</translation>
+        <translation>les indicateurs d&apos;informations sur le segment de région JBIG2 ne sont pas valides.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3560"/>
@@ -16381,7 +16381,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3626"/>
         <source>JBIG2 invalid bit operation.</source>
-        <translation>opération de bit invalide JBIG2.</translation>
+        <translation>Opération de bit invalide JBIG2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3638"/>
@@ -16457,7 +16457,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="71"/>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="77"/>
         <source>Invalid optional content properties.</source>
-        <translation>propriétés de contenu facultatives non valides.</translation>
+        <translation>Propriétés de contenu facultatives non valides.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="118"/>
@@ -16465,18 +16465,18 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="144"/>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="168"/>
         <source>Invalid optional content configuration.</source>
-        <translation>configuration de contenu facultatif non valide.</translation>
+        <translation>Configuration de contenu facultatif non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="231"/>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="253"/>
         <source>Invalid optional content group.</source>
-        <translation>groupe de contenu facultatif non valide.</translation>
+        <translation>Groupe de contenu facultatif non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="496"/>
         <source>Cyclic reference error in optional content visibility expression.</source>
-        <translation>erreur de référence cyclique dans l'expression facultative de visibilité du contenu.</translation>
+        <translation>erreur de référence cyclique dans l&apos;expression facultative de visibilité du contenu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="508"/>
@@ -16488,17 +16488,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocument.cpp" line="290"/>
         <source>Invalid number of matrix elements. Expected 6, actual %1.</source>
-        <translation>nombre d'éléments de matrice non valide. Attendu 6, réel %1.</translation>
+        <translation>nombre d&apos;éléments de matrice non valide. Attendu 6, réel %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="329"/>
         <source>Reading contents of document...</source>
-        <translation>lecture du contenu du document...</translation>
+        <translation>Lecture du contenu du document...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="396"/>
         <source>Authorization failed. Bad password provided.</source>
-        <translation>échec de l'autorisation. Mauvais mot de passe fourni.</translation>
+        <translation>échec de l&apos;autorisation. Mauvais mot de passe fourni.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="425"/>
@@ -16508,7 +16508,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="457"/>
         <source>Object stream %1 not found.</source>
-        <translation>flux d'objets %1 introuvable.</translation>
+        <translation>flux d&apos;objets %1 introuvable.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="463"/>
@@ -16516,12 +16516,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="479"/>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="500"/>
         <source>Object stream %1 is invalid.</source>
-        <translation>le flux d'objets %1 n'est pas valide.</translation>
+        <translation>le flux d&apos;objets %1 n&apos;est pas valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumentreader.cpp" line="747"/>
         <source>Trailer dictionary is not valid.</source>
-        <translation>le dictionnaire de bande-annonce n'est pas valide.</translation>
+        <translation>le dictionnaire de bande-annonce n&apos;est pas valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="116"/>
@@ -16536,12 +16536,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="124"/>
         <source>Invalid tiling pattern - bounding box is invalid.</source>
-        <translation>modèle de mosaïque non valide - le cadre de délimitation n'est pas valide.</translation>
+        <translation>modèle de mosaïque non valide - le cadre de délimitation n&apos;est pas valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="128"/>
         <source>Invalid tiling pattern - steps are invalid.</source>
-        <translation>modèle de mosaïque non valide : les étapes ne sont pas valides.</translation>
+        <translation>modèle de mosaïque non valide&#xa0;: les étapes ne sont pas valides.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="152"/>
@@ -16549,93 +16549,93 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="905"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1019"/>
         <source>Invalid pattern.</source>
-        <translation>modèle non valide.</translation>
+        <translation>Modèle non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="172"/>
         <source>Invalid shading.</source>
-        <translation>ombrage non valide.</translation>
+        <translation>Ombrage non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="194"/>
         <source>Pattern color space is not valid for shading patterns.</source>
-        <translation>l'espace colorimétrique du motif n'est pas valide pour les motifs d'ombrage.</translation>
+        <translation>l&apos;espace colorimétrique du motif n&apos;est pas valide pour les motifs d&apos;ombrage.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="223"/>
         <source>Invalid shading pattern extends. Expected 2, but %1 provided.</source>
-        <translation>extension du motif d'ombrage non valide. Attendu 2, mais %1 fourni.</translation>
+        <translation>extension du motif d&apos;ombrage non valide. Attendu 2, mais %1 fourni.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="256"/>
         <source>Invalid function shading pattern domain. Expected 4 values, but %1 provided.</source>
-        <translation>domaine de modèle d'ombrage de fonction non valide. 4 valeurs attendues, mais %1 fournies.</translation>
+        <translation>domaine de modèle d&apos;ombrage de fonction non valide. 4 valeurs attendues, mais %1 fournies.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="260"/>
         <source>Invalid function shading pattern domain. Invalid domain ranges.</source>
-        <translation>domaine de modèle d'ombrage de fonction non valide. Plages de domaines non valides.</translation>
+        <translation>domaine de modèle d&apos;ombrage de fonction non valide. Plages de domaines non valides.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="268"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="310"/>
         <source>Invalid axial shading pattern color functions. Expected %1 functions, but %2 provided.</source>
-        <translation>fonctions de couleur du motif d'ombrage axial non valides. Fonctions %1 attendues, mais %2 fournies.</translation>
+        <translation>fonctions de couleur du motif d&apos;ombrage axial non valides. Fonctions %1 attendues, mais %2 fournies.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="294"/>
         <source>Invalid axial shading pattern coordinates. Expected 4, but %1 provided.</source>
-        <translation>coordonnées du motif d'ombrage axial non valides. Attendu 4, mais %1 fourni.</translation>
+        <translation>coordonnées du motif d&apos;ombrage axial non valides. Attendu 4, mais %1 fourni.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="304"/>
         <source>Invalid axial shading pattern domain. Expected 2, but %1 provided.</source>
-        <translation>domaine de motif d'ombrage axial non valide. Attendu 2, mais %1 fourni.</translation>
+        <translation>domaine de motif d&apos;ombrage axial non valide. Attendu 2, mais %1 fourni.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="340"/>
         <source>Invalid radial shading pattern coordinates. Expected 6, but %1 provided.</source>
-        <translation>coordonnées du motif d'ombrage radial non valides. Attendu 6, mais %1 fourni.</translation>
+        <translation>coordonnées du motif d&apos;ombrage radial non valides. Attendu 6, mais %1 fourni.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="350"/>
         <source>Invalid radial shading pattern domain. Expected 2, but %1 provided.</source>
-        <translation>domaine de motif d'ombrage radial non valide. Attendu 2, mais %1 fourni.</translation>
+        <translation>domaine de motif d&apos;ombrage radial non valide. Attendu 2, mais %1 fourni.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="356"/>
         <source>Invalid radial shading pattern color functions. Expected %1 functions, but %2 provided.</source>
-        <translation>fonctions de couleur du motif d'ombrage radial non valides. Fonctions %1 attendues, mais %2 fournies.</translation>
+        <translation>fonctions de couleur du motif d&apos;ombrage radial non valides. Fonctions %1 attendues, mais %2 fournies.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="361"/>
         <source>Radial shading cannot have negative circle radius.</source>
-        <translation>l'ombrage radial ne peut pas avoir un rayon de cercle négatif.</translation>
+        <translation>l&apos;ombrage radial ne peut pas avoir un rayon de cercle négatif.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="432"/>
         <source>Invalid bits per coordinate (%1) for shading.</source>
-        <translation>bits non valides par coordonnée (%1) pour l'ombrage.</translation>
+        <translation>bits non valides par coordonnée (%1) pour l&apos;ombrage.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="437"/>
         <source>Invalid bits per component (%1) for shading.</source>
-        <translation>bits non valides par composant (%1) pour l'ombrage.</translation>
+        <translation>bits non valides par composant (%1) pour l&apos;ombrage.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="445"/>
         <source>Invalid domain for shading. Expected size is 6, actual size is %1.</source>
-        <translation>domaine non valide pour l'ombrage. La taille attendue est 6, la taille réelle est %1.</translation>
+        <translation>domaine non valide pour l&apos;ombrage. La taille attendue est 6, la taille réelle est %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="453"/>
         <source>Invalid domain for shading. Expected size is %1, actual size is %2.</source>
-        <translation>domaine non valide pour l'ombrage. La taille attendue est %1, la taille réelle est %2.</translation>
+        <translation>domaine non valide pour l&apos;ombrage. La taille attendue est %1, la taille réelle est %2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="483"/>
         <source>Invalid bits per flag (%1) for shading.</source>
-        <translation>bits non valides par indicateur (%1) pour l'ombrage.</translation>
+        <translation>bits non valides par indicateur (%1) pour l&apos;ombrage.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="494"/>
@@ -16645,13 +16645,13 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="508"/>
         <source>Invalid shading pattern type (%1).</source>
-        <translation>type de motif d'ombrage non valide (%1).</translation>
+        <translation>type de motif d&apos;ombrage non valide (%1).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="759"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="892"/>
         <source>Error occured during mesh generation of shading: %1</source>
-        <translation>une erreur s'est produite lors de la génération du maillage de l'ombrage : %1</translation>
+        <translation>une erreur s&apos;est produite lors de la génération du maillage de l&apos;ombrage&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="1008"/>
@@ -16661,7 +16661,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="2515"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="2525"/>
         <source>Error occured during mesh creation of shading: %1</source>
-        <translation>une erreur s'est produite lors de la création du maillage de l'ombrage : %1</translation>
+        <translation>une erreur s&apos;est produite lors de la création du maillage de l&apos;ombrage&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="2291"/>
@@ -16683,17 +16683,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="3120"/>
         <source>Invalid data in tensor product patch shading.</source>
-        <translation>données non valides dans l'ombrage du patch du produit tensoriel.</translation>
+        <translation>données non valides dans l&apos;ombrage du patch du produit tensoriel.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="3718"/>
         <source>Invalid data in coons patch shading.</source>
-        <translation>données non valides dans l'ombrage du patch Coons.</translation>
+        <translation>données non valides dans l&apos;ombrage du patch Coons.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="320"/>
         <source>Unknown crypt filter &apos;%1&apos;.</source>
-        <translation>filtre de chiffrement inconnu '%1'.</translation>
+        <translation>filtre de chiffrement inconnu &apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="346"/>
@@ -16701,27 +16701,27 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1642"/>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1715"/>
         <source>Revision %1 of standard security handler is not supported.</source>
-        <translation>la révision %1 du gestionnaire de sécurité standard n'est pas prise en charge.</translation>
+        <translation>la révision %1 du gestionnaire de sécurité standard n&apos;est pas prise en charge.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="365"/>
         <source>Expected %1 characters long string in entry &apos;%2&apos;. Provided length is %3.</source>
-        <translation>chaîne longue de %1 caractères attendue dans l'entrée « %2 ». La longueur fournie est %3.</translation>
+        <translation>chaîne longue de %1 caractères attendue dans l&apos;entrée « %2 ». La longueur fournie est %3.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="375"/>
         <source>Expected %1 characters long string in entry &apos;%2&apos;.</source>
-        <translation>chaîne longue de %1 caractères attendue dans l'entrée « %2 ».</translation>
+        <translation>chaîne longue de %1 caractères attendue dans l&apos;entrée « %2 ».</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="411"/>
         <source>Invalid encryption dictionary.</source>
-        <translation>dictionnaire de chiffrement non valide.</translation>
+        <translation>Dictionnaire de chiffrement non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="419"/>
         <source>Unknown security handler.</source>
-        <translation>gestionnaire de sécurité inconnu.</translation>
+        <translation>Gestionnaire de sécurité inconnu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="427"/>
@@ -16731,50 +16731,50 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="696"/>
         <source>Invalid value for entry &apos;%1&apos; in encryption dictionary. Name expected.</source>
-        <translation>valeur non valide pour l'entrée « %1 » dans le dictionnaire de chiffrement. Nom attendu.</translation>
+        <translation>valeur non valide pour l&apos;entrée « %1 » dans le dictionnaire de chiffrement. Nom attendu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="712"/>
         <source>Invalid value for entry &apos;%1&apos; in encryption dictionary. Boolean expected.</source>
-        <translation>valeur non valide pour l'entrée « %1 » dans le dictionnaire de chiffrement. Booléen attendu.</translation>
+        <translation>valeur non valide pour l&apos;entrée « %1 » dans le dictionnaire de chiffrement. Booléen attendu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="728"/>
         <source>Invalid value for entry &apos;%1&apos; in encryption dictionary. Integer expected.</source>
-        <translation>valeur non valide pour l'entrée « %1 » dans le dictionnaire de chiffrement. Entier attendu.</translation>
+        <translation>valeur non valide pour l&apos;entrée « %1 » dans le dictionnaire de chiffrement. Entier attendu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="741"/>
         <source>Crypt filter is not a dictionary!</source>
-        <translation>le filtre Crypt n'est pas un dictionnaire !</translation>
+        <translation>le filtre Crypt n&apos;est pas un dictionnaire&#xa0;!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="766"/>
         <source>Unsupported encryption algorithm &apos;%1&apos;.</source>
-        <translation>algorithme de chiffrement non pris en charge '%1'.</translation>
+        <translation>algorithme de chiffrement non pris en charge &apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="780"/>
         <source>Unsupported authorization event &apos;%1&apos;.</source>
-        <translation>événement d'autorisation non pris en charge « %1 ».</translation>
+        <translation>événement d&apos;autorisation non pris en charge « %1 ».</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1105"/>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1162"/>
         <source>Crypt filter &apos;%1&apos; not found.</source>
-        <translation>filtre de cryptage '%1' introuvable.</translation>
+        <translation>filtre de cryptage &apos;%1&apos; introuvable.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1414"/>
         <source>Permissions entry in the Encryption dictionary is invalid.</source>
-        <translation>l'entrée des autorisations dans le dictionnaire de chiffrement n'est pas valide.</translation>
+        <translation>l&apos;entrée des autorisations dans le dictionnaire de chiffrement n&apos;est pas valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1421"/>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1427"/>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1431"/>
         <source>Security permissions are manipulated. Can&apos;t open the document.</source>
-        <translation>les autorisations de sécurité sont manipulées. Impossible d'ouvrir le document.</translation>
+        <translation>les autorisations de sécurité sont manipulées. Impossible d&apos;ouvrir le document.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1540"/>
@@ -16790,7 +16790,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="240"/>
         <source>Certificate format is invalid.</source>
-        <translation>le format du certificat n'est pas valide.</translation>
+        <translation>Le format du certificat n&apos;est pas valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="246"/>
@@ -16800,22 +16800,22 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="252"/>
         <source>Certificate is missing.</source>
-        <translation>le certificat est manquant.</translation>
+        <translation>Le certificat est manquant.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="258"/>
         <source>Generic error occured during certificate validation.</source>
-        <translation>une erreur générique s'est produite lors de la validation du certificat.</translation>
+        <translation>une erreur générique s&apos;est produite lors de la validation du certificat.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="264"/>
         <source>Certificate has expired.</source>
-        <translation>le certificat a expiré.</translation>
+        <translation>Le certificat a expiré.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="270"/>
         <source>Certificate is self-signed.</source>
-        <translation>le certificat est auto-signé.</translation>
+        <translation>Le certificat est auto-signé.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="276"/>
@@ -16825,12 +16825,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="282"/>
         <source>Trusted certificate not found.</source>
-        <translation>certificat de confiance introuvable.</translation>
+        <translation>Certificat de confiance introuvable.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="288"/>
         <source>Certificate has been revoked.</source>
-        <translation>le certificat a été révoqué.</translation>
+        <translation>Le certificat a été révoqué.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="294"/>
@@ -16840,7 +16840,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="300"/>
         <source>Signature is invalid.</source>
-        <translation>la signature n'est pas valide.</translation>
+        <translation>La signature n&apos;est pas valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="306"/>
@@ -16850,7 +16850,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="312"/>
         <source>Signature certificate is missing.</source>
-        <translation>le certificat de signature est manquant.</translation>
+        <translation>Le certificat de signature est manquant.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="318"/>
@@ -16860,7 +16860,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="324"/>
         <source>Signed data are invalid.</source>
-        <translation>les données signées ne sont pas valides.</translation>
+        <translation>Les données signées ne sont pas valides.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="330"/>
@@ -16885,7 +16885,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="365"/>
         <source>Unable to get CRL.</source>
-        <translation>impossible d'obtenir la CRL.</translation>
+        <translation>Impossible d&apos;obtenir la CRL.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="460"/>
@@ -16905,12 +16905,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="956"/>
         <source>Transformation between blending color space failed.</source>
-        <translation>la transformation entre l'espace colorimétrique de fusion a échoué.</translation>
+        <translation>la transformation entre l&apos;espace colorimétrique de fusion a échoué.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1201"/>
         <source>Invalid clear color - process color %1 was not found in clear color.</source>
-        <translation>couleur claire non valide - la couleur quadrichromie %1 n'a pas été trouvée dans la couleur claire.</translation>
+        <translation>couleur claire non valide - la couleur quadrichromie %1 n&apos;a pas été trouvée dans la couleur claire.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1210"/>
@@ -16922,14 +16922,14 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1396"/>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1404"/>
         <source>Transformation of spot color to blend color space failed.</source>
-        <translation>la transformation de la couleur d'accompagnement pour mélanger l'espace colorimétrique a échoué.</translation>
+        <translation>la transformation de la couleur d&apos;accompagnement pour mélanger l&apos;espace colorimétrique a échoué.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1428"/>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="733"/>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="767"/>
         <source>Invalid number bits of image mask (should be 1 bit instead of %1 bits).</source>
-        <translation>nombre de bits du masque d'image non valide (doit être 1 bit au lieu de %1 bits).</translation>
+        <translation>nombre de bits du masque d&apos;image non valide (doit être 1 bit au lieu de %1 bits).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1433"/>
@@ -16937,29 +16937,29 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="741"/>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="772"/>
         <source>Invalid size of image (%1x%2)</source>
-        <translation>taille d'image non valide (%1x%2)</translation>
+        <translation>taille d&apos;image non valide (%1x%2)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1559"/>
         <source>Invalid image color space.</source>
-        <translation>espace colorimétrique de l'image non valide.</translation>
+        <translation>Espace colorimétrique de l&apos;image non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1576"/>
         <source>Invalid base color space of indexed color space.</source>
-        <translation>espace colorimétrique de base non valide de l'espace colorimétrique indexé.</translation>
+        <translation>espace colorimétrique de base non valide de l&apos;espace colorimétrique indexé.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1584"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1922"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1968"/>
         <source>Invalid colors for indexed color space. Color space has %1 colors. Provided color count is %4.</source>
-        <translation>couleurs non valides pour l'espace colorimétrique indexé. L'espace colorimétrique a %1 couleurs. Le nombre de couleurs fourni est %4.</translation>
+        <translation>couleurs non valides pour l&apos;espace colorimétrique indexé. L&apos;espace colorimétrique a %1 couleurs. Le nombre de couleurs fourni est %4.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1612"/>
         <source>Conversion of indexed image to base color space failed.</source>
-        <translation>la conversion de l'image indexée vers l'espace colorimétrique de base a échoué.</translation>
+        <translation>la conversion de l&apos;image indexée vers l&apos;espace colorimétrique de base a échoué.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1674"/>
@@ -16967,7 +16967,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="496"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2096"/>
         <source>Image masking not implemented!</source>
-        <translation>masquage d'image non implémenté !</translation>
+        <translation>Masquage d&apos;image non implémenté&#xa0;!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1689"/>
@@ -16978,7 +16978,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="426"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2028"/>
         <source>Invalid colors for color space. Color space has %1 colors. Provided color count is %4.</source>
-        <translation>couleurs non valides pour l'espace colorimétrique. L'espace colorimétrique a %1 couleurs. Le nombre de couleurs fourni est %4.</translation>
+        <translation>couleurs non valides pour l&apos;espace colorimétrique. L&apos;espace colorimétrique a %1 couleurs. Le nombre de couleurs fourni est %4.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1695"/>
@@ -16993,7 +16993,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1743"/>
         <source>Invalid matte color.</source>
-        <translation>couleur mate non valide.</translation>
+        <translation>Couleur mate non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1851"/>
@@ -17025,12 +17025,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1944"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="559"/>
         <source>Soft mask should have only 1 color component (alpha) instead of %1.</source>
-        <translation>le masque logiciel ne doit avoir qu'un seul composant de couleur (alpha) au lieu de %1.</translation>
+        <translation>le masque logiciel ne doit avoir qu&apos;un seul composant de couleur (alpha) au lieu de %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2015"/>
         <source>Invalind soft mask.</source>
-        <translation>masque logiciel non valide.</translation>
+        <translation>Masque logiciel non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2028"/>
@@ -17040,42 +17040,42 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2062"/>
         <source>Invalid soft mask type.</source>
-        <translation>type de masque logiciel non valide.</translation>
+        <translation>Type de masque logiciel non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2084"/>
         <source>Evaulation of soft mask transfer function failed.</source>
-        <translation>l'évaluation de la fonction de transfert de masque logiciel a échoué.</translation>
+        <translation>l&apos;évaluation de la fonction de transfert de masque logiciel a échoué.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2287"/>
         <source>Cannot create shading sampler.</source>
-        <translation>impossible de créer un échantillonneur d'ombrage.</translation>
+        <translation>Impossible de créer un échantillonneur d&apos;ombrage.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2750"/>
         <source>Image painting not implemented.</source>
-        <translation>peinture d'image non implémentée.</translation>
+        <translation>Peinture d&apos;image non implémentée.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2757"/>
         <source>Mesh painting not implemented.</source>
-        <translation>peinture de maillage non implémentée.</translation>
+        <translation>Peinture de maillage non implémentée.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2912"/>
         <source>Invalid source ink index %1.</source>
-        <translation>index d'encre source non valide %1.</translation>
+        <translation>index d&apos;encre source non valide %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2919"/>
         <source>Invalid target ink index %1.</source>
-        <translation>index d'encre cible non valide %1.</translation>
+        <translation>index d&apos;encre cible non valide %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2967"/>
         <source>Transformation from source color space to target blending color space failed.</source>
-        <translation>la transformation de l'espace colorimétrique source vers l'espace colorimétrique de fusion cible a échoué.</translation>
+        <translation>la transformation de l&apos;espace colorimétrique source vers l&apos;espace colorimétrique de fusion cible a échoué.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3083"/>
@@ -17125,7 +17125,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="94"/>
         <source>Not enough data to read %1-bit value.</source>
-        <translation>données insuffisantes pour lire la valeur %1 bit.</translation>
+        <translation>données insuffisantes pour lire la valeur %1&#xa0;bit.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="134"/>
@@ -17135,29 +17135,29 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="189"/>
         <source>Can&apos;t get substream - remaining %1 bits in buffer.</source>
-        <translation>impossible d'obtenir le sous-flux - bits %1 restants dans le tampon.</translation>
+        <translation>impossible d&apos;obtenir le sous-flux - bits %1 restants dans le tampon.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="445"/>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="451"/>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="470"/>
         <source>Can&apos;t convert &apos;%1&apos; to a number.</source>
-        <translation>impossible de convertir « %1 » en nombre.</translation>
+        <translation>impossible de convertir «&#xa0;%1&#xa0;» en nombre.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="457"/>
         <source>Closed interval [%1, %2] is invalid.</source>
-        <translation>l'intervalle fermé [%1, %2] n'est pas valide.</translation>
+        <translation>l&apos;intervalle fermé [%1, %2] n&apos;est pas valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="11854"/>
         <source>Rendering of content type &apos;%1&apos; is not implemented.</source>
-        <translation>le rendu du type de contenu « %1 » n'est pas implémenté.</translation>
+        <translation>le rendu du type de contenu « %1 » n&apos;est pas implémenté.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="11929"/>
         <source>Image encoded by &apos;package&apos; mode not decoded.</source>
-        <translation>image codée par le mode « package » non décodée.</translation>
+        <translation>image codée par le mode «&#xa0;package&#xa0;» non décodée.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="11946"/>
@@ -17168,28 +17168,28 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12004"/>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12173"/>
         <source>XFA: Buttons not implemented.</source>
-        <translation>XFA : boutons non implémentés.</translation>
+        <translation>XFA&#xa0;: boutons non implémentés.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12187"/>
         <source>XFA: Uknown ui.</source>
-        <translation>XFA : interface utilisateur inconnue.</translation>
+        <translation>XFA&#xa0;: interface utilisateur inconnue.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12542"/>
         <source>Barcode not implemented!</source>
-        <translation>code-barres non implémenté !</translation>
+        <translation>Code-barres non implémenté&#xa0;!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12846"/>
         <source>XFA: Unknown fill pattern.</source>
-        <translation>XFA : motif de remplissage inconnu.</translation>
+        <translation>XFA&#xa0;: motif de remplissage inconnu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="13244"/>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="13301"/>
         <source>XFA: special stroke is not supported.</source>
-        <translation>XFA : le trait spécial n'est pas pris en charge.</translation>
+        <translation>XFA&#xa0;: le trait spécial n&apos;est pas pris en charge.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="181"/>
@@ -17205,12 +17205,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="930"/>
         <source>Optional Content User Interaction</source>
-        <translation>interaction facultative avec l'utilisateur du contenu</translation>
+        <translation>Interaction facultative avec l&apos;utilisateur du contenu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="932"/>
         <source>Optional Content Usage</source>
-        <translation>utilisation facultative du contenu</translation>
+        <translation>Utilisation facultative du contenu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="934"/>
@@ -17225,12 +17225,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="938"/>
         <source>Markup Annotations</source>
-        <translation>annotations de balisage</translation>
+        <translation>Annotations de balisage</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="940"/>
         <source>Markup of 3D Content</source>
-        <translation>balisage du contenu 3D</translation>
+        <translation>Balisage du contenu 3D</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="942"/>
@@ -17260,17 +17260,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="952"/>
         <source>Attached Files</source>
-        <translation>fichiers joints</translation>
+        <translation>Fichiers joints</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="954"/>
         <source>Attached Files Modification</source>
-        <translation>modification des fichiers joints</translation>
+        <translation>Modification des fichiers joints</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="956"/>
         <source>Collections of Attached Files</source>
-        <translation>collections de fichiers joints</translation>
+        <translation>Collections de fichiers joints</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="958"/>
@@ -17280,12 +17280,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="960"/>
         <source>Digital Signature Validation</source>
-        <translation>validation de signature numérique</translation>
+        <translation>Validation de signature numérique</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="962"/>
         <source>Apply Digital Signature</source>
-        <translation>appliquer une signature numérique</translation>
+        <translation>Appliquer une signature numérique</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="964"/>
@@ -17295,17 +17295,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="968"/>
         <source>Geospatial 2D Features</source>
-        <translation>fonctionnalités géospatiales 2D</translation>
+        <translation>Fonctionnalités géospatiales 2D</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="970"/>
         <source>Geospatial 3D Features</source>
-        <translation>fonctionnalités géospatiales 3D</translation>
+        <translation>Fonctionnalités géospatiales 3D</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="972"/>
         <source>Navigation for Document Parts</source>
-        <translation>navigation pour les parties de document</translation>
+        <translation>Navigation pour les parties de document</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="974"/>
@@ -17325,29 +17325,29 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpage.cpp" line="97"/>
         <source>Invalid page rotation.</source>
-        <translation>rotation des pages non valide.</translation>
+        <translation>Rotation des pages non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpage.cpp" line="284"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpage.cpp" line="299"/>
         <source>Expected valid kids in page tree.</source>
-        <translation>enfants valides attendus dans l'arborescence des pages.</translation>
+        <translation>enfants valides attendus dans l&apos;arborescence des pages.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpage.cpp" line="290"/>
         <source>Detected cycles in page tree.</source>
-        <translation>cycles détectés dans l'arborescence des pages.</translation>
+        <translation>cycles détectés dans l&apos;arborescence des pages.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpage.cpp" line="350"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpage.cpp" line="355"/>
         <source>Expected valid type item in page tree.</source>
-        <translation>élément de type valide attendu dans l'arborescence des pages.</translation>
+        <translation>élément de type valide attendu dans l&apos;arborescence des pages.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpage.cpp" line="360"/>
         <source>Expected dictionary in page tree.</source>
-        <translation>dictionnaire attendu dans l'arborescence des pages.</translation>
+        <translation>dictionnaire attendu dans l&apos;arborescence des pages.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="273"/>
@@ -17357,28 +17357,28 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="405"/>
         <source>Failed to initialize flate compression stream.</source>
-        <translation>échec de l'initialisation du flux de compression plate.</translation>
+        <translation>échec de l&apos;initialisation du flux de compression plate.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="436"/>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="538"/>
         <source>zlib code: %1</source>
-        <translation>code zlib : %1</translation>
+        <translation>code zlib&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="439"/>
         <source>Error compressing by flate method: %1</source>
-        <translation>Erreur de compression par la méthode flate : %1</translation>
+        <translation>Erreur de compression par la méthode flate&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="503"/>
         <source>Failed to initialize flate decompression stream.</source>
-        <translation>échec de l'initialisation du flux de décompression plate.</translation>
+        <translation>échec de l&apos;initialisation du flux de décompression plate.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="541"/>
         <source>Error decompressing by flate method: %1</source>
-        <translation>Erreur de décompression par la méthode flate : %1</translation>
+        <translation>Erreur de décompression par la méthode flate&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="762"/>
@@ -17388,12 +17388,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="772"/>
         <source>Invalid property &apos;%1&apos; of the stream predictor parameters.</source>
-        <translation>propriété non valide '%1' des paramètres du prédicteur de flux.</translation>
+        <translation>propriété non valide &apos;%1&apos; des paramètres du prédicteur de flux.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="806"/>
         <source>Invalid predictor algorithm.</source>
-        <translation>algorithme de prédicteur non valide.</translation>
+        <translation>Algorithme de prédicteur non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="949"/>
@@ -17409,7 +17409,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1070"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1170"/>
         <source>Can&apos;t load color space, because color space structure is too complex.</source>
-        <translation>impossible de charger l'espace colorimétrique, car la structure de l'espace colorimétrique est trop complexe.</translation>
+        <translation>impossible de charger l&apos;espace colorimétrique, car la structure de l&apos;espace colorimétrique est trop complexe.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1159"/>
@@ -17417,7 +17417,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2414"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2437"/>
         <source>Invalid color space.</source>
-        <translation>espace colorimétrique non valide.</translation>
+        <translation>Espace colorimétrique non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1783"/>
@@ -17438,79 +17438,79 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1935"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1984"/>
         <source>Operation cancelled!</source>
-        <translation>Opération annulée !</translation>
+        <translation>Opération annulée&#xa0;!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2116"/>
         <source>Can&apos;t determine base color space for indexed color space.</source>
-        <translation>impossible de déterminer l'espace colorimétrique de base pour l'espace colorimétrique indexé.</translation>
+        <translation>impossible de déterminer l&apos;espace colorimétrique de base pour l&apos;espace colorimétrique indexé.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2142"/>
         <source>Invalid colors for indexed color space. Color space has %1 colors, %2 color components and must have %3 size. Provided size is %4.</source>
-        <translation>couleurs non valides pour l'espace colorimétrique indexé. L'espace colorimétrique comprend des couleurs %1, des composants de couleur %2 et doit avoir une taille %3. La taille fournie est %4.</translation>
+        <translation>couleurs non valides pour l&apos;espace colorimétrique indexé. L&apos;espace colorimétrique comprend des couleurs %1, des composants de couleur %2 et doit avoir une taille %3. La taille fournie est %4.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2326"/>
         <source>Can&apos;t determine color name for separation color space.</source>
-        <translation>impossible de déterminer le nom de la couleur pour l'espace colorimétrique de séparation.</translation>
+        <translation>impossible de déterminer le nom de la couleur pour l&apos;espace colorimétrique de séparation.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2334"/>
         <source>Can&apos;t determine alternate color space for separation color space.</source>
-        <translation>impossible de déterminer un espace colorimétrique alternatif pour l'espace colorimétrique de séparation.</translation>
+        <translation>impossible de déterminer un espace colorimétrique alternatif pour l&apos;espace colorimétrique de séparation.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2340"/>
         <source>Can&apos;t determine tint transform for separation color space.</source>
-        <translation>impossible de déterminer la transformation de teinte pour l'espace colorimétrique de séparation.</translation>
+        <translation>impossible de déterminer la transformation de teinte pour l&apos;espace colorimétrique de séparation.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2392"/>
         <source>Pattern doesn&apos;t have defined uniform color.</source>
-        <translation>le motif n'a pas de couleur uniforme définie.</translation>
+        <translation>le motif n&apos;a pas de couleur uniforme définie.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2556"/>
         <source>Invalid colorants for DeviceN color space.</source>
-        <translation>colorants non valides pour l'espace colorimétrique DeviceN.</translation>
+        <translation>colorants non valides pour l&apos;espace colorimétrique DeviceN.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2570"/>
         <source>Can&apos;t determine alternate color space for DeviceN color space.</source>
-        <translation>impossible de déterminer un espace colorimétrique alternatif pour l'espace colorimétrique DeviceN.</translation>
+        <translation>impossible de déterminer un espace colorimétrique alternatif pour l&apos;espace colorimétrique DeviceN.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2576"/>
         <source>Can&apos;t determine tint transform for DeviceN color space.</source>
-        <translation>impossible de déterminer la transformation de teinte pour l'espace colorimétrique DeviceN.</translation>
+        <translation>impossible de déterminer la transformation de teinte pour l&apos;espace colorimétrique DeviceN.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="167"/>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="186"/>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="203"/>
         <source>Page %1 doesn&apos;t exist.</source>
-        <translation>la page %1 n'existe pas.</translation>
+        <translation>la page %1 n&apos;existe pas.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="338"/>
         <source>Start at %1...</source>
-        <translation>commencer à %1...</translation>
+        <translation>Commencer à %1...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="344"/>
         <source>Rendering document into images.</source>
-        <translation>rendu du document en images.</translation>
+        <translation>Rendu du document en images.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="357"/>
         <source>Page %1 not found.</source>
-        <translation>page %1 introuvable.</translation>
+        <translation>Page %1 introuvable.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="418"/>
         <source>Finished at %1...</source>
-        <translation>terminé à %1...</translation>
+        <translation>Terminé à %1...</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="419"/>
@@ -17525,27 +17525,27 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="651"/>
         <source>Target directory is empty.</source>
-        <translation>le répertoire cible est vide.</translation>
+        <translation>Le répertoire cible est vide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="659"/>
         <source>Target directory &apos;%1&apos; doesn&apos;t exist.</source>
-        <translation>le répertoire cible « %1 » n'existe pas.</translation>
+        <translation>le répertoire cible « %1 » n&apos;existe pas.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="665"/>
         <source>File template is empty.</source>
-        <translation>le modèle de fichier est vide.</translation>
+        <translation>Le modèle de fichier est vide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="671"/>
         <source>File template must contain character &apos;%&apos; for page number.</source>
-        <translation>le modèle de fichier doit contenir le caractère « % » pour le numéro de page.</translation>
+        <translation>le modèle de fichier doit contenir le caractère «&#xa0;%&#xa0;» pour le numéro de page.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="684"/>
         <source>Page list is invalid. It should have form such as &apos;1-12,17,24,27-29&apos;.</source>
-        <translation>la liste des pages n'est pas valide. Il devrait avoir une forme telle que « 1-12,17,24,27-29 ».</translation>
+        <translation>la liste des pages n&apos;est pas valide. Il devrait avoir une forme telle que « 1-12,17,24,27-29 ».</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="690"/>
@@ -17566,81 +17566,81 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="336"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="346"/>
         <source>Invalid page contents.</source>
-        <translation>contenu de la page non valide.</translation>
+        <translation>Contenu de la page non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="352"/>
         <source>Graphic state stack was saved more times, than was restored.</source>
-        <translation>la pile d'état graphique a été enregistrée plus de fois qu'elle n'a été restaurée.</translation>
+        <translation>la pile d&apos;état graphique a été enregistrée plus de fois qu&apos;elle n&apos;a été restaurée.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="531"/>
         <source>Transparency group blending color space is invalid.</source>
-        <translation>l'espace colorimétrique de fusion du groupe de transparence n'est pas valide.</translation>
+        <translation>l&apos;espace colorimétrique de fusion du groupe de transparence n&apos;est pas valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="588"/>
         <source>Invalid inline image dictionary, ID operator is missing.</source>
-        <translation>dictionnaire d'images en ligne non valide, l'opérateur ID est manquant.</translation>
+        <translation>dictionnaire d&apos;images en ligne non valide, l&apos;opérateur ID est manquant.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="625"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="675"/>
         <source>Expected name in the inline image dictionary stream.</source>
-        <translation>nom attendu dans le flux du dictionnaire d'images en ligne.</translation>
+        <translation>nom attendu dans le flux du dictionnaire d&apos;images en ligne.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="686"/>
         <source>Invalid inline image stream.</source>
-        <translation>flux d'images en ligne non valide.</translation>
+        <translation>Flux d&apos;images en ligne non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="871"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="971"/>
         <source>Shading pattern graphic state is invalid.</source>
-        <translation>l'état graphique du motif d'ombrage n'est pas valide.</translation>
+        <translation>l&apos;état graphique du motif d&apos;ombrage n&apos;est pas valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1072"/>
         <source>Uncolored tiling pattern has not underlying color space.</source>
-        <translation>le motif de mosaïque non coloré n'a pas d'espace colorimétrique sous-jacent.</translation>
+        <translation>le motif de mosaïque non coloré n&apos;a pas d&apos;espace colorimétrique sous-jacent.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1620"/>
         <source>Unknown operator &apos;%1&apos;.</source>
-        <translation>opérateur inconnu '%1'.</translation>
+        <translation>opérateur inconnu &apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1626"/>
         <source>Not implemented operator &apos;%1&apos;.</source>
-        <translation>opérateur non implémenté '%1'.</translation>
+        <translation>opérateur non implémenté &apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1642"/>
         <source>Current point of path is not set. Path is empty.</source>
-        <translation>le point de chemin actuel n'est pas défini. Le chemin est vide.</translation>
+        <translation>le point de chemin actuel n&apos;est pas défini. Le chemin est vide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1802"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1809"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2882"/>
         <source>Invalid line dash pattern.</source>
-        <translation>motif de tiret de ligne non valide.</translation>
+        <translation>Motif de tiret de ligne non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1870"/>
         <source>Marked content is not well formed (not enough EMC operators).</source>
-        <translation>le contenu marqué n'est pas bien formé (pas assez d'opérateurs EMC).</translation>
+        <translation>le contenu marqué n&apos;est pas bien formé (pas assez d&apos;opérateurs EMC).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1953"/>
         <source>Blend mode &apos;%1&apos; is invalid.</source>
-        <translation>le mode de fusion '%1' n'est pas valide.</translation>
+        <translation>le mode de fusion &apos;%1&apos; n&apos;est pas valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2075"/>
         <source>Graphic state &apos;%1&apos; found, but invalid in resource dictionary.</source>
-        <translation>état graphique '%1' trouvé, mais non valide dans le dictionnaire de ressources.</translation>
+        <translation>état graphique &apos;%1&apos; trouvé, mais non valide dans le dictionnaire de ressources.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2080"/>
@@ -17650,57 +17650,57 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2085"/>
         <source>Invalid graphic state resource dictionary.</source>
-        <translation>dictionnaire de ressources d'état graphique non valide.</translation>
+        <translation>dictionnaire de ressources d&apos;état graphique non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2101"/>
         <source>Trying to restore graphic state more times than it was saved.</source>
-        <translation>tentative de restauration de l'état graphique plus de fois qu'il n'a été enregistré.</translation>
+        <translation>tentative de restauration de l&apos;état graphique plus de fois qu&apos;il n&apos;a été enregistré.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2137"/>
         <source>Transformation matrix is not invertible.</source>
-        <translation>la matrice de transformation n'est pas inversible.</translation>
+        <translation>la matrice de transformation n&apos;est pas inversible.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2158"/>
         <source>Can&apos;t read operand (real number) on index %1. Operand is of type &apos;%2&apos;.</source>
-        <translation>impossible de lire l'opérande (nombre réel) sur l'index %1. L'opérande est de type '%2'.</translation>
+        <translation>impossible de lire l&apos;opérande (nombre réel) sur l&apos;index %1. L&apos;opérande est de type &apos;%2&apos;.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2163"/>
         <source>Can&apos;t read operand (real number) on index %1. Only %2 operands provided.</source>
-        <translation>impossible de lire l'opérande (nombre réel) sur l'index %1. Seuls les opérandes %2 sont fournis.</translation>
+        <translation>impossible de lire l&apos;opérande (nombre réel) sur l&apos;index %1. Seuls les opérandes %2 sont fournis.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2180"/>
         <source>Can&apos;t read operand (integer) on index %1. Operand is of type &apos;%2&apos;.</source>
-        <translation>impossible de lire l'opérande (entier) sur l'index %1. L'opérande est de type '%2'.</translation>
+        <translation>impossible de lire l&apos;opérande (entier) sur l&apos;index %1. L&apos;opérande est de type &apos;%2&apos;.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2185"/>
         <source>Can&apos;t read operand (integer) on index %1. Only %2 operands provided.</source>
-        <translation>impossible de lire l'opérande (entier) sur l'index %1. Seuls les opérandes %2 sont fournis.</translation>
+        <translation>impossible de lire l&apos;opérande (entier) sur l&apos;index %1. Seuls les opérandes %2 sont fournis.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2202"/>
         <source>Can&apos;t read operand (name) on index %1. Operand is of type &apos;%2&apos;.</source>
-        <translation>impossible de lire l'opérande (nom) sur l'index %1. L'opérande est de type '%2'.</translation>
+        <translation>impossible de lire l&apos;opérande (nom) sur l&apos;index %1. L&apos;opérande est de type &apos;%2&apos;.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2207"/>
         <source>Can&apos;t read operand (name) on index %1. Only %2 operands provided.</source>
-        <translation>impossible de lire l'opérande (nom) sur l'index %1. Seuls les opérandes %2 sont fournis.</translation>
+        <translation>impossible de lire l&apos;opérande (nom) sur l&apos;index %1. Seuls les opérandes %2 sont fournis.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2225"/>
         <source>Can&apos;t read operand (string) on index %1. Operand is of type &apos;%2&apos;.</source>
-        <translation>impossible de lire l'opérande (chaîne) sur l'index %1. L'opérande est de type '%2'.</translation>
+        <translation>impossible de lire l&apos;opérande (chaîne) sur l&apos;index %1. L&apos;opérande est de type &apos;%2&apos;.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2230"/>
         <source>Can&apos;t read operand (string) on index %1. Only %2 operands provided.</source>
-        <translation>impossible de lire l'opérande (chaîne) sur l'index %1. Seuls les opérandes %2 sont fournis.</translation>
+        <translation>impossible de lire l&apos;opérande (chaîne) sur l&apos;index %1. Seuls les opérandes %2 sont fournis.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2466"/>
@@ -17715,17 +17715,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2584"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2588"/>
         <source>Invalid pattern for Pattern color space.</source>
-        <translation>motif non valide pour l'espace colorimétrique du motif.</translation>
+        <translation>motif non valide pour l&apos;espace colorimétrique du motif.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2692"/>
         <source>Text object already started.</source>
-        <translation>objet texte déjà démarré.</translation>
+        <translation>Objet texte déjà démarré.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2702"/>
         <source>Text object ended more than once.</source>
-        <translation>l'objet texte s'est terminé plusieurs fois.</translation>
+        <translation>l&apos;objet texte s&apos;est terminé plusieurs fois.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2773"/>
@@ -17735,7 +17735,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2778"/>
         <source>Invalid font dictionary.</source>
-        <translation>dictionnaire de polices non valide.</translation>
+        <translation>Dictionnaire de polices non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2853"/>
@@ -17749,12 +17749,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2875"/>
         <source>Invalid parameters of text operator with individual character spacing.</source>
-        <translation>paramètres non valides de l'opérateur de texte avec espacement individuel des caractères.</translation>
+        <translation>paramètres non valides de l&apos;opérateur de texte avec espacement individuel des caractères.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2924"/>
         <source>Invalid operand of text show operator.</source>
-        <translation>opérande non valide de l'opérateur d'affichage de texte.</translation>
+        <translation>opérande non valide de l&apos;opérateur d&apos;affichage de texte.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2966"/>
@@ -17764,12 +17764,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3006"/>
         <source>Invalid color space of the image.</source>
-        <translation>espace colorimétrique de l'image non valide.</translation>
+        <translation>espace colorimétrique de l&apos;image non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3038"/>
         <source>Can&apos;t decode the image.</source>
-        <translation>impossible de décoder l'image.</translation>
+        <translation>impossible de décoder l&apos;image.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3046"/>
@@ -17789,7 +17789,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3129"/>
         <source>Unknown XObject type &apos;%1&apos;.</source>
-        <translation>type XObject inconnu '%1'.</translation>
+        <translation>type XObject inconnu &apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3134"/>
@@ -17809,22 +17809,22 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3203"/>
         <source>Compatibility operator begin/end mismatch.</source>
-        <translation>incompatibilité de début/fin de l'opérateur de compatibilité.</translation>
+        <translation>incompatibilité de début/fin de l&apos;opérateur de compatibilité.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3325"/>
         <source>Type 3 font matrix is not invertible.</source>
-        <translation>la matrice de polices de type 3 n'est pas inversible.</translation>
+        <translation>la matrice de polices de type 3 n&apos;est pas inversible.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3410"/>
         <source>Invalid stroking color.</source>
-        <translation>couleur de trait non valide.</translation>
+        <translation>Couleur de trait non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3418"/>
         <source>Invalid filling color.</source>
-        <translation>couleur de remplissage non valide.</translation>
+        <translation>Couleur de remplissage non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="4084"/>
@@ -17834,17 +17834,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpainter.cpp" line="90"/>
         <source>Blend mode &apos;%1&apos; not supported.</source>
-        <translation>le mode de fusion '%1' n'est pas pris en charge.</translation>
+        <translation>le mode de fusion &apos;%1&apos; n&apos;est pas pris en charge.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpainter.cpp" line="98"/>
         <source>Blend mode &apos;%1&apos; is in transparency group, which is not supported.</source>
-        <translation>le mode de fusion '%1' se trouve dans le groupe de transparence, qui n'est pas pris en charge.</translation>
+        <translation>le mode de fusion &apos;%1&apos; se trouve dans le groupe de transparence, qui n&apos;est pas pris en charge.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpainter.cpp" line="104"/>
         <source>Soft masks not supported.</source>
-        <translation>masques logiciels non pris en charge.</translation>
+        <translation>Masques logiciels non pris en charge.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="424"/>
@@ -17852,7 +17852,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="599"/>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1839"/>
         <source>Invalid number of operands for function. Expected %1, provided %2.</source>
-        <translation>nombre d'opérandes non valide pour la fonction. %1 attendu, fourni %2.</translation>
+        <translation>nombre d&apos;opérandes non valide pour la fonction. %1 attendu, fourni %2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="428"/>
@@ -17865,12 +17865,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="650"/>
         <source>Invalid number of operands for identity function. Expected %1, provided %2.</source>
-        <translation>nombre d'opérandes non valide pour la fonction d'identité. %1 attendu, fourni %2.</translation>
+        <translation>nombre d&apos;opérandes non valide pour la fonction d&apos;identité. %1 attendu, fourni %2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="800"/>
         <source>Invalid instruction pointer.</source>
-        <translation>pointeur d'instruction non valide.</translation>
+        <translation>Pointeur d&apos;instruction non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="864"/>
@@ -17887,7 +17887,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="946"/>
         <source>Number expected for floor function (PostScript engine).</source>
-        <translation>numéro attendu pour la fonction d'étage (moteur PostScript).</translation>
+        <translation>numéro attendu pour la fonction d&apos;étage (moteur PostScript).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="959"/>
@@ -17902,17 +17902,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="983"/>
         <source>Square root of negative value can&apos;t be computed (PostScript engine).</source>
-        <translation>la racine carrée d'une valeur négative ne peut pas être calculée (moteur PostScript).</translation>
+        <translation>la racine carrée d&apos;une valeur négative ne peut pas être calculée (moteur PostScript).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1026"/>
         <source>Logarithm&apos;s input should be positive value  (PostScript engine).</source>
-        <translation>l'entrée du logarithme doit être une valeur positive (moteur PostScript).</translation>
+        <translation>l&apos;entrée du logarithme doit être une valeur positive (moteur PostScript).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1039"/>
         <source>Logarithm&apos;s input should be positive value (PostScript engine).</source>
-        <translation>l'entrée du logarithme doit être une valeur positive (moteur PostScript).</translation>
+        <translation>l&apos;entrée du logarithme doit être une valeur positive (moteur PostScript).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1054"/>
@@ -17927,22 +17927,22 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1313"/>
         <source>Can&apos;t copy negative number of arguments (PostScript engine).</source>
-        <translation>impossible de copier un nombre négatif d'arguments (moteur PostScript).</translation>
+        <translation>impossible de copier un nombre négatif d&apos;arguments (moteur PostScript).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1330"/>
         <source>Negative index of operand (PostScript engine).</source>
-        <translation>index négatif de l'opérande (moteur PostScript).</translation>
+        <translation>index négatif de l&apos;opérande (moteur PostScript).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1344"/>
         <source>Negative number of operands (PostScript engine).</source>
-        <translation>nombre d'opérandes négatif (moteur PostScript).</translation>
+        <translation>nombre d&apos;opérandes négatif (moteur PostScript).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1362"/>
         <source>Call stack underflow (PostScript engine).</source>
-        <translation>dépassement insuffisant de la pile d'appels (moteur PostScript).</translation>
+        <translation>dépassement insuffisant de la pile d&apos;appels (moteur PostScript).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1413"/>
@@ -17962,27 +17962,27 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1464"/>
         <source>Instruction pointer expected (PostScript engine).</source>
-        <translation>pointeur d'instruction attendu (moteur PostScript).</translation>
+        <translation>pointeur d&apos;instruction attendu (moteur PostScript).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1487"/>
         <source>Number expected (PostScript engine).</source>
-        <translation>numéro attendu (moteur PostScript).</translation>
+        <translation>Numéro attendu (moteur PostScript).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1576"/>
         <source>Stack overflow occured (PostScript engine).</source>
-        <translation>un débordement de pile s'est produit (moteur PostScript).</translation>
+        <translation>un débordement de pile s&apos;est produit (moteur PostScript).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1584"/>
         <source>Stack underflow occured (PostScript engine).</source>
-        <translation>un dépassement de pile s'est produit (moteur PostScript).</translation>
+        <translation>un dépassement de pile s&apos;est produit (moteur PostScript).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1651"/>
         <source>Invalid operator (PostScript function) &apos;%1&apos;.</source>
-        <translation>opérateur non valide (fonction PostScript) '%1'.</translation>
+        <translation>opérateur non valide (fonction PostScript) &apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1721"/>
@@ -17992,12 +17992,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1739"/>
         <source>Invalid program (PostScript function).</source>
-        <translation>programme non valide (fonction PostScript).</translation>
+        <translation>Programme non valide (fonction PostScript).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1746"/>
         <source>Empty program (PostScript function).</source>
-        <translation>programme vide (fonction PostScript).</translation>
+        <translation>Programme vide (fonction PostScript).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1873"/>
@@ -18008,27 +18008,27 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="437"/>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="457"/>
         <source>Inexact font substitution: font %1 replaced by %2 using font family %3.</source>
-        <translation>substitution de police inexacte : police %1 remplacée par %2 à l'aide de la famille de polices %3.</translation>
+        <translation>substitution de police inexacte&#xa0;: police %1 remplacée par %2 à l&apos;aide de la famille de polices %3.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="479"/>
         <source>Inexact font substitution: font %1 replaced by %2.</source>
-        <translation>substitution de police inexacte : police %1 remplacée par %2.</translation>
+        <translation>substitution de police inexacte&#xa0;: police %1 remplacée par %2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="492"/>
         <source>FontConfig error building pattern for font %1</source>
-        <translation>modèle de création d'erreur FontConfig pour la police %1</translation>
+        <translation>modèle de création d&apos;erreur FontConfig pour la police %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="546"/>
         <source>Inexact font substitution: font %1 replaced by standard font Times New Roman.</source>
-        <translation>substitution de police inexacte : police %1 remplacée par la police standard Times New Roman.</translation>
+        <translation>substitution de police inexacte&#xa0;: police %1 remplacée par la police standard Times New Roman.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="634"/>
         <source>Fontconfig error</source>
-        <translation>erreur Fontconfig</translation>
+        <translation>Erreur Fontconfig</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="839"/>
@@ -18038,7 +18038,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="877"/>
         <source>Glyph for composite font character with cid &apos;%1&apos; not found.</source>
-        <translation>glyphe pour le caractère de police composite avec l'ID '%1' introuvable.</translation>
+        <translation>glyphe pour le caractère de police composite avec l&apos;ID &apos;%1&apos; introuvable.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1005"/>
@@ -18068,37 +18068,37 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1019"/>
         <source>Glyph count</source>
-        <translation>nombre de glyphes</translation>
+        <translation>Nombre de glyphes</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1020"/>
         <source>Is CID keyed</source>
-        <translation>le CID est-il saisi</translation>
+        <translation>Le CID est-il saisi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1021"/>
         <source>Is bold</source>
-        <translation>est en gras</translation>
+        <translation>Est en gras</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1022"/>
         <source>Is italics</source>
-        <translation>en italique</translation>
+        <translation>En italique</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1023"/>
         <source>Has vertical writing system</source>
-        <translation>possède un système d'écriture vertical</translation>
+        <translation>Possède un système d&apos;écriture vertical</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1024"/>
         <source>Has SFNT storage scheme</source>
-        <translation>dispose d'un schéma de stockage SFNT</translation>
+        <translation>Dispose d&apos;un schéma de stockage SFNT</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1025"/>
         <source>Has glyph names</source>
-        <translation>contient des noms de glyphes</translation>
+        <translation>Contient des noms de glyphes</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1029"/>
@@ -18119,7 +18119,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1047"/>
         <source>MS Symbol</source>
-        <translation>symbole MS</translation>
+        <translation>Symbole MS</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1051"/>
@@ -18129,7 +18129,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1055"/>
         <source>PRC - Simplified Chinese</source>
-        <translation>PRC – Chinois simplifié</translation>
+        <translation>PRC&#xa0;– Chinois simplifié</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1059"/>
@@ -18144,7 +18144,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1067"/>
         <source>Korean Standard</source>
-        <translation>norme coréenne</translation>
+        <translation>Norme coréenne</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1071"/>
@@ -18184,7 +18184,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1189"/>
         <source>FreeType error code %1: %2</source>
-        <translation>code d'erreur FreeType %1 : %2</translation>
+        <translation>code d&apos;erreur FreeType %1&#xa0;: %2</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1276"/>
@@ -18194,30 +18194,30 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1383"/>
         <source>Invalid font encoding.</source>
-        <translation>encodage de police non valide.</translation>
+        <translation>Encodage de police non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1419"/>
         <source>Font object must be a dictionary.</source>
-        <translation>l'objet Police doit être un dictionnaire.</translation>
+        <translation>l&apos;objet Police doit être un dictionnaire.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1437"/>
         <source>Invalid font type.</source>
-        <translation>type de police non valide.</translation>
+        <translation>Type de police non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1559"/>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1569"/>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1575"/>
         <source>Invalid differences in encoding entry of the font.</source>
-        <translation>différences non valides dans l'entrée de codage de la police.</translation>
+        <translation>différences non valides dans l&apos;entrée de codage de la police.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1581"/>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1624"/>
         <source>Invalid encoding entry of the font.</source>
-        <translation>entrée d'encodage non valide de la police.</translation>
+        <translation>entrée d&apos;encodage non valide de la police.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1809"/>
@@ -18260,7 +18260,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1963"/>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1978"/>
         <source>Invalid differences in encoding entry of type 3 font.</source>
-        <translation>différences non valides dans l'entrée de codage de la police de type 3.</translation>
+        <translation>différences non valides dans l&apos;entrée de codage de la police de type 3.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2115"/>
@@ -18280,7 +18280,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2127"/>
         <source>PDF Doc</source>
-        <translation>document PDF</translation>
+        <translation>Document PDF</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2131"/>
@@ -18327,12 +18327,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2227"/>
         <source>Standard font</source>
-        <translation>police standard</translation>
+        <translation>Police standard</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2381"/>
         <source>Can&apos;t load CID font mapping named &apos;%1&apos;.</source>
-        <translation>impossible de charger le mappage de police CID nommé « %1 ».</translation>
+        <translation>impossible de charger le mappage de police CID nommé «&#xa0;%1&#xa0;».</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2420"/>
@@ -18347,12 +18347,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2464"/>
         <source>Can&apos;t use cmap inside cmap file.</source>
-        <translation>impossible d'utiliser cmap dans le fichier cmap.</translation>
+        <translation>impossible d&apos;utiliser cmap dans le fichier cmap.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2875"/>
         <source>Character count</source>
-        <translation>nombre de caractères</translation>
+        <translation>Nombre de caractères</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2923"/>
@@ -18362,27 +18362,27 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="74"/>
         <source>Image has not data.</source>
-        <translation>l'image ne contient aucune donnée.</translation>
+        <translation>L&apos;image ne contient aucune donnée.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="97"/>
         <source>Soft mask image can&apos;t have mask / soft mask itself.</source>
-        <translation>l'image du masque logiciel ne peut pas avoir de masque/masque logiciel elle-même.</translation>
+        <translation>l&apos;image du masque logiciel ne peut pas avoir de masque/masque logiciel elle-même.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="102"/>
         <source>Regular image can&apos;t have Matte entry (used for soft masks).</source>
-        <translation>l'image standard ne peut pas avoir d'entrée Matte (utilisée pour les masques souples).</translation>
+        <translation>l&apos;image standard ne peut pas avoir d&apos;entrée Matte (utilisée pour les masques souples).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="144"/>
         <source>Invalid mask image.</source>
-        <translation>image de masque non valide.</translation>
+        <translation>Image de masque non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="175"/>
         <source>Invalid soft mask object.</source>
-        <translation>objet de masque logiciel non valide.</translation>
+        <translation>Objet de masque logiciel non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="264"/>
@@ -18392,37 +18392,37 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="273"/>
         <source>Error reading JPEG (DCT) image: %1.</source>
-        <translation>erreur de lecture de l'image JPEG (DCT) : %1.</translation>
+        <translation>erreur de lecture de l&apos;image JPEG (DCT)&#xa0;: %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="383"/>
         <source>JPEG 2000 Warning: %1</source>
-        <translation>JPEG 2000 Avertissement : %1</translation>
+        <translation>JPEG 2000 Avertissement&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="389"/>
         <source>JPEG 2000 Error: %1</source>
-        <translation>JPEG 2000 Erreur : %1</translation>
+        <translation>JPEG 2000 Erreur&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="479"/>
         <source>Unknown color space for JPEG 2000 image.</source>
-        <translation>espace colorimétrique inconnu pour l'image JPEG 2000.</translation>
+        <translation>espace colorimétrique inconnu pour l&apos;image JPEG 2000.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="532"/>
         <source>JPEG 2000 image has too much non-alpha channels. Ignoring %1 channels.</source>
-        <translation>l'image JPEG 2000 comporte trop de canaux non alpha. Ignorer les canaux %1.</translation>
+        <translation>l&apos;image JPEG 2000 comporte trop de canaux non alpha. Ignorer les canaux %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="538"/>
         <source>JPEG 2000 image has too much alpha channels. Ignoring %1 alpha channels.</source>
-        <translation>l'image JPEG 2000 comporte trop de canaux alpha. Ignorer les canaux alpha %1.</translation>
+        <translation>l&apos;image JPEG 2000 comporte trop de canaux alpha. Ignorer les canaux alpha %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="630"/>
         <source>Incompatible color components for JPEG 2000 image.</source>
-        <translation>composants de couleur incompatibles pour l'image JPEG 2000.</translation>
+        <translation>composants de couleur incompatibles pour l&apos;image JPEG 2000.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="664"/>
@@ -18437,22 +18437,22 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="651"/>
         <source>Invalid XML text.</source>
-        <translation>texte XML non valide.</translation>
+        <translation>Texte XML non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="682"/>
         <source>Error during converting text to font encoding. Some characters were not converted: &apos;%1&apos;.</source>
-        <translation>erreur lors de la conversion du texte en codage de police. Certains caractères n'ont pas été convertis : '%1'.</translation>
+        <translation>erreur lors de la conversion du texte en codage de police. Certains caractères n&apos;ont pas été convertis&#xa0;: &apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="687"/>
         <source>Text font not defined!</source>
-        <translation>police de texte non définie !</translation>
+        <translation>Police de texte non définie&#xa0;!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="724"/>
         <source>Invalid rendering mode &apos;%1&apos;. Valid values are 0-7.</source>
-        <translation>mode de rendu non valide '%1'. Les valeurs valides sont 0-7.</translation>
+        <translation>mode de rendu non valide &apos;%1&apos;. Les valeurs valides sont 0-7.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="739"/>
@@ -18464,32 +18464,32 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="840"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="844"/>
         <source>Cannot convert text &apos;%1&apos; to number.</source>
-        <translation>impossible de convertir le texte « %1 » en nombre.</translation>
+        <translation>impossible de convertir le texte «&#xa0;%1&#xa0;» en nombre.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="826"/>
         <source>Text font command requires two attributes - font and size.</source>
-        <translation>la commande de police de texte nécessite deux attributs : la police et la taille.</translation>
+        <translation>la commande de police de texte nécessite deux attributs&#xa0;: la police et la taille.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="853"/>
         <source>Text translation command requires two attributes - x and y.</source>
-        <translation>la commande de traduction de texte nécessite deux attributs : x et y.</translation>
+        <translation>la commande de traduction de texte nécessite deux attributs&#xa0;:&#xa0;x et y.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="877"/>
         <source>Invalid text matrix parameters.</source>
-        <translation>paramètres de matrice de texte non valides.</translation>
+        <translation>Paramètres de matrice de texte non valides.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="886"/>
         <source>Set text matrix command requires six elements - m11, m12, m21, m22, x, y.</source>
-        <translation>la commande Définir la matrice de texte nécessite six éléments : m11, m12, m21, m22, x, y.</translation>
+        <translation>la commande Définir la matrice de texte nécessite six éléments&#xa0;:&#xa0;m11, m12, m21, m22, x, y.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="891"/>
         <source>Invalid command &apos;%1&apos;.</source>
-        <translation>commande non valide '%1'.</translation>
+        <translation>commande non valide &apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="626"/>
@@ -18504,12 +18504,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="229"/>
         <source>#%1: %2</source>
-        <translation>#%1 : %2</translation>
+        <translation>#%1&#xa0;: %2</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="344"/>
         <source>Rounded rectangle</source>
-        <translation>rectangle arrondi</translation>
+        <translation>Rectangle arrondi</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="344"/>
@@ -18519,7 +18519,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="1266"/>
         <source>SVG image</source>
-        <translation>image SVG</translation>
+        <translation>Image SVG</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="1395"/>
@@ -18529,12 +18529,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="1493"/>
         <source>Freehand curve</source>
-        <translation>courbe à main levée</translation>
+        <translation>Courbe à main levée</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="2570"/>
         <source>Text box &apos;%1&apos;</source>
-        <translation>zone de texte « %1 »</translation>
+        <translation>zone de texte «&#xa0;%1&#xa0;»</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="2745"/>
@@ -18549,17 +18549,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfdrawspacecontroller.cpp" line="928"/>
         <source>Compile time:    %1 [ms]</source>
-        <translation>Temps de compilation : %1 [ms]</translation>
+        <translation>Temps de compilation&#xa0;: %1 [ms]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfdrawspacecontroller.cpp" line="930"/>
         <source>Draw time:       %1 [ms]</source>
-        <translation>Temps d'affichage : %1 [ms]</translation>
+        <translation>Temps d&apos;affichage&#xa0;: %1 [ms]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcompiler.cpp" line="309"/>
         <source>Precompiled page size is too high (%1 kB). Cache size is %2 kB. Increase the cache size!</source>
-        <translation>la taille de la page précompilée est trop élevée (%1 Ko). La taille du cache est de %2 Ko. Augmentez la taille du cache !</translation>
+        <translation>la taille de la page précompilée est trop élevée (%1 Ko). La taille du cache est de %2 Ko. Augmentez la taille du cache&#xa0;!</translation>
     </message>
 </context>
 <context>
@@ -18577,7 +18577,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="281"/>
         <source>Copy to Multiple Pages</source>
-        <translation>copier sur plusieurs pages</translation>
+        <translation>Copier sur plusieurs pages</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="282"/>
@@ -18592,12 +18592,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="1075"/>
         <source>Copy Annotation</source>
-        <translation>copier l'annotation</translation>
+        <translation>Copier l&apos;annotation</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="1075"/>
         <source>Copy Annotation onto Multiple Pages</source>
-        <translation>copier l'annotation sur plusieurs pages</translation>
+        <translation>copier l&apos;annotation sur plusieurs pages</translation>
     </message>
 </context>
 <context>
@@ -18616,17 +18616,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibCore/sources/pdfxreftable.cpp" line="108"/>
         <location filename="../Pdf4QtLibCore/sources/pdfxreftable.cpp" line="113"/>
         <source>Bad format of reference table entry.</source>
-        <translation>format incorrect de l'entrée de la table de référence.</translation>
+        <translation>format incorrect de l&apos;entrée de la table de référence.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxreftable.cpp" line="134"/>
         <source>Trailer dictionary is invalid.</source>
-        <translation>le dictionnaire de bande-annonce n'est pas valide.</translation>
+        <translation>Le dictionnaire de bande-annonce n&apos;est pas valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxreftable.cpp" line="151"/>
         <source>Offset of previous reference table is invalid.</source>
-        <translation>le décalage de la table de référence précédente n'est pas valide.</translation>
+        <translation>le décalage de la table de référence précédente n&apos;est pas valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxreftable.cpp" line="196"/>
@@ -18646,7 +18646,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtDiff/differencesdockwidget.cpp" line="103"/>
         <source>Differen&amp;ces</source>
-        <translation>&amp;différences</translation>
+        <translation>&amp;Différences</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/differencesdockwidget.cpp" line="207"/>
@@ -18661,22 +18661,22 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtDiff/differencesdockwidget.cpp" line="232"/>
         <source>Page %1</source>
-        <translation>page %1</translation>
+        <translation>Page %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/differencesdockwidget.cpp" line="238"/>
         <source>Left %1</source>
-        <translation>gauche %1</translation>
+        <translation>Gauche %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/differencesdockwidget.cpp" line="243"/>
         <source>Right %1</source>
-        <translation>droite %1</translation>
+        <translation>Droite %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/differencesdockwidget.cpp" line="270"/>
         <source>No Differences Found!</source>
-        <translation>aucune différence trouvée !</translation>
+        <translation>Aucune différence trouvée&#xa0;!</translation>
     </message>
 </context>
 <context>
@@ -18692,12 +18692,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="133"/>
         <source>&amp;Main</source>
-        <translation>&amp;principal</translation>
+        <translation>&amp;Principal</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="141"/>
         <source>&amp;Differences</source>
-        <translation>&amp;différences</translation>
+        <translation>&amp;Différences</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="145"/>
@@ -18727,12 +18727,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="598"/>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="810"/>
         <source>Select PDF document</source>
-        <translation>sélectionnez le document PDF</translation>
+        <translation>Sélectionnez le document PDF</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="598"/>
         <source>XML file (*.xml)</source>
-        <translation>fichier XML (*.xml)</translation>
+        <translation>Fichier XML (*.xml)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="609"/>
@@ -18742,12 +18742,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="615"/>
         <source>Save results to XML</source>
-        <translation>enregistrer les résultats au format XML</translation>
+        <translation>Enregistrer les résultats au format XML</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="615"/>
         <source>Displayed results are empty. Cannot save empty results.</source>
-        <translation>les résultats affichés sont vides. Impossible d'enregistrer des résultats vides.</translation>
+        <translation>les résultats affichés sont vides. Impossible d&apos;enregistrer des résultats vides.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="628"/>
@@ -18757,17 +18757,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="628"/>
         <source>Portable Document (*.pdf);;All files (*.*)</source>
-        <translation>Document portable (*.pdf); Tous les fichiers (*.*)</translation>
+        <translation>Document portable (*.pdf);&#xa0;Tous les fichiers (*.*)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="810"/>
         <source>PDF document (*.pdf)</source>
-        <translation>document PDF (*.pdf)</translation>
+        <translation>Document PDF (*.pdf)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="819"/>
         <source>Encrypted document</source>
-        <translation>document chiffré</translation>
+        <translation>Document chiffré</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.cpp" line="819"/>
@@ -18811,7 +18811,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="40"/>
         <source>No Outline</source>
-        <translation>aucun contour</translation>
+        <translation>Aucun contour</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="41"/>
@@ -18821,12 +18821,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="42"/>
         <source>Document Parts</source>
-        <translation>parties du document</translation>
+        <translation>Parties du document</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="76"/>
         <source>Select output directory</source>
-        <translation>sélectionnez le répertoire de sortie</translation>
+        <translation>Sélectionnez le répertoire de sortie</translation>
     </message>
 </context>
 <context>
@@ -18834,17 +18834,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="155"/>
         <source>&amp;Main</source>
-        <translation>&amp;principal</translation>
+        <translation>&amp;Principal</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="166"/>
         <source>&amp;Insert</source>
-        <translation>&amp;insérer</translation>
+        <translation>&amp;Insérer</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="169"/>
         <source>&amp;Select</source>
-        <translation>&amp;sélectionnez</translation>
+        <translation>&amp;Sélectionnez</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="172"/>
@@ -18865,14 +18865,14 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="260"/>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="874"/>
         <source>Select PDF document(s)</source>
-        <translation>sélectionnez le(s) document(s) PDF</translation>
+        <translation>Sélectionnez le(s) document(s) PDF</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="260"/>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="874"/>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="903"/>
         <source>PDF document (*.pdf)</source>
-        <translation>document PDF (*.pdf)</translation>
+        <translation>Document PDF (*.pdf)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="287"/>
@@ -18887,12 +18887,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="372"/>
         <source>Encrypted document</source>
-        <translation>document chiffré</translation>
+        <translation>Document chiffré</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="372"/>
         <source>Enter password to access document &apos;%1&apos;</source>
-        <translation>saisissez le mot de passe pour accéder au document « %1 »</translation>
+        <translation>saisissez le mot de passe pour accéder au document «&#xa0;%1&#xa0;»</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="395"/>
@@ -18907,7 +18907,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="395"/>
         <source>Document security doesn&apos;t permit to organize pages.</source>
-        <translation>La sécurité des documents ne permet pas d'organiser les pages.</translation>
+        <translation>La sécurité des documents ne permet pas d&apos;organiser les pages.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="731"/>
@@ -18927,12 +18927,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="856"/>
         <source>Select Image(s)</source>
-        <translation>sélectionnez une ou plusieurs images</translation>
+        <translation>Sélectionnez une ou plusieurs images</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="903"/>
         <source>Select PDF document</source>
-        <translation>sélectionnez le document PDF</translation>
+        <translation>Sélectionnez le document PDF</translation>
     </message>
 </context>
 <context>
@@ -18963,17 +18963,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="981"/>
         <source>Page Group</source>
-        <translation>groupe de pages</translation>
+        <translation>Groupe de pages</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1021"/>
         <source>Document collection</source>
-        <translation>collection de documents</translation>
+        <translation>Collection de documents</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1023"/>
         <source>Page Count: %1</source>
-        <translation>Nombre de pages : %1</translation>
+        <translation>Nombre de pages&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1057"/>
@@ -18988,12 +18988,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1063"/>
         <source>Blank Page</source>
-        <translation>page vierge</translation>
+        <translation>Page vierge</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1063"/>
         <source>Blank Pages</source>
-        <translation>pages vierges</translation>
+        <translation>Pages vierges</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1074"/>
@@ -19031,22 +19031,22 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtPageMaster/selectoutlinetoregroupdialog.cpp" line="75"/>
         <source>Select Level 1</source>
-        <translation>sélectionnez le niveau 1</translation>
+        <translation>Sélectionnez le niveau&#xa0;1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/selectoutlinetoregroupdialog.cpp" line="76"/>
         <source>Select Level 2</source>
-        <translation>sélectionnez le niveau 2</translation>
+        <translation>Sélectionnez le niveau&#xa0;2</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/selectoutlinetoregroupdialog.cpp" line="84"/>
         <source>Select subtree</source>
-        <translation>sélectionnez le sous-arborescence</translation>
+        <translation>Sélectionnez le sous-arborescence</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/selectoutlinetoregroupdialog.cpp" line="85"/>
         <source>Deselect subtree</source>
-        <translation>désélectionner la sous-arborescence</translation>
+        <translation>Désélectionner la sous-arborescence</translation>
     </message>
 </context>
 <context>
@@ -19054,7 +19054,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookcreator.cpp" line="132"/>
         <source>No suitable voice found.</source>
-        <translation>aucune voix appropriée trouvée.</translation>
+        <translation>Aucune voix appropriée trouvée.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookcreator.cpp" line="142"/>
@@ -19065,7 +19065,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookcreator.cpp" line="150"/>
         <source>Cannot create voice.</source>
-        <translation>impossible de créer de la voix.</translation>
+        <translation>Impossible de créer de la voix.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookcreator.cpp" line="166"/>
@@ -19075,7 +19075,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookcreator.cpp" line="182"/>
         <source>Audio book plugin is unsupported on your system.</source>
-        <translation>le plug-in de livre audio n'est pas pris en charge sur votre système.</translation>
+        <translation>le plug-in de livre audio n&apos;est pas pris en charge sur votre système.</translation>
     </message>
 </context>
 <context>
@@ -19083,7 +19083,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="76"/>
         <source>&amp;Create Text Stream for Audio Book</source>
-        <translation>&amp;créer un flux de texte pour un livre audio</translation>
+        <translation>&amp;Créer un flux de texte pour un livre audio</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="80"/>
@@ -19108,7 +19108,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="98"/>
         <source>Select by &amp;Rectangle</source>
-        <translation>sélectionner par &amp;rectangle</translation>
+        <translation>Sélectionner par &amp;rectangle</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="102"/>
@@ -19128,17 +19128,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="114"/>
         <source>Restore &amp;Original Text</source>
-        <translation>restaurer &amp;le texte d'origine</translation>
+        <translation>Restaurer &amp;le texte d&apos;origine</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="118"/>
         <source>Move Selection &amp;Up</source>
-        <translation>déplacer la &amp;sélection vers le haut</translation>
+        <translation>Déplacer la &amp;sélection vers le haut</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="122"/>
         <source>Move Selection &amp;Down</source>
-        <translation>déplacer la &amp;sélection vers le bas</translation>
+        <translation>Déplacer la &amp;sélection vers le bas</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="126"/>
@@ -19173,12 +19173,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="326"/>
         <source>Regular expression is not valid. %1</source>
-        <translation>l'expression régulière n'est pas valide. %1</translation>
+        <translation>l&apos;expression régulière n&apos;est pas valide. %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="331"/>
         <source>Cannot select items by regular expression, because regular expression definition is empty.</source>
-        <translation>impossible de sélectionner des éléments par expression régulière, car la définition de l'expression régulière est vide.</translation>
+        <translation>impossible de sélectionner des éléments par expression régulière, car la définition de l&apos;expression régulière est vide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="351"/>
@@ -19198,17 +19198,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="368"/>
         <source>Restore original texts in selected items? All changes will be lost.</source>
-        <translation>restaurer les textes originaux dans les éléments sélectionnés ? Toutes les modifications seront perdues.</translation>
+        <translation>restaurer les textes originaux dans les éléments sélectionnés&#xa0;? Toutes les modifications seront perdues.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="444"/>
         <source>Select Audio File</source>
-        <translation>sélectionnez le fichier audio</translation>
+        <translation>Sélectionnez le fichier audio</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="444"/>
         <source>Audio stream (*.mp3)</source>
-        <translation>flux audio (*.mp3)</translation>
+        <translation>Flux audio (*.mp3)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiobookplugin.cpp" line="464"/>
@@ -19229,7 +19229,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.cpp" line="88"/>
         <source>File Name</source>
-        <translation>nom de fichier</translation>
+        <translation>Nom de fichier</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.cpp" line="118"/>
@@ -19262,7 +19262,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="53"/>
         <source>&amp;Perimeter</source>
-        <translation>&amp;périmètre</translation>
+        <translation>&amp;Périmètre</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="54"/>
@@ -19277,7 +19277,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="56"/>
         <source>R&amp;ectangle Area</source>
-        <translation>&amp;zone rectangulaire</translation>
+        <translation>&amp;Zone rectangulaire</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="57"/>
@@ -19320,12 +19320,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="63"/>
         <source>&amp;Edit page content</source>
-        <translation>&amp;modifier le contenu de la page</translation>
+        <translation>&amp;Modifier le contenu de la page</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="64"/>
         <source>Create &amp;Text Label</source>
-        <translation>créer &amp;une étiquette de texte</translation>
+        <translation>Créer &amp;une étiquette de texte</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="65"/>
@@ -19335,7 +19335,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="66"/>
         <source>Create &amp;Accept Mark</source>
-        <translation>Créer &amp;une marque d'acceptation</translation>
+        <translation>Créer &amp;une marque d&apos;acceptation</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="67"/>
@@ -19355,7 +19355,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="70"/>
         <source>Create &amp;Horizontal Line</source>
-        <translation>créer &amp;une ligne horizontale</translation>
+        <translation>Créer &amp;une ligne horizontale</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="71"/>
@@ -19375,7 +19375,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="74"/>
         <source>Create &amp;SVG Image</source>
-        <translation>créer &amp;une image SVG</translation>
+        <translation>Créer &amp;une image SVG</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="75"/>
@@ -19400,7 +19400,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="381"/>
         <source>Confirm Changes</source>
-        <translation>confirmer les modifications</translation>
+        <translation>Confirmer les modifications</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="381"/>
@@ -19410,7 +19410,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="705"/>
         <source>Editor Toolbox</source>
-        <translation>Boîte à outils de l'éditeur</translation>
+        <translation>Boîte à outils de l&apos;éditeur</translation>
     </message>
 </context>
 <context>
@@ -19423,7 +19423,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/inkcoveragedialog.cpp" line="348"/>
         <source>Page Index</source>
-        <translation>index des pages</translation>
+        <translation>Index des pages</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/inkcoveragedialog.cpp" line="362"/>
@@ -19451,7 +19451,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.cpp" line="55"/>
         <source>Content streams</source>
-        <translation>flux de contenu</translation>
+        <translation>Flux de contenu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.cpp" line="59"/>
@@ -19461,7 +19461,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.cpp" line="63"/>
         <source>Color spaces</source>
-        <translation>espaces colorimétriques</translation>
+        <translation>Espaces colorimétriques</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.cpp" line="67"/>
@@ -19501,7 +19501,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectordialog.cpp" line="94"/>
         <source>Object List</source>
-        <translation>liste d'objets</translation>
+        <translation>Liste d&apos;objets</translation>
     </message>
 </context>
 <context>
@@ -19509,17 +19509,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectorplugin.cpp" line="51"/>
         <source>Object &amp;Inspector</source>
-        <translation>Inspecteur &amp;d'objets</translation>
+        <translation>Inspecteur &amp;d&apos;objets</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectorplugin.cpp" line="57"/>
         <source>Object &amp;Statistics</source>
-        <translation>Statistiques &amp;d'objet</translation>
+        <translation>Statistiques &amp;d&apos;objet</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectinspectorplugin.cpp" line="88"/>
         <source>O&amp;bject Inspector</source>
-        <translation>&amp;Inspecteur d'objets</translation>
+        <translation>&amp;Inspecteur d&apos;objets</translation>
     </message>
 </context>
 <context>
@@ -19527,18 +19527,18 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="41"/>
         <source>Statistics by Object Function</source>
-        <translation>Statistiques par fonction d'objet</translation>
+        <translation>Statistiques par fonction d&apos;objet</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="42"/>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="134"/>
         <source>Statistics by Object Type</source>
-        <translation>statistiques par type d'objet</translation>
+        <translation>Statistiques par type d&apos;objet</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="85"/>
         <source>Statistics by Object Class</source>
-        <translation>statistiques par classe d'objet</translation>
+        <translation>Statistiques par classe d&apos;objet</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="86"/>
@@ -19560,7 +19560,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="86"/>
         <source>Space Usage [bytes]</source>
-        <translation>utilisation de l'espace [octets]</translation>
+        <translation>Utilisation de l&apos;espace [octets]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="116"/>
@@ -19570,12 +19570,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="117"/>
         <source>Content Stream</source>
-        <translation>flux de contenu</translation>
+        <translation>Flux de contenu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="118"/>
         <source>Graphic State</source>
-        <translation>état graphique</translation>
+        <translation>État graphique</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="119"/>
@@ -19639,7 +19639,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="112"/>
         <source>Part of object %1</source>
-        <translation>partie de l'objet %1</translation>
+        <translation>Partie de l&apos;objet %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="117"/>
@@ -19714,7 +19714,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="187"/>
         <source>Array [%1 items]</source>
-        <translation>tableau [éléments %1]</translation>
+        <translation>Tableau [éléments %1]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="191"/>
@@ -19729,12 +19729,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="230"/>
         <source>Invalid color space of the image.</source>
-        <translation>espace colorimétrique de l'image non valide.</translation>
+        <translation>espace colorimétrique de l&apos;image non valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="244"/>
         <source>Image Stream [%1 items, %2 data bytes, %3 x %4 pixels, %5 bits per component]</source>
-        <translation>flux d'images [éléments %1, octets de données %2, %3 x %4 pixels, %5 bits par composant]</translation>
+        <translation>flux d&apos;images [éléments %1, octets de données %2, %3 x %4 pixels, %5 bits par composant]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="295"/>
@@ -19757,17 +19757,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="58"/>
         <source>Color Warnings | Ink Coverage</source>
-        <translation>avertissements de couleur | Couverture d'encre</translation>
+        <translation>Avertissements de couleur | Couverture d&apos;encre</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="59"/>
         <source>Color Warnings | Rich Black</source>
-        <translation>avertissements de couleur | Noir riche</translation>
+        <translation>Avertissements de couleur | Noir riche</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="60"/>
         <source>Ink Coverage</source>
-        <translation>couverture d'encre</translation>
+        <translation>Couverture d&apos;encre</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="61"/>
@@ -19777,7 +19777,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="62"/>
         <source>Opacity Channel</source>
-        <translation>canal d'opacité</translation>
+        <translation>Canal d&apos;opacité</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="127"/>
@@ -19795,17 +19795,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewplugin.cpp" line="47"/>
         <source>&amp;Output Preview</source>
-        <translation>&amp;aperçu de la sortie</translation>
+        <translation>&amp;Aperçu de la sortie</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewplugin.cpp" line="49"/>
         <source>&amp;Ink Coverage</source>
-        <translation>&amp;couverture d'encre</translation>
+        <translation>&amp;Couverture d&apos;encre</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewplugin.cpp" line="75"/>
         <source>Output Previe&amp;w</source>
-        <translation>aperçu &amp;de la sortie</translation>
+        <translation>Aperçu &amp;de la sortie</translation>
     </message>
 </context>
 <context>
@@ -19828,7 +19828,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="549"/>
         <source>Warning | Ink Coverage</source>
-        <translation>Avertissement | Couverture d'encre</translation>
+        <translation>Avertissement | Couverture d&apos;encre</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="553"/>
@@ -19850,7 +19850,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="579"/>
         <source>Ink Coverage</source>
-        <translation>couverture d'encre</translation>
+        <translation>Couverture d&apos;encre</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="598"/>
@@ -19860,7 +19860,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="604"/>
         <source>Sample Color</source>
-        <translation>exemple de couleur</translation>
+        <translation>Exemple de couleur</translation>
     </message>
 </context>
 <context>
@@ -19883,7 +19883,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/pdfobjectinspectortreeitemmodel.cpp" line="172"/>
         <source>Array [%1 items]</source>
-        <translation>tableau [éléments %1]</translation>
+        <translation>Tableau [éléments %1]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/pdfobjectinspectortreeitemmodel.cpp" line="176"/>
@@ -19916,7 +19916,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="61"/>
         <source>Redact &amp;Page(s)</source>
-        <translation>page(&amp;s) de rédaction</translation>
+        <translation>Page(&amp;s) de rédaction</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="62"/>
@@ -19936,12 +19936,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="120"/>
         <source>Select text via &apos;Advanced Search&apos; tool, and then redact it using this tool. Select rows in &apos;Result&apos; table to select particular results.</source>
-        <translation>sélectionnez le texte via l'outil "Recherche avancée", puis rédigez-le à l'aide de cet outil. Sélectionnez des lignes dans le tableau « Résultat » pour sélectionner des résultats particuliers.</translation>
+        <translation>sélectionnez le texte via l&apos;outil &quot;Recherche avancée&quot;, puis rédigez-le à l&apos;aide de cet outil. Sélectionnez des lignes dans le tableau «&#xa0;Résultat&#xa0;» pour sélectionner des résultats particuliers.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="153"/>
         <source>Redact Pages</source>
-        <translation>pages de rédaction</translation>
+        <translation>Pages de rédaction</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="153"/>
@@ -19959,12 +19959,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="44"/>
         <source>Sign digitally</source>
-        <translation>signature numérique</translation>
+        <translation>Signature numérique</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="47"/>
         <source>Sign digitally (invisible signature)</source>
-        <translation>signature numérique (signature invisible)</translation>
+        <translation>Signature numérique (signature invisible)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="99"/>
@@ -19975,12 +19975,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="99"/>
         <source>Certificate does not exist.</source>
-        <translation>le certificat n'existe pas.</translation>
+        <translation>Le certificat n&apos;existe pas.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="107"/>
         <source>Password to open certificate is invalid.</source>
-        <translation>le mot de passe pour ouvrir le certificat n'est pas valide.</translation>
+        <translation>le mot de passe pour ouvrir le certificat n&apos;est pas valide.</translation>
     </message>
 </context>
 <context>
@@ -19988,12 +19988,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="60"/>
         <source>&amp;Activate signature creator</source>
-        <translation>&amp;activer le créateur de signature</translation>
+        <translation>&amp;Activer le créateur de signature</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="61"/>
         <source>Create &amp;Text Label</source>
-        <translation>créer &amp;une étiquette de texte</translation>
+        <translation>Créer &amp;une étiquette de texte</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="62"/>
@@ -20003,7 +20003,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="63"/>
         <source>Create &amp;Accept Mark</source>
-        <translation>Créer &amp;une marque d'acceptation</translation>
+        <translation>Créer &amp;une marque d&apos;acceptation</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="64"/>
@@ -20023,7 +20023,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="67"/>
         <source>Create &amp;Horizontal Line</source>
-        <translation>créer &amp;une ligne horizontale</translation>
+        <translation>Créer &amp;une ligne horizontale</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="68"/>
@@ -20043,7 +20043,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="71"/>
         <source>Create SVG &amp;Image</source>
-        <translation>créer une &amp;image SVG</translation>
+        <translation>Créer une &amp;image SVG</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="72"/>
@@ -20053,7 +20053,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="73"/>
         <source>Sign &amp;Electronically</source>
-        <translation>signature &amp;électronique</translation>
+        <translation>Signature &amp;électronique</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="74"/>
@@ -20073,7 +20073,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="299"/>
         <source>Confirm Signature</source>
-        <translation>confirmer la signature</translation>
+        <translation>Confirmer la signature</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="299"/>
@@ -20102,7 +20102,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="491"/>
         <source>Portable Document (*.pdf);;All files (*.*)</source>
-        <translation>Document portable (*.pdf); Tous les fichiers (*.*)</translation>
+        <translation>Document portable (*.pdf);&#xa0;Tous les fichiers (*.*)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="667"/>
@@ -20115,7 +20115,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/softproofingplugin.cpp" line="51"/>
         <source>&amp;Soft Proofing</source>
-        <translation>&amp;vérification à l'écran</translation>
+        <translation>&amp;Vérification à l&apos;écran</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/softproofingplugin.cpp" line="52"/>
@@ -20125,12 +20125,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/softproofingplugin.cpp" line="53"/>
         <source>Soft &amp;Proofing Settings</source>
-        <translation>paramètres &amp;de vérification écran</translation>
+        <translation>Paramètres &amp;de vérification écran</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/softproofingplugin.cpp" line="93"/>
         <source>Soft &amp;Proofing</source>
-        <translation>vérification &amp;à l'écran</translation>
+        <translation>Vérification &amp;à l&apos;écran</translation>
     </message>
 </context>
 <context>
@@ -20138,7 +20138,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="482"/>
         <source>Toggle this icon to switch image conversion to bitonal format on or off.</source>
-        <translation>activez ou désactivez cette icône pour activer ou désactiver la conversion d'image au format bitonal.</translation>
+        <translation>activez ou désactivez cette icône pour activer ou désactiver la conversion d&apos;image au format bitonal.</translation>
     </message>
 </context>
 <context>
@@ -20177,7 +20177,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="46"/>
         <source>Page No.</source>
-        <translation>numéro de page</translation>
+        <translation>Numéro de page.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="46"/>
@@ -20192,12 +20192,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="126"/>
         <source>Search error</source>
-        <translation>erreur de recherche</translation>
+        <translation>Erreur de recherche</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="126"/>
         <source>Search phrase regular expression has error &apos;%1&apos; near symbol %2.</source>
-        <translation>l'expression régulière de l'expression de recherche comporte l'erreur « %1 » à côté du symbole %2.</translation>
+        <translation>l&apos;expression régulière de l&apos;expression de recherche comporte l&apos;erreur « %1 » à côté du symbole %2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="183"/>
@@ -20215,12 +20215,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfbookmarkui.cpp" line="195"/>
         <source>Page %1 | Generated</source>
-        <translation>page %1 | Généré</translation>
+        <translation>Page %1 | Généré</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfbookmarkui.cpp" line="199"/>
         <source>Page %1</source>
-        <translation>page %1</translation>
+        <translation>Page %1</translation>
     </message>
 </context>
 <context>
@@ -20251,7 +20251,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="185"/>
         <source>Converting images...</source>
-        <translation>conversion d'images...</translation>
+        <translation>Conversion d&apos;images...</translation>
     </message>
 </context>
 <context>
@@ -20264,7 +20264,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="119"/>
         <source>PDF version</source>
-        <translation>version PDF</translation>
+        <translation>Version PDF</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="120"/>
@@ -20299,13 +20299,13 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="126"/>
         <source>Creation date</source>
-        <translation>date de création</translation>
+        <translation>Date de création</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="127"/>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="208"/>
         <source>Modified date</source>
-        <translation>date de modification</translation>
+        <translation>Date de modification</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="133"/>
@@ -20340,12 +20340,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="151"/>
         <source>Page count</source>
-        <translation>nombre de pages</translation>
+        <translation>Nombre de pages</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="160"/>
         <source>Paper format</source>
-        <translation>format papier</translation>
+        <translation>Format papier</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="161"/>
@@ -20360,12 +20360,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="170"/>
         <source>Custom properties</source>
-        <translation>propriétés personnalisées</translation>
+        <translation>Propriétés personnalisées</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="190"/>
         <source>File information</source>
-        <translation>informations sur le fichier</translation>
+        <translation>Informations sur le fichier</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="192"/>
@@ -20390,12 +20390,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="207"/>
         <source>Created date</source>
-        <translation>date de création</translation>
+        <translation>Date de création</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="209"/>
         <source>Last read date</source>
-        <translation>date de la dernière lecture</translation>
+        <translation>Date de la dernière lecture</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="220"/>
@@ -20417,7 +20417,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="235"/>
         <source>Public Key</source>
-        <translation>clé publique</translation>
+        <translation>Clé publique</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="239"/>
@@ -20427,32 +20427,32 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="251"/>
         <source>No authorization required</source>
-        <translation>aucune autorisation requise</translation>
+        <translation>Aucune autorisation requise</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="255"/>
         <source>Authorized as owner</source>
-        <translation>autorisé en tant que propriétaire</translation>
+        <translation>Autorisé en tant que propriétaire</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="259"/>
         <source>Authorized as user</source>
-        <translation>autorisé en tant qu'utilisateur</translation>
+        <translation>Autorisé en tant qu&apos;utilisateur</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="267"/>
         <source>Document encryption</source>
-        <translation>chiffrement des documents</translation>
+        <translation>Chiffrement des documents</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="268"/>
         <source>Authorized as</source>
-        <translation>autorisé en tant que</translation>
+        <translation>Autorisé en tant que</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="272"/>
         <source>Metadata encrypted</source>
-        <translation>métadonnées chiffrées</translation>
+        <translation>Métadonnées chiffrées</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="273"/>
@@ -20492,17 +20492,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="287"/>
         <source>Modify content</source>
-        <translation>modifier le contenu</translation>
+        <translation>Modifier le contenu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="288"/>
         <source>Modify interactive items</source>
-        <translation>modifier les éléments interactifs</translation>
+        <translation>Modifier les éléments interactifs</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="289"/>
         <source>Fill form fields</source>
-        <translation>remplir les champs du formulaire</translation>
+        <translation>Remplir les champs du formulaire</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="368"/>
@@ -20517,12 +20517,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="376"/>
         <source>Type1 (8 bit keyed)</source>
-        <translation>Type1 (clé 8 bits)</translation>
+        <translation>Type1 (clé 8&#xa0;bits)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="380"/>
         <source>MMType1 (8 bit keyed)</source>
-        <translation>MMType1 (clé 8 bits)</translation>
+        <translation>MMType1 (clé 8&#xa0;bits)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="384"/>
@@ -20537,42 +20537,42 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="395"/>
         <source>Font family</source>
-        <translation>famille de polices</translation>
+        <translation>Famille de polices</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="398"/>
         <source>Embedded subset</source>
-        <translation>sous-ensemble intégré</translation>
+        <translation>Sous-ensemble intégré</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="445"/>
         <source>Viewer settings</source>
-        <translation>paramètres de la visionneuse</translation>
+        <translation>Paramètres de la visionneuse</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="446"/>
         <source>Default printer settings</source>
-        <translation>paramètres d'imprimante par défaut</translation>
+        <translation>Paramètres d&apos;imprimante par défaut</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="452"/>
         <source>Single page</source>
-        <translation>page unique</translation>
+        <translation>Page unique</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="456"/>
         <source>Continuous column</source>
-        <translation>colonne continue</translation>
+        <translation>Colonne continue</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="461"/>
         <source>Two continuous columns</source>
-        <translation>deux colonnes continues</translation>
+        <translation>Deux colonnes continues</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="466"/>
         <source>Two pages</source>
-        <translation>deux pages</translation>
+        <translation>Deux&#xa0;pages</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="478"/>
@@ -20582,12 +20582,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="482"/>
         <source>Show outlines</source>
-        <translation>afficher les contours</translation>
+        <translation>Afficher les contours</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="486"/>
         <source>Show thumbnails</source>
-        <translation>afficher les vignettes</translation>
+        <translation>Afficher les vignettes</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="490"/>
@@ -20597,7 +20597,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="494"/>
         <source>Show optional content</source>
-        <translation>afficher le contenu facultatif</translation>
+        <translation>Afficher le contenu facultatif</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="498"/>
@@ -20607,32 +20607,32 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="510"/>
         <source>Left to right</source>
-        <translation>de gauche à droite</translation>
+        <translation>De gauche à droite</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="514"/>
         <source>Right to left</source>
-        <translation>de droite à gauche</translation>
+        <translation>De droite à gauche</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="522"/>
         <source>Page layout</source>
-        <translation>mise en page</translation>
+        <translation>Mise en page</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="523"/>
         <source>View mode</source>
-        <translation>mode d'affichage</translation>
+        <translation>Mode d&apos;affichage</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="524"/>
         <source>Writing direction</source>
-        <translation>sens d'écriture</translation>
+        <translation>Sens d&apos;écriture</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="534"/>
         <source>Application default</source>
-        <translation>valeur par défaut de l'application</translation>
+        <translation>Valeur par défaut de l&apos;application</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="541"/>
@@ -20653,7 +20653,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="566"/>
         <source>Duplex mode</source>
-        <translation>mode duplex</translation>
+        <translation>Mode duplex</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="567"/>
@@ -20663,12 +20663,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="575"/>
         <source>Default print page ranges</source>
-        <translation>plages de pages d'impression par défaut</translation>
+        <translation>Plages de pages d&apos;impression par défaut</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="576"/>
         <source>Number of copies</source>
-        <translation>nombre de copies</translation>
+        <translation>Nombre de copies</translation>
     </message>
 </context>
 <context>
@@ -20686,7 +20686,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="288"/>
         <source>&amp;Sidebar</source>
-        <translation>&amp;barre latérale</translation>
+        <translation>&amp;Barre latérale</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="298"/>
@@ -20701,7 +20701,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="443"/>
         <source> / %1</source>
-        <translation>/ %1</translation>
+        <translation> / %1</translation>
     </message>
 </context>
 <context>
@@ -20729,7 +20729,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.cpp" line="55"/>
         <source>Certificate Encryption</source>
-        <translation>cryptage du certificat</translation>
+        <translation>Cryptage du certificat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.cpp" line="257"/>
@@ -20742,7 +20742,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionstrengthhintwidget.cpp" line="42"/>
         <source>Very weak</source>
-        <translation>très faible</translation>
+        <translation>Très faible</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionstrengthhintwidget.cpp" line="43"/>
@@ -20762,7 +20762,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionstrengthhintwidget.cpp" line="46"/>
         <source>Very strong</source>
-        <translation>très forte</translation>
+        <translation>Très forte</translation>
     </message>
 </context>
 <context>
@@ -20780,12 +20780,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="60"/>
         <source>Remove unused objects (objects unreachable from document root object)</source>
-        <translation>supprime les objets inutilisés (objets inaccessibles à partir de l'objet racine du document)</translation>
+        <translation>supprime les objets inutilisés (objets inaccessibles à partir de l&apos;objet racine du document)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="61"/>
         <source>Merge identical objects</source>
-        <translation>fusionner des objets identiques</translation>
+        <translation>Fusionner des objets identiques</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="62"/>
@@ -20805,37 +20805,37 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="117"/>
         <source>Optimization started!</source>
-        <translation>optimisation lancée !</translation>
+        <translation>Optimisation lancée&#xa0;!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="128"/>
         <source>Optimization finished!</source>
-        <translation>optimisation terminée !</translation>
+        <translation>Optimisation terminée&#xa0;!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="138"/>
         <source>Optimized in %1 msecs</source>
-        <translation>optimisée en %1 msecs</translation>
+        <translation>Optimisée en %1 msecs</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="142"/>
         <source>Bytes before optimization: %1</source>
-        <translation>octets avant optimisation : %1</translation>
+        <translation>Octets avant optimisation&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="143"/>
         <source>Bytes after optimization:  %1</source>
-        <translation>octets après optimisation : %1</translation>
+        <translation>Octets après optimisation&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="144"/>
         <source>Bytes saved by optimization: %1</source>
-        <translation>octets enregistrés par l'optimisation : %1</translation>
+        <translation>octets enregistrés par l&apos;optimisation&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="152"/>
         <source>Compression ratio: %1 %</source>
-        <translation>Taux de compression : %1 %</translation>
+        <translation>Taux de compression&#xa0;: %1&#xa0;%</translation>
     </message>
 </context>
 <context>
@@ -20848,17 +20848,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="849"/>
         <source>Go to action</source>
-        <translation>accéder à l'action</translation>
+        <translation>Accéder à l&apos;action</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="849"/>
         <source>Failed to go to destination &apos;%1&apos;. Destination wasn&apos;t found.</source>
-        <translation>échec de l'accès à la destination « %1 ». La destination n'a pas été trouvée.</translation>
+        <translation>échec de l&apos;accès à la destination « %1 ». La destination n&apos;a pas été trouvée.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="897"/>
         <source>Would you like to launch application &apos;%1&apos; in working directory &apos;%2&apos; with parameters &apos;%3&apos;?</source>
-        <translation>Souhaitez-vous lancer l'application '%1' dans le répertoire de travail '%2' avec les paramètres '%3' ?</translation>
+        <translation>Souhaitez-vous lancer l&apos;application &apos;%1&apos; dans le répertoire de travail &apos;%2&apos; avec les paramètres &apos;%3&apos;&#xa0;?</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="898"/>
@@ -20866,23 +20866,23 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="926"/>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="932"/>
         <source>Launch application</source>
-        <translation>lancer l'application</translation>
+        <translation>Lancer l&apos;application</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="913"/>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="932"/>
         <source>Executing application failed. Error code is %1.</source>
-        <translation>échec de l'exécution de l'application. Le code d'erreur est %1.</translation>
+        <translation>échec de l&apos;exécution de l&apos;application. Le code d&apos;erreur est %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="925"/>
         <source>Would you like to launch application &apos;%1&apos;?</source>
-        <translation>Souhaitez-vous lancer l'application « %1 » ?</translation>
+        <translation>Souhaitez-vous lancer l&apos;application «&#xa0;%1&#xa0;»&#xa0;?</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="954"/>
         <source>Would you like to open URL &apos;%1&apos;?</source>
-        <translation>souhaitez-vous ouvrir l'URL « %1 » ?</translation>
+        <translation>souhaitez-vous ouvrir l&apos;URL «&#xa0;%1&#xa0;»&#xa0;?</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="955"/>
@@ -20893,7 +20893,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="960"/>
         <source>Opening url &apos;%1&apos; failed.</source>
-        <translation>échec de l'ouverture de l'URL « %1 ».</translation>
+        <translation>échec de l&apos;ouverture de l&apos;URL « %1 ».</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1205"/>
@@ -20903,7 +20903,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1205"/>
         <source>Portable Document (*.pdf);;All files (*.*)</source>
-        <translation>Document portable (*.pdf); Tous les fichiers (*.*)</translation>
+        <translation>Document portable (*.pdf);&#xa0;Tous les fichiers (*.*)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1240"/>
@@ -20919,12 +20919,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1289"/>
         <source>Do you wish to save modified document before it is closed?</source>
-        <translation>Souhaitez-vous enregistrer le document modifié avant sa fermeture ?</translation>
+        <translation>Souhaitez-vous enregistrer le document modifié avant sa fermeture&#xa0;?</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1379"/>
         <source>Error while starting email client occured!</source>
-        <translation>une erreur lors du démarrage du client de messagerie s'est produite !</translation>
+        <translation>une erreur lors du démarrage du client de messagerie s&apos;est produite&#xa0;!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1452"/>
@@ -20936,12 +20936,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1470"/>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1471"/>
         <source>External link annotations removed: %1.</source>
-        <translation>annotations de lien externe supprimées : %1.</translation>
+        <translation>annotations de lien externe supprimées&#xa0;: %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1510"/>
         <source>Permission to change document security is denied.</source>
-        <translation>l'autorisation de modifier la sécurité du document est refusée.</translation>
+        <translation>l&apos;autorisation de modifier la sécurité du document est refusée.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1529"/>
@@ -20957,7 +20957,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1637"/>
         <source>Encrypted document</source>
-        <translation>document chiffré</translation>
+        <translation>Document chiffré</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1637"/>
@@ -20967,12 +20967,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2037"/>
         <source>Document &apos;%1&apos; was successfully loaded!</source>
-        <translation>le document '%1' a été chargé avec succès !</translation>
+        <translation>le document &apos;%1&apos; a été chargé avec succès&#xa0;!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2043"/>
         <source>Document read error: %1</source>
-        <translation>erreur de lecture du document : %1</translation>
+        <translation>Erreur de lecture du document&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2245"/>
@@ -20988,12 +20988,12 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2427"/>
         <source>Do you wish to restore the default factory settings of the program? All settings changed by the user will be deleted. Application will be closed.</source>
-        <translation>Souhaitez-vous restaurer les paramètres d'usine par défaut du programme ? Tous les paramètres modifiés par l'utilisateur seront supprimés. La candidature sera close.</translation>
+        <translation>Souhaitez-vous restaurer les paramètres d&apos;usine par défaut du programme&#xa0;? Tous les paramètres modifiés par l&apos;utilisateur seront supprimés. La candidature sera close.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2434"/>
         <source>Default factory settings were restored. Application will be now closed.</source>
-        <translation>les paramètres d'usine par défaut ont été restaurés. La candidature sera désormais close.</translation>
+        <translation>les paramètres d&apos;usine par défaut ont été restaurés. La candidature sera désormais close.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2479"/>
@@ -21003,23 +21003,23 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2479"/>
         <source>Plugin on/off state has been changed. Please restart application to apply settings.</source>
-        <translation>l'état d'activation/désactivation du plug-in a été modifié. Veuillez redémarrer l'application pour appliquer les paramètres.</translation>
+        <translation>l&apos;état d&apos;activation/désactivation du plug-in a été modifié. Veuillez redémarrer l&apos;application pour appliquer les paramètres.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2506"/>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2578"/>
         <source>Select PDF document</source>
-        <translation>sélectionnez le document PDF</translation>
+        <translation>Sélectionnez le document PDF</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2506"/>
         <source>PDF document (*.pdf)</source>
-        <translation>document PDF (*.pdf)</translation>
+        <translation>Document PDF (*.pdf)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2563"/>
         <source>Export Bookmarks As</source>
-        <translation>exporter les signets sous</translation>
+        <translation>Exporter les signets sous</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2563"/>
@@ -21034,7 +21034,7 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2597"/>
         <source>Rendering of page %1: %2 errors occured.</source>
-        <translation>rendu de la page %1 : des erreurs %2 se sont produites.</translation>
+        <translation>rendu de la page %1&#xa0;: des erreurs %2 se sont produites.</translation>
     </message>
 </context>
 <context>
@@ -21057,17 +21057,17 @@ La version Direct2D minimale requise est %1. La version Direct2D courante est %2
         <source>%1
 Page %2: %3</source>
         <translation>%1
-Page %2 : %3</translation>
+Page %2&#xa0;: %3</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.cpp" line="285"/>
         <source>Select output directory</source>
-        <translation>sélectionnez le répertoire de sortie</translation>
+        <translation>Sélectionnez le répertoire de sortie</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.cpp" line="354"/>
         <source>Cannot write page image to file &apos;%1&apos;, because: %2.</source>
-        <translation>impossible d'écrire l'image de la page dans le fichier '%1', car : %2.</translation>
+        <translation>impossible d&apos;écrire l&apos;image de la page dans le fichier &apos;%1&apos;, car&#xa0;: %2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.cpp" line="364"/>
@@ -21080,17 +21080,17 @@ Page %2 : %3</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="58"/>
         <source>Remove document info</source>
-        <translation>supprimer les informations sur le document</translation>
+        <translation>Supprimer les informations sur le document</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="59"/>
         <source>Remove all metadata</source>
-        <translation>supprimer toutes les métadonnées</translation>
+        <translation>Supprimer toutes les métadonnées</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="60"/>
         <source>Remove outline</source>
-        <translation>supprimer le contour</translation>
+        <translation>Supprimer le contour</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="61"/>
@@ -21100,7 +21100,7 @@ Page %2 : %3</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="62"/>
         <source>Remove embedded search index</source>
-        <translation>supprimer l'index de recherche intégré</translation>
+        <translation>Supprimer l&apos;index de recherche intégré</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="63"/>
@@ -21110,7 +21110,7 @@ Page %2 : %3</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="64"/>
         <source>Remove page thumbnails</source>
-        <translation>supprimer les vignettes de page</translation>
+        <translation>Supprimer les vignettes de page</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="66"/>
@@ -21120,37 +21120,37 @@ Page %2 : %3</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="118"/>
         <source>Sanitization started!</source>
-        <translation>la désinfection a commencé !</translation>
+        <translation>La désinfection a commencé&#xa0;!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="129"/>
         <source>Sanitization finished!</source>
-        <translation>assainissement terminé !</translation>
+        <translation>Assainissement terminé&#xa0;!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="139"/>
         <source>Sanitized in %1 msecs</source>
-        <translation>nettoyée en %1 msecs</translation>
+        <translation>Nettoyée en %1 msecs</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="143"/>
         <source>Bytes before sanitization: %1</source>
-        <translation>octets avant nettoyage : %1</translation>
+        <translation>Octets avant nettoyage&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="144"/>
         <source>Bytes after sanitization:  %1</source>
-        <translation>octets après nettoyage : %1</translation>
+        <translation>Octets après nettoyage&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="145"/>
         <source>Bytes saved by sanitization: %1</source>
-        <translation>octets enregistrés par nettoyage : %1</translation>
+        <translation>octets enregistrés par nettoyage&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="153"/>
         <source>Compression ratio: %1 %</source>
-        <translation>Taux de compression : %1 %</translation>
+        <translation>Taux de compression&#xa0;: %1&#xa0;%</translation>
     </message>
 </context>
 <context>
@@ -21167,7 +21167,7 @@ Page %2 : %3</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="383"/>
         <source>Speech feature is unavailable. No speech engines detected. If you&apos;re using Linux, please install speech libraries like &apos;flite&apos; or &apos;speechd&apos;.</source>
-        <translation>la fonction vocale n'est pas disponible. Aucun moteur vocal détecté. Si vous utilisez Linux, veuillez installer des bibliothèques vocales telles que « flite » ou « speechd ».</translation>
+        <translation>la fonction vocale n&apos;est pas disponible. Aucun moteur vocal détecté. Si vous utilisez Linux, veuillez installer des bibliothèques vocales telles que «&#xa0;flite&#xa0;» ou «&#xa0;speechd&#xa0;».</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="387"/>
@@ -21192,22 +21192,22 @@ Page %2 : %3</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="579"/>
         <source>Certificate is valid.</source>
-        <translation>le certificat est valide.</translation>
+        <translation>Le certificat est valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="585"/>
         <source>Signature is valid.</source>
-        <translation>la signature est valide.</translation>
+        <translation>La signature est valide.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="604"/>
         <source>Hash algorithm: %1</source>
-        <translation>Algorithme de hachage : %1</translation>
+        <translation>Algorithme de hachage&#xa0;: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="624"/>
         <source>Certificate validation chain</source>
-        <translation>chaîne de validation des certificats</translation>
+        <translation>Chaîne de validation des certificats</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="649"/>
@@ -21262,7 +21262,7 @@ Page %2 : %3</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="678"/>
         <source>Serial number</source>
-        <translation>numéro de série</translation>
+        <translation>Numéro de série</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="679"/>
@@ -21307,7 +21307,7 @@ Page %2 : %3</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="709"/>
         <source>Digital signatures</source>
-        <translation>signatures numériques</translation>
+        <translation>Signatures numériques</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="713"/>
@@ -21317,22 +21317,22 @@ Page %2 : %3</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="717"/>
         <source>Key encipherement</source>
-        <translation>chiffrement de clé</translation>
+        <translation>Chiffrement de clé</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="721"/>
         <source>Application data encipherement</source>
-        <translation>chiffrement des données d'application</translation>
+        <translation>Chiffrement des données d&apos;application</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="725"/>
         <source>Key agreement</source>
-        <translation>accord clé</translation>
+        <translation>Accord clé</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="729"/>
         <source>Verify signatures on certificates</source>
-        <translation>vérifier les signatures sur les certificats</translation>
+        <translation>Vérifier les signatures sur les certificats</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="733"/>
@@ -21342,22 +21342,22 @@ Page %2 : %3</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="737"/>
         <source>Encipher data during key agreement</source>
-        <translation>chiffrer les données pendant l'accord de clé</translation>
+        <translation>chiffrer les données pendant l&apos;accord de clé</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="741"/>
         <source>Decipher data during key agreement</source>
-        <translation>déchiffrer les données lors de l'accord de clé</translation>
+        <translation>déchiffrer les données lors de l&apos;accord de clé</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="745"/>
         <source>Trusted timestamping</source>
-        <translation>horodatage fiable</translation>
+        <translation>Horodatage fiable</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="750"/>
         <source>Key usages</source>
-        <translation>utilisations clés</translation>
+        <translation>Utilisations clés</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="817"/>
@@ -21367,7 +21367,7 @@ Page %2 : %3</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="825"/>
         <source>Page %1</source>
-        <translation>page %1</translation>
+        <translation>Page %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="919"/>
@@ -21377,23 +21377,23 @@ Page %2 : %3</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="927"/>
         <source>Save attachment</source>
-        <translation>enregistrer la pièce jointe</translation>
+        <translation>Enregistrer la pièce jointe</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="942"/>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="947"/>
         <source>Failed to save attachment to file. %1</source>
-        <translation>échec de l'enregistrement de la pièce jointe dans le fichier. %1</translation>
+        <translation>échec de l&apos;enregistrement de la pièce jointe dans le fichier. %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="953"/>
         <source>Failed to save attachment to file. Attachment is corrupted.</source>
-        <translation>échec de l'enregistrement de la pièce jointe dans le fichier. La pièce jointe est corrompue.</translation>
+        <translation>échec de l&apos;enregistrement de la pièce jointe dans le fichier. La pièce jointe est corrompue.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="982"/>
         <source>Add to trusted certificates</source>
-        <translation>ajouter aux certificats de confiance</translation>
+        <translation>Ajouter aux certificats de confiance</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="986"/>
@@ -21403,17 +21403,17 @@ Page %2 : %3</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="986"/>
         <source>Are you sure want to add &apos;%1&apos; to the trusted certificate store?</source>
-        <translation>êtes-vous sûr de vouloir ajouter « %1 » au magasin de certificats de confiance ?</translation>
+        <translation>êtes-vous sûr de vouloir ajouter «&#xa0;%1&#xa0;» au magasin de certificats de confiance&#xa0;?</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="990"/>
         <source>Trusted Certificate Store Error</source>
-        <translation>erreur du magasin de certificats de confiance</translation>
+        <translation>Erreur du magasin de certificats de confiance</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="990"/>
         <source>Failed to add certificate to the trusted certificate store.</source>
-        <translation>échec de l'ajout du certificat au magasin de certificats approuvés.</translation>
+        <translation>échec de l&apos;ajout du certificat au magasin de certificats approuvés.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1061"/>
@@ -21438,22 +21438,22 @@ Page %2 : %3</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1090"/>
         <source>Font Bold</source>
-        <translation>police en gras</translation>
+        <translation>Police en gras</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1091"/>
         <source>Font Italic</source>
-        <translation>police italique</translation>
+        <translation>Police italique</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1099"/>
         <source>Set Target</source>
-        <translation>définir la cible</translation>
+        <translation>Définir la cible</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1161"/>
         <source>Select Named Destination</source>
-        <translation>sélectionnez la destination nommée</translation>
+        <translation>Sélectionnez la destination nommée</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1172"/>
@@ -21468,7 +21468,7 @@ Page %2 : %3</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1206"/>
         <source>Named Destination</source>
-        <translation>destination nommée</translation>
+        <translation>Destination nommée</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1207"/>
@@ -21523,12 +21523,12 @@ Page %2 : %3</translation>
 Do you want to perform this action?</source>
         <translation>les liens %1 seront corrigés pour hériter du zoom.
 
-Voulez-vous effectuer cette action ?</translation>
+Voulez-vous effectuer cette action&#xa0;?</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1317"/>
         <source>Inherit Zoom</source>
-        <translation>hériter du zoom</translation>
+        <translation>Hériter du zoom</translation>
     </message>
 </context>
 <context>
@@ -21546,12 +21546,12 @@ Voulez-vous effectuer cette action ?</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="237"/>
         <source>&amp;Sidebar</source>
-        <translation>&amp;barre latérale</translation>
+        <translation>&amp;Barre latérale</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="369"/>
         <source> / %1</source>
-        <translation>/ %1</translation>
+        <translation> / %1</translation>
     </message>
 </context>
 <context>
@@ -21639,17 +21639,17 @@ Voulez-vous effectuer cette action ?</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="114"/>
         <source>Single thread</source>
-        <translation>thread unique</translation>
+        <translation>Thread unique</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="115"/>
         <source>Multithreading (load balanced)</source>
-        <translation>multithreading (charge équilibrée)</translation>
+        <translation>Multithreading (charge équilibrée)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="116"/>
         <source>Multithreading (maximum threads)</source>
-        <translation>multithreading (threads maximum)</translation>
+        <translation>Multithreading (threads maximum)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="125"/>
@@ -21700,22 +21700,22 @@ Voulez-vous effectuer cette action ?</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="136"/>
         <source>XYZ scaling</source>
-        <translation>mise à l'échelle XYZ</translation>
+        <translation>Mise à l&apos;échelle XYZ</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="137"/>
         <source>CAT97 matrix</source>
-        <translation>matrice CAT97</translation>
+        <translation>Matrice CAT97</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="138"/>
         <source>CAT02 matrix</source>
-        <translation>matrice CAT02</translation>
+        <translation>Matrice CAT02</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="139"/>
         <source>Bradford method</source>
-        <translation>méthode Bradford</translation>
+        <translation>Méthode Bradford</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="142"/>
@@ -21725,12 +21725,12 @@ Voulez-vous effectuer cette action ?</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="143"/>
         <source>Light scheme</source>
-        <translation>schéma d'éclairage</translation>
+        <translation>Schéma d&apos;éclairage</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="144"/>
         <source>Dark scheme</source>
-        <translation>schéma sombre</translation>
+        <translation>Schéma sombre</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="146"/>
@@ -21745,7 +21745,7 @@ Voulez-vous effectuer cette action ?</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="149"/>
         <source>Very Large</source>
-        <translation>très grand</translation>
+        <translation>Très grand</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="152"/>
@@ -21780,12 +21780,12 @@ Voulez-vous effectuer cette action ?</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="158"/>
         <source>Chinese (Simplified)</source>
-        <translation>chinois (simplifié)</translation>
+        <translation>Chinois (simplifié)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="159"/>
         <source>Chinese (Traditional)</source>
-        <translation>chinois (traditionnel)</translation>
+        <translation>Chinois (traditionnel)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="160"/>
@@ -21820,12 +21820,12 @@ Voulez-vous effectuer cette action ?</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="687"/>
         <source>Valid from</source>
-        <translation>valable à partir du</translation>
+        <translation>Valable à partir du</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="687"/>
         <source>Valid to</source>
-        <translation>valable jusqu'à</translation>
+        <translation>Valable jusqu&apos;à</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="695"/>
@@ -21855,7 +21855,7 @@ Voulez-vous effectuer cette action ?</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="768"/>
         <source>Shortcut &apos;%1&apos; is invalid for action %2.</source>
-        <translation>le raccourci « %1 » n'est pas valide pour l'action %2.</translation>
+        <translation>le raccourci « %1 » n&apos;est pas valide pour l&apos;action %2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="791"/>
@@ -21885,7 +21885,7 @@ Voulez-vous effectuer cette action ?</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="905"/>
         <source>Select color profile directory</source>
-        <translation>sélectionnez le répertoire du profil de couleur</translation>
+        <translation>Sélectionnez le répertoire du profil de couleur</translation>
     </message>
 </context>
 </TS>
