@@ -1,6 +1,6 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.1" language="es" sourcelanguage="en">
+<TS version="2.1" language="es_ES" sourcelanguage="en_US">
 <context>
     <name>Application</name>
     <message>
@@ -2759,12 +2759,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="107"/>
         <source> dots/inch</source>
-        <translation>puntos/pulgada</translation>
+        <translation> puntos/pulgada</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="126"/>
         <source> px</source>
-        <translation>px</translation>
+        <translation> px</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="148"/>
@@ -5860,7 +5860,7 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="444"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="467"/>
         <source> kB</source>
-        <translation>kB</translation>
+        <translation> kB</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="460"/>
@@ -13806,7 +13806,7 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="443"/>
         <source> / %1</source>
-        <translation>/ %1</translation>
+        <translation> / %1</translation>
     </message>
 </context>
 <context>
@@ -14656,7 +14656,7 @@ Do you want to perform this action?</source>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="369"/>
         <source> / %1</source>
-        <translation>/ %1</translation>
+        <translation> / %1</translation>
     </message>
 </context>
 <context>

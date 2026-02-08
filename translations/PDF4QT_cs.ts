@@ -766,7 +766,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="338"/>
         <source>Select &amp;Even</source>
-        <translation>Vybrat s&amp;ud?</translation>
+        <translation>Vybrat S&amp;udé</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="341"/>
@@ -776,7 +776,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="350"/>
         <source>Select &amp;Odd</source>
-        <translation>Vyberte &amp;Liché</translation>
+        <translation>Vybrat &amp;Liché</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="353"/>
@@ -786,7 +786,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="362"/>
         <source>Select &amp;Portrait</source>
-        <translation>Vyberte &amp;Portrét</translation>
+        <translation>Vybrat &amp;na Výšku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="365"/>
@@ -796,7 +796,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="374"/>
         <source>Select &amp;Landscape</source>
-        <translation>Vyberte &amp;Na šířku</translation>
+        <translation>Vybrat &amp;na Šířku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="377"/>
@@ -926,7 +926,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="536"/>
         <source>Regroup by Re&amp;verse</source>
-        <translation>Seskupit v &amp;obr?cen?m po?ad?</translation>
+        <translation>Seskupit v &amp;obráceném pořadí</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="545"/>
@@ -1878,7 +1878,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="633"/>
         <source>Color | &amp;Custom</source>
-        <translation>Barva | &amp;Vlastn?</translation>
+        <translation>Barva | &amp;Vlastní</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="642"/>
@@ -2759,12 +2759,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="107"/>
         <source> dots/inch</source>
-        <translation>bodů/palec</translation>
+        <translation> bodů/palec</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="126"/>
         <source> px</source>
-        <translation>px</translation>
+        <translation> px</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="148"/>
@@ -5424,7 +5424,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="446"/>
         <source>Color | &amp;Custom</source>
-        <translation>Barva | &amp;Vlastn?</translation>
+        <translation>Barva | &amp;Vlastní</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="455"/>
@@ -5860,7 +5860,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="444"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="467"/>
         <source> kB</source>
-        <translation>kB</translation>
+        <translation> kB</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="460"/>
@@ -13810,7 +13810,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="443"/>
         <source> / %1</source>
-        <translation>/ %1</translation>
+        <translation> / %1</translation>
     </message>
 </context>
 <context>
@@ -14660,7 +14660,7 @@ Chcete tuto akci provést?</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="369"/>
         <source> / %1</source>
-        <translation>/ %1</translation>
+        <translation> / %1</translation>
     </message>
 </context>
 <context>
