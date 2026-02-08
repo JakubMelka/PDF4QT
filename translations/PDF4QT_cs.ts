@@ -6913,10 +6913,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>povolující + ack.</translation>
     </message>
     <message>
-        <source>%1</source>
-        <translation type="vanished">%1</translation>
-    </message>
-    <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="311"/>
         <source>%1.%2</source>
         <translation>%1.%2</translation>

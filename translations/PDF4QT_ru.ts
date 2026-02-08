@@ -14883,10 +14883,6 @@ Do you want to perform this action?</source>
         <translation>Чешский</translation>
     </message>
     <message>
-        <source>Chinese</source>
-        <translation type="vanished">Китайский</translation>
-    </message>
-    <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="160"/>
         <source>French</source>
         <translation>Французский</translation>

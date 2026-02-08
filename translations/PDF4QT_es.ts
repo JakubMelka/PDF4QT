@@ -6574,7 +6574,7 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
     <message>
         <location filename="../CodeGenerator/codegenerator.cpp" line="1146"/>
         <source>Item (simple), name = &apos;%1&apos;</source>
-        <translation>elemento (simple), nombre = '%1'</translation>
+        <translation>elemento (simple), nombre = &apos;%1&apos;</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/codegenerator.cpp" line="1149"/>
@@ -10894,7 +10894,7 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3129"/>
         <source>Unknown XObject type &apos;%1&apos;.</source>
-        <translation>Tipo de XObject desconocido '%1'.</translation>
+        <translation>Tipo de XObject desconocido &apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3134"/>
@@ -11087,7 +11087,7 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1651"/>
         <source>Invalid operator (PostScript function) &apos;%1&apos;.</source>
-        <translation>Operador no válido (función PostScript) '%1'.</translation>
+        <translation>Operador no válido (función PostScript) &apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffunction.cpp" line="1721"/>
@@ -12344,7 +12344,7 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.cpp" line="118"/>
         <source>Cannot convert &apos;%1&apos; to color value.</source>
-        <translation>no se puede convertir '%1' al valor de color.</translation>
+        <translation>no se puede convertir &apos;%1&apos; al valor de color.</translation>
     </message>
 </context>
 <context>
@@ -14994,4 +14994,3 @@ Do you want to perform this action?</source>
     </message>
 </context>
 </TS>
-

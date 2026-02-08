@@ -183,6 +183,7 @@ message("PDF4QT_TRANSLATION_QM_OUTPUT_DIRECTORY" ${PDF4QT_TRANSLATION_QM_OUTPUT_
 qt_add_translations(TARGETS Pdf4QtEditor Pdf4QtViewer Pdf4QtPageMaster Pdf4QtDiff PdfTool
                     SOURCE_TARGETS ${i18n_targets}
                     MERGE_QT_TRANSLATIONS
+                    LUPDATE_OPTIONS -no-obsolete
                     TS_OUTPUT_DIRECTORY ${PDF4QT_TRANSLATION_TS_OUTPUT_DIRECTORY}
                     QM_OUTPUT_DIRECTORY ${PDF4QT_TRANSLATION_QM_OUTPUT_DIRECTORY}
                     QM_FILES_OUTPUT_VARIABLE pdf4qt_qm_files)

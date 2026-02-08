@@ -6914,21 +6914,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>https://www.qt.io/</translation>
     </message>
     <message>
-        <source>libjpeg</source>
-        <translation type="vanished">libjpeg</translation>
-    </message>
-    <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="269"/>
         <source>permissive + ack.</source>
         <translation>允許+確認.</translation>
-    </message>
-    <message>
-        <source>https://www.ijg.org/</source>
-        <translation type="vanished">https://www.ijg.org</translation>
-    </message>
-    <message>
-        <source>%1</source>
-        <translation type="vanished">%1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="311"/>
@@ -11615,10 +11603,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>無效命令&apos;%1&apos;。</translation>
     </message>
     <message>
-        <source>Font &apos;%1&apos; is invalid.</source>
-        <translation type="vanished">字型 &apos;%1&apos;無效。</translation>
-    </message>
-    <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="626"/>
         <source>Info</source>
         <translation>資訊</translation>
@@ -14912,10 +14896,6 @@ Do you want to perform this action?</source>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="159"/>
         <source>Chinese (Traditional)</source>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Chinese</source>
-        <translation type="vanished">簡體中文</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="160"/>

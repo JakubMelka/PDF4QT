@@ -2245,10 +2245,6 @@
         <source>Clear Recent File &amp;History</source>
         <translation type="unfinished"></translation>
     </message>
-    <message>
-        <source>Clear Recent File History</source>
-        <translation type="vanished">清除最近文件记录</translation>
-    </message>
 </context>
 <context>
     <name>PDFEncryptionSettingsDialog</name>
@@ -5655,10 +5651,6 @@
         <source>Clear Recent File &amp;History</source>
         <translation type="unfinished"></translation>
     </message>
-    <message>
-        <source>Clear Recent File History</source>
-        <translation type="vanished">清除最近文件记录</translation>
-    </message>
 </context>
 <context>
     <name>PDFViewerSettingsDialog</name>
@@ -5711,43 +5703,6 @@
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1353"/>
         <source>Enable</source>
         <translation>启用</translation>
-    </message>
-    <message>
-        <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
-p, li { white-space: pre-wrap; }
-hr { height: 1px; border-width: 0; }
-li.unchecked::marker { content: &quot;\2610&quot;; }
-li.checked::marker { content: &quot;\2612&quot;; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Select a rendering method tailored to your application&apos;s requirements. Software Rendering, utilizing QPainter, is a versatile choice that guarantees compatibility across all platforms. It&apos;s particularly useful in scenarios where direct access to hardware acceleration isn&apos;t crucial. QPainter, part of the Qt framework, excels in rendering 2D graphics with support for various painting styles, image processing, and intricate graphical transformations, making it an excellent tool for applications that require detailed and sophisticated 2D graphics without relying on hardware acceleration.&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;On the other hand, for applications that demand high-performance rendering, leveraging the Blend2D library offers a compelling alternative. Blend2D is a high-performance 2D vector graphics engine that utilizes multi-threading to accelerate the rendering process. It does not rely on QPainter or hardware acceleration but instead offers a software-based rendering solution optimized for speed and quality. Blend2D&apos;s advanced anti-aliasing techniques ensure crisp and clear image quality, making it suitable for applications where rendering performance and image quality are paramount.&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The Prefetch Pages feature is a strategy that can be applied regardless of the rendering method chosen. By pre-rendering pages adjacent to the currently viewed content, this approach minimizes flickering and enhances the smoothness of transitions during scrolling, improving the overall user experience.&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;When it comes to optimizing the rendering process, the choice of multithreading strategy plays a crucial role. A Single Thread strategy, where rendering tasks are executed sequentially on a single CPU core, might be preferable in environments where simplicity and predictability are key. For more demanding applications, employing a Multi-threading strategy can significantly improve rendering times. Strategies like Load Balanced distribute the workload evenly across CPU cores without delving into content-specific processing, offering a good performance boost. The Maximum Threads strategy takes full advantage of available CPU resources by allocating as many threads as possible to the rendering tasks, achieving optimal performance and minimizing rendering times.&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This delineation between using QPainter for software rendering and Blend2D for high-performance, multi-threaded rendering allows developers to choose the most appropriate rendering pathway based on their specific performance requirements and the graphical complexity of their application.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt; </source>
-        <translation type="vanished">&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
-p, li { white-space: pre-wrap; }
-hr { height: 1px; border-width: 0; }
-li.unchecked::marker { content: &quot;\2610&quot;; }
-li.checked::marker { content: &quot;\2612&quot;; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
-p, li { white-space: pre-wrap; }
-hr { height: 1px; border-width: 0; }
-li.unchecked::marker { content: &quot;\2610&quot;; }
-li.checked::marker { content: &quot;\2612&quot;; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;选择适合您应用程序需求的渲染方法。软件渲染（利用 QPainter）是一种功能多样的选择，可确保跨所有平台的兼容性。它在无需直接访问硬件加速的场景中尤其有用。QPainter 是 Qt 框架的一部分，在 2D 图形渲染方面表现出色，支持各种绘画风格、图像处理和复杂的图形转换，使其成为需要精细复杂的 2D 图形且不依赖硬件加速的应用程序的理想工具。&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;另一方面，对于需要高性能渲染的应用程序，利用 Blend2D 库是一个极具吸引力的选择。Blend2D 是一款高性能 2D 矢量图形引擎，利用多线程加速渲染过程。它不依赖于 QPainter 或硬件加速，而是提供基于软件的渲染解决方案，并针对速度和质量进行了优化。Blend2D 先进的抗锯齿技术可确保清晰锐利的图像质量，非常适合那些注重渲染性能和图像质量的应用程序。&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;预取页面功能是一种无论选择哪种渲染方法都可以应用的策略。通过预渲染当前查看内容附近的页面，这种方法可以最大限度地减少闪烁，并增强滚动过程中过渡的流畅度，从而提升整体用户体验。&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;在优化渲染流程时，多线程策略的选择至关重要。单线程策略（即渲染任务在单个 CPU 核心上按顺序执行）在注重简单性和可预测性的环境中可能更适合。对于要求更高的应用程序，采用多线程策略可以显著缩短渲染时间。诸如负载均衡之类的策略可将工作负载均匀地分布在 CPU 核心之间，而无需深入处理特定内容，从而显著提升性能。最大线程数策略则通过为渲染任务分配尽可能多的线程，充分利用可用的 CPU 资源，从而实现最佳性能并最大限度地缩短渲染时间。&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;这种使用 QPainter 进行软件渲染和使用 Blend2D 进行高性能多线程渲染的区别，使开发人员能够根据其特定的性能要求和应用程序的图形复杂度选择最合适的渲染路径。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;这在无需直接访问硬件加速的场景中尤为有用。QPainter 是 Qt 框架的一部分，在 2D 图形渲染方面表现出色，支持各种绘画风格、图像处理和复杂的图形转换，使其成为需要精细复杂的 2D 图形且不依赖硬件加速的应用程序的理想工具。&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;另一方面，对于需要高性能渲染的应用程序，利用 Blend2D 库是一个极具吸引力的选择。Blend2D 是一款高性能 2D 矢量图形引擎，利用多线程加速渲染过程。它不依赖于 QPainter 或硬件加速，而是提供基于软件的渲染解决方案，并针对速度和质量进行了优化。Blend2D 先进的抗锯齿技术可确保清晰锐利的图像质量，非常适合那些注重渲染性能和图像质量的应用程序。&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;预取页面功能是一种无论选择哪种渲染方法都可以应用的策略。通过预渲染当前查看内容附近的页面，这种方法可以最大限度地减少闪烁，并增强滚动过程中过渡的流畅度，从而提升整体用户体验。&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;在优化渲染流程时，多线程策略的选择至关重要。单线程策略（即渲染任务在单个 CPU 核心上按顺序执行）在注重简单性和可预测性的环境中可能更适合。对于要求更高的应用程序，采用多线程策略可以显著缩短渲染时间。诸如负载均衡之类的策略可将工作负载均匀地分布在 CPU 核心之间，而无需深入处理特定内容，从而显著提升性能。最大线程数策略则通过为渲染任务分配尽可能多的线程，充分利用可用的 CPU 资源，从而实现最佳性能并最大限度地缩短渲染时间。&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;使用 QPainter 进行软件渲染和使用 Blend2D 进行高性能、多线程渲染之间的这种划分，使开发人员能够根据其特定的性能要求和应用程序的图形复杂性选择最合适的渲染途径。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="101"/>
@@ -6964,21 +6919,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>https://www.qt.io/</translation>
     </message>
     <message>
-        <source>libjpeg</source>
-        <translation type="vanished">libjpeg</translation>
-    </message>
-    <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="269"/>
         <source>permissive + ack.</source>
         <translation>允许+确认.</translation>
-    </message>
-    <message>
-        <source>https://www.ijg.org/</source>
-        <translation type="vanished">https://www.ijg.org</translation>
-    </message>
-    <message>
-        <source>%1</source>
-        <translation type="vanished">%1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="311"/>
@@ -11665,10 +11608,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>无效命令&apos;%1&apos;。</translation>
     </message>
     <message>
-        <source>Font &apos;%1&apos; is invalid.</source>
-        <translation type="vanished">字体 &apos;%1&apos;无效。</translation>
-    </message>
-    <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="626"/>
         <source>Info</source>
         <translation>信息</translation>
@@ -14960,10 +14899,6 @@ Do you want to perform this action?</source>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="159"/>
         <source>Chinese (Traditional)</source>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Chinese</source>
-        <translation type="vanished">简体中文</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="160"/>

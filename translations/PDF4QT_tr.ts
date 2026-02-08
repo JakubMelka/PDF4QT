@@ -11598,10 +11598,6 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>Geçersiz komut &apos;%1&apos;.</translation>
     </message>
     <message>
-        <source>Font &apos;%1&apos; is invalid.</source>
-        <translation type="vanished">&apos;%1&apos; yazı tipi geçersiz.</translation>
-    </message>
-    <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="626"/>
         <source>Info</source>
         <translation>Bilgi</translation>
@@ -14894,10 +14890,6 @@ Do you want to perform this action?</source>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="159"/>
         <source>Chinese (Traditional)</source>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Chinese</source>
-        <translation type="vanished">Çince</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="160"/>
