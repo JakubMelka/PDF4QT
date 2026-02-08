@@ -188,6 +188,18 @@ qt_add_translations(TARGETS Pdf4QtEditor Pdf4QtViewer Pdf4QtPageMaster Pdf4QtDif
                     QM_OUTPUT_DIRECTORY ${PDF4QT_TRANSLATION_QM_OUTPUT_DIRECTORY}
                     QM_FILES_OUTPUT_VARIABLE pdf4qt_qm_files)
 
+if(WIN32)
+    set(PDF4QT_LUPDATE_TARGET "${PROJECT_NAME}_lupdate")
+    if(TARGET ${PDF4QT_LUPDATE_TARGET})
+        add_custom_command(TARGET ${PDF4QT_LUPDATE_TARGET}
+                           POST_BUILD
+                           COMMAND ${CMAKE_COMMAND}
+                                   -DTS_OUTPUT_DIRECTORY=${PDF4QT_TRANSLATION_TS_OUTPUT_DIRECTORY}
+                                   -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/NormalizeTsLineEndings.cmake
+                           COMMENT "Normalizing TS files to CRLF")
+    endif()
+endif()
+
 message("CMAKE_PREFIX_PATH = " ${CMAKE_PREFIX_PATH})
 message("CMAKE_TOOLCHAIN_FILE = " ${CMAKE_TOOLCHAIN_FILE})
 
