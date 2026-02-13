@@ -11,22 +11,22 @@
     <message>
         <location filename="../Pdf4QtViewer/main.cpp" line="41"/>
         <source>PDF4QT Viewer</source>
-        <translation>PDF4QT Prohlížeč</translation>
+        <translation>PDF4QT Viewer</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/main.cpp" line="40"/>
         <source>PDF4QT PageMaster</source>
-        <translation>PDF4QT Úprava stránek</translation>
+        <translation>PDF4QT PageMaster</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/main.cpp" line="41"/>
         <source>PDF4QT Diff</source>
-        <translation>PDF4QT Porovnávač</translation>
+        <translation>PDF4QT Diff</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/main.cpp" line="35"/>
         <source>PDF4QT LaunchPad</source>
-        <translation>PDF4QT Úvodní panel</translation>
+        <translation>PDF4QT LaunchPad</translation>
     </message>
 </context>
 <context>
@@ -35,7 +35,7 @@
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="14"/>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="20"/>
         <source>Assemble Documents</source>
-        <translation>Sestavení dokumentů</translation>
+        <translation>Sestavit dokumenty</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="26"/>
@@ -45,12 +45,12 @@
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="36"/>
         <source>File template</source>
-        <translation>Šablona souboru</translation>
+        <translation>Šablona názvu souboru</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="43"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;In a template file name, you can use symbols &apos;#&apos; for output document number (means output document index, not input document) or &apos;@&apos; for page number of input document (if document contains more pages, it is a page number of a original document), or &apos;%&apos; for index of input document. Use more &apos;#&apos; or &apos;@&apos; or &apos;%&apos; for setting minimal number of digits (if number has less digits, the they are padded with zero).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;V názvu souboru šablony můžete použít symboly &apos;#&apos; pro číslo výstupního dokumentu (znamená index výstupního dokumentu, nikoli vstupní dokument) nebo &apos;@&apos; pro číslo stránky vstupního dokumentu (pokud dokument obsahuje více stránek, jedná se o číslo stránky původního dokumentu) nebo &apos;%&apos; pro index vstupního dokumentu. Pro nastavení minimálního počtu číslic použijte více &apos;#&apos; nebo &apos;@&apos; nebo &apos;%&apos; (pokud má číslo méně číslic, jsou doplněny nulou).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;V šabloně názvu souboru můžete použít symbol &apos;#&apos; pro číslo výstupního dokumentu (index výstupního dokumentu), &apos;@&apos; pro číslo stránky vstupního dokumentu (u vícestránkových dokumentů jde o číslo stránky v původním souboru) nebo &apos;%&apos; pro index vstupního dokumentu. Opakováním symbolů (např. &apos;###&apos;) nastavíte minimální počet číslic (budou doplněny úvodními nulami).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="53"/>
@@ -60,17 +60,17 @@
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="60"/>
         <source>doc-#.pdf</source>
-        <translation>doc-#.pdf</translation>
+        <translation>dok-#.pdf</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="67"/>
         <source>Generate into directory</source>
-        <translation>Vytvořit v adresáři</translation>
+        <translation>Generovat do adresáře</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="74"/>
         <source>Outline Mode</source>
-        <translation>Režim obsahu</translation>
+        <translation>Režim osnovy</translation>
     </message>
 </context>
 <context>
@@ -78,7 +78,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiotextstreameditordockwidget.ui" line="14"/>
         <source>Text Stream for Audio Book</source>
-        <translation>Proud textu pro audioknihu</translation>
+        <translation>Textový proud pro audioknihu</translation>
     </message>
 </context>
 <context>
@@ -96,7 +96,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="26"/>
         <source>Output file name</source>
-        <translation>Výstupní soubor</translation>
+        <translation>Název výstupního souboru</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="36"/>
@@ -111,7 +111,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="52"/>
         <source>Fill redacted area with color:</source>
-        <translation>Vyplnit redigovanou plochu barvou:</translation>
+        <translation>Vyplnit redigovanou oblast barvou:</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="68"/>
@@ -121,17 +121,17 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="74"/>
         <source>Copy document title into redacted document</source>
-        <translation>Kopírovat nadpis dokumentu do redigovaného dokumentu</translation>
+        <translation>Zkopírovat název dokumentu do redigovaného dokumentu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="84"/>
         <source>Copy document metadata into redacted document</source>
-        <translation>Kopírovat metadata dokumentu do redigovaného dokumentu</translation>
+        <translation>Zkopírovat metadata dokumentu do redigovaného dokumentu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/createredacteddocumentdialog.ui" line="94"/>
         <source>Copy outline into redacted document</source>
-        <translation>Kopírovat obsah do redigovaného dokumentu</translation>
+        <translation>Zkopírovat osnovu do redigovaného dokumentu</translation>
     </message>
 </context>
 <context>
@@ -235,7 +235,7 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="53"/>
         <source>Remove</source>
-        <translation>Smazat</translation>
+        <translation>Odebrat</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="60"/>
@@ -255,7 +255,7 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="86"/>
         <source>Data type</source>
-        <translation>Typ dat</translation>
+        <translation>Datový typ</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="112"/>
@@ -270,17 +270,17 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="126"/>
         <source>Name</source>
-        <translation type="unfinished">Název</translation>
+        <translation>Název</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="133"/>
         <source>Text description / C++ code</source>
-        <translation>Textový popis / C++ kód</translation>
+        <translation>Textový popis / kód C++</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="181"/>
         <source>Delete</source>
-        <translation>Vymazat</translation>
+        <translation>Smazat</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="188"/>
@@ -320,7 +320,7 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="260"/>
         <source>Load</source>
-        <translation type="unfinished">Načíst</translation>
+        <translation>Načíst</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="263"/>
@@ -365,17 +365,17 @@
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="299"/>
         <source>Set code header XFA</source>
-        <translation>Nastavit XFA hlavičku kódu</translation>
+        <translation>Nastavit hlavičku XFA</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="304"/>
         <source>Set code source XFA</source>
-        <translation>Nastavit zdroj kódu XFA</translation>
+        <translation>Nastavit zdroj XFA</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="309"/>
         <source>Generate XFA code</source>
-        <translation>Generovat XFA kód</translation>
+        <translation>Generovat kód XFA</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.ui" line="314"/>
@@ -402,18 +402,18 @@
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="510"/>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="538"/>
         <source>Select cpp header</source>
-        <translation>Vybrat C++ hlavičku</translation>
+        <translation>Vybrat hlavičkový soubor C++</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="520"/>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="548"/>
         <source>Select cpp source</source>
-        <translation>Vybrat C++ zdroj</translation>
+        <translation>Vybrat zdrojový soubor C++</translation>
     </message>
     <message>
         <location filename="../CodeGenerator/generatormainwindow.cpp" line="558"/>
         <source>Select xml definition</source>
-        <translation>Vybrat XML definici</translation>
+        <translation>Vybrat definici XML</translation>
     </message>
 </context>
 <context>
@@ -421,12 +421,12 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/inkcoveragedialog.ui" line="14"/>
         <source>Ink Coverage Calculator</source>
-        <translation>Výpočet pokrytí inkoustem</translation>
+        <translation>Kalkulátor krytí barvou</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/inkcoveragedialog.ui" line="20"/>
         <source>Ink Coverage</source>
-        <translation>Pokrytí inkoustem</translation>
+        <translation>Krytí barvou</translation>
     </message>
 </context>
 <context>
@@ -472,7 +472,7 @@
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="63"/>
         <source>PageMaster</source>
-        <translation>Úprava Stránek</translation>
+        <translation>Správce stránek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="65"/>
@@ -547,7 +547,7 @@
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="101"/>
         <source>Add JBIG2 image</source>
-        <translation>Přidat JBIG2 obrázek</translation>
+        <translation>Přidat obrázek JBIG2</translation>
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="104"/>
@@ -571,7 +571,7 @@
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="17"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="14"/>
         <source>Workspace</source>
-        <translation>Pracovní prostor</translation>
+        <translation>Pracovní plocha</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="62"/>
@@ -594,12 +594,12 @@
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="63"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="67"/>
         <source>&amp;View</source>
-        <translation>&amp;Pohled</translation>
+        <translation>&amp;Zobrazit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="117"/>
         <source>&amp;Make</source>
-        <translation>V&amp;ytvořit</translation>
+        <translation>&amp;Vytvořit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="125"/>
@@ -641,7 +641,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="191"/>
         <source>Clone &amp;Selection</source>
-        <translation>&amp;Klonovat výběr</translation>
+        <translation>&amp;Duplikovat výběr</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="194"/>
@@ -786,7 +786,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="362"/>
         <source>Select &amp;Portrait</source>
-        <translation>Vybrat stránky na &amp;výšku</translation>
+        <translation>Vybrat na &amp;výšku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="365"/>
@@ -796,7 +796,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="374"/>
         <source>Select &amp;Landscape</source>
-        <translation>Vybrat stránky na &amp;šířku</translation>
+        <translation>Vybrat na &amp;šířku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="377"/>
@@ -864,7 +864,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="455"/>
         <source>&amp;United Document...</source>
-        <translation>Sjednocený dok&amp;ument…</translation>
+        <translation>Spojit do jednoho dok&amp;umentu…</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="458"/>
@@ -875,7 +875,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="467"/>
         <source>&amp;Separate to Multiple Documents...</source>
-        <translation>&amp;Oddělit na více dokumentů…</translation>
+        <translation>&amp;Rozdělit na více dokumentů…</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="470"/>
@@ -886,7 +886,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="479"/>
         <source>Separate to Multiple Documents (&amp;Grouped)...</source>
-        <translation>Oddělit do více dokumentů (&amp;seskupené)…</translation>
+        <translation>Rozdělit na více dokumentů (&amp;seskupené)…</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="482"/>
@@ -906,7 +906,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="503"/>
         <source>U&amp;ngroup</source>
-        <translation>&amp;Rozdělit skupinu</translation>
+        <translation>Zrušit seskupe&amp;ní</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="506"/>
@@ -987,7 +987,7 @@
     <message>
         <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="627"/>
         <source>Show Document Title in Items</source>
-        <translation>Zobrazit název dokumentu v položkách</translation>
+        <translation>Zobrazit název dokumentu u položek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="55"/>
@@ -1038,7 +1038,7 @@
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="195"/>
         <source>Create Compare &amp;Report...</source>
-        <translation>Vytvořit porovnávací &amp;report…</translation>
+        <translation>Vytvořit z&amp;rávu o porovnání…</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="207"/>
@@ -1083,7 +1083,7 @@
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="303"/>
         <source>View &amp;Overlay</source>
-        <translation>Z&amp;obrazit překryvnou vrstvu</translation>
+        <translation>Z&amp;obrazit překryv</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="315"/>
@@ -1103,7 +1103,7 @@
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="339"/>
         <source>S&amp;ynchronize View with Differences</source>
-        <translation>S&amp;synchronizovat zobrazení s rozdíly</translation>
+        <translation>&amp;Synchronizovat zobrazení s rozdíly</translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="351"/>
@@ -1167,7 +1167,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.ui" line="57"/>
         <source>Reference</source>
-        <translation>Odkaz</translation>
+        <translation>Reference</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.ui" line="71"/>
@@ -1200,22 +1200,22 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="64"/>
         <source>Red</source>
-        <translation>Červený</translation>
+        <translation>Červená</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="71"/>
         <source>Blue</source>
-        <translation>Modrý</translation>
+        <translation>Modrá</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="78"/>
         <source>Green</source>
-        <translation>Zelený</translation>
+        <translation>Zelená</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="85"/>
         <source>Simulate separations</source>
-        <translation>Simulovat rozdělení</translation>
+        <translation>Simulovat separace</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="95"/>
@@ -1250,7 +1250,7 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="190"/>
         <source>Tiling patterns</source>
-        <translation>Vzory obkladů</translation>
+        <translation>Vzory dlaždic</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="193"/>
@@ -1260,12 +1260,12 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="216"/>
         <source>Color Warnings</source>
-        <translation>Barva varování</translation>
+        <translation>Varování barev</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="222"/>
         <source>Alarm color</source>
-        <translation>Barva alarmu</translation>
+        <translation>Barva výstrahy</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="229"/>
@@ -1286,12 +1286,12 @@
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="272"/>
         <source>Rich black limit</source>
-        <translation>Limit bohaté černé</translation>
+        <translation>Limit syté černé</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.ui" line="282"/>
         <source>Inks</source>
-        <translation>Tiskové barvy</translation>
+        <translation>Barvy</translation>
     </message>
 </context>
 <context>
@@ -1348,7 +1348,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="50"/>
         <source>Remove soft hyphen at end of line</source>
-        <translation>Odstranit měkký spojovník na konci řádku</translation>
+        <translation>Odebrat měkké spojovníky na konci řádků</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="57"/>
@@ -1358,7 +1358,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="64"/>
         <source>Case sensitive</source>
-        <translation>Rozlišovat velikost znaků</translation>
+        <translation>Rozlišovat malá a velká písmena</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="74"/>
@@ -1383,7 +1383,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="107"/>
         <source>Multiline matching (enables search using &apos;^&apos; and &apos;$&apos; to mark line beginnings/endings)</source>
-        <translation>Víceřádková shoda (umožňuje vyhledávání pomocí &amp;apos;^&amp;apos; a &amp;apos;$&amp;apos; pro označení začátků/konců řádků)</translation>
+        <translation>Víceřádková shoda (umožňuje hledání začátků/konců řádků pomocí symbolů &apos;^&apos; a &apos;$&apos;)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="131"/>
@@ -1409,12 +1409,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.ui" line="14"/>
         <source>Create Bitonal Document</source>
-        <translation>Vytvořte bitonální dokument</translation>
+        <translation>Vytvořit bitonální dokument</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.ui" line="30"/>
         <source>Color to Bitonal Conversion Options</source>
-        <translation>Možnosti převodu barvy na bitonální</translation>
+        <translation>Možnosti převodu barvydo bitonální podoby</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.ui" line="36"/>
@@ -1424,7 +1424,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.ui" line="56"/>
         <source>User-Defined Intensity Threshold (0-255):</source>
-        <translation>Uživatelem definovaný práh intenzity (0–255):</translation>
+        <translation>Uživatelský práh intenzity (0–255):</translation>
     </message>
 </context>
 <context>
@@ -1457,7 +1457,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="54"/>
         <source>Email</source>
-        <translation>Email</translation>
+        <translation>E-mail</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="95"/>
@@ -1472,7 +1472,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="109"/>
         <source>Valid till</source>
-        <translation>Platné do</translation>
+        <translation>Platnost do</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcreatecertificatedialog.ui" line="128"/>
@@ -1513,12 +1513,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="161"/>
         <source>Display &amp;&amp; Print</source>
-        <translation>Zobrazit &amp;&amp; Tisk</translation>
+        <translation>Zobrazení a Tisk</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="167"/>
         <source>Display &amp;&amp; Print Settings</source>
-        <translation>Nastavení zobrazení &amp;&amp; tisku</translation>
+        <translation>Nastavení zobrazení a tisku</translation>
     </message>
 </context>
 <context>
@@ -1588,7 +1588,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="177"/>
         <source>Sticky &amp;Note</source>
-        <translation>Lepící &amp;poznámka</translation>
+        <translation>Lepicí &amp;poznámka</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="189"/>
@@ -1598,7 +1598,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="194"/>
         <source>Text Hi&amp;ghlight</source>
-        <translation>&amp;Zvýraznit text</translation>
+        <translation>&amp;Zvýraznění textu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="240"/>
@@ -1703,7 +1703,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="348"/>
         <source>&amp;Antialiasing</source>
-        <translation>&amp;Vyhlazení</translation>
+        <translation>&amp;Vyhlazování</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="351"/>
@@ -1733,12 +1733,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="381"/>
         <source>&amp;Ignore Optional Content Settings</source>
-        <translation>&amp;Ignorovat volitelná nastavení obsahu</translation>
+        <translation>&amp;Ignorovat nastavení volitelného obsahu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="384"/>
         <source>Ignore Optional Content Settings</source>
-        <translation>Ignorovat volitelná nastavení obsahu</translation>
+        <translation>Ignorovat nastavení volitelného obsahu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="393"/>
@@ -1753,17 +1753,17 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="401"/>
         <source>Reset to &amp;Factory Settings</source>
-        <translation>Obnovit &amp;tovární nastavení</translation>
+        <translation>Obnovit &amp;výchozí nastavení</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="410"/>
         <source>&amp;Zoom In</source>
-        <translation type="unfinished">&amp;Přiblížit</translation>
+        <translation>&amp;Přiblížit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="419"/>
         <source>Zoom &amp;Out</source>
-        <translation type="unfinished">&amp;Oddálit</translation>
+        <translation>&amp;Oddálit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="428"/>
@@ -1808,7 +1808,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="487"/>
         <source>Show Text &amp;Blocks</source>
-        <translation>Zobrazit &amp;bloky textu</translation>
+        <translation>Zobrazit textové &amp;bloky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="495"/>
@@ -1858,7 +1858,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="585"/>
         <source>Color | &amp;Inverted</source>
-        <translation>Barvy | &amp;Invertovat</translation>
+        <translation>Barvy | &amp;Invertované</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="597"/>
@@ -1893,7 +1893,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="660"/>
         <source>&amp;Print...</source>
-        <translation>&amp;Tisknout…</translation>
+        <translation>&amp;Tisk…</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="665"/>
@@ -1913,7 +1913,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="692"/>
         <source>&amp;Screenshot</source>
-        <translation>&amp;Snímek</translation>
+        <translation>&amp;Snímek obrazovky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="704"/>
@@ -1953,12 +1953,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="754"/>
         <source>Save &amp;As...</source>
-        <translation type="unfinished">Uložit j&amp;ako…</translation>
+        <translation>Uložit j&amp;ako…</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="763"/>
         <source>&amp;Save</source>
-        <translation type="unfinished">&amp;Uložit</translation>
+        <translation>&amp;Uložit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="771"/>
@@ -2033,7 +2033,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="939"/>
         <source>&amp;Underline</source>
-        <translation>&amp;Zdůraznění</translation>
+        <translation>&amp;Podtržení</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="951"/>
@@ -2083,7 +2083,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1035"/>
         <source>&amp;Encryption...</source>
-        <translation type="unfinished">Š&amp;ifrování…</translation>
+        <translation>Š&amp;ifrování…</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1044"/>
@@ -2103,22 +2103,22 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1061"/>
         <source>Remove External &amp;Links</source>
-        <translation>Odstranit externí &amp;odkazy</translation>
+        <translation>Odebrat externí &amp;odkazy</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1064"/>
         <source>Remove all external link annotations from the document.</source>
-        <translation>Odstranit všechny externí odkazy z dokumentu.</translation>
+        <translation>Odebrat všechny externí odkazy z dokumentu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1072"/>
         <source>Automatic &amp;Document Refresh</source>
-        <translation>Automatická aktualizace &amp;dokumentu</translation>
+        <translation>Automatické obnovení &amp;dokumentu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1075"/>
         <source>Automatically reloads the document if a change made by an external program is detected.</source>
-        <translation>Automaticky načíst dokument při změně z externího programu.</translation>
+        <translation>Automaticky znovu načte dokument, pokud je detekována změna externím programem.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1084"/>
@@ -2133,12 +2133,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1096"/>
         <source>Create Bitonal Document</source>
-        <translation>Vytvoří bitonální dokument</translation>
+        <translation>Vytvořit bitonální dokument</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1099"/>
         <source>Convert the colored images to monochromatic to create a bitonal document.</source>
-        <translation>Převíst barevné obrázky na monochromatické a vytvořit bitonální dokument.</translation>
+        <translation>Převede barevné obrázky na monochromatické pro vytvoření bitonálního dokumentu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1108"/>
@@ -2218,12 +2218,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1186"/>
         <source>&amp;Generate Bookmarks Automatically</source>
-        <translation>&amp;Vytvářet záložky automaticky</translation>
+        <translation>&amp;Generovat záložky automaticky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1189"/>
         <source>Generate Bookmarks Automatically</source>
-        <translation>Vytvářet záložky automaticky</translation>
+        <translation>Generovat záložky automaticky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1192"/>
@@ -2233,17 +2233,17 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1200"/>
         <source>Display &amp;Render Times</source>
-        <translation>Zobrazit časy vyk&amp;reslení</translation>
+        <translation>Zobrazit časy vyk&amp;reslování</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1203"/>
         <source>Display Render Times</source>
-        <translation>Zobrazit časy vykreslení</translation>
+        <translation>Zobrazit časy vykreslování</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1211"/>
         <source>Clear Recent File &amp;History</source>
-        <translation type="unfinished">Smazat nedávnou &amp;historii souborů</translation>
+        <translation>Smazat &amp;historii posledních souborů</translation>
     </message>
 </context>
 <context>
@@ -2266,7 +2266,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="36"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Select encryption algorithm. AES-256 is strongly recommended, because older encryption algorithm can be potentially broken. Select older algorithms (as AES-128 or RC4) only, if you need backward compatibility. Also, choose a strong password to ensure strong encryption.&lt;/p&gt;&lt;p&gt;Public key security using certificate is also supported. In that case, you must select a certificate with private key, and this certificate is then used to encrypt data. User, which wants to open document encrypted with certificate, must have a private key to the certificae.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="unfinished">&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Vyberte šifrovací algoritmus. Důrazně doporučujeme AES-256, protože starší šifrovací algoritmy mohou být potenciálně prolomeny. Starší algoritmy (jako AES-128 nebo RC4) vyberte pouze v případě, že potřebujete zpětnou kompatibilitu. Pro zajištění silného šifrování také zvolte silné heslo.&lt;/p&gt;&lt;p&gt;Podporováno je také zabezpečení veřejným klíčem pomocí certifikátu. V takovém případě musíte vybrat certifikát s privátním klíčem, který se poté použije k šifrování dat. Uživatel, který chce otevřít dokument zašifrovaný certifikátem, musí mít privátní klíč k certifikátu.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Vyberte šifrovací algoritmus. Důrazně doporučujeme AES-256, protože starší šifrovací algoritmy mohou být potenciálně prolomeny. Starší algoritmy (jako AES-128 nebo RC4) volte pouze v případě, že potřebujete zpětnou kompatibilitu. Pro zajištění silného šifrování také zvolte silné heslo.&lt;/p&gt;&lt;p&gt;Podporováno je také zabezpečení veřejným klíčem pomocí certifikátu. V takovém případě musíte vybrat certifikát s privátním klíčem, který se poté použije k šifrování dat. Uživatel, který chce otevřít dokument zašifrovaný certifikátem, musí mít privátní klíč k tomuto certifikátu.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="46"/>
@@ -2281,12 +2281,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="65"/>
         <source>Password (document open)</source>
-        <translation>Heslo (otevření dokumentu)</translation>
+        <translation>Heslo pro otevření dokumentu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="92"/>
         <source>Password (owner access)</source>
-        <translation>Heslo (veškerý přístup)</translation>
+        <translation>Heslo vlastníka (oprávnění)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="102"/>
@@ -2296,12 +2296,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="108"/>
         <source>Encrypt all document contents, including document metadata</source>
-        <translation>Zašifrovat všechny druhy obsahu, včetně metadat</translation>
+        <translation>Zašifrovat veškerý obsah dokumentu včetně metadat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="118"/>
         <source>Encrypt all document contets except metadata</source>
-        <translation>Zašifrovat všechny druhy obsahu kromě metadat</translation>
+        <translation>Zašifrovat veškerý obsah dokumentu kromě metadat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="125"/>
@@ -2311,7 +2311,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="135"/>
         <source>Permissions</source>
-        <translation>Práva</translation>
+        <translation>Oprávnění</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="141"/>
@@ -2321,7 +2321,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="148"/>
         <source>Fill interactive forms</source>
-        <translation>Vyplnění interaktivních formulářů</translation>
+        <translation>Vyplňování interaktivních formulářů</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="155"/>
@@ -2331,27 +2331,27 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="162"/>
         <source>Accessibility</source>
-        <translation>Usnadnění</translation>
+        <translation>Přístupnost</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="169"/>
         <source>Modify document contents</source>
-        <translation>Změnit obsah dokumentu</translation>
+        <translation>Změna obsahu dokumentu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="176"/>
         <source>Assemble document (insert, rotate, delete pages...)</source>
-        <translation>Sestavit doument (vložit, rotovat, smazat stránky…)</translation>
+        <translation>Sestavení dokumentu (vkládání, otáčení, mazání stránek…)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="183"/>
         <source>Edit interactive items (annotations, forms, ...)</source>
-        <translation>Upravit interaktivní prvky (anotace, formuláře, …)</translation>
+        <translation>Úprava interaktivních prvků (anotace, formuláře…)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfencryptionsettingsdialog.ui" line="190"/>
         <source>Copy/extract document content</source>
-        <translation>Kopírování a vyjmutí obsahu dokumetu</translation>
+        <translation>Kopírování nebo vyjmutí obsahu dokumetu</translation>
     </message>
 </context>
 <context>
@@ -2372,7 +2372,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="14"/>
         <source>Dialog</source>
-        <translation>Dialog</translation>
+        <translation>Dialogové okno</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="24"/>
@@ -2438,22 +2438,22 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="179"/>
         <source>Brush Style</source>
-        <translation>Styl štětce</translation>
+        <translation>Styl výplně</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="186"/>
         <source>Pen Width</source>
-        <translation>Šířka pera</translation>
+        <translation>Tloušťka pera</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="193"/>
         <source>Stroke path</source>
-        <translation>Ohraničení tahu</translation>
+        <translation>Vykreslit obrys</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="216"/>
         <source>Brush Color</source>
-        <translation>Barva štětce</translation>
+        <translation>Barva výplně</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="237"/>
@@ -2488,7 +2488,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="331"/>
         <source>Shear factor</source>
-        <translation>Koeficient zkosení</translation>
+        <translation>Faktor zkosení</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="351"/>
@@ -2508,7 +2508,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="382"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;s&lt;span style=&quot; vertical-align:sub;&quot;&gt;y&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&amp;lt;html&amp;gt;&amp;lt;head/&amp;gt;&amp;lt;body&amp;gt;&amp;lt;p&amp;gt;s&amp;lt;span style=&amp;quot; vertical-align:sub;&amp;quot;&amp;gt;y&amp;lt;/span&amp;gt;&amp;lt;/p&amp;gt;&amp;lt;/body&amp;gt;&amp;lt;/html&amp;gt;</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;s&lt;span style=&quot; vertical-align:sub;&quot;&gt;y&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="389"/>
@@ -2518,12 +2518,12 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="396"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;t&lt;span style=&quot; vertical-align:sub;&quot;&gt;x&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&amp;lt;html&amp;gt;&amp;lt;head/&amp;gt;&amp;lt;body&amp;gt;&amp;lt;p&amp;gt;t&amp;lt;span style=&amp;quot; vertical-align:sub;&amp;quot;&amp;gt;x&amp;lt;/span&amp;gt;&amp;lt;/p&amp;gt;&amp;lt;/body&amp;gt;&amp;lt;/html&amp;gt;</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;t&lt;span style=&quot; vertical-align:sub;&quot;&gt;x&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.ui" line="403"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;t&lt;span style=&quot; vertical-align:sub;&quot;&gt;y&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&amp;lt;html&amp;gt;&amp;lt;head/&amp;gt;&amp;lt;body&amp;gt;&amp;lt;p&amp;gt;t&amp;lt;span style=&amp;quot; vertical-align:sub;&amp;quot;&amp;gt;y&amp;lt;/span&amp;gt;&amp;lt;/p&amp;gt;&amp;lt;/body&amp;gt;&amp;lt;/html&amp;gt;</translation>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;t&lt;span style=&quot; vertical-align:sub;&quot;&gt;y&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
 </context>
 <context>
@@ -2546,12 +2546,12 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="70"/>
         <source>Pen Width</source>
-        <translation>Šířka pera</translation>
+        <translation>Tloušťka pera</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="77"/>
         <source>Brush Color</source>
-        <translation>Barva štětce</translation>
+        <translation>Barva výplně</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="174"/>
@@ -2573,12 +2573,12 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="198"/>
         <source>Text Angle</source>
-        <translation>Úhel textu</translation>
+        <translation>Natočení textu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.ui" line="219"/>
         <source>Brush Style</source>
-        <translation>Styl štětce</translation>
+        <translation>Styl výplně</translation>
     </message>
 </context>
 <context>
@@ -2591,7 +2591,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="24"/>
         <source>Toolbox</source>
-        <translation>Sada nástrojů</translation>
+        <translation>Panel nástrojů</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="32"/>
@@ -2606,7 +2606,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="45"/>
         <source>Align to Vertical Center</source>
-        <translation>Zarovnat doprostřed</translation>
+        <translation>Zarovnat na střed svisle</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="52"/>
@@ -2636,7 +2636,7 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="87"/>
         <source>Align to Horizontal Center</source>
-        <translation>Zarovnat doprostřed</translation>
+        <translation>Zarovnat na střed vodorovně</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="94"/>
@@ -2646,17 +2646,17 @@
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="101"/>
         <source>Center Horizontally</source>
-        <translation>Vycentrovat horizontálně</translation>
+        <translation>Vycentrovat vodorovně</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="108"/>
         <source>Center Vertically</source>
-        <translation>Vycentrovat vertikálně</translation>
+        <translation>Vycentrovat svisle</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="115"/>
         <source>Center to Page Media Box</source>
-        <translation>Vycentrovat podle Media Boxu</translation>
+        <translation>Vycentrovat na Media Box stránky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="125"/>
@@ -2699,7 +2699,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="14"/>
         <source>Render Document to Images</source>
-        <translation>Vykreslit dokument do obrázků</translation>
+        <translation>Exportovat dokument do obrázků</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="20"/>
@@ -2709,17 +2709,17 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="26"/>
         <source>Pages to render</source>
-        <translation>Stránky k vykreslení</translation>
+        <translation>Stránky k exportu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="33"/>
         <source>File template</source>
-        <translation>Šablona souboru</translation>
+        <translation>Šablona názvu souborů</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="40"/>
         <source>All</source>
-        <translation>Vše</translation>
+        <translation>Všechny</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="47"/>
@@ -2759,7 +2759,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="107"/>
         <source> dots/inch</source>
-        <translation> bodů/palců</translation>
+        <translation> bodů/palec</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="126"/>
@@ -2804,13 +2804,13 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="215"/>
         <source>Progressive scan write</source>
-        <translation>Postupné ukládání (progressive scan)</translation>
+        <translation>Progresivní ukládání</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="222"/>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="229"/>
         <source>Enable</source>
-        <translation type="unfinished">Povolit</translation>
+        <translation>Povolit</translation>
     </message>
 </context>
 <context>
@@ -2867,12 +2867,12 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="84"/>
         <source>Outline</source>
-        <translation type="unfinished">Obsah</translation>
+        <translation>Obsah</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="116"/>
         <source>Thumbnails</source>
-        <translation type="unfinished">Náhledy</translation>
+        <translation>Náhledy</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="148"/>
@@ -2887,7 +2887,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="212"/>
         <source>Speech</source>
-        <translation>Číst nahlas</translation>
+        <translation>Čtení</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="244"/>
@@ -2902,18 +2902,18 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="305"/>
         <source>Notes</source>
-        <translation type="unfinished">Poznámky</translation>
+        <translation>Poznámky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="318"/>
         <source>Ctrl+S</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+S</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="384"/>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="574"/>
         <source>Search text or wildcard...</source>
-        <translation type="unfinished">Hledat text nebo zástupný znak…</translation>
+        <translation>Hledat text nebo zástupný znak…</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="421"/>
@@ -2928,7 +2928,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="642"/>
         <source>Pitch</source>
-        <translation>Rozteč</translation>
+        <translation>Výška hlasu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="662"/>
@@ -2941,7 +2941,7 @@
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="53"/>
         <source>Help</source>
-        <translation type="unfinished">Nápověda</translation>
+        <translation>Nápověda</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="56"/>
@@ -2951,7 +2951,7 @@
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="69"/>
         <source>PDFTool help</source>
-        <translation>Nápověda nástroje PDFTool</translation>
+        <translation>Nápověda k PDFTool</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="72"/>
@@ -2974,7 +2974,7 @@
         <location filename="../PdfTool/pdftoolrender.cpp" line="297"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="244"/>
         <source>Description</source>
-        <translation type="unfinished">Popis</translation>
+        <translation>Popis</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="118"/>
@@ -2984,7 +2984,7 @@
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="120"/>
         <source>When you redirect console to a file, then specific codec is used to transform output text to target encoding. UTF-8 encoding is used by default. For XML output, you should use only UTF-8 codec. Available codecs:</source>
-        <translation>Když přesměrujete konzolu do souboru, pak se k transformaci výstupního textu na cílové kódování použije specifický kodek. Standardně se používá kódování UTF-8. Pro výstup XML byste měli používat pouze kodek UTF-8. Dostupné kodeky:</translation>
+        <translation>Při přesměrování konzole do souboru se k transformaci výstupního textu na cílové kódování použije specifický kodek. Výchozím kódováním je UTF-8. Pro výstup XML byste měli používat výhradně kodek UTF-8. Dostupné kodeky:</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="131"/>
@@ -2994,27 +2994,27 @@
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="384"/>
         <source>Unknown console format &apos;%1&apos;. Defaulting to text console format.</source>
-        <translation>Neznámý formát konzole „%1“. Používá se výchozí textový formát konzole.</translation>
+        <translation>Neznámý formát konzole &apos;%1&apos;. Použije se výchozí textový formát.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="414"/>
         <source>Unknown console date/time format &apos;%1&apos;. Defaulting to short date/time format.</source>
-        <translation>Neznámý formát data/času konzoly &apos;%1&apos;. Výchozí krátký formát data/času.</translation>
+        <translation>Neznámý formát data a času konzole &apos;%1&apos;. Použije se výchozí krátký formát.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="511"/>
         <source>Unknown text layout analysis algorithm &apos;%1&apos;. Defaulting to automatic algorithm selection.</source>
-        <translation>Neznámý algoritmus analýzy rozvržení textu &apos;%1&apos;. Výchozí automatický výběr algoritmu.</translation>
+        <translation>Neznámý algoritmus analýzy rozvržení textu &apos;%1&apos;. Použije se automatický výběr algoritmu.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="539"/>
         <source>Unknown audio format &apos;%1&apos;. Defaulting to mp3 audio format.</source>
-        <translation>Neznámý formát zvuku &apos;%1&apos;. Výchozí zvukový formát mp3.</translation>
+        <translation>Neznámý formát zvuku &apos;%1&apos;. Použije se formát mp3.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="562"/>
         <source>Image format &apos;%1&apos; is not supported. Defaulting to png.</source>
-        <translation>Formát obrázku &apos;%1&apos; není podporován. Výchozí na png.</translation>
+        <translation>Formát obrázku &apos;%1&apos; není podporován. Použije se formát png.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="579"/>
@@ -3049,62 +3049,62 @@
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="654"/>
         <source>Progressive scan write is not supported.</source>
-        <translation>Zápis progresivního skenování není podporován.</translation>
+        <translation>Progresivní ukládání není podporováno.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="686"/>
         <source>Invalid image resolution mode &apos;%1&apos;. Defaulting to dpi.</source>
-        <translation>Neplatný režim rozlišení obrázku &apos;%1&apos;. Výchozí hodnota je dpi.</translation>
+        <translation>Neplatný režim rozlišení obrázku &apos;%1&apos;. Použije se jednotka dpi.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="694"/>
         <source>Cannot set dpi value, resolution mode must be dpi.</source>
-        <translation>Nelze nastavit hodnotu dpi, režim rozlišení musí být dpi.</translation>
+        <translation>Nelze nastavit hodnotu DPI, režim rozlišení musí být nastaven na DPI.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="705"/>
         <source>Dpi must be in range from %1 to %2. Defaulting to %3.</source>
-        <translation>Dpi musí být v rozsahu od %1 do %2. Výchozí nastavení je %3.</translation>
+        <translation>DPI musí být v rozsahu od %1 do %2. Použije se výchozí hodnota %3.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="712"/>
         <source>Invalid image dpi value &apos;%1&apos;.</source>
-        <translation>Neplatná hodnota dpi obrázku &apos;%1&apos;.</translation>
+        <translation>Neplatná hodnota DPI obrázku &apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="720"/>
         <source>Cannot set pixel value, resolution mode must be pixel.</source>
-        <translation>Nelze nastavit hodnotu pixelu, režim rozlišení musí být pixel.</translation>
+        <translation>Nelze nastavit hodnotu pixelů, režim rozlišení musí být nastaven na pixely.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="731"/>
         <source>Pixel value must be in range from %1 to %2. Defaulting to %3.</source>
-        <translation>Hodnota pixelu musí být v rozsahu od %1 do %2. Výchozí nastavení je %3.</translation>
+        <translation>Počet pixelů musí být v rozsahu od %1 do %2. Použije se výchozí hodnota %3.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="738"/>
         <source>Invalid image pixel value &apos;%1&apos;.</source>
-        <translation>Neplatná hodnota pixelu obrázku &apos;%1&apos;.</translation>
+        <translation>Neplatná pixelová hodnota obrázku &apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="759"/>
         <source>Unknown color management system &apos;%1&apos;. Defaulting to lcms.</source>
-        <translation>Neznámý systém správy barev &apos;%1&apos;. Výchozí na lcms.</translation>
+        <translation>Neznámý systém správy barev &apos;%1&apos;. Použije se lcms.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="778"/>
         <source>Uknown color management system accuracy &apos;%1&apos;. Defaulting to medium.</source>
-        <translation>Neznámá přesnost systému správy barev &apos;%1&apos;. Výchozí na střední.</translation>
+        <translation>Neznámá přesnost systému správy barev &apos;%1&apos;. Použije se střední přesnost.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="805"/>
         <source>Unknown color adaptation method &apos;%1&apos;. Defaulting to bradford.</source>
-        <translation>Neznámá metoda přizpůsobení barev &apos;%1&apos;. Výchozí na bradford.</translation>
+        <translation>Neznámá metoda adaptace barev &apos;%1&apos;. Použije se metoda Bradford.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="832"/>
         <source>Uknown color management system rendering intent &apos;%1&apos;. Defaulting to auto.</source>
-        <translation>Neznámý záměr vykreslování systému správy barev &apos;%1&apos;. Výchozí nastavení je auto.</translation>
+        <translation>Neznámý záměr vykreslování (rendering intent) &apos;%1&apos;. Použije se automatický výběr.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="881"/>
@@ -3114,32 +3114,32 @@
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="894"/>
         <source>Uknown bool value &apos;%1&apos;. GPU rendering is used as default.</source>
-        <translation>Neznámá logická hodnota &apos;%1&apos;. Jako výchozí se používá vykreslování GPU.</translation>
+        <translation>Neznámá logická hodnota &apos;%1&apos;. Jako výchozí se použije vykreslování přes GPU.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="901"/>
         <source>Uknown MSAA sample count &apos;%1&apos;. 4 samples are used as default.</source>
-        <translation>Neznámý počet vzorků MSAA &apos;%1&apos;. Standardně jsou použity 4 vzorky.</translation>
+        <translation>Neznámý počet vzorků MSAA &apos;%1&apos;. Výchozí jsou 4 vzorky.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="910"/>
         <source>Uknown rasterizer count &apos;%1&apos;. %2 rasterizers are used as default.</source>
-        <translation>Neznámý počet rasterizátorů &apos;%1&apos;. %2 rasterizátory jsou použity jako výchozí.</translation>
+        <translation>Neznámý počet rasterizátorů &apos;%1&apos;. Výchozí počet je %2.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="915"/>
         <source>Invalid raterizer count: %1. Correcting to use %2 rasterizers.</source>
-        <translation>Neplatný počet hodnotitelů: %1. Oprava na použití %2 rasterizátorů.</translation>
+        <translation>Neplatný počet rasterizátorů: %1. Upraveno na použití %2 rasterizátorů.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="974"/>
         <source>Unknown encryption algorithm &apos;%1&apos;. Defaulting to AES-256 encryption.</source>
-        <translation>Neznámý šifrovací algoritmus &apos;%1&apos;. Výchozí šifrování AES-256.</translation>
+        <translation>Neznámý šifrovací algoritmus &apos;%1&apos;. Použije se šifrování AES-256.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="997"/>
         <source>Unknown encryption contents mode &apos;%1&apos;. Defaulting to encrypt all contents.</source>
-        <translation>Režim neznámého obsahu šifrování &apos;%1&apos;. Výchozí nastavení pro šifrování veškerého obsahu.</translation>
+        <translation>Neznámý režim obsahu šifrování &apos;%1&apos;. Výchozím nastavením je šifrování veškerého obsahu.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1056"/>
@@ -3156,7 +3156,7 @@
         <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1075"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="95"/>
         <source>Warning: %1</source>
-        <translation>Upozornění: %1</translation>
+        <translation>Varování: %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="42"/>
@@ -3176,7 +3176,7 @@
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="125"/>
         <source>Attached files overview</source>
-        <translation>Přehled připojených souborů</translation>
+        <translation>Přehled přiložených souborů</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="128"/>
@@ -3217,25 +3217,25 @@
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="133"/>
         <source>Packed size [bytes]</source>
-        <translation>Velikost balení [bajty]</translation>
+        <translation>Velikost po sbalení [bajty]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="161"/>
         <source>Target file name must not be specified, if multiple files are being saved.</source>
-        <translation>Název cílového souboru nesmí být zadán, pokud se ukládá více souborů.</translation>
+        <translation>Při ukládání více souborů nesmí být zadán název cílového souboru.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="196"/>
         <location filename="../PdfTool/pdftoolattachments.cpp" line="202"/>
         <source>Failed to save attachment to file. %1</source>
-        <translation>Přílohu se nepodařilo uložit do souboru. %1</translation>
+        <translation>Přílohu se nepodařilo uložit. %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="136"/>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="142"/>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="214"/>
         <source>SAPI Error: Cannot enumerate SAPI voices.</source>
-        <translation>Chyba SAPI: Nelze vyčíslit hlasy SAPI.</translation>
+        <translation>Chyba SAPI: Nelze načíst seznam hlasů SAPI.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="237"/>
@@ -3254,7 +3254,7 @@
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="85"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="263"/>
         <source>Name</source>
-        <translation>Jméno</translation>
+        <translation>Název</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="244"/>
@@ -3286,7 +3286,7 @@
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="249"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="260"/>
         <source>Country</source>
-        <translation>Stát</translation>
+        <translation>Země</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="250"/>
@@ -3303,22 +3303,22 @@
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="286"/>
         <source>Audio book voices</source>
-        <translation>Hlasy audioknih</translation>
+        <translation>Hlasy pro audioknihu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="289"/>
         <source>List of available voices for audio book conversion.</source>
-        <translation>Seznam dostupných hlasů pro konverzi audioknih.</translation>
+        <translation>Seznam hlasů dostupných pro převod na audioknihu.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="326"/>
         <source>Audio book convertor</source>
-        <translation>Konvertor audio knih</translation>
+        <translation>Převodník na audioknihy</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="329"/>
         <source>Convert your document to a simple audio book.</source>
-        <translation>Převeďte dokument na jednoduchou zvukovou knihu.</translation>
+        <translation>Převést dokument na jednoduchou audioknihu.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="399"/>
@@ -3334,7 +3334,7 @@
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="416"/>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="430"/>
         <source>Cannot create output stream &apos;%1&apos;.</source>
-        <translation>Nelze vytvořit výstupní stream &apos;%1&apos;.</translation>
+        <translation>Nelze vytvořit výstupní proud (stream) &apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="423"/>
@@ -3344,12 +3344,12 @@
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="439"/>
         <source>Failed to set requested voice. Default voice will be used.</source>
-        <translation>Nepodařilo se nastavit požadovaný hlas. Použije se výchozí hlas.</translation>
+        <translation>Nepodařilo se nastavit požadovaný hlas. Bude použit výchozí hlas.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolaudiobook.cpp" line="465"/>
         <source>No text extracted to be converted to audio book.</source>
-        <translation>Není extrahován žádný text, který by měl být převeden na zvukovou knihu.</translation>
+        <translation>Nebyl extrahován žádný text k převodu na audioknihu.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="42"/>
@@ -3359,17 +3359,17 @@
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="45"/>
         <source>Certificate store operations (list, add, remove certificates).</source>
-        <translation>Operace úložiště certifikátů (seznam, přidání, odebrání certifikátů).</translation>
+        <translation>Operace s úložištěm certifikátů (výpis, přidání, odebrání certifikátů).</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="77"/>
         <source>Certificates used in the signature verification</source>
-        <translation>Certifikáty používané při ověřování podpisů</translation>
+        <translation>Certifikáty použité k ověření podpisu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="80"/>
         <source>Certificates</source>
-        <translation type="unfinished">Certifikáty</translation>
+        <translation>Certifikáty</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="84"/>
@@ -3380,51 +3380,51 @@
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="131"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="147"/>
         <source>Type</source>
-        <translation type="unfinished">Typ</translation>
+        <translation>Typ</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="85"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="149"/>
         <source>Certificate</source>
-        <translation type="unfinished">Certifikát</translation>
+        <translation>Certifikát</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="86"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="261"/>
         <source>Organization</source>
-        <translation type="unfinished">Organizace</translation>
+        <translation>Organizace</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="87"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="314"/>
         <source>Valid from</source>
-        <translation type="unfinished">Platný od</translation>
+        <translation>Platnost od</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="88"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="322"/>
         <source>Valid to</source>
-        <translation type="unfinished">Platný do</translation>
+        <translation>Platnost do</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="100"/>
         <source>User</source>
-        <translation type="unfinished">Uživatelský</translation>
+        <translation>Uživatel</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="104"/>
         <source>System</source>
-        <translation type="unfinished">Systémový</translation>
+        <translation>Systém</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="161"/>
         <source>Install Certificate</source>
-        <translation>Nainstalovat certifikát</translation>
+        <translation>Instalovat certifikát</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="164"/>
         <source>Install a new user certificate to certificate store.</source>
-        <translation>Nainstalovat nový uživatelský certifikát do úložiště certifikátů.</translation>
+        <translation>Instalovat nový uživatelský certifikát do úložiště.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="185"/>
@@ -3434,7 +3434,7 @@
     <message>
         <location filename="../PdfTool/pdftoolcertstore.cpp" line="198"/>
         <source>Cannot read certificate from file &apos;%1&apos;.</source>
-        <translation>Nelze přečíst certifikát ze souboru &apos;%1&apos;.</translation>
+        <translation>Nelze načíst certifikát ze souboru &apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcolorprofiles.cpp" line="39"/>
@@ -3465,7 +3465,7 @@
     <message>
         <location filename="../PdfTool/pdftoolcolorprofiles.cpp" line="95"/>
         <source>Gray Profiles</source>
-        <translation>Profily šedé škály</translation>
+        <translation>Profily pro stupně šedi</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolcolorprofiles.cpp" line="96"/>
@@ -3485,12 +3485,12 @@
     <message>
         <location filename="../PdfTool/pdftooldecrypt.cpp" line="43"/>
         <source>Remove encryption from a document (with only owner access only).</source>
-        <translation>Odstranit šifrování z dokumentu (pouze s přístupem vlastníka).</translation>
+        <translation>Odstranit šifrování z dokumentu (vyžaduje oprávnění vlastníka).</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldecrypt.cpp" line="61"/>
         <source>Authorization as owner failed. Encryption removal is not permitted if authorized as user only.</source>
-        <translation>Autorizace vlastníka se nezdařila. Odstranění šifrování není povoleno, pokud máte oprávnění pouze jako uživatel.</translation>
+        <translation>Autorizace vlastníka se nezdařila. Odstranění šifrování není povoleno s pouhým uživatelským oprávněním.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldecrypt.cpp" line="68"/>
@@ -3510,7 +3510,7 @@
     <message>
         <location filename="../PdfTool/pdftooldiff.cpp" line="58"/>
         <source>Exactly two documents must be specified.</source>
-        <translation>Musí být uvedeny přesně dva dokumenty.</translation>
+        <translation>Musí být zadány přesně dva dokumenty.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldiff.cpp" line="67"/>
@@ -3522,7 +3522,7 @@
     <message>
         <location filename="../PdfTool/pdftooldiff.cpp" line="98"/>
         <source>Difference Report</source>
-        <translation>Zpráva o rozdílech</translation>
+        <translation>Protokol o rozdílech</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooldiff.cpp" line="101"/>
@@ -3537,7 +3537,7 @@
     <message>
         <location filename="../PdfTool/pdftooldiff.cpp" line="107"/>
         <source>Right Page</source>
-        <translation>Pravá strana</translation>
+        <translation>Pravá stránka</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolencrypt.cpp" line="40"/>
@@ -3547,34 +3547,34 @@
     <message>
         <location filename="../PdfTool/pdftoolencrypt.cpp" line="43"/>
         <source>Encrypt the document (with only owner access only).</source>
-        <translation>Zašifrujte dokument (pouze s přístupem vlastníka).</translation>
+        <translation>Zašifrovat dokument (vyžaduje oprávnění vlastníka).</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolencrypt.cpp" line="77"/>
         <source>Authorization as owner failed. Encryption change is not permitted if authorized as user only.</source>
-        <translation>Autorizace vlastníka se nezdařila. Změna šifrování není povolena, pokud máte oprávnění pouze jako uživatel.</translation>
+        <translation>Autorizace vlastníka se nezdařila. Změna šifrování není povolena s pouhým uživatelským oprávněním.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="111"/>
         <source>Fetch images</source>
-        <translation>Načíst obrázky</translation>
+        <translation>Extrahovat obrázky</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="114"/>
         <source>Fetch image content from document.</source>
-        <translation>Načíst obsah obrázku z dokumentu.</translation>
+        <translation>Extrahovat obsah obrázků z dokumentu.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="135"/>
         <location filename="../PdfTool/pdftoolfetchtext.cpp" line="63"/>
         <location filename="../PdfTool/pdftoolseparate.cpp" line="68"/>
         <source>Document doesn&apos;t allow to copy content.</source>
-        <translation>Dokument neumožňuje&apos; kopírovat obsah.</translation>
+        <translation>Dokument neumožňuje kopírování obsahu.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="196"/>
         <source>Images fetched from document %1</source>
-        <translation>Obrázky načtené z dokumentu %1</translation>
+        <translation>Obrázky extrahované z dokumentu %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="199"/>
@@ -3594,7 +3594,7 @@
         <location filename="../PdfTool/pdftoolrender.cpp" line="335"/>
         <location filename="../PdfTool/pdftoolrender.cpp" line="371"/>
         <source>Page No.</source>
-        <translation>Číslo Stránky.</translation>
+        <translation>Č. stránky</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolfetchimages.cpp" line="204"/>
@@ -3651,13 +3651,13 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="74"/>
         <source>Properties:</source>
-        <translation type="unfinished">Vlastnosti:</translation>
+        <translation>Vlastnosti:</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="77"/>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="177"/>
         <source>Property</source>
-        <translation>Vlastnictví</translation>
+        <translation>Vlastnost</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="78"/>
@@ -3704,12 +3704,12 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="95"/>
         <source>Creation date</source>
-        <translation>Datum vytvoření</translation>
+        <translation>Vytvořeno</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="96"/>
         <source>Modified date</source>
-        <translation>Datum úpravy</translation>
+        <translation>Změněno</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="103"/>
@@ -3817,17 +3817,17 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="204"/>
         <source>No authorization required</source>
-        <translation>Není vyžadováno žádné oprávnění</translation>
+        <translation>Autorizace není vyžadována</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="208"/>
         <source>Authorized as owner</source>
-        <translation>Oprávněn jako vlastník</translation>
+        <translation>Autorizován jako vlastník</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="212"/>
         <source>Authorized as user</source>
-        <translation>Oprávněn jako uživatel</translation>
+        <translation>Autorizován jako uživatel</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="220"/>
@@ -3837,12 +3837,12 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="221"/>
         <source>Authorization</source>
-        <translation>Oprávnění</translation>
+        <translation>Autorizace</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="226"/>
         <source>Metadata encrypted</source>
-        <translation>Metadata zašifrována</translation>
+        <translation>Šifrovaná metadata</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="231"/>
@@ -3852,7 +3852,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="235"/>
         <source>Print</source>
-        <translation type="unfinished">Tisk</translation>
+        <translation>Tisk</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="239"/>
@@ -3862,27 +3862,27 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="243"/>
         <source>Accessibility</source>
-        <translation>Usnadnění</translation>
+        <translation>Usnadnění přístupu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="247"/>
         <source>Page assembling</source>
-        <translation>Sestavení stránky</translation>
+        <translation>Sestavování stránek</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="251"/>
         <source>Modify content</source>
-        <translation>Upravit obsah</translation>
+        <translation>Úpravy obsahu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="255"/>
         <source>Modify interactive items</source>
-        <translation>Upravit interaktivní položky</translation>
+        <translation>Úpravy interaktivních prvků</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="259"/>
         <source>Form filling</source>
-        <translation>Vyplnit formulář</translation>
+        <translation>Vyplňování formulářů</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="264"/>
@@ -3892,12 +3892,12 @@
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="267"/>
         <source>Permissions</source>
-        <translation>Práva</translation>
+        <translation>Oprávnění</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="275"/>
         <source>File hashes:</source>
-        <translation>Hash souboru:</translation>
+        <translation>Hashe souboru:</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfo.cpp" line="278"/>
@@ -3937,12 +3937,12 @@
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="42"/>
         <source>Info about used fonts</source>
-        <translation>Informace o použitých fontech</translation>
+        <translation>Informace o použitých písmech</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="45"/>
         <source>Retrieve informations about font usage in a document.</source>
-        <translation>Načtení informací o použití písma v dokumentu.</translation>
+        <translation>Získat informace o použitých písmech v dokumentu.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="173"/>
@@ -4071,7 +4071,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="354"/>
         <source>Match</source>
-        <translation>Zápas</translation>
+        <translation>Shoda</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfofonts.cpp" line="371"/>
@@ -4101,27 +4101,27 @@
     <message>
         <location filename="../PdfTool/pdftoolinfoinks.cpp" line="39"/>
         <source>Info about used inks</source>
-        <translation>Informace o použitých inkoustech</translation>
+        <translation>Informace o použitých barvách</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfoinks.cpp" line="42"/>
         <source>Retrieve information about inks used in a document.</source>
-        <translation>Načtení informací o inkoustech použitých v dokumentu.</translation>
+        <translation>Načtení informací o barvách použitých v dokumentu.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfoinks.cpp" line="66"/>
         <source>Inks</source>
-        <translation>Inkousty</translation>
+        <translation>Barvy</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfoinks.cpp" line="69"/>
         <source>Ink list</source>
-        <translation>Seznam inkoustů</translation>
+        <translation>Seznam barev</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfoinks.cpp" line="75"/>
         <source>Spot</source>
-        <translation>Místo</translation>
+        <translation>Přímá barva</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfoinks.cpp" line="76"/>
@@ -4131,12 +4131,12 @@
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="39"/>
         <source>Info (JavaScript code)</source>
-        <translation>Informace (kód JavaScript)</translation>
+        <translation>Info (JavaScript)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="42"/>
         <source>Retrieve informations about JavaScript usage in a document.</source>
-        <translation>Načtení informací o použití JavaScriptu v dokumentu.</translation>
+        <translation>Získat informace o použití JavaScriptu v dokumentu.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="76"/>
@@ -4146,7 +4146,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="79"/>
         <source>JavaScript Usage Overview</source>
-        <translation>Přehled používání JavaScriptu</translation>
+        <translation>Přehled použití JavaScriptu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="83"/>
@@ -4178,7 +4178,7 @@
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="102"/>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="148"/>
         <source>Named</source>
-        <translation>Jmenovaný</translation>
+        <translation>Pojmenovaný</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfojavascript.cpp" line="106"/>
@@ -4212,27 +4212,27 @@
     <message>
         <location filename="../PdfTool/pdftoolinfometadata.cpp" line="39"/>
         <source>Extract document metadata</source>
-        <translation>Extrahujte metadata dokumentu</translation>
+        <translation>Extrahovat metadata dokumentu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfometadata.cpp" line="42"/>
         <source>Extract document metadata (embedded xml stream).</source>
-        <translation>Extrahujte metadata dokumentu (vložený xml stream).</translation>
+        <translation>Extrahovat metadata dokumentu (vložený XML stream).</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfometadata.cpp" line="76"/>
         <source>Metadata not found in document.</source>
-        <translation>Metadata nebyla v dokumentu nalezena.</translation>
+        <translation>V dokumentu nebyla nalezena žádná metadata.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="39"/>
         <source>Info (Named Destinations)</source>
-        <translation>Informace (pojmenované destinace)</translation>
+        <translation>Info (Pojmenované cíle)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="42"/>
         <source>Retrieve informations about named destinations in a document.</source>
-        <translation>Načtení informací o pojmenovaných cílech v dokumentu.</translation>
+        <translation>Získat informace o pojmenovaných cílech v dokumentu</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="71"/>
@@ -4242,7 +4242,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="74"/>
         <source>Named Destinations</source>
-        <translation>Pojmenované destinace</translation>
+        <translation>Pojmenované cíle</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="80"/>
@@ -4267,7 +4267,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="84"/>
         <source>Zoom</source>
-        <translation type="unfinished">Přiblížení</translation>
+        <translation>Přiblížení</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfonameddestinations.cpp" line="142"/>
@@ -4318,17 +4318,17 @@
     <message>
         <location filename="../PdfTool/pdftoolinfopageboxes.cpp" line="39"/>
         <source>Info (page boxes)</source>
-        <translation>Informace (pole stránek)</translation>
+        <translation>Info (rámečky stránek)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfopageboxes.cpp" line="42"/>
         <source>Retrieve informations about page boxes in a document.</source>
-        <translation>Načtení informací o rámečcích stránek v dokumentu.</translation>
+        <translation>Získat informace o rámečcích stránek v dokumentu.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfopageboxes.cpp" line="116"/>
         <source>Page boxes in document %1</source>
-        <translation>Pole stránek v dokumentu %1</translation>
+        <translation>Rámečky stránek v dokumentu %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfopageboxes.cpp" line="138"/>
@@ -4338,32 +4338,32 @@
     <message>
         <location filename="../PdfTool/pdftoolinfopageboxes.cpp" line="141"/>
         <source>Box</source>
-        <translation>Krabice</translation>
+        <translation>Rámeček</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfopageboxes.cpp" line="145"/>
         <source>Media</source>
-        <translation>Média</translation>
+        <translation>Media (Fyzický rozměr)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfopageboxes.cpp" line="146"/>
         <source>Crop</source>
-        <translation>Plodina</translation>
+        <translation>Crop (Maska zobrazení)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfopageboxes.cpp" line="147"/>
         <source>Bleed</source>
-        <translation>Krvácet</translation>
+        <translation>Bleed (Spadávka)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfopageboxes.cpp" line="148"/>
         <source>Trim</source>
-        <translation>Oříznout</translation>
+        <translation>Trim (Čistý formát)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfopageboxes.cpp" line="149"/>
         <source>Art</source>
-        <translation>Umění</translation>
+        <translation>Art (Oblast kresby)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="57"/>
@@ -4418,7 +4418,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="209"/>
         <source>Actual text</source>
-        <translation>Vlastní text</translation>
+        <translation>Skutečný text</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="213"/>
@@ -4428,7 +4428,7 @@
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="238"/>
         <source>Marked Content Reference %1</source>
-        <translation>Označená reference obsahu %1</translation>
+        <translation>Odkaz na označený obsah %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="244"/>
@@ -4438,12 +4438,12 @@
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="257"/>
         <source>Info (Structure tree)</source>
-        <translation>Informace (strom struktury)</translation>
+        <translation>Info (Strom struktury)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="260"/>
         <source>Examine structure tree in tagged document.</source>
-        <translation>Prozkoumejte strom struktury v označeném dokumentu.</translation>
+        <translation>Prozkoumat strom struktury v tagovaném dokumentu.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinfostructuretree.cpp" line="283"/>
@@ -4458,32 +4458,32 @@
     <message>
         <location filename="../PdfTool/pdftoolinkcoverage.cpp" line="39"/>
         <source>Ink coverage</source>
-        <translation>Krytí inkoustem</translation>
+        <translation>Krytí barvou</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinkcoverage.cpp" line="42"/>
         <source>Calculate ink coverage of the selected pages, or a whole document.</source>
-        <translation>Vypočítejte pokrytí inkoustem vybraných stránek nebo celého dokumentu.</translation>
+        <translation>Vypočítat pokrytí barvou vybraných stránek nebo celého dokumentu.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinkcoverage.cpp" line="96"/>
         <source>Ink Coverage</source>
-        <translation>Pokrytí inkoustem</translation>
+        <translation>Krytí barvou</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinkcoverage.cpp" line="99"/>
         <source>Ink Coverage by Page</source>
-        <translation>Pokrytí inkoustem podle stránky</translation>
+        <translation>Krytí barvou podle stránky</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinkcoverage.cpp" line="127"/>
         <source>%1 Ratio [%]</source>
-        <translation>%1 poměr [%]</translation>
+        <translation>Poměr %1 [%]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinkcoverage.cpp" line="128"/>
         <source>%1 Covered [mm^2]</source>
-        <translation>%1 pokryto [mm²]</translation>
+        <translation>Plocha %1 [mm²]</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolinkcoverage.cpp" line="168"/>
@@ -4498,7 +4498,7 @@
     <message>
         <location filename="../PdfTool/pdftooloptimize.cpp" line="42"/>
         <source>Optimize document size using various algorithms.</source>
-        <translation>Optimalizujte velikost dokumentu pomocí různých algoritmů.</translation>
+        <translation>Optimalizovat velikost dokumentu pomocí různých algoritmů.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftooloptimize.cpp" line="56"/>
@@ -4508,7 +4508,7 @@
     <message>
         <location filename="../PdfTool/pdftooloptimize.cpp" line="77"/>
         <source>Failed to write optimize document. %1</source>
-        <translation>Zápis optimalizačního dokumentu se nezdařil. %1</translation>
+        <translation>Nepodařilo se uložit optimalizovaný dokument. %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="44"/>
@@ -4528,12 +4528,12 @@
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="110"/>
         <source>Benchmark rendering</source>
-        <translation>Benchmark vykreslování</translation>
+        <translation>Test výkonu vykreslování</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="113"/>
         <source>Benchmark page rendering (measure time, detect errors).</source>
-        <translation>Benchmark vykreslování stránky (měření času, detekce chyb).</translation>
+        <translation>Test výkonu vykreslování stránky (měření času, detekce chyb).</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="131"/>
@@ -4544,7 +4544,7 @@
         <location filename="../PdfTool/pdftoolrender.cpp" line="294"/>
         <location filename="../PdfTool/pdftoolstatistics.cpp" line="39"/>
         <source>Statistics</source>
-        <translation>Statistika</translation>
+        <translation>Statistiky</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolrender.cpp" line="299"/>
@@ -4849,12 +4849,12 @@
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="42"/>
         <source>Signature verification</source>
-        <translation>Ověření podpisu</translation>
+        <translation>Ověření podpisů</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="45"/>
         <source>Verify signatures and timestamps in pdf document.</source>
-        <translation>Ověřte podpisy a časová razítka v dokumentu pdf.</translation>
+        <translation>Ověřit podpisy a časová razítka v dokumentu PDF.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="60"/>
@@ -4870,7 +4870,7 @@
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="127"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="150"/>
         <source>Signature</source>
-        <translation>Podepisování</translation>
+        <translation>Podpis</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="130"/>
@@ -4900,12 +4900,12 @@
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="154"/>
         <source>Handler</source>
-        <translation>Zpracovatel</translation>
+        <translation>Obsluha (Handler)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="155"/>
         <source>Signed whole</source>
-        <translation>Podepsané celé</translation>
+        <translation>Podepsán celý dokument</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="171"/>
@@ -4951,7 +4951,7 @@
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="205"/>
         <source>Handler: %1</source>
-        <translation>Zpracovatel: %1</translation>
+        <translation>Zpracovatel (Handler): %1</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="206"/>
@@ -5021,12 +5021,12 @@
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="272"/>
         <source>Qualifier</source>
-        <translation>Kvalifikace</translation>
+        <translation>Kvalifikátor</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="273"/>
         <source>Email</source>
-        <translation>Email</translation>
+        <translation>E-mail</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="279"/>
@@ -5041,17 +5041,17 @@
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="287"/>
         <source>EC method, %1-bit key</source>
-        <translation>EC metoda, %1-bitový klíč</translation>
+        <translation>Metoda EC, %1-bitový klíč</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="291"/>
         <source>DH method, %1-bit key</source>
-        <translation>DH metoda, %1-bitový klíč</translation>
+        <translation>Metoda DH, %1-bitový klíč</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="295"/>
         <source>Unknown method, %1-bit key</source>
-        <translation>Neznámá metoda, klíč %1-bit</translation>
+        <translation>Metoda neznámá, klíč %1-bit</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="304"/>
@@ -5066,12 +5066,12 @@
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="335"/>
         <source>Non-repudiation</source>
-        <translation>Zaručení pravosti</translation>
+        <translation>Nepopiratelnost</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="339"/>
         <source>Key encipherement</source>
-        <translation>Šifrování klíčem</translation>
+        <translation>Šifrování klíčů</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="343"/>
@@ -5081,27 +5081,27 @@
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="347"/>
         <source>Key agreement</source>
-        <translation type="unfinished"></translation>
+        <translation>Dohoda o klíči</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="351"/>
         <source>Verify signatures on certificates</source>
-        <translation>Ověřte podpisy na certifikátech</translation>
+        <translation>Ověřovat podpisy certifikátů</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="355"/>
         <source>Verify signatures on revocation information</source>
-        <translation>Ověřte podpisy na informacích o odvolání</translation>
+        <translation>Ověřovat podpisy informací o odvolání (CRL)</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="359"/>
         <source>Encipher data during key agreement</source>
-        <translation>Šifrujte data během dohody o klíči</translation>
+        <translation>Šifrovat data během dohody o klíči</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="363"/>
         <source>Decipher data during key agreement</source>
-        <translation>Dešifrujte data během dohody o klíči</translation>
+        <translation>Dešifrovat data během dohody o klíči</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="367"/>
@@ -5121,27 +5121,27 @@
     <message>
         <location filename="../PdfTool/pdftoolxml.cpp" line="188"/>
         <source>XML export</source>
-        <translation>XML export</translation>
+        <translation>Export do XML</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolxml.cpp" line="191"/>
         <source>Export internal data structure to xml.</source>
-        <translation>Export interní datové struktury do XML.</translation>
+        <translation>Exportovat interní datovou strukturu do XML.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolredact.cpp" line="42"/>
         <source>Redact</source>
-        <translation>Anonymizovat</translation>
+        <translation>Redigovat</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolredact.cpp" line="45"/>
         <source>Create a redacted document from the original document.</source>
-        <translation>Vytvořte redigovaný dokument z původního dokumentu.</translation>
+        <translation>Vytvořit redigovaný dokument z původního dokumentu.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolredact.cpp" line="59"/>
         <source>Redacted document file name is not set.</source>
-        <translation>Není nastaven název redigovaného souboru dokumentu.</translation>
+        <translation>Není nastaven název souboru pro redigovaný dokument.</translation>
     </message>
     <message>
         <location filename="../PdfTool/pdftoolredact.cpp" line="89"/>
@@ -5204,7 +5204,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="49"/>
         <source>Book&amp;mark Settings</source>
-        <translation>N&amp;astavení záložek</translation>
+        <translation>&amp;Nastavení záložek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="69"/>
@@ -5214,7 +5214,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="84"/>
         <source>&amp;View</source>
-        <translation type="unfinished">&amp;Zobrazit</translation>
+        <translation>&amp;Zobrazit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="88"/>
@@ -5234,17 +5234,17 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="142"/>
         <source>&amp;Help</source>
-        <translation type="unfinished">&amp;Nápověda</translation>
+        <translation>&amp;Nápověda</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="171"/>
         <source>&amp;Open...</source>
-        <translation type="unfinished">&amp;Otevřít…</translation>
+        <translation>&amp;Otevřít…</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="180"/>
         <source>&amp;Close</source>
-        <translation type="unfinished">Za&amp;vřít</translation>
+        <translation>Za&amp;vřít</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="189"/>
@@ -5259,7 +5259,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="200"/>
         <source>Ctrl+1</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="208"/>
@@ -5269,7 +5269,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="211"/>
         <source>Ctrl+2</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+2</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="219"/>
@@ -5279,7 +5279,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="222"/>
         <source>Ctrl+3</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+3</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="230"/>
@@ -5289,7 +5289,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="233"/>
         <source>Ctrl+4</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+4</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="241"/>
@@ -5304,7 +5304,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="247"/>
         <source>Ctrl+5</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+5</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="256"/>
@@ -5314,7 +5314,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="259"/>
         <source>Ctrl+E</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+E</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="267"/>
@@ -5334,7 +5334,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="291"/>
         <source>&amp;Ignore Optional Content Settings</source>
-        <translation>&amp;Ignorovat volitelná nastavení obsahu</translation>
+        <translation>&amp;Ignorovat nastavení volitelného obsahu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="300"/>
@@ -5344,22 +5344,22 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="303"/>
         <source>Ctrl+K</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+K</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="308"/>
         <source>&amp;Reset to Factory Settings</source>
-        <translation>Obnovit &amp;tovární nastavení</translation>
+        <translation>Obnovit &amp;výchozí nastavení</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="317"/>
         <source>&amp;Zoom In</source>
-        <translation type="unfinished">&amp;Přiblížit</translation>
+        <translation>&amp;Přiblížit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="326"/>
         <source>Zoom &amp;Out</source>
-        <translation type="unfinished">&amp;Oddálit</translation>
+        <translation>&amp;Oddálit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="335"/>
@@ -5439,7 +5439,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="473"/>
         <source>&amp;Print...</source>
-        <translation type="unfinished">&amp;Tisknout…</translation>
+        <translation>&amp;Tisk…</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="481"/>
@@ -5649,7 +5649,7 @@
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="775"/>
         <source>Clear Recent File &amp;History</source>
-        <translation type="unfinished">Smazat nedávnou &amp;historii souborů</translation>
+        <translation>Smazat nedávnou &amp;historii souborů</translation>
     </message>
 </context>
 <context>
@@ -5989,7 +5989,7 @@ hr { výška: 1px; šířka okraje: 0; }
 li.unchecked::marker { content: &quot;\2610&quot;; }
 li.checked::marker { content: &quot;\2612&quot;; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Systém správy barev&lt;/span&gt; řídí vstupní a výstupní barevné profily a transformace barev. Tento systém umožňuje přesné zobrazení barev, jak je definováno v dokumentu PDF. Pro rychlejší transformace barev vyberte &apos;Generic&apos;, abyste tuto funkci zakázali. Výběr &lt;span style=&quot; font-weight:600;&quot;&gt;Záměr vykreslení&lt;/span&gt; ovlivňuje způsob transformace barev. Zatímco záměry vykreslení jsou často definovány v tocích obsahu dokumentu PDF, máte možnost je přepsat výběrem jiného záměru z „Automaticky“. Nastavení &lt;span style=&quot; font-weight:600;&quot;&gt;Přesnost&lt;/span&gt; určuje přesnost transformace barev, přičemž vyšší přesnost spotřebovává více paměti. &lt;span style=&quot; font-weight:600;&quot;&gt;Kompenzace černého bodu&lt;/span&gt; se přizpůsobuje černým barvám, které nespadají do gamutu. Nastavení &lt;span style=&quot; font-weight:600;&quot;&gt;White Paper Color Transformed&lt;/span&gt; ovlivňuje barvu podkladového bílého papíru – povolíte-li tuto možnost, převede se čistě bílá z profilu RGB zařízení do výstupního profilu. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Systém správy barev&lt;/span&gt; řídí vstupní a výstupní barevné profily a transformace barev. Tento systém umožňuje přesné zobrazení barev, jak je definováno v dokumentu PDF. Pro rychlejší transformace barev vyberte &apos;Generic&apos;, abyste tuto funkci zakázali. Výběr &lt;span style=&quot; font-weight:600;&quot;&gt;Záměr vykreslení&lt;/span&gt; ovlivňuje způsob transformace barev. Zatímco záměry vykreslení jsou často definovány v tocích obsahu dokumentu PDF, máte možnost je přepsat výběrem jiného záměru z &apos;Automaticky&apos;. Nastavení &lt;span style=&quot; font-weight:600;&quot;&gt;Přesnost&lt;/span&gt; určuje přesnost transformace barev, přičemž vyšší přesnost spotřebovává více paměti. &lt;span style=&quot; font-weight:600;&quot;&gt;Kompenzace černého bodu&lt;/span&gt; se přizpůsobuje černým barvám, které nespadají do gamutu. Nastavení &lt;span style=&quot; font-weight:600;&quot;&gt;White Paper Color Transformed&lt;/span&gt; ovlivňuje barvu podkladového bílého papíru – povolíte-li tuto možnost, převede se čistě bílá z profilu RGB zařízení do výstupního profilu. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Profil barev výstupu&lt;/span&gt; určuje výstupní (cílový) profil vykreslování. Tento profil by měl být v souladu s barevným prostorem, který vaše obrazovka používá k zobrazení barev. Kromě toho můžete nastavit barevné prostory pro barevné prostory zařízení &lt;span style=&quot; font-weight:600;&quot;&gt;šedá/RGB/CMYK&lt;/span&gt;. Ty se používají k transformaci šedých/RGB/CMYK barev na výstupní barevný profil. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Dokument může obsahovat výstupní záměry, které lze použít k transformaci mezi barevnými prostory. Pokud je zaškrtnuta možnost &lt;span style=&quot; font-weight:600;&quot;&gt;Zvažovat výstupní záměry dokumentu&lt;/span&gt;, systém správy barev ověří, zda dokument obsahuje výstupní záměry. Pokud takové záměry existují, budou použity pro transformaci barev jako barevné prostory zařízení (šedá/RGB/CMYK). &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
@@ -6158,7 +6158,7 @@ hr { výška: 1px; šířka okraje: 0; }
 li.unchecked::marker { content: &quot;\2610&quot;; }
 li.checked::marker { content: &quot;\2612&quot;; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Nastavení „Maximální počet posledních souborů“ řídí počet posledních souborů zobrazených v nabídce. Když je dokument otevřen, je přidán na začátek seznamu posledních souborů. Pokud počet nedávných souborů překročí maximum, seznam se pak odspodu ořízne. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Nastavení &apos;Maximální počet posledních souborů&apos; řídí počet posledních souborů zobrazených v nabídce. Když je dokument otevřen, je přidán na začátek seznamu posledních souborů. Pokud počet nedávných souborů překročí maximum, seznam se pak odspodu ořízne. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Nastavení nástroje Lupa&lt;/span&gt; určuje vzhled lupy. Nástroj Lupa zvětší oblast pod kurzorem myši. Můžete určit velikost lupy (v &lt;span style=&quot; font-weight:600;&quot;&gt;logických&lt;/span&gt; pixelech) a úroveň přiblížení. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Zadáním počtu kroků &lt;span style=&quot; font-weight:600;&quot;&gt;zpět/znovu&lt;/span&gt; řídíte počet kroků, které jsou k dispozici při úpravách dokumentu zpět/znovu. Nastavení maximálního počtu kroků zpět na nulu deaktivuje funkci zpět/znovu. Můžete také nastavit nenulový počet kroků zpět a počet kroků při nule, což by zpřístupnilo pouze akce zpět, s vypnutými akcemi opakování. Změny jsou optimalizovány pro využití paměti, takže každý krok zpět/znovu sdílí neupravené objekty s ostatními. To znamená, že zhruba řečeno, provedení 10 úprav 50 MB dokumentu může spotřebovat přibližně 51 MB paměti. Skutečné využití paměti závisí na rozsahu změn, ale je obvykle minimální, protože změny obvykle ovlivňují malý počet objektů (například úprava pole formuláře nebo úprava anotace). &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
@@ -6214,7 +6214,7 @@ hr { výška: 1px; šířka okraje: 0; }
 li.unchecked::marker { content: &quot;\2610&quot;; }
 li.checked::marker { content: &quot;\2612&quot;; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Nakonfigurujte nastavení řeči, abyste povolili funkci převodu textu na řeč pro čtení dokumentů. I když tato nastavení fungují jako výchozí pro funkci převodu textu na řeč, některá lze upravit později. Nastavení &apos;Pitch&apos; se může lišit od -1,0 do 1,0, přičemž 0,0 slouží jako výchozí hodnota. Podobně se &apos;Rate&apos; může pohybovat od -1,0 do 1,0, přičemž 0,0 označuje normální tok řeči. A konečně, „Hlasitost“ lze nastavit mezi 0,0 a 1,0. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Nakonfigurujte nastavení řeči, abyste povolili funkci převodu textu na řeč pro čtení dokumentů. I když tato nastavení fungují jako výchozí pro funkci převodu textu na řeč, některá lze upravit později. Nastavení &apos;Pitch&apos; se může lišit od -1,0 do 1,0, přičemž 0,0 slouží jako výchozí hodnota. Podobně se &apos;Rate&apos; může pohybovat od -1,0 do 1,0, přičemž 0,0 označuje normální tok řeči. A konečně, &apos;Hlasitost&apos; lze nastavit mezi 0,0 a 1,0. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1225"/>
@@ -6283,7 +6283,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1398"/>
         <source>Remove</source>
-        <translation>Smazat</translation>
+        <translation>Odebrat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1414"/>
@@ -6376,7 +6376,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.ui" line="39"/>
         <source>Proofing intent</source>
-        <translation>Záměr simulace</translation>
+        <translation>Způsob přepočtu barev</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.ui" line="49"/>
@@ -6401,12 +6401,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.cpp" line="37"/>
         <source>Relative colorimetric</source>
-        <translation>Relativně kolorimetrický</translation>
+        <translation>Relativně kolorimetrická</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.cpp" line="38"/>
         <source>Absolute colorimetric</source>
-        <translation>Absolutně kolorimetrický</translation>
+        <translation>Absolutně kolorimetrická</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SoftProofingPlugin/settingsdialog.cpp" line="39"/>
@@ -6699,7 +6699,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="60"/>
         <source>Delete</source>
-        <translation>Vymazat</translation>
+        <translation>Smazat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfcertificatemanagerdialog.cpp" line="61"/>
@@ -7497,7 +7497,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="146"/>
         <source>Invalid format of number. Character &apos;%1&apos; appeared.</source>
-        <translation>Neplatný formát čísla. Objevil se znak &apos;%1&apos;.</translation>
+        <translation>Neplatný formát čísla. Vyskytl se znak &apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="153"/>
@@ -7507,7 +7507,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="158"/>
         <source>Bad format of number - no digits appeared.</source>
-        <translation>Špatný formát čísla – nebyla nalezena žádná číslice.</translation>
+        <translation>Chybný formát čísla – nebyly nalezeny žádné číslice.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="164"/>
@@ -7543,22 +7543,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="500"/>
         <source>Trying to seek stream position to %1 bytes from the start, byte offset is invalid.</source>
-        <translation>Pokus o nastavení pozice proudu na %1 bajtů od začátku selhal – offset je neplatný.</translation>
+        <translation>Pokus o posun v datovém proudu na %1 bajtů od začátku selhal – hodnota posunu (offset) je neplatná.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="552"/>
         <source>Can&apos;t read %1 bytes from the input stream. Input stream end reached.</source>
-        <translation>Nelze přečíst %1 bajtů ze vstupního proudu – byl dosažen konec proudu.</translation>
+        <translation>Nelze přečíst %1 bajtů ze vstupního proudu. Byl dosažen konec datového proudu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="612"/>
         <source>Unexpected end of stream reached.</source>
-        <translation>Neočekávaný konec proudu.</translation>
+        <translation>Neočekávaný konec datového proudu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfparser.cpp" line="653"/>
         <source>Error near position %1. %2</source>
-        <translation>Chyba v okolí pozice %1. %2</translation>
+        <translation>Chyba poblíž pozice %1. %2</translation>
     </message>
 </context>
 <context>
@@ -7573,7 +7573,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="552"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="555"/>
         <source>General</source>
-        <translation>Obecný</translation>
+        <translation>Obecné</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="482"/>
@@ -7622,13 +7622,13 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="490"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="712"/>
         <source>Square</source>
-        <translation>Čtverec</translation>
+        <translation>Obdélník</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="491"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="713"/>
         <source>Circle</source>
-        <translation>Kruh</translation>
+        <translation>Ovál</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="492"/>
@@ -7755,17 +7755,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="517"/>
         <source>Print</source>
-        <translation type="unfinished">Tisknout</translation>
+        <translation>Tisk</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="518"/>
         <source>No Zoom</source>
-        <translation type="unfinished">Bez přiblížení</translation>
+        <translation>Bez přiblížení</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="519"/>
         <source>No Rotate</source>
-        <translation type="unfinished">Bez natočení</translation>
+        <translation>Bez natočení</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="520"/>
@@ -7863,13 +7863,13 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="570"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="577"/>
         <source>Border</source>
-        <translation>Rámeček</translation>
+        <translation>Ohraničení</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="556"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="560"/>
         <source>Border Style</source>
-        <translation>Styl rámečku</translation>
+        <translation>Styl ohraničení</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="556"/>
@@ -7899,22 +7899,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="562"/>
         <source>Solid</source>
-        <translation>Plný</translation>
+        <translation>Plná</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="563"/>
         <source>Dashed</source>
-        <translation>Čárkovaný</translation>
+        <translation>Čárkovaná</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="564"/>
         <source>Beveled</source>
-        <translation>Zkosený</translation>
+        <translation>Zkosená</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="565"/>
         <source>Inset</source>
-        <translation type="unfinished">Vsazený</translation>
+        <translation>Vsazená</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="570"/>
@@ -7925,7 +7925,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="572"/>
         <source>Cloudy</source>
-        <translation type="unfinished">Mlhavý</translation>
+        <translation>Zvlnění (Cloudy)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="573"/>
@@ -7979,7 +7979,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="592"/>
         <source>Insert</source>
-        <translation type="unfinished">Vložit</translation>
+        <translation>Vložit</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="595"/>
@@ -8013,7 +8013,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="640"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="670"/>
         <source>Intent</source>
-        <translation type="unfinished"></translation>
+        <translation>Účel</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="613"/>
@@ -8043,17 +8043,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="625"/>
         <source>Leader line length</source>
-        <translation>Délka vodící čáry</translation>
+        <translation>Délka vynášecí čáry</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="628"/>
         <source>Leader line extension</source>
-        <translation>Prodloužení vůdčí linie</translation>
+        <translation>Prodloužení vynášecí linie</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="631"/>
         <source>Leader line offset</source>
-        <translation>Odsazení vodicí čáry</translation>
+        <translation>Odsazení vynášecí čáry</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="636"/>
@@ -8063,47 +8063,47 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="637"/>
         <source>Dimension</source>
-        <translation>Rozměr</translation>
+        <translation>Kóta</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="643"/>
         <source>Cloud</source>
-        <translation type="unfinished"></translation>
+        <translation>Obláček</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="644"/>
         <source>Line dimension</source>
-        <translation>Liniová kóta</translation>
+        <translation>Délková kóta</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="645"/>
         <source>Polygon dimension</source>
-        <translation>Rozměr mnohoúhelníku</translation>
+        <translation>Kóta mnohoúhelníku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="648"/>
         <source>Caption</source>
-        <translation>Titulek</translation>
+        <translation>Popisek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="650"/>
         <source>Caption position</source>
-        <translation>Pozice titulku</translation>
+        <translation>Umístění popisku</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="652"/>
         <source>Inline</source>
-        <translation>V řádku</translation>
+        <translation>V čáře</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="653"/>
         <source>Top</source>
-        <translation>Nahoře</translation>
+        <translation>Nad čárou</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="656"/>
         <source>Name</source>
-        <translation>Jméno</translation>
+        <translation>Název</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="673"/>
@@ -8113,7 +8113,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="674"/>
         <source>Snapshot</source>
-        <translation>Momentka</translation>
+        <translation>Snímek</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="677"/>
@@ -8128,7 +8128,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="680"/>
         <source>Push-pin</source>
-        <translation>Připínáček</translation>
+        <translation>Špendlík</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="681"/>
@@ -8155,7 +8155,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="687"/>
         <source>Repeat overlay text</source>
-        <translation>Opakujte překryvný text</translation>
+        <translation>Opakovat překryvný text</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="698"/>
@@ -8190,7 +8190,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="717"/>
         <source>Butt</source>
-        <translation>Rovný</translation>
+        <translation>Úsečka</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="718"/>
@@ -8205,7 +8205,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="720"/>
         <source>Slash</source>
-        <translation>Šikmý</translation>
+        <translation>Šikmá čára</translation>
     </message>
 </context>
 <context>
@@ -8341,7 +8341,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="412"/>
         <source>Select Color for Brush</source>
-        <translation>Vybrat barvu štětce</translation>
+        <translation>Vybrat barvu výplně</translation>
     </message>
 </context>
 <context>
@@ -8431,7 +8431,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="466"/>
         <source>Select Color for Brush</source>
-        <translation>Vybrat barvu štětce</translation>
+        <translation>Vybrat barvu výplně</translation>
     </message>
 </context>
 <context>
@@ -8738,12 +8738,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="216"/>
         <source>Square</source>
-        <translation>Čtverec</translation>
+        <translation>Obdélník</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="219"/>
         <source>Circle</source>
-        <translation>Kruh</translation>
+        <translation>Ovál</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="222"/>
@@ -9087,7 +9087,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="355"/>
         <source>Invalid pass encoding data in CCITT stream.</source>
-        <translation>Neplatná data průchodového kódování v proudu CCITT.</translation>
+        <translation>Neplatná data průchodového kódování (pass mode) v proudu CCITT.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="361"/>
@@ -9109,12 +9109,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="594"/>
         <source>Invalid index of CCITT changing element a1: a1 = %1, columns = %2.</source>
-        <translation>Neplatný index měnícího prvku a1 v CCITT: a1 = %1, sloupce = %2.</translation>
+        <translation>Neplatný index měnícího prvku CCITT a1: a1 = %1, sloupce = %2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="675"/>
         <source>Invalid CCITT run length code word.</source>
-        <translation>Neplatné kódové slovo délky běhu v CCITT.</translation>
+        <translation>Neplatné kódové slovo délky běhu (run length) CCITT.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="697"/>
@@ -9125,61 +9125,61 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="198"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="535"/>
         <source>Conversion from gray to output device using CMS failed.</source>
-        <translation>Převod z odstínů šedi na výstupní zařízení pomocí CMS se nezdařil.</translation>
+        <translation>Převod ze stupňů šedi na výstupní zařízení pomocí CMS selhal.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="210"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="550"/>
         <source>Conversion from gray to output device using CMS failed - invalid data format.</source>
-        <translation>Převod z odstínů šedi na výstupní zařízení pomocí CMS se nezdařil – neplatný formát dat.</translation>
+        <translation>Převod ze stupňů šedi na výstupní zařízení pomocí CMS selhal – neplatný formát dat.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="222"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="562"/>
         <source>Conversion from RGB to output device using CMS failed.</source>
-        <translation>Převod z RGB na výstupní zařízení pomocí CMS se nezdařil.</translation>
+        <translation>Převod z RGB na výstupní zařízení pomocí CMS selhal.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="235"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="577"/>
         <source>Conversion from RGB to output device using CMS failed - invalid data format.</source>
-        <translation>Převod z RGB na výstupní zařízení pomocí CMS se nezdařil – neplatný formát dat.</translation>
+        <translation>Převod z RGB na výstupní zařízení pomocí CMS selhal – neplatný formát dat.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="247"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="589"/>
         <source>Conversion from CMYK to output device using CMS failed.</source>
-        <translation>Převod z CMYK na výstupní zařízení pomocí CMS se nezdařil.</translation>
+        <translation>Převod z CMYK na výstupní zařízení pomocí CMS selhal.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="265"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="604"/>
         <source>Conversion from CMYK to output device using CMS failed - invalid data format.</source>
-        <translation>Převod z CMYK na výstupní zařízení pomocí CMS se nezdařil – neplatný formát dat.</translation>
+        <translation>Převod z CMYK na výstupní zařízení pomocí CMS selhal – neplatný formát dat.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="277"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="616"/>
         <source>Conversion from XYZ to output device using CMS failed.</source>
-        <translation>Převod z XYZ na výstupní zařízení pomocí CMS se nezdařila.</translation>
+        <translation>Převod z XYZ na výstupní zařízení pomocí CMS selhal.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="307"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="632"/>
         <source>Conversion from XYZ to output device using CMS failed - invalid data format.</source>
-        <translation>Převod z XYZ na výstupní zařízení pomocí CMS se nezdařila - neplatný formát dat.</translation>
+        <translation>Převod z XYZ na výstupní zařízení pomocí CMS selhal – neplatný formát dat.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="319"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="701"/>
         <source>Conversion from icc profile space to output device using CMS failed.</source>
-        <translation>Převod z prostoru profilu icc na výstupní zařízení pomocí CMS se nezdařil.</translation>
+        <translation>Převod z prostoru profilu ICC na výstupní zařízení pomocí CMS selhal.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="348"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="723"/>
         <source>Conversion from icc profile space to output device using CMS failed - invalid data format.</source>
-        <translation>Konverze z prostoru profilu icc na výstupní zařízení pomocí CMS se nezdařila – neplatný formát dat.</translation>
+        <translation>Převod z prostoru profilu ICC na výstupní zařízení pomocí CMS selhal – neplatný formát dat.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfdocumenttextflow.cpp" line="315"/>
@@ -9201,23 +9201,23 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1002"/>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1014"/>
         <source>JBIG2 invalid header - bad referred segments.</source>
-        <translation>Neplatné záhlaví JBIG2 – chybné odkazované segmenty.</translation>
+        <translation>Neplatná hlavička JBIG2 – chybné odkazované segmenty.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1103"/>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1309"/>
         <source>JBIG2 invalid segment type %1.</source>
-        <translation>JBIG2 neplatný typ segmentu %1.</translation>
+        <translation>Neplatný typ segmentu JBIG2 %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1154"/>
         <source>Invalid JBIG2 file header.</source>
-        <translation>Neplatné záhlaví souboru JBIG2.</translation>
+        <translation>Neplatná hlavička souboru JBIG2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1168"/>
         <source>Invalid JBIG2 file header flags.</source>
-        <translation>Neplatné příznaky záhlaví souboru JBIG2.</translation>
+        <translation>Neplatné příznaky hlavičky souboru JBIG2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1176"/>
@@ -9232,12 +9232,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1222"/>
         <source>Invalid JBIG2 file - segment length is not defined.</source>
-        <translation>Neplatný soubor JBIG2 – délka segmentu není definována.</translation>
+        <translation>Neplatný soubor JBIG2 – není definována délka segmentu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1320"/>
         <source>JBIG2 bad segment data - handler doesn&apos;t process all segment data - %1 bytes left.</source>
-        <translation>Chybná data segmentu JBIG2 – obslužná rutina nezpracovala všechna data segmentu – zbývá %1 bajtů.</translation>
+        <translation>Chybná data segmentu JBIG2 – obslužná rutina nezpracovala všechna data – zbývá %1 bajtů.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1325"/>
@@ -9268,7 +9268,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2033"/>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3981"/>
         <source>JBIG2 invalid user huffman code table.</source>
-        <translation>JBIG2 neplatná tabulka uživatelských kódů huffman.</translation>
+        <translation>Neplatná uživatelská tabulka Huffmanových kódů JBIG2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1469"/>
@@ -9279,12 +9279,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1479"/>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1496"/>
         <source>JBIG2 trying to use aritmetic decoder context from previous symbol dictionary, but it doesn&apos;t exist.</source>
-        <translation>JBIG2 se pokouší použít kontext aritmetického dekodéru z předchozího slovníku symbolů, ale neexistuje.</translation>
+        <translation>JBIG2 se pokouší použít kontext aritmetického dekodéru z předchozího slovníku symbolů, který však neexistuje.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1559"/>
         <source>JBIG2 symbol height class has more symbols, than defined in the symbol dictionary header.</source>
-        <translation>Třída výšky symbolů JBIG2 obsahuje více symbolů, než je uvedeno v záhlaví slovníku symbolů.</translation>
+        <translation>Třída výšky symbolů JBIG2 obsahuje více symbolů, než je definováno v hlavičce slovníku symbolů.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1618"/>
@@ -9294,17 +9294,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1757"/>
         <source>JBIG2 - invalid export flags in symbol dictionary.</source>
-        <translation>JBIG2 - neplatné příznaky exportu ve slovníku symbolů.</translation>
+        <translation>JBIG2 – neplatné příznaky exportu ve slovníku symbolů.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1884"/>
         <source>JBIG2 - invalid huffman table flags in text region segment.</source>
-        <translation>JBIG2 - neplatné příznaky Huffmanovy tabulky v segmentu textové oblasti.</translation>
+        <translation>JBIG2 – neplatné příznaky Huffmanovy tabulky v segmentu textové oblasti.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2049"/>
         <source>JBIG2 no referred symbols in text region segment.</source>
-        <translation>V segmentu textové oblasti JBIG2 nejsou uvedeny žádné odkazované symboly.</translation>
+        <translation>V segmentu textové oblasti JBIG2 nejsou žádné odkazované symboly.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2087"/>
@@ -9315,7 +9315,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2157"/>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2561"/>
         <source>JBIG2 - invalid bitmap for generic region.</source>
-        <translation>JBIG2 - neplatná bitmapa pro obecnou oblast.</translation>
+        <translation>JBIG2 – neplatná bitmapa pro obecnou oblast.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2178"/>
@@ -9325,7 +9325,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2201"/>
         <source>JBIG2 unknown data length for pattern dictionary.</source>
-        <translation>JBIG2 neznámá délka dat pro slovník vzorů.</translation>
+        <translation>Neznámá délka dat pro slovník vzorů JBIG2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2230"/>
@@ -9341,12 +9341,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2295"/>
         <source>JBIG2 invalid referenced pattern dictionaries for halftone segment.</source>
-        <translation>JBIG2 neplatné slovníky odkazovaných vzorů pro půltónový segment.</translation>
+        <translation>Neplatné odkazované slovníky vzorů pro půltónový segment JBIG2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2303"/>
         <source>JBIG2 invalid patterns for halftone segment.</source>
-        <translation>JBIG2 neplatné vzory pro půltónový segment.</translation>
+        <translation>Neplatné vzory pro půltónový segment JBIG2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2343"/>
@@ -9356,7 +9356,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2368"/>
         <source>JBIG2 unknown data length for halftone dictionary.</source>
-        <translation>JBIG2 neznámá délka dat pro polotónový slovník.</translation>
+        <translation>Neznámá délka dat pro půltónový slovník JBIG2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2418"/>
@@ -9366,32 +9366,32 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2446"/>
         <source>JBIG2 halftoning pattern index %1 out of bounds [0, %2]</source>
-        <translation>Index půltónového vzoru JBIG2 %1 je mimo povolený rozsah [0, %2].</translation>
+        <translation>Index půltónového vzoru JBIG2 %1 je mimo rozsah [0, %2].</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2466"/>
         <source>JBIG2 - invalid bitmap for halftone region.</source>
-        <translation>JBIG2 - neplatná bitmapa pro oblast polotónů.</translation>
+        <translation>JBIG2 – neplatná bitmapa pro půltónovou oblast.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2488"/>
         <source>JBIG2 - malformed generic region flags.</source>
-        <translation>JBIG2 - chybné příznaky generické oblasti.</translation>
+        <translation>JBIG2 – chybně formátované příznaky obecné oblasti.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2523"/>
         <source>JBIG2 - end of data byte sequence not found for generic region.</source>
-        <translation>JBIG2 - konec sekvence datových bajtů nebyl nalezen pro generickou oblast.</translation>
+        <translation>JBIG2 – nebyla nalezena koncová sekvence datových bajtů pro obecnou oblast.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2580"/>
         <source>JBIG2 - invalid flags for generic refinement region.</source>
-        <translation>JBIG2 - neplatné příznaky pro obecnou oblast zpřesnění.</translation>
+        <translation>JBIG2 – neplatné příznaky pro obecnou oblast zpřesnění.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2601"/>
         <source>JBIG2 - operation must be REPLACE for generic refinement region.</source>
-        <translation>JBIG2 - operace musí být REPLACE pro obecnou oblast zpřesnění.</translation>
+        <translation>JBIG2 – u obecné oblasti zpřesnění musí být operace nastavena na REPLACE.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2615"/>
@@ -9406,12 +9406,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2655"/>
         <source>JBIG2 - invalid bitmap for generic refinement region.</source>
-        <translation>JBIG2 - neplatná bitmapa pro obecnou oblast zpřesnění.</translation>
+        <translation>JBIG2 – neplatná bitmapa pro obecnou oblast zpřesnění.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2715"/>
         <source>JBIG2 end-of-page segment shouldn&apos;t contain any data, but has extra data of %1 bytes.</source>
-        <translation>Segment konce stránky JBIG2 by neměl obsahovat žádná data, ale má další data o velikosti %1 bajtů.</translation>
+        <translation>Segment konce stránky JBIG2 by neměl obsahovat žádná data, ale obsahuje %1 bajtů navíc.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2719"/>
@@ -9421,7 +9421,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2732"/>
         <source>JBIG2 end-of-file segment shouldn&apos;t contain any data, but has extra data of %1 bytes.</source>
-        <translation>Segment konce souboru JBIG2 by neměl obsahovat žádná data, ale má další data o velikosti %1 bajtů.</translation>
+        <translation>Segment konce souboru JBIG2 by neměl obsahovat žádná data, ale obsahuje %1 bajtů navíc.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2736"/>
@@ -9431,22 +9431,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2753"/>
         <source>JBIG2 underflow of the low value in huffman table.</source>
-        <translation>JBIG2 podtečení nízké hodnoty v huffmanově tabulce.</translation>
+        <translation>JBIG2: Podtečení (underflow) nízké hodnoty v Huffmanově tabulce.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2810"/>
         <source>JBIG2 unknown extension %1 necessary for decoding the image.</source>
-        <translation>JBIG2 neznámá přípona %1 nezbytná pro dekódování obrázku.</translation>
+        <translation>JBIG2: Neznámé rozšíření %1 nezbytné pro dekódování obrázku.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2819"/>
         <source>JBIG2 segment with unknown extension has not defined length.</source>
-        <translation>Segment JBIG2 s neznámým prodloužením nemá definovanou délku.</translation>
+        <translation>Segment JBIG2 s neznámým rozšířením nemá definovanou délku.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2834"/>
         <source>JBIG2 segment %1 is not a bitmap.</source>
-        <translation>JBIG2 segment %1 není bitmapa.</translation>
+        <translation>Segment JBIG2 %1 není bitmapa.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2850"/>
@@ -9461,22 +9461,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3506"/>
         <source>JBIG2 region segment information flags are invalid.</source>
-        <translation>Informační příznaky segmentu regionu JBIG2 jsou neplatné.</translation>
+        <translation>Informační příznaky segmentu oblasti JBIG2 jsou neplatné.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3560"/>
         <source>JBIG2 segment with unknown data length can&apos;t be skipped.</source>
-        <translation>Segment JBIG2 s neznámou délkou dat nelze&apos; přeskočit.</translation>
+        <translation>Segment JBIG2 s neznámou délkou dat nelze přeskočit.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3597"/>
         <source>JBIG2 invalid referred segment %1 referenced by segment %2.</source>
-        <translation>Neplatný odkazovaný segment JBIG2 %1 odkazovaný segmentem %2.</translation>
+        <translation>Neplatný odkazovaný segment JBIG2 %1, na který odkazuje segment %2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3608"/>
         <source>JBIG2 maximum bitmap size exceeded (%1 &gt; %2).</source>
-        <translation>Překročena maximální velikost bitmapy JBIG2 (%1 &amp;gt; %2).</translation>
+        <translation>Překročena maximální velikost bitmapy JBIG2 (%1 &gt; %2).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3621"/>
@@ -9491,47 +9491,47 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3638"/>
         <source>JBIG2 can&apos;t read integer.</source>
-        <translation>JBIG2 Nelze číst celé číslo.</translation>
+        <translation>V JBIG2 nelze přečíst celé číslo.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3743"/>
         <source>JBIG2 - invalid bitmap paint operation.</source>
-        <translation>JBIG2 - neplatná operace malování bitmapy.</translation>
+        <translation>JBIG2 – neplatná operace vykreslování (paint) bitmapy.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3753"/>
         <source>JBIG2 - invalid bitmap copy row operation.</source>
-        <translation>JBIG2 - neplatná operace kopírování bitmapového řádku.</translation>
+        <translation>JBIG2 – neplatná operace kopírování řádku bitmapy.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3809"/>
         <source>JBIG2 overflow of prefix bit values in huffman table.</source>
-        <translation>JBIG2 přetečení hodnot prefixového bitu v huffmanově tabulce.</translation>
+        <translation>JBIG2: Přetečení (overflow) hodnot prefixových bitů v Huffmanově tabulce.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="242"/>
         <source>Null</source>
-        <translation>Nic</translation>
+        <translation>Null</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="245"/>
         <source>Boolean</source>
-        <translation>Logická hodnota</translation>
+        <translation>Boolean</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="248"/>
         <source>Integer</source>
-        <translation>Celé číslo</translation>
+        <translation>Integer</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="251"/>
         <source>Real</source>
-        <translation>Reálné číslo</translation>
+        <translation>Real</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="254"/>
         <source>String</source>
-        <translation>Řetězec</translation>
+        <translation>String</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="257"/>
@@ -9551,18 +9551,18 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="266"/>
         <source>Stream</source>
-        <translation>Proud dat</translation>
+        <translation>Stream</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjectutils.cpp" line="269"/>
         <source>Reference</source>
-        <translation>Odkaz</translation>
+        <translation>Reference</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="71"/>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="77"/>
         <source>Invalid optional content properties.</source>
-        <translation>Neplatné volitelné vlastnosti obsahu.</translation>
+        <translation>Neplatné vlastnosti volitelného obsahu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="118"/>
@@ -9576,12 +9576,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="231"/>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="253"/>
         <source>Invalid optional content group.</source>
-        <translation>Neplatná volitelná skupina obsahu.</translation>
+        <translation>Neplatná skupina volitelného obsahu (OCG).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="496"/>
         <source>Cyclic reference error in optional content visibility expression.</source>
-        <translation>Chyba cyklické reference ve volitelném výrazu viditelnosti obsahu.</translation>
+        <translation>Chyba cyklického odkazu ve výrazu viditelnosti volitelného obsahu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfoptionalcontent.cpp" line="508"/>
@@ -9669,63 +9669,63 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="223"/>
         <source>Invalid shading pattern extends. Expected 2, but %1 provided.</source>
-        <translation>Neplatný vzor stínování se rozšiřuje. Očekáváno 2, ale poskytnuto %1.</translation>
+        <translation>Neplatné parametry přesahu (extends) vzoru stínování. Očekávány 2 hodnoty, ale poskytnuto %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="256"/>
         <source>Invalid function shading pattern domain. Expected 4 values, but %1 provided.</source>
-        <translation>Neplatná doména vzoru stínování funkce. Očekávané 4 hodnoty, ale poskytnuto %1.</translation>
+        <translation>Neplatná doména funkčního vzoru stínování. Očekávány 4 hodnoty, ale poskytnuto %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="260"/>
         <source>Invalid function shading pattern domain. Invalid domain ranges.</source>
-        <translation>Neplatná doména vzoru stínování funkce. Neplatné rozsahy domén.</translation>
+        <translation>Neplatná doména funkčního vzoru stínování. Neplatné rozsahy domény.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="268"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="310"/>
         <source>Invalid axial shading pattern color functions. Expected %1 functions, but %2 provided.</source>
-        <translation>Neplatné barevné funkce vzoru axiálního stínování. Očekávané funkce %1, ale poskytnuto %2.</translation>
+        <translation>Neplatné barevné funkce axiálního vzoru stínování. Očekáváno %1 funkcí, ale poskytnuto %2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="294"/>
         <source>Invalid axial shading pattern coordinates. Expected 4, but %1 provided.</source>
-        <translation>Neplatné souřadnice vzoru axiálního stínování. Očekáváno 4, ale poskytnuto %1.</translation>
+        <translation>Neplatné souřadnice axiálního vzoru stínování. Očekávány 4 hodnoty, ale poskytnuto %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="304"/>
         <source>Invalid axial shading pattern domain. Expected 2, but %1 provided.</source>
-        <translation>Neplatná doména axiálního vzoru stínování. Očekáváno 2, ale poskytnuto %1.</translation>
+        <translation>Neplatná doména axiálního vzoru stínování. Očekávány 2 hodnoty, ale poskytnuto %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="340"/>
         <source>Invalid radial shading pattern coordinates. Expected 6, but %1 provided.</source>
-        <translation>Neplatné souřadnice vzoru radiálního stínování. Očekáváno 6, ale poskytnuto %1.</translation>
+        <translation>Neplatné souřadnice radiálního vzoru stínování. Očekáváno 6 hodnot, ale poskytnuto %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="350"/>
         <source>Invalid radial shading pattern domain. Expected 2, but %1 provided.</source>
-        <translation>Neplatná doména vzoru radiálního stínování. Očekáváno 2, ale poskytnuto %1.</translation>
+        <translation>Neplatná doména radiálního vzoru stínování. Očekávány 2 hodnoty, ale poskytnuto %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="356"/>
         <source>Invalid radial shading pattern color functions. Expected %1 functions, but %2 provided.</source>
-        <translation>Neplatné barevné funkce vzoru radiálního stínování. Očekávané funkce %1, ale poskytnuto %2.</translation>
+        <translation>Neplatné barevné funkce radiálního vzoru stínování. Očekáváno %1 funkcí, ale poskytnuto %2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="361"/>
         <source>Radial shading cannot have negative circle radius.</source>
-        <translation>Radiální stínování nemůže mít záporný poloměr kruhu.</translation>
+        <translation>Radiální stínování nemůže mít záporný poloměr kružnice.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="432"/>
         <source>Invalid bits per coordinate (%1) for shading.</source>
-        <translation>Neplatné bity na souřadnici (%1) pro stínování.</translation>
+        <translation>Neplatný počet bitů na souřadnici (%1) pro stínování.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="437"/>
         <source>Invalid bits per component (%1) for shading.</source>
-        <translation>Neplatné bity na komponentu (%1) pro stínování.</translation>
+        <translation>Neplatný počet bitů na složku (%1) pro stínování.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="445"/>
@@ -9740,12 +9740,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="483"/>
         <source>Invalid bits per flag (%1) for shading.</source>
-        <translation>Neplatné bity na příznak (%1) pro stínování.</translation>
+        <translation>Neplatný počet bitů na příznak (%1) pro stínování.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="494"/>
         <source>Invalid vertices per row (%1) for lattice-form gourad triangle meshing.</source>
-        <translation>Neplatné vrcholy na řádek (%1) pro mřížku ve tvaru gouradského trojúhelníku.</translation>
+        <translation>Neplatný počet vrcholů na řádek (%1) pro síť Gouraudových trojúhelníků v mřížce.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="508"/>
@@ -9756,7 +9756,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="759"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="892"/>
         <source>Error occured during mesh generation of shading: %1</source>
-        <translation>Při generování stínování sítě došlo k chybě: %1</translation>
+        <translation>Při generování sítě stínování došlo k chybě: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="1008"/>
@@ -9766,39 +9766,39 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="2515"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="2525"/>
         <source>Error occured during mesh creation of shading: %1</source>
-        <translation>Při vytváření mřížky stínování došlo k chybě: %1</translation>
+        <translation>Při vytváření sítě stínování došlo k chybě: %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="2291"/>
         <source>Invalid free form gourad triangle data stream.</source>
-        <translation>Neplatný datový tok gouradského trojúhelníku ve volném tvaru.</translation>
+        <translation>Neplatný datový proud Gouraudových trojúhelníků (free-form).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="2459"/>
         <source>Invalid lattice form gourad triangle data stream.</source>
-        <translation>Neplatný datový proud mřížky tvaru gouradského trojúhelníku.</translation>
+        <translation>Neplatný datový proud Gouraudových trojúhelníků (lattice-form).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="2974"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="3017"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="3060"/>
         <source>Nonzero flag for first patch (flags = %1).</source>
-        <translation>Nenulový příznak pro první patch (příznaky = %1).</translation>
+        <translation>Nenulový příznak pro první plošku (patch), příznaky = %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="3120"/>
         <source>Invalid data in tensor product patch shading.</source>
-        <translation>Neplatná data ve stínování oprav produktu tensor.</translation>
+        <translation>Neplatná data ve stínování plošek tenzorového součinu (tensor product patch).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="3718"/>
         <source>Invalid data in coons patch shading.</source>
-        <translation>Neplatná data v coons patch stínování.</translation>
+        <translation>Neplatná data ve stínování Coonsových plošek (Coons patch).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="320"/>
         <source>Unknown crypt filter &apos;%1&apos;.</source>
-        <translation>Neznámý filtr krypt &apos;%1&apos;.</translation>
+        <translation>Neznámý filtr šifrování (crypt filter) &apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="346"/>
@@ -9811,12 +9811,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="365"/>
         <source>Expected %1 characters long string in entry &apos;%2&apos;. Provided length is %3.</source>
-        <translation>V položce &apos;%2&apos; se očekává %1 dlouhý řetězec znaků. Poskytnutá délka je %3.</translation>
+        <translation>V položce &apos;%2&apos; je očekáván řetězec o délce %1 znaků. Poskytnutá délka je %3.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="375"/>
         <source>Expected %1 characters long string in entry &apos;%2&apos;.</source>
-        <translation>V položce &apos;%2&apos; byl očekáván řetězec %1 dlouhých znaků.</translation>
+        <translation>V položce &apos;%2&apos; byl očekáván řetězec o délce %1 znaků.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="411"/>
@@ -9826,7 +9826,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="419"/>
         <source>Unknown security handler.</source>
-        <translation>Neznámý obslužný program zabezpečení.</translation>
+        <translation>Neznámá obslužná rutina zabezpečení.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="427"/>
@@ -9836,22 +9836,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="696"/>
         <source>Invalid value for entry &apos;%1&apos; in encryption dictionary. Name expected.</source>
-        <translation>Neplatná hodnota pro položku &apos;%1&apos; v šifrovacím slovníku. Jméno očekáváno.</translation>
+        <translation>Neplatná hodnota pro položku &apos;%1&apos; v šifrovacím slovníku. Byl očekáván název (Name).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="712"/>
         <source>Invalid value for entry &apos;%1&apos; in encryption dictionary. Boolean expected.</source>
-        <translation>Neplatná hodnota pro položku &apos;%1&apos; v šifrovacím slovníku. Očekávaná logická hodnota.</translation>
+        <translation>Neplatná hodnota pro položku &apos;%1&apos; v šifrovacím slovníku. Byla očekávána logická hodnota (Boolean).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="728"/>
         <source>Invalid value for entry &apos;%1&apos; in encryption dictionary. Integer expected.</source>
-        <translation>Neplatná hodnota pro položku &apos;%1&apos; v šifrovacím slovníku. Očekávané celé číslo.</translation>
+        <translation>Neplatná hodnota pro položku &apos;%1&apos; v šifrovacím slovníku. Bylo očekáváno celé číslo (Integer).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="741"/>
         <source>Crypt filter is not a dictionary!</source>
-        <translation>Kryptový filtr není slovník!</translation>
+        <translation>Šifrovací filtr (Crypt filter) není slovník!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="766"/>
@@ -9861,25 +9861,25 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="780"/>
         <source>Unsupported authorization event &apos;%1&apos;.</source>
-        <translation>Nepodporovaná událost autorizace &apos;%1&apos;.</translation>
+        <translation>Nepodporovaná autorizační událost &apos;%1&apos;.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1105"/>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1162"/>
         <source>Crypt filter &apos;%1&apos; not found.</source>
-        <translation>Kryptový filtr &apos;%1&apos; nebyl nalezen.</translation>
+        <translation>Šifrovací filtr (Crypt filter) &apos;%1&apos; nebyl nalezen.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1414"/>
         <source>Permissions entry in the Encryption dictionary is invalid.</source>
-        <translation>Položka oprávnění ve slovníku šifrování je neplatná.</translation>
+        <translation>Položka oprávnění (Permissions) v šifrovacím slovníku je neplatná.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1421"/>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1427"/>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1431"/>
         <source>Security permissions are manipulated. Can&apos;t open the document.</source>
-        <translation>Bezpečnostní oprávnění jsou manipulována. Nelze&apos;otevřít dokument.</translation>
+        <translation>S bezpečnostními oprávněními bylo manipulováno. Dokument nelze otevřít.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsecurityhandler.cpp" line="1540"/>
@@ -9890,7 +9890,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="234"/>
         <source>No signature handler for signature format &apos;%1&apos;.</source>
-        <translation>Žádný popisovač podpisu pro formát podpisu &apos;%1&apos;.</translation>
+        <translation>Pro formát podpisu &apos;%1&apos; neexistuje žádná obslužná rutina podpisu.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="240"/>
@@ -9910,7 +9910,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="258"/>
         <source>Generic error occured during certificate validation.</source>
-        <translation>Při ověřování certifikátu došlo k obecné chybě.</translation>
+        <translation>Během ověřování certifikátu došlo k obecné chybě.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="264"/>
@@ -9920,12 +9920,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="270"/>
         <source>Certificate is self-signed.</source>
-        <translation>Certifikát je podepsaný sám sebou.</translation>
+        <translation>Certifikát je podepsán sám sebou (self-signed).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="276"/>
         <source>Self-signed certificate in chain.</source>
-        <translation>Certifikát s vlastním podpisem v řetězci.</translation>
+        <translation>V řetězci certifikátů byl nalezen certifikát s vlastním podpisem.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="282"/>
@@ -9935,12 +9935,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="288"/>
         <source>Certificate has been revoked.</source>
-        <translation>Certifikát byl odvolán.</translation>
+        <translation>Platnost certifikátu byla zneplatněna (odvolána).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="294"/>
         <source>Certificate validation failed with code %1.</source>
-        <translation>Ověření certifikátu se nezdařilo s kódem %1.</translation>
+        <translation>Ověření certifikátu selhalo s kódem %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="300"/>
@@ -9960,7 +9960,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="318"/>
         <source>Signed data has different hash function digest.</source>
-        <translation>Podepsaná data mají jiný výtah hashovací funkce.</translation>
+        <translation>Podepsaná data mají jiný otisk (digest) hashovací funkce.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="324"/>
@@ -9970,7 +9970,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="330"/>
         <source>Data covered by signature are not present.</source>
-        <translation>Data pokrytá podpisem nejsou k dispozici.</translation>
+        <translation>Data krytá podpisem nejsou k dispozici.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="338"/>
@@ -9980,17 +9980,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="347"/>
         <source>Certificate revocation list (CRL) not checked, validity time has expired.</source>
-        <translation>Seznam zneplatněných certifikátů (CRL) není zkontrolován, doba platnosti vypršela.</translation>
+        <translation>Seznam zneplatněných certifikátů (CRL) nebyl zkontrolován, doba platnosti vypršela.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="356"/>
         <source>Qualified certificate statement not verified.</source>
-        <translation>Prohlášení o kvalifikovaném certifikátu není ověřeno.</translation>
+        <translation>Prohlášení o kvalifikovaném certifikátu (QCStatement) nebylo ověřeno.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="365"/>
         <source>Unable to get CRL.</source>
-        <translation>Nelze získat CRL.</translation>
+        <translation>Nelze získat seznam zneplatněných certifikátů (CRL).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfsignaturehandler.cpp" line="460"/>
@@ -10010,31 +10010,31 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="956"/>
         <source>Transformation between blending color space failed.</source>
-        <translation>Transformace mezi prolnutým barevným prostorem se nezdařila.</translation>
+        <translation>Transformace mezi barevnými prostory míchání (blending) se nezdařila.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1201"/>
         <source>Invalid clear color - process color %1 was not found in clear color.</source>
-        <translation>Neplatná čirá barva - výtažková barva %1 nebyla nalezena v čiré barvě.</translation>
+        <translation>Neplatná čistá barva – výtažková barva %1 nebyla v definici čisté barvy nalezena.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1210"/>
         <source>More colors in clear color (%1) than process color channel count (%2).</source>
-        <translation>Více barev v čisté barvě (%1) než počet kanálů výtažkové barvy (%2).</translation>
+        <translation>V definici čisté barvy je více složek (%1), než je počet kanálů výtažkové barvy (%2).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1380"/>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1396"/>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1404"/>
         <source>Transformation of spot color to blend color space failed.</source>
-        <translation>Transformace přímé barvy do smíšeného barevného prostoru se nezdařila.</translation>
+        <translation>Transformace přímé barvy (spot color) do barevného prostoru míchání se nezdařila.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1428"/>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="733"/>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="767"/>
         <source>Invalid number bits of image mask (should be 1 bit instead of %1 bits).</source>
-        <translation>Neplatný počet bitů masky obrázku (měl by být 1 bit namísto %1 bitů).</translation>
+        <translation>Neplatný počet bitů masky obrázku (očekáván 1 bit namísto %1 bitů).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1433"/>
@@ -10052,19 +10052,19 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1576"/>
         <source>Invalid base color space of indexed color space.</source>
-        <translation>Neplatný základní barevný prostor indexovaného barevného prostoru.</translation>
+        <translation>Neplatný základní barevný prostor indexovaného prostoru barev.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1584"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1922"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1968"/>
         <source>Invalid colors for indexed color space. Color space has %1 colors. Provided color count is %4.</source>
-        <translation>Neplatné barvy pro indexovaný barevný prostor. Barevný prostor má %1 barev. Poskytovaný počet barev je %4.</translation>
+        <translation>Neplatné barvy pro indexovaný barevný prostor. Prostor má %1 barev, ale poskytnuto bylo %4.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1612"/>
         <source>Conversion of indexed image to base color space failed.</source>
-        <translation>Převod indexovaného obrázku do základního barevného prostoru se nezdařil.</translation>
+        <translation>Převod indexovaného obrázku do základního barevného prostoru selhal.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1674"/>
@@ -10083,7 +10083,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="426"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2028"/>
         <source>Invalid colors for color space. Color space has %1 colors. Provided color count is %4.</source>
-        <translation>Neplatné barvy pro barevný prostor. Barevný prostor má %1 barev. Poskytovaný počet barev je %4.</translation>
+        <translation>Neplatné barvy pro barevný prostor. Prostor má %1 barev, ale poskytnuto bylo %4.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1695"/>
@@ -10093,54 +10093,54 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="323"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="565"/>
         <source>Invalid size of the decode array. Expected %1, actual %2.</source>
-        <translation>Neplatná velikost pole dekódování. Očekávaná %1, skutečná %2.</translation>
+        <translation>Neplatná velikost dekódovacího pole (decode array). Očekáváno %1, skutečnost %2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1743"/>
         <source>Invalid matte color.</source>
-        <translation>Neplatná matná barva.</translation>
+        <translation>Neplatná barva podkladu (matte color).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1851"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="433"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2035"/>
         <source>Invalid number of color components in color key mask. Expected %1, provided %2.</source>
-        <translation>Neplatný počet barevných složek v masce barevného klíče. Očekáváno %1, poskytnuto %2.</translation>
+        <translation>Neplatný počet barevných složek v masce barevného klíče (color key mask). Očekáváno %1, poskytnuto %2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1857"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="439"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2041"/>
         <source>Invalid size of the decoded array. Expected %1, actual %2.</source>
-        <translation>Neplatná velikost dekódovaného pole. Očekávaná %1, skutečná %2.</translation>
+        <translation>Neplatná velikost dekódovaného pole. Očekáváno %1, skutečnost %2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1931"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="546"/>
         <source>Soft mask can&apos;t have masking.</source>
-        <translation>Měkká maska ​​nemůže &apos; mít maskování.</translation>
+        <translation>Měkká maska (soft mask) již nemůže mít další maskování.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1936"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="551"/>
         <source>Invalid size of soft mask.</source>
-        <translation>Neplatná velikost měkké masky.</translation>
+        <translation>Neplatná velikost měkké masky (soft mask).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1944"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="559"/>
         <source>Soft mask should have only 1 color component (alpha) instead of %1.</source>
-        <translation>Měkká maska ​​by měla mít pouze 1 barevnou složku (alfa) namísto %1.</translation>
+        <translation>Měkká maska (soft mask) by měla mít pouze 1 barevnou složku (alfa) namísto %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2015"/>
         <source>Invalind soft mask.</source>
-        <translation>Neplatná měkká maska.</translation>
+        <translation>Neplatná měkká maska (soft mask).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2028"/>
         <source>Invalid blend color space of soft mask definition.</source>
-        <translation>Neplatný míchaný barevný prostor definice měkké masky.</translation>
+        <translation>Neplatný barevný prostor míchání (blend) v definici měkké masky.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2062"/>
@@ -10150,22 +10150,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2084"/>
         <source>Evaulation of soft mask transfer function failed.</source>
-        <translation>Vyhodnocení funkce přenosu měkké masky se nezdařilo.</translation>
+        <translation>Vyhodnocení přenosové funkce měkké masky se nezdařilo.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2287"/>
         <source>Cannot create shading sampler.</source>
-        <translation>Nelze vytvořit vzorník stínování.</translation>
+        <translation>Nelze vytvořit vzorkovač (sampler) stínování.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2750"/>
         <source>Image painting not implemented.</source>
-        <translation>Malování obrazu není implementováno.</translation>
+        <translation>Vykreslování obrazu není implementováno.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2757"/>
         <source>Mesh painting not implemented.</source>
-        <translation>Síťovina není implementována.</translation>
+        <translation>Vykreslování sítě (mesh) není implementováno.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2912"/>
@@ -10175,12 +10175,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2919"/>
         <source>Invalid target ink index %1.</source>
-        <translation>Neplatný cílový index inkoustu %1.</translation>
+        <translation>Neplatný index cílového inkoustu %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2967"/>
         <source>Transformation from source color space to target blending color space failed.</source>
-        <translation>Transformace ze zdrojového barevného prostoru do cílového barevného prostoru prolnutí se nezdařila.</translation>
+        <translation>Transformace ze zdrojového barevného prostoru do cílového prostoru míchání se nezdařila.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3083"/>
@@ -10190,57 +10190,57 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3100"/>
         <source>Red</source>
-        <translation>Červený</translation>
+        <translation>Červená</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3111"/>
         <source>Green</source>
-        <translation>Zelený</translation>
+        <translation>Zelená</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3122"/>
         <source>Blue</source>
-        <translation>Modrý</translation>
+        <translation>Modrá</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3139"/>
         <source>Cyan</source>
-        <translation>azurová</translation>
+        <translation>Azurová</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3150"/>
         <source>Magenta</source>
-        <translation>purpurová</translation>
+        <translation>Purpurová</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3161"/>
         <source>Yellow</source>
-        <translation>Žluť</translation>
+        <translation>Žlutá</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3172"/>
         <source>Black</source>
-        <translation>Černý</translation>
+        <translation>Černá</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3188"/>
         <source>Process Generic%1</source>
-        <translation>Proces Generic%1</translation>
+        <translation>Výtažková barva %1</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="94"/>
         <source>Not enough data to read %1-bit value.</source>
-        <translation>Nedostatek dat ke čtení %1-bitové hodnoty.</translation>
+        <translation>Nedostatek dat pro načtení %1bitové hodnoty.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="134"/>
         <source>Can&apos;t seek to position %1.</source>
-        <translation>Nelze nalézt pozici %1.</translation>
+        <translation>Nelze přejít (seek) na pozici %1.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="189"/>
         <source>Can&apos;t get substream - remaining %1 bits in buffer.</source>
-        <translation>Nelze získat dílčí proud – zbývajících %1 bitů ve vyrovnávací paměti.</translation>
+        <translation>Nelze získat dílčí proud (substream) – v bufferu zbývá %1 bitů.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="445"/>
@@ -10262,7 +10262,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="11929"/>
         <source>Image encoded by &apos;package&apos; mode not decoded.</source>
-        <translation>Obrázek zakódovaný režimem &apos;package&apos; nebyl dekódován.</translation>
+        <translation>Obrázek zakódovaný v režimu &apos;package&apos; nebyl dekódován.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="11946"/>
@@ -10278,12 +10278,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12187"/>
         <source>XFA: Uknown ui.</source>
-        <translation>XFA: Neznámé uživatelské rozhraní.</translation>
+        <translation>XFA: Neznámé uživatelské rozhraní (UI).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12542"/>
         <source>Barcode not implemented!</source>
-        <translation>Čárový kód není implementován!</translation>
+        <translation>Čárové kódy nejsou implementovány!</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12846"/>
@@ -10294,33 +10294,33 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="13244"/>
         <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="13301"/>
         <source>XFA: special stroke is not supported.</source>
-        <translation>XFA: speciální zdvih není podporován.</translation>
+        <translation>XFA: Speciální tah (stroke) není podporován.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="181"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="338"/>
         <source>Catalog must be a dictionary.</source>
-        <translation>Katalog musí být slovník.</translation>
+        <translation>Katalog (Catalog) musí být slovník.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="919"/>
         <source>Required features %1 are unsupported. Document processing can be limited.</source>
-        <translation>Požadované funkce %1 nejsou podporovány. Zpracování dokumentů může být omezeno.</translation>
+        <translation>Vyžadované funkce %1 nejsou podporovány. Zpracování dokumentu může být omezeno.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="930"/>
         <source>Optional Content User Interaction</source>
-        <translation>Volitelná interakce uživatele s obsahem</translation>
+        <translation>Uživatelská interakce s volitelným obsahem</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="932"/>
         <source>Optional Content Usage</source>
-        <translation>Volitelné využití obsahu</translation>
+        <translation>Využití volitelného obsahu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="934"/>
         <source>Acrobat Forms</source>
-        <translation>Acrobat Forms</translation>
+        <translation>Formuláře Acrobat (AcroForms)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="936"/>
@@ -10330,12 +10330,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="938"/>
         <source>Markup Annotations</source>
-        <translation>Značkovací anotace</translation>
+        <translation>Revizní poznámky (Markup)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="940"/>
         <source>Markup of 3D Content</source>
-        <translation>Označení 3D obsahu</translation>
+        <translation>Poznámky u 3D obsahu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="942"/>
@@ -10345,12 +10345,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="944"/>
         <source>U3D Format of PDF 3D</source>
-        <translation>U3D formát PDF 3D</translation>
+        <translation>Formát U3D v PDF 3D</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="946"/>
         <source>PRC Format of PDF 3D</source>
-        <translation>PRC Formát PDF 3D</translation>
+        <translation>Formát PRC v PDF 3D</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="948"/>
@@ -10370,7 +10370,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="954"/>
         <source>Attached Files Modification</source>
-        <translation>Modifikace připojených souborů</translation>
+        <translation>Úprava připojených souborů</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="956"/>
@@ -11412,7 +11412,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2147"/>
         <source>Custom</source>
-        <translation>Zvyk</translation>
+        <translation>Vlastní</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2197"/>
@@ -11427,7 +11427,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2211"/>
         <source>Courier</source>
-        <translation>Kurýr</translation>
+        <translation>Courier</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2227"/>
@@ -11692,7 +11692,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="283"/>
         <source>Delete</source>
-        <translation>Vymazat</translation>
+        <translation>Smazat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="1075"/>
@@ -12121,27 +12121,27 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtPageMaster/selectoutlinetoregroupdialog.cpp" line="70"/>
         <source>Select All</source>
-        <translation type="unfinished">Vybrat vše</translation>
+        <translation>Vybrat vše</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/selectoutlinetoregroupdialog.cpp" line="71"/>
         <source>Deselect All</source>
-        <translation type="unfinished">Zrušit výběr</translation>
+        <translation>Zrušit výběr</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/selectoutlinetoregroupdialog.cpp" line="72"/>
         <source>Invert Selection</source>
-        <translation type="unfinished">Invertovat výběr</translation>
+        <translation>Invertovat výběr</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/selectoutlinetoregroupdialog.cpp" line="75"/>
         <source>Select Level 1</source>
-        <translation type="unfinished">Vybrat 1. úroveň</translation>
+        <translation>Vybrat 1. úroveň</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/selectoutlinetoregroupdialog.cpp" line="76"/>
         <source>Select Level 2</source>
-        <translation type="unfinished">Vybrat 2. úroveň</translation>
+        <translation>Vybrat 2. úroveň</translation>
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/selectoutlinetoregroupdialog.cpp" line="84"/>
@@ -12632,18 +12632,18 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="41"/>
         <source>Statistics by Object Function</source>
-        <translation>Statistika dle Funkce Objektu</translation>
+        <translation>Statistika podle funkce objektů</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="42"/>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="134"/>
         <source>Statistics by Object Type</source>
-        <translation>Statistika dle Typů Objektů</translation>
+        <translation>Statistika podle typu objektů</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="85"/>
         <source>Statistics by Object Class</source>
-        <translation>Statistika dle Třídy Objektu</translation>
+        <translation>Statistika podle třídy objektů</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="86"/>
@@ -12654,7 +12654,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="86"/>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="135"/>
         <source>Percentage [%]</source>
-        <translation>Procento [%]</translation>
+        <translation>Procenta [%]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="86"/>
@@ -12665,7 +12665,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="86"/>
         <source>Space Usage [bytes]</source>
-        <translation>Využití prostoru [bajty]</translation>
+        <translation>Využití místa [bajty]</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="116"/>
@@ -12675,7 +12675,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="117"/>
         <source>Content Stream</source>
-        <translation>Proud dat obsahu</translation>
+        <translation>Datový proud obsahu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="118"/>
@@ -12705,12 +12705,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="123"/>
         <source>Form</source>
-        <translation>Formulář</translation>
+        <translation>Formulář (XObject)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="124"/>
         <source>Font</source>
-        <translation>Font</translation>
+        <translation>Písmo</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="125"/>
@@ -12725,7 +12725,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="127"/>
         <source>Other</source>
-        <translation>Jiné</translation>
+        <translation>Ostatní</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectstatisticsdialog.cpp" line="135"/>
@@ -12779,7 +12779,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="138"/>
         <source>Name</source>
-        <translation>Jméno</translation>
+        <translation>Název</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/ObjectInspectorPlugin/objectviewerwidget.cpp" line="141"/>
@@ -12857,42 +12857,42 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="57"/>
         <source>Separations</source>
-        <translation>Separace</translation>
+        <translation>Výtažky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="58"/>
         <source>Color Warnings | Ink Coverage</source>
-        <translation>Barevná varování | Pokrytí inkoustem</translation>
+        <translation>Varování barev | Krytí barvou</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="59"/>
         <source>Color Warnings | Rich Black</source>
-        <translation>Barevná varování | Bohatá černá</translation>
+        <translation>Varování barev | Sytá černá</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="60"/>
         <source>Ink Coverage</source>
-        <translation>Pokrytí inkoustem</translation>
+        <translation>Krytí barvou</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="61"/>
         <source>Shape Channel</source>
-        <translation type="unfinished"></translation>
+        <translation>Kanál tvaru</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="62"/>
         <source>Opacity Channel</source>
-        <translation type="unfinished"></translation>
+        <translation>Kanál krytí</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="127"/>
         <source>Process Inks</source>
-        <translation type="unfinished"></translation>
+        <translation>Výtažkové barvy</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewdialog.cpp" line="128"/>
         <source>Spot Inks</source>
-        <translation type="unfinished"></translation>
+        <translation>Přímé barvy</translation>
     </message>
 </context>
 <context>
@@ -12918,22 +12918,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="292"/>
         <source>Distribution</source>
-        <translation type="unfinished"></translation>
+        <translation>Rozložení</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="505"/>
         <source>Process Inks</source>
-        <translation type="unfinished"></translation>
+        <translation>Výtažkové barvy</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="521"/>
         <source>Spot Inks</source>
-        <translation type="unfinished"></translation>
+        <translation>Přímé barvy</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="549"/>
         <source>Warning | Ink Coverage</source>
-        <translation>Upozornění | Pokrytí inkoustem</translation>
+        <translation>Varování | Krytí barvou</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="553"/>
@@ -12945,27 +12945,27 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="554"/>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="565"/>
         <source>Failure</source>
-        <translation>Selhání</translation>
+        <translation>Nevyhovuje</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="560"/>
         <source>Warning | Rich Black</source>
-        <translation type="unfinished"></translation>
+        <translation>Varování | Sytá černá</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="579"/>
         <source>Ink Coverage</source>
-        <translation>Pokrytí inkoustem</translation>
+        <translation>Krytí barvou</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="598"/>
         <source>Shape/Opacity</source>
-        <translation>Tvar/Průhlednost</translation>
+        <translation>Tvar/Krytí</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/OutputPreviewPlugin/outputpreviewwidget.cpp" line="604"/>
         <source>Sample Color</source>
-        <translation>Barva vzorku</translation>
+        <translation>Vzorek barvy</translation>
     </message>
 </context>
 <context>
@@ -13006,32 +13006,32 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="58"/>
         <source>Redact &amp;Rectangle</source>
-        <translation>&amp;Anonymizovat obdélníkem</translation>
+        <translation>&amp;Redigovat obdélníkem</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="59"/>
         <source>Redact &amp;Text</source>
-        <translation>Anonymizovat &amp;text</translation>
+        <translation>Redigovat &amp;text</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="60"/>
         <source>Redact Text &amp;Selection</source>
-        <translation>Anonymizovat výběr te&amp;xtu</translation>
+        <translation>Redigovat &amp;výběr textu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="61"/>
         <source>Redact &amp;Page(s)</source>
-        <translation type="unfinished">Anonymizovat &amp;stránku/y</translation>
+        <translation>Redigovat &amp;stránky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="62"/>
         <source>Create Redacted &amp;Document</source>
-        <translation>Vytvořit anonymizovaný &amp;dokument</translation>
+        <translation>Vytvořit redigovaný &amp;dokument</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="104"/>
         <source>Redac&amp;t</source>
-        <translation>Anonymizova&amp;t</translation>
+        <translation>Redigova&amp;t</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="120"/>
@@ -13041,17 +13041,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="120"/>
         <source>Select text via &apos;Advanced Search&apos; tool, and then redact it using this tool. Select rows in &apos;Result&apos; table to select particular results.</source>
-        <translation>Vyberte text pomocí nástroje &apos;Pokročilé hledání&apos; a poté jej pomocí tohoto nástroje upravte. Vyberte řádky v tabulce &apos;Výsledky&apos; pro výběr konkrétních výsledků.</translation>
+        <translation>Vyberte text pomocí nástroje &apos;Pokročilé vyhledávání&apos; a poté jej pomocí tohoto nástroje zredigujte. Výběrem řádků v tabulce &apos;Výsledky&apos; označíte konkrétní nálezy.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="153"/>
         <source>Redact Pages</source>
-        <translation>Anonymizovat stránky</translation>
+        <translation>Redigovat stránky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="153"/>
         <source>Page Range to be Redacted</source>
-        <translation>Rozsah stránek k anonymizaci</translation>
+        <translation>Rozsah stránek k redigování</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="206"/>
@@ -13064,12 +13064,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="44"/>
         <source>Sign digitally</source>
-        <translation>Podepsat digitálně</translation>
+        <translation>Digitálně podepsat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="47"/>
         <source>Sign digitally (invisible signature)</source>
-        <translation>Podepsat digitálně (neviditelný podpis)</translation>
+        <translation>Digitálně podepsat (neviditelný podpis)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="99"/>
@@ -13085,7 +13085,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="107"/>
         <source>Password to open certificate is invalid.</source>
-        <translation>Heslo pro otevření certifikátu není platné.</translation>
+        <translation>Heslo pro otevření certifikátu je neplatné.</translation>
     </message>
 </context>
 <context>
@@ -13282,7 +13282,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="46"/>
         <source>Page No.</source>
-        <translation>Číslo Stránky.</translation>
+        <translation>Č. stránky</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="46"/>
@@ -13505,7 +13505,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="220"/>
         <source>Security</source>
-        <translation type="unfinished">Zabezpečení</translation>
+        <translation>Zabezpečení</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="227"/>
@@ -13567,17 +13567,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="276"/>
         <source>Permissions</source>
-        <translation>Práva</translation>
+        <translation>Oprávnění</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="282"/>
         <source>Print (low resolution)</source>
-        <translation type="unfinished">Tisknout (nízké rozlišení)</translation>
+        <translation>Tisk (nízké rozlišení)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="283"/>
         <source>Print (high resolution)</source>
-        <translation type="unfinished">Tisknout (vysoké rozlišení)</translation>
+        <translation>Tisk (vysoké rozlišení)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="284"/>
@@ -13612,7 +13612,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="368"/>
         <source>TrueType</source>
-        <translation type="unfinished"></translation>
+        <translation>TrueType</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="372"/>
@@ -13791,7 +13791,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="288"/>
         <source>&amp;Sidebar</source>
-        <translation type="unfinished">Po&amp;stranní panel</translation>
+        <translation>Po&amp;stranní panel</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="298"/>
@@ -13885,7 +13885,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="60"/>
         <source>Remove unused objects (objects unreachable from document root object)</source>
-        <translation>Odstranit nepoužívané objekty (objekty nedostupné z kořenového objektu dokumentu)</translation>
+        <translation>Odebrat nepoužívané objekty (objekty nedostupné z kořenového objektu dokumentu)</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.cpp" line="61"/>
@@ -13948,7 +13948,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="788"/>
         <source>Printing document</source>
-        <translation type="unfinished">Tisknutí dokumentu</translation>
+        <translation>Tisknutí dokumentu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="849"/>
@@ -14003,7 +14003,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1205"/>
         <source>Save As</source>
-        <translation type="unfinished">Uložit jako</translation>
+        <translation>Uložit jako</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1205"/>
@@ -14019,12 +14019,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1288"/>
         <source>Save Document</source>
-        <translation type="unfinished">Uložit dokument</translation>
+        <translation>Uložit dokument</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1289"/>
         <source>Do you wish to save modified document before it is closed?</source>
-        <translation type="unfinished">Přejete si uložit změněný dokument před jeho zavřením?</translation>
+        <translation>Přejete si uložit změněný dokument před jeho zavřením?</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1379"/>
@@ -14407,7 +14407,7 @@ Stránka %2: %3</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="686"/>
         <source>Email</source>
-        <translation>Email</translation>
+        <translation>E-mail</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="709"/>
@@ -14422,7 +14422,7 @@ Stránka %2: %3</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="717"/>
         <source>Key encipherement</source>
-        <translation>Šifrování klíčem</translation>
+        <translation>Šifrování klíčů</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="721"/>
@@ -14477,12 +14477,12 @@ Stránka %2: %3</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="919"/>
         <source>Save to File...</source>
-        <translation type="unfinished">Uložit do souboru…</translation>
+        <translation>Uložit do souboru…</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="927"/>
         <source>Save attachment</source>
-        <translation type="unfinished">Uložit přílohu</translation>
+        <translation>Uložit přílohu</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="942"/>
@@ -14528,7 +14528,7 @@ Stránka %2: %3</translation>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1065"/>
         <source>Delete</source>
-        <translation>Vymazat</translation>
+        <translation>Smazat</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1066"/>
