@@ -80,6 +80,8 @@ add_library(Pdf4QtLibGui SHARED
     pdfbookmarkui.cpp
     pdfactioncombobox.h
     pdfactioncombobox.cpp
+    pdffullscreenwidget.h
+    pdffullscreenwidget.cpp
 )
 
 add_compile_definitions(QT_INSTALL_DIRECTORY="${QT6_INSTALL_PREFIX}")

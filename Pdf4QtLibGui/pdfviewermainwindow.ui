@@ -106,6 +106,8 @@
      <addaction name="actionRenderOptionDisplayRenderTimes"/>
     </widget>
     <addaction name="menuPage_Layout"/>
+    <addaction name="actionFullscreenMode"/>
+    <addaction name="separator"/>
     <addaction name="menuRendering_Options"/>
     <addaction name="separator"/>
     <addaction name="actionRotateRight"/>
@@ -245,6 +247,17 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+5</string>
+   </property>
+  </action>
+  <action name="actionFullscreenMode">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Fullscreen Mode</string>
+   </property>
+   <property name="toolTip">
+    <string>Fullscreen Mode</string>
    </property>
   </action>
   <action name="actionRendering_Errors">

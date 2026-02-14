@@ -1544,38 +1544,38 @@
         <translation>макет &amp;страницы</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="118"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="120"/>
         <source>&amp;Tools</source>
         <translation>&amp;Инструменты</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="141"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="143"/>
         <source>&amp;Developer</source>
         <translation>&amp;Разработчик</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="148"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="150"/>
         <source>&amp;Edit</source>
         <translation>&amp;изменить</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="173"/>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="787"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="175"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="800"/>
         <source>&amp;Insert</source>
         <translation>&amp;Вставить</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="177"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="179"/>
         <source>Sticky &amp;Note</source>
         <translation>&amp;Заметка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="189"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="191"/>
         <source>&amp;Stamp</source>
         <translation>&amp;Штамп</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="194"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="196"/>
         <source>Text Hi&amp;ghlight</source>
         <translation>выделение &amp;текста</translation>
     </message>
@@ -1595,653 +1595,663 @@
         <translation>&amp;параметры рендеринга</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="133"/>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="779"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="135"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="792"/>
         <source>&amp;Help</source>
         <translation>&amp;Справка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="240"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="242"/>
         <source>&amp;Open...</source>
         <translation>&amp;Открыть...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="249"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="251"/>
         <source>&amp;Close</source>
         <translation>&amp;Закрыть</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="258"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="260"/>
         <source>&amp;Quit</source>
         <translation>&amp;Выход</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="266"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="268"/>
         <source>&amp;Single Page</source>
         <translation>&amp;одна страница</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="269"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="271"/>
         <source>Single Page</source>
         <translation>одна страница</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="272"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="274"/>
         <source>Ctrl+1</source>
         <translation>Ctrl+1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="280"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="282"/>
         <source>&amp;Continuous</source>
         <translation>&amp;Непрерывно</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="283"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="285"/>
         <source>Continuous</source>
         <translation>Непрерывно</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="286"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="288"/>
         <source>Ctrl+2</source>
         <translation>Ctrl+2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="294"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="296"/>
         <source>Two &amp;Pages</source>
         <translation>две &amp;страницы</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="297"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="299"/>
         <source>Two Pages</source>
         <translation>две страницы</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="300"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="302"/>
         <source>Ctrl+3</source>
         <translation>Ctrl+3</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="308"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="310"/>
         <source>&amp;Two columns</source>
         <translation>&amp;два столбца</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="311"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="313"/>
         <source>Two columns</source>
         <translation>два столбца</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="314"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="316"/>
         <source>Ctrl+4</source>
         <translation>Ctrl+4</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="322"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="324"/>
         <source>&amp;First page on right side</source>
         <translation>&amp;первая страница справа</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="325"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="327"/>
         <source>First page on right side</source>
         <translation>первая страница справа</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="328"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="330"/>
         <source>Ctrl+5</source>
         <translation>Ctrl+5</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="337"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="338"/>
+        <source>&amp;Fullscreen Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="341"/>
+        <source>Fullscreen Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="350"/>
         <source>&amp;Rendering Errors...</source>
         <translation>&amp;ошибки рендеринга...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="340"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="353"/>
         <source>Ctrl+E</source>
         <translation>Ctrl+E</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="348"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="361"/>
         <source>&amp;Antialiasing</source>
         <translation>&amp;сглаживание</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="351"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="364"/>
         <source>Antialiasing</source>
         <translation>сглаживание</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="359"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="372"/>
         <source>&amp;Text Antialiasing</source>
         <translation>&amp;сглаживание текста</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="362"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="375"/>
         <source>Text Antialiasing</source>
         <translation>сглаживание текста</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="370"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="383"/>
         <source>&amp;Smooth Pictures</source>
         <translation>&amp;Гладкие изображения</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="373"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="386"/>
         <source>Smooth Pictures</source>
         <translation>Гладкие изображения</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="381"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="394"/>
         <source>&amp;Ignore Optional Content Settings</source>
         <translation>&amp;игнорировать дополнительные настройки содержимого</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="384"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="397"/>
         <source>Ignore Optional Content Settings</source>
         <translation>игнорировать дополнительные настройки содержимого</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="393"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="406"/>
         <source>&amp;Options...</source>
         <translation>&amp;Параметры...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="410"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="423"/>
         <source>&amp;Zoom In</source>
         <translation>&amp;увеличить масштаб</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="419"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="432"/>
         <source>Zoom &amp;Out</source>
         <translation>уменьшение &amp;масштаба</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="585"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="598"/>
         <source>Color | &amp;Inverted</source>
         <translation>Цвет | &amp;Перевернутый</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="609"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="622"/>
         <source>Color | &amp;High Contrast</source>
         <translation>Цвет | &amp;Высокая контрастность</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="660"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="673"/>
         <source>&amp;Print...</source>
         <translation>&amp;Печать...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="677"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="690"/>
         <source>&amp;Magnifier</source>
         <translation>&amp;Лупа</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="692"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="705"/>
         <source>&amp;Screenshot</source>
         <translation>&amp;снимок экрана</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="704"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="717"/>
         <source>&amp;Extract Image</source>
         <translation>&amp;Извлечь изображение</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="724"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="737"/>
         <source>&amp;Undo</source>
         <translation>&amp;отменить</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="733"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="746"/>
         <source>&amp;Redo</source>
         <translation>&amp;Повторить</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="742"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="755"/>
         <source>&amp;Optimize...</source>
         <translation>&amp;Оптимизировать...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="754"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="767"/>
         <source>Save &amp;As...</source>
         <translation>Сохранить &amp;как...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="763"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="776"/>
         <source>&amp;Save</source>
         <translation>&amp;Сохранить</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="879"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="892"/>
         <source>&amp;Rectangle</source>
         <translation>&amp;прямоугольник.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="903"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="916"/>
         <source>&amp;Ellipse</source>
         <translation>&amp;Эллипс</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="972"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="985"/>
         <source>Go to document &amp;start</source>
         <translation>переход к началу &amp;документа.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="981"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="994"/>
         <source>Go to document &amp;end</source>
         <translation>перейти в конец &amp;документа.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="990"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1003"/>
         <source>Go to &amp;next page</source>
         <translation>переход на &amp;следующую страницу.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="999"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1012"/>
         <source>Go to &amp;previous page</source>
         <translation>переход на &amp;предыдущую страницу.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1008"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1021"/>
         <source>Go &amp;to next line</source>
         <translation>переход &amp;к следующей строке.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1017"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1030"/>
         <source>Go t&amp;o previous line</source>
         <translation>переход &amp;на предыдущую строку.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1044"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1057"/>
         <source>&amp;Certificates...</source>
         <translation>&amp;Сертификаты...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1061"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1074"/>
         <source>Remove External &amp;Links</source>
         <translation>удаление внешних &amp;ссылок</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1064"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1077"/>
         <source>Remove all external link annotations from the document.</source>
         <translation>удалите из документа все аннотации внешних ссылок.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1123"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1136"/>
         <source>&amp;Go to Next Bookmark</source>
         <translation>&amp;Перейти к следующей закладке</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1126"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1139"/>
         <source>Go to Next Bookmark</source>
         <translation>Перейти к следующей закладке</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1138"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1151"/>
         <source>Go to Previous Boo&amp;kmark</source>
         <translation>Перейти к предыдущей &amp;закладке</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1141"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1154"/>
         <source>Go to Previous Bookmark</source>
         <translation>Перейти к предыдущей закладке</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1153"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1166"/>
         <source>&amp;Export Bookmarks</source>
         <translation>&amp;экспорт закладок</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1156"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1169"/>
         <source>Export Bookmarks</source>
         <translation>экспорт закладок</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1159"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1172"/>
         <source>Export bookmarks to the file.</source>
         <translation>экспортируйте закладки в файл.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1168"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1181"/>
         <source>&amp;Import Bookmarks</source>
         <translation>&amp;импорт закладок</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1171"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1184"/>
         <source>Import Bookmarks</source>
         <translation>импорт закладок</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1174"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1187"/>
         <source>Import bookmarks from the file.</source>
         <translation>импортируйте закладки из файла.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1211"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1224"/>
         <source>Clear Recent File &amp;History</source>
         <translation>Очистить историю последних &amp;файлов</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="396"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="409"/>
         <source>Ctrl+K</source>
         <translation>Ctrl+K</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="401"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="414"/>
         <source>Reset to &amp;Factory Settings</source>
         <translation>сброс к &amp;заводским настройкам</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="428"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="441"/>
         <source>&amp;About...</source>
         <translation>&amp;О...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="437"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="450"/>
         <source>Fit &amp;Page</source>
         <translation>Подогнать &amp;страницу</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="446"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="459"/>
         <source>Fit &amp;Width</source>
         <translation>По &amp;ширине</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="449"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="462"/>
         <source>W</source>
         <translation>Вт</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="458"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="471"/>
         <source>&amp;Fit Height</source>
         <translation>«&amp;Подогнать высоту»</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="461"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="474"/>
         <source>H</source>
         <translation>ЧАС</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="470"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="483"/>
         <source>Prope&amp;rties...</source>
         <translation>&amp;Свойства...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="479"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="492"/>
         <source>Send by &amp;E-Mail...</source>
         <translation>отправить по &amp;электронной почте...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="487"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="500"/>
         <source>Show Text &amp;Blocks</source>
         <translation>Показать текстовые &amp;блоки</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="495"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="508"/>
         <source>Show Text &amp;Lines</source>
         <translation>Показать текстовые &amp;строки</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="504"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="517"/>
         <source>&amp;Find</source>
         <translation>&amp;Найти</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="513"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="526"/>
         <source>Fin&amp;d Previous</source>
         <translation>&amp;найти предыдущий</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="522"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="535"/>
         <source>Fi&amp;nd Next</source>
         <translation>«&amp;Найти далее»</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="534"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="547"/>
         <source>Select te&amp;xt</source>
         <translation>выберите &amp;текст</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="546"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="559"/>
         <source>Select &amp;table</source>
         <translation>выберите &amp;таблицу</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="555"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="568"/>
         <source>Select &amp;All</source>
         <translation>выбрать &amp;все</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="564"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="577"/>
         <source>Dese&amp;lect</source>
         <translation>&amp;отмените выбор.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="573"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="586"/>
         <source>&amp;Copy text</source>
         <translation>&amp;копирование текста</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="597"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="610"/>
         <source>Color | &amp;Grayscale</source>
         <translation>Цвет | &amp;Оттенки серого</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="621"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="634"/>
         <source>Color | &amp;Monochromatic</source>
         <translation>Цвет | &amp;Монохроматический</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="633"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="646"/>
         <source>Color | &amp;Custom</source>
         <translation>Цвет | &amp;Обычай</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="642"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="655"/>
         <source>Rotate &amp;Right</source>
         <translation>повернуть &amp;вправо</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="651"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="664"/>
         <source>Rotate &amp;Left</source>
         <translation>повернуть &amp;влево</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="665"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="678"/>
         <source>Render to &amp;Images...</source>
         <translation>рендеринг в &amp;изображения...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="680"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="693"/>
         <source>Magnifier Tool</source>
         <translation>инструмент «Лупа»</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="712"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="725"/>
         <source>&amp;Display Annotations</source>
         <translation>&amp;отображение аннотаций</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="715"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="728"/>
         <source>Display Annotations</source>
         <translation>отображение аннотаций</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="745"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="758"/>
         <source>Optimizes document to reduce file size.</source>
         <translation>оптимизирует документ для уменьшения размера файла.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="771"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="784"/>
         <source>&amp;Comment</source>
         <translation>&amp;комментарий</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="795"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="808"/>
         <source>&amp;Key</source>
         <translation>&amp;Ключ</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="803"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="816"/>
         <source>&amp;New Paragraph</source>
         <translation>&amp;новый абзац</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="811"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="824"/>
         <source>No&amp;te</source>
         <translation>&amp;Примечание.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="819"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="832"/>
         <source>&amp;Paragraph</source>
         <translation>&amp;абзац</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="831"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="844"/>
         <source>&amp;Hyperlink</source>
         <translation>&amp;гиперссылка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="843"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="856"/>
         <source>&amp;Inline text</source>
         <translation>&amp;встроенный текст</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="855"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="868"/>
         <source>Str&amp;aight Line</source>
         <translation>&amp;прямая линия</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="867"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="880"/>
         <source>Pol&amp;yline</source>
         <translation>&amp;Полилиния</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="891"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="904"/>
         <source>&amp;Polygon</source>
         <translation>&amp;Полигон</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="915"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="928"/>
         <source>&amp;Freehand Curve</source>
         <translation>&amp;кривая от руки</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="927"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="940"/>
         <source>&amp;Highlight</source>
         <translation>&amp;выделите</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="939"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="952"/>
         <source>&amp;Underline</source>
         <translation>&amp;подчеркивание</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="951"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="964"/>
         <source>Stri&amp;keout</source>
         <translation>&amp;Вычеркивание</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="963"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="976"/>
         <source>&amp;Squiggly</source>
         <translation>&amp;Волнистый</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1026"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1039"/>
         <source>&amp;Get Source</source>
         <translation>&amp;Получить исходный код</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1035"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1048"/>
         <source>&amp;Encryption...</source>
         <translation>&amp;Шифрование...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1053"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1066"/>
         <source>&amp;Sanitize...</source>
         <translation>&amp;Продезинфицировать...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1056"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1069"/>
         <source>Sanitize document to remove sensitive information.</source>
         <translation>очистка документа для удаления конфиденциальной информации.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1072"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1085"/>
         <source>Automatic &amp;Document Refresh</source>
         <translation>автоматическое &amp;обновление документа</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1075"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1088"/>
         <source>Automatically reloads the document if a change made by an external program is detected.</source>
         <translation>автоматически перезагружает документ, если обнаружено изменение, внесенное внешней программой.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1084"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1097"/>
         <source>Become a &amp;Sponsor</source>
         <translation>станьте &amp;спонсором</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1093"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1106"/>
         <source>Create &amp;Bitonal Document...</source>
         <translation>Создать &amp;Bitonal Document...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1096"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1109"/>
         <source>Create Bitonal Document</source>
         <translation>создание битонального документа</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1099"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1112"/>
         <source>Convert the colored images to monochromatic to create a bitonal document.</source>
         <translation>преобразуйте цветные изображения в монохромные для создания двухтонального документа.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1108"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1121"/>
         <source>&amp;Bookmark Page</source>
         <translation>&amp;Страница закладки</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1111"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1124"/>
         <source>Bookmark Page</source>
         <translation>Страница закладки</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1114"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1127"/>
         <source>Bookmark page for fast navigation.</source>
         <translation>страница закладок для быстрой навигации.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1129"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1142"/>
         <source>Navigates to the next bookmarked page.</source>
         <translation>переход к следующей странице с закладкой.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1144"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1157"/>
         <source>Navigates to the previous bookmarked page.</source>
         <translation>переход на предыдущую страницу с закладкой.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1186"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1199"/>
         <source>&amp;Generate Bookmarks Automatically</source>
         <translation>&amp;автоматическое создание закладок</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1189"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1202"/>
         <source>Generate Bookmarks Automatically</source>
         <translation>автоматическое создание закладок</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1192"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1205"/>
         <source>If checked, bookmarks for main document chapters are generated automatically.</source>
         <translation>если этот флажок установлен, закладки для глав основного документа создаются автоматически.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1200"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1213"/>
         <source>Display &amp;Render Times</source>
         <translation>отображение &amp;времени рендеринга</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1203"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1216"/>
         <source>Display Render Times</source>
         <translation>отображение времени рендеринга</translation>
     </message>
@@ -5207,7 +5217,7 @@
         <translation>макет &amp;страницы</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="129"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="131"/>
         <source>&amp;Tools</source>
         <translation>&amp;Инструменты</translation>
     </message>
@@ -5232,422 +5242,432 @@
         <translation>&amp;параметры рендеринга</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="142"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="144"/>
         <source>&amp;Help</source>
         <translation>&amp;Справка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="171"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="173"/>
         <source>&amp;Open...</source>
         <translation>&amp;Открыть...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="180"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="182"/>
         <source>&amp;Close</source>
         <translation>&amp;Закрыть</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="189"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="191"/>
         <source>&amp;Quit</source>
         <translation>&amp;Выход</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="197"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="199"/>
         <source>&amp;Single Page</source>
         <translation>&amp;одна страница</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="200"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="202"/>
         <source>Ctrl+1</source>
         <translation>Ctrl+1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="208"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="210"/>
         <source>&amp;Continuous</source>
         <translation>&amp;Непрерывно</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="211"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="213"/>
         <source>Ctrl+2</source>
         <translation>Ctrl+2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="219"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="221"/>
         <source>Two &amp;Pages</source>
         <translation>две &amp;страницы</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="222"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="224"/>
         <source>Ctrl+3</source>
         <translation>Ctrl+3</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="230"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="232"/>
         <source>&amp;Two columns</source>
         <translation>&amp;два столбца</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="233"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="235"/>
         <source>Ctrl+4</source>
         <translation>Ctrl+4</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="241"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="243"/>
         <source>&amp;First page on right side</source>
         <translation>&amp;первая страница справа</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="244"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="246"/>
         <source>First page on right side</source>
         <translation>первая страница справа</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="247"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="249"/>
         <source>Ctrl+5</source>
         <translation>Ctrl+5</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="256"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="257"/>
+        <source>&amp;Fullscreen Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="260"/>
+        <source>Fullscreen Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="269"/>
         <source>Rendering &amp;Errors...</source>
         <translation>ошибки &amp;рендеринга...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="259"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="272"/>
         <source>Ctrl+E</source>
         <translation>Ctrl+E</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="267"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="280"/>
         <source>&amp;Antialiasing</source>
         <translation>&amp;сглаживание</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="275"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="288"/>
         <source>&amp;Text Antialiasing</source>
         <translation>&amp;сглаживание текста</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="283"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="296"/>
         <source>&amp;Smooth Pictures</source>
         <translation>&amp;Гладкие изображения</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="291"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="304"/>
         <source>&amp;Ignore Optional Content Settings</source>
         <translation>&amp;игнорировать дополнительные настройки содержимого</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="300"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="313"/>
         <source>&amp;Options...</source>
         <translation>&amp;Параметры...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="317"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="330"/>
         <source>&amp;Zoom In</source>
         <translation>&amp;увеличить масштаб</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="326"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="339"/>
         <source>Zoom &amp;Out</source>
         <translation>уменьшение &amp;масштаба</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="398"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="411"/>
         <source>Color | &amp;Inverted</source>
         <translation>Цвет | &amp;Перевернутый</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="422"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="435"/>
         <source>Color | &amp;High Contrast</source>
         <translation>Цвет | &amp;Высокая контрастность</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="473"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="486"/>
         <source>&amp;Print...</source>
         <translation>&amp;Печать...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="490"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="503"/>
         <source>&amp;Find</source>
         <translation>&amp;Найти</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="499"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="512"/>
         <source>Fin&amp;d Previous</source>
         <translation>&amp;найти предыдущий</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="508"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="521"/>
         <source>Fi&amp;nd Next</source>
         <translation>«&amp;Найти далее»</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="520"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="533"/>
         <source>Select te&amp;xt</source>
         <translation>выберите &amp;текст</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="532"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="545"/>
         <source>Select &amp;table</source>
         <translation>выберите &amp;таблицу</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="541"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="554"/>
         <source>Select &amp;All</source>
         <translation>выбрать &amp;все</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="550"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="563"/>
         <source>Dese&amp;lect</source>
         <translation>&amp;отмените выбор</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="559"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="572"/>
         <source>&amp;Copy text</source>
         <translation>&amp;копирование текста</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="571"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="584"/>
         <source>&amp;Magnifier</source>
         <translation>&amp;Лупа</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="574"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="587"/>
         <source>Magnifier Tool</source>
         <translation>инструмент «Лупа»</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="583"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="596"/>
         <source>Go to document &amp;start</source>
         <translation>переход к началу &amp;документа</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="592"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="605"/>
         <source>Go to document &amp;end</source>
         <translation>перейти в конец &amp;документа</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="601"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="614"/>
         <source>Go to &amp;next page</source>
         <translation>переход на &amp;следующую страницу</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="610"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="623"/>
         <source>Go to &amp;previous page</source>
         <translation>переход на &amp;предыдущую страницу</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="619"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="632"/>
         <source>Go &amp;to next line</source>
         <translation>переход &amp;к следующей строке</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="628"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="641"/>
         <source>Go t&amp;o previous line</source>
         <translation>переход &amp;на предыдущую строку</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="646"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="659"/>
         <source>&amp;Certificates...</source>
         <translation>&amp;Сертификаты...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="693"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="706"/>
         <source>&amp;Go to Next Bookmark</source>
         <translation>&amp;Перейти к следующей закладке</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="696"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="709"/>
         <source>Go to Next Bookmark</source>
         <translation>Перейти к следующей закладке</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="708"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="721"/>
         <source>Go to Previous Boo&amp;kmark</source>
         <translation>Перейти к предыдущей &amp;закладке</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="720"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="733"/>
         <source>&amp;Export Bookmarks</source>
         <translation>&amp;экспорт закладок</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="723"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="736"/>
         <source>Export Bookmarks</source>
         <translation>экспорт закладок</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="726"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="739"/>
         <source>Export bookmarks to the file.</source>
         <translation>экспортируйте закладки в файл.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="735"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="748"/>
         <source>&amp;Import Bookmarks</source>
         <translation>&amp;импорт закладок</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="738"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="751"/>
         <source>Import Bookmarks</source>
         <translation>импорт закладок</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="741"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="754"/>
         <source>Import bookmarks from the file.</source>
         <translation>импортируйте закладки из файла.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="775"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="788"/>
         <source>Clear Recent File &amp;History</source>
         <translation>Очистить историю последних &amp;файлов</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="303"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="316"/>
         <source>Ctrl+K</source>
         <translation>Ctrl+K</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="308"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="321"/>
         <source>&amp;Reset to Factory Settings</source>
         <translation>&amp;сброс к заводским настройкам</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="335"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="348"/>
         <source>&amp;About...</source>
         <translation>&amp;О...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="344"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="357"/>
         <source>Fit &amp;Page</source>
         <translation>Подогнать &amp;страницу</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="353"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="366"/>
         <source>Fit &amp;Width</source>
         <translation>По &amp;ширине</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="356"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="369"/>
         <source>W</source>
         <translation>Вт</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="365"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="378"/>
         <source>&amp;Fit Height</source>
         <translation>«&amp;Подогнать высоту»</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="368"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="381"/>
         <source>H</source>
         <translation>ЧАС</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="377"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="390"/>
         <source>Prope&amp;rties...</source>
         <translation>&amp;Свойства...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="386"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="399"/>
         <source>Send by &amp;E-Mail...</source>
         <translation>отправить по &amp;электронной почте...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="410"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="423"/>
         <source>Color | &amp;Grayscale</source>
         <translation>Цвет | &amp;Оттенки серого</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="434"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="447"/>
         <source>Color | &amp;Monochromatic</source>
         <translation>Цвет | &amp;Монохроматический</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="446"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="459"/>
         <source>Color | &amp;Custom</source>
         <translation>Цвет | &amp;Обычай</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="455"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="468"/>
         <source>Rotate &amp;Right</source>
         <translation>повернуть &amp;вправо</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="464"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="477"/>
         <source>Rotate &amp;Left</source>
         <translation>повернуть &amp;влево</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="481"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="494"/>
         <source>&amp;Display Annotations</source>
         <translation>&amp;отображение аннотаций</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="637"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="650"/>
         <source>&amp;Get Source</source>
         <translation>&amp;Получить исходный код</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="654"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="667"/>
         <source>Automatic &amp;Document Refresh</source>
         <translation>автоматическое &amp;обновление документа</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="657"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="670"/>
         <source>Automatically reloads the document if a change made by an external program is detected.</source>
         <translation>автоматически перезагружает документ, если обнаружено изменение, внесенное внешней программой.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="666"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="679"/>
         <source>Become a &amp;Sponsor</source>
         <translation>станьте &amp;спонсором</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="669"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="682"/>
         <source>Become a Sponsor</source>
         <translation>станьте спонсором</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="678"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="691"/>
         <source>&amp;Bookmark Page</source>
         <translation>&amp;Страница закладки</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="681"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="694"/>
         <source>Bookmark Page</source>
         <translation>Страница закладки</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="684"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="697"/>
         <source>Bookmark page for fast navigation.</source>
         <translation>страница закладок для быстрой навигации.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="699"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="712"/>
         <source>Navigates to the next bookmarked page.</source>
         <translation>переход к следующей странице с закладкой.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="711"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="724"/>
         <source>Navigates to the previous bookmarked page.</source>
         <translation>переход на предыдущую страницу с закладкой.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="753"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="766"/>
         <source>&amp;Generate Bookmarks Automatically</source>
         <translation>&amp;автоматическое создание закладок</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="756"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="769"/>
         <source>Generate Bookmarks Automatically</source>
         <translation>автоматическое создание закладок</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="759"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="772"/>
         <source>If checked, bookmarks for main document chapters are generated automatically.</source>
         <translation>если этот флажок установлен, закладки для глав основного документа создаются автоматически.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="767"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.ui" line="780"/>
         <source>Display &amp;Render Times</source>
         <translation>отображение &amp;времени рендеринга</translation>
     </message>
@@ -13784,27 +13804,27 @@ __ТК7____ТК8____ТК9__
         <translation>Стандартный</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="254"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="255"/>
         <source>%</source>
         <translation>%</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="288"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="289"/>
         <source>&amp;Sidebar</source>
         <translation>&amp;боковая панель</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="298"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="299"/>
         <source>Advanced find</source>
         <translation>расширенный поиск</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="306"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="307"/>
         <source>Ad&amp;vanced Find...</source>
         <translation>&amp;Расширенный поиск...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="443"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="444"/>
         <source> / %1</source>
         <translation> / %1</translation>
     </message>
@@ -13946,198 +13966,198 @@ __ТК7____ТК8____ТК9__
 <context>
     <name>pdfviewer::PDFProgramController</name>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="788"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="796"/>
         <source>Printing document</source>
         <translation>печать документа</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="849"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="857"/>
         <source>Go to action</source>
         <translation>перейти к действию</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="849"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="857"/>
         <source>Failed to go to destination &apos;%1&apos;. Destination wasn&apos;t found.</source>
         <translation>не удалось перейти к месту назначения «%1». Пункт назначения не найден.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="897"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="905"/>
         <source>Would you like to launch application &apos;%1&apos; in working directory &apos;%2&apos; with parameters &apos;%3&apos;?</source>
         <translation>Хотите ли вы запустить приложение «%1» в рабочем каталоге «%2» с параметрами «%3»?</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="898"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="913"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="926"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="932"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="906"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="921"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="934"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="940"/>
         <source>Launch application</source>
         <translation>Запуск приложения</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="913"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="932"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="921"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="940"/>
         <source>Executing application failed. Error code is %1.</source>
         <translation>не удалось выполнить приложение. Код ошибки: %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="925"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="933"/>
         <source>Would you like to launch application &apos;%1&apos;?</source>
         <translation>Хотите запустить приложение «%1»?</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="954"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="962"/>
         <source>Would you like to open URL &apos;%1&apos;?</source>
         <translation>Хотите открыть URL-адрес «%1»?</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="955"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="960"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="963"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="968"/>
         <source>Open URL</source>
         <translation>Открыть URL</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="960"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="968"/>
         <source>Opening url &apos;%1&apos; failed.</source>
         <translation>не удалось открыть URL-адрес «%1».</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1205"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1213"/>
         <source>Save As</source>
         <translation>Сохранить как</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1205"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1213"/>
         <source>Portable Document (*.pdf);;All files (*.*)</source>
         <translation>Портативный документ (*.pdf);;Все файлы (*.*)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1240"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1379"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1248"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1387"/>
         <source>Error</source>
         <translation>Ошибка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1288"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1296"/>
         <source>Save Document</source>
         <translation>Сохранить документ</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1289"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1297"/>
         <source>Do you wish to save modified document before it is closed?</source>
         <translation>хотите ли вы сохранить измененный документ перед его закрытием?</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1379"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1387"/>
         <source>Error while starting email client occured!</source>
         <translation>произошла ошибка при запуске почтового клиента!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1452"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1453"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1460"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1461"/>
         <source>No external link annotations found.</source>
         <translation>аннотации внешних ссылок не найдены.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1470"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1471"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1478"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1479"/>
         <source>External link annotations removed: %1.</source>
         <translation>удалены аннотации внешних ссылок: %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1510"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1518"/>
         <source>Permission to change document security is denied.</source>
         <translation>разрешение на изменение безопасности документа отклонено.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1529"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1537"/>
         <source>Failed to create security handler.</source>
         <translation>не удалось создать обработчик безопасности.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1542"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1553"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1550"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1561"/>
         <source>Reauthorization is required to change document encryption.</source>
         <translation>для изменения шифрования документа требуется повторная авторизация.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1637"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1645"/>
         <source>Encrypted document</source>
         <translation>зашифрованный документ</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1637"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1645"/>
         <source>Enter password to access document content</source>
         <translation>введите пароль для доступа к содержимому документа</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2037"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2058"/>
         <source>Document &apos;%1&apos; was successfully loaded!</source>
         <translation>документ «%1» успешно загружен!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2043"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2064"/>
         <source>Document read error: %1</source>
         <translation>Ошибка чтения документа: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2245"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2276"/>
         <source>%1 - %2</source>
         <translation>%1 – %2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2427"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2434"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2543"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2550"/>
         <source>Reset Settings</source>
         <translation>Сбросить настройки</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2427"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2543"/>
         <source>Do you wish to restore the default factory settings of the program? All settings changed by the user will be deleted. Application will be closed.</source>
         <translation>хотите ли вы восстановить заводские настройки программы по умолчанию? Все настройки, измененные пользователем, будут удалены. Приложение будет закрыто.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2434"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2550"/>
         <source>Default factory settings were restored. Application will be now closed.</source>
         <translation>заводские настройки по умолчанию восстановлены. Приложение будет закрыто.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2479"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2595"/>
         <source>Plugins</source>
         <translation>Плагины</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2479"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2595"/>
         <source>Plugin on/off state has been changed. Please restart application to apply settings.</source>
         <translation>состояние включения/выключения плагина было изменено. Пожалуйста, перезапустите приложение, чтобы применить настройки.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2506"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2578"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2622"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2694"/>
         <source>Select PDF document</source>
         <translation>выберите PDF-документ</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2506"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2622"/>
         <source>PDF document (*.pdf)</source>
         <translation>PDF-документ (*.pdf)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2563"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2679"/>
         <source>Export Bookmarks As</source>
         <translation>Экспортировать закладки как</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2563"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2679"/>
         <source>JSON (*.json);;All files (*.*)</source>
         <translation>JSON (*.json);;Все файлы (*.*)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2578"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2694"/>
         <source>JSON (*.json)</source>
         <translation>JSON (*.json)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2597"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2713"/>
         <source>Rendering of page %1: %2 errors occured.</source>
         <translation>Отрисовка страницы %1: произошли ошибки %2.</translation>
     </message>
@@ -14644,17 +14664,17 @@ Do you want to perform this action?</source>
         <translation>Стандартный</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="213"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="214"/>
         <source>%</source>
         <translation>%</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="237"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="238"/>
         <source>&amp;Sidebar</source>
         <translation>&amp;боковая панель</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="369"/>
+        <location filename="../Pdf4QtLibGui/pdfviewermainwindow.cpp" line="370"/>
         <source> / %1</source>
         <translation> / %1</translation>
     </message>

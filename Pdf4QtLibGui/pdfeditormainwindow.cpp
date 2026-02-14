@@ -197,6 +197,7 @@ PDFEditorMainWindow::PDFEditorMainWindow(QWidget* parent) :
     m_actionManager->setAction(PDFActionManager::PageLayoutTwoPages, ui->actionPageLayoutTwoPages);
     m_actionManager->setAction(PDFActionManager::PageLayoutTwoColumns, ui->actionPageLayoutTwoColumns);
     m_actionManager->setAction(PDFActionManager::PageLayoutFirstPageOnRightSide, ui->actionFirstPageOnRightSide);
+    m_actionManager->setAction(PDFActionManager::FullscreenMode, ui->actionFullscreenMode);
     m_actionManager->setAction(PDFActionManager::ToolSelectText, ui->actionSelectText);
     m_actionManager->setAction(PDFActionManager::ToolSelectTable, ui->actionSelectTable);
     m_actionManager->setAction(PDFActionManager::ToolMagnifier, ui->actionMagnifier);

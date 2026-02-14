@@ -60,6 +60,7 @@ class PDFUndoRedoManager;
 class PDFRecentFileManager;
 class PDFTextToSpeech;
 class PDFActionComboBox;
+class PDFFullscreenWidget;
 
 class IMainWindow
 {
@@ -182,6 +183,7 @@ public:
         PageLayoutTwoPages,
         PageLayoutTwoColumns,
         PageLayoutFirstPageOnRightSide,
+        FullscreenMode,
         ToolSelectText,
         ToolSelectTable,
         ToolMagnifier,
@@ -373,6 +375,7 @@ private:
     void onActionPageLayoutContinuousTriggered();
     void onActionPageLayoutTwoPagesTriggered();
     void onActionPageLayoutTwoColumnsTriggered();
+    void onActionFullscreenModeTriggered(bool checked);
     void onActionFirstPageOnRightSideTriggered();
     void onActionFindTriggered();
     void onActionOptionsTriggered();
@@ -407,6 +410,8 @@ private:
     void updatePageLayoutActions();
     void updateRenderingOptionActions();
     void updateBookmarkSettings();
+    void enterFullscreenMode();
+    void leaveFullscreenMode();
 
     void setPageLayout(pdf::PageLayout pageLayout);
     void updateFileInfo(const QString& fileName);
@@ -465,6 +470,8 @@ private:
     bool m_loadAllPlugins;
     pdf::PDFPluginInfos m_plugins;
     std::vector<std::pair<pdf::PDFPluginInfo, pdf::PDFPlugin*>> m_loadedPlugins;
+    bool m_isFullscreenMode;
+    PDFFullscreenWidget* m_fullscreenWidget;
 };
 
 }   // namespace pdfviewer

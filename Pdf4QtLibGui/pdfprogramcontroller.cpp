@@ -49,6 +49,7 @@
 #include "pdfwidgetannotation.h"
 #include "pdfwidgetformmanager.h"
 #include "pdfactioncombobox.h"
+#include "pdffullscreenwidget.h"
 
 #include <QMenu>
 #include <QPrinter>
@@ -222,6 +223,7 @@ void PDFActionManager::initActions(QSize iconSize, bool initializeStampActions)
     setShortcut(BookmarkPage, QKeySequence("Ctrl+M"));
     setShortcut(BookmarkGoToNext, QKeySequence("Ctrl+."));
     setShortcut(BookmarkGoToPrevious, QKeySequence("Ctrl+,"));
+    setShortcut(FullscreenMode, QKeySequence("Ctrl+L"));
 
     if (hasActions({ CreateStickyNoteComment, CreateStickyNoteHelp, CreateStickyNoteInsert, CreateStickyNoteKey, CreateStickyNoteNewParagraph, CreateStickyNoteNote, CreateStickyNoteParagraph }))
     {
@@ -379,7 +381,9 @@ PDFProgramController::PDFProgramController(QObject* parent) :
     m_isBusy(false),
     m_isFactorySettingsBeingRestored(false),
     m_progress(nullptr),
-    m_loadAllPlugins(false)
+    m_loadAllPlugins(false),
+    m_isFullscreenMode(false),
+    m_fullscreenWidget(nullptr)
 {
     connect(&m_fileWatcher, &QFileSystemWatcher::fileChanged, this, &PDFProgramController::onFileChanged);
 }
@@ -557,6 +561,10 @@ void PDFProgramController::initialize(Features features,
     if (QAction* action = m_actionManager->getAction(PDFActionManager::PageLayoutTwoColumns))
     {
         connect(action, &QAction::triggered, this, &PDFProgramController::onActionPageLayoutTwoColumnsTriggered);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::FullscreenMode))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionFullscreenModeTriggered);
     }
     if (QAction* action = m_actionManager->getAction(PDFActionManager::PageLayoutFirstPageOnRightSide))
     {
@@ -1657,6 +1665,18 @@ void PDFProgramController::onActionPageLayoutTwoColumnsTriggered()
     setPageLayout(m_actionManager->getAction(PDFActionManager::PageLayoutFirstPageOnRightSide)->isChecked() ? pdf::PageLayout::TwoColumnRight : pdf::PageLayout::TwoColumnLeft);
 }
 
+void PDFProgramController::onActionFullscreenModeTriggered(bool checked)
+{
+    if (checked)
+    {
+        enterFullscreenMode();
+    }
+    else
+    {
+        leaveFullscreenMode();
+    }
+}
+
 void PDFProgramController::onActionFirstPageOnRightSideTriggered()
 {
     switch (m_pdfWidget->getDrawWidgetProxy()->getPageLayout())
@@ -1814,6 +1834,7 @@ void PDFProgramController::updateActionsAvailability()
     m_actionManager->setEnabled(PDFActionManager::SaveAs, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::Properties, hasDocument);
     m_actionManager->setEnabled(PDFActionManager::SendByMail, hasDocument);
+    m_actionManager->setEnabled(PDFActionManager::FullscreenMode, hasValidDocument);
     m_mainWindow->setEnabled(!isBusy);
     updateUndoRedoActions();
 }
@@ -2141,7 +2162,12 @@ void PDFProgramController::setDocument(pdf::PDFModifiedDocument document, std::v
         m_undoRedoManager->setIsCurrentSaved(isCurrentSaved);
     }
 
+    std::vector<pdf::PDFSignatureVerificationResult> fullscreenSignatureVerificationResult = signatureVerificationResult;
     m_pdfWidget->setDocument(document, std::move(signatureVerificationResult));
+    if (m_fullscreenWidget)
+    {
+        m_fullscreenWidget->setDocument(document, std::move(fullscreenSignatureVerificationResult));
+    }
     m_mainWindowInterface->setDocument(document);
     m_CMSManager->setDocument(document);
 
@@ -2177,6 +2203,11 @@ void PDFProgramController::setDocument(pdf::PDFModifiedDocument document, std::v
 
 void PDFProgramController::closeDocument()
 {
+    if (m_isFullscreenMode)
+    {
+        leaveFullscreenMode();
+    }
+
     if (m_pdfDocument && !m_fileInfo.absoluteFilePath.isEmpty())
     {
         std::vector<pdf::PDFInteger> pages = m_pdfWidget->getDrawWidget()->getCurrentPages();
@@ -2284,6 +2315,91 @@ void PDFProgramController::updatePageLayoutActions()
         default:
             Q_ASSERT(false);
     }
+
+    m_actionManager->setChecked(PDFActionManager::FullscreenMode, m_isFullscreenMode);
+}
+
+void PDFProgramController::enterFullscreenMode()
+{
+    if (m_isFullscreenMode || !m_pdfDocument)
+    {
+        return;
+    }
+
+    m_isFullscreenMode = true;
+
+    m_fullscreenWidget = new PDFFullscreenWidget(m_CMSManager, m_settings->getRendererEngine(), m_mainWindow);
+    connect(m_fullscreenWidget, &PDFFullscreenWidget::exitRequested, this, [this]()
+    {
+        if (QAction* action = m_actionManager->getAction(PDFActionManager::FullscreenMode))
+        {
+            action->setChecked(false);
+        }
+        leaveFullscreenMode();
+    });
+
+    pdf::PDFWidget* fullscreenPdfWidget = m_fullscreenWidget->getPdfWidget();
+    fullscreenPdfWidget->updateCacheLimits(m_settings->getCompiledPageCacheLimit() * 1024,
+                                           m_settings->getThumbnailsCacheLimit(),
+                                           m_settings->getFontCacheLimit(),
+                                           m_settings->getInstancedFontCacheLimit());
+    fullscreenPdfWidget->getDrawWidgetProxy()->setProgress(m_progress);
+    fullscreenPdfWidget->getDrawWidgetProxy()->setFeatures(m_settings->getFeatures());
+    fullscreenPdfWidget->getDrawWidgetProxy()->setPreferredMeshResolutionRatio(m_settings->getPreferredMeshResolutionRatio());
+    fullscreenPdfWidget->getDrawWidgetProxy()->setMinimalMeshResolutionRatio(m_settings->getMinimalMeshResolutionRatio());
+    fullscreenPdfWidget->getDrawWidgetProxy()->setColorTolerance(m_settings->getColorTolerance());
+    fullscreenPdfWidget->setDocument(pdf::PDFModifiedDocument(m_pdfDocument, m_optionalContentActivity), m_signatures);
+
+    const std::vector<pdf::PDFInteger> currentPages = m_pdfWidget->getDrawWidget()->getCurrentPages();
+    if (!currentPages.empty())
+    {
+        fullscreenPdfWidget->getDrawWidgetProxy()->goToPage(currentPages.front());
+    }
+    fullscreenPdfWidget->getDrawWidgetProxy()->zoom(m_pdfWidget->getDrawWidgetProxy()->getZoom());
+
+    fullscreenPdfWidget->getDrawWidgetProxy()->setPageLayout(pdf::PageLayout::SinglePage);
+
+    m_fullscreenWidget->showFullScreen();
+    fullscreenPdfWidget->setFocus();
+    updatePageLayoutActions();
+    updateActionsAvailability();
+}
+
+void PDFProgramController::leaveFullscreenMode()
+{
+    if (!m_isFullscreenMode)
+    {
+        return;
+    }
+
+    m_isFullscreenMode = false;
+
+    pdf::PDFInteger targetPage = -1;
+    pdf::PDFReal targetZoom = m_pdfWidget->getDrawWidgetProxy()->getZoom();
+    if (m_fullscreenWidget)
+    {
+        if (pdf::PDFWidget* fullscreenPdfWidget = m_fullscreenWidget->getPdfWidget())
+        {
+            const std::vector<pdf::PDFInteger> currentPages = fullscreenPdfWidget->getDrawWidget()->getCurrentPages();
+            if (!currentPages.empty())
+            {
+                targetPage = currentPages.front();
+            }
+            targetZoom = fullscreenPdfWidget->getDrawWidgetProxy()->getZoom();
+        }
+
+        m_fullscreenWidget->deleteLater();
+        m_fullscreenWidget = nullptr;
+    }
+
+    if (targetPage >= 0)
+    {
+        m_pdfWidget->getDrawWidgetProxy()->goToPage(targetPage);
+    }
+    m_pdfWidget->getDrawWidgetProxy()->zoom(targetZoom);
+    updatePageLayoutActions();
+    updateActionsAvailability();
+    m_pdfWidget->setFocus();
 }
 
 void PDFProgramController::loadPlugins()
