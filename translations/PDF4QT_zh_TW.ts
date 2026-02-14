@@ -2589,107 +2589,107 @@
         <translation>內容編輯器</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="24"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="66"/>
         <source>Toolbox</source>
         <translation>工具箱</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="32"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="74"/>
         <source>Geometry Tools</source>
         <translation>幾何圖形工具</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="38"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="80"/>
         <source>Align to Top</source>
         <translation>頂部對齊</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="45"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="87"/>
         <source>Align to Vertical Center</source>
         <translation>垂直中心對齊</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="52"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="94"/>
         <source>Align to Bottom</source>
         <translation>底部對齊</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="59"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="101"/>
         <source>Set Same Width</source>
         <translation>設置相同寬度</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="66"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="108"/>
         <source>Set Same Height</source>
         <translation>設置相同高度</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="73"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="115"/>
         <source>Set Same Size</source>
         <translation>設置同樣的尺寸</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="80"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="122"/>
         <source>Align to Left</source>
         <translation>左對齊</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="87"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="129"/>
         <source>Align to Horizontal Center</source>
         <translation>對齊至水平中心</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="94"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="136"/>
         <source>Align to Right</source>
         <translation>右對齊</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="101"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="143"/>
         <source>Center Horizontally</source>
         <translation>水平居中</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="108"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="150"/>
         <source>Center Vertically</source>
         <translation>垂直居中</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="115"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="157"/>
         <source>Center to Page Media Box</source>
         <translation>中心至頁面媒體框</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="125"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="167"/>
         <source>Layout Tools</source>
         <translation>佈局工具</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="131"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="173"/>
         <source>Make Horizontal Layout</source>
         <translation>構建橫向佈局</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="138"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="180"/>
         <source>Make Vertical Layout</source>
         <translation>構建縱向佈局</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="145"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="187"/>
         <source>Make Form Layout</source>
         <translation>構建表單佈局</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="152"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="194"/>
         <source>Make Grid Layout</source>
         <translation>構建網格佈局</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="162"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="204"/>
         <source>Appearance</source>
         <translation>外觀</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="186"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="228"/>
         <source>Content</source>
         <translation>內容</translation>
     </message>

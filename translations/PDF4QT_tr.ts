@@ -2589,107 +2589,107 @@
         <translation>İçerik Editörü</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="24"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="66"/>
         <source>Toolbox</source>
         <translation>Araç kutusu</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="32"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="74"/>
         <source>Geometry Tools</source>
         <translation>Geometri Araçları</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="38"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="80"/>
         <source>Align to Top</source>
         <translation>Yukarıya Hizala</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="45"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="87"/>
         <source>Align to Vertical Center</source>
         <translation>Dikey Merkeze Hizala</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="52"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="94"/>
         <source>Align to Bottom</source>
         <translation>Alta Hizala</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="59"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="101"/>
         <source>Set Same Width</source>
         <translation>Aynı Genişliği Ayarla</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="66"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="108"/>
         <source>Set Same Height</source>
         <translation>Aynı Yüksekliği Ayarla</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="73"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="115"/>
         <source>Set Same Size</source>
         <translation>Aynı Boyutu Ayarla</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="80"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="122"/>
         <source>Align to Left</source>
         <translation>Sola Hizala</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="87"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="129"/>
         <source>Align to Horizontal Center</source>
         <translation>Yatay Merkeze Hizala</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="94"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="136"/>
         <source>Align to Right</source>
         <translation>Sağa Hizala</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="101"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="143"/>
         <source>Center Horizontally</source>
         <translation>Yatay Olarak Ortala</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="108"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="150"/>
         <source>Center Vertically</source>
         <translation>Dikey Olarak Ortala</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="115"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="157"/>
         <source>Center to Page Media Box</source>
         <translation>Sayfa Ortasına Ortala Medya Kutusu</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="125"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="167"/>
         <source>Layout Tools</source>
         <translation>Düzen Araçları</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="131"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="173"/>
         <source>Make Horizontal Layout</source>
         <translation>Yatay Düzen Yap</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="138"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="180"/>
         <source>Make Vertical Layout</source>
         <translation>Dikey Düzen Yap</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="145"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="187"/>
         <source>Make Form Layout</source>
         <translation>Form Düzeni Yap</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="152"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="194"/>
         <source>Make Grid Layout</source>
         <translation>Izgara Düzeni Yap</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="162"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="204"/>
         <source>Appearance</source>
         <translation>Görünüş</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="186"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="228"/>
         <source>Content</source>
         <translation>İçerik</translation>
     </message>

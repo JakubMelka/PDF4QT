@@ -2589,107 +2589,107 @@
         <translation>Editor obsahu</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="24"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="66"/>
         <source>Toolbox</source>
         <translation>Panel nástrojů</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="32"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="74"/>
         <source>Geometry Tools</source>
         <translation>Geometrické nástroje</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="38"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="80"/>
         <source>Align to Top</source>
         <translation>Zarovnat nahoru</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="45"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="87"/>
         <source>Align to Vertical Center</source>
         <translation>Zarovnat na střed svisle</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="52"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="94"/>
         <source>Align to Bottom</source>
         <translation>Zarovnat dolů</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="59"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="101"/>
         <source>Set Same Width</source>
         <translation>Nastavit stejnou šířku</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="66"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="108"/>
         <source>Set Same Height</source>
         <translation>Nastavit stejnou výšku</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="73"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="115"/>
         <source>Set Same Size</source>
         <translation>Nastavit stejnou velikost</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="80"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="122"/>
         <source>Align to Left</source>
         <translation>Zarovnat doleva</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="87"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="129"/>
         <source>Align to Horizontal Center</source>
         <translation>Zarovnat na střed vodorovně</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="94"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="136"/>
         <source>Align to Right</source>
         <translation>Zarovnat doprava</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="101"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="143"/>
         <source>Center Horizontally</source>
         <translation>Vycentrovat vodorovně</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="108"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="150"/>
         <source>Center Vertically</source>
         <translation>Vycentrovat svisle</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="115"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="157"/>
         <source>Center to Page Media Box</source>
         <translation>Vycentrovat na Media Box stránky</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="125"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="167"/>
         <source>Layout Tools</source>
         <translation>Nástroje rozvržení</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="131"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="173"/>
         <source>Make Horizontal Layout</source>
         <translation>Uspořádat horizontálně</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="138"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="180"/>
         <source>Make Vertical Layout</source>
         <translation>Uspořádat vertikálně</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="145"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="187"/>
         <source>Make Form Layout</source>
         <translation>Použít rozložení formuláře</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="152"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="194"/>
         <source>Make Grid Layout</source>
         <translation>Použít rozložení mřížky</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="162"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="204"/>
         <source>Appearance</source>
         <translation>Vzhled</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="186"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="228"/>
         <source>Content</source>
         <translation>Obsah</translation>
     </message>

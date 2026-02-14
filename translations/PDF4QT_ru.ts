@@ -2589,107 +2589,107 @@
         <translation>редактор контента</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="24"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="66"/>
         <source>Toolbox</source>
         <translation>Ящик для инструментов</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="32"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="74"/>
         <source>Geometry Tools</source>
         <translation>Инструменты геометрии</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="38"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="80"/>
         <source>Align to Top</source>
         <translation>по верху</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="45"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="87"/>
         <source>Align to Vertical Center</source>
         <translation>выравнивание по вертикальному центру</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="52"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="94"/>
         <source>Align to Bottom</source>
         <translation>по нижнему краю</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="59"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="101"/>
         <source>Set Same Width</source>
         <translation>установить одинаковую ширину</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="66"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="108"/>
         <source>Set Same Height</source>
         <translation>установить одинаковую высоту</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="73"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="115"/>
         <source>Set Same Size</source>
         <translation>установить одинаковый размер</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="80"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="122"/>
         <source>Align to Left</source>
         <translation>выравнивание по левому краю</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="87"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="129"/>
         <source>Align to Horizontal Center</source>
         <translation>Выровнять по горизонтальному центру</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="94"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="136"/>
         <source>Align to Right</source>
         <translation>выравнивание по правому краю</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="101"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="143"/>
         <source>Center Horizontally</source>
         <translation>по центру по горизонтали</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="108"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="150"/>
         <source>Center Vertically</source>
         <translation>по центру по вертикали</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="115"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="157"/>
         <source>Center to Page Media Box</source>
         <translation>Media Box по центру страницы</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="125"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="167"/>
         <source>Layout Tools</source>
         <translation>инструменты макета</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="131"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="173"/>
         <source>Make Horizontal Layout</source>
         <translation>Сделать горизонтальный макет</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="138"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="180"/>
         <source>Make Vertical Layout</source>
         <translation>создание вертикального макета</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="145"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="187"/>
         <source>Make Form Layout</source>
         <translation>создание макета формы</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="152"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="194"/>
         <source>Make Grid Layout</source>
         <translation>создание макета сетки</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="162"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="204"/>
         <source>Appearance</source>
         <translation>Внешний вид</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="186"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="228"/>
         <source>Content</source>
         <translation>Содержимое</translation>
     </message>

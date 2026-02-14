@@ -2589,107 +2589,107 @@
         <translation>Inhaltseditor</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="24"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="66"/>
         <source>Toolbox</source>
         <translation>Werkzeugkasten</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="32"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="74"/>
         <source>Geometry Tools</source>
         <translation>Geometrie-Tools</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="38"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="80"/>
         <source>Align to Top</source>
         <translation>Nach oben ausrichten</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="45"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="87"/>
         <source>Align to Vertical Center</source>
         <translation>An der vertikalen Mitte ausrichten</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="52"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="94"/>
         <source>Align to Bottom</source>
         <translation>Nach unten ausrichten</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="59"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="101"/>
         <source>Set Same Width</source>
         <translation>Gleiche Breite festlegen</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="66"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="108"/>
         <source>Set Same Height</source>
         <translation>Gleiche Höhe festlegen</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="73"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="115"/>
         <source>Set Same Size</source>
         <translation>Gleiche Größe festlegen</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="80"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="122"/>
         <source>Align to Left</source>
         <translation>Nach links ausrichten</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="87"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="129"/>
         <source>Align to Horizontal Center</source>
         <translation>An der horizontalen Mitte ausrichten</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="94"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="136"/>
         <source>Align to Right</source>
         <translation>Nach rechts ausrichten</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="101"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="143"/>
         <source>Center Horizontally</source>
         <translation>Horizontal zentrieren</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="108"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="150"/>
         <source>Center Vertically</source>
         <translation>Vertikal zentrieren</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="115"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="157"/>
         <source>Center to Page Media Box</source>
         <translation>Medienbox von der Mitte zur Seite</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="125"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="167"/>
         <source>Layout Tools</source>
         <translation>Layout-Tools</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="131"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="173"/>
         <source>Make Horizontal Layout</source>
         <translation>Horizontales Layout erstellen</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="138"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="180"/>
         <source>Make Vertical Layout</source>
         <translation>Vertikales Layout erstellen</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="145"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="187"/>
         <source>Make Form Layout</source>
         <translation>Formularlayout erstellen</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="152"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="194"/>
         <source>Make Grid Layout</source>
         <translation>Rasterlayout erstellen</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="162"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="204"/>
         <source>Appearance</source>
         <translation>Aussehen</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="186"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorwidget.ui" line="228"/>
         <source>Content</source>
         <translation>Inhalt</translation>
     </message>
