@@ -64,10 +64,26 @@ public:
 class PDF4QTLIBCORESHARED_EXPORT PDFSignatureFactory
 {
 public:
+    struct TimestampSettings
+    {
+        QString url;
+        int timeoutMs = 15000;
+    };
+
     static bool sign(const PDFCertificateEntry& certificateEntry,
                      QString password,
                      QByteArray data,
                      QByteArray& result);
+
+    static bool sign(const PDFCertificateEntry& certificateEntry,
+                     QString password,
+                     QByteArray data,
+                     QByteArray& result,
+                     const TimestampSettings& timestampSettings);
+
+    static bool createTimestampToken(QByteArray data,
+                                     QByteArray& result,
+                                     const TimestampSettings& timestampSettings);
 
 private:
     static bool signImpl_Win(const PDFCertificateEntry& certificateEntry,

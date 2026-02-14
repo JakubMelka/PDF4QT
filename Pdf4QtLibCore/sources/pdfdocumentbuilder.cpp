@@ -4769,13 +4769,14 @@ PDFObjectReference PDFDocumentBuilder::createSignatureDictionary(QByteArray filt
                                                                  QByteArray subfilter,
                                                                  QByteArray contents,
                                                                  QDateTime signingTime,
-                                                                 PDFInteger byteRangeItem)
+                                                                 PDFInteger byteRangeItem,
+                                                                 QByteArray type)
 {
     PDFObjectFactory objectBuilder;
 
     objectBuilder.beginDictionary();
     objectBuilder.beginDictionaryItem("Type");
-    objectBuilder << WrapName("Sig");
+    objectBuilder << WrapName(type);
     objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("Filter");
     objectBuilder << WrapName(filter);

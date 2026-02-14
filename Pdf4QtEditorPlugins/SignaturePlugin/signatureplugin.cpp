@@ -37,8 +37,85 @@
 #include <QMessageBox>
 #include <QFileDialog>
 
+#include <cstring>
+
 namespace pdfplugin
 {
+
+namespace
+{
+
+struct PreparedDocument
+{
+    QBuffer buffer;
+    pdf::PDFInteger i2 = 0;
+    pdf::PDFInteger i3 = 0;
+    pdf::PDFInteger i4 = 0;
+};
+
+bool prepareDocumentForExternalContents(const pdf::PDFDocument& document,
+                                        const QByteArray& placeholderContents,
+                                        PreparedDocument& preparedDocument)
+{
+    constexpr const char* offsetMarkString = "123456789123";
+    const auto offsetMarkStringLength = std::strlen(offsetMarkString);
+
+    pdf::PDFDocumentWriter writer(nullptr);
+    preparedDocument.buffer.open(QBuffer::ReadWrite);
+    writer.write(&preparedDocument.buffer, &document);
+
+    const int indexOfSignature = preparedDocument.buffer.data().indexOf(placeholderContents.toHex());
+    if (indexOfSignature == -1)
+    {
+        preparedDocument.buffer.close();
+        return false;
+    }
+
+    const pdf::PDFInteger i1 = 0;
+    preparedDocument.i2 = indexOfSignature - 1;
+    preparedDocument.i3 = preparedDocument.i2 + placeholderContents.size() * 2 + 2;
+    preparedDocument.i4 = preparedDocument.buffer.data().size() - preparedDocument.i3;
+
+    bool writeFailed = false;
+    auto writeInt = [&](pdf::PDFInteger value)
+    {
+        QString offsetString = QString::number(value);
+        offsetString = offsetString.leftJustified(static_cast<int>(offsetMarkStringLength), ' ', true);
+        const int index = preparedDocument.buffer.data().lastIndexOf(QByteArray(offsetMarkString, offsetMarkStringLength), indexOfSignature);
+        if (index < 0)
+        {
+            writeFailed = true;
+            return;
+        }
+        preparedDocument.buffer.seek(index);
+        preparedDocument.buffer.write(offsetString.toLocal8Bit());
+    };
+
+    writeInt(preparedDocument.i4);
+    writeInt(preparedDocument.i3);
+    writeInt(preparedDocument.i2);
+    writeInt(i1);
+
+    if (writeFailed)
+    {
+        preparedDocument.buffer.close();
+        return false;
+    }
+
+    return true;
+}
+
+QByteArray getByteRangeData(QBuffer& buffer, pdf::PDFInteger i2, pdf::PDFInteger i3, pdf::PDFInteger i4)
+{
+    QByteArray dataToBeSigned;
+    buffer.seek(0);
+    dataToBeSigned.append(buffer.read(i2));
+    buffer.seek(i3);
+    dataToBeSigned.append(buffer.read(i4));
+    return dataToBeSigned;
+}
+
+} // namespace
 
 SignaturePlugin::SignaturePlugin() :
     pdf::PDFPlugin(nullptr),
@@ -325,168 +402,194 @@ void SignaturePlugin::onSignElectronically()
 
 void SignaturePlugin::onSignDigitally()
 {
-    // Jakub Melka: do we have certificates? If not,
-    // open certificate dialog, so the user can create
-    // a new one.
-    if (pdf::PDFCertificateManager::getCertificates().empty())
-    {
-        onOpenCertificatesManager();
-
-        if (pdf::PDFCertificateManager::getCertificates().empty())
-        {
-            return;
-        }
-    }
-
     SignDialog dialog(m_dataExchangeInterface->getMainWindow(), m_scene.isEmpty());
     if (dialog.exec() == SignDialog::Accepted)
     {
-        const pdf::PDFCertificateEntry* certificate = dialog.getCertificate();
-        Q_ASSERT(certificate);
-
-        QByteArray data = "SampleDataToBeSigned" + QByteArray::number(QDateTime::currentMSecsSinceEpoch());
-        QByteArray signature;
-        if (!pdf::PDFSignatureFactory::sign(*certificate, dialog.getPassword(), data, signature))
+        const SignDialog::SignatureType signatureType = dialog.getSignatureType();
+        const bool requiresCertificate = signatureType != SignDialog::TimestampOnly;
+        if (requiresCertificate && pdf::PDFCertificateManager::getCertificates().empty())
         {
-            QMessageBox::critical(m_widget, tr("Error"), tr("Failed to create digital signature."));
+            onOpenCertificatesManager();
+
+            if (pdf::PDFCertificateManager::getCertificates().empty())
+            {
+                return;
+            }
+        }
+
+        const pdf::PDFCertificateEntry* certificate = dialog.getCertificate();
+        if (requiresCertificate && !certificate)
+        {
+            QMessageBox::critical(m_widget, tr("Error"), tr("Certificate is not selected."));
+            return;
+        }
+
+        pdf::PDFSignatureFactory::TimestampSettings timestampSettings;
+        timestampSettings.url = dialog.getTimestampUrl();
+        timestampSettings.timeoutMs = 15000;
+
+        auto createContents = [&](const QByteArray& dataToBeSigned, QByteArray& contents) -> bool
+        {
+            switch (signatureType)
+            {
+                case SignDialog::SignatureOnly:
+                    return pdf::PDFSignatureFactory::sign(*certificate, dialog.getPassword(), dataToBeSigned, contents);
+
+                case SignDialog::SignatureWithTimestamp:
+                    return pdf::PDFSignatureFactory::sign(*certificate, dialog.getPassword(), dataToBeSigned, contents, timestampSettings);
+
+                case SignDialog::TimestampOnly:
+                    return pdf::PDFSignatureFactory::createTimestampToken(dataToBeSigned, contents, timestampSettings);
+            }
+
+            return false;
+        };
+
+        QByteArray placeholderContents = "SampleDataToBeSigned" + QByteArray::number(QDateTime::currentMSecsSinceEpoch());
+        if (!createContents(placeholderContents, placeholderContents))
+        {
+            QMessageBox::critical(m_widget, tr("Error"), tr("Failed to create signature/timestamp placeholder."));
             return;
         }
 
         QString signatureName = QString("pdf4qt_signature_%1").arg(QString::number(QDateTime::currentMSecsSinceEpoch()));
 
-        pdf::PDFInteger offsetMark = 123456789123;
-        constexpr const char* offsetMarkString = "123456789123";
-        const auto offsetMarkStringLength = std::strlen(offsetMarkString);
+        const QByteArray filter = "Adobe.PPKLite";
+        const QByteArray subfilter = (signatureType == SignDialog::SignatureOnly) ? "adbe.pkcs7.detached" :
+                                     (signatureType == SignDialog::SignatureWithTimestamp) ? "ETSI.CAdES.detached" :
+                                                                                                "ETSI.RFC3161";
+        const QByteArray signatureDictionaryType = (signatureType == SignDialog::TimestampOnly) ? "DocTimeStamp" : "Sig";
 
-        pdf::PDFDocumentBuilder builder(m_document);
-        pdf::PDFObjectReference signatureDictionary = builder.createSignatureDictionary("Adobe.PPKLite", "adbe.pkcs7.detached", signature, QDateTime::currentDateTime(), offsetMark);
-        pdf::PDFObjectReference formField = builder.createFormFieldSignature(signatureName, { }, signatureDictionary);
-        builder.createAcroForm({ formField });
+        constexpr int maxAttempts = 3;
+        QByteArray finalPdfData;
 
-        const pdf::PDFCatalog* catalog = m_document->getCatalog();
-        if (dialog.getSignMethod() == SignDialog::SignDigitallyInvisible)
+        auto buildDocumentWithPlaceholder = [&](const QByteArray& placeholderContents, pdf::PDFDocument& signedDocument) -> bool
         {
-            if (catalog->getPageCount() > 0)
+            constexpr pdf::PDFInteger offsetMark = 123456789123;
+            pdf::PDFDocumentBuilder builder(m_document);
+            pdf::PDFObjectReference signatureDictionary = builder.createSignatureDictionary(filter, subfilter, placeholderContents, QDateTime::currentDateTime(), offsetMark, signatureDictionaryType);
+            pdf::PDFObjectReference formField = builder.createFormFieldSignature(signatureName, { }, signatureDictionary);
+            builder.createAcroForm({ formField });
+
+            const pdf::PDFCatalog* catalog = m_document->getCatalog();
+            if (signatureType == SignDialog::TimestampOnly || dialog.getSignMethod() == SignDialog::SignDigitallyInvisible)
             {
-                const pdf::PDFObjectReference pageReference = catalog->getPage(0)->getPageReference();
-                builder.createInvisibleFormFieldWidget(formField, pageReference);
+                if (catalog->getPageCount() > 0)
+                {
+                    const pdf::PDFObjectReference pageReference = catalog->getPage(0)->getPageReference();
+                    builder.createInvisibleFormFieldWidget(formField, pageReference);
+                }
             }
-        }
-        else if (dialog.getSignMethod() == SignDialog::SignDigitally)
-        {
-            Q_ASSERT(!m_scene.isEmpty());
-            const pdf::PDFInteger pageIndex = *m_scene.getPageIndices().begin();
-            const pdf::PDFPage* page = catalog->getPage(pageIndex);
-            pdf::PDFColorConvertor convertor;
+            else if (dialog.getSignMethod() == SignDialog::SignDigitally)
+            {
+                Q_ASSERT(!m_scene.isEmpty());
+                const pdf::PDFInteger pageIndex = *m_scene.getPageIndices().begin();
+                const pdf::PDFPage* page = catalog->getPage(pageIndex);
+                pdf::PDFColorConvertor convertor;
 
-            pdf::PDFContentStreamBuilder contentBuilder(page->getMediaBox().size(), pdf::PDFContentStreamBuilder::CoordinateSystem::PDF);
-            QPainter* painter = contentBuilder.begin();
-            QList<pdf::PDFRenderError> errors;
-            pdf::PDFTextLayoutGetter nullGetter(nullptr, pageIndex);
-            m_scene.drawPage(painter, pageIndex, nullptr, nullGetter, QTransform(), convertor, errors);
-            pdf::PDFContentStreamBuilder::ContentStream contentStream = contentBuilder.end(painter);
+                pdf::PDFContentStreamBuilder contentBuilder(page->getMediaBox().size(), pdf::PDFContentStreamBuilder::CoordinateSystem::PDF);
+                QPainter* painter = contentBuilder.begin();
+                QList<pdf::PDFRenderError> errors;
+                pdf::PDFTextLayoutGetter nullGetter(nullptr, pageIndex);
+                m_scene.drawPage(painter, pageIndex, nullptr, nullGetter, QTransform(), convertor, errors);
+                pdf::PDFContentStreamBuilder::ContentStream contentStream = contentBuilder.end(painter);
 
-            QRectF boundingRect = m_scene.getBoundingBox(pageIndex);
-            std::vector<pdf::PDFObject> copiedObjects = builder.copyFrom({ contentStream.resources, contentStream.contents }, contentStream.document.getStorage(), true);
-            Q_ASSERT(copiedObjects.size() == 2);
+                QRectF boundingRect = m_scene.getBoundingBox(pageIndex);
+                std::vector<pdf::PDFObject> copiedObjects = builder.copyFrom({ contentStream.resources, contentStream.contents }, contentStream.document.getStorage(), true);
+                Q_ASSERT(copiedObjects.size() == 2);
 
-            pdf::PDFObjectReference resourcesReference = copiedObjects[0].getReference();
-            pdf::PDFObjectReference formReference = copiedObjects[1].getReference();
+                pdf::PDFObjectReference resourcesReference = copiedObjects[0].getReference();
+                pdf::PDFObjectReference formReference = copiedObjects[1].getReference();
 
-            // Create form object
-            pdf::PDFObjectFactory formFactory;
+                pdf::PDFObjectFactory formFactory;
+                formFactory.beginDictionary();
 
-            formFactory.beginDictionary();
+                formFactory.beginDictionaryItem("Type");
+                formFactory << pdf::WrapName("XObject");
+                formFactory.endDictionaryItem();
 
-            formFactory.beginDictionaryItem("Type");
-            formFactory << pdf::WrapName("XObject");
-            formFactory.endDictionaryItem();
+                formFactory.beginDictionaryItem("Subtype");
+                formFactory << pdf::WrapName("Form");
+                formFactory.endDictionaryItem();
 
-            formFactory.beginDictionaryItem("Subtype");
-            formFactory << pdf::WrapName("Form");
-            formFactory.endDictionaryItem();
+                formFactory.beginDictionaryItem("BBox");
+                formFactory << boundingRect;
+                formFactory.endDictionaryItem();
 
-            formFactory.beginDictionaryItem("BBox");
-            formFactory << boundingRect;
-            formFactory.endDictionaryItem();
+                formFactory.beginDictionaryItem("Resources");
+                formFactory << resourcesReference;
+                formFactory.endDictionaryItem();
 
-            formFactory.beginDictionaryItem("Resources");
-            formFactory << resourcesReference;
-            formFactory.endDictionaryItem();
+                formFactory.endDictionary();
+                builder.mergeTo(formReference, formFactory.takeObject());
+                builder.createFormFieldWidget(formField, page->getPageReference(), formReference, boundingRect);
+            }
 
-            formFactory.endDictionary();
+            if (signatureType != SignDialog::TimestampOnly)
+            {
+                QString reasonText = dialog.getReasonText();
+                if (!reasonText.isEmpty())
+                {
+                    builder.setSignatureReason(signatureDictionary, reasonText);
+                }
 
-            builder.mergeTo(formReference, formFactory.takeObject());
+                QString contactInfoText = dialog.getContactInfoText();
+                if (!contactInfoText.isEmpty())
+                {
+                    builder.setSignatureContactInfo(signatureDictionary, contactInfoText);
+                }
+            }
 
-            builder.createFormFieldWidget(formField, page->getPageReference(), formReference, boundingRect);
-        }
-
-        QString reasonText = dialog.getReasonText();
-        if (!reasonText.isEmpty())
-        {
-            builder.setSignatureReason(signatureDictionary, reasonText);
-        }
-
-        QString contactInfoText = dialog.getContactInfoText();
-        if (!contactInfoText.isEmpty())
-        {
-            builder.setSignatureContactInfo(signatureDictionary, contactInfoText);
-        }
-
-        pdf::PDFDocument signedDocument = builder.build();
-
-        // 1) Save the document with incorrect signature
-        QBuffer buffer;
-        pdf::PDFDocumentWriter writer(m_widget->getDrawWidgetProxy()->getProgress());
-        buffer.open(QBuffer::ReadWrite);
-        writer.write(&buffer, &signedDocument);
-
-        const int indexOfSignature = buffer.data().indexOf(signature.toHex());
-        if (indexOfSignature == -1)
-        {
-            QMessageBox::critical(m_widget, tr("Error"), tr("Failed to create digital signature."));
-            buffer.close();
-            return;
-        }
-
-        // 2) Write ranges to be checked
-        const pdf::PDFInteger i1 = 0;
-        const pdf::PDFInteger i2 = indexOfSignature - 1;
-        const pdf::PDFInteger i3 = i2 + signature.size() * 2 + 2;
-        const pdf::PDFInteger i4 = buffer.data().size() - i3;
-
-        auto writeInt = [&](pdf::PDFInteger offset)
-        {
-            QString offsetString = QString::number(offset);
-            offsetString = offsetString.leftJustified(static_cast<int>(offsetMarkStringLength), ' ', true);
-            const auto index = buffer.data().lastIndexOf(QByteArray(offsetMarkString, offsetMarkStringLength), indexOfSignature);
-            buffer.seek(index);
-            buffer.write(offsetString.toLocal8Bit());
+            signedDocument = builder.build();
+            return true;
         };
 
-        writeInt(i4);
-        writeInt(i3);
-        writeInt(i2);
-        writeInt(i1);
-
-        // 3) Sign the data
-        QByteArray dataToBeSigned;
-        buffer.seek(i1);
-        dataToBeSigned.append(buffer.read(i2));
-        buffer.seek(i3);
-        dataToBeSigned.append(buffer.read(i4));
-
-        if (!pdf::PDFSignatureFactory::sign(*certificate, dialog.getPassword(), dataToBeSigned, signature))
+        bool built = false;
+        for (int attempt = 0; attempt < maxAttempts; ++attempt)
         {
-            QMessageBox::critical(m_widget, tr("Error"), tr("Failed to create digital signature."));
-            buffer.close();
-            return;
+            pdf::PDFDocument signedDocument;
+            if (!buildDocumentWithPlaceholder(placeholderContents, signedDocument))
+            {
+                QMessageBox::critical(m_widget, tr("Error"), tr("Failed to build signed document."));
+                return;
+            }
+
+            PreparedDocument preparedDocument;
+            if (!prepareDocumentForExternalContents(signedDocument, placeholderContents, preparedDocument))
+            {
+                QMessageBox::critical(m_widget, tr("Error"), tr("Failed to prepare document for signature."));
+                return;
+            }
+
+            const QByteArray dataToBeSigned = getByteRangeData(preparedDocument.buffer, preparedDocument.i2, preparedDocument.i3, preparedDocument.i4);
+            QByteArray finalContents;
+            if (!createContents(dataToBeSigned, finalContents))
+            {
+                QMessageBox::critical(m_widget, tr("Error"), tr("Failed to create digital signature/timestamp."));
+                preparedDocument.buffer.close();
+                return;
+            }
+
+            if (finalContents.size() != placeholderContents.size())
+            {
+                placeholderContents = finalContents;
+                preparedDocument.buffer.close();
+                continue;
+            }
+
+            preparedDocument.buffer.seek(preparedDocument.i2 + 1);
+            preparedDocument.buffer.write(finalContents.toHex());
+            finalPdfData = preparedDocument.buffer.data();
+            preparedDocument.buffer.close();
+            built = true;
+            break;
         }
 
-        buffer.seek(i2 + 1);
-        buffer.write(signature.toHex());
-
-        buffer.close();
+        if (!built || finalPdfData.isEmpty())
+        {
+            QMessageBox::critical(m_widget, tr("Error"), tr("Failed to fit signature/timestamp content into PDF placeholder."));
+            return;
+        }
 
         QString fileName = QFileDialog::getSaveFileName(m_dataExchangeInterface->getMainWindow(), tr("Save Signed Document"), getSignedFileName(), tr("Portable Document (*.pdf);;All files (*.*)"));
         if (!fileName.isEmpty())
@@ -494,7 +597,7 @@ void SignaturePlugin::onSignDigitally()
             QFile signedFile(fileName);
             if (signedFile.open(QFile::WriteOnly | QFile::Truncate))
             {
-                signedFile.write(buffer.data());
+                signedFile.write(finalPdfData);
                 signedFile.close();
             }
         }

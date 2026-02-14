@@ -6532,33 +6532,43 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="26"/>
+        <source>Type</source>
+        <translation type="unfinished">유형</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="36"/>
         <source>Method</source>
         <translation>메서드</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="36"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="46"/>
         <source>Certificate</source>
         <translation>인증서</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="46"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="56"/>
         <source>Password</source>
         <translation>비밀번호</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="66"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="76"/>
         <source>Parameters</source>
         <translation>매개변수</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="72"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="82"/>
         <source>Reason</source>
         <translation>이유</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="86"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="96"/>
         <source>Contact Info</source>
         <translation>연락처 정보</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="110"/>
+        <source>Timestamp URL</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -13082,155 +13092,202 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdfplugin::SignDialog</name>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="44"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="45"/>
         <source>Sign digitally</source>
         <translation>디지털 서명</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="47"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="48"/>
         <source>Sign digitally (invisible signature)</source>
         <translation>디지털 서명(보이지 않는 서명)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="99"/>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="107"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="51"/>
+        <source>Signature</source>
+        <translation type="unfinished">서명</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="52"/>
+        <source>Signature + timestamp</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="53"/>
+        <source>Timestamp only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="131"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="138"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="146"/>
         <source>Error</source>
         <translation>오류</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="99"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="131"/>
         <source>Certificate does not exist.</source>
         <translation>인증서가 존재하지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="107"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="138"/>
         <source>Password to open certificate is invalid.</source>
         <translation>인증서를 열기 위한 비밀번호가 잘못되었습니다.</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="146"/>
+        <source>Timestamp URL must not be empty.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>pdfplugin::SignaturePlugin</name>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="60"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="137"/>
         <source>&amp;Activate signature creator</source>
         <translation>&amp;서명 생성기 활성화</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="61"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="138"/>
         <source>Create &amp;Text Label</source>
         <translation>텍스트 &amp;레이블 생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="62"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="139"/>
         <source>Create &amp;Freehand Curve</source>
         <translation>프리핸드 &amp;곡선 생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="63"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="140"/>
         <source>Create &amp;Accept Mark</source>
         <translation>승인 &amp;표시 생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="64"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="141"/>
         <source>Create Reject &amp;Mark</source>
         <translation>거부 표시 &amp;생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="65"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="142"/>
         <source>Create &amp;Rectangle</source>
         <translation>직사각형 &amp;만들기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="66"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="143"/>
         <source>Create R&amp;ounded Rectangle</source>
         <translation>둥근 &amp;직사각형 생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="67"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="144"/>
         <source>Create &amp;Horizontal Line</source>
         <translation>가로선 &amp;생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="68"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="145"/>
         <source>Create &amp;Vertical Line</source>
         <translation>수직선 &amp;생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="69"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="146"/>
         <source>Create &amp;Line</source>
         <translation>라인 &amp;생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="70"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="147"/>
         <source>Create &amp;Dot</source>
         <translation>도트 &amp;생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="71"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="148"/>
         <source>Create SVG &amp;Image</source>
         <translation>SVG 이미지 &amp;생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="72"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="149"/>
         <source>Clear All &amp;Graphics</source>
         <translation>모든 그래픽 &amp;지우기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="73"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="150"/>
         <source>Sign &amp;Electronically</source>
         <translation>전자 &amp;서명</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="74"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="151"/>
         <source>Sign Digitally &amp;With Certificate</source>
         <translation>인증서를 사용하여 &amp;디지털 서명</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="75"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="152"/>
         <source>Certificates &amp;Manager</source>
         <translation>인증서 &amp;관리자</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="200"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="277"/>
         <source>Si&amp;gnature</source>
         <translation>&amp;서명</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="299"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="376"/>
         <source>Confirm Signature</source>
         <translation>서명 확인</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="299"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="376"/>
         <source>Document will be signed electronically. Do you want to continue?</source>
         <translation>문서는 전자적으로 서명됩니다. 계속하시겠습니까?</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="351"/>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="447"/>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="481"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="423"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="451"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="553"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="560"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="568"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="590"/>
         <source>Error</source>
         <translation>오류</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="351"/>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="447"/>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="481"/>
-        <source>Failed to create digital signature.</source>
-        <translation>디지털 서명을 생성하지 못했습니다.</translation>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="423"/>
+        <source>Certificate is not selected.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="491"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="451"/>
+        <source>Failed to create signature/timestamp placeholder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="553"/>
+        <source>Failed to build signed document.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="560"/>
+        <source>Failed to prepare document for signature.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="568"/>
+        <source>Failed to create digital signature/timestamp.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="590"/>
+        <source>Failed to fit signature/timestamp content into PDF placeholder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="594"/>
         <source>Save Signed Document</source>
         <translation>서명된 문서 저장</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="491"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="594"/>
         <source>Portable Document (*.pdf);;All files (*.*)</source>
         <translation>휴대용 문서(*.pdf);;모든 파일(*.*)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="667"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="770"/>
         <source>Signature Toolbox</source>
         <translation>서명 도구 상자</translation>
     </message>

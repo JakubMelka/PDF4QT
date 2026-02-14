@@ -51,13 +51,24 @@ public:
         SignDigitallyInvisible
     };
 
+    enum SignatureType
+    {
+        SignatureOnly,
+        SignatureWithTimestamp,
+        TimestampOnly
+    };
+
     SignMethod getSignMethod() const;
+    SignatureType getSignatureType() const;
     QString getPassword() const;
     QString getReasonText() const;
     QString getContactInfoText() const;
+    QString getTimestampUrl() const;
     const pdf::PDFCertificateEntry* getCertificate() const;
 
 private:
+    void updateUiForSignatureType();
+
     Ui::SignDialog* ui;
     pdf::PDFCertificateEntries m_certificates;
 };

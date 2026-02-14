@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>501</width>
-    <height>332</height>
+   <width>501</width>
+    <height>371</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -21,33 +21,43 @@
      </property>
      <layout class="QGridLayout" name="gridLayout">
       <item row="0" column="0">
+       <widget class="QLabel" name="signatureTypeLabel">
+        <property name="text">
+         <string>Type</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QComboBox" name="signatureTypeCombo"/>
+      </item>
+      <item row="1" column="0">
        <widget class="QLabel" name="methodLabel">
         <property name="text">
          <string>Method</string>
         </property>
        </widget>
       </item>
-      <item row="0" column="1">
+      <item row="1" column="1">
        <widget class="QComboBox" name="methodCombo"/>
       </item>
-      <item row="1" column="0">
+      <item row="2" column="0">
        <widget class="QLabel" name="certificateLabel">
         <property name="text">
          <string>Certificate</string>
         </property>
        </widget>
       </item>
-      <item row="1" column="1">
+      <item row="2" column="1">
        <widget class="QComboBox" name="certificateCombo"/>
       </item>
-      <item row="2" column="0">
+      <item row="3" column="0">
        <widget class="QLabel" name="passwordLabel">
         <property name="text">
          <string>Password</string>
         </property>
        </widget>
       </item>
-      <item row="2" column="1">
+      <item row="3" column="1">
        <widget class="QLineEdit" name="certificatePasswordEdit">
         <property name="echoMode">
          <enum>QLineEdit::Password</enum>
@@ -93,6 +103,16 @@
          <bool>true</bool>
         </property>
        </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="timestampUrlLabel">
+        <property name="text">
+         <string>Timestamp URL</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QComboBox" name="timestampUrlCombo"/>
       </item>
      </layout>
     </widget>

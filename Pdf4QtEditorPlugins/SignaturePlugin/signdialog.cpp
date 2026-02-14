@@ -29,6 +29,7 @@
 #include <openssl/pkcs7.h>
 
 #include <QMessageBox>
+#include <QComboBox>
 
 namespace pdfplugin
 {
@@ -47,10 +48,27 @@ SignDialog::SignDialog(QWidget* parent, bool isSceneEmpty) :
     ui->methodCombo->addItem(tr("Sign digitally (invisible signature)"), SignDigitallyInvisible);
     ui->methodCombo->setCurrentIndex(0);
 
+    ui->signatureTypeCombo->addItem(tr("Signature"), SignatureOnly);
+    ui->signatureTypeCombo->addItem(tr("Signature + timestamp"), SignatureWithTimestamp);
+    ui->signatureTypeCombo->addItem(tr("Timestamp only"), TimestampOnly);
+    ui->signatureTypeCombo->setCurrentIndex(0);
+
+    ui->timestampUrlCombo->setEditable(true);
+    ui->timestampUrlCombo->addItem("https://freetsa.org/tsr");
+    ui->timestampUrlCombo->addItem("http://timestamp.sectigo.com");
+    ui->timestampUrlCombo->addItem("http://timestamp.digicert.com");
+    ui->timestampUrlCombo->setCurrentIndex(0);
+
     m_certificates = pdf::PDFCertificateManager::getCertificates();
 
     pdf::PDFCertificateListHelper::initComboBox(ui->certificateCombo);
     pdf::PDFCertificateListHelper::fillComboBox(ui->certificateCombo, m_certificates);
+
+    connect(ui->signatureTypeCombo,
+            QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this,
+            [this](int) { updateUiForSignatureType(); });
+    updateUiForSignatureType();
 }
 
 SignDialog::~SignDialog()
@@ -61,6 +79,11 @@ SignDialog::~SignDialog()
 SignDialog::SignMethod SignDialog::getSignMethod() const
 {
     return static_cast<SignMethod>(ui->methodCombo->currentData().toInt());
+}
+
+SignDialog::SignatureType SignDialog::getSignatureType() const
+{
+    return static_cast<SignatureType>(ui->signatureTypeCombo->currentData().toInt());
 }
 
 QString SignDialog::getPassword() const
@@ -78,6 +101,11 @@ QString SignDialog::getContactInfoText() const
     return ui->contactInfoEdit->text();
 }
 
+QString SignDialog::getTimestampUrl() const
+{
+    return ui->timestampUrlCombo->currentText().trimmed();
+}
+
 const pdf::PDFCertificateEntry* SignDialog::getCertificate() const
 {
     const int index = ui->certificateCombo->currentIndex();
@@ -91,25 +119,59 @@ const pdf::PDFCertificateEntry* SignDialog::getCertificate() const
 
 void SignDialog::accept()
 {
-    const pdf::PDFCertificateEntry* certificate = getCertificate();
+    const bool requiresCertificate = getSignatureType() != TimestampOnly;
+    const bool requiresTimestamp = getSignatureType() != SignatureOnly;
 
-    // Check certificate
-    if (!certificate)
+    if (requiresCertificate)
     {
-        QMessageBox::critical(this, tr("Error"), tr("Certificate does not exist."));
-        ui->certificateCombo->setFocus();
-        return;
+        const pdf::PDFCertificateEntry* certificate = getCertificate();
+
+        if (!certificate)
+        {
+            QMessageBox::critical(this, tr("Error"), tr("Certificate does not exist."));
+            ui->certificateCombo->setFocus();
+            return;
+        }
+
+        if (!pdf::PDFCertificateManager::isCertificateValid(*certificate, ui->certificatePasswordEdit->text()))
+        {
+            QMessageBox::critical(this, tr("Error"), tr("Password to open certificate is invalid."));
+            ui->certificatePasswordEdit->setFocus();
+            return;
+        }
     }
 
-    // Check we can access the certificate
-    if (!pdf::PDFCertificateManager::isCertificateValid(*certificate, ui->certificatePasswordEdit->text()))
+    if (requiresTimestamp && getTimestampUrl().isEmpty())
     {
-        QMessageBox::critical(this, tr("Error"), tr("Password to open certificate is invalid."));
-        ui->certificatePasswordEdit->setFocus();
+        QMessageBox::critical(this, tr("Error"), tr("Timestamp URL must not be empty."));
+        ui->timestampUrlCombo->setFocus();
         return;
     }
 
     QDialog::accept();
+}
+
+void SignDialog::updateUiForSignatureType()
+{
+    const SignatureType signatureType = getSignatureType();
+    const bool requiresCertificate = signatureType != TimestampOnly;
+    const bool requiresTimestamp = signatureType != SignatureOnly;
+    const bool allowVisibleSignature = signatureType != TimestampOnly;
+
+    ui->certificateLabel->setEnabled(requiresCertificate);
+    ui->certificateCombo->setEnabled(requiresCertificate);
+    ui->passwordLabel->setEnabled(requiresCertificate);
+    ui->certificatePasswordEdit->setEnabled(requiresCertificate);
+    ui->methodLabel->setEnabled(allowVisibleSignature);
+    ui->methodCombo->setEnabled(allowVisibleSignature);
+
+    ui->timestampUrlLabel->setEnabled(requiresTimestamp);
+    ui->timestampUrlCombo->setEnabled(requiresTimestamp);
+
+    ui->reasonLabel->setEnabled(requiresCertificate);
+    ui->reasonEdit->setEnabled(requiresCertificate);
+    ui->contactInfoLabel->setEnabled(requiresCertificate);
+    ui->contactInfoEdit->setEnabled(requiresCertificate);
 }
 
 }   // namespace pdfplugin

@@ -1276,7 +1276,8 @@ public:
                                                  QByteArray subfilter,
                                                  QByteArray contents,
                                                  QDateTime signingTime,
-                                                 PDFInteger byteRangeItem);
+                                                 PDFInteger byteRangeItem,
+                                                 QByteArray type = "Sig");
 
 
     /// This function is used to create a new trailer dictionary, when blank document is created. Do not call this 

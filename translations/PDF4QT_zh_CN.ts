@@ -6543,33 +6543,43 @@ li.checked::marker { content: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="26"/>
+        <source>Type</source>
+        <translation type="unfinished">类型</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="36"/>
         <source>Method</source>
         <translation>方法</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="36"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="46"/>
         <source>Certificate</source>
         <translation>证书</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="46"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="56"/>
         <source>Password</source>
         <translation>密码</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="66"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="76"/>
         <source>Parameters</source>
         <translation>参数</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="72"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="82"/>
         <source>Reason</source>
         <translation>原因</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="86"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="96"/>
         <source>Contact Info</source>
         <translation>联系信息</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="110"/>
+        <source>Timestamp URL</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -13093,155 +13103,202 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdfplugin::SignDialog</name>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="44"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="45"/>
         <source>Sign digitally</source>
         <translation>数字签名</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="47"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="48"/>
         <source>Sign digitally (invisible signature)</source>
         <translation>数字签名（隐形签名）</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="99"/>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="107"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="51"/>
+        <source>Signature</source>
+        <translation type="unfinished">签名</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="52"/>
+        <source>Signature + timestamp</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="53"/>
+        <source>Timestamp only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="131"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="138"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="146"/>
         <source>Error</source>
         <translation>错误</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="99"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="131"/>
         <source>Certificate does not exist.</source>
         <translation>证书不存在</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="107"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="138"/>
         <source>Password to open certificate is invalid.</source>
         <translation>无效的证书密码</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="146"/>
+        <source>Timestamp URL must not be empty.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>pdfplugin::SignaturePlugin</name>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="60"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="137"/>
         <source>&amp;Activate signature creator</source>
         <translation>启动签名创建器(&amp;A)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="61"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="138"/>
         <source>Create &amp;Text Label</source>
         <translation>创建文本标签(&amp;T)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="62"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="139"/>
         <source>Create &amp;Freehand Curve</source>
         <translation>创建曲线(&amp;F)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="63"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="140"/>
         <source>Create &amp;Accept Mark</source>
         <translation>创建接受标记(&amp;A)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="64"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="141"/>
         <source>Create Reject &amp;Mark</source>
         <translation>创建剔除标记(&amp;M)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="65"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="142"/>
         <source>Create &amp;Rectangle</source>
         <translation>创建矩形(&amp;R)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="66"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="143"/>
         <source>Create R&amp;ounded Rectangle</source>
         <translation>创建圆角矩形(&amp;O)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="67"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="144"/>
         <source>Create &amp;Horizontal Line</source>
         <translation>创建水平线(&amp;H)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="68"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="145"/>
         <source>Create &amp;Vertical Line</source>
         <translation>创建垂直线(&amp;V)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="69"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="146"/>
         <source>Create &amp;Line</source>
         <translation>创建直线(&amp;L)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="70"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="147"/>
         <source>Create &amp;Dot</source>
         <translation>创建圆点(&amp;D)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="71"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="148"/>
         <source>Create SVG &amp;Image</source>
         <translation>创建SVG图像(&amp;I)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="72"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="149"/>
         <source>Clear All &amp;Graphics</source>
         <translation>清空所有图像(&amp;G)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="73"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="150"/>
         <source>Sign &amp;Electronically</source>
         <translation>电子签名(&amp;E)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="74"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="151"/>
         <source>Sign Digitally &amp;With Certificate</source>
         <translation>用证书数字签名(&amp;W)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="75"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="152"/>
         <source>Certificates &amp;Manager</source>
         <translation>证书管理(&amp;M)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="200"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="277"/>
         <source>Si&amp;gnature</source>
         <translation>签名(&amp;G)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="299"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="376"/>
         <source>Confirm Signature</source>
         <translation>确认签名</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="299"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="376"/>
         <source>Document will be signed electronically. Do you want to continue?</source>
         <translation>文件将以电子方式签署。您想继续吗？</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="351"/>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="447"/>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="481"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="423"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="451"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="553"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="560"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="568"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="590"/>
         <source>Error</source>
         <translation>错误</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="351"/>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="447"/>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="481"/>
-        <source>Failed to create digital signature.</source>
-        <translation>无法创建数字签名</translation>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="423"/>
+        <source>Certificate is not selected.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="491"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="451"/>
+        <source>Failed to create signature/timestamp placeholder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="553"/>
+        <source>Failed to build signed document.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="560"/>
+        <source>Failed to prepare document for signature.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="568"/>
+        <source>Failed to create digital signature/timestamp.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="590"/>
+        <source>Failed to fit signature/timestamp content into PDF placeholder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="594"/>
         <source>Save Signed Document</source>
         <translation>保存已签文档</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="491"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="594"/>
         <source>Portable Document (*.pdf);;All files (*.*)</source>
         <translation>便携式文档 (*.pdf);;所有文件 (*.*)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="667"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="770"/>
         <source>Signature Toolbox</source>
         <translation>签名工具箱</translation>
     </message>

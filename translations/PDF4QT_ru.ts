@@ -6532,33 +6532,43 @@ __ТК7____ТК8____ТК9__
     </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="26"/>
+        <source>Type</source>
+        <translation type="unfinished">Тип</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="36"/>
         <source>Method</source>
         <translation>Метод</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="36"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="46"/>
         <source>Certificate</source>
         <translation>Сертификат</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="46"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="56"/>
         <source>Password</source>
         <translation>Пароль</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="66"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="76"/>
         <source>Parameters</source>
         <translation>Параметры</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="72"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="82"/>
         <source>Reason</source>
         <translation>Причина</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="86"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="96"/>
         <source>Contact Info</source>
         <translation>контактная информация</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.ui" line="110"/>
+        <source>Timestamp URL</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -13082,155 +13092,202 @@ __ТК7____ТК8____ТК9__
 <context>
     <name>pdfplugin::SignDialog</name>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="44"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="45"/>
         <source>Sign digitally</source>
         <translation>цифровая подпись</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="47"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="48"/>
         <source>Sign digitally (invisible signature)</source>
         <translation>цифровая подпись (невидимая подпись)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="99"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="51"/>
+        <source>Signature</source>
+        <translation type="unfinished">Подпись</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="52"/>
+        <source>Signature + timestamp</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="53"/>
+        <source>Timestamp only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="131"/>
         <source>Certificate does not exist.</source>
         <translation>сертификат не существует.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="99"/>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="107"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="131"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="138"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="146"/>
         <source>Error</source>
         <translation>Ошибка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="107"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="138"/>
         <source>Password to open certificate is invalid.</source>
         <translation>неверный пароль для открытия сертификата.</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signdialog.cpp" line="146"/>
+        <source>Timestamp URL must not be empty.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>pdfplugin::SignaturePlugin</name>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="60"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="137"/>
         <source>&amp;Activate signature creator</source>
         <translation>&amp;активация создателя подписи</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="61"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="138"/>
         <source>Create &amp;Text Label</source>
         <translation>создание &amp;текстовой метки</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="62"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="139"/>
         <source>Create &amp;Freehand Curve</source>
         <translation>создание &amp;кривой от руки</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="63"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="140"/>
         <source>Create &amp;Accept Mark</source>
         <translation>Создать &amp;отметку принятия</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="64"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="141"/>
         <source>Create Reject &amp;Mark</source>
         <translation>Создать отметку &amp;отклонения</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="65"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="142"/>
         <source>Create &amp;Rectangle</source>
         <translation>создание &amp;прямоугольника</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="66"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="143"/>
         <source>Create R&amp;ounded Rectangle</source>
         <translation>создание &amp;прямоугольника со скругленными углами</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="67"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="144"/>
         <source>Create &amp;Horizontal Line</source>
         <translation>создание &amp;горизонтальной линии</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="68"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="145"/>
         <source>Create &amp;Vertical Line</source>
         <translation>создание &amp;вертикальной линии</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="69"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="146"/>
         <source>Create &amp;Line</source>
         <translation>Создать &amp;строку</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="70"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="147"/>
         <source>Create &amp;Dot</source>
         <translation>Создать &amp;точку</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="71"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="148"/>
         <source>Create SVG &amp;Image</source>
         <translation>создание изображения &amp;SVG</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="72"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="149"/>
         <source>Clear All &amp;Graphics</source>
         <translation>Очистить всю &amp;графику</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="73"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="150"/>
         <source>Sign &amp;Electronically</source>
         <translation>электронная &amp;подпись</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="74"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="151"/>
         <source>Sign Digitally &amp;With Certificate</source>
         <translation>цифровая подпись &amp;с сертификатом</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="75"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="152"/>
         <source>Certificates &amp;Manager</source>
         <translation>Диспетчер &amp;сертификатов</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="200"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="277"/>
         <source>Si&amp;gnature</source>
         <translation>&amp;Подпись</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="299"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="376"/>
         <source>Confirm Signature</source>
         <translation>подтверждение подписи</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="299"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="376"/>
         <source>Document will be signed electronically. Do you want to continue?</source>
         <translation>документ будет подписан электронной подписью. Хотите продолжить?</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="351"/>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="447"/>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="481"/>
-        <source>Failed to create digital signature.</source>
-        <translation>не удалось создать цифровую подпись.</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="351"/>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="447"/>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="481"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="423"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="451"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="553"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="560"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="568"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="590"/>
         <source>Error</source>
         <translation>Ошибка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="491"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="423"/>
+        <source>Certificate is not selected.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="451"/>
+        <source>Failed to create signature/timestamp placeholder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="553"/>
+        <source>Failed to build signed document.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="560"/>
+        <source>Failed to prepare document for signature.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="568"/>
+        <source>Failed to create digital signature/timestamp.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="590"/>
+        <source>Failed to fit signature/timestamp content into PDF placeholder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="594"/>
         <source>Save Signed Document</source>
         <translation>Сохранить подписанный документ</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="491"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="594"/>
         <source>Portable Document (*.pdf);;All files (*.*)</source>
         <translation>Портативный документ (*.pdf);;Все файлы (*.*)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="667"/>
+        <location filename="../Pdf4QtEditorPlugins/SignaturePlugin/signatureplugin.cpp" line="770"/>
         <source>Signature Toolbox</source>
         <translation>Набор инструментов для подписи</translation>
     </message>
