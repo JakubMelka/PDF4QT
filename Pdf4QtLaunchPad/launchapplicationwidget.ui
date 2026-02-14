@@ -37,8 +37,8 @@
      </property>
      <property name="iconSize">
       <size>
-       <width>128</width>
-       <height>128</height>
+       <width>160</width>
+       <height>160</height>
       </size>
      </property>
      <property name="flat">

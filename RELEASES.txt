@@ -1,7 +1,8 @@
 CURRENT:
  - Issue #352: Icon size of the sidebar
  - Issue #349: Add inherit zoom to bookmark zoom options
- - Issue #338: Editor toolbox higher than editor window 
+ - Issue #338: Editor toolbox higher than editor window
+ - Issue #334: Impossible to set french languge
  - Issue #324: [regression] Menu text not rendered with correct color
  - Issue #321: Select text in Viewer
 

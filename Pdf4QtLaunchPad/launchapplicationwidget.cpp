@@ -29,7 +29,7 @@ LaunchApplicationWidget::LaunchApplicationWidget(QWidget* parent)
 {
     ui->setupUi(this);
 
-    setFixedSize(4 * 128, 128);
+    setFixedSize(4 * 160, 160);
 }
 
 LaunchApplicationWidget::~LaunchApplicationWidget()
