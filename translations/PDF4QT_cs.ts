@@ -6125,22 +6125,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>Maximální počet posledních souborů</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1040"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1050"/>
         <source>Developer mode</source>
         <translation>Režim pro vývojáře</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1030"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1026"/>
         <source>Color Scheme (GUI)</source>
         <translation>Barevné schéma (GUI)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1047"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1057"/>
         <source>Language</source>
         <translation>Jazyk</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1059"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1069"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -8875,7 +8875,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3038"/>
         <source>As &amp;Is</source>
-        <translation>Be&z úprav</translation>
+        <translation>Be&amp;z úprav</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3039"/>
