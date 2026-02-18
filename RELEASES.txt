@@ -5,6 +5,7 @@ CURRENT:
  - Issue #334: Impossible to set french language
  - Issue #324: [regression] Menu text not rendered with correct color
  - Issue #321: Select text in Viewer
+ - Issue #291: Support for editing XMP metadata or exporting to PDF/UA format
  - Issue #242: Full screen 
 
 V: 1.5.3.1 22.1.2026

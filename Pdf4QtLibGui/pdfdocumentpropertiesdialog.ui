@@ -192,6 +192,56 @@
        </item>
       </layout>
      </widget>
+     <widget class="QWidget" name="xmpMetadataTab">
+      <attribute name="title">
+       <string>XMP Metadata</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="xmpMetadataTabLayout">
+       <item>
+        <widget class="QGroupBox" name="xmpMetadataGroupBox">
+         <property name="title">
+          <string>XMP Metadata (XML)</string>
+         </property>
+         <layout class="QVBoxLayout" name="xmpMetadataGroupBoxLayout">
+          <item>
+           <widget class="QPlainTextEdit" name="xmpMetadataPlainTextEdit">
+            <property name="lineWrapMode">
+             <enum>QPlainTextEdit::NoWrap</enum>
+            </property>
+            <property name="tabChangesFocus">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="xmpMetadataButtonsLayout">
+            <item>
+             <widget class="QPushButton" name="xmpMetadataDefaultPushButton">
+              <property name="text">
+               <string>Create Default XML Metadata</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
     </widget>
    </item>
    <item>
@@ -200,7 +250,7 @@
       <enum>Qt::Horizontal</enum>
      </property>
      <property name="standardButtons">
-      <set>QDialogButtonBox::Ok</set>
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
      </property>
     </widget>
    </item>

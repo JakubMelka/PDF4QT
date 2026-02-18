@@ -1608,6 +1608,45 @@ void PDFDocumentBuilder::setDocumentInfo(PDFObjectReference infoReference)
     m_storage.updateTrailerDictionary(objectFactory.takeObject());
 }
 
+void PDFDocumentBuilder::setCatalogMetadata(QByteArray metadataXML)
+{
+    const PDFInteger metadataLength = metadataXML.size();
+
+    PDFObjectReference metadataReference;
+    const PDFObject& catalogObject = getObjectByReference(getCatalogReference());
+    if (const PDFDictionary* catalogDictionary = getDictionaryFromObject(catalogObject))
+    {
+        const PDFObject& metadataObject = catalogDictionary->get("Metadata");
+        if (metadataObject.isReference())
+        {
+            metadataReference = metadataObject.getReference();
+        }
+    }
+
+    PDFDictionary metadataDictionary;
+    metadataDictionary.addEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("Metadata"));
+    metadataDictionary.addEntry(PDFInplaceOrMemoryString("Subtype"), PDFObject::createName("XML"));
+    metadataDictionary.addEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(metadataLength));
+
+    PDFObject metadataStream = PDFObject::createStream(std::make_shared<PDFStream>(qMove(metadataDictionary), qMove(metadataXML)));
+    if (metadataReference.isValid())
+    {
+        setObject(metadataReference, qMove(metadataStream));
+    }
+    else
+    {
+        metadataReference = addObject(qMove(metadataStream));
+    }
+
+    PDFObjectFactory objectBuilder;
+    objectBuilder.beginDictionary();
+    objectBuilder.beginDictionaryItem("Metadata");
+    objectBuilder << metadataReference;
+    objectBuilder.endDictionaryItem();
+    objectBuilder.endDictionary();
+    mergeTo(getCatalogReference(), objectBuilder.takeObject());
+}
+
 QRectF PDFDocumentBuilder::getPolygonsBoundingRect(const Polygons& polygons) const
 {
     QRectF rect;

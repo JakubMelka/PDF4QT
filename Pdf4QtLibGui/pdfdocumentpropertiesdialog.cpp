@@ -31,7 +31,11 @@
 #include "pdfexecutionpolicy.h"
 
 #include <QLocale>
+#include <QMessageBox>
 #include <QPageSize>
+#include <QPushButton>
+#include <QSignalBlocker>
+#include <QXmlStreamWriter>
 #include <QtConcurrent/QtConcurrent>
 
 #include "pdfdbgheap.h"
@@ -81,7 +85,8 @@ PDFDocumentPropertiesDialog::PDFDocumentPropertiesDialog(const pdf::PDFDocument*
                                                          const PDFFileInfo* fileInfo,
                                                          QWidget* parent) :
     QDialog(parent),
-    ui(new Ui::PDFDocumentPropertiesDialog)
+    ui(new Ui::PDFDocumentPropertiesDialog),
+    m_document(document)
 {
     ui->setupUi(this);
 
@@ -90,6 +95,8 @@ PDFDocumentPropertiesDialog::PDFDocumentPropertiesDialog(const pdf::PDFDocument*
     initializeSecurity(document);
     initializeFonts(document);
     initializeDisplayAndPrintSettings(document);
+    initializeXMPMetadata(document);
+    connect(ui->xmpMetadataDefaultPushButton, &QPushButton::clicked, this, &PDFDocumentPropertiesDialog::createDefaultXMPMetadata);
 
     const int minimumSectionSize = pdf::PDFWidgetUtils::scaleDPI_x(this, 300);
     for (QTreeWidget* widget : findChildren<QTreeWidget*>(QString(), Qt::FindChildrenRecursively))
@@ -581,6 +588,129 @@ void PDFDocumentPropertiesDialog::initializeDisplayAndPrintSettings(const pdf::P
     ui->displayAndPrintTreeWidget->resizeColumnToContents(0);
 }
 
+void PDFDocumentPropertiesDialog::initializeXMPMetadata(const pdf::PDFDocument* document)
+{
+    const pdf::PDFObject metadataObject = document->getObject(document->getCatalog()->getMetadata());
+    m_hasOriginalXMPMetadataStream = metadataObject.isStream();
+    if (metadataObject.isStream())
+    {
+        try
+        {
+            m_originalXMPMetadataText = QString::fromUtf8(document->getDecodedStream(metadataObject.getStream()));
+        }
+        catch (const pdf::PDFException&)
+        {
+            m_originalXMPMetadataText.clear();
+        }
+    }
+    else
+    {
+        m_originalXMPMetadataText.clear();
+    }
+
+    const QSignalBlocker blocker(ui->xmpMetadataPlainTextEdit);
+    ui->xmpMetadataPlainTextEdit->setPlainText(m_originalXMPMetadataText);
+    ui->xmpMetadataDefaultPushButton->setEnabled(!m_hasOriginalXMPMetadataStream);
+}
+
+void PDFDocumentPropertiesDialog::createDefaultXMPMetadata()
+{
+    if (m_hasOriginalXMPMetadataStream)
+    {
+        QMessageBox::information(this, tr("XMP Metadata"), tr("XMP metadata already exist in this document."));
+        return;
+    }
+
+    Q_ASSERT(m_document);
+    const pdf::PDFDocumentInfo* info = m_document->getInfo();
+
+    auto formatDateTime = [](const QDateTime& value) -> QString
+    {
+        return value.isValid() ? value.toString(Qt::ISODate) : QString();
+    };
+
+    auto writeAltText = [](QXmlStreamWriter& writer, const char* name, const QString& text)
+    {
+        if (text.isEmpty())
+        {
+            return;
+        }
+
+        writer.writeStartElement(QLatin1String(name));
+        writer.writeStartElement("rdf:Alt");
+        writer.writeStartElement("rdf:li");
+        writer.writeAttribute("xml:lang", "x-default");
+        writer.writeCharacters(text);
+        writer.writeEndElement();
+        writer.writeEndElement();
+        writer.writeEndElement();
+    };
+
+    auto writeSeqText = [](QXmlStreamWriter& writer, const char* name, const QString& text)
+    {
+        if (text.isEmpty())
+        {
+            return;
+        }
+
+        writer.writeStartElement(QLatin1String(name));
+        writer.writeStartElement("rdf:Seq");
+        writer.writeTextElement("rdf:li", text);
+        writer.writeEndElement();
+        writer.writeEndElement();
+    };
+
+    QString metadata;
+    QXmlStreamWriter writer(&metadata);
+    writer.setAutoFormatting(true);
+    writer.writeStartDocument();
+    writer.writeStartElement("x:xmpmeta");
+    writer.writeAttribute("xmlns:x", "adobe:ns:meta/");
+    writer.writeStartElement("rdf:RDF");
+    writer.writeAttribute("xmlns:rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#");
+    writer.writeStartElement("rdf:Description");
+    writer.writeAttribute("rdf:about", "");
+    writer.writeAttribute("xmlns:dc", "http://purl.org/dc/elements/1.1/");
+    writer.writeAttribute("xmlns:pdf", "http://ns.adobe.com/pdf/1.3/");
+    writer.writeAttribute("xmlns:xmp", "http://ns.adobe.com/xap/1.0/");
+
+    writeAltText(writer, "dc:title", info->title);
+    writeAltText(writer, "dc:description", info->subject);
+    writeSeqText(writer, "dc:creator", info->author);
+
+    if (!info->keywords.isEmpty())
+    {
+        writer.writeTextElement("pdf:Keywords", info->keywords);
+    }
+    if (!info->producer.isEmpty())
+    {
+        writer.writeTextElement("pdf:Producer", info->producer);
+    }
+    if (!info->creator.isEmpty())
+    {
+        writer.writeTextElement("xmp:CreatorTool", info->creator);
+    }
+
+    const QString createDate = formatDateTime(info->creationDate);
+    if (!createDate.isEmpty())
+    {
+        writer.writeTextElement("xmp:CreateDate", createDate);
+    }
+
+    const QString modifyDate = formatDateTime(info->modifiedDate);
+    if (!modifyDate.isEmpty())
+    {
+        writer.writeTextElement("xmp:ModifyDate", modifyDate);
+    }
+
+    writer.writeEndElement(); // rdf:Description
+    writer.writeEndElement(); // rdf:RDF
+    writer.writeEndElement(); // x:xmpmeta
+    writer.writeEndDocument();
+
+    ui->xmpMetadataPlainTextEdit->setPlainText(metadata);
+}
+
 void PDFDocumentPropertiesDialog::onFontsFinished()
 {
     if (!m_fontTreeWidgetItems.empty())
@@ -608,6 +738,16 @@ void PDFDocumentPropertiesDialog::closeEvent(QCloseEvent* event)
     m_fontTreeWidgetItems.clear();
 
     BaseClass::closeEvent(event);
+}
+
+QByteArray PDFDocumentPropertiesDialog::getXMPMetadata() const
+{
+    return ui->xmpMetadataPlainTextEdit->toPlainText().toUtf8();
+}
+
+bool PDFDocumentPropertiesDialog::isXMPMetadataModified() const
+{
+    return ui->xmpMetadataPlainTextEdit->toPlainText() != m_originalXMPMetadataText;
 }
 
 }   // namespace pdfviewer

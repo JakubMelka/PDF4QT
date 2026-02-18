@@ -40,6 +40,7 @@ class PDFDocumentPropertiesDialog;
 namespace pdf
 {
 class PDFDocument;
+struct PDFDocumentInfo;
 }
 
 namespace pdfviewer
@@ -71,6 +72,9 @@ public:
                                          QWidget* parent);
     virtual ~PDFDocumentPropertiesDialog() override;
 
+    QByteArray getXMPMetadata() const;
+    bool isXMPMetadataModified() const;
+
 protected:
     virtual void closeEvent(QCloseEvent* event) override;
 
@@ -82,12 +86,17 @@ private:
     void initializeSecurity(const pdf::PDFDocument* document);
     void initializeFonts(const pdf::PDFDocument* document);
     void initializeDisplayAndPrintSettings(const pdf::PDFDocument* document);
+    void initializeXMPMetadata(const pdf::PDFDocument* document);
+    void createDefaultXMPMetadata();
 
     void onFontsFinished();
 
     std::vector<QTreeWidgetItem*> m_fontTreeWidgetItems;
     QFuture<void> m_future;
     QFutureWatcher<void> m_futureWatcher;
+    QString m_originalXMPMetadataText;
+    const pdf::PDFDocument* m_document = nullptr;
+    bool m_hasOriginalXMPMetadataStream = false;
 };
 
 }   // namespace pdfviewer

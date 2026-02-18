@@ -1520,6 +1520,21 @@
         <source>Display &amp;&amp; Print Settings</source>
         <translation>Nastavení zobrazení a tisku</translation>
     </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="197"/>
+        <source>XMP Metadata</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="203"/>
+        <source>XMP Metadata (XML)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.ui" line="221"/>
+        <source>Create Default XML Metadata</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>PDFEditorMainWindow</name>
@@ -13382,418 +13397,428 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdfviewer::PDFDocumentPropertiesDialog</name>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="115"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="122"/>
         <source>Properties</source>
         <translation>Vlastnosti</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="119"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="126"/>
         <source>PDF version</source>
         <translation>PDF verze</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="120"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="127"/>
         <source>Title</source>
         <translation>Nadpis</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="121"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="128"/>
         <source>Subject</source>
         <translation>Předmět</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="122"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="129"/>
         <source>Author</source>
         <translation>Autor</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="123"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="130"/>
         <source>Keywords</source>
         <translation>Klíčová slova</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="124"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="131"/>
         <source>Creator</source>
         <translation>Tvůrce</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="125"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="132"/>
         <source>Producer</source>
         <translation>Producent</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="126"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="133"/>
         <source>Creation date</source>
         <translation>Datum vytvoření</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="127"/>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="208"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="134"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="215"/>
         <source>Modified date</source>
         <translation>Datum úpravy</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="133"/>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="194"/>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="272"/>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="280"/>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="398"/>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="567"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="140"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="201"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="279"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="287"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="405"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="574"/>
         <source>Yes</source>
         <translation>Ano</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="137"/>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="194"/>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="272"/>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="280"/>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="398"/>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="567"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="144"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="201"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="279"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="287"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="405"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="574"/>
         <source>No</source>
         <translation>Žádný</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="141"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="148"/>
         <source>Unknown</source>
         <translation>Neznámý</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="149"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="156"/>
         <source>Content</source>
         <translation>Obsah</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="151"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="158"/>
         <source>Page count</source>
         <translation>Počet stránek</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="160"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="167"/>
         <source>Paper format</source>
         <translation>Formát papíru</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="161"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="168"/>
         <source>Paper size</source>
         <translation>Velikost papíru</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="163"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="170"/>
         <source>Trapped</source>
         <translation>Ohraničení</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="170"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="177"/>
         <source>Custom properties</source>
         <translation>Vlastní vlastnosti</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="190"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="197"/>
         <source>File information</source>
         <translation>Informace o souboru</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="192"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="199"/>
         <source>Name</source>
         <translation>Název</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="193"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="200"/>
         <source>Directory</source>
         <translation>Adresář</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="194"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="201"/>
         <source>Writable</source>
         <translation>Zapisovatelný</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="206"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="213"/>
         <source>Size</source>
         <translation>Velikost</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="207"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="214"/>
         <source>Created date</source>
         <translation>Datum vytvoření</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="209"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="216"/>
         <source>Last read date</source>
         <translation>Datum posledního přečtení</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="220"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="227"/>
         <source>Security</source>
         <translation>Zabezpečení</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="227"/>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="530"/>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="547"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="234"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="537"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="554"/>
         <source>None</source>
         <translation>Žádný</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="231"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="238"/>
         <source>Standard</source>
         <translation>Standardní</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="235"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="242"/>
         <source>Public Key</source>
         <translation>Veřejný klíč</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="239"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="246"/>
         <source>Custom</source>
         <translation>Vlastní</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="251"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="258"/>
         <source>No authorization required</source>
         <translation>Není vyžadována žádná autorizace</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="255"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="262"/>
         <source>Authorized as owner</source>
         <translation>Autorizován jako vlastník</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="259"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="266"/>
         <source>Authorized as user</source>
         <translation>Autorizován jako uživatel</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="267"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="274"/>
         <source>Document encryption</source>
         <translation>Šifrování dokumentu</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="268"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="275"/>
         <source>Authorized as</source>
         <translation>Autorizovaný jako</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="272"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="279"/>
         <source>Metadata encrypted</source>
         <translation>Metadata zašifrována</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="273"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="280"/>
         <source>Version</source>
         <translation>Verze</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="276"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="283"/>
         <source>Permissions</source>
         <translation>Oprávnění</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="282"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="289"/>
         <source>Print (low resolution)</source>
         <translation>Tisk (nízké rozlišení)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="283"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="290"/>
         <source>Print (high resolution)</source>
         <translation>Tisk (vysoké rozlišení)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="284"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="291"/>
         <source>Content extraction</source>
         <translation>Extrakce obsahu</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="285"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="292"/>
         <source>Content extraction (accessibility)</source>
         <translation>Extrakce obsahu (přístupnost)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="286"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="293"/>
         <source>Page assembling</source>
         <translation>Sestavení stránky</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="287"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="294"/>
         <source>Modify content</source>
         <translation>Upravit obsah</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="288"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="295"/>
         <source>Modify interactive items</source>
         <translation>Upravit interaktivní položky</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="289"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="296"/>
         <source>Fill form fields</source>
         <translation>Vyplnit pole formuláře</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="368"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="375"/>
         <source>TrueType</source>
         <translation>TrueType</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="372"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="379"/>
         <source>Type0 (CID keyed)</source>
         <translation>Type0 (klíčováno CID)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="376"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="383"/>
         <source>Type1 (8 bit keyed)</source>
         <translation>Type1 (8bitový klíč)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="380"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="387"/>
         <source>MMType1 (8 bit keyed)</source>
         <translation>MMType1 (8bitový klíč)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="384"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="391"/>
         <source>Type3 (content streams for font glyphs)</source>
         <translation>Type3 (streamy obsahu pro glyfy písem)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="392"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="399"/>
         <source>Type</source>
         <translation>Typ</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="395"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="402"/>
         <source>Font family</source>
         <translation>Rodina písem</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="398"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="405"/>
         <source>Embedded subset</source>
         <translation>Vložená podmnožina</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="445"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="452"/>
         <source>Viewer settings</source>
         <translation>Nastavení prohlížeče</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="446"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="453"/>
         <source>Default printer settings</source>
         <translation>Výchozí nastavení tiskárny</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="452"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="459"/>
         <source>Single page</source>
         <translation>Jedna stránka</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="456"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="463"/>
         <source>Continuous column</source>
         <translation>Souvislý sloupec</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="461"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="468"/>
         <source>Two continuous columns</source>
         <translation>Dva souvislé sloupce</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="466"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="473"/>
         <source>Two pages</source>
         <translation>Dvě stránky</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="478"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="485"/>
         <source>Default</source>
         <translation>Výchozí</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="482"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="489"/>
         <source>Show outlines</source>
         <translation>Zobrazit obrysy</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="486"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="493"/>
         <source>Show thumbnails</source>
         <translation>Zobrazit miniatury</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="490"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="497"/>
         <source>Fullscreen</source>
         <translation>Celá obrazovka</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="494"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="501"/>
         <source>Show optional content</source>
         <translation>Zobrazit volitelný obsah</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="498"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="505"/>
         <source>Show attachments</source>
         <translation>Zobrazit přílohy</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="510"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="517"/>
         <source>Left to right</source>
         <translation>Zleva doprava</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="514"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="521"/>
         <source>Right to left</source>
         <translation>Zprava doleva</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="522"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="529"/>
         <source>Page layout</source>
         <translation>Rozložení stránky</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="523"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="530"/>
         <source>View mode</source>
         <translation>Režim zobrazení</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="524"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="531"/>
         <source>Writing direction</source>
         <translation>Směr psaní</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="534"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="541"/>
         <source>Application default</source>
         <translation>Výchozí aplikace</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="541"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="548"/>
         <source>Scale</source>
         <translation>Měřítko</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="551"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="558"/>
         <source>Simplex</source>
         <translation>Simplexní</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="555"/>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="559"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="562"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="566"/>
         <source>Duplex (flip long edge)</source>
         <translation>Duplexní (převrácení dlouhé hrany)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="566"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="573"/>
         <source>Duplex mode</source>
         <translation>Duplexní režim</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="567"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="574"/>
         <source>Pick tray by page size</source>
         <translation>Vybrat zásobník podle velikosti stránky</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="575"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="582"/>
         <source>Default print page ranges</source>
         <translation>Výchozí rozsahy tiskových stránek</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="576"/>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="583"/>
         <source>Number of copies</source>
         <translation>Počet kopií</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="620"/>
+        <source>XMP Metadata</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfdocumentpropertiesdialog.cpp" line="620"/>
+        <source>XMP metadata already exist in this document.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -14032,7 +14057,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1248"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1387"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1399"/>
         <source>Error</source>
         <translation>Chyba</translation>
     </message>
@@ -14047,117 +14072,117 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>Přejete si uložit změněný dokument před jeho zavřením?</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1387"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1399"/>
         <source>Error while starting email client occured!</source>
         <translation>Při spouštění e-mailového klienta došlo k chybě!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1460"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1461"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1472"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1473"/>
         <source>No external link annotations found.</source>
         <translation>Nebyly nalezeny žádné anotace externích odkazů.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1478"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1479"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1490"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1491"/>
         <source>External link annotations removed: %1.</source>
         <translation>Byly odstraněny anotace externích odkazů: %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1518"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1530"/>
         <source>Permission to change document security is denied.</source>
         <translation>Povolení ke změně zabezpečení dokumentu je odepřeno.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1537"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1549"/>
         <source>Failed to create security handler.</source>
         <translation>Vytvoření obslužné rutiny zabezpečení se nezdařilo.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1550"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1561"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1562"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1573"/>
         <source>Reauthorization is required to change document encryption.</source>
         <translation>Ke změně šifrování dokumentu je nutná opětovná autorizace.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1645"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1657"/>
         <source>Encrypted document</source>
         <translation>Zašifrovaný dokument</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1645"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1657"/>
         <source>Enter password to access document content</source>
         <translation>Vložte heslo pro přístup k obsahu dokumentu</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2058"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2070"/>
         <source>Document &apos;%1&apos; was successfully loaded!</source>
         <translation>Dokument &apos;%1&apos; byl úspěšně načten!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2064"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2076"/>
         <source>Document read error: %1</source>
         <translation>Chyba čtení dokumentu: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2276"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2288"/>
         <source>%1 - %2</source>
         <translation>%1 – %2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2543"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2550"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2555"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2562"/>
         <source>Reset Settings</source>
         <translation>Obnovit nastavení</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2543"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2555"/>
         <source>Do you wish to restore the default factory settings of the program? All settings changed by the user will be deleted. Application will be closed.</source>
         <translation>Přejete si obnovit výchozí tovární nastavení programu? Všechna nastavení změněná uživatelem budou smazána. Aplikace bude uzavřena.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2550"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2562"/>
         <source>Default factory settings were restored. Application will be now closed.</source>
         <translation>Byla obnovena výchozí tovární nastavení. Aplikace bude nyní uzavřena.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2595"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2607"/>
         <source>Plugins</source>
         <translation>Přídavné moduly</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2595"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2607"/>
         <source>Plugin on/off state has been changed. Please restart application to apply settings.</source>
         <translation>Stav zapnutí/vypnutí pluginu byl změněn. Pro použití nastavení restartujte aplikaci.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2622"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2694"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2634"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2706"/>
         <source>Select PDF document</source>
         <translation>Vybrat PDF dokument</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2622"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2634"/>
         <source>PDF document (*.pdf)</source>
         <translation>Dokument PDF (*.pdf)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2679"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2691"/>
         <source>Export Bookmarks As</source>
         <translation>Exportovat záložky jako</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2679"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2691"/>
         <source>JSON (*.json);;All files (*.*)</source>
         <translation>JSON (*.json);;Všechny soubory (*.*)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2694"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2706"/>
         <source>JSON (*.json)</source>
         <translation>JSON (*.json)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2713"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2725"/>
         <source>Rendering of page %1: %2 errors occured.</source>
         <translation>Vykreslování stránky %1: Vyskytlo se %2 chyb.</translation>
     </message>

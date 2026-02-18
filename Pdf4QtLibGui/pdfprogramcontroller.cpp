@@ -1363,7 +1363,19 @@ void PDFProgramController::onActionPropertiesTriggered()
     Q_ASSERT(m_pdfDocument);
 
     PDFDocumentPropertiesDialog documentPropertiesDialog(m_pdfDocument.data(), &m_fileInfo, m_mainWindow);
-    documentPropertiesDialog.exec();
+    if (documentPropertiesDialog.exec() == QDialog::Accepted && documentPropertiesDialog.isXMPMetadataModified())
+    {
+        pdf::PDFDocumentModifier modifier(m_pdfDocument.data());
+        pdf::PDFDocumentBuilder* builder = modifier.getBuilder();
+        builder->setCatalogMetadata(documentPropertiesDialog.getXMPMetadata());
+
+        modifier.markReset();
+        if (modifier.finalize())
+        {
+            pdf::PDFModifiedDocument document(modifier.getDocument(), m_optionalContentActivity, modifier.getFlags());
+            onDocumentModified(qMove(document));
+        }
+    }
 }
 
 void PDFProgramController::onActionAboutTriggered()
