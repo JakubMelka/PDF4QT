@@ -545,6 +545,30 @@ bool PDFSignatureFactory::createTimestampToken(QByteArray data,
         return false;
     }
 
+    // Verify token against the same input data (message imprint check).
+    TS_VERIFY_CTX* verifyContext = TS_VERIFY_CTX_new();
+    if (!verifyContext)
+    {
+        return false;
+    }
+    TS_VERIFY_CTX_init(verifyContext);
+    BIO* verifyDataBio = BIO_new_mem_buf(data.constData(), data.size());
+    if (!verifyDataBio)
+    {
+        TS_VERIFY_CTX_cleanup(verifyContext);
+        TS_VERIFY_CTX_free(verifyContext);
+        return false;
+    }
+    TS_VERIFY_CTX_set0_data(verifyContext, verifyDataBio);
+    TS_VERIFY_CTX_set_flags(verifyContext, TS_VFY_DATA);
+    const int verifyResult = TS_RESP_verify_token(verifyContext, token);
+    TS_VERIFY_CTX_cleanup(verifyContext);
+    TS_VERIFY_CTX_free(verifyContext);
+    if (verifyResult != 1)
+    {
+        return false;
+    }
+
     openssl_ptr<BIO> tokenOutput(BIO_new(BIO_s_mem()), &BIO_free_all);
     if (!tokenOutput)
     {
