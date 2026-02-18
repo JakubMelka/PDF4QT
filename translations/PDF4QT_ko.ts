@@ -5730,12 +5730,13 @@
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="882"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="948"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1043"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1247"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1254"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1325"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1332"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1074"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1261"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1268"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1339"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1346"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1353"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1360"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1367"/>
         <source>Enable</source>
         <translation>활성화</translation>
     </message>
@@ -6140,6 +6141,11 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>확대/축소 시 논리적 픽셀 사용</translation>
     </message>
     <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1057"/>
+        <source>Smooth mouse wheel scrolling</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1010"/>
         <source>px</source>
         <translation>px</translation>
@@ -6170,12 +6176,12 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>색 구성표(GUI)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1057"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1064"/>
         <source>Language</source>
         <translation>언어</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1069"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1083"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6198,42 +6204,42 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;실행 취소/다시 실행&lt;/span&gt; 단계 수를 지정하여 문서 편집 중에 사용할 수 있는 실행 취소/다시 실행 단계 수를 제어합니다. 최대 실행 취소 단계 수를 0으로 설정하면 실행 취소/다시 실행 기능이 비활성화됩니다. 또한 실행 취소 단계 수를 0이 아닌 값으로 설정하고 다시 실행 단계 수를 0으로 설정할 수도 있습니다. 이렇게 하면 다시 실행 작업이 비활성화된 상태에서 실행 취소 작업만 사용할 수 있습니다. 변경 사항은 메모리 사용에 최적화되어 있으므로 각 실행 취소/다시 실행 단계는 수정되지 않은 개체를 다른 사람과 공유합니다. 즉, 대략적으로 말하면 50MB 문서를 10번 수정하면 약 51MB의 메모리가 소모될 수 있습니다. 실제 메모리 사용량은 변경 정도에 따라 다르지만 일반적으로 변경 사항이 적은 수의 개체에 영향을 미치기 때문에(예: 양식 필드 편집 또는 주석 수정) 일반적으로 최소입니다. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1104"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1118"/>
         <source>Speech Settings</source>
         <translation>음성 설정</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1112"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1126"/>
         <source>Voice</source>
         <translation>음성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1119"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1133"/>
         <source>Pitch</source>
         <translation>피치</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1126"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1140"/>
         <source>Volume</source>
         <translation>볼륨</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1133"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1147"/>
         <source>Rate</source>
         <translation>속도</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1140"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1154"/>
         <source>Voice synthetiser</source>
         <translation>음성 합성기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1147"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1161"/>
         <source>Locale</source>
         <translation>로케일</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1192"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1206"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6252,22 +6258,22 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;문서 읽기를 위한 텍스트 음성 변환 기능을 활성화하려면 음성 설정을 구성합니다. 이러한 설정은 텍스트 음성 변환 기능의 기본값으로 작동하지만 일부는 나중에 조정할 수 있습니다. &apos;피치&apos; 설정은 -1.0에서 1.0까지 다양하며 기본값은 0.0입니다. 마찬가지로 &apos;Rate&apos;의 범위는 -1.0에서 1.0까지이며 0.0은 정상적인 음성 흐름을 나타냅니다. 마지막으로 &apos;Volume&apos;은 0.0에서 1.0 사이에서 조정할 수 있습니다. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1225"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1239"/>
         <source>Form Settings</source>
         <translation>양식 설정</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1233"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1247"/>
         <source>Highlight form fields</source>
         <translation>양식 필드 강조 표시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1240"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1254"/>
         <source>Highlight required form fields</source>
         <translation>필수 양식 필드 강조 표시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1263"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1277"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6286,47 +6292,47 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;편집 가능한 필드를 강조 표시하는 옵션을 포함하여 제공된 설정을 사용하여 양식 필드의 모양을 사용자 정의할 수 있습니다. 필수 양식 필드는 빨간색으로 별도로 강조 표시할 수 있고, 다른 필드는 파란색으로 강조 표시할 수 있습니다. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1296"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1310"/>
         <source>Digital Signature Verification</source>
         <translation>디지털 서명 확인</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1304"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1318"/>
         <source>Ignore expired certificates</source>
         <translation>만료된 인증서 무시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1311"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1325"/>
         <source>Signature verification</source>
         <translation>서명 확인</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1318"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1332"/>
         <source>Strict mode</source>
         <translation>엄격 모드</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1339"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1353"/>
         <source>Use system certificate store</source>
         <translation>시스템 인증서 저장소 사용</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1369"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1383"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Trusted certificate store&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;신뢰할 수 있는 인증서 저장소&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1398"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1412"/>
         <source>Remove</source>
         <translation>제거</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1414"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1428"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;These are the settings for digital signature verification. Digital signatures are verified as strictly as possible to prevent any malicious content or signature manipulation. Verification can also be disabled, if not required. When &lt;span style=&quot; font-weight:600;&quot;&gt;Strict mode&lt;/span&gt; is enabled, every warning is treated as an error. You have the option to ignore the certificate expiration date, but this should only be done if you fully understand the potential risks involved. Verification uses a list of trusted certificates. System certificates can be added to this list, and you can also manage your own list of trusted certificates.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;디지털 서명 확인을 위한 설정입니다. 악의적인 내용이나 서명 조작을 방지하기 위해 디지털 서명은 최대한 엄격하게 검증됩니다. 필요하지 않은 경우 확인을 비활성화할 수도 있습니다. &lt;span style=&quot; font-weight:600;&quot;&gt;엄격 모드&lt;/span&gt;이 활성화되면 모든 경고가 오류로 처리됩니다. 인증서 만료 날짜를 무시할 수 있는 옵션이 있지만 이는 관련된 잠재적 위험을 완전히 이해하는 경우에만 수행해야 합니다. 확인에서는 신뢰할 수 있는 인증서 목록을 사용합니다. 시스템 인증서를 이 목록에 추가할 수 있으며 신뢰할 수 있는 인증서 목록을 직접 관리할 수도 있습니다.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1443"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1457"/>
         <source>Plugins</source>
         <translation>플러그인</translation>
     </message>
@@ -14115,74 +14121,74 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>문서 콘텐츠에 액세스하려면 비밀번호를 입력하세요</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2070"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2071"/>
         <source>Document &apos;%1&apos; was successfully loaded!</source>
         <translation>&apos;%1&apos; 문서가 성공적으로 로드되었습니다!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2076"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2077"/>
         <source>Document read error: %1</source>
         <translation>문서 읽기 오류: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2288"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2289"/>
         <source>%1 - %2</source>
         <translation>%1 - %2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2555"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2562"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2557"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2564"/>
         <source>Reset Settings</source>
         <translation>설정 재설정</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2555"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2557"/>
         <source>Do you wish to restore the default factory settings of the program? All settings changed by the user will be deleted. Application will be closed.</source>
         <translation>프로그램의 기본 공장 설정을 복원하시겠습니까? 사용자가 변경한 모든 설정이 삭제됩니다. 신청이 마감됩니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2562"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2564"/>
         <source>Default factory settings were restored. Application will be now closed.</source>
         <translation>기본 공장 설정이 복원되었습니다. 이제 신청이 마감됩니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2607"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2609"/>
         <source>Plugins</source>
         <translation>플러그인</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2607"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2609"/>
         <source>Plugin on/off state has been changed. Please restart application to apply settings.</source>
         <translation>플러그인 켜기/끄기 상태가 변경되었습니다. 설정을 적용하려면 애플리케이션을 다시 시작하세요.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2634"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2706"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2636"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2708"/>
         <source>Select PDF document</source>
         <translation>PDF 문서 선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2634"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2636"/>
         <source>PDF document (*.pdf)</source>
         <translation>PDF 문서(*.pdf)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2691"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2693"/>
         <source>Export Bookmarks As</source>
         <translation>북마크 내보내기 형식</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2691"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2693"/>
         <source>JSON (*.json);;All files (*.*)</source>
         <translation>JSON(*.json);;모든 파일(*.*)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2706"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2708"/>
         <source>JSON (*.json)</source>
         <translation>JSON(*.json)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2725"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2727"/>
         <source>Rendering of page %1: %2 errors occured.</source>
         <translation>페이지 렌더링 %1: %2 오류가 발생했습니다.</translation>
     </message>
@@ -14953,87 +14959,87 @@ Do you want to perform this action?</source>
         <translation>러시아어</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="687"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
         <source>Type</source>
         <translation>유형</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="687"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
         <source>Certificate</source>
         <translation>인증서</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="687"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
         <source>Organization</source>
         <translation>조직</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="687"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
         <source>Valid from</source>
         <translation>유효 기간</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="687"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
         <source>Valid to</source>
         <translation>다음에 유효함</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="695"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="700"/>
         <source>User</source>
         <translation>사용자</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="699"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="704"/>
         <source>System</source>
         <translation>시스템</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="739"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="744"/>
         <source>Action</source>
         <translation>작업</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="739"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="744"/>
         <source>Shortcut</source>
         <translation>바로가기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="768"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="773"/>
         <source>Error</source>
         <translation>오류</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="768"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="773"/>
         <source>Shortcut &apos;%1&apos; is invalid for action %2.</source>
         <translation>&apos;%1&apos; 바로가기는 %2 작업에 유효하지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="791"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
         <source>Active</source>
         <translation>활성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="791"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
         <source>Name</source>
         <translation>이름</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="791"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
         <source>Author</source>
         <translation>작성자</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="791"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
         <source>Version</source>
         <translation>버전</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="791"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
         <source>License</source>
         <translation>라이선스</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="905"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="910"/>
         <source>Select color profile directory</source>
         <translation>색상 프로필 디렉터리 선택</translation>
     </message>

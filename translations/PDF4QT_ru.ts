@@ -5725,12 +5725,13 @@
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="882"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="948"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1043"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1247"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1254"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1325"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1332"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1074"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1261"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1268"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1339"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1346"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1353"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1360"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1367"/>
         <source>Enable</source>
         <translation>Включить</translation>
     </message>
@@ -6130,27 +6131,27 @@ __ТК7____ТК8____ТК9__
         <translation>размер лупы</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1057"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1064"/>
         <source>Language</source>
         <translation>Язык</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1104"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1118"/>
         <source>Speech Settings</source>
         <translation>настройки речи</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1112"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1126"/>
         <source>Voice</source>
         <translation>Голос</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1398"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1412"/>
         <source>Remove</source>
         <translation>удалить</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1443"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1457"/>
         <source>Plugins</source>
         <translation>Плагины</translation>
     </message>
@@ -6195,7 +6196,12 @@ __ТК7____ТК8____ТК9__
         <translation>цветовая схема (GUI)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1069"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1057"/>
+        <source>Smooth mouse wheel scrolling</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1083"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6218,32 +6224,32 @@ li.checked::marker {content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Указав &lt;span style=&quot; font-weight:600;&quot;&gt;отменить/повторить&lt;/span&gt; количество шагов, вы контролируете количество шагов отмены/повтора, доступных во время редактирования документа. Установка максимального количества шагов отмены на ноль отключает функцию отмены/повтора. Вы также можете установить ненулевое количество шагов отмены и нулевое количество шагов повтора, что сделает доступными только действия отмены с отключенными действиями повтора. Изменения оптимизированы с точки зрения использования памяти, поэтому каждый шаг отмены/повтора использует общие немодифицированные объекты с другими. Это означает, что, грубо говоря, внесение 10 изменений в документ размером 50 МБ может занять около 51 МБ памяти. Фактическое использование памяти зависит от объема изменений, но обычно минимально, поскольку изменения обычно затрагивают небольшое количество объектов (например, редактирование поля формы или изменение аннотации). &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1119"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1133"/>
         <source>Pitch</source>
         <translation>Подача</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1126"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1140"/>
         <source>Volume</source>
         <translation>Том</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1133"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1147"/>
         <source>Rate</source>
         <translation>Оценить</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1140"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1154"/>
         <source>Voice synthetiser</source>
         <translation>Синтезатор голоса</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1147"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1161"/>
         <source>Locale</source>
         <translation>Языковой стандарт</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1192"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1206"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6262,22 +6268,22 @@ __ТК7____ТК8____ТК9__
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Настройте параметры речи, чтобы включить функцию преобразования текста в речь для чтения документов. Хотя эти настройки действуют по умолчанию для функции преобразования текста в речь, некоторые из них можно изменить позже. Параметр «Шаг» может варьироваться от -1,0 до 1,0, при этом 0,0 является значением по умолчанию. Аналогичным образом, «Скорость» может находиться в диапазоне от -1,0 до 1,0, где 0,0 обозначает нормальный речевой поток. Наконец, «Громкость» можно регулировать в диапазоне от 0,0 до 1,0. __ТК11____ТК12____ТК13__</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1225"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1239"/>
         <source>Form Settings</source>
         <translation>Настройки формы</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1233"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1247"/>
         <source>Highlight form fields</source>
         <translation>выделение полей формы.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1240"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1254"/>
         <source>Highlight required form fields</source>
         <translation>выделите обязательные поля формы.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1263"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1277"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6296,37 +6302,37 @@ __ТК7____ТК8____ТК9__
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Вы можете настроить внешний вид полей формы, используя предоставленные настройки, включая возможность выделения редактируемых полей. Вы можете отдельно выделить обязательные поля формы красным цветом, а остальные поля выделить синим. __ТК11____ТК12____ТК13__</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1296"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1310"/>
         <source>Digital Signature Verification</source>
         <translation>проверка цифровой подписи</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1304"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1318"/>
         <source>Ignore expired certificates</source>
         <translation>игнорировать сертификаты с истекшим сроком действия.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1311"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1325"/>
         <source>Signature verification</source>
         <translation>проверка подписи</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1318"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1332"/>
         <source>Strict mode</source>
         <translation>строгий режим</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1339"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1353"/>
         <source>Use system certificate store</source>
         <translation>использовать хранилище системных сертификатов.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1369"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1383"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Trusted certificate store&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Доверенное хранилище сертификатов&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1414"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1428"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;These are the settings for digital signature verification. Digital signatures are verified as strictly as possible to prevent any malicious content or signature manipulation. Verification can also be disabled, if not required. When &lt;span style=&quot; font-weight:600;&quot;&gt;Strict mode&lt;/span&gt; is enabled, every warning is treated as an error. You have the option to ignore the certificate expiration date, but this should only be done if you fully understand the potential risks involved. Verification uses a list of trusted certificates. System certificates can be added to this list, and you can also manage your own list of trusted certificates.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Это настройки для проверки цифровой подписи. Цифровые подписи проверяются максимально строго, чтобы предотвратить любое вредоносное содержимое или манипуляции с подписями. Верификацию также можно отключить, если она не требуется. Когда включен &lt;span style=&quot; font-weight:600;&quot;&gt;Strict mode&lt;/span&gt;, каждое предупреждение рассматривается как ошибка. У вас есть возможность игнорировать дату истечения срока действия сертификата, но это следует делать только в том случае, если вы полностью понимаете связанные с этим потенциальные риски. При проверке используется список доверенных сертификатов. В этот список можно добавлять системные сертификаты, а также управлять собственным списком доверенных сертификатов.  __ТК7____ТК8____ТК9__</translation>
     </message>
@@ -14115,74 +14121,74 @@ __ТК7____ТК8____ТК9__
         <translation>введите пароль для доступа к содержимому документа</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2070"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2071"/>
         <source>Document &apos;%1&apos; was successfully loaded!</source>
         <translation>документ «%1» успешно загружен!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2076"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2077"/>
         <source>Document read error: %1</source>
         <translation>Ошибка чтения документа: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2288"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2289"/>
         <source>%1 - %2</source>
         <translation>%1 – %2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2555"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2562"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2557"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2564"/>
         <source>Reset Settings</source>
         <translation>Сбросить настройки</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2555"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2557"/>
         <source>Do you wish to restore the default factory settings of the program? All settings changed by the user will be deleted. Application will be closed.</source>
         <translation>хотите ли вы восстановить заводские настройки программы по умолчанию? Все настройки, измененные пользователем, будут удалены. Приложение будет закрыто.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2562"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2564"/>
         <source>Default factory settings were restored. Application will be now closed.</source>
         <translation>заводские настройки по умолчанию восстановлены. Приложение будет закрыто.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2607"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2609"/>
         <source>Plugins</source>
         <translation>Плагины</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2607"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2609"/>
         <source>Plugin on/off state has been changed. Please restart application to apply settings.</source>
         <translation>состояние включения/выключения плагина было изменено. Пожалуйста, перезапустите приложение, чтобы применить настройки.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2634"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2706"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2636"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2708"/>
         <source>Select PDF document</source>
         <translation>выберите PDF-документ</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2634"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2636"/>
         <source>PDF document (*.pdf)</source>
         <translation>PDF-документ (*.pdf)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2691"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2693"/>
         <source>Export Bookmarks As</source>
         <translation>Экспортировать закладки как</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2691"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2693"/>
         <source>JSON (*.json);;All files (*.*)</source>
         <translation>JSON (*.json);;Все файлы (*.*)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2706"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2708"/>
         <source>JSON (*.json)</source>
         <translation>JSON (*.json)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2725"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2727"/>
         <source>Rendering of page %1: %2 errors occured.</source>
         <translation>Отрисовка страницы %1: произошли ошибки %2.</translation>
     </message>
@@ -14943,62 +14949,62 @@ Do you want to perform this action?</source>
         <translation>Русский</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="687"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
         <source>Type</source>
         <translation>Тип</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="687"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
         <source>Certificate</source>
         <translation>Сертификат</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="687"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
         <source>Organization</source>
         <translation>Организация</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="695"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="700"/>
         <source>User</source>
         <translation>Пользователь</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="699"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="704"/>
         <source>System</source>
         <translation>Система</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="739"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="744"/>
         <source>Action</source>
         <translation>Действие</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="791"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
         <source>Name</source>
         <translation>Имя</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="791"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
         <source>Author</source>
         <translation>Автор</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="791"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
         <source>Version</source>
         <translation>Версия</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="791"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
         <source>License</source>
         <translation>Лицензия</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="905"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="910"/>
         <source>Select color profile directory</source>
         <translation>выберите каталог цветового профиля</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="687"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
         <source>Valid from</source>
         <translation>действительно с</translation>
     </message>
@@ -15013,27 +15019,27 @@ Do you want to perform this action?</source>
         <translation>китайский (традиционный)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="687"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
         <source>Valid to</source>
         <translation>действительна до</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="739"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="744"/>
         <source>Shortcut</source>
         <translation>ярлык</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="768"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="773"/>
         <source>Shortcut &apos;%1&apos; is invalid for action %2.</source>
         <translation>ярлык «%1» недействителен для действия %2.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="768"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="773"/>
         <source>Error</source>
         <translation>Ошибка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="791"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
         <source>Active</source>
         <translation>Активно</translation>
     </message>

@@ -114,6 +114,14 @@ void PDFWidget::updateCacheLimits(int compiledPageCacheLimit, int thumbnailsCach
     m_proxy->getFontCache()->setCacheLimits(fontCacheLimit, instancedFontCacheLimit);
 }
 
+void PDFWidget::setSmoothWheelScrolling(bool enabled)
+{
+    if (PDFDrawWidget* drawWidget = dynamic_cast<PDFDrawWidget*>(m_drawWidget))
+    {
+        drawWidget->setSmoothWheelScrolling(enabled);
+    }
+}
+
 int PDFWidget::getPageRenderingErrorCount() const
 {
     int count = 0;
@@ -244,6 +252,17 @@ PDFDrawWidget::PDFDrawWidget(PDFWidget* widget, QWidget* parent) :
     this->setAcceptDrops(true);
 
     QObject::connect(&m_autoScrollTimer, &QTimer::timeout, this, &PDFDrawWidget::onAutoScrollTimeout);
+    QObject::connect(&m_wheelScrollTimer, &QTimer::timeout, this, &PDFDrawWidget::onWheelScrollTimeout);
+}
+
+void PDFDrawWidget::setSmoothWheelScrolling(bool enabled)
+{
+    m_smoothWheelScrolling = enabled;
+    if (!m_smoothWheelScrolling)
+    {
+        m_wheelScrollTimer.stop();
+        m_wheelScrollPendingOffset = QPointF(0.0, 0.0);
+    }
 }
 
 std::vector<PDFInteger> PDFDrawWidget::getCurrentPages() const
@@ -583,6 +602,79 @@ void PDFDrawWidget::onAutoScrollTimeout()
     proxy->scrollByPixels(QPoint(scrollX, scrollY));
 }
 
+void PDFDrawWidget::onWheelScrollTimeout()
+{
+    if (m_wheelScrollPendingOffset.isNull())
+    {
+        m_wheelScrollTimer.stop();
+        return;
+    }
+
+    QPointF stepOffset = m_wheelScrollPendingOffset * 0.35;
+    int stepX = qRound(stepOffset.x());
+    int stepY = qRound(stepOffset.y());
+
+    if (stepX == 0 && !qFuzzyIsNull(m_wheelScrollPendingOffset.x()))
+    {
+        stepX = (m_wheelScrollPendingOffset.x() > 0.0) ? 1 : -1;
+    }
+    if (stepY == 0 && !qFuzzyIsNull(m_wheelScrollPendingOffset.y()))
+    {
+        stepY = (m_wheelScrollPendingOffset.y() > 0.0) ? 1 : -1;
+    }
+
+    PDFDrawWidgetProxy* proxy = m_widget->getDrawWidgetProxy();
+    const QPoint scrollStep(stepX, stepY);
+    const QPoint appliedOffset = proxy->scrollByPixels(scrollStep);
+
+    if (appliedOffset.y() == 0 && scrollStep.y() != 0 && proxy->isBlockMode())
+    {
+        // We must move to another block (we are in block mode)
+        const bool up = scrollStep.y() > 0;
+
+        QScrollBar* verticalScrollbar = m_widget->getVerticalScrollbar();
+        const int newValue = verticalScrollbar->value() + (up ? -1 : 1);
+
+        if (newValue >= verticalScrollbar->minimum() && newValue <= verticalScrollbar->maximum())
+        {
+            verticalScrollbar->setValue(newValue);
+            proxy->scrollByPixels(QPoint(0, up ? std::numeric_limits<int>::min() : std::numeric_limits<int>::max()));
+        }
+    }
+
+    if (appliedOffset.x() == 0 && scrollStep.x() != 0)
+    {
+        m_wheelScrollPendingOffset.setX(0.0);
+    }
+    else
+    {
+        m_wheelScrollPendingOffset.setX(m_wheelScrollPendingOffset.x() - appliedOffset.x());
+    }
+
+    if (appliedOffset.y() == 0 && scrollStep.y() != 0)
+    {
+        m_wheelScrollPendingOffset.setY(0.0);
+    }
+    else
+    {
+        m_wheelScrollPendingOffset.setY(m_wheelScrollPendingOffset.y() - appliedOffset.y());
+    }
+
+    if (qAbs(m_wheelScrollPendingOffset.x()) < 0.5)
+    {
+        m_wheelScrollPendingOffset.setX(0.0);
+    }
+    if (qAbs(m_wheelScrollPendingOffset.y()) < 0.5)
+    {
+        m_wheelScrollPendingOffset.setY(0.0);
+    }
+
+    if (m_wheelScrollPendingOffset.isNull())
+    {
+        m_wheelScrollTimer.stop();
+    }
+}
+
 void PDFDrawWidget::wheelEvent(QWheelEvent* event)
 {
     event->ignore();
@@ -659,20 +751,33 @@ void PDFDrawWidget::wheelEvent(QWheelEvent* event)
             scrollByPixels = QPoint(scrollHorizontal, scrollVertical);
         }
 
-        QPoint offset = proxy->scrollByPixels(scrollByPixels);
-
-        if (offset.y() == 0 && scrollByPixels.y() != 0 && proxy->isBlockMode())
+        if (m_smoothWheelScrolling)
         {
-            // We must move to another block (we are in block mode)
-            bool up = scrollByPixels.y() > 0;
-
-            QScrollBar* verticalScrollbar = m_widget->getVerticalScrollbar();
-            const int newValue = verticalScrollbar->value() + (up ? -1 : 1);
-
-            if (newValue >= verticalScrollbar->minimum() && newValue <= verticalScrollbar->maximum())
+            m_wheelScrollPendingOffset += QPointF(scrollByPixels);
+            if (!m_wheelScrollTimer.isActive())
             {
-                verticalScrollbar->setValue(newValue);
-                proxy->scrollByPixels(QPoint(0, up ? std::numeric_limits<int>::min() : std::numeric_limits<int>::max()));
+                m_wheelScrollTimer.setInterval(10);
+                m_wheelScrollTimer.start();
+            }
+            onWheelScrollTimeout();
+        }
+        else
+        {
+            QPoint offset = proxy->scrollByPixels(scrollByPixels);
+
+            if (offset.y() == 0 && scrollByPixels.y() != 0 && proxy->isBlockMode())
+            {
+                // We must move to another block (we are in block mode)
+                bool up = scrollByPixels.y() > 0;
+
+                QScrollBar* verticalScrollbar = m_widget->getVerticalScrollbar();
+                const int newValue = verticalScrollbar->value() + (up ? -1 : 1);
+
+                if (newValue >= verticalScrollbar->minimum() && newValue <= verticalScrollbar->maximum())
+                {
+                    verticalScrollbar->setValue(newValue);
+                    proxy->scrollByPixels(QPoint(0, up ? std::numeric_limits<int>::min() : std::numeric_limits<int>::max()));
+                }
             }
         }
     }

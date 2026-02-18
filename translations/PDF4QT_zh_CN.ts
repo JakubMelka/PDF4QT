@@ -5730,12 +5730,13 @@
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="882"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="948"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1043"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1247"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1254"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1325"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1332"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1074"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1261"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1268"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1339"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1346"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1353"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1360"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1367"/>
         <source>Enable</source>
         <translation>启用</translation>
     </message>
@@ -6151,6 +6152,11 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1057"/>
+        <source>Smooth mouse wheel scrolling</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="976"/>
         <source>Magnifier size</source>
         <translation>缩放时使用逻辑像素</translation>
@@ -6181,12 +6187,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>开发者模式</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1057"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1064"/>
         <source>Language</source>
         <translation>语言</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1069"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1083"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6209,42 +6215,42 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;By specifying the &lt;span style=&quot; font-weight:600;&quot;&gt;撤消/重做&lt;/span&gt; 步骤数，您可以控制文档编辑期间可用的撤消/重做步骤数。将最大撤消步骤数设置为零将禁用撤消/重做功能。您还可以设置非零撤消步骤数和零重做步骤数，这将使撤消操作可用，而重做操作禁用。更改针对内存使用进行了优化，因此每个撤消/重做步骤都会与其他步骤共享未修改的对象。这意味着，粗略地说，对 50 MB 的文档进行 10 次修改可能会消耗大约 51 MB 的内存。实际内存使用量取决于更改的程度，但通常很小，因为更改通常只影响少量对象（例如，编辑表单字段或修改注释）。 &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1104"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1118"/>
         <source>Speech Settings</source>
         <translation>语音识别设置</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1112"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1126"/>
         <source>Voice</source>
         <translation>语音</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1119"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1133"/>
         <source>Pitch</source>
         <translation>音高</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1126"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1140"/>
         <source>Volume</source>
         <translation>音量</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1133"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1147"/>
         <source>Rate</source>
         <translation>速度</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1140"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1154"/>
         <source>Voice synthetiser</source>
         <translation>语音合成器</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1147"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1161"/>
         <source>Locale</source>
         <translation>区域设置</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1192"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1206"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6263,22 +6269,22 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;配置语音设置以启用文本转语音功能来阅读文档。虽然这些设置是文本转语音功能的默认设置，但有些设置可以稍后调整。&apos;音调&apos;设置的范围是 -1.0 到 1.0，默认值为 0.0。同样，&apos;速率&apos;设置的范围是 -1.0 到 1.0，0.0 表示正常的语音流。最后，&apos;音量&apos;可以在 0.0 到 1.0 之间调整。 &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1225"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1239"/>
         <source>Form Settings</source>
         <translation>表单设置</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1233"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1247"/>
         <source>Highlight form fields</source>
         <translation>高亮显示表单字段</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1240"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1254"/>
         <source>Highlight required form fields</source>
         <translation>高亮必填的表单字段</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1263"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1277"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6297,47 +6303,47 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;您可以使用提供的设置自定义表单字段的外观，包括突出显示可编辑字段的选项。您可以单独用红色突出显示必填的表单字段，同时用蓝色突出显示其他字段。 &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1296"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1310"/>
         <source>Digital Signature Verification</source>
         <translation>数字签名验证</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1304"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1318"/>
         <source>Ignore expired certificates</source>
         <translation>忽略过期的证书</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1311"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1325"/>
         <source>Signature verification</source>
         <translation>签名验证</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1318"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1332"/>
         <source>Strict mode</source>
         <translation>严格模式</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1339"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1353"/>
         <source>Use system certificate store</source>
         <translation>使用系统证书存储区</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1369"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1383"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Trusted certificate store&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;受信任的证书存储&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1398"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1412"/>
         <source>Remove</source>
         <translation>移除</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1414"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1428"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;These are the settings for digital signature verification. Digital signatures are verified as strictly as possible to prevent any malicious content or signature manipulation. Verification can also be disabled, if not required. When &lt;span style=&quot; font-weight:600;&quot;&gt;Strict mode&lt;/span&gt; is enabled, every warning is treated as an error. You have the option to ignore the certificate expiration date, but this should only be done if you fully understand the potential risks involved. Verification uses a list of trusted certificates. System certificates can be added to this list, and you can also manage your own list of trusted certificates.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;这些是数字签名验证的设置。 数字签名经过尽可能严格的验证，以防止任何恶意内容或签名操纵。 如果不需要，也可以禁用验证。 当 &lt;span style=&quot; font-weight:600;&quot;&gt;严格模式&lt;/span&gt;被启用, 所有警告均视为错误。您可以选择忽略证书到期日期，但只有在您完全了解相关潜在风险的情况下才应这样做。验证使用受信任证书列表。您可以将系统证书添加到此列表中，也可以管理您自己的受信任证书列表。 &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1443"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1457"/>
         <source>Plugins</source>
         <translation>插件</translation>
     </message>
@@ -14126,74 +14132,74 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>输入密码访问文档内容</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2070"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2071"/>
         <source>Document &apos;%1&apos; was successfully loaded!</source>
         <translation>文档 &apos;%1&apos;已成功加载！</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2076"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2077"/>
         <source>Document read error: %1</source>
         <translation>文档读取错误：%1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2288"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2289"/>
         <source>%1 - %2</source>
         <translation>%1 - %2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2555"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2562"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2557"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2564"/>
         <source>Reset Settings</source>
         <translation>重置设置</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2555"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2557"/>
         <source>Do you wish to restore the default factory settings of the program? All settings changed by the user will be deleted. Application will be closed.</source>
         <translation>您是否要恢复程序的默认出厂设置？用户更改的所有设置都将被删除。应用程序将被关闭。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2562"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2564"/>
         <source>Default factory settings were restored. Application will be now closed.</source>
         <translation>已恢复默认出厂设置。应用程序即将关闭。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2607"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2609"/>
         <source>Plugins</source>
         <translation>插件</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2607"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2609"/>
         <source>Plugin on/off state has been changed. Please restart application to apply settings.</source>
         <translation>插件的开启/关闭状态已更改。请重新启动应用程序以应用设置。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2634"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2706"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2636"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2708"/>
         <source>Select PDF document</source>
         <translation>选取PDF文档</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2634"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2636"/>
         <source>PDF document (*.pdf)</source>
         <translation>PDF文档(*.pdf)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2691"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2693"/>
         <source>Export Bookmarks As</source>
         <translation>导出书签为</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2691"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2693"/>
         <source>JSON (*.json);;All files (*.*)</source>
         <translation>JSON (*.json);;所有文件(*.*)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2706"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2708"/>
         <source>JSON (*.json)</source>
         <translation>JSON (*.json)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2725"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2727"/>
         <source>Rendering of page %1: %2 errors occured.</source>
         <translation>页面 %1 的渲染：发生了 %2 个错误。</translation>
     </message>
@@ -14961,87 +14967,87 @@ Do you want to perform this action?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="687"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
         <source>Type</source>
         <translation>类型</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="687"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
         <source>Certificate</source>
         <translation>证书</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="687"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
         <source>Organization</source>
         <translation>组织</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="687"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
         <source>Valid from</source>
         <translation>有效期自</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="687"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
         <source>Valid to</source>
         <translation>有效期至</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="695"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="700"/>
         <source>User</source>
         <translation>用户</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="699"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="704"/>
         <source>System</source>
         <translation>糸统</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="739"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="744"/>
         <source>Action</source>
         <translation>操作</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="739"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="744"/>
         <source>Shortcut</source>
         <translation>快捷键</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="768"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="773"/>
         <source>Error</source>
         <translation>错误</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="768"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="773"/>
         <source>Shortcut &apos;%1&apos; is invalid for action %2.</source>
         <translation>快捷方式‘%1’对于操作 %2 无效。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="791"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
         <source>Active</source>
         <translation>激活</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="791"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
         <source>Name</source>
         <translation>名称</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="791"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
         <source>Author</source>
         <translation>作者</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="791"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
         <source>Version</source>
         <translation>版本</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="791"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
         <source>License</source>
         <translation>许可证</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="905"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="910"/>
         <source>Select color profile directory</source>
         <translation>选择颜色配置文件目录</translation>
     </message>

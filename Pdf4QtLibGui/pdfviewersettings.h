@@ -121,6 +121,9 @@ public:
         ColorScheme m_colorScheme;
         SidebarButtonIconSize m_sidebarButtonIconSize;
 
+        // UI scrolling settings
+        bool m_smoothWheelScrolling;
+
         // Language
         pdf::PDFApplicationTranslator::ELanguage m_language;
     };

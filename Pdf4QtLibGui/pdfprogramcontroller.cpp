@@ -1855,6 +1855,7 @@ void PDFProgramController::onViewerSettingsChanged()
 {
     m_pdfWidget->updateRenderer(m_settings->getRendererEngine());
     m_pdfWidget->updateCacheLimits(m_settings->getCompiledPageCacheLimit() * 1024, m_settings->getThumbnailsCacheLimit(), m_settings->getFontCacheLimit(), m_settings->getInstancedFontCacheLimit());
+    m_pdfWidget->setSmoothWheelScrolling(m_settings->getSettings().m_smoothWheelScrolling);
     m_pdfWidget->getDrawWidgetProxy()->setFeatures(m_settings->getFeatures());
     m_pdfWidget->getDrawWidgetProxy()->setPreferredMeshResolutionRatio(m_settings->getPreferredMeshResolutionRatio());
     m_pdfWidget->getDrawWidgetProxy()->setMinimalMeshResolutionRatio(m_settings->getMinimalMeshResolutionRatio());
@@ -2355,6 +2356,7 @@ void PDFProgramController::enterFullscreenMode()
                                            m_settings->getThumbnailsCacheLimit(),
                                            m_settings->getFontCacheLimit(),
                                            m_settings->getInstancedFontCacheLimit());
+    fullscreenPdfWidget->setSmoothWheelScrolling(m_settings->getSettings().m_smoothWheelScrolling);
     fullscreenPdfWidget->getDrawWidgetProxy()->setProgress(m_progress);
     fullscreenPdfWidget->getDrawWidgetProxy()->setFeatures(m_settings->getFeatures());
     fullscreenPdfWidget->getDrawWidgetProxy()->setPreferredMeshResolutionRatio(m_settings->getPreferredMeshResolutionRatio());

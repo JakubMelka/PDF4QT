@@ -335,6 +335,7 @@ void PDFViewerSettingsDialog::loadData()
     ui->logicalPixelZoomCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::LogicalSizeZooming));
     ui->colorSchemeCombo->setCurrentIndex(ui->colorSchemeCombo->findData(static_cast<int>(m_settings.m_colorScheme)));
     ui->sidebarButtonIconSizeComboBox->setCurrentIndex(ui->sidebarButtonIconSizeComboBox->findData(static_cast<int>(m_settings.m_sidebarButtonIconSize)));
+    ui->smoothMiddleMouseScrollingCheckBox->setChecked(m_settings.m_smoothWheelScrolling);
     ui->languageCombo->setCurrentIndex(ui->languageCombo->findData(static_cast<int>(m_settings.m_language)));
 
     // CMS
@@ -648,6 +649,10 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->logicalPixelZoomCheckBox)
     {
         m_settings.m_features.setFlag(pdf::PDFRenderer::LogicalSizeZooming, ui->logicalPixelZoomCheckBox->isChecked());
+    }
+    else if (sender == ui->smoothMiddleMouseScrollingCheckBox)
+    {
+        m_settings.m_smoothWheelScrolling = ui->smoothMiddleMouseScrollingCheckBox->isChecked();
     }
     else if (sender == ui->signatureVerificationEnableCheckBox)
     {

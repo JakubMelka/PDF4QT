@@ -1051,6 +1051,13 @@ li.checked::marker { content: &quot;\2612&quot;; }
                 </property>
                </widget>
               </item>
+              <item row="10" column="0">
+               <widget class="QLabel" name="smoothMiddleMouseScrollingLabel">
+                <property name="text">
+                 <string>Smooth mouse wheel scrolling</string>
+                </property>
+               </widget>
+              </item>
               <item row="0" column="0">
                <widget class="QLabel" name="languageLabel">
                 <property name="text">
@@ -1060,6 +1067,13 @@ li.checked::marker { content: &quot;\2612&quot;; }
               </item>
               <item row="0" column="1">
                <widget class="QComboBox" name="languageCombo"/>
+              </item>
+              <item row="10" column="1">
+               <widget class="QCheckBox" name="smoothMiddleMouseScrollingCheckBox">
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+               </widget>
               </item>
              </layout>
             </item>

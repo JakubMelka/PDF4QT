@@ -66,6 +66,7 @@ void PDFViewerSettings::readSettings(QSettings& settings, const pdf::PDFCMSSetti
     m_settings.m_maximumUndoSteps = settings.value("maximumUndoSteps", defaultSettings.m_maximumUndoSteps).toInt();
     m_settings.m_maximumRedoSteps = settings.value("maximumRedoSteps", defaultSettings.m_maximumRedoSteps).toInt();
     m_settings.m_sidebarButtonIconSize = static_cast<SidebarButtonIconSize>(settings.value("sidebarButtonIconSize", int(defaultSettings.m_sidebarButtonIconSize)).toInt());
+    m_settings.m_smoothWheelScrolling = settings.value("smoothWheelScrolling", defaultSettings.m_smoothWheelScrolling).toBool();
     settings.endGroup();
 
     settings.beginGroup("ColorManagementSystemSettings");
@@ -147,6 +148,7 @@ void PDFViewerSettings::writeSettings(QSettings& settings)
     settings.setValue("maximumUndoSteps", m_settings.m_maximumUndoSteps);
     settings.setValue("maximumRedoSteps", m_settings.m_maximumRedoSteps);
     settings.setValue("sidebarButtonIconSize", int(m_settings.m_sidebarButtonIconSize));
+    settings.setValue("smoothWheelScrolling", m_settings.m_smoothWheelScrolling);
     settings.endGroup();
 
     settings.beginGroup("ColorManagementSystemSettings");
@@ -325,6 +327,7 @@ PDFViewerSettings::Settings::Settings() :
     m_autoGenerateBookmarks(true),
     m_colorScheme(AutoScheme),
     m_sidebarButtonIconSize(SidebarButtonIconSizeLarge),
+    m_smoothWheelScrolling(true),
     m_language(pdf::PDFApplicationTranslator::E_LANGUAGE_AUTOMATIC_SELECTION)
 {
 

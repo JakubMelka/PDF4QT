@@ -92,6 +92,11 @@ public:
     /// \param instancedFontCacheLimit Instanced font cache limit [-]
     void updateCacheLimits(int compiledPageCacheLimit, int thumbnailsCacheLimit, int fontCacheLimit, int instancedFontCacheLimit);
 
+    /// Enables/disables smooth scrolling animation for mouse wheel input.
+    /// When enabled, wheel deltas are applied gradually over time.
+    /// \param enabled True to enable smooth wheel scrolling, false for immediate scrolling
+    void setSmoothWheelScrolling(bool enabled);
+
     const PDFCMSManager* getCMSManager() const { return m_cmsManager; }
     PDFToolManager* getToolManager() const { return m_toolManager; }
     PDFWidgetAnnotationManager* getAnnotationManager() const { return m_annotationManager; }
@@ -149,6 +154,10 @@ public:
     explicit PDFDrawWidget(PDFWidget* widget, QWidget* parent);
     virtual ~PDFDrawWidget() override = default;
 
+    /// Enables/disables smooth scrolling animation for mouse wheel input.
+    /// \param enabled True to enable smooth wheel scrolling, false for immediate scrolling
+    void setSmoothWheelScrolling(bool enabled);
+
     /// Returns page indices, which are currently displayed in the widget
     virtual std::vector<PDFInteger> getCurrentPages() const override;
 
@@ -176,6 +185,7 @@ protected:
 private:
     void updateCursor();
     void onAutoScrollTimeout();
+    void onWheelScrollTimeout();
 
     template<typename Event, void(IDrawWidgetInputInterface::* Function)(QWidget*, Event*)>
     bool processEvent(Event* event);
@@ -198,7 +208,10 @@ private:
     QTimer m_autoScrollTimer;
     QPointF m_autoScrollOffset;
     QElapsedTimer m_autoScrollLastElapsedTimer;
+    QTimer m_wheelScrollTimer;
+    QPointF m_wheelScrollPendingOffset;
     QImage m_blend2DframeBuffer;
+    bool m_smoothWheelScrolling = true;
 };
 
 }   // namespace pdf
