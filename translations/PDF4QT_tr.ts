@@ -10050,36 +10050,36 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>Hata</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="956"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="980"/>
         <source>Transformation between blending color space failed.</source>
         <translation>Karışım renk uzayı arasındaki dönüşüm başarısız oldu.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1201"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1225"/>
         <source>Invalid clear color - process color %1 was not found in clear color.</source>
         <translation>Geçersiz açık renk - %1 işlem rengi açık renkte bulunamadı.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1210"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1234"/>
         <source>More colors in clear color (%1) than process color channel count (%2).</source>
         <translation>Net renkte (%1) proses renk kanalı sayısından (%2) daha fazla renk var.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1380"/>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1396"/>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1404"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1451"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1467"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1475"/>
         <source>Transformation of spot color to blend color space failed.</source>
         <translation>Spot rengin karışım renk uzayına dönüştürülmesi başarısız oldu.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1428"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1499"/>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="733"/>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="767"/>
         <source>Invalid number bits of image mask (should be 1 bit instead of %1 bits).</source>
         <translation>Görüntü maskesinin geçersiz bit sayısı (%1 bit yerine 1 bit olmalıdır).</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1433"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1504"/>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="716"/>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="741"/>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="772"/>
@@ -10087,39 +10087,39 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>Geçersiz resim boyutu (%1x%2)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1559"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1630"/>
         <source>Invalid image color space.</source>
         <translation>Geçersiz resim renk uzayı.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1576"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1647"/>
         <source>Invalid base color space of indexed color space.</source>
         <translation>Dizinlenmiş renk uzayının geçersiz temel renk uzayı.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1584"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1655"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1922"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1968"/>
         <source>Invalid colors for indexed color space. Color space has %1 colors. Provided color count is %4.</source>
         <translation>Dizinlenmiş renk uzayı için geçersiz renkler. Renk uzayında %1 renk var. Sağlanan renk sayısı %4&apos;tür.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1612"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1683"/>
         <source>Conversion of indexed image to base color space failed.</source>
         <translation>Dizinlenmiş görüntünün temel renk uzayına dönüştürülmesi başarısız oldu.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1674"/>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1918"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1745"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1989"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="496"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2096"/>
         <source>Image masking not implemented!</source>
         <translation>Görüntü maskeleme uygulanmadı!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1689"/>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1751"/>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1844"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1760"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1822"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1915"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="227"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="317"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="426"/>
@@ -10128,9 +10128,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>Renk uzayı için geçersiz renkler. Renk uzayında %1 renk var. Sağlanan renk sayısı %4&apos;tür.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1695"/>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1757"/>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1950"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1766"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1828"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2021"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="233"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="323"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="565"/>
@@ -10138,134 +10138,134 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>Kod çözme dizisinin boyutu geçersiz. Beklenen %1, gerçek %2.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1743"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1814"/>
         <source>Invalid matte color.</source>
         <translation>Geçersiz mat renk.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1851"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1922"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="433"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2035"/>
         <source>Invalid number of color components in color key mask. Expected %1, provided %2.</source>
         <translation>Renk anahtarı maskesinde geçersiz renk bileşeni sayısı. Beklenen %1, sağlanan %2.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1857"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1928"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="439"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2041"/>
         <source>Invalid size of the decoded array. Expected %1, actual %2.</source>
         <translation>Kodu çözülen dizinin boyutu geçersiz. Beklenen %1, gerçek %2.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1931"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2002"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="546"/>
         <source>Soft mask can&apos;t have masking.</source>
         <translation>Yumuşak maske maskeleme yapamaz.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1936"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2007"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="551"/>
         <source>Invalid size of soft mask.</source>
         <translation>Geçersiz yumuşak maske boyutu.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1944"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2015"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="559"/>
         <source>Soft mask should have only 1 color component (alpha) instead of %1.</source>
         <translation>Yumuşak maske %1 yerine yalnızca 1 renk bileşenine (alfa) sahip olmalıdır.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2015"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2086"/>
         <source>Invalind soft mask.</source>
         <translation>Geçersiz yazılım maskesi.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2028"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2099"/>
         <source>Invalid blend color space of soft mask definition.</source>
         <translation>Yumuşak maske tanımının geçersiz karışım renk uzayı.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2062"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2133"/>
         <source>Invalid soft mask type.</source>
         <translation>Geçersiz yazılım maskesi türü.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2084"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2155"/>
         <source>Evaulation of soft mask transfer function failed.</source>
         <translation>Yumuşak maske transfer fonksiyonunun hesaplanması başarısız oldu.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2287"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2335"/>
         <source>Cannot create shading sampler.</source>
         <translation>Gölgelendirme örnekleyicisi oluşturulamıyor.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2750"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2778"/>
         <source>Image painting not implemented.</source>
         <translation>Resim boyama uygulanmadı.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2757"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2785"/>
         <source>Mesh painting not implemented.</source>
         <translation>Örgü (Mesh) boyama uygulanmadı.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2912"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2940"/>
         <source>Invalid source ink index %1.</source>
         <translation>Geçersiz kaynak mürekkep dizini %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2919"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2947"/>
         <source>Invalid target ink index %1.</source>
         <translation>Geçersiz hedef mürekkep dizini %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2967"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2995"/>
         <source>Transformation from source color space to target blending color space failed.</source>
         <translation>Kaynak renk uzayından hedef karışım renk uzayına dönüştürme başarısız oldu.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3083"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3111"/>
         <source>Gray</source>
         <translation>Gri</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3100"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3128"/>
         <source>Red</source>
         <translation>Kırmızı</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3111"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3139"/>
         <source>Green</source>
         <translation>Yeşil</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3122"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3150"/>
         <source>Blue</source>
         <translation>Mavi</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3139"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3167"/>
         <source>Cyan</source>
         <translation>Camgöbeği</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3150"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3178"/>
         <source>Magenta</source>
         <translation>Macenta (Fuşya)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3161"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3189"/>
         <source>Yellow</source>
         <translation>Sarı</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3172"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3200"/>
         <source>Black</source>
         <translation>Siyah</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3188"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3216"/>
         <source>Process Generic%1</source>
         <translation>Genel Süreç%1</translation>
     </message>
