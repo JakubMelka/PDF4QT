@@ -978,6 +978,7 @@ void PDFFloatBitmapWithColorSpace::convertToColorSpace(const PDFCMS* cms,
     if (!PDFAbstractColorSpace::transform(m_colorSpace.data(), targetColorSpace.data(), cms, intent, sourceProcessColors.getPixels(), targetProcessColors.getPixels(), reporter))
     {
         reporter->reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Transformation between blending color space failed."));
+        return;
     }
 
     PDFFloatBitmapWithColorSpace temporary(getWidth(), getHeight(), newFormat, targetColorSpace);
@@ -1449,6 +1450,7 @@ void PDFTransparencyRenderer::collapseSpotColorsToDeviceColors(PDFFloatBitmapWit
                 if (!PDFAbstractColorSpace::transform(spotColor->colorSpace.data(), bitmap.getColorSpace().data(), getCMS(), getGraphicState()->getRenderingIntent(), spotColorBitmap.getPixels(), processColorBitmap.getPixels(), this))
                 {
                     reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Transformation of spot color to blend color space failed."));
+                    continue;
                 }
 
                 bitmap.blendConvertedSpots(processColorBitmap);
@@ -1465,6 +1467,7 @@ void PDFTransparencyRenderer::collapseSpotColorsToDeviceColors(PDFFloatBitmapWit
                 if (!PDFAbstractColorSpace::transform(spotColor->colorSpace.data(), bitmap.getColorSpace().data(), getCMS(), getGraphicState()->getRenderingIntent(), deviceNBitmap.getPixels(), processColorBitmap.getPixels(), this))
                 {
                     reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Transformation of spot color to blend color space failed."));
+                    continue;
                 }
 
                 bitmap.blendConvertedSpots(processColorBitmap);
@@ -2993,6 +2996,58 @@ PDFTransparencyRenderer::PDFMappedColor PDFTransparencyRenderer::createMappedCol
         if (!PDFAbstractColorSpace::transform(sourceColorSpace, targetColorSpace, getCMS(), getGraphicState()->getRenderingIntent(), sourceColorBuffer, targetColorBuffer, this))
         {
             reportRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Transformation from source color space to target blending color space failed."));
+
+            // Last-resort conversion via QColor avoids silently using zero-initialized color
+            // (e.g. CMYK zeros == white), which can visibly flip dark colors.
+            const QColor sourceQtColor = sourceColorSpace->getColor(sourceColor, getCMS(), getGraphicState()->getRenderingIntent(), this, true);
+            if (sourceQtColor.isValid())
+            {
+                switch (targetColorVector.size())
+                {
+                    case 1:
+                    {
+                        const QColor rgbColor = sourceQtColor.toRgb();
+                        targetColorVector[0] = qBound<PDFColorComponent>(0.0f, rgbColor.lightnessF(), 1.0f);
+                        break;
+                    }
+
+                    case 3:
+                    {
+                        const QColor rgbColor = sourceQtColor.toRgb();
+                        targetColorVector[0] = qBound<PDFColorComponent>(0.0f, rgbColor.redF(), 1.0f);
+                        targetColorVector[1] = qBound<PDFColorComponent>(0.0f, rgbColor.greenF(), 1.0f);
+                        targetColorVector[2] = qBound<PDFColorComponent>(0.0f, rgbColor.blueF(), 1.0f);
+                        break;
+                    }
+
+                    case 4:
+                    {
+                        const QColor cmykColor = sourceQtColor.toCmyk();
+                        targetColorVector[0] = qBound<PDFColorComponent>(0.0f, cmykColor.cyanF(), 1.0f);
+                        targetColorVector[1] = qBound<PDFColorComponent>(0.0f, cmykColor.magentaF(), 1.0f);
+                        targetColorVector[2] = qBound<PDFColorComponent>(0.0f, cmykColor.yellowF(), 1.0f);
+                        targetColorVector[3] = qBound<PDFColorComponent>(0.0f, cmykColor.blackF(), 1.0f);
+                        break;
+                    }
+
+                    default:
+                        break;
+                }
+            }
+            else if (sourceColor.size() == targetColorVector.size())
+            {
+                // If direct transform fails and QColor conversion is unavailable,
+                // at least preserve component values when component counts match.
+                for (size_t i = 0; i < sourceColor.size(); ++i)
+                {
+                    targetColorVector[i] = qBound<PDFColorComponent>(0.0f, sourceColor[i], 1.0f);
+                }
+            }
+        }
+
+        for (PDFColorComponent& component : targetColorBuffer)
+        {
+            component = qBound<PDFColorComponent>(0.0f, component, 1.0f);
         }
 
         PDFColor adjustedSourceColor;

@@ -10054,31 +10054,31 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>혼합 색상 공간 간 변환에 실패했습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1225"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1226"/>
         <source>Invalid clear color - process color %1 was not found in clear color.</source>
         <translation>잘못된 클리어 컬러 - 프로세스 컬러 %1이 클리어 컬러에서 발견되지 않았습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1234"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1235"/>
         <source>More colors in clear color (%1) than process color channel count (%2).</source>
         <translation>프로세스 색상 채널 수(%2)보다 클리어 컬러(%1)의 색상이 더 많습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1451"/>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1467"/>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1475"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1452"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1469"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1478"/>
         <source>Transformation of spot color to blend color space failed.</source>
         <translation>별색을 혼합 색상 공간으로 변환하는 데 실패했습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1499"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1502"/>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="733"/>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="767"/>
         <source>Invalid number bits of image mask (should be 1 bit instead of %1 bits).</source>
         <translation>이미지 마스크의 숫자 비트가 잘못되었습니다(%1 비트 대신 1비트여야 함).</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1504"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1507"/>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="716"/>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="741"/>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="772"/>
@@ -10086,50 +10086,50 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>잘못된 이미지 크기(%1x%2)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1630"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1633"/>
         <source>Invalid image color space.</source>
         <translation>이미지 색상 공간이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1647"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1650"/>
         <source>Invalid base color space of indexed color space.</source>
         <translation>인덱스 색상 공간의 기본 색상 공간이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1655"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1922"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1968"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1658"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2095"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2141"/>
         <source>Invalid colors for indexed color space. Color space has %1 colors. Provided color count is %4.</source>
         <translation>인덱스 색상 공간에 대한 색상이 잘못되었습니다. 색상 공간에는 %1 색상이 있습니다. 제공된 색상 수는 %4입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1683"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1686"/>
         <source>Conversion of indexed image to base color space failed.</source>
         <translation>인덱스 이미지를 기본 색상 공간으로 변환하지 못했습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1745"/>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1989"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1748"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1992"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="496"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2096"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2269"/>
         <source>Image masking not implemented!</source>
         <translation>이미지 마스킹이 구현되지 않았습니다!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1760"/>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1822"/>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1915"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1763"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1825"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1918"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="227"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="317"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="426"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2028"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2201"/>
         <source>Invalid colors for color space. Color space has %1 colors. Provided color count is %4.</source>
         <translation>색상 공간에 대한 색상이 잘못되었습니다. 색상 공간에는 %1 색상이 있습니다. 제공된 색상 수는 %4입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1766"/>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1828"/>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2021"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1769"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1831"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2024"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="233"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="323"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="565"/>
@@ -10137,134 +10137,134 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>디코드 배열의 크기가 잘못되었습니다. 예상되는 %1, 실제 %2.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1814"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1817"/>
         <source>Invalid matte color.</source>
         <translation>매트 색상이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1922"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1925"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="433"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2035"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2208"/>
         <source>Invalid number of color components in color key mask. Expected %1, provided %2.</source>
         <translation>색상 키 마스크의 색상 구성 요소 수가 잘못되었습니다. %1이 필요하고 %2이 제공되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1928"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1931"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="439"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2041"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2214"/>
         <source>Invalid size of the decoded array. Expected %1, actual %2.</source>
         <translation>디코딩된 배열의 크기가 잘못되었습니다. 예상되는 %1, 실제 %2.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2002"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2005"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="546"/>
         <source>Soft mask can&apos;t have masking.</source>
         <translation>소프트 마스크는 마스킹을 가질 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2007"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2010"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="551"/>
         <source>Invalid size of soft mask.</source>
         <translation>소프트 마스크의 크기가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2015"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2018"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="559"/>
         <source>Soft mask should have only 1 color component (alpha) instead of %1.</source>
         <translation>소프트 마스크에는 %1 대신 1개의 색상 구성 요소(알파)만 있어야 합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2086"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2089"/>
         <source>Invalind soft mask.</source>
         <translation>소프트 마스크가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2099"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2102"/>
         <source>Invalid blend color space of soft mask definition.</source>
         <translation>소프트 마스크 정의의 혼합 색상 공간이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2133"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2136"/>
         <source>Invalid soft mask type.</source>
         <translation>소프트 마스크 유형이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2155"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2158"/>
         <source>Evaulation of soft mask transfer function failed.</source>
         <translation>소프트 마스크 전송 기능 평가에 실패했습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2335"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2338"/>
         <source>Cannot create shading sampler.</source>
         <translation>셰이딩 샘플러를 생성할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2778"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2781"/>
         <source>Image painting not implemented.</source>
         <translation>이미지 페인팅이 구현되지 않았습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2785"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2788"/>
         <source>Mesh painting not implemented.</source>
         <translation>메시 페인팅이 구현되지 않았습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2940"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2943"/>
         <source>Invalid source ink index %1.</source>
         <translation>잘못된 소스 잉크 인덱스 %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2947"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2950"/>
         <source>Invalid target ink index %1.</source>
         <translation>잘못된 대상 잉크 인덱스 %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2995"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2998"/>
         <source>Transformation from source color space to target blending color space failed.</source>
         <translation>소스 색상 공간에서 대상 혼합 색상 공간으로 변환하지 못했습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3111"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3166"/>
         <source>Gray</source>
         <translation>회색</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3128"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3183"/>
         <source>Red</source>
         <translation>빨간색</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3139"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3194"/>
         <source>Green</source>
         <translation>녹색</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3150"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3205"/>
         <source>Blue</source>
         <translation>파란색</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3167"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3222"/>
         <source>Cyan</source>
         <translation>청록색</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3178"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3233"/>
         <source>Magenta</source>
         <translation>마젠타</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3189"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3244"/>
         <source>Yellow</source>
         <translation>노란색</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3200"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3255"/>
         <source>Black</source>
         <translation>검정색</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3216"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3271"/>
         <source>Process Generic%1</source>
         <translation>프로세스 일반%1</translation>
     </message>
@@ -10552,82 +10552,92 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>색상 구성 요소 수가 잘못되었습니다. 예상 숫자는 %1이고 실제 숫자는 %2입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1070"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1170"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1145"/>
+        <source>Transformation between color spaces failed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1152"/>
+        <source>CMS transformation between color spaces failed. Simplified fallback conversion was used.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1243"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1343"/>
         <source>Can&apos;t load color space, because color space structure is too complex.</source>
         <translation>색상 공간 구조가 너무 복잡하기 때문에 색상 공간을 로드할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1159"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1224"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1332"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1397"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2414"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2437"/>
         <source>Invalid color space.</source>
         <translation>잘못된 색상 공간입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1783"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1956"/>
         <source>Can&apos;t determine alternate color space for ICC based profile. Number of components is %1.</source>
         <translation>ICC 기반 프로필에 대한 대체 색상 공간을 결정할 수 없습니다. 구성 요소 수는 %1입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1791"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1964"/>
         <source>Can&apos;t determine alternate color space for ICC based profile.</source>
         <translation>ICC 기반 프로필에 대한 대체 색상 공간을 결정할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1802"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1975"/>
         <source>Too much color components for ICC based profile.</source>
         <translation>ICC 기반 프로필에 대한 색상 구성 요소가 너무 많습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1935"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1984"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2108"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2157"/>
         <source>Operation cancelled!</source>
         <translation>작업이 취소되었습니다!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2116"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2289"/>
         <source>Can&apos;t determine base color space for indexed color space.</source>
         <translation>인덱스 색상 공간에 대한 기본 색상 공간을 결정할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2142"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2315"/>
         <source>Invalid colors for indexed color space. Color space has %1 colors, %2 color components and must have %3 size. Provided size is %4.</source>
         <translation>인덱스 색상 공간에 대한 색상이 잘못되었습니다. 색상 공간에는 %1 색상, %2 색상 구성요소가 있으며 %3 크기가 있어야 합니다. 제공되는 크기는 %4입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2326"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2499"/>
         <source>Can&apos;t determine color name for separation color space.</source>
         <translation>분리 색상 공간에 대한 색상 이름을 결정할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2334"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2507"/>
         <source>Can&apos;t determine alternate color space for separation color space.</source>
         <translation>분리 색상 공간에 대한 대체 색상 공간을 결정할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2340"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2513"/>
         <source>Can&apos;t determine tint transform for separation color space.</source>
         <translation>분리 색상 공간에 대한 색조 변환을 결정할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2392"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2565"/>
         <source>Pattern doesn&apos;t have defined uniform color.</source>
         <translation>패턴에 균일한 색상이 정의되어 있지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2556"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2729"/>
         <source>Invalid colorants for DeviceN color space.</source>
         <translation>DeviceN 색상 공간에 대한 착색제가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2570"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2743"/>
         <source>Can&apos;t determine alternate color space for DeviceN color space.</source>
         <translation>DeviceN 색상 공간에 대한 대체 색상 공간을 결정할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2576"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2749"/>
         <source>Can&apos;t determine tint transform for DeviceN color space.</source>
         <translation>DeviceN 색상 공간에 대한 색조 변환을 확인할 수 없습니다.</translation>
     </message>
