@@ -7340,44 +7340,49 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFDocumentSanitizer</name>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="151"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="156"/>
         <source>Document info was removed.</source>
         <translation>문서 정보가 제거되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="169"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="174"/>
         <source>Metadata streams removed: %1</source>
         <translation>제거된 메타데이터 스트림: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="184"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="189"/>
         <source>Outline was removed.</source>
         <translation>개요가 제거되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="194"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="199"/>
         <source>File attachments removed: %1.</source>
         <translation>제거된 첨부 파일: %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="222"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="227"/>
         <source>Embedded files were removed.</source>
         <translation>포함된 파일이 제거되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="254"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="259"/>
         <source>Search index was removed.</source>
         <translation>검색 색인이 제거되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="265"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="270"/>
         <source>Markup annotations removed: %1.</source>
         <translation>마크업 주석 제거됨: %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="293"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="298"/>
         <source>Page thumbnails removed: %1.</source>
         <translation>페이지 축소판이 제거됨: %1.</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="321"/>
+        <source>Page labels were removed.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -14279,42 +14284,47 @@ Page %2: %3</source>
         <translation>페이지 축소판 제거</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="66"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="65"/>
+        <source>Remove page labels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="67"/>
         <source>Sanitize</source>
         <translation>삭제</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="118"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="119"/>
         <source>Sanitization started!</source>
         <translation>정리가 시작되었습니다!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="129"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="130"/>
         <source>Sanitization finished!</source>
         <translation>정리가 완료되었습니다!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="139"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="140"/>
         <source>Sanitized in %1 msecs</source>
         <translation>%1밀리초 단위로 삭제됨</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="143"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="144"/>
         <source>Bytes before sanitization: %1</source>
         <translation>삭제 전 바이트: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="144"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="145"/>
         <source>Bytes after sanitization:  %1</source>
         <translation>정리 후 바이트: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="145"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="146"/>
         <source>Bytes saved by sanitization: %1</source>
         <translation>정리를 통해 절약된 바이트: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="153"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="154"/>
         <source>Compression ratio: %1 %</source>
         <translation>압축 비율: %1 %</translation>
     </message>

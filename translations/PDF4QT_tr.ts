@@ -7341,44 +7341,49 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFDocumentSanitizer</name>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="151"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="156"/>
         <source>Document info was removed.</source>
         <translation>Belge bilgileri kaldırıldı.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="169"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="174"/>
         <source>Metadata streams removed: %1</source>
         <translation>Kaldırılan meta veri akışları: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="184"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="189"/>
         <source>Outline was removed.</source>
         <translation>Anahat kaldırıldı.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="194"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="199"/>
         <source>File attachments removed: %1.</source>
         <translation>Dosya ekleri kaldırıldı: %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="222"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="227"/>
         <source>Embedded files were removed.</source>
         <translation>Gömülü dosyalar kaldırıldı.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="254"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="259"/>
         <source>Search index was removed.</source>
         <translation>Arama dizinini kaldırıldı.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="265"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="270"/>
         <source>Markup annotations removed: %1.</source>
         <translation>İşaretleme açıklamaları kaldırıldı: %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="293"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="298"/>
         <source>Page thumbnails removed: %1.</source>
         <translation>Sayfa küçük resimleri kaldırıldı: %1.</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="321"/>
+        <source>Page labels were removed.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -14280,42 +14285,47 @@ Sayfa %2: %3</translation>
         <translation>Sayfa küçük resimlerini kaldır</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="66"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="65"/>
+        <source>Remove page labels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="67"/>
         <source>Sanitize</source>
         <translation>Sterilize et</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="118"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="119"/>
         <source>Sanitization started!</source>
         <translation>Sterilizasyon başladı!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="129"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="130"/>
         <source>Sanitization finished!</source>
         <translation>Sterilizasyon tamamlandı!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="139"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="140"/>
         <source>Sanitized in %1 msecs</source>
         <translation>%1 milisaniye içinde sterilize edildi</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="143"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="144"/>
         <source>Bytes before sanitization: %1</source>
         <translation>Sterilizasyon öncesi bayt sayısı: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="144"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="145"/>
         <source>Bytes after sanitization:  %1</source>
         <translation>Sterilizasyon sonrası bayt sayısı: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="145"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="146"/>
         <source>Bytes saved by sanitization: %1</source>
         <translation>Sterilizasyon ile tasarruf edilen bayt sayısı: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="153"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="154"/>
         <source>Compression ratio: %1 %</source>
         <translation>Sıkıştırma oranı: %1 %</translation>
     </message>

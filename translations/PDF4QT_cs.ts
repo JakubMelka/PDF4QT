@@ -7340,44 +7340,49 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFDocumentSanitizer</name>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="151"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="156"/>
         <source>Document info was removed.</source>
         <translation>Informace o dokumentu byly odstraněny.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="169"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="174"/>
         <source>Metadata streams removed: %1</source>
         <translation>Odstraněné streamy metadat: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="184"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="189"/>
         <source>Outline was removed.</source>
         <translation>Obrys byl odstraněn.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="194"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="199"/>
         <source>File attachments removed: %1.</source>
         <translation>Odstraněné přílohy souborů: %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="222"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="227"/>
         <source>Embedded files were removed.</source>
         <translation>Vložené soubory byly odstraněny.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="254"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="259"/>
         <source>Search index was removed.</source>
         <translation>Index vyhledávání byl odstraněn.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="265"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="270"/>
         <source>Markup annotations removed: %1.</source>
         <translation>Odstraněné anotace značek: %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="293"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="298"/>
         <source>Page thumbnails removed: %1.</source>
         <translation>Odstraněné miniatury stránek: %1.</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="321"/>
+        <source>Page labels were removed.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -14279,42 +14284,47 @@ Stránka %2: %3</translation>
         <translation>Odebrat miniatury stránek</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="66"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="65"/>
+        <source>Remove page labels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="67"/>
         <source>Sanitize</source>
         <translation>Vyčištění</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="118"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="119"/>
         <source>Sanitization started!</source>
         <translation>Vyčištění zahájeno!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="129"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="130"/>
         <source>Sanitization finished!</source>
         <translation>Vyčištění dokončeno!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="139"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="140"/>
         <source>Sanitized in %1 msecs</source>
         <translation>Vyčištěno za %1 ms</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="143"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="144"/>
         <source>Bytes before sanitization: %1</source>
         <translation>Bajty před vyčištěním: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="144"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="145"/>
         <source>Bytes after sanitization:  %1</source>
         <translation>Bajty po vyčištění: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="145"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="146"/>
         <source>Bytes saved by sanitization: %1</source>
         <translation>Bajty ušetřené vyčištěním: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="153"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="154"/>
         <source>Compression ratio: %1 %</source>
         <translation>Kompresní poměr: %1 %</translation>
     </message>

@@ -62,6 +62,7 @@ PDFSanitizeDocumentDialog::PDFSanitizeDocumentDialog(const pdf::PDFDocument* doc
     addCheckBox(tr("Remove embedded search index"), pdf::PDFDocumentSanitizer::EmbeddedSearchIndex);
     addCheckBox(tr("Remove comments and other markup annotations"), pdf::PDFDocumentSanitizer::MarkupAnnotations);
     addCheckBox(tr("Remove page thumbnails"), pdf::PDFDocumentSanitizer::PageThumbnails);
+    addCheckBox(tr("Remove page labels"), pdf::PDFDocumentSanitizer::PageLabels);
 
     m_sanitizeButton = ui->buttonBox->addButton(tr("Sanitize"), QDialogButtonBox::ActionRole);
 
