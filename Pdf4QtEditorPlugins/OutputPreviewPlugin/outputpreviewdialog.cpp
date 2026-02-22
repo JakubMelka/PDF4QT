@@ -310,7 +310,7 @@ void OutputPreviewDialog::updatePageImage()
     }
 
     // Paper color
-    if (ui->simulatePaperColorCheckBox)
+    if (ui->simulatePaperColorCheckBox->isChecked())
     {
         paperColor[0] = ui->redPaperColorEdit->value();
         paperColor[1] = ui->greenPaperColorEdit->value();

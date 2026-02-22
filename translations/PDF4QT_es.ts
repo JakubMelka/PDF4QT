@@ -10049,36 +10049,36 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
         <translation>Error</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="956"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="980"/>
         <source>Transformation between blending color space failed.</source>
         <translation>Error en la transformación entre el espacio de color de fusión.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1201"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1226"/>
         <source>Invalid clear color - process color %1 was not found in clear color.</source>
         <translation>Color claro no válido: el color de proceso %1 no se encontró en color claro.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1210"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1235"/>
         <source>More colors in clear color (%1) than process color channel count (%2).</source>
         <translation>Más colores en color claro (%1) que el número de canales de color de proceso (%2).</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1380"/>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1396"/>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1404"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1452"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1469"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1478"/>
         <source>Transformation of spot color to blend color space failed.</source>
         <translation>falló la transformación del color directo al espacio de color combinado.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1428"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1502"/>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="733"/>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="767"/>
         <source>Invalid number bits of image mask (should be 1 bit instead of %1 bits).</source>
         <translation>número de bits no válido de la máscara de imagen (debe ser 1 bit en lugar de %1 bits).</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1433"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1507"/>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="716"/>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="741"/>
         <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="772"/>
@@ -10086,50 +10086,50 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
         <translation>Tamaño de imagen no válido (%1x%2)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1559"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1633"/>
         <source>Invalid image color space.</source>
         <translation>Espacio de color de imagen no válido.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1576"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1650"/>
         <source>Invalid base color space of indexed color space.</source>
         <translation>espacio de color base no válido del espacio de color indexado.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1584"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1922"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1968"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1658"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2095"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2141"/>
         <source>Invalid colors for indexed color space. Color space has %1 colors. Provided color count is %4.</source>
         <translation>colores no válidos para el espacio de color indexado. El espacio de color tiene colores %1. El recuento de colores proporcionado es %4.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1612"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1686"/>
         <source>Conversion of indexed image to base color space failed.</source>
         <translation>falló la conversión de la imagen indexada al espacio de color base.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1674"/>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1918"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1748"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1992"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="496"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2096"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2269"/>
         <source>Image masking not implemented!</source>
         <translation>¡Enmascaramiento de imagen no implementado!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1689"/>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1751"/>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1844"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1763"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1825"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1918"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="227"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="317"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="426"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2028"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2201"/>
         <source>Invalid colors for color space. Color space has %1 colors. Provided color count is %4.</source>
         <translation>colores no válidos para el espacio de color. El espacio de color tiene colores %1. El recuento de colores proporcionado es %4.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1695"/>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1757"/>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1950"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1769"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1831"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2024"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="233"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="323"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="565"/>
@@ -10137,134 +10137,134 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
         <translation>Tamaño no válido de la matriz de decodificación. %1 esperado, %2 real.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1743"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1817"/>
         <source>Invalid matte color.</source>
         <translation>Color mate no válido.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1851"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1925"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="433"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2035"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2208"/>
         <source>Invalid number of color components in color key mask. Expected %1, provided %2.</source>
         <translation>número no válido de componentes de color en la máscara de clave de color. Se esperaba %1, siempre %2.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1857"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1931"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="439"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2041"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2214"/>
         <source>Invalid size of the decoded array. Expected %1, actual %2.</source>
         <translation>Tamaño no válido de la matriz decodificada. %1 esperado, %2 real.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1931"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2005"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="546"/>
         <source>Soft mask can&apos;t have masking.</source>
         <translation>la máscara suave no puede tener enmascaramiento.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1936"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2010"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="551"/>
         <source>Invalid size of soft mask.</source>
         <translation>Tamaño no válido de la máscara suave.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1944"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2018"/>
         <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="559"/>
         <source>Soft mask should have only 1 color component (alpha) instead of %1.</source>
         <translation>la máscara suave debe tener solo un componente de color (alfa) en lugar de %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2015"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2089"/>
         <source>Invalind soft mask.</source>
         <translation>Máscara suave no válida.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2028"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2102"/>
         <source>Invalid blend color space of soft mask definition.</source>
         <translation>espacio de color de mezcla no válido de la definición de máscara suave.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2062"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2136"/>
         <source>Invalid soft mask type.</source>
         <translation>Tipo de máscara suave no válido.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2084"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2158"/>
         <source>Evaulation of soft mask transfer function failed.</source>
         <translation>falló la evaluación de la función de transferencia de máscara suave.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2287"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2338"/>
         <source>Cannot create shading sampler.</source>
         <translation>No se puede crear una muestra de sombreado.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2750"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2781"/>
         <source>Image painting not implemented.</source>
         <translation>Pintura de imágenes no implementada.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2757"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2788"/>
         <source>Mesh painting not implemented.</source>
         <translation>Pintura de malla no implementada.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2912"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2943"/>
         <source>Invalid source ink index %1.</source>
         <translation>índice de tinta de origen no válido %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2919"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2950"/>
         <source>Invalid target ink index %1.</source>
         <translation>índice de tinta de destino no válido %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2967"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2998"/>
         <source>Transformation from source color space to target blending color space failed.</source>
         <translation>falló la transformación del espacio de color de origen al espacio de color de fusión de destino.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3083"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3166"/>
         <source>Gray</source>
         <translation>Gris</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3100"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3183"/>
         <source>Red</source>
         <translation>Roja</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3111"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3194"/>
         <source>Green</source>
         <translation>Verde</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3122"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3205"/>
         <source>Blue</source>
         <translation>Azul</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3139"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3222"/>
         <source>Cyan</source>
         <translation>Cian</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3150"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3233"/>
         <source>Magenta</source>
         <translation>Magenta</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3161"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3244"/>
         <source>Yellow</source>
         <translation>Amarillo</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3172"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3255"/>
         <source>Black</source>
         <translation>Negro</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3188"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3271"/>
         <source>Process Generic%1</source>
         <translation>Proceso genérico%1</translation>
     </message>
@@ -10552,82 +10552,92 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
         <translation>número no válido de componentes de color. El número esperado es %1, el número real es %2.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1070"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1170"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1145"/>
+        <source>Transformation between color spaces failed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1152"/>
+        <source>CMS transformation between color spaces failed. Simplified fallback conversion was used.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1243"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1343"/>
         <source>Can&apos;t load color space, because color space structure is too complex.</source>
         <translation>no se puede cargar el espacio de color porque la estructura del espacio de color es demasiado compleja.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1159"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1224"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1332"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1397"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2414"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2437"/>
         <source>Invalid color space.</source>
         <translation>Espacio de color no válido.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1783"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1956"/>
         <source>Can&apos;t determine alternate color space for ICC based profile. Number of components is %1.</source>
         <translation>no se puede determinar el espacio de color alternativo para el perfil basado en ICC. El número de componentes es %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1791"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1964"/>
         <source>Can&apos;t determine alternate color space for ICC based profile.</source>
         <translation>no se puede determinar el espacio de color alternativo para el perfil basado en ICC.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1802"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1975"/>
         <source>Too much color components for ICC based profile.</source>
         <translation>Demasiados componentes de color para el perfil basado en ICC.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1935"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1984"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2108"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2157"/>
         <source>Operation cancelled!</source>
         <translation>¡Operación cancelada!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2116"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2289"/>
         <source>Can&apos;t determine base color space for indexed color space.</source>
         <translation>no se puede determinar el espacio de color base para el espacio de color indexado.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2142"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2315"/>
         <source>Invalid colors for indexed color space. Color space has %1 colors, %2 color components and must have %3 size. Provided size is %4.</source>
         <translation>colores no válidos para el espacio de color indexado. El espacio de color tiene %1 colores, %2 componentes de color y debe tener un tamaño %3. El tamaño proporcionado es %4.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2326"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2499"/>
         <source>Can&apos;t determine color name for separation color space.</source>
         <translation>no se puede determinar el nombre del color para el espacio de color de separación.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2334"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2507"/>
         <source>Can&apos;t determine alternate color space for separation color space.</source>
         <translation>no se puede determinar un espacio de color alternativo para el espacio de color de separación.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2340"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2513"/>
         <source>Can&apos;t determine tint transform for separation color space.</source>
         <translation>no se puede determinar la transformación de tinte para el espacio de color de separación.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2392"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2565"/>
         <source>Pattern doesn&apos;t have defined uniform color.</source>
         <translation>el patrón no tiene un color uniforme definido.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2556"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2729"/>
         <source>Invalid colorants for DeviceN color space.</source>
         <translation>colorantes no válidos para el espacio de color DeviceN.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2570"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2743"/>
         <source>Can&apos;t determine alternate color space for DeviceN color space.</source>
         <translation>no se puede determinar el espacio de color alternativo para el espacio de color del DispositivoN.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2576"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2749"/>
         <source>Can&apos;t determine tint transform for DeviceN color space.</source>
         <translation>no se puede determinar la transformación de tinte para el espacio de color DeviceN.</translation>
     </message>
