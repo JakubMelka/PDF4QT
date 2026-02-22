@@ -8,6 +8,7 @@ CURRENT:
  - Issue #291: Support for editing XMP metadata or exporting to PDF/UA format
  - Issue #242: Full screen 
  - Issue #136: smooth scrolling of document with mouse middle wheel - flywheel
+ - Issue #18: Performance optimization - OutputPreview Renderer
 
 V: 1.5.3.1 22.1.2026
  - Windows installer fix
