@@ -1621,6 +1621,7 @@ public:
 
 public:
     static QByteArray normalizeFreeTextFontName(QString fontName);
+    static QString decodeFreeTextFontName(QByteArray fontName);
     static QByteArray createFreeTextDefaultAppearance(const PDFFreeTextStyle& style);
     static PDFAnnotationDefaultAppearance getDefaultFreeTextAppearance(const PDFDictionary* dictionary);
     static QColor readColorFromPDFObject(const PDFObjectStorage* storage, PDFObject object, QColor defaultColor = Qt::black);

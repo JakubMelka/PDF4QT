@@ -7516,7 +7516,7 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFEditObjectDialog</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="995"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="1080"/>
         <source>Edit Annotation</source>
         <translation>Editar anotación</translation>
     </message>
@@ -7722,13 +7722,13 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="490"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="860"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="843"/>
         <source>Square</source>
         <translation>Cuadrado</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="491"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="861"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="844"/>
         <source>Circle</source>
         <translation>Círculo</translation>
     </message>
@@ -8036,7 +8036,7 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="573"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="601"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="647"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="859"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="842"/>
         <source>None</source>
         <translation>Ninguna</translation>
     </message>
@@ -8278,52 +8278,52 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
         <translation>Repetir texto superpuesto</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="846"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="829"/>
         <source>Left</source>
         <translation>Izquierda</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="847"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="830"/>
         <source>Center</source>
         <translation>Centro</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="848"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="831"/>
         <source>Right</source>
         <translation>Derecha</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="862"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="845"/>
         <source>Diamond</source>
         <translation>Diamante</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="863"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="846"/>
         <source>Open arrow</source>
         <translation>Flecha abierta</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="864"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="847"/>
         <source>Closed arrow</source>
         <translation>Flecha cerrada</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="865"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="848"/>
         <source>Butt</source>
         <translation>Culata</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="866"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="849"/>
         <source>Reversed open arrow</source>
         <translation>Flecha abierta invertida</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="867"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="850"/>
         <source>Reversed closed arrow</source>
         <translation>Flecha cerrada invertida</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="868"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="851"/>
         <source>Slash</source>
         <translation>Barra diagonal</translation>
     </message>
@@ -8331,7 +8331,7 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFObjectEditorMappedColorAdapter</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="956"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="1041"/>
         <source>custom</source>
         <translation>personalizada</translation>
     </message>
@@ -8339,7 +8339,7 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFObjectEditorWidgetMapper</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="366"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="380"/>
         <source>Rectangle</source>
         <translation>Rectángulo</translation>
     </message>

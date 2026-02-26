@@ -34,6 +34,7 @@
 #include <QLabel>
 #include <QComboBox>
 #include <QLineEdit>
+#include <QFontComboBox>
 #include <QTextBrowser>
 #include <QPushButton>
 #include <QDateTimeEdit>
@@ -344,6 +345,19 @@ void PDFObjectEditorWidgetMapper::createMappedAdapter(QGroupBox* groupBox, QGrid
             break;
         }
 
+        case ObjectEditorAttributeType::Font:
+        {
+            int row = layout->rowCount();
+
+            QLabel* label = new QLabel(groupBox);
+            QFontComboBox* comboBox = new QFontComboBox(groupBox);
+            layout->addWidget(label, row, 0);
+            layout->addWidget(comboBox, row, 1);
+
+            setAdapter(new PDFObjectEditorMappedFontComboBoxAdapter(label, comboBox, m_model, attribute, this));
+            break;
+        }
+
         case ObjectEditorAttributeType::TextBrowser:
         {
             int row = layout->rowCount();
@@ -636,6 +650,55 @@ void PDFObjectEditorMappedLineEditAdapter::update()
     m_lineEdit->setHidden(!isVisible);
     m_lineEdit->setEnabled(enabled);
     m_lineEdit->setReadOnly(readonly);
+}
+
+PDFObjectEditorMappedFontComboBoxAdapter::PDFObjectEditorMappedFontComboBoxAdapter(QLabel* label,
+                                                                                    QFontComboBox* comboBox,
+                                                                                    PDFObjectEditorAbstractModel* model,
+                                                                                    size_t attribute,
+                                                                                    QObject* parent) :
+    BaseClass(model, attribute, parent),
+    m_label(label),
+    m_comboBox(comboBox)
+{
+    initLabel(label);
+    connect(comboBox, &QFontComboBox::currentFontChanged, this, [this, attribute]() { Q_EMIT commitRequested(attribute); });
+}
+
+PDFObject PDFObjectEditorMappedFontComboBoxAdapter::getValue() const
+{
+    PDFObjectFactory factory;
+    factory << m_comboBox->currentFont().family();
+    return factory.takeObject();
+}
+
+void PDFObjectEditorMappedFontComboBoxAdapter::setValue(PDFObject object)
+{
+    QString family;
+    if (object.isString())
+    {
+        family = QString::fromLatin1(object.getString());
+    }
+    else if (m_model->getStorage())
+    {
+        PDFDocumentDataLoaderDecorator loader(m_model->getStorage());
+        family = loader.readTextString(object, QString());
+    }
+    if (!family.isEmpty())
+    {
+        m_comboBox->setCurrentFont(QFont(family));
+    }
+}
+
+void PDFObjectEditorMappedFontComboBoxAdapter::update()
+{
+    const bool enabled = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::HasAttribute);
+    const bool readonly = !m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsAttributeEditable);
+    const bool isVisible = m_model->queryAttribute(m_attribute, PDFObjectEditorAbstractModel::Question::IsVisible);
+
+    m_label->setHidden(!isVisible);
+    m_comboBox->setHidden(!isVisible);
+    m_comboBox->setEnabled(enabled && !readonly);
 }
 
 PDFObjectEditorMappedTextBrowserAdapter::PDFObjectEditorMappedTextBrowserAdapter(QLabel* label,

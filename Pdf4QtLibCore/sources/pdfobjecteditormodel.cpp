@@ -606,7 +606,7 @@ PDFObjectEditorAnnotationsModel::PDFObjectEditorAnnotationsModel(QObject* parent
 
     // Free text annotation
     createQuaddingAttribute("Q", tr("Free text"), tr("Style"), tr("Alignment"), FreeText);
-    m_freeTextFontAttribute = createAttribute(ObjectEditorAttributeType::TextLine, "DA", tr("Free text"), tr("Style"), tr("Font"), PDFObject::createString("Helvetica"), FreeText);
+    m_freeTextFontAttribute = createAttribute(ObjectEditorAttributeType::Font, "DA", tr("Free text"), tr("Style"), tr("Font"), PDFObject::createString("Helvetica"), FreeText);
     m_freeTextFontSizeAttribute = createAttribute(ObjectEditorAttributeType::Double, "DA", tr("Free text"), tr("Style"), tr("Size"), PDFObject::createReal(10.0), FreeText);
     m_attributes.back().minValue = 1.0;
     m_attributes.back().maxValue = 512.0;
@@ -737,16 +737,7 @@ PDFObject PDFObjectEditorAnnotationsModel::getFreeTextDefaultAppearanceAttribute
 
     if (attribute == m_freeTextFontAttribute)
     {
-        QByteArray fontName = appearance.getFontName();
-        if (fontName.startsWith('/'))
-        {
-            fontName.remove(0, 1);
-        }
-        if (fontName.isEmpty())
-        {
-            fontName = "Helvetica";
-        }
-        return PDFObject::createString(fontName);
+        return PDFObject::createString(PDFDocumentBuilder::decodeFreeTextFontName(appearance.getFontName()).toUtf8());
     }
 
     if (attribute == m_freeTextFontSizeAttribute)
@@ -776,15 +767,7 @@ PDFObject PDFObjectEditorAnnotationsModel::writeFreeTextDefaultAppearanceAttribu
     }
     PDFAnnotationDefaultAppearance appearance = PDFDocumentBuilder::getDefaultFreeTextAppearance(dictionary);
 
-    QByteArray fontName = appearance.getFontName();
-    if (fontName.startsWith('/'))
-    {
-        fontName.remove(0, 1);
-    }
-    if (fontName.isEmpty())
-    {
-        fontName = "Helvetica";
-    }
+    QString fontFamily = PDFDocumentBuilder::decodeFreeTextFontName(appearance.getFontName());
 
     PDFReal fontSize = appearance.getFontSize();
     if (fontSize <= 0.0)
@@ -796,7 +779,7 @@ PDFObject PDFObjectEditorAnnotationsModel::writeFreeTextDefaultAppearanceAttribu
 
     if (attribute == m_freeTextFontAttribute)
     {
-        QString newFont = QString::fromLatin1(fontName);
+        QString newFont = fontFamily;
         if (m_storage)
         {
             PDFDocumentDataLoaderDecorator loader(m_storage);
@@ -804,9 +787,9 @@ PDFObject PDFObjectEditorAnnotationsModel::writeFreeTextDefaultAppearanceAttribu
         }
         else if (value.isString())
         {
-            newFont = QString::fromLatin1(value.getString());
+            newFont = QString::fromUtf8(value.getString());
         }
-        fontName = newFont.toLatin1();
+        fontFamily = newFont;
     }
     else if (attribute == m_freeTextFontSizeAttribute)
     {
@@ -831,7 +814,7 @@ PDFObject PDFObjectEditorAnnotationsModel::writeFreeTextDefaultAppearanceAttribu
     }
 
     PDFFreeTextStyle style;
-    style.fontFamily = QString::fromLatin1(fontName);
+    style.fontFamily = fontFamily;
     style.fontSize = fontSize;
     style.textColor = color;
     const QByteArray defaultAppearance = PDFDocumentBuilder::createFreeTextDefaultAppearance(style);

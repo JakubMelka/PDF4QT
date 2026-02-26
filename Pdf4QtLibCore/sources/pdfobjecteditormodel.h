@@ -44,6 +44,7 @@ enum ObjectEditorAttributeType
     Color,          ///< Color
     Double,         ///< Double value
     ComboBox,       ///< Combo box with predefined set of items
+    Font,           ///< Font family selection
     Boolean,        ///< Check box
     Invalid
 };

@@ -7516,7 +7516,7 @@ __ТК7____ТК8____ТК9__
 <context>
     <name>pdf::PDFEditObjectDialog</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="995"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="1080"/>
         <source>Edit Annotation</source>
         <translation>изменить аннотацию</translation>
     </message>
@@ -7891,13 +7891,13 @@ __ТК7____ТК8____ТК9__
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="490"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="860"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="843"/>
         <source>Square</source>
         <translation>квадрат</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="491"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="861"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="844"/>
         <source>Circle</source>
         <translation>Круг</translation>
     </message>
@@ -8036,7 +8036,7 @@ __ТК7____ТК8____ТК9__
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="573"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="601"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="647"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="859"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="842"/>
         <source>None</source>
         <translation>нет</translation>
     </message>
@@ -8278,52 +8278,52 @@ __ТК7____ТК8____ТК9__
         <translation>повтор наложенного текста</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="846"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="829"/>
         <source>Left</source>
         <translation>слева</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="847"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="830"/>
         <source>Center</source>
         <translation>Центр</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="848"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="831"/>
         <source>Right</source>
         <translation>справа</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="862"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="845"/>
         <source>Diamond</source>
         <translation>Алмаз</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="863"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="846"/>
         <source>Open arrow</source>
         <translation>стрелка открытия</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="864"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="847"/>
         <source>Closed arrow</source>
         <translation>закрытая стрелка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="865"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="848"/>
         <source>Butt</source>
         <translation>Задница</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="866"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="849"/>
         <source>Reversed open arrow</source>
         <translation>перевернутая стрелка открытия</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="867"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="850"/>
         <source>Reversed closed arrow</source>
         <translation>перевернутая закрытая стрелка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="868"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="851"/>
         <source>Slash</source>
         <translation>косая черта</translation>
     </message>
@@ -8331,7 +8331,7 @@ __ТК7____ТК8____ТК9__
 <context>
     <name>pdf::PDFObjectEditorMappedColorAdapter</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="956"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="1041"/>
         <source>custom</source>
         <translation>пользовательская</translation>
     </message>
@@ -8339,7 +8339,7 @@ __ТК7____ТК8____ТК9__
 <context>
     <name>pdf::PDFObjectEditorWidgetMapper</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="366"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="380"/>
         <source>Rectangle</source>
         <translation>прямоугольник</translation>
     </message>

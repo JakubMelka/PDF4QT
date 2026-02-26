@@ -56,20 +56,70 @@ QByteArray PDFDocumentBuilder::normalizeFreeTextFontName(QString fontName)
         return "Helvetica";
     }
 
-    QByteArray result = fontName.toLatin1();
-    for (char& c : result)
+    const QByteArray utf8 = fontName.toUtf8();
+    QByteArray result;
+    result.reserve(utf8.size() * 3);
+
+    for (const unsigned char c : utf8)
     {
-        if (!(c >= 'a' && c <= 'z') &&
-            !(c >= 'A' && c <= 'Z') &&
-            !(c >= '0' && c <= '9') &&
-            c != '-' &&
-            c != '_')
+        const bool allowed = (c >= 'a' && c <= 'z') ||
+                             (c >= 'A' && c <= 'Z') ||
+                             (c >= '0' && c <= '9') ||
+                             c == '-' ||
+                             c == '_';
+        if (allowed)
         {
-            c = '-';
+            result.append(char(c));
+        }
+        else
+        {
+            result.append('#');
+            const char* hex = "0123456789ABCDEF";
+            result.append(hex[(c >> 4) & 0x0F]);
+            result.append(hex[c & 0x0F]);
         }
     }
 
     return result.isEmpty() ? QByteArray("Helvetica") : result;
+}
+
+QString PDFDocumentBuilder::decodeFreeTextFontName(QByteArray fontName)
+{
+    if (fontName.startsWith('/'))
+    {
+        fontName.remove(0, 1);
+    }
+
+    QByteArray decoded;
+    decoded.reserve(fontName.size());
+
+    auto fromHex = [](char c) -> int
+    {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        return -1;
+    };
+
+    for (int i = 0; i < fontName.size(); ++i)
+    {
+        if (fontName[i] == '#' && i + 2 < fontName.size())
+        {
+            const int h1 = fromHex(fontName[i + 1]);
+            const int h2 = fromHex(fontName[i + 2]);
+            if (h1 >= 0 && h2 >= 0)
+            {
+                decoded.append(char((h1 << 4) | h2));
+                i += 2;
+                continue;
+            }
+        }
+
+        decoded.append(fontName[i]);
+    }
+
+    const QString result = QString::fromUtf8(decoded);
+    return result.isEmpty() ? QStringLiteral("Helvetica") : result;
 }
 
 QByteArray PDFDocumentBuilder::createFreeTextDefaultAppearance(const PDFFreeTextStyle& style)

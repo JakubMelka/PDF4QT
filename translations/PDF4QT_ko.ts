@@ -7516,7 +7516,7 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFEditObjectDialog</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="995"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="1080"/>
         <source>Edit Annotation</source>
         <translation>주석 편집</translation>
     </message>
@@ -7722,13 +7722,13 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="490"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="860"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="843"/>
         <source>Square</source>
         <translation>정사각형</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="491"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="861"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="844"/>
         <source>Circle</source>
         <translation>원</translation>
     </message>
@@ -8036,7 +8036,7 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="573"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="601"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="647"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="859"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="842"/>
         <source>None</source>
         <translation>없음</translation>
     </message>
@@ -8278,52 +8278,52 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>오버레이 텍스트 반복</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="846"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="829"/>
         <source>Left</source>
         <translation>왼쪽</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="847"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="830"/>
         <source>Center</source>
         <translation>가운데</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="848"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="831"/>
         <source>Right</source>
         <translation>오른쪽</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="862"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="845"/>
         <source>Diamond</source>
         <translation>다이아몬드</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="863"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="846"/>
         <source>Open arrow</source>
         <translation>열기 화살표</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="864"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="847"/>
         <source>Closed arrow</source>
         <translation>닫힌 화살표</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="865"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="848"/>
         <source>Butt</source>
         <translation>엉덩이</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="866"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="849"/>
         <source>Reversed open arrow</source>
         <translation>역방향 열기 화살표</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="867"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="850"/>
         <source>Reversed closed arrow</source>
         <translation>역방향 닫힌 화살표</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="868"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="851"/>
         <source>Slash</source>
         <translation>슬래시</translation>
     </message>
@@ -8331,7 +8331,7 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFObjectEditorMappedColorAdapter</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="956"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="1041"/>
         <source>custom</source>
         <translation>사용자 정의</translation>
     </message>
@@ -8339,7 +8339,7 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFObjectEditorWidgetMapper</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="366"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="380"/>
         <source>Rectangle</source>
         <translation>직사각형</translation>
     </message>
