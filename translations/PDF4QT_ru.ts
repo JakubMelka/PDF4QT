@@ -6338,6 +6338,14 @@ __ТК7____ТК8____ТК9__
     </message>
 </context>
 <context>
+    <name>QObject</name>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="242"/>
+        <source>Text color</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>SelectOutlineToRegroupDialog</name>
     <message>
         <location filename="../Pdf4QtPageMaster/selectoutlinetoregroupdialog.ui" line="14"/>
@@ -6861,20 +6869,65 @@ __ТК7____ТК8____ТК9__
 <context>
     <name>pdf::PDFCreateFreeTextTool</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="172"/>
-        <source>Enter text for free text panel</source>
-        <translation>введите текст для произвольной текстовой панели</translation>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="182"/>
+        <source>Free text annotation</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="172"/>
-        <source>Text</source>
-        <translation>Текст</translation>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="201"/>
+        <source>Select</source>
+        <translation type="unfinished">выберите</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="211"/>
+        <source>Left</source>
+        <translation type="unfinished">слева</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="212"/>
+        <source>Center</source>
+        <translation type="unfinished">Центр</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="213"/>
+        <source>Right</source>
+        <translation type="unfinished">справа</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="223"/>
+        <source>Automatically expand annotation to fit text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="226"/>
+        <source>Text:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="227"/>
+        <source>Font:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="228"/>
+        <source>Size:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="229"/>
+        <source>Color:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="230"/>
+        <source>Alignment:</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>pdf::PDFCreateHighlightTextTool</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="1172"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="1268"/>
         <source>Select Color</source>
         <translation>Выбрать цвет</translation>
     </message>
@@ -6882,12 +6935,12 @@ __ТК7____ТК8____ТК9__
 <context>
     <name>pdf::PDFCreateHyperlinkTool</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="137"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="147"/>
         <source>Hyperlink</source>
         <translation>Гиперссылка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="137"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="147"/>
         <source>Enter url address of the hyperlink</source>
         <translation>введите URL-адрес гиперссылки</translation>
     </message>
@@ -6895,17 +6948,17 @@ __ТК7____ТК8____ТК9__
 <context>
     <name>pdf::PDFCreateLineTypeTool</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="440"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="536"/>
         <source>Orthogonal mode is enabled.</source>
         <translation>ортогональный режим включен.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="444"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="540"/>
         <source>Orthogonal mode is disabled.</source>
         <translation>ортогональный режим отключен.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="605"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="701"/>
         <source>Use key &apos;C&apos; to show/hide large cross. Use key &apos;O&apos; to switch on/off orthogonal mode.</source>
         <translation>используйте клавишу «C», чтобы показать/скрыть большой крест. Используйте клавишу «O» для включения/выключения ортогонального режима.</translation>
     </message>
@@ -6921,12 +6974,12 @@ __ТК7____ТК8____ТК9__
 <context>
     <name>pdf::PDFCreateStickyNoteTool</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="88"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="98"/>
         <source>Sticky note</source>
         <translation>Заметка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="88"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="98"/>
         <source>Enter text to be displayed in the sticky note</source>
         <translation>введите текст, который будет отображаться в заметке</translation>
     </message>
@@ -7630,9 +7683,12 @@ __ТК7____ТК8____ТК9__
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="488"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="608"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="609"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="610"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="612"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="613"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="615"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="617"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="622"/>
         <source>Free text</source>
         <translation>произвольный текст</translation>
     </message>
@@ -7665,9 +7721,9 @@ __ТК7____ТК8____ТК9__
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="499"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="656"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="670"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="672"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="661"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="675"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="677"/>
         <source>Stamp</source>
         <translation>Штамп</translation>
     </message>
@@ -7761,9 +7817,9 @@ __ТК7____ТК8____ТК9__
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="533"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="543"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="547"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="686"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="687"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="688"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="691"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="692"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="693"/>
         <source>Appearance</source>
         <translation>Внешний вид</translation>
     </message>
@@ -7814,34 +7870,34 @@ __ТК7____ТК8____ТК9__
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="486"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="648"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="650"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="653"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="655"/>
         <source>Text</source>
         <translation>Текст</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="489"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="620"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="622"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="625"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="628"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="631"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="634"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="640"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="648"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="650"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="627"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="630"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="633"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="636"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="639"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="645"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="653"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="655"/>
         <source>Line</source>
         <translation>Линия</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="490"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="712"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="860"/>
         <source>Square</source>
         <translation>квадрат</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="491"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="713"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="861"/>
         <source>Circle</source>
         <translation>Круг</translation>
     </message>
@@ -7857,7 +7913,7 @@ __ТК7____ТК8____ТК9__
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="501"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="677"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="682"/>
         <source>File attachment</source>
         <translation>вложение файла</translation>
     </message>
@@ -7927,18 +7983,21 @@ __ТК7____ТК8____ТК9__
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="570"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="598"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="608"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="609"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="610"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="617"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="620"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="613"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="615"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="622"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="625"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="628"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="631"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="634"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="640"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="656"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="670"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="677"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="627"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="630"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="633"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="636"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="639"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="645"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="661"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="675"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="682"/>
         <source>Style</source>
         <translation>Стиль</translation>
     </message>
@@ -7976,8 +8035,8 @@ __ТК7____ТК8____ТК9__
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="573"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="601"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="642"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="711"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="647"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="859"/>
         <source>None</source>
         <translation>нет</translation>
     </message>
@@ -8049,207 +8108,222 @@ __ТК7____ТК8____ТК9__
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="608"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="688"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="693"/>
         <source>Alignment</source>
         <translation>выравнивание</translation>
     </message>
     <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="609"/>
+        <source>Font</source>
+        <translation type="unfinished">Шрифт</translation>
+    </message>
+    <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="610"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="634"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="640"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="670"/>
+        <source>Size</source>
+        <translation type="unfinished">Размер</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="613"/>
+        <source>Text color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="615"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="639"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="645"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="675"/>
         <source>Intent</source>
         <translation>намерение</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="613"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="618"/>
         <source>Callout</source>
         <translation>выноска</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="614"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="619"/>
         <source>Typewriter</source>
         <translation>Пишущая машинка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="617"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="622"/>
         <source>Callout line ending</source>
         <translation>окончание строки выноски</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="620"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="625"/>
         <source>Line start</source>
         <translation>начало строки</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="622"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="627"/>
         <source>Line end</source>
         <translation>конец строки</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="625"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="630"/>
         <source>Leader line length</source>
         <translation>длина линии выноски</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="628"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="633"/>
         <source>Leader line extension</source>
         <translation>расширение выноски</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="631"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="636"/>
         <source>Leader line offset</source>
         <translation>смещение выноски</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="636"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="641"/>
         <source>Arrow</source>
         <translation>стрелка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="637"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="642"/>
         <source>Dimension</source>
         <translation>измерение</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="643"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="648"/>
         <source>Cloud</source>
         <translation>Облако</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="644"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="649"/>
         <source>Line dimension</source>
         <translation>размер линии</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="645"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="650"/>
         <source>Polygon dimension</source>
         <translation>размер многоугольника</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="648"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="653"/>
         <source>Caption</source>
         <translation>заголовок</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="650"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="655"/>
         <source>Caption position</source>
         <translation>положение заголовка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="652"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="657"/>
         <source>Inline</source>
         <translation>встроенный</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="653"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="658"/>
         <source>Top</source>
         <translation>вверху</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="656"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="661"/>
         <source>Name</source>
         <translation>Имя</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="673"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="678"/>
         <source>Image</source>
         <translation>Изображение</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="674"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="679"/>
         <source>Snapshot</source>
         <translation>снимок</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="677"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="682"/>
         <source>Icon</source>
         <translation>значок</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="679"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="684"/>
         <source>Graph</source>
         <translation>График</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="680"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="685"/>
         <source>Push-pin</source>
         <translation>кнопка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="681"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="686"/>
         <source>Paperclip</source>
         <translation>Скрепка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="682"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="687"/>
         <source>Tag</source>
         <translation>Тег</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="686"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="687"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="688"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="691"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="692"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="693"/>
         <source>Redact</source>
         <translation>Редактировать</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="686"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="691"/>
         <source>Overlay text</source>
         <translation>наложение текста</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="687"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="692"/>
         <source>Repeat overlay text</source>
         <translation>повтор наложенного текста</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="698"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="846"/>
         <source>Left</source>
         <translation>слева</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="699"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="847"/>
         <source>Center</source>
         <translation>Центр</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="700"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="848"/>
         <source>Right</source>
         <translation>справа</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="714"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="862"/>
         <source>Diamond</source>
         <translation>Алмаз</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="715"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="863"/>
         <source>Open arrow</source>
         <translation>стрелка открытия</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="716"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="864"/>
         <source>Closed arrow</source>
         <translation>закрытая стрелка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="717"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="865"/>
         <source>Butt</source>
         <translation>Задница</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="718"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="866"/>
         <source>Reversed open arrow</source>
         <translation>перевернутая стрелка открытия</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="719"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="867"/>
         <source>Reversed closed arrow</source>
         <translation>перевернутая закрытая стрелка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="720"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="868"/>
         <source>Slash</source>
         <translation>косая черта</translation>
     </message>
@@ -8909,142 +8983,142 @@ __ТК7____ТК8____ТК9__
         <translation>Ответить</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3033"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3034"/>
         <source>&amp;Approved</source>
         <translation>&amp;утверждено</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3034"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3035"/>
         <source>APPROVED</source>
         <translation>APPROVED</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3038"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3039"/>
         <source>As &amp;Is</source>
         <translation>«Как &amp;есть»</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3039"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3040"/>
         <source>AS IS</source>
         <translation>КАК ЕСТЬ</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3043"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3044"/>
         <source>&amp;Confidential</source>
         <translation>&amp;Конфиденциально</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3044"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3045"/>
         <source>CONFIDENTIAL</source>
         <translation>CONFIDENTIAL</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3048"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3049"/>
         <source>&amp;Departmental</source>
         <translation>&amp;Отделение</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3049"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3050"/>
         <source>DEPARTMENTAL</source>
         <translation>DEPARTMENTAL</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3053"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3054"/>
         <source>Dra&amp;ft</source>
         <translation>&amp;черновик</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3054"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3055"/>
         <source>DRAFT</source>
         <translation>DRAFT</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3058"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3059"/>
         <source>&amp;Experimental</source>
         <translation>&amp;Экспериментальный</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3059"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3060"/>
         <source>EXPERIMENTAL</source>
         <translation>EXPERIMENTAL</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3063"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3064"/>
         <source>E&amp;xpired</source>
         <translation>&amp;срок действия истек</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3064"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3065"/>
         <source>EXPIRED</source>
         <translation>EXPIRED</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3068"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3069"/>
         <source>Fina&amp;l</source>
         <translation>&amp;Финал</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3069"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3070"/>
         <source>FINAL</source>
         <translation>FINAL</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3073"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3074"/>
         <source>For Co&amp;mment</source>
         <translation>для &amp;комментариев</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3074"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3075"/>
         <source>FOR COMMENT</source>
         <translation>ДЛЯ КОММЕНТАРИЙ</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3078"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3079"/>
         <source>For P&amp;ublic Release</source>
         <translation>для &amp;общедоступного выпуска</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3079"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3080"/>
         <source>FOR PUBLIC RELEASE</source>
         <translation>ДЛЯ ПУБЛИЧНОГО ВЫПУСКА</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3083"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3084"/>
         <source>Not A&amp;pproved</source>
         <translation>не &amp;одобрено</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3084"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3085"/>
         <source>NOT APPROVED</source>
         <translation>НЕ УТВЕРЖДЕНО</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3088"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3089"/>
         <source>N&amp;ot For Public Release</source>
         <translation>&amp;не для публичного выпуска</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3089"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3090"/>
         <source>NOT FOR PUBLIC RELEASE</source>
         <translation>НЕ ДЛЯ ПУБЛИЧНОГО ВЫПУСКА</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3093"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3094"/>
         <source>&amp;Sold</source>
         <translation>&amp;Продано</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3094"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3095"/>
         <source>SOLD</source>
         <translation>SOLD</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3098"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3099"/>
         <source>&amp;Top Secret</source>
         <translation>&amp;Совершенно секретно</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3099"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3100"/>
         <source>TOP SECRET</source>
         <translation>СОВЕРШЕННО СЕКРЕТНО</translation>
     </message>
