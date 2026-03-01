@@ -7516,7 +7516,7 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFEditObjectDialog</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="1080"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="1057"/>
         <source>Edit Annotation</source>
         <translation>주석 편집</translation>
     </message>
@@ -8331,7 +8331,7 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFObjectEditorMappedColorAdapter</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="1041"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="1018"/>
         <source>custom</source>
         <translation>사용자 정의</translation>
     </message>

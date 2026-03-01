@@ -7527,7 +7527,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFEditObjectDialog</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="1080"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="1057"/>
         <source>Edit Annotation</source>
         <translation>编辑注释</translation>
     </message>
@@ -8342,7 +8342,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFObjectEditorMappedColorAdapter</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="1041"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="1018"/>
         <source>custom</source>
         <translation>定制</translation>
     </message>

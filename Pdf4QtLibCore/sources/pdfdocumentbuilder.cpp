@@ -257,9 +257,7 @@ PDFObject PDFDocumentBuilder::createPDFColor(const QColor& color)
 {
     const QColor effectiveColor = color.isValid() ? color : QColor(Qt::black);
     PDFObjectFactory factory;
-    factory.beginArray();
     factory << std::initializer_list<PDFReal>{ effectiveColor.redF(), effectiveColor.greenF(), effectiveColor.blueF() };
-    factory.endArray();
     return factory.takeObject();
 }
 

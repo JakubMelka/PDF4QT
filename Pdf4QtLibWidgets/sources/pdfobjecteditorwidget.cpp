@@ -662,7 +662,7 @@ PDFObjectEditorMappedFontComboBoxAdapter::PDFObjectEditorMappedFontComboBoxAdapt
     m_comboBox(comboBox)
 {
     initLabel(label);
-    connect(comboBox, &QFontComboBox::currentFontChanged, this, [this, attribute]() { Q_EMIT commitRequested(attribute); });
+    connect(comboBox, QOverload<int>::of(&QFontComboBox::activated), this, [this, attribute](int) { Q_EMIT commitRequested(attribute); });
 }
 
 PDFObject PDFObjectEditorMappedFontComboBoxAdapter::getValue() const
@@ -677,7 +677,7 @@ void PDFObjectEditorMappedFontComboBoxAdapter::setValue(PDFObject object)
     QString family;
     if (object.isString())
     {
-        family = QString::fromLatin1(object.getString());
+        family = QString::fromUtf8(object.getString());
     }
     else if (m_model->getStorage())
     {
@@ -974,6 +974,7 @@ PDFObjectEditorMappedColorAdapter::PDFObjectEditorMappedColorAdapter(QLabel* lab
     }
 
     connect(comboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this, attribute](){ Q_EMIT commitRequested(attribute); });
+    connect(comboBox, QOverload<int>::of(&QComboBox::activated), this, [this, attribute](){ Q_EMIT commitRequested(attribute); });
 }
 
 PDFObject PDFObjectEditorMappedColorAdapter::getValue() const
@@ -984,9 +985,7 @@ PDFObject PDFObjectEditorMappedColorAdapter::getValue() const
         color = Qt::black;
     }
 
-    PDFObjectFactory factory;
-    factory << color;
-    return factory.takeObject();
+    return PDFDocumentBuilder::createPDFColor(color);
 }
 
 void PDFObjectEditorMappedColorAdapter::setValue(PDFObject object)

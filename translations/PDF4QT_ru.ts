@@ -7516,7 +7516,7 @@ __ТК7____ТК8____ТК9__
 <context>
     <name>pdf::PDFEditObjectDialog</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="1080"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="1057"/>
         <source>Edit Annotation</source>
         <translation>изменить аннотацию</translation>
     </message>
@@ -8331,7 +8331,7 @@ __ТК7____ТК8____ТК9__
 <context>
     <name>pdf::PDFObjectEditorMappedColorAdapter</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="1041"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="1018"/>
         <source>custom</source>
         <translation>пользовательская</translation>
     </message>
