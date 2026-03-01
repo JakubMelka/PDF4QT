@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #368: side to side scrolling
  - Issue #357: [feature request] bulk delete/add/edit of page labels
  - Issue #352: Icon size of the sidebar
  - Issue #349: Add inherit zoom to bookmark zoom options

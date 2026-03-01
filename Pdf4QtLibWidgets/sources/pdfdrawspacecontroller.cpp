@@ -617,6 +617,21 @@ void PDFDrawWidgetProxy::update()
         m_horizontalScrollbar->setVisible(true);
         m_horizontalScrollbar->setMinimum(0);
         m_horizontalScrollbar->setMaximum(horizontalDifference);
+        if (!m_layout.items.empty())
+        {
+            const LayoutItem& item = m_layout.items.front();
+            const int pageStep = qMax(item.pageRect.width(), 1);
+            const int singleStep = qMax(pageStep / 10, 1);
+            m_horizontalScrollbar->setPageStep(pageStep);
+            m_horizontalScrollbar->setSingleStep(singleStep);
+        }
+        else
+        {
+            const int pageStep = qMax(widgetSize.width(), 1);
+            const int singleStep = qMax(pageStep / 10, 1);
+            m_horizontalScrollbar->setPageStep(pageStep);
+            m_horizontalScrollbar->setSingleStep(singleStep);
+        }
 
         m_horizontalOffsetRange = Range<PDFInteger>(-horizontalDifference, 0);
         m_horizontalOffset = m_horizontalOffsetRange.bound(m_horizontalOffset);

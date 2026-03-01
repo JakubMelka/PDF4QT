@@ -97,6 +97,13 @@ public:
     /// \param enabled True to enable smooth wheel scrolling, false for immediate scrolling
     void setSmoothWheelScrolling(bool enabled);
 
+    /// Sets mouse wheel scrolling speed multipliers in percent.
+    /// The value 100 means default speed, values above 100 increase speed,
+    /// and values below 100 decrease speed.
+    /// \param horizontalPercent Horizontal wheel scrolling speed in percent
+    /// \param verticalPercent Vertical wheel scrolling speed in percent
+    void setWheelScrollSpeed(int horizontalPercent, int verticalPercent);
+
     const PDFCMSManager* getCMSManager() const { return m_cmsManager; }
     PDFToolManager* getToolManager() const { return m_toolManager; }
     PDFWidgetAnnotationManager* getAnnotationManager() const { return m_annotationManager; }
@@ -158,6 +165,13 @@ public:
     /// \param enabled True to enable smooth wheel scrolling, false for immediate scrolling
     void setSmoothWheelScrolling(bool enabled);
 
+    /// Sets mouse wheel scrolling speed multipliers in percent.
+    /// The value 100 means default speed, values above 100 increase speed,
+    /// and values below 100 decrease speed.
+    /// \param horizontalPercent Horizontal wheel scrolling speed in percent
+    /// \param verticalPercent Vertical wheel scrolling speed in percent
+    void setWheelScrollSpeed(int horizontalPercent, int verticalPercent);
+
     /// Returns page indices, which are currently displayed in the widget
     virtual std::vector<PDFInteger> getCurrentPages() const override;
 
@@ -212,6 +226,8 @@ private:
     QPointF m_wheelScrollPendingOffset;
     QImage m_blend2DframeBuffer;
     bool m_smoothWheelScrolling = true;
+    PDFReal m_horizontalWheelScrollSpeed = 1.0;
+    PDFReal m_verticalWheelScrollSpeed = 1.0;
 };
 
 }   // namespace pdf

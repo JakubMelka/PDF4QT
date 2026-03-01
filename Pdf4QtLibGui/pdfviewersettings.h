@@ -66,6 +66,10 @@ public:
 
     struct Settings
     {
+        static constexpr int WHEEL_SCROLL_SPEED_PERCENT_MIN = 10;
+        static constexpr int WHEEL_SCROLL_SPEED_PERCENT_MAX = 400;
+        static constexpr int WHEEL_SCROLL_SPEED_PERCENT_DEFAULT = 100;
+
         Settings();
 
         bool operator==(const Settings&) const = default;
@@ -123,6 +127,8 @@ public:
 
         // UI scrolling settings
         bool m_smoothWheelScrolling;
+        int m_wheelScrollHorizontalSpeedPercent;
+        int m_wheelScrollVerticalSpeedPercent;
 
         // Language
         pdf::PDFApplicationTranslator::ELanguage m_language;

@@ -5731,12 +5731,12 @@
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="948"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1043"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1074"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1261"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1268"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1339"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1346"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1360"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1289"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1296"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1367"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1374"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1388"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1395"/>
         <source>Enable</source>
         <translation>Habilitar</translation>
     </message>
@@ -6181,7 +6181,23 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
         <translation>Idioma</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1083"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1081"/>
+        <source>Horizontal mouse wheel speed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1088"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1102"/>
+        <source>%</source>
+        <translation type="unfinished">%</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1095"/>
+        <source>Vertical mouse wheel speed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1111"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6204,42 +6220,42 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Al especificar el recuento de pasos &lt;span style=&quot; font-weight:600;&quot;&gt;undo/redo&lt;/span&gt;, usted controla el número de pasos deshacer/rehacer disponibles durante la edición del documento. Establecer el recuento máximo de pasos de deshacer en cero deshabilita la función deshacer/rehacer. También puede establecer un recuento de pasos de deshacer distinto de cero y un recuento de pasos de rehacer cero, lo que haría que solo estuvieran disponibles las acciones de deshacer, con las acciones de rehacer deshabilitadas. Los cambios están optimizados para el uso de la memoria, por lo que cada paso de deshacer/rehacer comparte objetos no modificados con otros. Esto significa que, a grandes rasgos, realizar 10 modificaciones en un documento de 50 MB puede consumir alrededor de 51 MB de memoria. El uso real de la memoria depende del alcance de los cambios, pero suele ser mínimo, ya que los cambios suelen afectar a una pequeña cantidad de objetos (por ejemplo, editar un campo de formulario o modificar una anotación). &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1118"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1146"/>
         <source>Speech Settings</source>
         <translation>Configuración de voz</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1126"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1154"/>
         <source>Voice</source>
         <translation>Voz</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1133"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1161"/>
         <source>Pitch</source>
         <translation>Paso</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1140"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1168"/>
         <source>Volume</source>
         <translation>Volumen</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1147"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1175"/>
         <source>Rate</source>
         <translation>Tarifa</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1154"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1182"/>
         <source>Voice synthetiser</source>
         <translation>Sintetizador de voz</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1161"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1189"/>
         <source>Locale</source>
         <translation>Configuración regional</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1206"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1234"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6258,22 +6274,22 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Configure los ajustes de voz para habilitar la función de texto a voz para leer documentos. Si bien estas configuraciones actúan como predeterminadas para la función de texto a voz, algunas se pueden ajustar más adelante. La configuración de &apos;Pitch&apos; puede variar de -1,0 a 1,0, siendo 0,0 el valor predeterminado. De manera similar, la &apos;Velocidad&apos; puede oscilar entre -1,0 y 1,0, donde 0,0 indica un flujo de voz normal. Por último, el &apos;Volumen&apos; se puede ajustar entre 0,0 y 1,0. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1239"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1267"/>
         <source>Form Settings</source>
         <translation>Configuración de formulario</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1247"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1275"/>
         <source>Highlight form fields</source>
         <translation>Resaltar campos de formulario</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1254"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1282"/>
         <source>Highlight required form fields</source>
         <translation>Resalte los campos de formulario obligatorios</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1277"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1305"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6292,47 +6308,47 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Puede personalizar la apariencia de los campos del formulario utilizando la configuración proporcionada, incluida la opción para resaltar campos editables. Puede resaltar por separado los campos obligatorios del formulario en rojo, mientras que otros campos se pueden resaltar en azul. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1310"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1338"/>
         <source>Digital Signature Verification</source>
         <translation>Verificación de firma digital</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1318"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1346"/>
         <source>Ignore expired certificates</source>
         <translation>Ignorar los certificados caducados</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1325"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1353"/>
         <source>Signature verification</source>
         <translation>Verificación de firma</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1332"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1360"/>
         <source>Strict mode</source>
         <translation>Modo estricto</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1353"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1381"/>
         <source>Use system certificate store</source>
         <translation>Usar el almacén de certificados del sistema</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1383"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1411"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Trusted certificate store&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Almacén de certificados confiables&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1412"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1440"/>
         <source>Remove</source>
         <translation>Quitar</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1428"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1456"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;These are the settings for digital signature verification. Digital signatures are verified as strictly as possible to prevent any malicious content or signature manipulation. Verification can also be disabled, if not required. When &lt;span style=&quot; font-weight:600;&quot;&gt;Strict mode&lt;/span&gt; is enabled, every warning is treated as an error. You have the option to ignore the certificate expiration date, but this should only be done if you fully understand the potential risks involved. Verification uses a list of trusted certificates. System certificates can be added to this list, and you can also manage your own list of trusted certificates.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Estas son las configuraciones para la verificación de firma digital. Las firmas digitales se verifican lo más estrictamente posible para evitar cualquier contenido malicioso o manipulación de firmas. La verificación también se puede desactivar, si no es necesaria. Cuando &lt;span style=&quot; font-weight:600;&quot;&gt;Modo estricto&lt;/span&gt; está habilitado, cada advertencia se trata como un error. Tiene la opción de ignorar la fecha de vencimiento del certificado, pero esto sólo debe hacerse si comprende completamente los riesgos potenciales involucrados. La verificación utiliza una lista de certificados confiables. Se pueden agregar certificados del sistema a esta lista y también puede administrar su propia lista de certificados confiables.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1457"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1485"/>
         <source>Plugins</source>
         <translation>Complementos</translation>
     </message>
@@ -6987,124 +7003,124 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFDependentLibraryInfo</name>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="260"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="265"/>
         <source>Qt</source>
         <translation>Qt</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="261"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="266"/>
         <source>LGPLv3</source>
         <translation>LGPLv3</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="263"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="268"/>
         <source>https://www.qt.io/</source>
         <translation>https://www.qt.io/</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="269"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="274"/>
         <source>permissive + ack.</source>
         <translation>permisivo + reconocimiento.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="311"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="316"/>
         <source>%1.%2</source>
         <translation>%1.%2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="283"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="288"/>
         <source>FreeType</source>
         <translation>FreeType</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="268"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="273"/>
         <source>libjpeg-turbo</source>
         <translation>libjpeg-turbo</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="270"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="275"/>
         <source>https://libjpeg-turbo.org/</source>
         <translation>https://libjpeg-turbo.org/</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="284"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="289"/>
         <source>FTL</source>
         <translation>FTL</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="285"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="290"/>
         <source>%1.%2.%3</source>
         <translation>%1.%2.%3</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="286"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="291"/>
         <source>https://www.freetype.org/index.html</source>
         <translation>https://www.freetype.org/index.html</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="291"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="296"/>
         <source>OpenJPEG</source>
         <translation>OpenJPEG</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="292"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="310"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="297"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="315"/>
         <source>2-clause MIT license</source>
         <translation>licencia MIT de 2 cláusulas</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="294"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="299"/>
         <source>https://www.openjpeg.org/</source>
         <translation>https://www.openjpeg.org/</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="299"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="304"/>
         <source>OpenSSL</source>
         <translation>OpenSSL</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="300"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="305"/>
         <source>Apache 2.0</source>
         <translation>Apache 2.0</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="302"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="307"/>
         <source>https://www.openssl.org/</source>
         <translation>https://www.openssl.org/</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="309"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="314"/>
         <source>LittleCMS</source>
         <translation>LittleCMS</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="312"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="317"/>
         <source>http://www.littlecms.com/</source>
         <translation>http://www.littlecms.com/</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="317"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="322"/>
         <source>zlib</source>
         <translation>zlib</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="318"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="330"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="323"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="335"/>
         <source>zlib specific</source>
         <translation>específica de zlib</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="320"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="325"/>
         <source>https://zlib.net/</source>
         <translation>https://zlib.net/</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="329"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="334"/>
         <source>Blend2D</source>
         <translation>Blend2D</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="332"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="337"/>
         <source>https://blend2d.com/</source>
         <translation>https://blend2d.com/</translation>
     </message>
@@ -9199,7 +9215,7 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfblendfunction.cpp" line="244"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1094"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1096"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="2758"/>
         <source>Unknown</source>
         <translation>Desconocido</translation>
@@ -10348,71 +10364,71 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
         <translation>Proceso genérico%1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="94"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="99"/>
         <source>Not enough data to read %1-bit value.</source>
         <translation>No hay suficientes datos para leer el valor de %1 bits.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="134"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="139"/>
         <source>Can&apos;t seek to position %1.</source>
         <translation>No se puede buscar la posición %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="189"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="194"/>
         <source>Can&apos;t get substream - remaining %1 bits in buffer.</source>
         <translation>No se puede obtener la subtransmisión; quedan %1 bits en el búfer.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="445"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="451"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="470"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="450"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="456"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="475"/>
         <source>Can&apos;t convert &apos;%1&apos; to a number.</source>
         <translation>no se puede convertir &apos;%1&apos; en un número.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="457"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="462"/>
         <source>Closed interval [%1, %2] is invalid.</source>
         <translation>el intervalo cerrado [%1, %2] no es válido.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="11854"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="11856"/>
         <source>Rendering of content type &apos;%1&apos; is not implemented.</source>
         <translation>la representación del tipo de contenido &apos;%1&apos; no está implementada.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="11929"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="11931"/>
         <source>Image encoded by &apos;package&apos; mode not decoded.</source>
         <translation>Imagen codificada en modo &apos;paquete&apos; no decodificada.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="11946"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="11948"/>
         <source>Image of type &apos;%1&apos; not decoded.</source>
         <translation>Imagen del tipo &apos;%1&apos; no decodificada.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12004"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12173"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12006"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12175"/>
         <source>XFA: Buttons not implemented.</source>
         <translation>XFA: Botones no implementados.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12187"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12189"/>
         <source>XFA: Uknown ui.</source>
         <translation>XFA: IU desconocida.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12542"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12544"/>
         <source>Barcode not implemented!</source>
         <translation>¡Código de barras no implementado!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12846"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12848"/>
         <source>XFA: Unknown fill pattern.</source>
         <translation>XFA: patrón de relleno desconocido.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="13244"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="13301"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="13246"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="13303"/>
         <source>XFA: special stroke is not supported.</source>
         <translation>XFA: no se admiten trazos especiales.</translation>
     </message>
@@ -11256,341 +11272,341 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
         <translation>patrón de creación de error FontConfig para la fuente %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="546"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="548"/>
         <source>Inexact font substitution: font %1 replaced by standard font Times New Roman.</source>
         <translation>Sustitución de fuente inexacta: fuente %1 reemplazada por la fuente estándar Times New Roman.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="634"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="636"/>
         <source>Fontconfig error</source>
         <translation>Error de configuración de fuente</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="839"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="841"/>
         <source>Glyph for simple font character code &apos;%1&apos; not found.</source>
         <translation>No se encontró el glifo para el código de carácter de fuente simple &apos;%1&apos;.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="877"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="879"/>
         <source>Glyph for composite font character with cid &apos;%1&apos; not found.</source>
         <translation>no se encontró el glifo para el carácter de fuente compuesta con cid &apos;%1&apos;.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1005"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1007"/>
         <source>Details</source>
         <translation>Detalles</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1009"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1011"/>
         <source>Font</source>
         <translation>Fuente</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1013"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1015"/>
         <source>Style</source>
         <translation>Estilo</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1016"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1018"/>
         <source>Yes</source>
         <translation>Sí</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1017"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1019"/>
         <source>No</source>
         <translation>No</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1019"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1021"/>
         <source>Glyph count</source>
         <translation>Recuento de glifos</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1020"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1022"/>
         <source>Is CID keyed</source>
         <translation>Tiene clave CID</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1021"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1023"/>
         <source>Is bold</source>
         <translation>Está en negrita</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1022"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1024"/>
         <source>Is italics</source>
         <translation>Está en cursiva</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1023"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1025"/>
         <source>Has vertical writing system</source>
         <translation>Tiene sistema de escritura vertical</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1024"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1026"/>
         <source>Has SFNT storage scheme</source>
         <translation>Tiene un esquema de almacenamiento SFNT</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1025"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1027"/>
         <source>Has glyph names</source>
         <translation>Tiene nombres de glifos</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1029"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2157"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1031"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2159"/>
         <source>Encoding</source>
         <translation>Codificación</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1039"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1041"/>
         <source>None</source>
         <translation>Ninguna</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1043"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1045"/>
         <source>Unicode</source>
         <translation>Unicódigo</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1047"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1049"/>
         <source>MS Symbol</source>
         <translation>Símbolo MS</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1051"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1053"/>
         <source>Japanese Shift JIS</source>
         <translation>Shift JIS japonés</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1055"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1057"/>
         <source>PRC - Simplified Chinese</source>
         <translation>PRC - Chino simplificado</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1059"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1061"/>
         <source>Traditional Chinese</source>
         <translation>Chino tradicional</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1063"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1065"/>
         <source>Korean Extended Wansung</source>
         <translation>Wansung extendido coreano</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1067"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1069"/>
         <source>Korean Standard</source>
         <translation>Estándar coreano</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1071"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1073"/>
         <source>Adobe Standard</source>
         <translation>Estándar de Adobe</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1075"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1077"/>
         <source>Adobe Expert</source>
         <translation>Experto en Adobe</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1078"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1080"/>
         <source>Adobe Custom</source>
         <translation>Adobe personalizado</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1082"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1084"/>
         <source>Adobe Latin 1</source>
         <translation>Adobe latín 1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1086"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1088"/>
         <source>Old Latin 1</source>
         <translation>Latín antiguo 1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1090"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1092"/>
         <source>Apple Roman</source>
         <translation>Manzana romana</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1098"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1100"/>
         <source>Platform/Encoding = %1 %2</source>
         <translation>Plataforma/Codificación = %1 %2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1189"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1191"/>
         <source>FreeType error code %1: %2</source>
         <translation>Código de error FreeType %1: %2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1276"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1278"/>
         <source>Can&apos;t load system font &apos;%1&apos;.</source>
         <translation>No se puede cargar la fuente del sistema &apos;%1&apos;.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1383"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1385"/>
         <source>Invalid font encoding.</source>
         <translation>Codificación de fuente no válida.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1419"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1421"/>
         <source>Font object must be a dictionary.</source>
         <translation>el objeto de fuente debe ser un diccionario.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1437"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1439"/>
         <source>Invalid font type.</source>
         <translation>Tipo de fuente no válido.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1559"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1569"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1575"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1561"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1571"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1577"/>
         <source>Invalid differences in encoding entry of the font.</source>
         <translation>diferencias no válidas en la entrada de codificación de la fuente.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1581"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1624"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1583"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1626"/>
         <source>Invalid encoding entry of the font.</source>
         <translation>entrada de codificación no válida de la fuente.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1809"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1811"/>
         <source>Invalid CMAP in CID-keyed font.</source>
         <translation>CMAP no válido en fuente con clave CID.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1815"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1827"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1817"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1829"/>
         <source>Invalid descendant font in CID-keyed font.</source>
         <translation>fuente descendiente no válida en fuente con clave CID.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1821"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1823"/>
         <source>Invalid number (%1) of descendant fonts in CID-keyed font - exactly one is required.</source>
         <translation>Número no válido (%1) de fuentes descendientes en fuente con clave CID; se requiere exactamente una.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1916"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1918"/>
         <source>Invalid Type 3 font matrix.</source>
         <translation>matriz de fuente tipo 3 no válida.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1923"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1925"/>
         <source>Invalid Type 3 font character content streams.</source>
         <translation>flujos de contenido de caracteres de fuente tipo 3 no válidos.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1932"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1934"/>
         <source>Invalid Type 3 font character range (from %1 to %2).</source>
         <translation>rango de caracteres de fuente tipo 3 no válido (de %1 a %2).</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1938"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1945"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1940"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1947"/>
         <source>Invalid Type 3 font encoding.</source>
         <translation>codificación de fuente tipo 3 no válida.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1963"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1978"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1965"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1980"/>
         <source>Invalid differences in encoding entry of type 3 font.</source>
         <translation>diferencias no válidas en la entrada de codificación de fuente tipo 3.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2115"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2117"/>
         <source>Standard</source>
         <translation>Estándar</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2119"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2121"/>
         <source>Mac Roman</source>
         <translation>Mac romano</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2123"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2125"/>
         <source>Win Ansi</source>
         <translation>Ganar ansi</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2127"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2129"/>
         <source>PDF Doc</source>
         <translation>Documento PDF</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2131"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2133"/>
         <source>Mac Expert</source>
         <translation>Experto en Mac</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2135"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2215"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2137"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2217"/>
         <source>Symbol</source>
         <translation>Símbolo</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2139"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2219"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2141"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2221"/>
         <source>Zapf Dingbats</source>
         <translation>Zapf Dinbats</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2143"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2145"/>
         <source>Mac OS Roman</source>
         <translation>Mac OS romano</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2147"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2149"/>
         <source>Custom</source>
         <translation>Personalizado</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2197"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2199"/>
         <source>Times Roman</source>
         <translation>Times Roman</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2204"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2206"/>
         <source>Helvetica</source>
         <translation>Helvetica</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2211"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2213"/>
         <source>Courier</source>
         <translation>Courier</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2227"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2229"/>
         <source>Standard font</source>
         <translation>Fuente estándar</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2381"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2383"/>
         <source>Can&apos;t load CID font mapping named &apos;%1&apos;.</source>
         <translation>no se puede cargar la asignación de fuentes CID denominada &apos;%1&apos;.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2420"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2422"/>
         <source>Can&apos;t fetch code from CMap definition.</source>
         <translation>no se puede recuperar el código de la definición de CMap.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2430"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2432"/>
         <source>Can&apos;t fetch CID from CMap definition.</source>
         <translation>no se puede recuperar el CID de la definición de CMap.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2464"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2466"/>
         <source>Can&apos;t use cmap inside cmap file.</source>
         <translation>no se puede usar cmap dentro del archivo cmap.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2875"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2877"/>
         <source>Character count</source>
         <translation>Recuento de caracteres</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2923"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2925"/>
         <source>Content stream for type 3 font character code &apos;%1&apos; not found.</source>
         <translation>flujo de contenido para el código de caracteres de fuente tipo 3 &apos;%1&apos; no encontrado.</translation>
     </message>
@@ -11782,12 +11798,12 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
         <translation>Ruta</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfdrawspacecontroller.cpp" line="928"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfdrawspacecontroller.cpp" line="943"/>
         <source>Compile time:    %1 [ms]</source>
         <translation>Tiempo de compilación: %1 [ms]</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfdrawspacecontroller.cpp" line="930"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfdrawspacecontroller.cpp" line="945"/>
         <source>Draw time:       %1 [ms]</source>
         <translation>Tiempo de dibujo: %1 [ms]</translation>
     </message>
@@ -14210,74 +14226,74 @@ li.checked::marker { contenido: &quot;\2612&quot;; }
         <translation>ingrese la contraseña para acceder al contenido del documento</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2071"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2072"/>
         <source>Document &apos;%1&apos; was successfully loaded!</source>
         <translation>¡El documento &apos;%1&apos; se cargó correctamente!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2077"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2078"/>
         <source>Document read error: %1</source>
         <translation>Error de lectura de documento: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2289"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2290"/>
         <source>%1 - %2</source>
         <translation>%1 - %2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2557"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2564"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2559"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2566"/>
         <source>Reset Settings</source>
         <translation>Restablecer configuración</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2557"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2559"/>
         <source>Do you wish to restore the default factory settings of the program? All settings changed by the user will be deleted. Application will be closed.</source>
         <translation>¿Desea restaurar la configuración predeterminada de fábrica del programa? Se eliminarán todas las configuraciones modificadas por el usuario. La solicitud se cerrará.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2564"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2566"/>
         <source>Default factory settings were restored. Application will be now closed.</source>
         <translation>se restauraron las configuraciones predeterminadas de fábrica. La aplicación ahora estará cerrada.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2609"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2611"/>
         <source>Plugins</source>
         <translation>Complementos</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2609"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2611"/>
         <source>Plugin on/off state has been changed. Please restart application to apply settings.</source>
         <translation>se cambió el estado de activación/desactivación del complemento. Reinicie la aplicación para aplicar la configuración.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2636"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2708"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2638"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2710"/>
         <source>Select PDF document</source>
         <translation>Seleccione el documento PDF</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2636"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2638"/>
         <source>PDF document (*.pdf)</source>
         <translation>Documento PDF (*.pdf)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2693"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2695"/>
         <source>Export Bookmarks As</source>
         <translation>Exportar marcadores como</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2693"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2695"/>
         <source>JSON (*.json);;All files (*.*)</source>
         <translation>JSON (*.json);;Todos los archivos (*.*)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2708"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2710"/>
         <source>JSON (*.json)</source>
         <translation>JSON (*.json)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2727"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2729"/>
         <source>Rendering of page %1: %2 errors occured.</source>
         <translation>Representación de la página %1: %2 ocurrieron errores.</translation>
     </message>
@@ -14998,142 +15014,142 @@ Do you want to perform this action?</source>
         <translation>Muy grande</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="152"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="154"/>
         <source>Automatic detection</source>
         <translation>Detección automática</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="153"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="155"/>
         <source>English</source>
         <translation>Inglés</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="154"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="156"/>
         <source>German</source>
         <translation>Alemán</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="155"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="157"/>
         <source>Korean</source>
         <translation>Coreano</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="156"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="158"/>
         <source>Spanish</source>
         <translation>Español</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="157"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="159"/>
         <source>Czech</source>
         <translation>Checo</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="158"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="160"/>
         <source>Chinese (Simplified)</source>
         <translation>Chino (simplificado)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="159"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="161"/>
         <source>Chinese (Traditional)</source>
         <translation>Chino (tradicional)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="160"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="162"/>
         <source>French</source>
         <translation>Francés</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="161"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="163"/>
         <source>Turkish</source>
         <translation>Turco</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="162"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="164"/>
         <source>Russian</source>
         <translation>Ruso</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="704"/>
         <source>Type</source>
         <translation>Tipo</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="704"/>
         <source>Certificate</source>
         <translation>Certificado</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="704"/>
         <source>Organization</source>
         <translation>Organización</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="704"/>
         <source>Valid from</source>
         <translation>Válida desde</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="704"/>
         <source>Valid to</source>
         <translation>Válida para</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="700"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="712"/>
         <source>User</source>
         <translation>Usuario</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="704"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="716"/>
         <source>System</source>
         <translation>Sistema</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="744"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="756"/>
         <source>Action</source>
         <translation>Acción</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="744"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="756"/>
         <source>Shortcut</source>
         <translation>Acceso directo</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="773"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="785"/>
         <source>Error</source>
         <translation>Error</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="773"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="785"/>
         <source>Shortcut &apos;%1&apos; is invalid for action %2.</source>
         <translation>el acceso directo &apos;%1&apos; no es válido para la acción %2.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="808"/>
         <source>Active</source>
         <translation>Activa</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="808"/>
         <source>Name</source>
         <translation>Nombre</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="808"/>
         <source>Author</source>
         <translation>Autor</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="808"/>
         <source>Version</source>
         <translation>Versión</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="808"/>
         <source>License</source>
         <translation>Licencia</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="910"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="922"/>
         <source>Select color profile directory</source>
         <translation>Seleccione el directorio del perfil de color</translation>
     </message>

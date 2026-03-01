@@ -122,6 +122,14 @@ void PDFWidget::setSmoothWheelScrolling(bool enabled)
     }
 }
 
+void PDFWidget::setWheelScrollSpeed(int horizontalPercent, int verticalPercent)
+{
+    if (PDFDrawWidget* drawWidget = dynamic_cast<PDFDrawWidget*>(m_drawWidget))
+    {
+        drawWidget->setWheelScrollSpeed(horizontalPercent, verticalPercent);
+    }
+}
+
 int PDFWidget::getPageRenderingErrorCount() const
 {
     int count = 0;
@@ -263,6 +271,12 @@ void PDFDrawWidget::setSmoothWheelScrolling(bool enabled)
         m_wheelScrollTimer.stop();
         m_wheelScrollPendingOffset = QPointF(0.0, 0.0);
     }
+}
+
+void PDFDrawWidget::setWheelScrollSpeed(int horizontalPercent, int verticalPercent)
+{
+    m_horizontalWheelScrollSpeed = qMax(PDFReal(0.01), PDFReal(horizontalPercent) / PDFReal(100.0));
+    m_verticalWheelScrollSpeed = qMax(PDFReal(0.01), PDFReal(verticalPercent) / PDFReal(100.0));
 }
 
 std::vector<PDFInteger> PDFDrawWidget::getCurrentPages() const
@@ -724,7 +738,7 @@ void PDFDrawWidget::wheelEvent(QWheelEvent* event)
             }
 
             int stepVertical = 0;
-            int stepHorizontal = shiftModifier ? m_widget->getHorizontalScrollbar()->pageStep() : m_widget->getHorizontalScrollbar()->singleStep();
+            int stepHorizontal = 0;
 
             if (proxy->isBlockMode())
             {
@@ -738,11 +752,13 @@ void PDFDrawWidget::wheelEvent(QWheelEvent* event)
                     boundingBox = this->rect();
                 }
 
-                stepVertical = shiftModifier ? boundingBox.height() : boundingBox.height() / 10;
+                stepVertical = shiftModifier ? qMax(boundingBox.height(), 1) : qMax(boundingBox.height() / 10, 1);
+                stepHorizontal = shiftModifier ? qMax(boundingBox.width(), 1) : qMax(boundingBox.width() / 10, 1);
             }
             else
             {
                 stepVertical = shiftModifier ? m_widget->getVerticalScrollbar()->pageStep() : m_widget->getVerticalScrollbar()->singleStep();
+                stepHorizontal = shiftModifier ? m_widget->getHorizontalScrollbar()->pageStep() : m_widget->getHorizontalScrollbar()->singleStep();
             }
 
             const int scrollVertical = stepVertical * static_cast<PDFReal>(angleDelta.y()) / static_cast<PDFReal>(QWheelEvent::DefaultDeltasPerStep);
@@ -750,6 +766,9 @@ void PDFDrawWidget::wheelEvent(QWheelEvent* event)
 
             scrollByPixels = QPoint(scrollHorizontal, scrollVertical);
         }
+
+        scrollByPixels.setX(qRound(static_cast<PDFReal>(scrollByPixels.x()) * m_horizontalWheelScrollSpeed));
+        scrollByPixels.setY(qRound(static_cast<PDFReal>(scrollByPixels.y()) * m_verticalWheelScrollSpeed));
 
         if (m_smoothWheelScrolling)
         {

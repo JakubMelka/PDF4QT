@@ -147,6 +147,8 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     ui->sidebarButtonIconSizeComboBox->addItem(tr("Medium"), static_cast<int>(PDFViewerSettings::SidebarButtonIconSizeMedium));
     ui->sidebarButtonIconSizeComboBox->addItem(tr("Large"), static_cast<int>(PDFViewerSettings::SidebarButtonIconSizeLarge));
     ui->sidebarButtonIconSizeComboBox->addItem(tr("Very Large"), static_cast<int>(PDFViewerSettings::SidebarButtonIconSizeVeryLarge));
+    ui->horizontalMouseWheelScrollSpeedEdit->setRange(PDFViewerSettings::Settings::WHEEL_SCROLL_SPEED_PERCENT_MIN, PDFViewerSettings::Settings::WHEEL_SCROLL_SPEED_PERCENT_MAX);
+    ui->verticalMouseWheelScrollSpeedEdit->setRange(PDFViewerSettings::Settings::WHEEL_SCROLL_SPEED_PERCENT_MIN, PDFViewerSettings::Settings::WHEEL_SCROLL_SPEED_PERCENT_MAX);
 
     // Langauges
     ui->languageCombo->addItem(tr("Automatic detection"), static_cast<int>(pdf::PDFApplicationTranslator::E_LANGUAGE_AUTOMATIC_SELECTION));
@@ -336,6 +338,8 @@ void PDFViewerSettingsDialog::loadData()
     ui->colorSchemeCombo->setCurrentIndex(ui->colorSchemeCombo->findData(static_cast<int>(m_settings.m_colorScheme)));
     ui->sidebarButtonIconSizeComboBox->setCurrentIndex(ui->sidebarButtonIconSizeComboBox->findData(static_cast<int>(m_settings.m_sidebarButtonIconSize)));
     ui->smoothMiddleMouseScrollingCheckBox->setChecked(m_settings.m_smoothWheelScrolling);
+    ui->horizontalMouseWheelScrollSpeedEdit->setValue(m_settings.m_wheelScrollHorizontalSpeedPercent);
+    ui->verticalMouseWheelScrollSpeedEdit->setValue(m_settings.m_wheelScrollVerticalSpeedPercent);
     ui->languageCombo->setCurrentIndex(ui->languageCombo->findData(static_cast<int>(m_settings.m_language)));
 
     // CMS
@@ -653,6 +657,14 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->smoothMiddleMouseScrollingCheckBox)
     {
         m_settings.m_smoothWheelScrolling = ui->smoothMiddleMouseScrollingCheckBox->isChecked();
+    }
+    else if (sender == ui->horizontalMouseWheelScrollSpeedEdit)
+    {
+        m_settings.m_wheelScrollHorizontalSpeedPercent = ui->horizontalMouseWheelScrollSpeedEdit->value();
+    }
+    else if (sender == ui->verticalMouseWheelScrollSpeedEdit)
+    {
+        m_settings.m_wheelScrollVerticalSpeedPercent = ui->verticalMouseWheelScrollSpeedEdit->value();
     }
     else if (sender == ui->signatureVerificationEnableCheckBox)
     {

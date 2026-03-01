@@ -67,6 +67,12 @@ void PDFViewerSettings::readSettings(QSettings& settings, const pdf::PDFCMSSetti
     m_settings.m_maximumRedoSteps = settings.value("maximumRedoSteps", defaultSettings.m_maximumRedoSteps).toInt();
     m_settings.m_sidebarButtonIconSize = static_cast<SidebarButtonIconSize>(settings.value("sidebarButtonIconSize", int(defaultSettings.m_sidebarButtonIconSize)).toInt());
     m_settings.m_smoothWheelScrolling = settings.value("smoothWheelScrolling", defaultSettings.m_smoothWheelScrolling).toBool();
+    m_settings.m_wheelScrollHorizontalSpeedPercent = qBound(Settings::WHEEL_SCROLL_SPEED_PERCENT_MIN,
+                                                            settings.value("wheelScrollHorizontalSpeedPercent", defaultSettings.m_wheelScrollHorizontalSpeedPercent).toInt(),
+                                                            Settings::WHEEL_SCROLL_SPEED_PERCENT_MAX);
+    m_settings.m_wheelScrollVerticalSpeedPercent = qBound(Settings::WHEEL_SCROLL_SPEED_PERCENT_MIN,
+                                                          settings.value("wheelScrollVerticalSpeedPercent", defaultSettings.m_wheelScrollVerticalSpeedPercent).toInt(),
+                                                          Settings::WHEEL_SCROLL_SPEED_PERCENT_MAX);
     settings.endGroup();
 
     settings.beginGroup("ColorManagementSystemSettings");
@@ -149,6 +155,8 @@ void PDFViewerSettings::writeSettings(QSettings& settings)
     settings.setValue("maximumRedoSteps", m_settings.m_maximumRedoSteps);
     settings.setValue("sidebarButtonIconSize", int(m_settings.m_sidebarButtonIconSize));
     settings.setValue("smoothWheelScrolling", m_settings.m_smoothWheelScrolling);
+    settings.setValue("wheelScrollHorizontalSpeedPercent", m_settings.m_wheelScrollHorizontalSpeedPercent);
+    settings.setValue("wheelScrollVerticalSpeedPercent", m_settings.m_wheelScrollVerticalSpeedPercent);
     settings.endGroup();
 
     settings.beginGroup("ColorManagementSystemSettings");
@@ -328,6 +336,8 @@ PDFViewerSettings::Settings::Settings() :
     m_colorScheme(AutoScheme),
     m_sidebarButtonIconSize(SidebarButtonIconSizeLarge),
     m_smoothWheelScrolling(true),
+    m_wheelScrollHorizontalSpeedPercent(WHEEL_SCROLL_SPEED_PERCENT_DEFAULT),
+    m_wheelScrollVerticalSpeedPercent(WHEEL_SCROLL_SPEED_PERCENT_DEFAULT),
     m_language(pdf::PDFApplicationTranslator::E_LANGUAGE_AUTOMATIC_SELECTION)
 {
 

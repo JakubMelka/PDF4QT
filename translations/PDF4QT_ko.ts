@@ -5731,12 +5731,12 @@
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="948"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1043"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1074"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1261"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1268"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1339"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1346"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1360"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1289"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1296"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1367"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1374"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1388"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1395"/>
         <source>Enable</source>
         <translation>활성화</translation>
     </message>
@@ -6181,7 +6181,23 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>언어</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1083"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1081"/>
+        <source>Horizontal mouse wheel speed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1088"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1102"/>
+        <source>%</source>
+        <translation type="unfinished">%</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1095"/>
+        <source>Vertical mouse wheel speed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1111"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6204,42 +6220,42 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;실행 취소/다시 실행&lt;/span&gt; 단계 수를 지정하여 문서 편집 중에 사용할 수 있는 실행 취소/다시 실행 단계 수를 제어합니다. 최대 실행 취소 단계 수를 0으로 설정하면 실행 취소/다시 실행 기능이 비활성화됩니다. 또한 실행 취소 단계 수를 0이 아닌 값으로 설정하고 다시 실행 단계 수를 0으로 설정할 수도 있습니다. 이렇게 하면 다시 실행 작업이 비활성화된 상태에서 실행 취소 작업만 사용할 수 있습니다. 변경 사항은 메모리 사용에 최적화되어 있으므로 각 실행 취소/다시 실행 단계는 수정되지 않은 개체를 다른 사람과 공유합니다. 즉, 대략적으로 말하면 50MB 문서를 10번 수정하면 약 51MB의 메모리가 소모될 수 있습니다. 실제 메모리 사용량은 변경 정도에 따라 다르지만 일반적으로 변경 사항이 적은 수의 개체에 영향을 미치기 때문에(예: 양식 필드 편집 또는 주석 수정) 일반적으로 최소입니다. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1118"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1146"/>
         <source>Speech Settings</source>
         <translation>음성 설정</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1126"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1154"/>
         <source>Voice</source>
         <translation>음성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1133"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1161"/>
         <source>Pitch</source>
         <translation>피치</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1140"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1168"/>
         <source>Volume</source>
         <translation>볼륨</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1147"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1175"/>
         <source>Rate</source>
         <translation>속도</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1154"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1182"/>
         <source>Voice synthetiser</source>
         <translation>음성 합성기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1161"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1189"/>
         <source>Locale</source>
         <translation>로케일</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1206"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1234"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6258,22 +6274,22 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;문서 읽기를 위한 텍스트 음성 변환 기능을 활성화하려면 음성 설정을 구성합니다. 이러한 설정은 텍스트 음성 변환 기능의 기본값으로 작동하지만 일부는 나중에 조정할 수 있습니다. &apos;피치&apos; 설정은 -1.0에서 1.0까지 다양하며 기본값은 0.0입니다. 마찬가지로 &apos;Rate&apos;의 범위는 -1.0에서 1.0까지이며 0.0은 정상적인 음성 흐름을 나타냅니다. 마지막으로 &apos;Volume&apos;은 0.0에서 1.0 사이에서 조정할 수 있습니다. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1239"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1267"/>
         <source>Form Settings</source>
         <translation>양식 설정</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1247"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1275"/>
         <source>Highlight form fields</source>
         <translation>양식 필드 강조 표시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1254"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1282"/>
         <source>Highlight required form fields</source>
         <translation>필수 양식 필드 강조 표시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1277"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1305"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6292,47 +6308,47 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;편집 가능한 필드를 강조 표시하는 옵션을 포함하여 제공된 설정을 사용하여 양식 필드의 모양을 사용자 정의할 수 있습니다. 필수 양식 필드는 빨간색으로 별도로 강조 표시할 수 있고, 다른 필드는 파란색으로 강조 표시할 수 있습니다. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1310"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1338"/>
         <source>Digital Signature Verification</source>
         <translation>디지털 서명 확인</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1318"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1346"/>
         <source>Ignore expired certificates</source>
         <translation>만료된 인증서 무시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1325"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1353"/>
         <source>Signature verification</source>
         <translation>서명 확인</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1332"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1360"/>
         <source>Strict mode</source>
         <translation>엄격 모드</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1353"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1381"/>
         <source>Use system certificate store</source>
         <translation>시스템 인증서 저장소 사용</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1383"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1411"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Trusted certificate store&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;신뢰할 수 있는 인증서 저장소&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1412"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1440"/>
         <source>Remove</source>
         <translation>제거</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1428"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1456"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;These are the settings for digital signature verification. Digital signatures are verified as strictly as possible to prevent any malicious content or signature manipulation. Verification can also be disabled, if not required. When &lt;span style=&quot; font-weight:600;&quot;&gt;Strict mode&lt;/span&gt; is enabled, every warning is treated as an error. You have the option to ignore the certificate expiration date, but this should only be done if you fully understand the potential risks involved. Verification uses a list of trusted certificates. System certificates can be added to this list, and you can also manage your own list of trusted certificates.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;디지털 서명 확인을 위한 설정입니다. 악의적인 내용이나 서명 조작을 방지하기 위해 디지털 서명은 최대한 엄격하게 검증됩니다. 필요하지 않은 경우 확인을 비활성화할 수도 있습니다. &lt;span style=&quot; font-weight:600;&quot;&gt;엄격 모드&lt;/span&gt;이 활성화되면 모든 경고가 오류로 처리됩니다. 인증서 만료 날짜를 무시할 수 있는 옵션이 있지만 이는 관련된 잠재적 위험을 완전히 이해하는 경우에만 수행해야 합니다. 확인에서는 신뢰할 수 있는 인증서 목록을 사용합니다. 시스템 인증서를 이 목록에 추가할 수 있으며 신뢰할 수 있는 인증서 목록을 직접 관리할 수도 있습니다.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1457"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1485"/>
         <source>Plugins</source>
         <translation>플러그인</translation>
     </message>
@@ -6987,124 +7003,124 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFDependentLibraryInfo</name>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="260"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="265"/>
         <source>Qt</source>
         <translation>Qt</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="261"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="266"/>
         <source>LGPLv3</source>
         <translation>LGPLv3</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="263"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="268"/>
         <source>https://www.qt.io/</source>
         <translation>https://www.qt.io/</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="269"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="274"/>
         <source>permissive + ack.</source>
         <translation>허용 + 승인.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="311"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="316"/>
         <source>%1.%2</source>
         <translation>%1.%2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="283"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="288"/>
         <source>FreeType</source>
         <translation>FreeType</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="268"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="273"/>
         <source>libjpeg-turbo</source>
         <translation>libjpeg-터보</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="270"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="275"/>
         <source>https://libjpeg-turbo.org/</source>
         <translation>https://libjpeg-turbo.org/</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="284"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="289"/>
         <source>FTL</source>
         <translation>FTL</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="285"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="290"/>
         <source>%1.%2.%3</source>
         <translation>%1.%2.%3</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="286"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="291"/>
         <source>https://www.freetype.org/index.html</source>
         <translation>https://www.freetype.org/index.html</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="291"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="296"/>
         <source>OpenJPEG</source>
         <translation>OpenJPEG</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="292"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="310"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="297"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="315"/>
         <source>2-clause MIT license</source>
         <translation>2절 MIT 라이선스</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="294"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="299"/>
         <source>https://www.openjpeg.org/</source>
         <translation>https://www.openjpeg.org/</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="299"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="304"/>
         <source>OpenSSL</source>
         <translation>OpenSSL</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="300"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="305"/>
         <source>Apache 2.0</source>
         <translation>아파치 2.0</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="302"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="307"/>
         <source>https://www.openssl.org/</source>
         <translation>https://www.openssl.org/</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="309"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="314"/>
         <source>LittleCMS</source>
         <translation>LittleCMS</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="312"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="317"/>
         <source>http://www.littlecms.com/</source>
         <translation>http://www.littlecms.com/</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="317"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="322"/>
         <source>zlib</source>
         <translation>zlib</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="318"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="330"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="323"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="335"/>
         <source>zlib specific</source>
         <translation>zlib 특정</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="320"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="325"/>
         <source>https://zlib.net/</source>
         <translation>https://zlib.net/</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="329"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="334"/>
         <source>Blend2D</source>
         <translation>Blend2D</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="332"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="337"/>
         <source>https://blend2d.com/</source>
         <translation>https://blend2d.com/</translation>
     </message>
@@ -9199,7 +9215,7 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfblendfunction.cpp" line="244"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1094"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1096"/>
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="2758"/>
         <source>Unknown</source>
         <translation>알 수 없음</translation>
@@ -10348,71 +10364,71 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>프로세스 일반%1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="94"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="99"/>
         <source>Not enough data to read %1-bit value.</source>
         <translation>%1비트 값을 읽을 수 있는 데이터가 충분하지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="134"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="139"/>
         <source>Can&apos;t seek to position %1.</source>
         <translation>%1 위치를 찾을 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="189"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="194"/>
         <source>Can&apos;t get substream - remaining %1 bits in buffer.</source>
         <translation>하위 스트림을 가져올 수 없습니다. 버퍼에 %1 비트가 남아 있습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="445"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="451"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="470"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="450"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="456"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="475"/>
         <source>Can&apos;t convert &apos;%1&apos; to a number.</source>
         <translation>&apos;%1&apos;을(를) 숫자로 변환할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="457"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="462"/>
         <source>Closed interval [%1, %2] is invalid.</source>
         <translation>닫힌 간격 [%1, %2]이 유효하지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="11854"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="11856"/>
         <source>Rendering of content type &apos;%1&apos; is not implemented.</source>
         <translation>콘텐츠 유형 &apos;%1&apos;의 렌더링이 구현되지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="11929"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="11931"/>
         <source>Image encoded by &apos;package&apos; mode not decoded.</source>
         <translation>&apos;패키지&apos; 모드로 인코딩된 이미지는 디코딩되지 않았습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="11946"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="11948"/>
         <source>Image of type &apos;%1&apos; not decoded.</source>
         <translation>&apos;%1&apos; 유형의 이미지가 디코딩되지 않았습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12004"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12173"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12006"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12175"/>
         <source>XFA: Buttons not implemented.</source>
         <translation>XFA: 버튼이 구현되지 않았습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12187"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12189"/>
         <source>XFA: Uknown ui.</source>
         <translation>XFA: 알 수 없는 UI.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12542"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12544"/>
         <source>Barcode not implemented!</source>
         <translation>바코드가 구현되지 않았습니다!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12846"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="12848"/>
         <source>XFA: Unknown fill pattern.</source>
         <translation>XFA: 알 수 없는 채우기 패턴입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="13244"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="13301"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="13246"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfxfaengine.cpp" line="13303"/>
         <source>XFA: special stroke is not supported.</source>
         <translation>XFA: 특수 스트로크는 지원되지 않습니다.</translation>
     </message>
@@ -11256,341 +11272,341 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>글꼴 %1에 대한 FontConfig 구축 패턴 오류</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="546"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="548"/>
         <source>Inexact font substitution: font %1 replaced by standard font Times New Roman.</source>
         <translation>부정확한 글꼴 대체: 글꼴 %1이 표준 글꼴 Times New Roman으로 대체되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="634"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="636"/>
         <source>Fontconfig error</source>
         <translation>Fontconfig 오류</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="839"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="841"/>
         <source>Glyph for simple font character code &apos;%1&apos; not found.</source>
         <translation>단순 글꼴 문자 코드 &apos;%1&apos;에 대한 글리프를 찾을 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="877"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="879"/>
         <source>Glyph for composite font character with cid &apos;%1&apos; not found.</source>
         <translation>cid가 &apos;%1&apos;인 합성 글꼴 문자에 대한 글리프를 찾을 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1005"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1007"/>
         <source>Details</source>
         <translation>세부 정보</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1009"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1011"/>
         <source>Font</source>
         <translation>글꼴</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1013"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1015"/>
         <source>Style</source>
         <translation>스타일</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1016"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1018"/>
         <source>Yes</source>
         <translation>예</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1017"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1019"/>
         <source>No</source>
         <translation>아니요</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1019"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1021"/>
         <source>Glyph count</source>
         <translation>글리프 수</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1020"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1022"/>
         <source>Is CID keyed</source>
         <translation>CID 키가 지정되어 있나요</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1021"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1023"/>
         <source>Is bold</source>
         <translation>굵게 표시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1022"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1024"/>
         <source>Is italics</source>
         <translation>기울임꼴입니다</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1023"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1025"/>
         <source>Has vertical writing system</source>
         <translation>세로 쓰기 시스템이 있습니다</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1024"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1026"/>
         <source>Has SFNT storage scheme</source>
         <translation>SFNT 스토리지 구성표 있음</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1025"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1027"/>
         <source>Has glyph names</source>
         <translation>문자 모양 이름이 있습니다</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1029"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2157"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1031"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2159"/>
         <source>Encoding</source>
         <translation>인코딩</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1039"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1041"/>
         <source>None</source>
         <translation>없음</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1043"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1045"/>
         <source>Unicode</source>
         <translation>유니코드</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1047"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1049"/>
         <source>MS Symbol</source>
         <translation>MS 기호</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1051"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1053"/>
         <source>Japanese Shift JIS</source>
         <translation>일본어 Shift JIS</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1055"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1057"/>
         <source>PRC - Simplified Chinese</source>
         <translation>PRC - 중국어 간체</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1059"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1061"/>
         <source>Traditional Chinese</source>
         <translation>중국어 번체</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1063"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1065"/>
         <source>Korean Extended Wansung</source>
         <translation>한국어 확장 완성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1067"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1069"/>
         <source>Korean Standard</source>
         <translation>한국 표준</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1071"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1073"/>
         <source>Adobe Standard</source>
         <translation>어도비 스탠다드</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1075"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1077"/>
         <source>Adobe Expert</source>
         <translation>어도비 전문가</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1078"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1080"/>
         <source>Adobe Custom</source>
         <translation>어도비 커스텀</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1082"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1084"/>
         <source>Adobe Latin 1</source>
         <translation>어도비 라틴어 1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1086"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1088"/>
         <source>Old Latin 1</source>
         <translation>고대 라틴어 1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1090"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1092"/>
         <source>Apple Roman</source>
         <translation>애플로만</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1098"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1100"/>
         <source>Platform/Encoding = %1 %2</source>
         <translation>플랫폼/인코딩 = %1 %2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1189"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1191"/>
         <source>FreeType error code %1: %2</source>
         <translation>FreeType 오류 코드 %1: %2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1276"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1278"/>
         <source>Can&apos;t load system font &apos;%1&apos;.</source>
         <translation>시스템 글꼴 &apos;%1&apos;을(를) 로드할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1383"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1385"/>
         <source>Invalid font encoding.</source>
         <translation>글꼴 인코딩이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1419"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1421"/>
         <source>Font object must be a dictionary.</source>
         <translation>글꼴 개체는 사전이어야 합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1437"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1439"/>
         <source>Invalid font type.</source>
         <translation>글꼴 유형이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1559"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1569"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1575"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1561"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1571"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1577"/>
         <source>Invalid differences in encoding entry of the font.</source>
         <translation>글꼴 인코딩 항목의 차이가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1581"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1624"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1583"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1626"/>
         <source>Invalid encoding entry of the font.</source>
         <translation>글꼴의 인코딩 항목이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1809"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1811"/>
         <source>Invalid CMAP in CID-keyed font.</source>
         <translation>CID 키 글꼴의 CMAP가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1815"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1827"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1817"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1829"/>
         <source>Invalid descendant font in CID-keyed font.</source>
         <translation>CID 키 글꼴의 하위 글꼴이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1821"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1823"/>
         <source>Invalid number (%1) of descendant fonts in CID-keyed font - exactly one is required.</source>
         <translation>CID 키 글꼴의 하위 글꼴 번호(%1)가 잘못되었습니다. 정확히 1개가 필요합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1916"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1918"/>
         <source>Invalid Type 3 font matrix.</source>
         <translation>유형 3 글꼴 매트릭스가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1923"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1925"/>
         <source>Invalid Type 3 font character content streams.</source>
         <translation>잘못된 유형 3 글꼴 문자 콘텐츠 스트림입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1932"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1934"/>
         <source>Invalid Type 3 font character range (from %1 to %2).</source>
         <translation>잘못된 유형 3 글꼴 문자 범위(%1부터 %2까지).</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1938"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1945"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1940"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1947"/>
         <source>Invalid Type 3 font encoding.</source>
         <translation>유형 3 글꼴 인코딩이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1963"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1978"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1965"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1980"/>
         <source>Invalid differences in encoding entry of type 3 font.</source>
         <translation>유형 3 글꼴 인코딩 항목의 차이가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2115"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2117"/>
         <source>Standard</source>
         <translation>표준</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2119"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2121"/>
         <source>Mac Roman</source>
         <translation>맥 로만</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2123"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2125"/>
         <source>Win Ansi</source>
         <translation>안시 승리</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2127"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2129"/>
         <source>PDF Doc</source>
         <translation>PDF 문서</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2131"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2133"/>
         <source>Mac Expert</source>
         <translation>맥 전문가</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2135"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2215"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2137"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2217"/>
         <source>Symbol</source>
         <translation>기호</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2139"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2219"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2141"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2221"/>
         <source>Zapf Dingbats</source>
         <translation>자프 딩뱃츠</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2143"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2145"/>
         <source>Mac OS Roman</source>
         <translation>맥 OS 로마자</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2147"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2149"/>
         <source>Custom</source>
         <translation>사용자 정의</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2197"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2199"/>
         <source>Times Roman</source>
         <translation>Times Roman</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2204"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2206"/>
         <source>Helvetica</source>
         <translation>Helvetica</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2211"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2213"/>
         <source>Courier</source>
         <translation>Courier</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2227"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2229"/>
         <source>Standard font</source>
         <translation>표준 글꼴</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2381"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2383"/>
         <source>Can&apos;t load CID font mapping named &apos;%1&apos;.</source>
         <translation>&apos;%1&apos;이라는 CID 글꼴 매핑을 로드할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2420"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2422"/>
         <source>Can&apos;t fetch code from CMap definition.</source>
         <translation>CMap 정의에서 코드를 가져올 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2430"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2432"/>
         <source>Can&apos;t fetch CID from CMap definition.</source>
         <translation>CMap 정의에서 CID를 가져올 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2464"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2466"/>
         <source>Can&apos;t use cmap inside cmap file.</source>
         <translation>cmap 파일 내에서 cmap을 사용할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2875"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2877"/>
         <source>Character count</source>
         <translation>문자 수</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2923"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2925"/>
         <source>Content stream for type 3 font character code &apos;%1&apos; not found.</source>
         <translation>유형 3 글꼴 문자 코드 &apos;%1&apos;에 대한 콘텐츠 스트림을 찾을 수 없습니다.</translation>
     </message>
@@ -11782,12 +11798,12 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>경로</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfdrawspacecontroller.cpp" line="928"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfdrawspacecontroller.cpp" line="943"/>
         <source>Compile time:    %1 [ms]</source>
         <translation>컴파일 시간: %1 [ms]</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfdrawspacecontroller.cpp" line="930"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfdrawspacecontroller.cpp" line="945"/>
         <source>Draw time:       %1 [ms]</source>
         <translation>그리기 시간: %1 [ms]</translation>
     </message>
@@ -14210,74 +14226,74 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>문서 콘텐츠에 액세스하려면 비밀번호를 입력하세요</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2071"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2072"/>
         <source>Document &apos;%1&apos; was successfully loaded!</source>
         <translation>&apos;%1&apos; 문서가 성공적으로 로드되었습니다!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2077"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2078"/>
         <source>Document read error: %1</source>
         <translation>문서 읽기 오류: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2289"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2290"/>
         <source>%1 - %2</source>
         <translation>%1 - %2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2557"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2564"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2559"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2566"/>
         <source>Reset Settings</source>
         <translation>설정 재설정</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2557"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2559"/>
         <source>Do you wish to restore the default factory settings of the program? All settings changed by the user will be deleted. Application will be closed.</source>
         <translation>프로그램의 기본 공장 설정을 복원하시겠습니까? 사용자가 변경한 모든 설정이 삭제됩니다. 신청이 마감됩니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2564"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2566"/>
         <source>Default factory settings were restored. Application will be now closed.</source>
         <translation>기본 공장 설정이 복원되었습니다. 이제 신청이 마감됩니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2609"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2611"/>
         <source>Plugins</source>
         <translation>플러그인</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2609"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2611"/>
         <source>Plugin on/off state has been changed. Please restart application to apply settings.</source>
         <translation>플러그인 켜기/끄기 상태가 변경되었습니다. 설정을 적용하려면 애플리케이션을 다시 시작하세요.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2636"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2708"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2638"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2710"/>
         <source>Select PDF document</source>
         <translation>PDF 문서 선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2636"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2638"/>
         <source>PDF document (*.pdf)</source>
         <translation>PDF 문서(*.pdf)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2693"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2695"/>
         <source>Export Bookmarks As</source>
         <translation>북마크 내보내기 형식</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2693"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2695"/>
         <source>JSON (*.json);;All files (*.*)</source>
         <translation>JSON(*.json);;모든 파일(*.*)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2708"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2710"/>
         <source>JSON (*.json)</source>
         <translation>JSON(*.json)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2727"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2729"/>
         <source>Rendering of page %1: %2 errors occured.</source>
         <translation>페이지 렌더링 %1: %2 오류가 발생했습니다.</translation>
     </message>
@@ -14998,142 +15014,142 @@ Do you want to perform this action?</source>
         <translation>매우 큼</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="152"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="154"/>
         <source>Automatic detection</source>
         <translation>자동 감지</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="153"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="155"/>
         <source>English</source>
         <translation>영어</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="154"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="156"/>
         <source>German</source>
         <translation>독일어</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="155"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="157"/>
         <source>Korean</source>
         <translation>한국어</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="156"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="158"/>
         <source>Spanish</source>
         <translation>스페인어</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="157"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="159"/>
         <source>Czech</source>
         <translation>체코어</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="158"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="160"/>
         <source>Chinese (Simplified)</source>
         <translation>중국어(간체)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="159"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="161"/>
         <source>Chinese (Traditional)</source>
         <translation>중국어(번체)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="160"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="162"/>
         <source>French</source>
         <translation>프랑스어</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="161"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="163"/>
         <source>Turkish</source>
         <translation>터키어</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="162"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="164"/>
         <source>Russian</source>
         <translation>러시아어</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="704"/>
         <source>Type</source>
         <translation>유형</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="704"/>
         <source>Certificate</source>
         <translation>인증서</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="704"/>
         <source>Organization</source>
         <translation>조직</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="704"/>
         <source>Valid from</source>
         <translation>유효 기간</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="692"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="704"/>
         <source>Valid to</source>
         <translation>다음에 유효함</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="700"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="712"/>
         <source>User</source>
         <translation>사용자</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="704"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="716"/>
         <source>System</source>
         <translation>시스템</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="744"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="756"/>
         <source>Action</source>
         <translation>작업</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="744"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="756"/>
         <source>Shortcut</source>
         <translation>바로가기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="773"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="785"/>
         <source>Error</source>
         <translation>오류</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="773"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="785"/>
         <source>Shortcut &apos;%1&apos; is invalid for action %2.</source>
         <translation>&apos;%1&apos; 바로가기는 %2 작업에 유효하지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="808"/>
         <source>Active</source>
         <translation>활성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="808"/>
         <source>Name</source>
         <translation>이름</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="808"/>
         <source>Author</source>
         <translation>작성자</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="808"/>
         <source>Version</source>
         <translation>버전</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="796"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="808"/>
         <source>License</source>
         <translation>라이선스</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="910"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="922"/>
         <source>Select color profile directory</source>
         <translation>색상 프로필 디렉터리 선택</translation>
     </message>
