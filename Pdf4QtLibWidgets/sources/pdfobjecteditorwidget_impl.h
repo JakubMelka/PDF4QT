@@ -36,6 +36,7 @@ class QPushButton;
 class QDateTimeEdit;
 class QCheckBox;
 class QDoubleSpinBox;
+class QFontComboBox;
 
 namespace pdf
 {
@@ -156,6 +157,25 @@ public:
 private:
     QLabel* m_label;
     QLineEdit* m_lineEdit;
+};
+
+class PDFObjectEditorMappedFontComboBoxAdapter : public PDFObjectEditorMappedWidgetAdapter
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFObjectEditorMappedWidgetAdapter;
+
+public:
+    explicit PDFObjectEditorMappedFontComboBoxAdapter(QLabel* label, QFontComboBox* comboBox, PDFObjectEditorAbstractModel* model, size_t attribute, QObject* parent);
+
+    virtual PDFObject getValue() const override;
+    virtual void setValue(PDFObject object) override;
+    virtual void update() override;
+
+private:
+    QLabel* m_label;
+    QFontComboBox* m_comboBox;
 };
 
 class PDFObjectEditorMappedTextBrowserAdapter : public PDFObjectEditorMappedWidgetAdapter

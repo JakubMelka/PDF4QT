@@ -109,10 +109,13 @@ public:
     explicit PDFCreateFreeTextTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QAction* action, QObject* parent);
 
 private:
+    bool configureFreeText(QString& text);
     void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
 
     PDFToolManager* m_toolManager;
     PDFPickTool* m_pickTool;
+    PDFFreeTextStyle m_style;
+    bool m_autoResizeToContents = true;
 };
 
 /// Tool that creates line/polyline/polygon annotations.

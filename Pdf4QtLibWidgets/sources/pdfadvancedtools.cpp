@@ -30,10 +30,20 @@
 #include "pdfwidgetutils.h"
 
 #include <QActionGroup>
+#include <QCheckBox>
+#include <QComboBox>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QDoubleSpinBox>
+#include <QFontComboBox>
+#include <QFormLayout>
 #include <QInputDialog>
 #include <QColorDialog>
 #include <QKeyEvent>
+#include <QPushButton>
+#include <QTextEdit>
 #include <QVector2D>
+#include <QVBoxLayout>
 #include <QApplication>
 
 #include "pdfdbgheap.h"
@@ -166,27 +176,113 @@ PDFCreateFreeTextTool::PDFCreateFreeTextTool(PDFDrawWidgetProxy* proxy, PDFToolM
     updateActions();
 }
 
+bool PDFCreateFreeTextTool::configureFreeText(QString& text)
+{
+    QDialog dialog(getProxy()->getWidget());
+    dialog.setWindowTitle(tr("Free text annotation"));
+
+    QVBoxLayout* rootLayout = new QVBoxLayout(&dialog);
+    QFormLayout* formLayout = new QFormLayout();
+
+    QTextEdit* textEdit = new QTextEdit(text, &dialog);
+    textEdit->setMinimumHeight(140);
+
+    QFontComboBox* fontCombo = new QFontComboBox(&dialog);
+    if (!m_style.fontFamily.isEmpty())
+    {
+        fontCombo->setCurrentFont(QFont(m_style.fontFamily));
+    }
+
+    QDoubleSpinBox* fontSizeSpinBox = new QDoubleSpinBox(&dialog);
+    fontSizeSpinBox->setRange(1.0, 512.0);
+    fontSizeSpinBox->setDecimals(1);
+    fontSizeSpinBox->setValue(m_style.fontSize);
+
+    QPushButton* colorButton = new QPushButton(tr("Select"), &dialog);
+    auto updateColorButton = [colorButton](const QColor& color)
+    {
+        const QColor effectiveColor = color.isValid() ? color : QColor(Qt::black);
+        colorButton->setText(effectiveColor.name(QColor::HexRgb));
+        colorButton->setStyleSheet(QString("background-color: %1;").arg(effectiveColor.name(QColor::HexRgb)));
+    };
+    updateColorButton(m_style.textColor);
+
+    QComboBox* alignmentCombo = new QComboBox(&dialog);
+    alignmentCombo->addItem(tr("Left"), static_cast<int>(Qt::AlignLeft));
+    alignmentCombo->addItem(tr("Center"), static_cast<int>(Qt::AlignHCenter));
+    alignmentCombo->addItem(tr("Right"), static_cast<int>(Qt::AlignRight));
+
+    const Qt::Alignment horizontalAlignment = Qt::Alignment(m_style.textAlignment) & Qt::AlignHorizontal_Mask;
+    int alignmentIndex = alignmentCombo->findData(static_cast<int>(horizontalAlignment));
+    if (alignmentIndex < 0)
+    {
+        alignmentIndex = 0;
+    }
+    alignmentCombo->setCurrentIndex(alignmentIndex);
+
+    QCheckBox* autoResizeCheckBox = new QCheckBox(tr("Automatically expand annotation to fit text"), &dialog);
+    autoResizeCheckBox->setChecked(m_autoResizeToContents);
+
+    formLayout->addRow(tr("Text:"), textEdit);
+    formLayout->addRow(tr("Font:"), fontCombo);
+    formLayout->addRow(tr("Size:"), fontSizeSpinBox);
+    formLayout->addRow(tr("Color:"), colorButton);
+    formLayout->addRow(tr("Alignment:"), alignmentCombo);
+    formLayout->addRow(QString(), autoResizeCheckBox);
+    rootLayout->addLayout(formLayout);
+
+    QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    rootLayout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    QColor selectedColor = m_style.textColor;
+    connect(colorButton, &QPushButton::clicked, &dialog, [&dialog, &selectedColor, updateColorButton]()
+    {
+        QColor color = QColorDialog::getColor(selectedColor, &dialog, QObject::tr("Text color"));
+        if (color.isValid())
+        {
+            selectedColor = color;
+            updateColorButton(selectedColor);
+        }
+    });
+
+    if (dialog.exec() != QDialog::Accepted)
+    {
+        return false;
+    }
+
+    text = textEdit->toPlainText();
+    m_style.fontFamily = fontCombo->currentFont().family();
+    m_style.fontSize = fontSizeSpinBox->value();
+    m_style.textColor = selectedColor.isValid() ? selectedColor : QColor(Qt::black);
+    m_style.textAlignment = TextAlignment(Qt::AlignTop | Qt::Alignment(alignmentCombo->currentData().toInt()));
+    m_autoResizeToContents = autoResizeCheckBox->isChecked();
+
+    return !text.trimmed().isEmpty();
+}
+
 void PDFCreateFreeTextTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
 {
-    bool ok = false;
-    QString text = QInputDialog::getMultiLineText(getProxy()->getWidget(), tr("Text"), tr("Enter text for free text panel"), QString(), &ok);
-
-    if (ok && !text.isEmpty())
+    QString text;
+    if (!configureFreeText(text))
     {
-        PDFDocumentModifier modifier(getDocument());
-
-        QString userName = PDFSysUtils::getUserName();
-        PDFObjectReference page = getDocument()->getCatalog()->getPage(pageIndex)->getPageReference();
-        modifier.getBuilder()->createAnnotationFreeText(page, pageRectangle, userName, QString(), text, TextAlignment(Qt::AlignLeft | Qt::AlignTop));
-        modifier.markAnnotationsChanged();
-
-        if (modifier.finalize())
-        {
-            Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
-        }
-
-        setActive(false);
+        return;
     }
+
+    PDFDocumentModifier modifier(getDocument());
+
+    QString userName = PDFSysUtils::getUserName();
+    PDFObjectReference page = getDocument()->getCatalog()->getPage(pageIndex)->getPageReference();
+    modifier.getBuilder()->createAnnotationFreeText(page, pageRectangle, userName, QString(), text, m_style, m_autoResizeToContents);
+    modifier.markAnnotationsChanged();
+
+    if (modifier.finalize())
+    {
+        Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+    }
+
+    setActive(false);
 }
 
 PDFCreateAnnotationTool::PDFCreateAnnotationTool(PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent) :

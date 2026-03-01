@@ -2783,6 +2783,7 @@ void PDFFreeTextAnnotation::draw(AnnotationDrawParameters& parameters) const
 
     QFont font(defaultAppearance.getFontName());
     font.setPixelSize(defaultAppearance.getFontSize());
+    painter.setFont(font);
     painter.setPen(defaultAppearance.getFontColor());
 
     Qt::Alignment alignment = Qt::AlignTop;

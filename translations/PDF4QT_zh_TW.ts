@@ -6343,6 +6343,14 @@ li.checked::marker { content: &quot;\2612&quot;; }
     </message>
 </context>
 <context>
+    <name>QObject</name>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="242"/>
+        <source>Text color</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>SelectOutlineToRegroupDialog</name>
     <message>
         <location filename="../Pdf4QtPageMaster/selectoutlinetoregroupdialog.ui" line="14"/>
@@ -6866,20 +6874,65 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFCreateFreeTextTool</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="172"/>
-        <source>Text</source>
-        <translation>文本</translation>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="182"/>
+        <source>Free text annotation</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="172"/>
-        <source>Enter text for free text panel</source>
-        <translation>在自由文本面板中輸入文本</translation>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="201"/>
+        <source>Select</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="211"/>
+        <source>Left</source>
+        <translation type="unfinished">左</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="212"/>
+        <source>Center</source>
+        <translation type="unfinished">中</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="213"/>
+        <source>Right</source>
+        <translation type="unfinished">右</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="223"/>
+        <source>Automatically expand annotation to fit text</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="226"/>
+        <source>Text:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="227"/>
+        <source>Font:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="228"/>
+        <source>Size:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="229"/>
+        <source>Color:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="230"/>
+        <source>Alignment:</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>pdf::PDFCreateHighlightTextTool</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="1172"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="1268"/>
         <source>Select Color</source>
         <translation>選取顏色</translation>
     </message>
@@ -6887,12 +6940,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFCreateHyperlinkTool</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="137"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="147"/>
         <source>Hyperlink</source>
         <translation>超連結</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="137"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="147"/>
         <source>Enter url address of the hyperlink</source>
         <translation>輸入超連結的 URL 網址</translation>
     </message>
@@ -6900,17 +6953,17 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFCreateLineTypeTool</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="440"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="536"/>
         <source>Orthogonal mode is enabled.</source>
         <translation>正交模式已啟用。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="444"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="540"/>
         <source>Orthogonal mode is disabled.</source>
         <translation>正交模式已停用。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="605"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="701"/>
         <source>Use key &apos;C&apos; to show/hide large cross. Use key &apos;O&apos; to switch on/off orthogonal mode.</source>
         <translation>使用按鍵「C」顯示/隱藏大型十字線。&lt;br&gt;
 使用按鍵「O」開啟/關閉正交模式。</translation>
@@ -6927,12 +6980,12 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFCreateStickyNoteTool</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="88"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="98"/>
         <source>Sticky note</source>
         <translation>便籤</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="88"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="98"/>
         <source>Enter text to be displayed in the sticky note</source>
         <translation>輸入要在便籤中顯示的文本</translation>
     </message>
@@ -7469,7 +7522,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFEditObjectDialog</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="995"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="1057"/>
         <source>Edit Annotation</source>
         <translation>編輯註釋</translation>
     </message>
@@ -7636,8 +7689,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="486"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="648"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="650"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="653"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="655"/>
         <source>Text</source>
         <translation>文本</translation>
     </message>
@@ -7650,35 +7703,38 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="488"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="608"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="609"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="610"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="612"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="613"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="615"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="617"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="622"/>
         <source>Free text</source>
         <translation>自由文本</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="489"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="620"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="622"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="625"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="628"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="631"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="634"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="640"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="648"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="650"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="627"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="630"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="633"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="636"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="639"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="645"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="653"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="655"/>
         <source>Line</source>
         <translation>行</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="490"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="712"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="843"/>
         <source>Square</source>
         <translation>正方形</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="491"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="713"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="844"/>
         <source>Circle</source>
         <translation>圓</translation>
     </message>
@@ -7721,9 +7777,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="499"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="656"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="670"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="672"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="661"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="675"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="677"/>
         <source>Stamp</source>
         <translation>印章</translation>
     </message>
@@ -7734,7 +7790,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="501"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="677"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="682"/>
         <source>File attachment</source>
         <translation>文件附件</translation>
     </message>
@@ -7855,9 +7911,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="533"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="543"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="547"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="686"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="687"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="688"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="691"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="692"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="693"/>
         <source>Appearance</source>
         <translation>外觀</translation>
     </message>
@@ -7933,18 +7989,21 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="570"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="598"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="608"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="609"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="610"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="617"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="620"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="613"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="615"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="622"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="625"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="628"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="631"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="634"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="640"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="656"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="670"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="677"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="627"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="630"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="633"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="636"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="639"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="645"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="661"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="675"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="682"/>
         <source>Style</source>
         <translation>樣式</translation>
     </message>
@@ -7982,8 +8041,8 @@ li.checked::marker { content: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="573"/>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="601"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="642"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="711"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="647"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="842"/>
         <source>None</source>
         <translation>無</translation>
     </message>
@@ -8055,207 +8114,222 @@ li.checked::marker { content: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="608"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="688"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="693"/>
         <source>Alignment</source>
         <translation>對齊</translation>
     </message>
     <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="609"/>
+        <source>Font</source>
+        <translation type="unfinished">字型</translation>
+    </message>
+    <message>
         <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="610"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="634"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="640"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="670"/>
+        <source>Size</source>
+        <translation type="unfinished">大小</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="613"/>
+        <source>Text color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="615"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="639"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="645"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="675"/>
         <source>Intent</source>
         <translation>意圖</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="613"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="618"/>
         <source>Callout</source>
         <translation>標註線</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="614"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="619"/>
         <source>Typewriter</source>
         <translation>文本框</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="617"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="622"/>
         <source>Callout line ending</source>
         <translation>標註線結尾</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="620"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="625"/>
         <source>Line start</source>
         <translation>直線起點</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="622"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="627"/>
         <source>Line end</source>
         <translation>直線終點</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="625"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="630"/>
         <source>Leader line length</source>
         <translation>引線長度</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="628"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="633"/>
         <source>Leader line extension</source>
         <translation>引線的延伸長度</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="631"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="636"/>
         <source>Leader line offset</source>
         <translation>引線偏移</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="636"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="641"/>
         <source>Arrow</source>
         <translation>箭頭</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="637"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="642"/>
         <source>Dimension</source>
         <translation>尺寸</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="643"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="648"/>
         <source>Cloud</source>
         <translation>雲協作</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="644"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="649"/>
         <source>Line dimension</source>
         <translation>線條尺寸</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="645"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="650"/>
         <source>Polygon dimension</source>
         <translation>多邊形尺寸</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="648"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="653"/>
         <source>Caption</source>
         <translation>標題說明</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="650"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="655"/>
         <source>Caption position</source>
         <translation>標題說明位置</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="652"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="657"/>
         <source>Inline</source>
         <translation>行內元素</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="653"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="658"/>
         <source>Top</source>
         <translation>頂部</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="656"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="661"/>
         <source>Name</source>
         <translation>名稱</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="673"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="678"/>
         <source>Image</source>
         <translation>圖像</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="674"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="679"/>
         <source>Snapshot</source>
         <translation>快照</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="677"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="682"/>
         <source>Icon</source>
         <translation>圖示</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="679"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="684"/>
         <source>Graph</source>
         <translation>圖形</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="680"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="685"/>
         <source>Push-pin</source>
         <translation>圖釘</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="681"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="686"/>
         <source>Paperclip</source>
         <translation>迴紋針</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="682"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="687"/>
         <source>Tag</source>
         <translation>標籤</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="686"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="687"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="688"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="691"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="692"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="693"/>
         <source>Redact</source>
         <translation>修訂</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="686"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="691"/>
         <source>Overlay text</source>
         <translation>疊加文本</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="687"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="692"/>
         <source>Repeat overlay text</source>
         <translation>重複疊加文本</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="698"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="829"/>
         <source>Left</source>
         <translation>左</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="699"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="830"/>
         <source>Center</source>
         <translation>中</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="700"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="831"/>
         <source>Right</source>
         <translation>右</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="714"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="845"/>
         <source>Diamond</source>
         <translation>菱形標記</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="715"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="846"/>
         <source>Open arrow</source>
         <translation>開放式箭頭</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="716"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="847"/>
         <source>Closed arrow</source>
         <translation>閉合式箭頭</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="717"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="848"/>
         <source>Butt</source>
         <translation>平端</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="718"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="849"/>
         <source>Reversed open arrow</source>
         <translation>反向開放式箭頭</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="719"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="850"/>
         <source>Reversed closed arrow</source>
         <translation>反向閉合式箭頭</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="720"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfobjecteditormodel.cpp" line="851"/>
         <source>Slash</source>
         <translation>斜線</translation>
     </message>
@@ -8263,7 +8337,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFObjectEditorMappedColorAdapter</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="956"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="1018"/>
         <source>custom</source>
         <translation>定製</translation>
     </message>
@@ -8271,7 +8345,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFObjectEditorWidgetMapper</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="366"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfobjecteditorwidget.cpp" line="380"/>
         <source>Rectangle</source>
         <translation>矩形</translation>
     </message>
@@ -8915,142 +8989,142 @@ li.checked::marker { content: &quot;\2612&quot;; }
         <translation>回覆</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3033"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3034"/>
         <source>&amp;Approved</source>
         <translation>批准(&amp;A)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3034"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3035"/>
         <source>APPROVED</source>
         <translation>批准</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3038"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3039"/>
         <source>As &amp;Is</source>
         <translation type="unfinished">保持原狀(&amp;I)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3039"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3040"/>
         <source>AS IS</source>
         <translation>保持原狀</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3043"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3044"/>
         <source>&amp;Confidential</source>
         <translation>保密(&amp;C)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3044"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3045"/>
         <source>CONFIDENTIAL</source>
         <translation>保密</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3048"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3049"/>
         <source>&amp;Departmental</source>
         <translation>部門相關(&amp;D)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3049"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3050"/>
         <source>DEPARTMENTAL</source>
         <translation>部門相關</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3053"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3054"/>
         <source>Dra&amp;ft</source>
         <translation>草稿(&amp;F)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3054"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3055"/>
         <source>DRAFT</source>
         <translation>草稿</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3058"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3059"/>
         <source>&amp;Experimental</source>
         <translation>實驗性功能(&amp;E)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3059"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3060"/>
         <source>EXPERIMENTAL</source>
         <translation>實驗性功能</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3063"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3064"/>
         <source>E&amp;xpired</source>
         <translation>已過期(&amp;X)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3064"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3065"/>
         <source>EXPIRED</source>
         <translation>已過期</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3068"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3069"/>
         <source>Fina&amp;l</source>
         <translation>最終版(&amp;L)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3069"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3070"/>
         <source>FINAL</source>
         <translation>最終版</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3073"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3074"/>
         <source>For Co&amp;mment</source>
         <translation type="unfinished">待審核(&amp;m)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3074"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3075"/>
         <source>FOR COMMENT</source>
         <translation>待審核</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3078"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3079"/>
         <source>For P&amp;ublic Release</source>
         <translation>公開發布(&amp;U)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3079"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3080"/>
         <source>FOR PUBLIC RELEASE</source>
         <translation>公開發布</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3083"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3084"/>
         <source>Not A&amp;pproved</source>
         <translation>未批准(&amp;P)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3084"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3085"/>
         <source>NOT APPROVED</source>
         <translation>未批准</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3088"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3089"/>
         <source>N&amp;ot For Public Release</source>
         <translation>不可公開發布(&amp;O)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3089"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3090"/>
         <source>NOT FOR PUBLIC RELEASE</source>
         <translation>不可公開發布</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3093"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3094"/>
         <source>&amp;Sold</source>
         <translation>已售(&amp;S)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3094"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3095"/>
         <source>SOLD</source>
         <translation>已售</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3098"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3099"/>
         <source>&amp;Top Secret</source>
         <translation>絕密(&amp;T)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3099"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3100"/>
         <source>TOP SECRET</source>
         <translation>絕密</translation>
     </message>
