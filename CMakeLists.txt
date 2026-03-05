@@ -47,6 +47,7 @@ if(WIN32 AND MSVC)
 endif()
 
 option(PDF4QT_BUILD_ONLY_CORE_LIBRARY "Build only core library" OFF)
+option(PDF4QT_BUILD_TESTS "Build UnitTests" ON)
 
 set(PDF4QT_QT_ROOT "" CACHE PATH "Qt root directory")
 
@@ -64,7 +65,11 @@ find_package(Qt6 REQUIRED COMPONENTS Core LinguistTools)
 if(PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     find_package(Qt6 REQUIRED COMPONENTS Core Gui Svg Xml)
 else()
-    find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg Xml PrintSupport TextToSpeech Test)
+    find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg Xml PrintSupport TextToSpeech)
+endif()
+
+if(PDF4QT_BUILD_TESTS)
+    find_package(Qt6 REQUIRED COMPONENTS Test)
 endif()
 
 qt_standard_project_setup(I18N_TRANSLATED_LANGUAGES en de cs es ko zh_CN zh_TW fr tr ru)
@@ -132,6 +137,23 @@ else()
     set(PDF4QT_INSTALL_INCLUDE_DIR ${CMAKE_INSTALL_INCLUDEDIR})
 endif()
 
+if(PDF4QT_LINUX)
+    set(PDF4QT_PLUGINS_DIR ${PDF4QT_INSTALL_LIB_DIR}/pdf4qt)
+    set(PDF4QT_INSTALL_TRANS_DIR ${PDF4QT_INSTALL_SHARE_DIR}/pdf4qt/translations)
+else()
+    set(PDF4QT_PLUGINS_DIR ${PDF4QT_INSTALL_LIB_DIR}/pdfplugins)
+    set(PDF4QT_INSTALL_TRANS_DIR ${PDF4QT_INSTALL_BIN_DIR}/translations)
+endif()
+
+# Relative paths are used by the config
+cmake_path(RELATIVE_PATH PDF4QT_PLUGINS_DIR
+           BASE_DIRECTORY "${PDF4QT_INSTALL_BIN_DIR}"
+           OUTPUT_VARIABLE PDF4QT_PLUGINS_RELATIVE_PATH)
+cmake_path(RELATIVE_PATH PDF4QT_INSTALL_TRANS_DIR
+           BASE_DIRECTORY "${PDF4QT_INSTALL_BIN_DIR}"
+           OUTPUT_VARIABLE PDF4QT_TRANSLATIONS_RELATIVE_PATH)
+configure_file(config.h.cmake config.h)
+
 add_subdirectory(Pdf4QtLibCore)
 
 if(PDF4QT_INSTALL_INCLUDE)
@@ -160,7 +182,6 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_subdirectory(JBIG2_Viewer)
     add_subdirectory(PdfExampleGenerator)
     add_subdirectory(PdfTool)
-    add_subdirectory(UnitTests)
     add_subdirectory(Pdf4QtLibGui)
     add_subdirectory(Pdf4QtEditorPlugins)
     add_subdirectory(Pdf4QtEditor)
@@ -171,11 +192,16 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_subdirectory(WixInstaller)
 endif()
 
+if(PDF4QT_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(UnitTests)
+endif()
+
 qt_collect_translation_source_targets(i18n_targets)
 message("CMAKE_TRANSLATION_TARGETS = " ${i18n_targets})
 
 set(PDF4QT_TRANSLATION_TS_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/translations)
-set(PDF4QT_TRANSLATION_QM_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/translations)
+set(PDF4QT_TRANSLATION_QM_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_TRANS_DIR})
 
 message("PDF4QT_TRANSLATION_TS_OUTPUT_DIRECTORY" ${PDF4QT_TRANSLATION_TS_OUTPUT_DIRECTORY})
 message("PDF4QT_TRANSLATION_QM_OUTPUT_DIRECTORY" ${PDF4QT_TRANSLATION_QM_OUTPUT_DIRECTORY})
@@ -186,7 +212,7 @@ qt_add_translations(TARGETS Pdf4QtEditor Pdf4QtViewer Pdf4QtPageMaster Pdf4QtDif
                     LUPDATE_OPTIONS -no-obsolete
                     TS_OUTPUT_DIRECTORY ${PDF4QT_TRANSLATION_TS_OUTPUT_DIRECTORY}
                     QM_OUTPUT_DIRECTORY ${PDF4QT_TRANSLATION_QM_OUTPUT_DIRECTORY}
-                    QM_FILES_OUTPUT_VARIABLE pdf4qt_qm_files)
+                    QM_FILES_OUTPUT_VARIABLE PDF4QT_QM_FILES)
 
 if(WIN32)
     set(PDF4QT_LUPDATE_TARGET "${PROJECT_NAME}_lupdate")
@@ -206,10 +232,8 @@ message("CMAKE_TOOLCHAIN_FILE = " ${CMAKE_TOOLCHAIN_FILE})
 configure_file(version.txt.in version.txt)
 
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
-    install(DIRECTORY ${PDF4QT_TRANSLATION_QM_OUTPUT_DIRECTORY}
-            RUNTIME DESTINATION ${PDF4QT_INSTALL_BIN_DIR}
-            FILES_MATCHING
-            PATTERN *.qm)
+    install(FILES ${PDF4QT_QM_FILES}
+            DESTINATION ${PDF4QT_INSTALL_TRANS_DIR})
 
     if(WIN32)
         install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/Desktop/44x44/
