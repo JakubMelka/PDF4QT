@@ -39,6 +39,8 @@ class MainWindow;
 namespace pdfpagemaster
 {
 
+class PageItemPreviewRenderer;
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -135,6 +137,7 @@ private:
 
     pdf::PDFIconTheme m_iconTheme;
     PageItemModel* m_model;
+    PageItemPreviewRenderer* m_previewRenderer;
     PageItemDelegate* m_delegate;
     Settings m_settings;
     QSignalMapper m_mapper;

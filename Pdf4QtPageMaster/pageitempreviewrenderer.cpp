@@ -22,6 +22,7 @@
 
 #include "pageitempreviewrenderer.h"
 #include "pdfcompiler.h"
+#include "pdfexecutionpolicy.h"
 #include "pdffont.h"
 
 #include <QAbstractItemView>
@@ -32,6 +33,7 @@
 #include <QScrollBar>
 #include <QtConcurrent/QtConcurrent>
 #include <limits>
+#include <numeric>
 
 namespace pdfpagemaster
 {
@@ -44,7 +46,7 @@ PageItemPreviewRenderer::PageItemPreviewRenderer(PageItemModel* model, QObject* 
     m_viewportUpdateTimer.setSingleShot(true);
     m_viewportUpdateTimer.setInterval(VIEWPORT_UPDATE_TIMEOUT_MS);
 
-    connect(&m_renderWatcher, &QFutureWatcher<RenderResult>::finished, this, &PageItemPreviewRenderer::onRenderFinished);
+    connect(&m_renderWatcher, &QFutureWatcher<RenderBatchResult>::finished, this, &PageItemPreviewRenderer::onRenderFinished);
     connect(&m_viewportUpdateTimer, &QTimer::timeout, this, &PageItemPreviewRenderer::onViewportSettled);
     connect(m_model, &QAbstractItemModel::modelAboutToBeReset, this, &PageItemPreviewRenderer::onModelAboutToBeReset);
     connect(m_model, &QAbstractItemModel::modelReset, this, &PageItemPreviewRenderer::onModelReset);
@@ -108,6 +110,7 @@ void PageItemPreviewRenderer::setPageImageSize(QSize pageImageSize)
     {
         m_pageImageSize = pageImageSize;
         clearPreviewCache();
+        Q_EMIT previewUpdated();
     }
 }
 
@@ -275,7 +278,8 @@ bool PageItemPreviewRenderer::ensureDocumentContext(int documentIndex)
     context->fontCache->setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(context->document), context->optionalContentActivity.get()));
     context->cmsManager->setDocument(context->document);
 
-    const int rasterizerCount = pdf::PDFRasterizerPool::getCorrectedRasterizerCount(1);
+    const int threadHint = pdf::PDFExecutionPolicy::getMaxThreadCount(pdf::PDFExecutionPolicy::Scope::Page);
+    const int rasterizerCount = pdf::PDFRasterizerPool::getCorrectedRasterizerCount(threadHint);
     context->rasterizerPool = std::make_unique<pdf::PDFRasterizerPool>(context->document,
                                                                         context->fontCache.get(),
                                                                         context->cmsManager.get(),
@@ -325,7 +329,16 @@ void PageItemPreviewRenderer::startNextRequest()
         return;
     }
 
-    while (!m_requestQueue.isEmpty())
+    if (m_requestQueue.isEmpty())
+    {
+        return;
+    }
+
+    const int maxBatchSize = qMax(1, pdf::PDFExecutionPolicy::getMaxThreadCount(pdf::PDFExecutionPolicy::Scope::Page));
+    QList<RenderRequest> requests;
+    requests.reserve(maxBatchSize);
+
+    while (!m_requestQueue.isEmpty() && requests.size() < maxBatchSize)
     {
         const RenderRequest request = m_requestQueue.takeFirst();
         if (!isRowVisible(request.row))
@@ -334,10 +347,19 @@ void PageItemPreviewRenderer::startNextRequest()
             continue;
         }
 
-        m_renderInProgress = true;
-        m_renderWatcher.setFuture(QtConcurrent::run([this, request]() { return renderPreviewAsync(request); }));
+        requests.push_back(request);
+    }
+
+    if (requests.isEmpty())
+    {
         return;
     }
+
+    m_renderInProgress = true;
+    m_renderWatcher.setFuture(QtConcurrent::run([this, requests = std::move(requests)]() mutable
+    {
+        return renderPreviewBatchAsync(std::move(requests));
+    }));
 }
 
 void PageItemPreviewRenderer::waitForCurrentRender()
@@ -469,19 +491,39 @@ PageItemPreviewRenderer::RenderResult PageItemPreviewRenderer::renderPreviewAsyn
     return result;
 }
 
+PageItemPreviewRenderer::RenderBatchResult PageItemPreviewRenderer::renderPreviewBatchAsync(QList<RenderRequest> requests) const
+{
+    RenderBatchResult results;
+    results.resize(requests.size());
+
+    std::vector<int> indices(requests.size());
+    std::iota(indices.begin(), indices.end(), 0);
+
+    auto processRequest = [this, &requests, &results](int requestIndex)
+    {
+        results[requestIndex] = renderPreviewAsync(requests[requestIndex]);
+    };
+
+    pdf::PDFExecutionPolicy::execute(pdf::PDFExecutionPolicy::Scope::Page, indices.cbegin(), indices.cend(), processRequest);
+    return results;
+}
+
 void PageItemPreviewRenderer::onRenderFinished()
 {
-    const RenderResult result = m_renderWatcher.result();
+    const RenderBatchResult results = m_renderWatcher.result();
     m_renderInProgress = false;
-    m_pendingKeys.remove(result.key);
-
-    if (!result.image.isNull())
+    for (const RenderResult& result : results)
     {
-        const bool isCurrentResult = result.epoch == m_renderEpoch || isRowVisible(result.row);
-        if (isCurrentResult)
+        m_pendingKeys.remove(result.key);
+
+        if (!result.image.isNull())
         {
-            const int cost = qMax(1, int(qMin<qint64>(result.image.sizeInBytes(), std::numeric_limits<int>::max())));
-            m_pageImageCache.insert(result.key, new QImage(result.image), cost);
+            const bool isCurrentResult = result.epoch == m_renderEpoch || isRowVisible(result.row);
+            if (isCurrentResult)
+            {
+                const int cost = qMax(1, int(qMin<qint64>(result.image.sizeInBytes(), std::numeric_limits<int>::max())));
+                m_pageImageCache.insert(result.key, new QImage(result.image), cost);
+            }
         }
     }
 

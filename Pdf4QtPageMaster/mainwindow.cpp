@@ -26,6 +26,7 @@
 #include "aboutdialog.h"
 #include "assembleoutputsettingsdialog.h"
 #include "selectoutlinetoregroupdialog.h"
+#include "pageitempreviewrenderer.h"
 
 #include "pdfaction.h"
 #include "pdfwidgetutils.h"
@@ -54,7 +55,8 @@ MainWindow::MainWindow(QWidget* parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow),
     m_model(new PageItemModel(this)),
-    m_delegate(new PageItemDelegate(m_model, this)),
+    m_previewRenderer(new PageItemPreviewRenderer(m_model, this)),
+    m_delegate(new PageItemDelegate(m_model, m_previewRenderer, this)),
     m_dropAction(Qt::IgnoreAction)
 {
     ui->setupUi(this);
@@ -63,7 +65,14 @@ MainWindow::MainWindow(QWidget* parent) :
 
     ui->documentItemsView->setModel(m_model);
     ui->documentItemsView->setItemDelegate(m_delegate);
-    m_delegate->setView(ui->documentItemsView);
+    m_previewRenderer->setView(ui->documentItemsView);
+    connect(m_previewRenderer, &PageItemPreviewRenderer::previewUpdated, this, [this]()
+    {
+        if (ui->documentItemsView && ui->documentItemsView->viewport())
+        {
+            ui->documentItemsView->viewport()->update();
+        }
+    });
     connect(ui->documentItemsView, &QListView::customContextMenuRequested, this, &MainWindow::onWorkspaceCustomContextMenuRequested);
 
     setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(800, 600)));

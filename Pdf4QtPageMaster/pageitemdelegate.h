@@ -26,9 +26,6 @@
 #include "pdfdocument.h"
 
 #include <QAbstractItemDelegate>
-#include <QPointer>
-
-class QListView;
 
 namespace pdfpagemaster
 {
@@ -45,7 +42,7 @@ private:
     using BaseClass = QAbstractItemDelegate;
 
 public:
-    explicit PageItemDelegate(PageItemModel* model, QObject* parent);
+    explicit PageItemDelegate(PageItemModel* model, PageItemPreviewRenderer* previewRenderer, QObject* parent);
     virtual ~PageItemDelegate() override;
 
     virtual void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override;
@@ -53,7 +50,6 @@ public:
 
     QSize getPageImageSize() const;
     void setPageImageSize(QSize pageImageSize);
-    void setView(QListView* view);
 
 private:
     static constexpr int getVerticalSpacing() { return 5; }
@@ -64,7 +60,6 @@ private:
     PageItemModel* m_model;
     QSize m_pageImageSize;
     PageItemPreviewRenderer* m_previewRenderer;
-    QPointer<QListView> m_view;
     mutable double m_dpiScaleRatio = 1.0;
 };
 

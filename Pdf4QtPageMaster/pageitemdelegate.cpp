@@ -26,33 +26,20 @@
 #include "pdfwidgetutils.h"
 #include "pdfpainterutils.h"
 
-#include <QListView>
 #include <QPainter>
 
 namespace pdfpagemaster
 {
 
-PageItemDelegate::PageItemDelegate(PageItemModel* model, QObject* parent) :
+PageItemDelegate::PageItemDelegate(PageItemModel* model, PageItemPreviewRenderer* previewRenderer, QObject* parent) :
     BaseClass(parent),
     m_model(model),
-    m_previewRenderer(new PageItemPreviewRenderer(model, this))
+    m_previewRenderer(previewRenderer)
 {
-    connect(m_previewRenderer, &PageItemPreviewRenderer::previewUpdated, this, [this]()
-    {
-        if (m_view && m_view->viewport())
-        {
-            m_view->viewport()->update();
-        }
-    });
+    Q_ASSERT(m_previewRenderer);
 }
 
 PageItemDelegate::~PageItemDelegate() = default;
-
-void PageItemDelegate::setView(QListView* view)
-{
-    m_view = view;
-    m_previewRenderer->setView(view);
-}
 
 void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const
 {
@@ -147,10 +134,6 @@ void PageItemDelegate::setPageImageSize(QSize pageImageSize)
         m_pageImageSize = pageImageSize;
         m_previewRenderer->setPageImageSize(pageImageSize);
         Q_EMIT sizeHintChanged(QModelIndex());
-        if (m_view && m_view->viewport())
-        {
-            m_view->viewport()->update();
-        }
     }
 }
 
