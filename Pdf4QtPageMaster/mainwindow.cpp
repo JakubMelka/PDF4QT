@@ -63,6 +63,7 @@ MainWindow::MainWindow(QWidget* parent) :
 
     ui->documentItemsView->setModel(m_model);
     ui->documentItemsView->setItemDelegate(m_delegate);
+    m_delegate->setView(ui->documentItemsView);
     connect(ui->documentItemsView, &QListView::customContextMenuRequested, this, &MainWindow::onWorkspaceCustomContextMenuRequested);
 
     setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(800, 600)));

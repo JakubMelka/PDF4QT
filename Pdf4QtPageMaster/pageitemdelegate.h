@@ -23,16 +23,19 @@
 #ifndef PDFPAGEMASTER_PAGEITEMDELEGATE_H
 #define PDFPAGEMASTER_PAGEITEMDELEGATE_H
 
-#include "pdfrenderer.h"
-#include "pdfcms.h"
+#include "pdfdocument.h"
 
 #include <QAbstractItemDelegate>
+#include <QPointer>
+
+class QListView;
 
 namespace pdfpagemaster
 {
 
 class PageItemModel;
 struct PageGroupItem;
+class PageItemPreviewRenderer;
 
 class PageItemDelegate : public QAbstractItemDelegate
 {
@@ -50,16 +53,18 @@ public:
 
     QSize getPageImageSize() const;
     void setPageImageSize(QSize pageImageSize);
+    void setView(QListView* view);
 
 private:
     static constexpr int getVerticalSpacing() { return 5; }
     static constexpr int getHorizontalSpacing() { return 5; }
 
-    QPixmap getPageImagePixmap(const PageGroupItem* item, QRect rect) const;
+    QRect getPageImageRect(const PageGroupItem* item, const QRect& itemRect, const QWidget* widget) const;
 
     PageItemModel* m_model;
     QSize m_pageImageSize;
-    pdf::PDFRasterizer* m_rasterizer;
+    PageItemPreviewRenderer* m_previewRenderer;
+    QPointer<QListView> m_view;
     mutable double m_dpiScaleRatio = 1.0;
 };
 
