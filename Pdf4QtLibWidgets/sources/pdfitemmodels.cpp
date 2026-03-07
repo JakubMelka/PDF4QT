@@ -33,6 +33,8 @@
 #include <QFileIconProvider>
 #include <QMimeData>
 
+#include <algorithm>
+
 #include "pdfdbgheap.h"
 
 namespace pdf
@@ -598,17 +600,67 @@ QStringList PDFOutlineTreeItemModel::mimeTypes() const
 QMimeData* PDFOutlineTreeItemModel::mimeData(const QModelIndexList& indexes) const
 {
     QMimeData* mimeData = new QMimeData();
+    m_dragDropItems.clear();
 
-    if (indexes.size() == 1)
+    QModelIndexList sourceIndexes;
+    sourceIndexes.reserve(indexes.size());
+    for (const QModelIndex& index : indexes)
+    {
+        if (index.isValid() && index.column() == 0)
+        {
+            sourceIndexes.push_back(index);
+        }
+    }
+
+    QModelIndexList filteredIndexes;
+    filteredIndexes.reserve(sourceIndexes.size());
+    for (const QModelIndex& index : sourceIndexes)
+    {
+        bool hasSelectedAncestor = false;
+        QModelIndex ancestor = index.parent();
+        while (ancestor.isValid())
+        {
+            if (sourceIndexes.contains(ancestor))
+            {
+                hasSelectedAncestor = true;
+                break;
+            }
+
+            ancestor = ancestor.parent();
+        }
+
+        if (!hasSelectedAncestor)
+        {
+            filteredIndexes.push_back(index);
+        }
+    }
+
+    if (filteredIndexes.isEmpty())
+    {
+        return mimeData;
+    }
+
+    QList<PDFOutlineItem*> sourceItems;
+    sourceItems.reserve(filteredIndexes.size());
+    for (const QModelIndex& index : filteredIndexes)
+    {
+        const PDFOutlineTreeItem* item = static_cast<const PDFOutlineTreeItem*>(index.internalPointer());
+        if (item && item->getOutlineItem())
+        {
+            QSharedPointer<PDFOutlineItem> outlineItem = item->getOutlineItem()->clone();
+            m_dragDropItems.push_back(outlineItem);
+            sourceItems.push_back(outlineItem.data());
+        }
+    }
+
+    if (!sourceItems.isEmpty())
     {
         QByteArray ba;
-
+        QDataStream stream(&ba, QDataStream::WriteOnly);
+        stream << quint32(sourceItems.size());
+        for (PDFOutlineItem* sourceItem : sourceItems)
         {
-            QModelIndex index = indexes.front();
-            const PDFOutlineTreeItem* item = static_cast<const PDFOutlineTreeItem*>(index.internalPointer());
-            m_dragDropItem = item->getOutlineItem()->clone();
-            QDataStream stream(&ba, QDataStream::WriteOnly);
-            stream << reinterpret_cast<quintptr>(m_dragDropItem.data());
+            stream << reinterpret_cast<quintptr>(sourceItem);
         }
 
         mimeData->setData(mimeTypes().front(), ba);
@@ -635,45 +687,76 @@ bool PDFOutlineTreeItemModel::dropMimeData(const QMimeData* data, Qt::DropAction
 
     QByteArray pointerData = data->data(mimeTypes().front());
     QDataStream stream(pointerData);
-    quintptr pointer = 0;
-    stream >> pointer;
+    quint32 itemCount = 0;
+    stream >> itemCount;
 
-    PDFOutlineItem* item = reinterpret_cast<PDFOutlineItem*>(pointer);
-    if (item == m_dragDropItem.data())
+    QList<PDFOutlineItem*> sourceItems;
+    sourceItems.reserve(itemCount);
+    for (quint32 i = 0; i < itemCount; ++i)
     {
-        if (row == -1)
+        quintptr pointer = 0;
+        stream >> pointer;
+        PDFOutlineItem* item = reinterpret_cast<PDFOutlineItem*>(pointer);
+        if (item)
         {
-            row = rowCount(parent);
-        }
-
-        if (column == -1)
-        {
-            column = 0;
-        }
-
-        if (insertRow(row, parent))
-        {
-            QModelIndex targetIndex = this->index(row, column, parent);
-            PDFOutlineTreeItem* targetTreeItem = static_cast<PDFOutlineTreeItem*>(targetIndex.internalPointer());
-            PDFOutlineItem* targetOutlineItem = targetTreeItem->getOutlineItem();
-            *targetOutlineItem = *item;
-
-            while (targetTreeItem->getChildCount() > 0)
-            {
-                delete targetTreeItem->takeChild(0);
-            }
-
-            const size_t childCount = targetOutlineItem->getChildCount();
-            for (size_t i = 0; i < childCount; ++i)
-            {
-                targetTreeItem->addCreatedChild(new PDFOutlineTreeItem(nullptr, targetOutlineItem->getChildPtr(i)));
-            }
-
-            return true;
+            sourceItems.push_back(item);
         }
     }
 
-    return false;
+    if (sourceItems.isEmpty())
+    {
+        return false;
+    }
+
+    for (PDFOutlineItem* sourceItem : sourceItems)
+    {
+        const bool found = std::any_of(m_dragDropItems.cbegin(), m_dragDropItems.cend(), [sourceItem](const QSharedPointer<PDFOutlineItem>& item)
+        {
+            return item.data() == sourceItem;
+        });
+
+        if (!found)
+        {
+            return false;
+        }
+    }
+
+    if (row == -1)
+    {
+        row = rowCount(parent);
+    }
+
+    if (column == -1)
+    {
+        column = 0;
+    }
+
+    if (!insertRows(row, sourceItems.size(), parent))
+    {
+        return false;
+    }
+
+    for (int i = 0; i < sourceItems.size(); ++i)
+    {
+        QModelIndex targetIndex = this->index(row + i, column, parent);
+        PDFOutlineTreeItem* targetTreeItem = static_cast<PDFOutlineTreeItem*>(targetIndex.internalPointer());
+        PDFOutlineItem* targetOutlineItem = targetTreeItem->getOutlineItem();
+        *targetOutlineItem = *sourceItems.at(i);
+
+        while (targetTreeItem->getChildCount() > 0)
+        {
+            delete targetTreeItem->takeChild(0);
+        }
+
+        const size_t childCount = targetOutlineItem->getChildCount();
+        for (size_t childIndex = 0; childIndex < childCount; ++childIndex)
+        {
+            targetTreeItem->addCreatedChild(new PDFOutlineTreeItem(nullptr, targetOutlineItem->getChildPtr(childIndex)));
+        }
+    }
+
+    m_dragDropItems.clear();
+    return true;
 }
 
 bool PDFOutlineTreeItemModel::insertRows(int row, int count, const QModelIndex& parent)
@@ -724,7 +807,7 @@ bool PDFOutlineTreeItemModel::removeRows(int row, int count, const QModelIndex& 
 
     endRemoveRows();
 
-    return false;
+    return true;
 }
 
 bool PDFOutlineTreeItemModel::moveRows(const QModelIndex& sourceParent, int sourceRow, int count, const QModelIndex& destinationParent, int destinationChild)

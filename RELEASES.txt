@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #373: Ctrl/Shift keyboard selection for Outline
  - Issue #370: Extracting pages within a range
  - Issue #369: Keeping redact box on
  - Issue #368: side to side scrolling

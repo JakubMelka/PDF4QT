@@ -225,7 +225,7 @@ public:
 private:
     QIcon m_icon;
     bool m_editable;
-    mutable QSharedPointer<PDFOutlineItem> m_dragDropItem;
+    mutable QList<QSharedPointer<PDFOutlineItem>> m_dragDropItems;
 };
 
 class PDF4QTLIBWIDGETSSHARED_EXPORT PDFSelectableOutlineTreeItemModel : public PDFOutlineTreeItemModel

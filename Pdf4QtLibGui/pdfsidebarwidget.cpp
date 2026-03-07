@@ -106,6 +106,8 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
 
     if (editableOutline)
     {
+        ui->outlineTreeView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+        ui->outlineTreeView->setSelectionBehavior(QAbstractItemView::SelectRows);
         ui->outlineTreeView->setDragEnabled(true);
         ui->outlineTreeView->setAcceptDrops(true);
         ui->outlineTreeView->setDropIndicatorShown(true);
