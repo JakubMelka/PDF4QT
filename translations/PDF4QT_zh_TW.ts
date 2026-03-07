@@ -12089,105 +12089,105 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdfpagemaster::MainWindow</name>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="155"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="159"/>
         <source>&amp;Main</source>
         <translation>主選單(&amp;M)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="166"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="170"/>
         <source>&amp;Insert</source>
         <translation>插入(&amp;I)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="169"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="173"/>
         <source>&amp;Select</source>
         <translation>選擇(&amp;S)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="172"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="176"/>
         <source>&amp;Regroup</source>
         <translation>重組(&amp;R)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="175"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="179"/>
         <source>&amp;Zoom</source>
         <translation>縮放(&amp;Z)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="178"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="182"/>
         <source>Ma&amp;ke</source>
         <translation>製作(&amp;S)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="260"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="874"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="264"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="886"/>
         <source>Select PDF document(s)</source>
         <translation>選擇PDF文檔</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="260"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="874"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="903"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="264"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="886"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="915"/>
         <source>PDF document (*.pdf)</source>
         <translation>PDF文檔(*.pdf)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="287"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="299"/>
         <source>Select</source>
         <translation>選擇</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="294"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="306"/>
         <source>Regroup</source>
         <translation>重組</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="372"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="384"/>
         <source>Encrypted document</source>
         <translation>已加密文檔</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="372"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="384"/>
         <source>Enter password to access document &apos;%1&apos;</source>
         <translation>請輸入密碼以存取文件「%1」</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="395"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="401"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="731"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="817"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="830"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="839"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="407"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="413"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="743"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="829"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="842"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="851"/>
         <source>Error</source>
         <translation>錯誤</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="395"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="407"/>
         <source>Document security doesn&apos;t permit to organize pages.</source>
         <translation>文件安全性不允許重新整理頁面。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="731"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="743"/>
         <source>No documents to assemble.</source>
         <translation type="unfinished">沒有可供合併的文件。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="830"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="842"/>
         <source>Document with given filename already exists.</source>
         <translation>指定的檔名文件已存在。</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="855"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="867"/>
         <source>Images (*.%1)</source>
         <translation>圖像(*.%1)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="856"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="868"/>
         <source>Select Image(s)</source>
         <translation>選取圖像</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="903"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="915"/>
         <source>Select PDF document</source>
         <translation>選取PDF文檔</translation>
     </message>

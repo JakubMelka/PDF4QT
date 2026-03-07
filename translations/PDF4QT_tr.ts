@@ -12084,105 +12084,105 @@ li.checked::marker { content: &quot;\2612&quot;; }
 <context>
     <name>pdfpagemaster::MainWindow</name>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="155"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="159"/>
         <source>&amp;Main</source>
         <translation>&amp;Ana</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="166"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="170"/>
         <source>&amp;Insert</source>
         <translation>&amp;Ekle</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="169"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="173"/>
         <source>&amp;Select</source>
         <translation>&amp;Seç</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="172"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="176"/>
         <source>&amp;Regroup</source>
         <translation>Yeniden g&amp;ruplandır</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="175"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="179"/>
         <source>&amp;Zoom</source>
         <translation>&amp;Yakınlaştır</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="178"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="182"/>
         <source>Ma&amp;ke</source>
         <translation>&amp;Yap</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="260"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="874"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="264"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="886"/>
         <source>Select PDF document(s)</source>
         <translation>PDF belge(lerini) seçin</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="260"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="874"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="903"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="264"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="886"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="915"/>
         <source>PDF document (*.pdf)</source>
         <translation>PDF belgesi (*.pdf)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="287"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="299"/>
         <source>Select</source>
         <translation>Seç</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="294"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="306"/>
         <source>Regroup</source>
         <translation>Yeniden gruplandır</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="372"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="384"/>
         <source>Encrypted document</source>
         <translation>Şifreli belge</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="372"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="384"/>
         <source>Enter password to access document &apos;%1&apos;</source>
         <translation>&apos;%1&apos; belgesine erişmek için parola girin</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="395"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="401"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="731"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="817"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="830"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="839"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="407"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="413"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="743"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="829"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="842"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="851"/>
         <source>Error</source>
         <translation>Hata</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="395"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="407"/>
         <source>Document security doesn&apos;t permit to organize pages.</source>
         <translation>Belge güvenliği, sayfaların düzenlenmesine izin vermez.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="731"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="743"/>
         <source>No documents to assemble.</source>
         <translation>Birleştirilecek belge yok.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="830"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="842"/>
         <source>Document with given filename already exists.</source>
         <translation>Verilen dosya adına sahip belge zaten var.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="855"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="867"/>
         <source>Images (*.%1)</source>
         <translation>Resimler (*.%1)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="856"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="868"/>
         <source>Select Image(s)</source>
         <translation>Resim(ler)i seçin</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="903"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="915"/>
         <source>Select PDF document</source>
         <translation>PDF belgesini seçin</translation>
     </message>

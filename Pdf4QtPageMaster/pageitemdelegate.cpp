@@ -22,31 +22,24 @@
 
 #include "pageitemdelegate.h"
 #include "pageitemmodel.h"
+#include "pageitempreviewrenderer.h"
 #include "pdfwidgetutils.h"
 #include "pdfpainterutils.h"
-#include "pdfrenderer.h"
-#include "pdfcompiler.h"
-#include "pdfconstants.h"
 
 #include <QPainter>
-#include <QPixmapCache>
 
 namespace pdfpagemaster
 {
 
-PageItemDelegate::PageItemDelegate(PageItemModel* model, QObject* parent) :
+PageItemDelegate::PageItemDelegate(PageItemModel* model, PageItemPreviewRenderer* previewRenderer, QObject* parent) :
     BaseClass(parent),
     m_model(model),
-    m_rasterizer(nullptr)
+    m_previewRenderer(previewRenderer)
 {
-    m_rasterizer = new pdf::PDFRasterizer(this);
-    m_rasterizer->reset(pdf::RendererEngine::Blend2D_SingleThread);
+    Q_ASSERT(m_previewRenderer);
 }
 
-PageItemDelegate::~PageItemDelegate()
-{
-
-}
+PageItemDelegate::~PageItemDelegate() = default;
 
 void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const
 {
@@ -61,26 +54,26 @@ void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& opti
 
     m_dpiScaleRatio = option.widget->devicePixelRatioF();
     QSize scaledSize = pdf::PDFWidgetUtils::scaleDPI(option.widget, m_pageImageSize);
-    int verticalSpacing = pdf::PDFWidgetUtils::scaleDPI_y(option.widget, getVerticalSpacing());
-    int horizontalSpacing = pdf::PDFWidgetUtils::scaleDPI_x(option.widget, getHorizontalSpacing());
+    const int verticalSpacing = pdf::PDFWidgetUtils::scaleDPI_y(option.widget, getVerticalSpacing());
+    const int horizontalSpacing = pdf::PDFWidgetUtils::scaleDPI_x(option.widget, getHorizontalSpacing());
 
     QRect pageBoundingRect = QRect(QPoint(rect.left() + (rect.width() - scaledSize.width()) / 2, rect.top() + verticalSpacing), scaledSize);
 
     // Draw page preview
     if (!item->groups.empty())
     {
-        const PageGroupItem::GroupItem& groupItem = item->groups.front();
-        QSizeF rotatedPageSize = pdf::PDFPage::getRotatedBox(QRectF(QPointF(0, 0), groupItem.rotatedPageDimensionsMM), groupItem.pageAdditionalRotation).size();
-        QSize pageImageSize = rotatedPageSize.scaled(pageBoundingRect.size(), Qt::KeepAspectRatio).toSize();
-        QRect pageImageRect(pageBoundingRect.topLeft() + QPoint((pageBoundingRect.width() - pageImageSize.width()) / 2, (pageBoundingRect.height() - pageImageSize.height()) / 2), pageImageSize);
+        const QRect pageImageRect = getPageImageRect(item, rect, option.widget);
 
-        painter->setBrush(Qt::white);
-        painter->drawRect(pageImageRect);
+        painter->fillRect(pageImageRect, Qt::white);
 
-        QPixmap pageImagePixmap = getPageImagePixmap(item, pageImageRect);
+        QPixmap pageImagePixmap = m_previewRenderer->getPageImagePixmap(item, pageImageRect);
         if (!pageImagePixmap.isNull())
         {
             painter->drawPixmap(pageImageRect, pageImagePixmap);
+        }
+        else
+        {
+            m_previewRenderer->requestPreview(item, pageImageRect, index.row(), m_dpiScaleRatio);
         }
 
         painter->setPen(QPen(Qt::black));
@@ -139,107 +132,27 @@ void PageItemDelegate::setPageImageSize(QSize pageImageSize)
     if (m_pageImageSize != pageImageSize)
     {
         m_pageImageSize = pageImageSize;
+        m_previewRenderer->setPageImageSize(pageImageSize);
         Q_EMIT sizeHintChanged(QModelIndex());
     }
 }
 
-QPixmap PageItemDelegate::getPageImagePixmap(const PageGroupItem* item, QRect rect) const
+QRect PageItemDelegate::getPageImageRect(const PageGroupItem* item, const QRect& itemRect, const QWidget* widget) const
 {
-    QPixmap pixmap;
+    QSize scaledSize = pdf::PDFWidgetUtils::scaleDPI(widget, m_pageImageSize);
+    const int verticalSpacing = pdf::PDFWidgetUtils::scaleDPI_y(widget, getVerticalSpacing());
 
-    Q_ASSERT(item);
+    QRect pageBoundingRect(QPoint(itemRect.left() + (itemRect.width() - scaledSize.width()) / 2, itemRect.top() + verticalSpacing), scaledSize);
+
     if (item->groups.empty())
     {
-        return pixmap;
+        return pageBoundingRect;
     }
 
     const PageGroupItem::GroupItem& groupItem = item->groups.front();
-    if (groupItem.pageType == PT_Empty)
-    {
-        return pixmap;
-    }
-
-    // Jakub Melka: generate key and see, if pixmap is not cached
-    QString key = QString("%1#%2#%3#%4#%5@%6x%7").arg(groupItem.documentIndex).arg(groupItem.imageIndex).arg(int(groupItem.pageAdditionalRotation)).arg(groupItem.pageIndex).arg(groupItem.pageType).arg(rect.width()).arg(rect.height());
-
-    if (!QPixmapCache::find(key, &pixmap))
-    {
-        // We must draw the pixmap
-        pixmap = QPixmap(rect.width(), rect.height());
-        pixmap.fill(Qt::transparent);
-
-        switch (groupItem.pageType)
-        {
-            case pdfpagemaster::PT_DocumentPage:
-            {
-                const auto& documents = m_model->getDocuments();
-                auto it = documents.find(groupItem.documentIndex);
-                if (it != documents.cend())
-                {
-                    const pdf::PDFDocument& document = it->second.document;
-                    const pdf::PDFInteger pageIndex = groupItem.pageIndex - 1;
-                    if (pageIndex >= 0 && pageIndex < pdf::PDFInteger(document.getCatalog()->getPageCount()))
-                    {
-                        const pdf::PDFPage* page = document.getCatalog()->getPage(pageIndex);
-                        Q_ASSERT(page);
-
-                        pdf::PDFPrecompiledPage compiledPage;
-                        pdf::PDFFontCache fontCache(pdf::DEFAULT_FONT_CACHE_LIMIT, pdf::DEFAULT_REALIZED_FONT_CACHE_LIMIT);
-                        pdf::PDFCMSManager cmsManager(nullptr);
-                        pdf::PDFOptionalContentActivity optionalContentActivity(&document, pdf::OCUsage::View, nullptr);
-
-                        fontCache.setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(&document), &optionalContentActivity));
-                        cmsManager.setDocument(&document);
-
-                        pdf::PDFCMSPointer cms = cmsManager.getCurrentCMS();
-                        pdf::PDFRenderer renderer(&document, &fontCache, cms.data(), &optionalContentActivity, pdf::PDFRenderer::getDefaultFeatures(), pdf::PDFMeshQualitySettings());
-                        renderer.compile(&compiledPage, pageIndex);
-
-                        QSize imageSize = rect.size() * m_dpiScaleRatio;
-                        QImage pageImage = m_rasterizer->render(pageIndex, page, &compiledPage, imageSize, pdf::PDFRenderer::getDefaultFeatures(), nullptr, cms.data(), groupItem.pageAdditionalRotation);
-                        pixmap = QPixmap::fromImage(qMove(pageImage));
-                    }
-                }
-                break;
-            }
-
-            case pdfpagemaster::PT_Image:
-            {
-                const auto& images = m_model->getImages();
-                auto it = images.find(groupItem.imageIndex);
-                if (it != images.cend())
-                {
-                    const QImage& image = it->second.image;
-                    if (!image.isNull())
-                    {
-                        QRect drawRect(QPoint(0, 0), rect.size());
-                        QRect mediaBox(QPoint(0, 0), image.size());
-                        QRectF rotatedMediaBox = pdf::PDFPage::getRotatedBox(mediaBox, groupItem.pageAdditionalRotation);
-                        QTransform matrix = pdf::PDFRenderer::createMediaBoxToDevicePointMatrix(rotatedMediaBox, drawRect, groupItem.pageAdditionalRotation);
-
-                        QPainter painter(&pixmap);
-                        painter.setWorldTransform(QTransform(matrix));
-                        painter.translate(0, image.height());
-                        painter.scale(1.0, -1.0);
-                        painter.drawImage(0, 0, image);
-                    }
-                }
-                break;
-            }
-
-            case pdfpagemaster::PT_Empty:
-                Q_ASSERT(false);
-                break;
-
-            default:
-                Q_ASSERT(false);
-                break;
-        }
-
-        QPixmapCache::insert(key, pixmap);
-    }
-
-    return pixmap;
+    QSizeF rotatedPageSize = pdf::PDFPage::getRotatedBox(QRectF(QPointF(0, 0), groupItem.rotatedPageDimensionsMM), groupItem.pageAdditionalRotation).size();
+    QSize pageImageSize = rotatedPageSize.scaled(pageBoundingRect.size(), Qt::KeepAspectRatio).toSize();
+    return QRect(pageBoundingRect.topLeft() + QPoint((pageBoundingRect.width() - pageImageSize.width()) / 2, (pageBoundingRect.height() - pageImageSize.height()) / 2), pageImageSize);
 }
 
 }   // namespace pdfpagemaster

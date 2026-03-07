@@ -39,6 +39,8 @@ class MainWindow;
 namespace pdfpagemaster
 {
 
+class PageItemPreviewRenderer;
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -115,6 +117,7 @@ private slots:
     void on_actionClose_triggered();
     void on_actionAddDocuments_triggered();
     void onMappedActionTriggered(int actionId);
+    void onPreviewUpdated();
     void onWorkspaceCustomContextMenuRequested(const QPoint& point);
     void updateActions();
 
@@ -135,6 +138,7 @@ private:
 
     pdf::PDFIconTheme m_iconTheme;
     PageItemModel* m_model;
+    PageItemPreviewRenderer* m_previewRenderer;
     PageItemDelegate* m_delegate;
     Settings m_settings;
     QSignalMapper m_mapper;
