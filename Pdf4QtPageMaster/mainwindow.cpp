@@ -66,13 +66,7 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->documentItemsView->setModel(m_model);
     ui->documentItemsView->setItemDelegate(m_delegate);
     m_previewRenderer->setView(ui->documentItemsView);
-    connect(m_previewRenderer, &PageItemPreviewRenderer::previewUpdated, this, [this]()
-    {
-        if (ui->documentItemsView && ui->documentItemsView->viewport())
-        {
-            ui->documentItemsView->viewport()->update();
-        }
-    });
+    connect(m_previewRenderer, &PageItemPreviewRenderer::previewUpdated, this, &MainWindow::onPreviewUpdated);
     connect(ui->documentItemsView, &QListView::customContextMenuRequested, this, &MainWindow::onWorkspaceCustomContextMenuRequested);
 
     setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(800, 600)));
@@ -283,6 +277,14 @@ void MainWindow::on_actionAddDocuments_triggered()
 void MainWindow::onMappedActionTriggered(int actionId)
 {
     performOperation(static_cast<Operation>(actionId));
+}
+
+void MainWindow::onPreviewUpdated()
+{
+    if (ui->documentItemsView && ui->documentItemsView->viewport())
+    {
+        ui->documentItemsView->viewport()->update();
+    }
 }
 
 void MainWindow::onWorkspaceCustomContextMenuRequested(const QPoint& point)

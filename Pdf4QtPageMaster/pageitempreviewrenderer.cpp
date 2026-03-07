@@ -34,9 +34,42 @@
 #include <QtConcurrent/QtConcurrent>
 #include <limits>
 #include <numeric>
+#include <set>
+#include <utility>
 
 namespace pdfpagemaster
 {
+
+namespace
+{
+
+class FontCacheShrinkGuard
+{
+public:
+    FontCacheShrinkGuard(const void* source, std::vector<pdf::PDFFontCache*> fontCaches) :
+        m_source(source),
+        m_fontCaches(std::move(fontCaches))
+    {
+        for (pdf::PDFFontCache* fontCache : m_fontCaches)
+        {
+            fontCache->setCacheShrinkEnabled(m_source, false);
+        }
+    }
+
+    ~FontCacheShrinkGuard()
+    {
+        for (pdf::PDFFontCache* fontCache : m_fontCaches)
+        {
+            fontCache->setCacheShrinkEnabled(m_source, true);
+        }
+    }
+
+private:
+    const void* m_source;
+    std::vector<pdf::PDFFontCache*> m_fontCaches;
+};
+
+} // namespace
 
 PageItemPreviewRenderer::PageItemPreviewRenderer(PageItemModel* model, QObject* parent) :
     QObject(parent),
@@ -493,6 +526,34 @@ PageItemPreviewRenderer::RenderResult PageItemPreviewRenderer::renderPreviewAsyn
 
 PageItemPreviewRenderer::RenderBatchResult PageItemPreviewRenderer::renderPreviewBatchAsync(QList<RenderRequest> requests) const
 {
+    std::vector<pdf::PDFFontCache*> fontCaches;
+    fontCaches.reserve(requests.size());
+
+    {
+        QMutexLocker guard(&m_contextMutex);
+        std::set<int> processedDocumentIndices;
+        for (const RenderRequest& request : requests)
+        {
+            if (request.pageType != PT_DocumentPage)
+            {
+                continue;
+            }
+
+            if (!processedDocumentIndices.insert(request.documentIndex).second)
+            {
+                continue;
+            }
+
+            auto it = m_documentContexts.find(request.documentIndex);
+            if (it != m_documentContexts.cend() && it->second && it->second->fontCache)
+            {
+                fontCaches.push_back(it->second->fontCache.get());
+            }
+        }
+    }
+
+    FontCacheShrinkGuard fontCacheShrinkGuard(&requests, std::move(fontCaches));
+
     RenderBatchResult results;
     results.resize(requests.size());
 

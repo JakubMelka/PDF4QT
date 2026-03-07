@@ -117,6 +117,7 @@ private slots:
     void on_actionClose_triggered();
     void on_actionAddDocuments_triggered();
     void onMappedActionTriggered(int actionId);
+    void onPreviewUpdated();
     void onWorkspaceCustomContextMenuRequested(const QPoint& point);
     void updateActions();
 

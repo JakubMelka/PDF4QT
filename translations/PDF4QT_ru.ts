@@ -12083,105 +12083,105 @@ __ТК7____ТК8____ТК9__
 <context>
     <name>pdfpagemaster::MainWindow</name>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="155"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="159"/>
         <source>&amp;Main</source>
         <translation>&amp;Главное</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="166"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="170"/>
         <source>&amp;Insert</source>
         <translation>&amp;Вставить</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="169"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="173"/>
         <source>&amp;Select</source>
         <translation>&amp;выберите</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="172"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="176"/>
         <source>&amp;Regroup</source>
         <translation>&amp;перегруппировать</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="175"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="179"/>
         <source>&amp;Zoom</source>
         <translation>&amp;Увеличить</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="178"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="182"/>
         <source>Ma&amp;ke</source>
         <translation>&amp;Делать</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="260"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="874"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="264"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="886"/>
         <source>Select PDF document(s)</source>
         <translation>выберите PDF-документы</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="260"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="874"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="903"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="264"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="886"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="915"/>
         <source>PDF document (*.pdf)</source>
         <translation>PDF-документ (*.pdf)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="287"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="299"/>
         <source>Select</source>
         <translation>выберите</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="294"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="306"/>
         <source>Regroup</source>
         <translation>перегруппировать</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="372"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="384"/>
         <source>Encrypted document</source>
         <translation>зашифрованный документ</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="372"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="384"/>
         <source>Enter password to access document &apos;%1&apos;</source>
         <translation>введите пароль для доступа к документу «%1»</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="395"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="407"/>
         <source>Document security doesn&apos;t permit to organize pages.</source>
         <translation>безопасность документа не позволяет организовывать страницы.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="395"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="401"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="731"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="817"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="830"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="839"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="407"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="413"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="743"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="829"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="842"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="851"/>
         <source>Error</source>
         <translation>Ошибка</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="731"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="743"/>
         <source>No documents to assemble.</source>
         <translation>нет документов для сборки.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="830"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="842"/>
         <source>Document with given filename already exists.</source>
         <translation>документ с данным именем файла уже существует.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="855"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="867"/>
         <source>Images (*.%1)</source>
         <translation>изображения (*.%1)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="856"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="868"/>
         <source>Select Image(s)</source>
         <translation>выберите изображения</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="903"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="915"/>
         <source>Select PDF document</source>
         <translation>выберите PDF-документ</translation>
     </message>
