@@ -1628,7 +1628,15 @@ public:
     static PDFObject createPDFColor(const QColor& color);
 
 private:
+    static QByteArray formatPDFReal(PDFReal value);
+    static void appendPDFPoint(QByteArray& data, const QPointF& point);
+    static QColor getAnnotationDrawColor(const std::vector<PDFReal>& color, PDFReal opacity);
+    static QByteArray getBlendModeNameForAppearance(BlendMode blendMode);
+    static void appendHighlightQuadrilateralPath(QByteArray& data, const PDFAnnotationQuadrilaterals::Quadrilateral& quadrilateral);
+
     PDFFreeTextStyle createDefaultFreeTextStyle(TextAlignment alignment) const;
+    bool updateHighlightAnnotationAppearanceStream(PDFObjectReference annotationReference,
+                                                   const PDFHighlightAnnotation* annotation);
     QRectF resizeFreeTextRectangleToContents(QRectF rectangle,
                                              const QString& contents,
                                              const PDFFreeTextStyle& style,
