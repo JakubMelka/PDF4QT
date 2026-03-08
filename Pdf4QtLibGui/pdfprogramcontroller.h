@@ -120,6 +120,7 @@ public:
         Optimize,
         Sanitize,
         RemoveExternalLinks,
+        PageGeometry,
         CreateBitonalDocument,
         Encryption,
         FitPage,
@@ -365,6 +366,7 @@ private:
     void onActionOptimizeTriggered();
     void onActionSanitizeTriggered();
     void onActionRemoveExternalLinksTriggered();
+    void onActionPageGeometryTriggered();
     void onActionCreateBitonalDocumentTriggered();
     void onActionEncryptionTriggered();
     void onActionFitPageTriggered();

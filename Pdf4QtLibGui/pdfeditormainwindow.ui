@@ -168,6 +168,7 @@
     <addaction name="separator"/>
     <addaction name="actionSanitize"/>
     <addaction name="actionRemoveExternalLinks"/>
+    <addaction name="actionPageGeometry"/>
     <addaction name="actionCreateBitonalDocument"/>
    </widget>
    <widget class="QMenu" name="menuInsert">
@@ -1075,6 +1076,18 @@
    </property>
    <property name="toolTip">
     <string>Remove all external link annotations from the document.</string>
+   </property>
+  </action>
+  <action name="actionPageGeometry">
+   <property name="icon">
+    <iconset resource="pdf4qtlibgui.qrc">
+     <normaloff>:/resources/page.svg</normaloff>:/resources/page.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Page &amp;Geometry...</string>
+   </property>
+   <property name="toolTip">
+    <string>Change page size, margins and content placement.</string>
    </property>
   </action>
   <action name="actionAutomaticDocumentRefresh">

@@ -24,6 +24,7 @@
 #define PDFPAGEMASTER_MAINWINDOW_H
 
 #include "pdficontheme.h"
+#include "pdfpagegeometry.h"
 
 #include "pageitemmodel.h"
 #include "pageitemdelegate.h"
@@ -95,6 +96,7 @@ public:
         InsertImage,
         InsertEmptyPage,
         InsertPDF,
+        ConfigurePageGeometry,
 
         RegroupEvenOdd,
         RegroupPaired,
@@ -143,6 +145,8 @@ private:
     Settings m_settings;
     QSignalMapper m_mapper;
     Qt::DropAction m_dropAction;
+    bool m_hasPageGeometrySettings = false;
+    pdf::PDFPageGeometrySettings m_pageGeometrySettings;
 };
 
 }   // namespace pdfpagemaster

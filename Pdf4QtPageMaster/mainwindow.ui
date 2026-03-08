@@ -81,6 +81,8 @@
     <addaction name="actionCopy"/>
     <addaction name="actionPaste"/>
     <addaction name="separator"/>
+    <addaction name="actionPageGeometry"/>
+    <addaction name="separator"/>
     <addaction name="actionRotate_Left"/>
     <addaction name="actionRotate_Right"/>
     <addaction name="separator"/>
@@ -399,6 +401,14 @@
    </property>
    <property name="shortcut">
     <string>Shift+F4</string>
+   </property>
+  </action>
+  <action name="actionPageGeometry">
+   <property name="text">
+    <string>Page &amp;Geometry...</string>
+   </property>
+   <property name="toolTip">
+    <string>Configure page size, margins and content placement for output documents.</string>
    </property>
   </action>
   <action name="actionZoom_In">
