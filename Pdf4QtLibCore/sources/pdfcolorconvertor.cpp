@@ -165,11 +165,16 @@ QImage PDFColorConvertor::convert(QImage image) const
                 for (int column = 0; column < image.width(); ++column)
                 {
                     QColor color = image.pixelColor(column, row);
-                    const float lightness = 1.0f - color.lightnessF();
-                    QColor convertedColor = m_foregroundColor;
-                    convertedColor.setRedF(convertedColor.redF() * lightness);
-                    convertedColor.setGreenF(convertedColor.greenF() * lightness);
-                    convertedColor.setBlueF(convertedColor.blueF() * lightness);
+                    const float foregroundWeight = 1.0f - color.lightnessF();
+                    const float backgroundWeight = 1.0f - foregroundWeight;
+
+                    QColor convertedColor;
+                    convertedColor.setRedF(m_foregroundColor.redF() * foregroundWeight + m_backgroundColor.redF() * backgroundWeight);
+                    convertedColor.setGreenF(m_foregroundColor.greenF() * foregroundWeight + m_backgroundColor.greenF() * backgroundWeight);
+                    convertedColor.setBlueF(m_foregroundColor.blueF() * foregroundWeight + m_backgroundColor.blueF() * backgroundWeight);
+
+                    // Preserve source image transparency.
+                    convertedColor.setAlphaF((m_foregroundColor.alphaF() * foregroundWeight + m_backgroundColor.alphaF() * backgroundWeight) * color.alphaF());
                     image.setPixelColor(column, row, convertedColor);
                 }
             }
