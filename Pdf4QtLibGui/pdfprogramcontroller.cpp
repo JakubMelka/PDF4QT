@@ -42,6 +42,7 @@
 #include "pdfviewersettingsdialog.h"
 #include "pdfaboutdialog.h"
 #include "pdfrenderingerrorswidget.h"
+#include "pdfpagegeometrydialog.h"
 #include "pdfsendmail.h"
 #include "pdfrecentfilemanager.h"
 #include "pdftexttospeech.h"
@@ -50,6 +51,7 @@
 #include "pdfwidgetformmanager.h"
 #include "pdfactioncombobox.h"
 #include "pdffullscreenwidget.h"
+#include "pdfpagegeometry.h"
 
 #include <QMenu>
 #include <QPrinter>
@@ -224,6 +226,7 @@ void PDFActionManager::initActions(QSize iconSize, bool initializeStampActions)
     setShortcut(BookmarkGoToNext, QKeySequence("Ctrl+."));
     setShortcut(BookmarkGoToPrevious, QKeySequence("Ctrl+,"));
     setShortcut(FullscreenMode, QKeySequence("Ctrl+L"));
+    setShortcut(PageGeometry, QKeySequence("Ctrl+Shift+R"));
 
     if (hasActions({ CreateStickyNoteComment, CreateStickyNoteHelp, CreateStickyNoteInsert, CreateStickyNoteKey, CreateStickyNoteNewParagraph, CreateStickyNoteNote, CreateStickyNoteParagraph }))
     {
@@ -521,6 +524,10 @@ void PDFProgramController::initialize(Features features,
     if (QAction* action = m_actionManager->getAction(PDFActionManager::RemoveExternalLinks))
     {
         connect(action, &QAction::triggered, this, &PDFProgramController::onActionRemoveExternalLinksTriggered);
+    }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::PageGeometry))
+    {
+        connect(action, &QAction::triggered, this, &PDFProgramController::onActionPageGeometryTriggered);
     }
     if (QAction* action = m_actionManager->getAction(PDFActionManager::CreateBitonalDocument))
     {
@@ -1491,6 +1498,43 @@ void PDFProgramController::onActionRemoveExternalLinksTriggered()
     m_mainWindowInterface->setStatusBarMessage(tr("External link annotations removed: %1.").arg(annotationsToRemove.size()), 4000);
 }
 
+void PDFProgramController::onActionPageGeometryTriggered()
+{
+    if (!m_pdfDocument)
+    {
+        return;
+    }
+
+    pdf::PDFPageGeometryDialog dialog(m_mainWindow);
+    dialog.setPageCount(m_pdfDocument->getCatalog()->getPageCount());
+
+    std::vector<pdf::PDFInteger> currentPages = m_pdfWidget->getDrawWidget()->getCurrentPages();
+    if (!currentPages.empty())
+    {
+        pdf::PDFPageGeometrySettings settings = dialog.getSettings();
+        settings.pageRange = QString::number(currentPages.front() + 1);
+        dialog.setSettings(settings);
+    }
+
+    if (dialog.exec() == QDialog::Accepted)
+    {
+        pdf::PDFDocument updatedDocument = *m_pdfDocument;
+        pdf::PDFModifiedDocument::ModificationFlags flags;
+        const pdf::PDFOperationResult result = pdf::PDFPageGeometry::apply(&updatedDocument, dialog.getSettings(), &flags);
+        if (!result)
+        {
+            QMessageBox::critical(m_mainWindow, tr("Error"), result.getErrorMessage());
+            return;
+        }
+
+        if (updatedDocument != *m_pdfDocument)
+        {
+            pdf::PDFDocumentPointer pointer(new pdf::PDFDocument(std::move(updatedDocument)));
+            onDocumentModified(pdf::PDFModifiedDocument(std::move(pointer), m_optionalContentActivity, flags));
+        }
+    }
+}
+
 void PDFProgramController::onActionCreateBitonalDocumentTriggered()
 {
     auto cms = m_CMSManager->getCurrentCMS();
@@ -1816,12 +1860,15 @@ void PDFProgramController::updateActionsAvailability()
     const bool hasDocument = m_pdfDocument != nullptr;
     const bool hasValidDocument = !isBusy && hasDocument;
     bool canPrint = false;
+    bool canModify = false;
     if (m_pdfDocument)
     {
         const pdf::PDFObjectStorage& storage = m_pdfDocument->getStorage();
         const pdf::PDFSecurityHandler* securityHandler = storage.getSecurityHandler();
         canPrint = securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::PrintLowResolution) ||
                    securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::PrintHighResolution);
+        canModify = securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::Modify) ||
+                    securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::Assemble);
     }
 
     m_actionManager->setEnabled(PDFActionManager::Open, !isBusy);
@@ -1840,6 +1887,7 @@ void PDFProgramController::updateActionsAvailability()
     m_actionManager->setEnabled(PDFActionManager::Optimize, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::Sanitize, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::RemoveExternalLinks, hasValidDocument);
+    m_actionManager->setEnabled(PDFActionManager::PageGeometry, hasValidDocument && canModify);
     m_actionManager->setEnabled(PDFActionManager::CreateBitonalDocument, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::Encryption, hasValidDocument);
     m_actionManager->setEnabled(PDFActionManager::Save, hasValidDocument);

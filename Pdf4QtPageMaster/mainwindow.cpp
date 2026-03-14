@@ -27,6 +27,7 @@
 #include "assembleoutputsettingsdialog.h"
 #include "selectoutlinetoregroupdialog.h"
 #include "pageitempreviewrenderer.h"
+#include "pdfpagegeometrydialog.h"
 
 #include "pdfaction.h"
 #include "pdfwidgetutils.h"
@@ -99,6 +100,7 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->actionInsert_Image->setData(int(Operation::InsertImage));
     ui->actionInsert_Empty_Page->setData(int(Operation::InsertEmptyPage));
     ui->actionInsert_PDF->setData(int(Operation::InsertPDF));
+    ui->actionPageGeometry->setData(int(Operation::ConfigurePageGeometry));
     ui->actionGet_Source->setData(int(Operation::GetSource));
     ui->actionBecomeASponsor->setData(int(Operation::BecomeSponsor));
     ui->actionAbout->setData(int(Operation::About));
@@ -167,6 +169,8 @@ MainWindow::MainWindow(QWidget* parent) :
     mainToolbar->addActions({ ui->actionCut, ui->actionCopy, ui->actionPaste });
     mainToolbar->addSeparator();
     mainToolbar->addActions({ ui->actionGroup, ui->actionUngroup });
+    mainToolbar->addSeparator();
+    mainToolbar->addAction(ui->actionPageGeometry);
     QToolBar* insertToolbar = addToolBar(tr("&Insert"));
     insertToolbar->setObjectName("insert_toolbar");
     insertToolbar->addActions({ ui->actionInsert_PDF, ui->actionInsert_Image, ui->actionInsert_Empty_Page });
@@ -490,6 +494,7 @@ bool MainWindow::canPerformOperation(Operation operation) const
         case Operation::InsertImage:
         case Operation::InsertEmptyPage:
         case Operation::InsertPDF:
+        case Operation::ConfigurePageGeometry:
         case Operation::GetSource:
         case Operation::BecomeSponsor:
         case Operation::About:
@@ -696,6 +701,27 @@ void MainWindow::performOperation(Operation operation)
             m_model->insertEmptyPage(ui->documentItemsView->selectionModel()->selection().indexes());
             break;
 
+        case Operation::ConfigurePageGeometry:
+        {
+            pdf::PDFPageGeometryDialog dialog(this);
+
+            std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> assembledPages = m_model->getAssembledPages(PageItemModel::AssembleMode::Unite);
+            const pdf::PDFInteger pageCount = assembledPages.empty() ? 0 : pdf::PDFInteger(assembledPages.front().size());
+            dialog.setPageCount(pageCount);
+
+            if (m_hasPageGeometrySettings)
+            {
+                dialog.setSettings(m_pageGeometrySettings);
+            }
+
+            if (dialog.exec() == QDialog::Accepted)
+            {
+                m_pageGeometrySettings = dialog.getSettings();
+                m_hasPageGeometrySettings = true;
+            }
+            break;
+        }
+
         case Operation::About:
         {
             PDFAboutDialog aboutDialog(this);
@@ -820,7 +846,18 @@ void MainWindow::performOperation(Operation operation)
                     }
                     fileName.prepend(directory);
 
-                    assembledDocumentStorage.emplace_back(std::make_pair(std::move(fileName), manipulator.takeAssembledDocument()));
+                    pdf::PDFDocument assembledDocument = manipulator.takeAssembledDocument();
+                    if (m_hasPageGeometrySettings)
+                    {
+                        const pdf::PDFOperationResult geometryResult = pdf::PDFPageGeometry::apply(&assembledDocument, m_pageGeometrySettings);
+                        if (!geometryResult)
+                        {
+                            QMessageBox::critical(this, tr("Error"), geometryResult.getErrorMessage());
+                            return;
+                        }
+                    }
+
+                    assembledDocumentStorage.emplace_back(std::make_pair(std::move(fileName), std::move(assembledDocument)));
                     ++assembledDocumentIndex;
                 }
 

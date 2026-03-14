@@ -15,6 +15,7 @@ CURRENT:
  - Issue #291: Support for editing XMP metadata or exporting to PDF/UA format
  - Issue #242: Full screen
  - Issue #234: setting font , font size and area of text annotations
+ - Issue #194: Change page size
  - Issue #136: smooth scrolling of document with mouse middle wheel - flywheel
  - Issue #18: Performance optimization - OutputPreview Renderer
 
