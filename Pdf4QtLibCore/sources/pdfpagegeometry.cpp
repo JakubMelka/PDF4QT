@@ -35,446 +35,445 @@
 namespace pdf
 {
 
-namespace
+class PDFPageGeometryHelper
 {
-
-QRectF getReferenceRect(const PDFPage* page, PDFPageGeometrySettings::ReferenceBox referenceBox)
-{
-    Q_ASSERT(page);
-
-    switch (referenceBox)
+public:
+    static QRectF getReferenceRect(const PDFPage* page, PDFPageGeometrySettings::ReferenceBox referenceBox)
     {
-        case PDFPageGeometrySettings::ReferenceBox::MediaBox:
-            return page->getMediaBox().normalized();
+        Q_ASSERT(page);
 
-        case PDFPageGeometrySettings::ReferenceBox::CropBox:
-            return page->getCropBox().normalized();
-
-        case PDFPageGeometrySettings::ReferenceBox::BleedBox:
-            return page->getBleedBox().normalized();
-
-        case PDFPageGeometrySettings::ReferenceBox::TrimBox:
-            return page->getTrimBox().normalized();
-
-        case PDFPageGeometrySettings::ReferenceBox::ArtBox:
-            return page->getArtBox().normalized();
-
-        default:
-            Q_ASSERT(false);
-            break;
-    }
-
-    return page->getMediaBox().normalized();
-}
-
-QPointF getAnchorFactors(PDFPageGeometrySettings::Anchor anchor)
-{
-    switch (anchor)
-    {
-        case PDFPageGeometrySettings::Anchor::TopLeft: return QPointF(0.0, 1.0);
-        case PDFPageGeometrySettings::Anchor::TopCenter: return QPointF(0.5, 1.0);
-        case PDFPageGeometrySettings::Anchor::TopRight: return QPointF(1.0, 1.0);
-        case PDFPageGeometrySettings::Anchor::MiddleLeft: return QPointF(0.0, 0.5);
-        case PDFPageGeometrySettings::Anchor::MiddleCenter: return QPointF(0.5, 0.5);
-        case PDFPageGeometrySettings::Anchor::MiddleRight: return QPointF(1.0, 0.5);
-        case PDFPageGeometrySettings::Anchor::BottomLeft: return QPointF(0.0, 0.0);
-        case PDFPageGeometrySettings::Anchor::BottomCenter: return QPointF(0.5, 0.0);
-        case PDFPageGeometrySettings::Anchor::BottomRight: return QPointF(1.0, 0.0);
-        default:
-            Q_ASSERT(false);
-            break;
-    }
-
-    return QPointF(0.5, 0.5);
-}
-
-QByteArray formatPDFNumber(PDFReal value)
-{
-    QByteArray text = QByteArray::number(value, 'f', 6);
-
-    while (text.endsWith('0'))
-    {
-        text.chop(1);
-    }
-
-    if (text.endsWith('.'))
-    {
-        text.chop(1);
-    }
-
-    if (text.isEmpty() || text == "-0")
-    {
-        text = "0";
-    }
-
-    return text;
-}
-
-PDFObjectReference createContentStream(PDFDocumentBuilder* builder, const QByteArray& content)
-{
-    Q_ASSERT(builder);
-
-    PDFDictionary dictionary;
-    dictionary.addEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(content.size()));
-    PDFObject streamObject = PDFObject::createStream(std::make_shared<PDFStream>(std::move(dictionary), QByteArray(content)));
-    return builder->addObject(std::move(streamObject));
-}
-
-void appendContentReference(PDFDocumentBuilder* builder,
-                            std::vector<PDFObjectReference>& contentReferences,
-                            PDFObject contentObject)
-{
-    Q_ASSERT(builder);
-
-    const PDFObject contentObjectDereferenced = builder->getObject(contentObject);
-    if (contentObjectDereferenced.isNull())
-    {
-        return;
-    }
-
-    if (contentObjectDereferenced.isStream())
-    {
-        if (contentObject.isReference())
+        switch (referenceBox)
         {
-            contentReferences.push_back(contentObject.getReference());
-        }
-        else
-        {
-            contentReferences.push_back(builder->addObject(contentObjectDereferenced));
-        }
-    }
-    else if (contentObjectDereferenced.isArray())
-    {
-        const PDFArray* array = contentObjectDereferenced.getArray();
-        for (const PDFObject& object : *array)
-        {
-            appendContentReference(builder, contentReferences, object);
-        }
-    }
-}
+            case PDFPageGeometrySettings::ReferenceBox::MediaBox:
+                return page->getMediaBox().normalized();
 
-void prependContentTransform(PDFDocumentBuilder* builder,
-                             PDFObjectReference pageReference,
-                             PDFReal sx,
-                             PDFReal sy,
-                             PDFReal tx,
-                             PDFReal ty)
-{
-    Q_ASSERT(builder);
+            case PDFPageGeometrySettings::ReferenceBox::CropBox:
+                return page->getCropBox().normalized();
 
-    const PDFObjectStorage* storage = builder->getStorage();
-    const PDFDictionary* pageDictionary = storage->getDictionaryFromObject(storage->getObjectByReference(pageReference));
-    if (!pageDictionary)
-    {
-        return;
-    }
+            case PDFPageGeometrySettings::ReferenceBox::BleedBox:
+                return page->getBleedBox().normalized();
 
-    std::vector<PDFObjectReference> contentReferences;
-    appendContentReference(builder, contentReferences, pageDictionary->get("Contents"));
-    if (contentReferences.empty())
-    {
-        return;
-    }
+            case PDFPageGeometrySettings::ReferenceBox::TrimBox:
+                return page->getTrimBox().normalized();
 
-    QByteArray prefix;
-    prefix.reserve(128);
-    prefix.append("q ");
-    prefix.append(formatPDFNumber(sx));
-    prefix.append(' ');
-    prefix.append("0 0 ");
-    prefix.append(formatPDFNumber(sy));
-    prefix.append(' ');
-    prefix.append(formatPDFNumber(tx));
-    prefix.append(' ');
-    prefix.append(formatPDFNumber(ty));
-    prefix.append(" cm\n");
-
-    const PDFObjectReference prefixReference = createContentStream(builder, prefix);
-    const PDFObjectReference suffixReference = createContentStream(builder, QByteArray("Q\n"));
-
-    contentReferences.insert(contentReferences.begin(), prefixReference);
-    contentReferences.push_back(suffixReference);
-
-    PDFObjectFactory pageUpdateFactory;
-    pageUpdateFactory.beginDictionary();
-    pageUpdateFactory.beginDictionaryItem("Contents");
-    pageUpdateFactory << contentReferences;
-    pageUpdateFactory.endDictionaryItem();
-    pageUpdateFactory.endDictionary();
-    builder->mergeTo(pageReference, pageUpdateFactory.takeObject());
-}
-
-std::optional<PDFObject> transformCoordinateArray(PDFDocumentBuilder* builder,
-                                                  PDFObject object,
-                                                  const QTransform& transform)
-{
-    Q_ASSERT(builder);
-
-    object = builder->getObject(object);
-    if (!object.isArray())
-    {
-        return std::nullopt;
-    }
-
-    std::vector<PDFReal> coordinates;
-    const PDFArray* array = object.getArray();
-    coordinates.reserve(array->getCount());
-    for (const PDFObject& item : *array)
-    {
-        if (item.isReal())
-        {
-            coordinates.push_back(item.getReal());
-        }
-        else if (item.isInt())
-        {
-            coordinates.push_back(item.getInteger());
-        }
-        else
-        {
-            return std::nullopt;
-        }
-    }
-
-    if (coordinates.size() % 2 != 0)
-    {
-        return std::nullopt;
-    }
-
-    PDFObjectFactory factory;
-    factory.beginArray();
-    for (size_t i = 0; i < coordinates.size(); i += 2)
-    {
-        const QPointF transformedPoint = transform.map(QPointF(coordinates[i], coordinates[i + 1]));
-        factory << transformedPoint.x();
-        factory << transformedPoint.y();
-    }
-    factory.endArray();
-    return factory.takeObject();
-}
-
-std::optional<PDFObject> transformInkListArray(PDFDocumentBuilder* builder,
-                                               PDFObject object,
-                                               const QTransform& transform)
-{
-    Q_ASSERT(builder);
-
-    object = builder->getObject(object);
-    if (!object.isArray())
-    {
-        return std::nullopt;
-    }
-
-    PDFObjectFactory factory;
-    factory.beginArray();
-    for (const PDFObject& item : *object.getArray())
-    {
-        const std::optional<PDFObject> transformedArray = transformCoordinateArray(builder, item, transform);
-        if (!transformedArray.has_value())
-        {
-            return std::nullopt;
-        }
-
-        factory << transformedArray.value();
-    }
-    factory.endArray();
-    return factory.takeObject();
-}
-
-void transformAnnotationGeometry(PDFDocumentBuilder* builder,
-                                 PDFObjectReference annotationReference,
-                                 const QTransform& transform)
-{
-    Q_ASSERT(builder);
-
-    const PDFObject& annotationObject = builder->getObjectByReference(annotationReference);
-    const PDFDictionary* annotationDictionary = builder->getDictionaryFromObject(annotationObject);
-    if (!annotationDictionary)
-    {
-        return;
-    }
-
-    const PDFObjectStorage* storage = builder->getStorage();
-    PDFDocumentDataLoaderDecorator loader(storage);
-
-    PDFObjectFactory updateFactory;
-    updateFactory.beginDictionary();
-    bool changed = false;
-
-    const QRectF rect = loader.readRectangle(annotationDictionary->get("Rect"), QRectF());
-    if (rect.isValid())
-    {
-        updateFactory.beginDictionaryItem("Rect");
-        updateFactory << transform.mapRect(rect).normalized();
-        updateFactory.endDictionaryItem();
-        changed = true;
-    }
-
-    auto transformAndStore = [&](const QByteArray& key)
-    {
-        const std::optional<PDFObject> transformed = transformCoordinateArray(builder, annotationDictionary->get(key), transform);
-        if (transformed.has_value())
-        {
-            updateFactory.beginDictionaryItem(key);
-            updateFactory << transformed.value();
-            updateFactory.endDictionaryItem();
-            changed = true;
-        }
-    };
-
-    transformAndStore("L");
-    transformAndStore("CL");
-    transformAndStore("Vertices");
-    transformAndStore("QuadPoints");
-
-    const std::optional<PDFObject> transformedInkList = transformInkListArray(builder, annotationDictionary->get("InkList"), transform);
-    if (transformedInkList.has_value())
-    {
-        updateFactory.beginDictionaryItem("InkList");
-        updateFactory << transformedInkList.value();
-        updateFactory.endDictionaryItem();
-        changed = true;
-    }
-
-    updateFactory.endDictionary();
-
-    if (changed)
-    {
-        builder->mergeTo(annotationReference, updateFactory.takeObject());
-    }
-}
-
-void transformPageAnnotations(PDFDocumentBuilder* builder,
-                              PDFObjectReference pageReference,
-                              const QTransform& transform)
-{
-    Q_ASSERT(builder);
-
-    const PDFObjectStorage* storage = builder->getStorage();
-    const PDFObject& pageObject = storage->getObjectByReference(pageReference);
-    const PDFDictionary* pageDictionary = storage->getDictionaryFromObject(pageObject);
-    if (!pageDictionary)
-    {
-        return;
-    }
-
-    PDFDocumentDataLoaderDecorator loader(storage);
-    const std::vector<PDFObjectReference> annotationReferences = loader.readReferenceArrayFromDictionary(pageDictionary, "Annots");
-    for (const PDFObjectReference& annotationReference : annotationReferences)
-    {
-        transformAnnotationGeometry(builder, annotationReference, transform);
-    }
-}
-
-std::vector<PDFInteger> selectPageIndices(const PDFDocument* document,
-                                          const PDFPageGeometrySettings& settings,
-                                          QString* errorMessage)
-{
-    std::vector<PDFInteger> result;
-
-    if (!document)
-    {
-        if (errorMessage)
-        {
-            *errorMessage = QStringLiteral("Invalid document.");
-        }
-        return result;
-    }
-
-    const PDFCatalog* catalog = document->getCatalog();
-    const PDFInteger pageCount = catalog->getPageCount();
-    if (pageCount <= 0)
-    {
-        return result;
-    }
-
-    std::set<PDFInteger> rangeSelection;
-    const QString rangeText = settings.pageRange.simplified();
-    if (!rangeText.isEmpty())
-    {
-        QString parseError;
-        const PDFClosedIntervalSet closedIntervalSet = PDFClosedIntervalSet::parse(1, pageCount, rangeText, &parseError);
-        if (!parseError.isEmpty())
-        {
-            if (errorMessage)
-            {
-                *errorMessage = parseError;
-            }
-            return { };
-        }
-
-        const std::vector<PDFInteger> unfolded = closedIntervalSet.unfold();
-        for (const PDFInteger pageNumber : unfolded)
-        {
-            rangeSelection.insert(pageNumber);
-        }
-    }
-
-    result.reserve(pageCount);
-    for (PDFInteger pageIndex = 0; pageIndex < pageCount; ++pageIndex)
-    {
-        const PDFInteger pageNumber = pageIndex + 1;
-        if (!rangeSelection.empty() && !rangeSelection.count(pageNumber))
-        {
-            continue;
-        }
-
-        const PDFPage* page = catalog->getPage(pageIndex);
-        if (!page)
-        {
-            continue;
-        }
-
-        switch (settings.pageSubset)
-        {
-            case PDFPageGeometrySettings::PageSubset::AllPages:
-                break;
-
-            case PDFPageGeometrySettings::PageSubset::OddPages:
-                if ((pageNumber % 2) == 0)
-                {
-                    continue;
-                }
-                break;
-
-            case PDFPageGeometrySettings::PageSubset::EvenPages:
-                if ((pageNumber % 2) != 0)
-                {
-                    continue;
-                }
-                break;
-
-            case PDFPageGeometrySettings::PageSubset::PortraitPages:
-            {
-                const QSizeF rotatedSize = page->getRotatedMediaBox().size();
-                if (rotatedSize.width() > rotatedSize.height())
-                {
-                    continue;
-                }
-                break;
-            }
-
-            case PDFPageGeometrySettings::PageSubset::LandscapePages:
-            {
-                const QSizeF rotatedSize = page->getRotatedMediaBox().size();
-                if (rotatedSize.width() < rotatedSize.height())
-                {
-                    continue;
-                }
-                break;
-            }
+            case PDFPageGeometrySettings::ReferenceBox::ArtBox:
+                return page->getArtBox().normalized();
 
             default:
                 Q_ASSERT(false);
                 break;
         }
 
-        result.push_back(pageIndex);
+        return page->getMediaBox().normalized();
     }
 
-    return result;
-}
+    static QPointF getAnchorFactors(PDFPageGeometrySettings::Anchor anchor)
+    {
+        switch (anchor)
+        {
+            case PDFPageGeometrySettings::Anchor::TopLeft: return QPointF(0.0, 1.0);
+            case PDFPageGeometrySettings::Anchor::TopCenter: return QPointF(0.5, 1.0);
+            case PDFPageGeometrySettings::Anchor::TopRight: return QPointF(1.0, 1.0);
+            case PDFPageGeometrySettings::Anchor::MiddleLeft: return QPointF(0.0, 0.5);
+            case PDFPageGeometrySettings::Anchor::MiddleCenter: return QPointF(0.5, 0.5);
+            case PDFPageGeometrySettings::Anchor::MiddleRight: return QPointF(1.0, 0.5);
+            case PDFPageGeometrySettings::Anchor::BottomLeft: return QPointF(0.0, 0.0);
+            case PDFPageGeometrySettings::Anchor::BottomCenter: return QPointF(0.5, 0.0);
+            case PDFPageGeometrySettings::Anchor::BottomRight: return QPointF(1.0, 0.0);
+            default:
+                Q_ASSERT(false);
+                break;
+        }
 
-}   // namespace
+        return QPointF(0.5, 0.5);
+    }
+
+    static QByteArray formatPDFNumber(PDFReal value)
+    {
+        QByteArray text = QByteArray::number(value, 'f', 6);
+
+        while (text.endsWith('0'))
+        {
+            text.chop(1);
+        }
+
+        if (text.endsWith('.'))
+        {
+            text.chop(1);
+        }
+
+        if (text.isEmpty() || text == "-0")
+        {
+            text = "0";
+        }
+
+        return text;
+    }
+
+    static PDFObjectReference createContentStream(PDFDocumentBuilder* builder, const QByteArray& content)
+    {
+        Q_ASSERT(builder);
+
+        PDFDictionary dictionary;
+        dictionary.addEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(content.size()));
+        PDFObject streamObject = PDFObject::createStream(std::make_shared<PDFStream>(std::move(dictionary), QByteArray(content)));
+        return builder->addObject(std::move(streamObject));
+    }
+
+    static void appendContentReference(PDFDocumentBuilder* builder,
+                                       std::vector<PDFObjectReference>& contentReferences,
+                                       PDFObject contentObject)
+    {
+        Q_ASSERT(builder);
+
+        const PDFObject contentObjectDereferenced = builder->getObject(contentObject);
+        if (contentObjectDereferenced.isNull())
+        {
+            return;
+        }
+
+        if (contentObjectDereferenced.isStream())
+        {
+            if (contentObject.isReference())
+            {
+                contentReferences.push_back(contentObject.getReference());
+            }
+            else
+            {
+                contentReferences.push_back(builder->addObject(contentObjectDereferenced));
+            }
+        }
+        else if (contentObjectDereferenced.isArray())
+        {
+            const PDFArray* array = contentObjectDereferenced.getArray();
+            for (const PDFObject& object : *array)
+            {
+                appendContentReference(builder, contentReferences, object);
+            }
+        }
+    }
+
+    static void prependContentTransform(PDFDocumentBuilder* builder,
+                                        PDFObjectReference pageReference,
+                                        PDFReal sx,
+                                        PDFReal sy,
+                                        PDFReal tx,
+                                        PDFReal ty)
+    {
+        Q_ASSERT(builder);
+
+        const PDFObjectStorage* storage = builder->getStorage();
+        const PDFDictionary* pageDictionary = storage->getDictionaryFromObject(storage->getObjectByReference(pageReference));
+        if (!pageDictionary)
+        {
+            return;
+        }
+
+        std::vector<PDFObjectReference> contentReferences;
+        appendContentReference(builder, contentReferences, pageDictionary->get("Contents"));
+        if (contentReferences.empty())
+        {
+            return;
+        }
+
+        QByteArray prefix;
+        prefix.reserve(128);
+        prefix.append("q ");
+        prefix.append(formatPDFNumber(sx));
+        prefix.append(' ');
+        prefix.append("0 0 ");
+        prefix.append(formatPDFNumber(sy));
+        prefix.append(' ');
+        prefix.append(formatPDFNumber(tx));
+        prefix.append(' ');
+        prefix.append(formatPDFNumber(ty));
+        prefix.append(" cm\n");
+
+        const PDFObjectReference prefixReference = createContentStream(builder, prefix);
+        const PDFObjectReference suffixReference = createContentStream(builder, QByteArray("Q\n"));
+
+        contentReferences.insert(contentReferences.begin(), prefixReference);
+        contentReferences.push_back(suffixReference);
+
+        PDFObjectFactory pageUpdateFactory;
+        pageUpdateFactory.beginDictionary();
+        pageUpdateFactory.beginDictionaryItem("Contents");
+        pageUpdateFactory << contentReferences;
+        pageUpdateFactory.endDictionaryItem();
+        pageUpdateFactory.endDictionary();
+        builder->mergeTo(pageReference, pageUpdateFactory.takeObject());
+    }
+
+    static std::optional<PDFObject> transformCoordinateArray(PDFDocumentBuilder* builder,
+                                                             PDFObject object,
+                                                             const QTransform& transform)
+    {
+        Q_ASSERT(builder);
+
+        object = builder->getObject(object);
+        if (!object.isArray())
+        {
+            return std::nullopt;
+        }
+
+        std::vector<PDFReal> coordinates;
+        const PDFArray* array = object.getArray();
+        coordinates.reserve(array->getCount());
+        for (const PDFObject& item : *array)
+        {
+            if (item.isReal())
+            {
+                coordinates.push_back(item.getReal());
+            }
+            else if (item.isInt())
+            {
+                coordinates.push_back(item.getInteger());
+            }
+            else
+            {
+                return std::nullopt;
+            }
+        }
+
+        if (coordinates.size() % 2 != 0)
+        {
+            return std::nullopt;
+        }
+
+        PDFObjectFactory factory;
+        factory.beginArray();
+        for (size_t i = 0; i < coordinates.size(); i += 2)
+        {
+            const QPointF transformedPoint = transform.map(QPointF(coordinates[i], coordinates[i + 1]));
+            factory << transformedPoint.x();
+            factory << transformedPoint.y();
+        }
+        factory.endArray();
+        return factory.takeObject();
+    }
+
+    static std::optional<PDFObject> transformInkListArray(PDFDocumentBuilder* builder,
+                                                          PDFObject object,
+                                                          const QTransform& transform)
+    {
+        Q_ASSERT(builder);
+
+        object = builder->getObject(object);
+        if (!object.isArray())
+        {
+            return std::nullopt;
+        }
+
+        PDFObjectFactory factory;
+        factory.beginArray();
+        for (const PDFObject& item : *object.getArray())
+        {
+            const std::optional<PDFObject> transformedArray = transformCoordinateArray(builder, item, transform);
+            if (!transformedArray.has_value())
+            {
+                return std::nullopt;
+            }
+
+            factory << transformedArray.value();
+        }
+        factory.endArray();
+        return factory.takeObject();
+    }
+
+    static void transformAnnotationGeometry(PDFDocumentBuilder* builder,
+                                            PDFObjectReference annotationReference,
+                                            const QTransform& transform)
+    {
+        Q_ASSERT(builder);
+
+        const PDFObject& annotationObject = builder->getObjectByReference(annotationReference);
+        const PDFDictionary* annotationDictionary = builder->getDictionaryFromObject(annotationObject);
+        if (!annotationDictionary)
+        {
+            return;
+        }
+
+        const PDFObjectStorage* storage = builder->getStorage();
+        PDFDocumentDataLoaderDecorator loader(storage);
+
+        PDFObjectFactory updateFactory;
+        updateFactory.beginDictionary();
+        bool changed = false;
+
+        const QRectF rect = loader.readRectangle(annotationDictionary->get("Rect"), QRectF());
+        if (rect.isValid())
+        {
+            updateFactory.beginDictionaryItem("Rect");
+            updateFactory << transform.mapRect(rect).normalized();
+            updateFactory.endDictionaryItem();
+            changed = true;
+        }
+
+        auto transformAndStore = [&](const QByteArray& key)
+        {
+            const std::optional<PDFObject> transformed = transformCoordinateArray(builder, annotationDictionary->get(key), transform);
+            if (transformed.has_value())
+            {
+                updateFactory.beginDictionaryItem(key);
+                updateFactory << transformed.value();
+                updateFactory.endDictionaryItem();
+                changed = true;
+            }
+        };
+
+        transformAndStore("L");
+        transformAndStore("CL");
+        transformAndStore("Vertices");
+        transformAndStore("QuadPoints");
+
+        const std::optional<PDFObject> transformedInkList = transformInkListArray(builder, annotationDictionary->get("InkList"), transform);
+        if (transformedInkList.has_value())
+        {
+            updateFactory.beginDictionaryItem("InkList");
+            updateFactory << transformedInkList.value();
+            updateFactory.endDictionaryItem();
+            changed = true;
+        }
+
+        updateFactory.endDictionary();
+
+        if (changed)
+        {
+            builder->mergeTo(annotationReference, updateFactory.takeObject());
+        }
+    }
+
+    static void transformPageAnnotations(PDFDocumentBuilder* builder,
+                                         PDFObjectReference pageReference,
+                                         const QTransform& transform)
+    {
+        Q_ASSERT(builder);
+
+        const PDFObjectStorage* storage = builder->getStorage();
+        const PDFObject& pageObject = storage->getObjectByReference(pageReference);
+        const PDFDictionary* pageDictionary = storage->getDictionaryFromObject(pageObject);
+        if (!pageDictionary)
+        {
+            return;
+        }
+
+        PDFDocumentDataLoaderDecorator loader(storage);
+        const std::vector<PDFObjectReference> annotationReferences = loader.readReferenceArrayFromDictionary(pageDictionary, "Annots");
+        for (const PDFObjectReference& annotationReference : annotationReferences)
+        {
+            transformAnnotationGeometry(builder, annotationReference, transform);
+        }
+    }
+
+    static std::vector<PDFInteger> selectPageIndices(const PDFDocument* document,
+                                                     const PDFPageGeometrySettings& settings,
+                                                     QString* errorMessage)
+    {
+        std::vector<PDFInteger> result;
+
+        if (!document)
+        {
+            if (errorMessage)
+            {
+                *errorMessage = PDFTranslationContext::tr("Invalid document.");
+            }
+            return result;
+        }
+
+        const PDFCatalog* catalog = document->getCatalog();
+        const PDFInteger pageCount = catalog->getPageCount();
+        if (pageCount <= 0)
+        {
+            return result;
+        }
+
+        std::set<PDFInteger> rangeSelection;
+        const QString rangeText = settings.pageRange.simplified();
+        if (!rangeText.isEmpty())
+        {
+            QString parseError;
+            const PDFClosedIntervalSet closedIntervalSet = PDFClosedIntervalSet::parse(1, pageCount, rangeText, &parseError);
+            if (!parseError.isEmpty())
+            {
+                if (errorMessage)
+                {
+                    *errorMessage = parseError;
+                }
+                return { };
+            }
+
+            const std::vector<PDFInteger> unfolded = closedIntervalSet.unfold();
+            for (const PDFInteger pageNumber : unfolded)
+            {
+                rangeSelection.insert(pageNumber);
+            }
+        }
+
+        result.reserve(pageCount);
+        for (PDFInteger pageIndex = 0; pageIndex < pageCount; ++pageIndex)
+        {
+            const PDFInteger pageNumber = pageIndex + 1;
+            if (!rangeSelection.empty() && !rangeSelection.count(pageNumber))
+            {
+                continue;
+            }
+
+            const PDFPage* page = catalog->getPage(pageIndex);
+            if (!page)
+            {
+                continue;
+            }
+
+            switch (settings.pageSubset)
+            {
+                case PDFPageGeometrySettings::PageSubset::AllPages:
+                    break;
+
+                case PDFPageGeometrySettings::PageSubset::OddPages:
+                    if ((pageNumber % 2) == 0)
+                    {
+                        continue;
+                    }
+                    break;
+
+                case PDFPageGeometrySettings::PageSubset::EvenPages:
+                    if ((pageNumber % 2) != 0)
+                    {
+                        continue;
+                    }
+                    break;
+
+                case PDFPageGeometrySettings::PageSubset::PortraitPages:
+                {
+                    const QSizeF rotatedSize = page->getRotatedMediaBox().size();
+                    if (rotatedSize.width() > rotatedSize.height())
+                    {
+                        continue;
+                    }
+                    break;
+                }
+
+                case PDFPageGeometrySettings::PageSubset::LandscapePages:
+                {
+                    const QSizeF rotatedSize = page->getRotatedMediaBox().size();
+                    if (rotatedSize.width() < rotatedSize.height())
+                    {
+                        continue;
+                    }
+                    break;
+                }
+
+                default:
+                    Q_ASSERT(false);
+                    break;
+            }
+
+            result.push_back(pageIndex);
+        }
+
+        return result;
+    }
+};
 
 PDFOperationResult PDFPageGeometry::apply(PDFDocument* document,
                                           const PDFPageGeometrySettings& settings,
@@ -487,16 +486,16 @@ PDFOperationResult PDFPageGeometry::apply(PDFDocument* document,
 
     if (!document)
     {
-        return QStringLiteral("Invalid document.");
+        return PDFTranslationContext::tr("Invalid document.");
     }
 
     if (!settings.hasAnyTargetBoxSelected())
     {
-        return QStringLiteral("No target page box selected.");
+        return PDFTranslationContext::tr("No target page box selected.");
     }
 
     QString pageSelectionError;
-    const std::vector<PDFInteger> pageIndices = selectPageIndices(document, settings, &pageSelectionError);
+    const std::vector<PDFInteger> pageIndices = PDFPageGeometryHelper::selectPageIndices(document, settings, &pageSelectionError);
     if (!pageSelectionError.isEmpty())
     {
         return pageSelectionError;
@@ -524,10 +523,10 @@ PDFOperationResult PDFPageGeometry::apply(PDFDocument* document,
         }
 
         const PDFObjectReference pageReference = page->getPageReference();
-        const QRectF sourceRect = getReferenceRect(page, settings.referenceBox);
+        const QRectF sourceRect = PDFPageGeometryHelper::getReferenceRect(page, settings.referenceBox);
         if (!sourceRect.isValid())
         {
-            return QStringLiteral("Reference box on page %1 is invalid.").arg(pageIndex + 1);
+            return PDFTranslationContext::tr("Reference box on page %1 is invalid.").arg(pageIndex + 1);
         }
 
         const PDFReal leftMarginPt = settings.marginsMM.left() * PDF_MM_TO_POINT;
@@ -546,7 +545,7 @@ PDFOperationResult PDFPageGeometry::apply(PDFDocument* document,
 
         if (!(targetWidthPt > 0.0 && targetHeightPt > 0.0))
         {
-            return QStringLiteral("Target page size for page %1 is invalid.").arg(pageIndex + 1);
+            return PDFTranslationContext::tr("Target page size for page %1 is invalid.").arg(pageIndex + 1);
         }
 
         const QRectF innerRect(leftMarginPt,
@@ -556,7 +555,7 @@ PDFOperationResult PDFPageGeometry::apply(PDFDocument* document,
 
         if (!(innerRect.width() > 0.0 && innerRect.height() > 0.0))
         {
-            return QStringLiteral("Margins for page %1 exceed target page size.").arg(pageIndex + 1);
+            return PDFTranslationContext::tr("Margins for page %1 exceed target page size.").arg(pageIndex + 1);
         }
 
         PDFReal scaleX = 1.0;
@@ -576,12 +575,12 @@ PDFOperationResult PDFPageGeometry::apply(PDFDocument* document,
 
         if (!(scaleX > 0.0 && scaleY > 0.0))
         {
-            return QStringLiteral("Content scale for page %1 is invalid.").arg(pageIndex + 1);
+            return PDFTranslationContext::tr("Content scale for page %1 is invalid.").arg(pageIndex + 1);
         }
 
         const PDFReal transformedWidth = sourceRect.width() * scaleX;
         const PDFReal transformedHeight = sourceRect.height() * scaleY;
-        const QPointF anchorFactors = getAnchorFactors(settings.anchor);
+        const QPointF anchorFactors = PDFPageGeometryHelper::getAnchorFactors(settings.anchor);
         const PDFReal offsetXPt = settings.offsetMM.x() * PDF_MM_TO_POINT;
         const PDFReal offsetYPt = settings.offsetMM.y() * PDF_MM_TO_POINT;
 
@@ -596,13 +595,13 @@ PDFOperationResult PDFPageGeometry::apply(PDFDocument* document,
 
             const PDFReal tx = destinationLeft - sourceRect.left() * scaleX;
             const PDFReal ty = destinationBottom - sourceRect.bottom() * scaleY;
-            prependContentTransform(builder, pageReference, scaleX, scaleY, tx, ty);
+            PDFPageGeometryHelper::prependContentTransform(builder, pageReference, scaleX, scaleY, tx, ty);
             isPageContentChanged = true;
 
             if (settings.scaleAnnotationsAndFormFields)
             {
                 QTransform transform(scaleX, 0.0, 0.0, scaleY, tx, ty);
-                transformPageAnnotations(builder, pageReference, transform);
+                PDFPageGeometryHelper::transformPageAnnotations(builder, pageReference, transform);
                 areAnnotationsChanged = true;
             }
         }
