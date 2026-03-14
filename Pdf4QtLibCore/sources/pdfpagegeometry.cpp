@@ -67,6 +67,12 @@ public:
         return page->getMediaBox().normalized();
     }
 
+    static QRectF getRotatedReferenceRect(const PDFPage* page, PDFPageGeometrySettings::ReferenceBox referenceBox)
+    {
+        Q_ASSERT(page);
+        return PDFPage::getRotatedBox(getReferenceRect(page, referenceBox), page->getPageRotation()).normalized();
+    }
+
     static QPointF getAnchorFactors(PDFPageGeometrySettings::Anchor anchor)
     {
         switch (anchor)
@@ -340,6 +346,7 @@ public:
         if (changed)
         {
             builder->mergeTo(annotationReference, updateFactory.takeObject());
+            builder->updateAnnotationAppearanceStreams(annotationReference);
         }
     }
 
@@ -445,7 +452,7 @@ public:
 
                 case PDFPageGeometrySettings::PageSubset::PortraitPages:
                 {
-                    const QSizeF rotatedSize = page->getRotatedMediaBox().size();
+                    const QSizeF rotatedSize = getRotatedReferenceRect(page, settings.referenceBox).size();
                     if (rotatedSize.width() > rotatedSize.height())
                     {
                         continue;
@@ -455,7 +462,7 @@ public:
 
                 case PDFPageGeometrySettings::PageSubset::LandscapePages:
                 {
-                    const QSizeF rotatedSize = page->getRotatedMediaBox().size();
+                    const QSizeF rotatedSize = getRotatedReferenceRect(page, settings.referenceBox).size();
                     if (rotatedSize.width() < rotatedSize.height())
                     {
                         continue;
@@ -510,7 +517,7 @@ PDFOperationResult PDFPageGeometry::apply(PDFDocument* document,
     PDFDocumentBuilder* builder = modifier.getBuilder();
     Q_ASSERT(builder);
 
-    PDFModifiedDocument::ModificationFlags flags = PDFModifiedDocument::Reset;
+    PDFModifiedDocument::ModificationFlags flags = PDFModifiedDocument::ModificationFlags(PDFModifiedDocument::Reset | PDFModifiedDocument::PreserveUndoRedo);
     bool isPageContentChanged = false;
     bool areAnnotationsChanged = false;
 
@@ -585,7 +592,7 @@ PDFOperationResult PDFPageGeometry::apply(PDFDocument* document,
         const PDFReal offsetYPt = settings.offsetMM.y() * PDF_MM_TO_POINT;
 
         const PDFReal destinationLeft = innerRect.left() + (innerRect.width() - transformedWidth) * anchorFactors.x() + offsetXPt;
-        const PDFReal destinationBottom = innerRect.bottom() + (innerRect.height() - transformedHeight) * anchorFactors.y() + offsetYPt;
+        const PDFReal destinationBottom = innerRect.top() + (innerRect.height() - transformedHeight) * anchorFactors.y() + offsetYPt;
 
         QRectF pageBoxRect;
         if (settings.scaleContent)
@@ -594,7 +601,7 @@ PDFOperationResult PDFPageGeometry::apply(PDFDocument* document,
             pageBoxRect = QRectF(0.0, 0.0, targetWidthPt, targetHeightPt);
 
             const PDFReal tx = destinationLeft - sourceRect.left() * scaleX;
-            const PDFReal ty = destinationBottom - sourceRect.bottom() * scaleY;
+            const PDFReal ty = destinationBottom - sourceRect.top() * scaleY;
             PDFPageGeometryHelper::prependContentTransform(builder, pageReference, scaleX, scaleY, tx, ty);
             isPageContentChanged = true;
 
@@ -609,7 +616,7 @@ PDFOperationResult PDFPageGeometry::apply(PDFDocument* document,
         {
             // Keep content in-place and shift page coordinate origin to place the source box.
             const PDFReal dx = destinationLeft - sourceRect.left();
-            const PDFReal dy = destinationBottom - sourceRect.bottom();
+            const PDFReal dy = destinationBottom - sourceRect.top();
             pageBoxRect = QRectF(-dx, -dy, targetWidthPt, targetHeightPt);
         }
 
