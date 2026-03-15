@@ -75,11 +75,15 @@ private:
     /// Populates the internal list of images and initializes UI state.
     void loadImages();
     /// Refreshes control states, summaries, and enablement.
+    /// While optimization is running, editing widgets are disabled so the
+    /// queued worker task operates on an immutable snapshot of dialog state.
     void updateUi();
     /// Refreshes the preview panel for the current selection.
     void updatePreview();
     /// Refreshes widgets related to the currently selected image.
     void updateSelectedImageUi();
+    /// Invalidates the last optimization result after a settings change.
+    void markOptimizationDirty();
 
     /// Loads settings values into UI widgets.
     void loadSettingsToUi(const pdf::PDFImageOptimizer::Settings& settings);
@@ -95,6 +99,9 @@ private:
 
 private slots:
     void onOptimizeButtonClicked();
+    /// Commits the background result into dialog state after the worker
+    /// finishes. The optimized document is only considered valid for the exact
+    /// settings snapshot that launched the task.
     void onOptimizationFinished();
     void onSettingsChanged();
     void onSelectionChanged();
@@ -110,8 +117,8 @@ private:
     bool m_optimized;
     bool m_updatingUi;
     QPushButton* m_optimizeButton;
-    QFuture<void> m_future;
-    std::optional<QFutureWatcher<void>> m_futureWatcher;
+    QFuture<pdf::PDFDocument> m_future;
+    std::optional<QFutureWatcher<pdf::PDFDocument>> m_futureWatcher;
 
     std::vector<ImageEntry> m_images;
     pdf::PDFImageOptimizer::Settings m_settings;

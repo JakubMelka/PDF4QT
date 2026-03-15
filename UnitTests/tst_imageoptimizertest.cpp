@@ -43,6 +43,7 @@ private slots:
     void test_bitonal_conversion_manual();
     void test_image_analysis_classification();
     void test_optimizer_keeps_original_if_larger();
+    void test_optimizer_preserve_keeps_bitonal_encoding();
     void test_optimizer_preserves_smask();
     void test_optimizer_reduces_size_for_photo();
 
@@ -314,6 +315,55 @@ void ImageOptimizerTest::test_optimizer_keeps_original_if_larger()
     const pdf::PDFObject& filterObject = optimized.getObject(dictionary->get(pdf::PDF_STREAM_DICT_FILTER));
     QVERIFY(filterObject.isName());
     QCOMPARE(QString::fromLatin1(filterObject.getString()), QString("RunLengthDecode"));
+}
+
+void ImageOptimizerTest::test_optimizer_preserve_keeps_bitonal_encoding()
+{
+    QImage bitonal(64, 64, QImage::Format_Mono);
+    bitonal.fill(1);
+
+    for (int y = 8; y < 56; ++y)
+    {
+        for (int x = 8; x < 56; ++x)
+        {
+            if (((x / 8) + (y / 8)) % 2 == 0)
+            {
+                bitonal.setPixel(x, y, 0);
+            }
+        }
+    }
+
+    pdf::PDFDocument document = createDocumentWithImage(bitonal, false, pdf::PDFImage::ImageCompression::Flate);
+
+    std::vector<pdf::PDFImageOptimizer::ImageInfo> infos = pdf::PDFImageOptimizer::collectImageInfos(&document);
+    QCOMPARE(infos.size(), 1u);
+    QCOMPARE(infos[0].bitsPerComponent, 1);
+
+    pdf::PDFImageOptimizer::Settings settings = pdf::PDFImageOptimizer::Settings::createDefault();
+    settings.enabled = true;
+    settings.autoMode = false;
+    settings.colorMode = pdf::PDFImageOptimizer::ColorMode::Preserve;
+    settings.goal = pdf::PDFImageOptimizer::OptimizationGoal::PreferQuality;
+    settings.keepOriginalIfLarger = false;
+    settings.preserveTransparency = true;
+    settings.colorProfile.algorithm = pdf::PDFImageOptimizer::CompressionAlgorithm::Flate;
+    settings.colorProfile.targetDpi = 0;
+
+    pdf::PDFImageOptimizer optimizer;
+    pdf::PDFDocument optimized = optimizer.optimize(&document, settings);
+
+    const pdf::PDFObject& imageObject = optimized.getObjectByReference(infos[0].reference);
+    QVERIFY(imageObject.isStream());
+
+    const pdf::PDFStream* stream = imageObject.getStream();
+    const pdf::PDFDictionary* dictionary = stream->getDictionary();
+    QVERIFY(dictionary);
+
+    QCOMPARE(optimized.getObject(dictionary->get("BitsPerComponent")).getInteger(), pdf::PDFInteger(1));
+
+    const pdf::PDFObject& colorSpaceObject = optimized.getObject(dictionary->get("ColorSpace"));
+    QVERIFY(colorSpaceObject.isName());
+    QCOMPARE(QString::fromLatin1(colorSpaceObject.getString()), QString("DeviceGray"));
 }
 
 void ImageOptimizerTest::test_optimizer_preserves_smask()

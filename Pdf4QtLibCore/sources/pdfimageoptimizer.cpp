@@ -247,17 +247,100 @@ PDFImageOptimizer::CompressionProfile selectProfile(PDFImageOptimizer::ColorMode
     switch (mode)
     {
         case PDFImageOptimizer::ColorMode::Color:
-        case PDFImageOptimizer::ColorMode::Preserve:
             return settings.colorProfile;
         case PDFImageOptimizer::ColorMode::Grayscale:
             return settings.grayProfile;
         case PDFImageOptimizer::ColorMode::Bitonal:
             return settings.bitonalProfile;
+        case PDFImageOptimizer::ColorMode::Preserve:
         case PDFImageOptimizer::ColorMode::Auto:
             break;
     }
 
     return settings.colorProfile;
+}
+
+PDFImageOptimizer::ColorMode resolvePreservedColorMode(const PDFImageOptimizer::ImageInfo& info,
+                                                       const PDFImageOptimizer::ImageAnalysis& analysis)
+{
+    // "Preserve" should keep the closest practical encoding class of the
+    // original PDF image instead of routing everything through the color
+    // profile. We therefore prefer original PDF metadata and fall back to
+    // decoded-pixel analysis only when metadata is inconclusive.
+    const QString colorSpaceName = info.colorSpaceName;
+
+    if (info.bitsPerComponent == 1 &&
+        !analysis.hasTransparency &&
+        (analysis.grayscale ||
+         colorSpaceName == COLOR_SPACE_NAME_DEVICE_GRAY ||
+         colorSpaceName == COLOR_SPACE_NAME_CAL_GRAY))
+    {
+        return PDFImageOptimizer::ColorMode::Bitonal;
+    }
+
+    if (colorSpaceName == COLOR_SPACE_NAME_DEVICE_GRAY ||
+        colorSpaceName == COLOR_SPACE_NAME_CAL_GRAY)
+    {
+        return PDFImageOptimizer::ColorMode::Grayscale;
+    }
+
+    if (colorSpaceName == COLOR_SPACE_NAME_DEVICE_RGB ||
+        colorSpaceName == COLOR_SPACE_NAME_DEVICE_CMYK ||
+        colorSpaceName == COLOR_SPACE_NAME_ICCBASED ||
+        colorSpaceName == COLOR_SPACE_NAME_INDEXED)
+    {
+        return PDFImageOptimizer::ColorMode::Color;
+    }
+
+    if (analysis.grayscale)
+    {
+        return (info.bitsPerComponent == 1 && !analysis.hasTransparency)
+            ? PDFImageOptimizer::ColorMode::Bitonal
+            : PDFImageOptimizer::ColorMode::Grayscale;
+    }
+
+    return PDFImageOptimizer::ColorMode::Color;
+}
+
+QImage applyAlphaHandlingForPreview(const QImage& image, PDFImage::AlphaHandling alphaHandling)
+{
+    // Keep preview behavior aligned with the actual encoder. In particular,
+    // "flatten to white" must be visible in the preview, otherwise the dialog
+    // can suggest that transparency survives even when it will be removed.
+    if (image.isNull() || !image.hasAlphaChannel() || alphaHandling == PDFImage::AlphaHandling::DropAlphaPreserveColors)
+    {
+        return image;
+    }
+
+    QImage rgba = image.convertToFormat(QImage::Format_RGBA8888);
+    if (rgba.isNull())
+    {
+        return image;
+    }
+
+    QImage flattened(rgba.size(), QImage::Format_RGB32);
+    if (flattened.isNull())
+    {
+        return image;
+    }
+
+    for (int y = 0; y < rgba.height(); ++y)
+    {
+        const uchar* src = rgba.constScanLine(y);
+        QRgb* dst = reinterpret_cast<QRgb*>(flattened.scanLine(y));
+
+        for (int x = 0; x < rgba.width(); ++x)
+        {
+            const int alpha = src[3];
+            const int red = (src[0] * alpha + 255 * (255 - alpha)) / 255;
+            const int green = (src[1] * alpha + 255 * (255 - alpha)) / 255;
+            const int blue = (src[2] * alpha + 255 * (255 - alpha)) / 255;
+            dst[x] = qRgb(red, green, blue);
+            src += 4;
+        }
+    }
+
+    return flattened;
 }
 
 int adjustJpegQuality(int quality, PDFImageOptimizer::OptimizationGoal goal)
@@ -606,7 +689,11 @@ PDFImageOptimizer::ResolvedPlan PDFImageOptimizer::resolvePlan(const ImageInfo& 
     ResolvedPlan plan;
     plan.originalBytes = info.originalBytes;
     const ImageAnalysis analysis = analyzeImage(info.image);
-    const ColorMode resolvedMode = resolveColorMode(settings, analysis);
+    ColorMode resolvedMode = resolveColorMode(settings, analysis);
+    if (resolvedMode == ColorMode::Preserve)
+    {
+        resolvedMode = resolvePreservedColorMode(info, analysis);
+    }
     plan.resolvedColorMode = resolvedMode;
 
     const CompressionProfile profile = selectProfile(resolvedMode, settings);
@@ -688,6 +775,7 @@ QImage PDFImageOptimizer::createPreviewImage(const ImageInfo& info, const Resolv
     }
 
     QImage image = scaleForPreview(info.image, plan.targetSize, plan.encodeOptions.resampleFilter);
+    image = applyAlphaHandlingForPreview(image, plan.encodeOptions.alphaHandling);
     image = applyColorMode(image, plan.resolvedColorMode, plan.encodeOptions.monochromeThreshold);
 
     if (simulateCompression && plan.algorithm == CompressionAlgorithm::JPEG)
@@ -897,7 +985,7 @@ PDFDocument PDFImageOptimizer::optimize(const PDFDocument* document,
                     PDFDictionary merged = mergeDictionaries(*encoded.stream.getDictionary(), *originalDict, blocked);
                     if (originalDict->hasKey("SMask"))
                     {
-                        PDFObject maskObject = document->getObject(originalDict->get("SMask"));
+                        const PDFObject& maskObject = originalDict->get("SMask");
                         if (maskObject.isReference())
                         {
                             encoded.existingMaskReference = maskObject.getReference();

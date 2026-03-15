@@ -26,8 +26,6 @@
 #include "pdfwidgetutils.h"
 #include "pdfutils.h"
 
-#include <QBuffer>
-#include <QImageWriter>
 #include <QLabel>
 #include <QListWidget>
 #include <QtConcurrent/QtConcurrent>
@@ -301,12 +299,28 @@ void PDFOptimizeImagesDialog::loadImages()
 
 void PDFOptimizeImagesDialog::updateUi()
 {
+    ui->imageListWidget->setEnabled(!m_optimizationInProgress);
+    ui->globalGroupBox->setEnabled(!m_optimizationInProgress);
+    ui->profilesTabWidget->setEnabled(!m_optimizationInProgress);
+    ui->selectedGroupBox->setEnabled(!m_optimizationInProgress && !m_images.empty());
     ui->buttonBox->button(QDialogButtonBox::Ok)->setEnabled(m_optimized && !m_optimizationInProgress);
     ui->buttonBox->button(QDialogButtonBox::Cancel)->setEnabled(!m_optimizationInProgress);
     if (m_optimizeButton)
     {
         m_optimizeButton->setEnabled(!m_optimizationInProgress && !m_images.empty());
     }
+}
+
+void PDFOptimizeImagesDialog::markOptimizationDirty()
+{
+    if (!m_optimized)
+    {
+        return;
+    }
+
+    m_optimized = false;
+    m_optimizedDocument = pdf::PDFDocument();
+    updateUi();
 }
 
 void PDFOptimizeImagesDialog::updateSelectedImageUi()
@@ -461,6 +475,8 @@ void PDFOptimizeImagesDialog::onOptimizeButtonClicked()
     applyUiToSettings(activeSettings());
 
     m_optimizationInProgress = true;
+    m_optimized = false;
+    m_optimizedDocument = pdf::PDFDocument();
 
     pdf::PDFImageOptimizer::ImageOverrides overrides;
     overrides.clear();
@@ -484,10 +500,17 @@ void PDFOptimizeImagesDialog::onOptimizeButtonClicked()
         }
     }
 
-    m_future = QtConcurrent::run([this, overrides]()
+    const pdf::PDFImageOptimizer::Settings settings = m_settings;
+    const pdf::PDFDocument* document = m_document;
+    pdf::PDFProgress* progress = m_progress;
+
+    // Run against a snapshot of the dialog state. The UI is disabled while the
+    // task runs, so the returned document always matches the currently accepted
+    // settings.
+    m_future = QtConcurrent::run([document, settings, overrides, progress]() -> pdf::PDFDocument
     {
         pdf::PDFImageOptimizer optimizer;
-        m_optimizedDocument = optimizer.optimize(m_document, m_settings, overrides, m_progress);
+        return optimizer.optimize(document, settings, overrides, progress);
     });
 
     m_futureWatcher.emplace();
@@ -500,6 +523,7 @@ void PDFOptimizeImagesDialog::onOptimizeButtonClicked()
 void PDFOptimizeImagesDialog::onOptimizationFinished()
 {
     m_future.waitForFinished();
+    m_optimizedDocument = m_future.result();
     m_optimizationInProgress = false;
     m_optimized = true;
     updateUi();
@@ -513,6 +537,7 @@ void PDFOptimizeImagesDialog::onSettingsChanged()
     }
 
     applyUiToSettings(activeSettings());
+    markOptimizationDirty();
     updatePreview();
 }
 
@@ -541,6 +566,7 @@ void PDFOptimizeImagesDialog::onOverrideToggled(bool checked)
         entry->overrideSettings = m_settings;
     }
 
+    markOptimizationDirty();
     updateSelectedImageUi();
     updatePreview();
 }
@@ -559,6 +585,7 @@ void PDFOptimizeImagesDialog::onImageEnabledToggled(bool checked)
     }
 
     entry->enabled = checked;
+    markOptimizationDirty();
     updatePreview();
 }
 
@@ -575,12 +602,13 @@ void PDFOptimizeImagesDialog::onBitonalThresholdAutoToggled(bool checked)
 
 void PDFOptimizeImagesDialog::updatePreview()
 {
+    ui->previewBeforeImageLabel->clear();
+    ui->previewAfterImageLabel->clear();
+    ui->previewInfoLabel->clear();
+
     const ImageEntry* entry = getSelectedEntry();
     if (!entry)
     {
-        ui->previewBeforeImageLabel->clear();
-        ui->previewAfterImageLabel->clear();
-        ui->previewInfoLabel->clear();
         return;
     }
 

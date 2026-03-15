@@ -157,6 +157,11 @@ public:
         bool hasTransparency = false; ///< True if any pixels are transparent.
 
         /// Heuristic classification of the image content.
+        /// The optimizer uses this to choose a default color mode and a
+        /// compression family in auto mode. The classification is based on a
+        /// downscaled sample, approximate color count and simple edge/luma
+        /// statistics; it is intentionally lightweight and not guaranteed to
+        /// match the semantic content perfectly.
         enum class Kind
         {
             Photo,    ///< Photographic content.
@@ -203,6 +208,15 @@ public:
     /// \param info Image metadata and pixels.
     /// \param settings Global or per-image settings.
     /// \returns Resolved plan with encoding options.
+    ///
+    /// Resolution rules:
+    /// - `Auto` mode uses image analysis heuristics to choose color mode and
+    ///   compression.
+    /// - `Preserve` keeps the closest practical representation inferred from
+    ///   source metadata and decoded pixels. For example, a 1-bit gray image
+    ///   stays bitonal instead of being expanded to 8-bit grayscale.
+    /// - Unsupported requested algorithms are downgraded to Flate and marked
+    ///   through `hadUnsupportedCompression`.
     static ResolvedPlan resolvePlan(const ImageInfo& info, const Settings& settings);
 
     /// Creates a preview image by applying the resolved plan.

@@ -158,7 +158,17 @@ static PreparedImageData prepareImageData(const QImage& source,
     PDFImage::ImageColorMode resolvedMode = options.colorMode;
     if (resolvedMode == PDFImage::ImageColorMode::Preserve)
     {
-        resolvedMode = working.isGrayscale() ? PDFImage::ImageColorMode::Grayscale : PDFImage::ImageColorMode::Color;
+        // Preserve the most specific source representation we can infer from
+        // QImage itself. Monochrome inputs should remain 1-bit instead of being
+        // widened to 8-bit grayscale during a round-trip encode.
+        if (working.format() == QImage::Format_Mono || working.format() == QImage::Format_MonoLSB)
+        {
+            resolvedMode = PDFImage::ImageColorMode::Monochrome;
+        }
+        else
+        {
+            resolvedMode = working.isGrayscale() ? PDFImage::ImageColorMode::Grayscale : PDFImage::ImageColorMode::Color;
+        }
     }
 
     const bool supportsBinaryMonochrome =
