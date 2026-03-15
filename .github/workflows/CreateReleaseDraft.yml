@@ -43,6 +43,20 @@ jobs:
           fi
         env:
           GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
+
+      - name: Get latest run ID for MacOS_Install
+        id: get_macos_run_id
+        run: |
+          latest_run=$(gh run list --workflow=MacOS_Install --json databaseId,conclusion --jq '.[0]')
+          macos_run_id=$(echo $latest_run | jq -r .databaseId)
+          echo "macos_run_id=$macos_run_id" >> $GITHUB_ENV
+          conclusion=$(echo $latest_run | jq -r .conclusion)
+          if [ "$conclusion" != "success" ]; then
+            echo "Latest MacOS_Install workflow run failed."
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
       
       - name: Download Linux_AppImage artifact
         run: |
@@ -58,6 +72,15 @@ jobs:
           mkdir -p artifacts
           echo "Downloading artifacts from run ID: ${{ env.windows_run_id }}..."
           gh run download ${{ env.windows_run_id }} -D artifacts
+          echo "Artifacts downloaded to artifacts directory."
+        env:
+          GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
+
+      - name: Download MacOS_Install artifact
+        run: |
+          mkdir -p artifacts
+          echo "Downloading artifacts from run ID: ${{ env.macos_run_id }}..."
+          gh run download ${{ env.macos_run_id }} -D artifacts
           echo "Artifacts downloaded to artifacts directory."
         env:
           GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}

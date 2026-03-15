@@ -2473,6 +2473,9 @@ void PDFProgramController::loadPlugins()
 #if defined(Q_OS_WIN)
     QDir directory(QApplication::applicationDirPath() + "/pdfplugins");
     availablePlugins = directory.entryList(QStringList("*.dll"));
+#elif defined(Q_OS_MAC)
+    QDir directory(QApplication::applicationDirPath() + "/pdfplugins");
+    availablePlugins = directory.entryList(QStringList("*.dylib"));
 #elif defined(Q_OS_UNIX)
 #ifndef NDEBUG
     QDir directory(QApplication::applicationDirPath() + "/../pdfplugins");
