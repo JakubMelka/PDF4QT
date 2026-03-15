@@ -137,6 +137,51 @@ PDFOptimizeImagesDialog::PDFOptimizeImagesDialog(const pdf::PDFDocument* documen
 
     m_optimizeButton = ui->buttonBox->addButton(tr("Optimize"), QDialogButtonBox::ActionRole);
     connect(m_optimizeButton, &QPushButton::clicked, this, &PDFOptimizeImagesDialog::onOptimizeButtonClicked);
+    connect(ui->buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(ui->buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+
+    auto setTip = [](QWidget* widget, const QString& text)
+    {
+        if (widget)
+        {
+            widget->setToolTip(text);
+        }
+    };
+
+    setTip(ui->modeComboBox, tr("<b>Mode</b><br/>Auto uses image analysis to pick color mode and compression.<br/>Custom respects the selected color mode and profiles."));
+    setTip(ui->colorModeComboBox, tr("<b>Color mode</b><br/>Choose output color space or let the optimizer decide."));
+    setTip(ui->goalComboBox, tr("<b>Goal</b><br/><b>Prefer quality</b> keeps more detail.<br/><b>Minimum size</b> prefers smaller output."));
+    setTip(ui->keepOriginalCheckBox, tr("<b>Keep original if larger</b><br/>Leaves the original image if re-encoding does not shrink it."));
+    setTip(ui->preserveAlphaCheckBox, tr("<b>Preserve transparency</b><br/>Stores alpha as a soft mask when possible."));
+
+    setTip(ui->colorAlgComboBox, tr("<b>Algorithm</b><br/>Compression for color images (Auto picks based on content)."));
+    setTip(ui->grayAlgComboBox, tr("<b>Algorithm</b><br/>Compression for grayscale images (Auto picks based on content)."));
+    setTip(ui->bitonalAlgComboBox, tr("<b>Algorithm</b><br/>Compression for bitonal images (Auto picks Flate when needed)."));
+
+    setTip(ui->colorDpiSpinBox, tr("<b>Target DPI</b><br/>Downsample color images to this DPI (0 keeps original)."));
+    setTip(ui->grayDpiSpinBox, tr("<b>Target DPI</b><br/>Downsample grayscale images to this DPI (0 keeps original)."));
+    setTip(ui->bitonalDpiSpinBox, tr("<b>Target DPI</b><br/>Downsample bitonal images to this DPI (0 keeps original)."));
+
+    setTip(ui->colorResampleComboBox, tr("<b>Resample</b><br/>Scaling filter used when resizing images."));
+    setTip(ui->grayResampleComboBox, tr("<b>Resample</b><br/>Scaling filter used when resizing images."));
+    setTip(ui->bitonalResampleComboBox, tr("<b>Resample</b><br/>Scaling filter used when resizing images."));
+
+    setTip(ui->colorJpegQualitySpinBox, tr("<b>JPEG quality</b><br/>Higher values preserve detail but increase size."));
+    setTip(ui->grayJpegQualitySpinBox, tr("<b>JPEG quality</b><br/>Higher values preserve detail but increase size."));
+
+    setTip(ui->colorJpxRateSpinBox, tr("<b>JPEG2000 rate</b><br/>0 = lossless, higher values increase compression."));
+    setTip(ui->grayJpxRateSpinBox, tr("<b>JPEG2000 rate</b><br/>0 = lossless, higher values increase compression."));
+
+    setTip(ui->colorPredictorCheckBox, tr("<b>PNG predictor</b><br/>Improves Flate compression for continuous-tone images."));
+    setTip(ui->grayPredictorCheckBox, tr("<b>PNG predictor</b><br/>Improves Flate compression for continuous-tone images."));
+    setTip(ui->bitonalPredictorCheckBox, tr("<b>PNG predictor</b><br/>Improves Flate compression for 1-bit images."));
+
+    setTip(ui->bitonalThresholdSpinBox, tr("<b>Threshold</b><br/>Manual threshold for bitonal conversion (0-255)."));
+    setTip(ui->bitonalThresholdAutoCheckBox, tr("<b>Auto threshold</b><br/>Let the optimizer pick an automatic threshold."));
+
+    setTip(ui->imageEnabledCheckBox, tr("<b>Enable compression</b><br/>Exclude this image from optimization when unchecked."));
+    setTip(ui->imageOverrideCheckBox, tr("<b>Override settings</b><br/>Use custom settings for the selected image."));
+    setTip(m_optimizeButton, tr("<b>Optimize</b><br/>Run image optimization with the current settings."));
 
     connect(ui->imageListWidget, &QListWidget::currentRowChanged, this, &PDFOptimizeImagesDialog::onSelectionChanged);
     connect(ui->imageOverrideCheckBox, &QCheckBox::toggled, this, &PDFOptimizeImagesDialog::onOverrideToggled);
