@@ -66,6 +66,8 @@ public:
     const PDFDictionary& getGraphicStateDictionary() const { return m_graphicStateDictionary; }
 
     void setFontDictionary(const PDFDictionary& newFontDictionary);
+    void setXObjectDictionary(const PDFDictionary& newXObjectDictionary);
+    void setGraphicStateDictionary(const PDFDictionary& newGraphicStateDictionary);
 
     const QStringList& getErrors() const { return m_errors; }
     void clearErrors() { m_errors.clear(); }
@@ -99,8 +101,10 @@ private:
 
     void writeText(QTextStream& stream, const QString& text);
     void writeTextCommand(QTextStream& stream, const QXmlStreamReader& reader);
+    void writeTextHexString(QTextStream& stream, const QByteArray& encodedText);
 
     void writeImage(QTextStream& stream, const QImage& image);
+    void writeImageObject(QTextStream& stream, const PDFObject& imageObject);
 
     QByteArray selectFont(const QByteArray& font);
     void addError(const QString& error);

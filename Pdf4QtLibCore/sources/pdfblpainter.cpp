@@ -187,6 +187,11 @@ int PDFBLPaintDevice::metric(PaintDeviceMetric metric) const
         return m_offscreenBuffer.devicePixelRatio();
     case QPaintDevice::PdmDevicePixelRatioScaled:
         return m_offscreenBuffer.devicePixelRatioFScale();
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
+    case QPaintDevice::PdmDevicePixelRatioF_EncodedA:
+    case QPaintDevice::PdmDevicePixelRatioF_EncodedB:
+        return QPaintDevice::encodeMetricF(metric, m_offscreenBuffer.devicePixelRatio());
+#endif
     default:
         Q_ASSERT(false);
         break;

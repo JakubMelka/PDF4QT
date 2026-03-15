@@ -202,6 +202,8 @@ bool EditorPlugin::updatePageContent(pdf::PDFInteger pageIndex,
 
     pdf::PDFPageContentEditorContentStreamBuilder contentStreamBuilder(m_document);
     contentStreamBuilder.setFontDictionary(editedPageContent.getFontDictionary());
+    contentStreamBuilder.setXObjectDictionary(editedPageContent.getXObjectDictionary());
+    contentStreamBuilder.setGraphicStateDictionary(editedPageContent.getGraphicStateDictionary());
 
     for (const pdf::PDFPageContentElement* element : elements)
     {
@@ -434,7 +436,8 @@ bool EditorPlugin::save()
             optimizer.optimize();
             document = optimizer.takeOptimizedDocument();
 
-            Q_EMIT m_widget->getToolManager()->documentModified(pdf::PDFModifiedDocument(pdf::PDFDocumentPointer(new pdf::PDFDocument(std::move(document))), nullptr, modifier.getFlags()));
+            const pdf::PDFModifiedDocument::ModificationFlags flags = modifier.getFlags() | pdf::PDFModifiedDocument::PreserveUndoRedo;
+            Q_EMIT m_widget->getToolManager()->documentModified(pdf::PDFModifiedDocument(pdf::PDFDocumentPointer(new pdf::PDFDocument(std::move(document))), nullptr, flags));
         }
     }
 
@@ -782,6 +785,11 @@ void EditorPlugin::updateEditedPages()
 bool EditorPlugin::updateTextElement(pdf::PDFPageContentElementEdited* element)
 {
     pdf::PDFPageContentElementEdited* elementEdited = dynamic_cast<pdf::PDFPageContentElementEdited*>(element);
+    if (!elementEdited)
+    {
+        return false;
+    }
+
     pdf::PDFEditedPageContentElementText* targetTextElement = elementEdited->getElement()->asText();
 
     if (!targetTextElement)
@@ -816,6 +824,10 @@ bool EditorPlugin::updateTextElement(pdf::PDFPageContentElementEdited* element)
         {
             pdf::PDFEditedPageContentElement* sourceElement = content.getElement(0);
             pdf::PDFEditedPageContentElementText* sourceElementText = sourceElement->asText();
+            if (!sourceElementText)
+            {
+                return false;
+            }
             targetTextElement->setState(sourceElementText->getState());
             targetTextElement->setTextPath(sourceElementText->getTextPath());
         }

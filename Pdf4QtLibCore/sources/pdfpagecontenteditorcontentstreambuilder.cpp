@@ -186,6 +186,11 @@ int PDFContentEditorPaintDevice::metric(PaintDeviceMetric metric) const
     case QPaintDevice::PdmDevicePixelRatio:
     case QPaintDevice::PdmDevicePixelRatioScaled:
         return 1.0;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
+    case QPaintDevice::PdmDevicePixelRatioF_EncodedA:
+    case QPaintDevice::PdmDevicePixelRatioF_EncodedB:
+        return QPaintDevice::encodeMetricF(metric, 1.0);
+#endif
     default:
         Q_ASSERT(false);
         break;
@@ -469,9 +474,21 @@ void PDFPageContentEditorContentStreamBuilder::writeEditedElement(const PDFEdite
 
     if (const PDFEditedPageContentElementImage* imageElement = element->asImage())
     {
-        QImage image = imageElement->getImage();
+        const PDFObject imageObject = imageElement->getImageObject();
+        const PDFDictionary* imageDictionary = m_document->getDictionaryFromObject(imageObject);
+        const bool isReusableImageXObject = imageDictionary &&
+                                            imageDictionary->hasKey("Subtype") &&
+                                            m_document->getObject(imageDictionary->get("Subtype")).isName() &&
+                                            m_document->getObject(imageDictionary->get("Subtype")).getString() == "Image";
 
-        writeImage(stream, image);
+        if (isReusableImageXObject)
+        {
+            writeImageObject(stream, imageObject);
+        }
+        else
+        {
+            writeImage(stream, imageElement->getImage());
+        }
     }
 
     if (const PDFEditedPageContentElementPath* pathElement = element->asPath())
@@ -674,7 +691,7 @@ void PDFPageContentEditorContentStreamBuilder::writeText(QTextStream& stream, co
 
                 if (!encodedText.encodedText.isEmpty())
                 {
-                    stream << "<" << encodedText.encodedText.toHex() << "> Tj" << Qt::endl;
+                    writeTextHexString(stream, encodedText.encodedText);
                 }
 
                 if (!encodedText.isValid)
@@ -700,7 +717,8 @@ void PDFPageContentEditorContentStreamBuilder::writeText(QTextStream& stream, co
 
 void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& stream, const QXmlStreamReader& reader)
 {
-    QXmlStreamAttributes attributes = reader.attributes();
+    const QXmlStreamAttributes attributes = reader.attributes();
+    const QString tag = reader.name().toString();
 
     auto isCommand = [&reader](const char* tag) -> bool
     {
@@ -709,7 +727,12 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
         return tagString == QLatin1String(tag) && attributes.size() == 1 && attributes.hasAttribute("v");
     };
 
-    if (reader.name().toString() == "doc")
+    auto reportInvalidNumber = [this](const QString& value)
+    {
+        addError(PDFTranslationContext::tr("Cannot convert text '%1' to number.").arg(value));
+    };
+
+    if (tag == "doc")
     {
         return;
     }
@@ -736,7 +759,7 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
 
         if (!ok)
         {
-            addError(PDFTranslationContext::tr("Cannot convert text '%1' to number.").arg(attribute.value().toString()));
+            reportInvalidNumber(attribute.value().toString());
         }
         else
         {
@@ -751,7 +774,7 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
 
         if (!ok)
         {
-            addError(PDFTranslationContext::tr("Cannot convert text '%1' to number.").arg(attribute.value().toString()));
+            reportInvalidNumber(attribute.value().toString());
         }
         else
         {
@@ -766,7 +789,7 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
 
         if (!ok)
         {
-            addError(PDFTranslationContext::tr("Cannot convert text '%1' to number.").arg(attribute.value().toString()));
+            reportInvalidNumber(attribute.value().toString());
         }
         else
         {
@@ -781,7 +804,7 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
 
         if (!ok)
         {
-            addError(PDFTranslationContext::tr("Cannot convert text '%1' to number.").arg(attribute.value().toString()));
+            reportInvalidNumber(attribute.value().toString());
         }
         else
         {
@@ -796,14 +819,94 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
 
         if (!ok)
         {
-            addError(PDFTranslationContext::tr("Cannot convert text '%1' to number.").arg(attribute.value().toString()));
+            reportInvalidNumber(attribute.value().toString());
         }
         else
         {
             stream << textScaling << " Tz" << Qt::endl;
         }
     }
-    else if (reader.name().toString() == "tf")
+    else if (isCommand("tk"))
+    {
+        const QString value = attributes.front().value().toString().trimmed();
+        const bool isTrue = value == "1" || value.compare("true", Qt::CaseInsensitive) == 0;
+        const bool isFalse = value == "0" || value.compare("false", Qt::CaseInsensitive) == 0;
+
+        if (!isTrue && !isFalse)
+        {
+            addError(PDFTranslationContext::tr("Invalid boolean value '%1'. Valid values are 0, 1, true and false.").arg(value));
+        }
+        else
+        {
+            PDFPageContentProcessorState state = m_currentState;
+            state.setTextKnockout(isTrue);
+            writeStateDifference(stream, state);
+        }
+    }
+    else if (tag == "space")
+    {
+        if (attributes.size() == 1 && attributes.hasAttribute("advance"))
+        {
+            bool ok = false;
+            const PDFReal advance = attributes.value("advance").toDouble(&ok);
+
+            if (!ok)
+            {
+                reportInvalidNumber(attributes.value("advance").toString());
+            }
+            else
+            {
+                stream << "[ " << advance << " ] TJ" << Qt::endl;
+            }
+        }
+        else
+        {
+            addError(PDFTranslationContext::tr("Space command requires one attribute - advance."));
+        }
+    }
+    else if (tag == "character")
+    {
+        if (attributes.size() == 1 && attributes.hasAttribute("cid"))
+        {
+            if (!m_textFont)
+            {
+                addError(PDFTranslationContext::tr("Text font not defined!"));
+                return;
+            }
+
+            bool ok = false;
+            const uint cid = attributes.value("cid").toUInt(&ok);
+            if (!ok)
+            {
+                reportInvalidNumber(attributes.value("cid").toString());
+                return;
+            }
+
+            QByteArray encodedText;
+            if (const PDFFontCMap* cmap = m_textFont->getCMap())
+            {
+                encodedText = cmap->encode(cid);
+            }
+            else if (cid <= 0xFFu)
+            {
+                encodedText.append(static_cast<char>(cid));
+            }
+
+            if (encodedText.isEmpty())
+            {
+                addError(PDFTranslationContext::tr("Cannot encode character with cid '%1' using the current font.").arg(cid));
+            }
+            else
+            {
+                writeTextHexString(stream, encodedText);
+            }
+        }
+        else
+        {
+            addError(PDFTranslationContext::tr("Character command requires one attribute - cid."));
+        }
+    }
+    else if (tag == "tf")
     {
         if (attributes.hasAttribute("font") && attributes.hasAttribute("size"))
         {
@@ -813,7 +916,7 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
 
             if (!ok)
             {
-                addError(PDFTranslationContext::tr("Cannot convert text '%1' to number.").arg(attributes.value("size").toString()));
+                reportInvalidNumber(attributes.value("size").toString());
             }
             else
             {
@@ -826,7 +929,7 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
             addError(PDFTranslationContext::tr("Text font command requires two attributes - font and size."));
         }
     }
-    else if (reader.name().toString() == "tpos")
+    else if (tag == "tpos")
     {
         if (attributes.hasAttribute("x") && attributes.hasAttribute("y"))
         {
@@ -837,11 +940,11 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
 
             if (!ok1)
             {
-                addError(PDFTranslationContext::tr("Cannot convert text '%1' to number.").arg(attributes.value("x").toString()));
+                reportInvalidNumber(attributes.value("x").toString());
             }
             else if (!ok2)
             {
-                addError(PDFTranslationContext::tr("Cannot convert text '%1' to number.").arg(attributes.value("y").toString()));
+                reportInvalidNumber(attributes.value("y").toString());
             }
             else
             {
@@ -853,7 +956,7 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
             addError(PDFTranslationContext::tr("Text translation command requires two attributes - x and y."));
         }
     }
-    else if (reader.name().toString() == "tmatrix")
+    else if (tag == "tmatrix")
     {
         if (attributes.hasAttribute("m11") && attributes.hasAttribute("m12") &&
             attributes.hasAttribute("m21") && attributes.hasAttribute("m22") &&
@@ -872,7 +975,7 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
             PDFReal x = attributes.value("x").toDouble(&ok5);
             PDFReal y = attributes.value("y").toDouble(&ok6);
 
-            if (!ok1 || !ok2 || !ok3 || !ok4 || !ok5 | !ok6)
+            if (!ok1 || !ok2 || !ok3 || !ok4 || !ok5 || !ok6)
             {
                 addError(PDFTranslationContext::tr("Invalid text matrix parameters."));
             }
@@ -890,6 +993,11 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
     {
         addError(PDFTranslationContext::tr("Invalid command '%1'.").arg(reader.name().toString()));
     }
+}
+
+void PDFPageContentEditorContentStreamBuilder::writeTextHexString(QTextStream& stream, const QByteArray& encodedText)
+{
+    stream << "<" << encodedText.toHex() << "> Tj" << Qt::endl;
 }
 
 void PDFPageContentEditorContentStreamBuilder::writeImage(QTextStream& stream, const QImage& image)
@@ -946,6 +1054,25 @@ void PDFPageContentEditorContentStreamBuilder::writeImage(QTextStream& stream, c
     stream << "/" << key << " Do" << Qt::endl;
 }
 
+void PDFPageContentEditorContentStreamBuilder::writeImageObject(QTextStream& stream, const PDFObject& imageObject)
+{
+    QByteArray key;
+
+    int i = 0;
+    while (true)
+    {
+        QByteArray currentKey = QString("Im%1").arg(++i).toLatin1();
+        if (!m_xobjectDictionary.hasKey(currentKey))
+        {
+            m_xobjectDictionary.addEntry(PDFInplaceOrMemoryString(currentKey), PDFObject(imageObject));
+            key = currentKey;
+            break;
+        }
+    }
+
+    stream << "/" << key << " Do" << Qt::endl;
+}
+
 QByteArray PDFPageContentEditorContentStreamBuilder::selectFont(const QByteArray& font)
 {
     m_textFont = nullptr;
@@ -968,7 +1095,7 @@ QByteArray PDFPageContentEditorContentStreamBuilder::selectFont(const QByteArray
         }
         catch (const std::exception& exception)
         {
-            addError(QString::fromLatin1("Font '%1' is invalid: %2")
+            addError(PDFTranslationContext::tr("Font '%1' is invalid: %2")
                      .arg(QString::fromLatin1(font))
                      .arg(QString::fromUtf8(exception.what())));
         }
@@ -1017,7 +1144,7 @@ QByteArray PDFPageContentEditorContentStreamBuilder::selectFont(const QByteArray
         }
         catch (const std::exception& exception)
         {
-            addError(QString::fromLatin1("Failed to create fallback font '%1': %2")
+            addError(PDFTranslationContext::tr("Failed to create fallback font '%1': %2")
                      .arg(QString::fromLatin1(defaultFontKey))
                      .arg(QString::fromUtf8(exception.what())));
         }
@@ -1041,6 +1168,16 @@ void PDFPageContentEditorContentStreamBuilder::addError(const QString& error)
 void PDFPageContentEditorContentStreamBuilder::setFontDictionary(const PDFDictionary& newFontDictionary)
 {
     m_fontDictionary = newFontDictionary;
+}
+
+void PDFPageContentEditorContentStreamBuilder::setXObjectDictionary(const PDFDictionary& newXObjectDictionary)
+{
+    m_xobjectDictionary = newXObjectDictionary;
+}
+
+void PDFPageContentEditorContentStreamBuilder::setGraphicStateDictionary(const PDFDictionary& newGraphicStateDictionary)
+{
+    m_graphicStateDictionary = newGraphicStateDictionary;
 }
 
 void PDFPageContentEditorContentStreamBuilder::writeStyledPath(const QPainterPath& path,

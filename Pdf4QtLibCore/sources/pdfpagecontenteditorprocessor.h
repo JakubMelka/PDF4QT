@@ -211,10 +211,14 @@ public:
     PDFDictionary getXObjectDictionary() const;
     void setXObjectDictionary(const PDFDictionary& newXobjectDictionary);
 
+    PDFDictionary getGraphicStateDictionary() const;
+    void setGraphicStateDictionary(const PDFDictionary& newGraphicStateDictionary);
+
 private:
     std::vector<std::unique_ptr<PDFEditedPageContentElement>> m_contentElements;
     PDFDictionary m_fontDictionary;
     PDFDictionary m_xobjectDictionary;
+    PDFDictionary m_graphicStateDictionary;
 };
 
 class PDF4QTLIBCORESHARED_EXPORT PDFPageContentEditorProcessor : public PDFPageContentProcessor

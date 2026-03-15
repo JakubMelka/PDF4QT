@@ -45,6 +45,11 @@ PDFPageContentEditorProcessor::PDFPageContentEditorProcessor(const PDFPage* page
     {
         m_content.setXObjectDictionary(*xObjectDictionary);
     }
+
+    if (auto graphicStateDictionary = getExtendedGraphicStateDictionary())
+    {
+        m_content.setGraphicStateDictionary(*graphicStateDictionary);
+    }
 }
 
 const PDFEditedPageContent& PDFPageContentEditorProcessor::getEditedPageContent() const
@@ -128,7 +133,7 @@ void PDFPageContentEditorProcessor::performProcessTextSequence(const TextSequenc
 {
     BaseClass::performProcessTextSequence(textSequence, order);
 
-    if (order == ProcessOrder::BeforeOperation)
+    if (order == ProcessOrder::BeforeOperation && m_contentElementText)
     {
         PDFEditedPageContentElementText::Item item;
         item.isText = true;
@@ -153,10 +158,15 @@ void PDFPageContentEditorProcessor::performImagePainting(const QImage& image)
     BaseClass::performImagePainting(image);
 
     PDFEditedPageContentElement* backElement = m_content.getBackElement();
-    Q_ASSERT(backElement);
+    if (!backElement)
+    {
+        return;
+    }
 
-    PDFEditedPageContentElementImage* imageElement = backElement->asImage();
-    imageElement->setImage(image);
+    if (PDFEditedPageContentElementImage* imageElement = backElement->asImage())
+    {
+        imageElement->setImage(image);
+    }
 }
 
 void PDFPageContentEditorProcessor::performSaveGraphicState(ProcessOrder order)
@@ -173,7 +183,7 @@ void PDFPageContentEditorProcessor::performRestoreGraphicState(ProcessOrder orde
 {
     BaseClass::performRestoreGraphicState(order);
 
-    if (order == ProcessOrder::AfterOperation)
+    if (order == ProcessOrder::AfterOperation && m_clippingPaths.size() > 1)
     {
         m_clippingPaths.pop();
     }
@@ -487,6 +497,16 @@ void PDFEditedPageContent::setXObjectDictionary(const PDFDictionary& newXobjectD
     m_xobjectDictionary = newXobjectDictionary;
 }
 
+PDFDictionary PDFEditedPageContent::getGraphicStateDictionary() const
+{
+    return m_graphicStateDictionary;
+}
+
+void PDFEditedPageContent::setGraphicStateDictionary(const PDFDictionary& newGraphicStateDictionary)
+{
+    m_graphicStateDictionary = newGraphicStateDictionary;
+}
+
 PDFEditedPageContentElement::PDFEditedPageContentElement(PDFPageContentProcessorState state, QTransform transform) :
     m_state(std::move(state)),
     m_transform(transform)
@@ -685,20 +705,24 @@ QString PDFEditedPageContentElementText::createItemsAsText(const PDFPageContentP
         {
             for (const TextSequenceItem& textItem : item.textSequence.items)
             {
-                if (textItem.isCharacter())
+                if (textItem.isCharacter() || textItem.isContentStream())
                 {
                     if (!textItem.character.isNull())
                     {
                         text += QString(textItem.character).toHtmlEscaped();
                     }
-                    else if (textItem.isAdvance())
-                    {
-                        text += QString("<space advance=\"%1\"/>").arg(textItem.advance);
-                    }
                     else if (textItem.cid != 0)
                     {
                         text += QString("<character cid=\"%1\"/>").arg(textItem.cid);
                     }
+                    else if (textItem.isAdvance())
+                    {
+                        text += QString("<space advance=\"%1\"/>").arg(textItem.advance);
+                    }
+                }
+                else if (textItem.isAdvance())
+                {
+                    text += QString("<space advance=\"%1\"/>").arg(textItem.advance);
                 }
             }
         }
