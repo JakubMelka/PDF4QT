@@ -548,6 +548,21 @@ class PDF4QTLIBWIDGETSSHARED_EXPORT PDFPageContentScene : public QObject,
     Q_OBJECT
 
 public:
+    /// Snapshot of the whole page content scene used for local undo/redo.
+    struct SceneState
+    {
+        SceneState() = default;
+        SceneState(SceneState&&) noexcept = default;
+        SceneState& operator=(SceneState&&) noexcept = default;
+        SceneState(const SceneState&) = delete;
+        SceneState& operator=(const SceneState&) = delete;
+
+        /// Deep-cloned elements stored in the scene.
+        std::vector<std::unique_ptr<PDFPageContentElement>> elements;
+        /// Selection associated with the stored elements.
+        std::set<PDFInteger> selectedElementIds;
+    };
+
     explicit PDFPageContentScene(QObject* parent);
     virtual ~PDFPageContentScene();
 
@@ -558,10 +573,18 @@ public:
     /// \param element Element
     void addElement(PDFPageContentElement* element);
 
+    /// Adds multiple elements to the scene and emits a single change notification.
+    /// \param elements Elements to be added, ownership is transferred to the scene
+    void addElements(std::vector<PDFPageContentElement*> elements);
+
     /// Replaces element in the page content scene, scene
     /// takes ownership over the element.
     /// \param element Element
     void replaceElement(PDFPageContentElement* element);
+
+    /// Replaces multiple elements in the scene and emits a single change notification.
+    /// \param elements Replacement elements, ownership is transferred to the scene
+    void replaceElements(std::vector<PDFPageContentElement*> elements);
 
     /// Returns element by its id (identifier number)
     /// \param id Element id
@@ -586,6 +609,14 @@ public:
     std::set<PDFInteger> getPageIndices() const;
 
     std::map<PDFInteger, std::vector<const PDFPageContentElement*>> getElementsByPage() const;
+
+    /// Captures a full snapshot of the scene including current selection.
+    /// \return Move-only snapshot of the current scene state
+    SceneState captureState() const;
+
+    /// Restores the scene from a previously captured snapshot.
+    /// \param state Snapshot to be restored
+    void restoreState(SceneState state);
 
     /// Returns bounding box of elements on page
     QRectF getBoundingBox(PDFInteger pageIndex) const;

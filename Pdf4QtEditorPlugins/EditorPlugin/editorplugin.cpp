@@ -49,7 +49,8 @@ EditorPlugin::EditorPlugin() :
     m_editorWidget(nullptr),
     m_scene(nullptr),
     m_sceneSelectionChangeEnabled(true),
-    m_isSaving(false)
+    m_isSaving(false),
+    m_isUndoRedoInProgress(false)
 {
     m_scene.setIsPageContentDrawSuppressed(true);
 }
@@ -72,6 +73,8 @@ void EditorPlugin::setWidget(pdf::PDFWidget* widget)
     QAction* createLineAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-line.svg"), tr("Create L&ine"), this);
     QAction* createDotAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-dot.svg"), tr("Create &Dot"), this);
     QAction* createSvgImageAction = new QAction(QIcon(":/pdfplugins/editorplugin/create-svg-image.svg"), tr("Create &SVG Image"), this);
+    QAction* undoAction = new QAction(QIcon(":/resources/undo.svg"), tr("&Undo"), this);
+    QAction* redoAction = new QAction(QIcon(":/resources/redo.svg"), tr("&Redo"), this);
     QAction* clearAction = new QAction(QIcon(":/pdfplugins/editorplugin/clear.svg"), tr("Clear A&ll Graphics"), this);
 
     activateAction->setObjectName("editortool_activateAction");
@@ -86,6 +89,8 @@ void EditorPlugin::setWidget(pdf::PDFWidget* widget)
     createLineAction->setObjectName("editortool_createLineAction");
     createDotAction->setObjectName("editortool_createDotAction");
     createSvgImageAction->setObjectName("editortool_createSvgImageAction");
+    undoAction->setObjectName("editortool_undoAction");
+    redoAction->setObjectName("editortool_redoAction");
     clearAction->setObjectName("editortool_clearAction");
 
     activateAction->setCheckable(true);
@@ -113,7 +118,12 @@ void EditorPlugin::setWidget(pdf::PDFWidget* widget)
     m_actions[Line] = createLineAction;
     m_actions[Dot] = createDotAction;
     m_actions[SvgImage] = createSvgImageAction;
+    m_actions[Undo] = undoAction;
+    m_actions[Redo] = redoAction;
     m_actions[Clear] = clearAction;
+
+    undoAction->setShortcut(QKeySequence::Undo);
+    redoAction->setShortcut(QKeySequence::Redo);
 
     QFile acceptMarkFile(":/pdfplugins/editorplugin/accept-mark.svg");
     QByteArray acceptMarkContent;
@@ -157,6 +167,8 @@ void EditorPlugin::setWidget(pdf::PDFWidget* widget)
     connect(&m_scene, &pdf::PDFPageContentScene::selectionChanged, this, &EditorPlugin::onSceneSelectionChanged);
     connect(&m_scene, &pdf::PDFPageContentScene::editElementRequest, this, &EditorPlugin::onSceneEditElement);
     connect(clearAction, &QAction::triggered, &m_scene, &pdf::PDFPageContentScene::clear);
+    connect(undoAction, &QAction::triggered, this, &EditorPlugin::onUndoTriggered);
+    connect(redoAction, &QAction::triggered, this, &EditorPlugin::onRedoTriggered);
     connect(activateAction, &QAction::triggered, this, &EditorPlugin::onSetActive);
     connect(m_widget->getDrawWidgetProxy(), &pdf::PDFDrawWidgetProxy::drawSpaceChanged, this, &EditorPlugin::onDrawSpaceChanged);
     connect(m_widget, &pdf::PDFWidget::sceneActivityChanged, this, &EditorPlugin::onSceneActivityChanged);
@@ -170,6 +182,7 @@ void EditorPlugin::setDocument(const pdf::PDFModifiedDocument& document)
 
     if (document.hasReset())
     {
+        clearUndoRedo();
         setActive(false);
         updateActions();
     }
@@ -421,6 +434,8 @@ bool EditorPlugin::save()
             modifier.markReset();
         }
 
+        pdf::PDFTemporaryValueChange restoreGuard(&m_isUndoRedoInProgress, true);
+        clearUndoRedo();
         m_scene.clear();
         m_editedPageContent.clear();
 
@@ -451,6 +466,11 @@ void EditorPlugin::onSceneActivityChanged()
 
 void EditorPlugin::onSceneChanged(bool graphicsOnly)
 {
+    if (!graphicsOnly && !m_isUndoRedoInProgress && !m_isSaving)
+    {
+        createUndoStep();
+    }
+
     if (!graphicsOnly)
     {
         updateActions();
@@ -617,13 +637,17 @@ void EditorPlugin::setActive(bool active)
         m_scene.setActive(active);
         if (!active)
         {
+            clearUndoRedo();
             m_scene.clear();
             m_editedPageContent.clear();
         }
         else
         {
+            clearUndoRedo();
             updateDockWidget();
+            pdf::PDFTemporaryValueChange guard(&m_isUndoRedoInProgress, true);
             updateEditedPages();
+            initializeUndoRedo();
         }
 
         m_actions[Activate]->setChecked(active);
@@ -672,6 +696,8 @@ void EditorPlugin::updateActions()
     }
 
     const bool isSceneNonempty = !m_scene.isEmpty();
+    const bool canUndo = !m_isSaving && !m_isUndoRedoInProgress && m_undoStates.size() > 1;
+    const bool canRedo = !m_isSaving && !m_isUndoRedoInProgress && !m_redoStates.empty();
 
     // Tool actions
     for (auto actionId : { Text, FreehandCurve, AcceptMark, RejectMark,
@@ -681,9 +707,93 @@ void EditorPlugin::updateActions()
         m_actions[actionId]->setEnabled(true);
     }
 
+    m_actions[Undo]->setEnabled(canUndo);
+    m_actions[Redo]->setEnabled(canRedo);
+
     // Clear action
     QAction* clearAction = m_actions[Clear];
     clearAction->setEnabled(isSceneNonempty);
+}
+
+void EditorPlugin::clearUndoRedo()
+{
+    m_undoStates.clear();
+    m_redoStates.clear();
+}
+
+void EditorPlugin::initializeUndoRedo()
+{
+    clearUndoRedo();
+    m_undoStates.emplace_back(m_scene.captureState());
+}
+
+void EditorPlugin::createUndoStep()
+{
+    m_undoStates.emplace_back(m_scene.captureState());
+    m_redoStates.clear();
+
+    while (m_undoStates.size() > MAX_UNDO_STEPS)
+    {
+        m_undoStates.erase(m_undoStates.begin());
+    }
+}
+
+pdf::PDFPageContentScene::SceneState EditorPlugin::copySceneState(const pdf::PDFPageContentScene::SceneState& state) const
+{
+    pdf::PDFPageContentScene::SceneState copy;
+    copy.selectedElementIds = state.selectedElementIds;
+    copy.elements.reserve(state.elements.size());
+
+    for (const auto& element : state.elements)
+    {
+        copy.elements.emplace_back(element->clone());
+    }
+
+    return copy;
+}
+
+void EditorPlugin::onUndoTriggered()
+{
+    if (m_undoStates.size() < 2)
+    {
+        return;
+    }
+
+    {
+        pdf::PDFTemporaryValueChange guard(&m_isUndoRedoInProgress, true);
+        m_redoStates.emplace_back(std::move(m_undoStates.back()));
+        m_undoStates.pop_back();
+        while (m_redoStates.size() > MAX_REDO_STEPS)
+        {
+            m_redoStates.erase(m_redoStates.begin());
+        }
+
+        m_scene.restoreState(copySceneState(m_undoStates.back()));
+    }
+
+    updateActions();
+}
+
+void EditorPlugin::onRedoTriggered()
+{
+    if (m_redoStates.empty())
+    {
+        return;
+    }
+
+    {
+        pdf::PDFTemporaryValueChange guard(&m_isUndoRedoInProgress, true);
+        pdf::PDFPageContentScene::SceneState state = std::move(m_redoStates.back());
+        m_redoStates.pop_back();
+        m_scene.restoreState(copySceneState(state));
+        m_undoStates.emplace_back(std::move(state));
+        while (m_undoStates.size() > MAX_UNDO_STEPS)
+        {
+            m_undoStates.erase(m_undoStates.begin());
+        }
+    }
+
+    updateActions();
 }
 
 void EditorPlugin::updateGraphics()
@@ -842,7 +952,15 @@ bool EditorPlugin::updateTextElement(pdf::PDFPageContentElementEdited* element)
 
 void EditorPlugin::onDrawSpaceChanged()
 {
+    const size_t elementCount = m_scene.getElementIds().size();
+    pdf::PDFTemporaryValueChange guard(&m_isUndoRedoInProgress, true);
     updateEditedPages();
+
+    if (m_scene.getElementIds().size() != elementCount)
+    {
+        initializeUndoRedo();
+        updateActions();
+    }
 }
 
 }

@@ -29,6 +29,7 @@
 #include "pdfpagecontenteditorprocessor.h"
 
 #include <QObject>
+#include <vector>
 
 namespace pdf
 {
@@ -65,6 +66,12 @@ private:
     void onSceneEditElement(const std::set<pdf::PDFInteger>& elements);
     void onSceneEditSingleElement(pdf::PDFInteger elementId);
 
+    /// Performs one step of the local editor undo history.
+    void onUndoTriggered();
+
+    /// Performs one step of the local editor redo history.
+    void onRedoTriggered();
+
     void onPenChanged(const QPen& pen);
     void onBrushChanged(const QBrush& brush);
     void onFontChanged(const QFont& font);
@@ -75,6 +82,10 @@ private:
     {
         // Activate action
         Activate,
+
+        // Local undo/redo actions
+        Undo,
+        Redo,
 
         // Create graphics actions
         Text,
@@ -109,6 +120,9 @@ private:
         LastTool
     };
 
+    static constexpr int MAX_UNDO_STEPS = 20;
+    static constexpr int MAX_REDO_STEPS = 20;
+
     void setActive(bool active);
     void onSetActive(bool active);
 
@@ -116,6 +130,20 @@ private:
     void updateGraphics();
     void updateDockWidget();
     void updateEditedPages();
+
+    /// Clears both local undo and redo stacks.
+    void clearUndoRedo();
+
+    /// Initializes local undo/redo history from the current scene state.
+    void initializeUndoRedo();
+
+    /// Appends the current scene state to the local undo stack.
+    void createUndoStep();
+
+    /// Creates a deep copy of a move-only scene snapshot.
+    /// \param state Source scene snapshot
+    /// \return Cloned snapshot that can be safely restored later
+    pdf::PDFPageContentScene::SceneState copySceneState(const pdf::PDFPageContentScene::SceneState& state) const;
 
     bool updatePageContent(pdf::PDFInteger pageIndex,
                            const std::vector<const pdf::PDFPageContentElement*>& elements,
@@ -134,6 +162,12 @@ private:
     std::map<pdf::PDFInteger, pdf::PDFEditedPageContent> m_editedPageContent;
     bool m_sceneSelectionChangeEnabled;
     bool m_isSaving;
+    /// True while a local undo/redo restore is in progress.
+    bool m_isUndoRedoInProgress;
+    /// Timeline of scene snapshots used by the local undo action.
+    std::vector<pdf::PDFPageContentScene::SceneState> m_undoStates;
+    /// Timeline of scene snapshots used by the local redo action.
+    std::vector<pdf::PDFPageContentScene::SceneState> m_redoStates;
 };
 
 }   // namespace pdfplugin

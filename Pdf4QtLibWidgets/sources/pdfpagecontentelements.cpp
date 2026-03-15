@@ -367,6 +367,22 @@ void PDFPageContentScene::addElement(PDFPageContentElement* element)
     Q_EMIT sceneChanged(false);
 }
 
+void PDFPageContentScene::addElements(std::vector<PDFPageContentElement*> elements)
+{
+    if (elements.empty())
+    {
+        return;
+    }
+
+    for (PDFPageContentElement* element : elements)
+    {
+        element->setElementId(m_firstFreeId++);
+        m_elements.emplace_back(element);
+    }
+
+    Q_EMIT sceneChanged(false);
+}
+
 void PDFPageContentScene::replaceElement(PDFPageContentElement* element)
 {
     std::unique_ptr<PDFPageContentElement> elementPtr(element);
@@ -379,6 +395,34 @@ void PDFPageContentScene::replaceElement(PDFPageContentElement* element)
             Q_EMIT sceneChanged(false);
             break;
         }
+    }
+}
+
+void PDFPageContentScene::replaceElements(std::vector<PDFPageContentElement*> elements)
+{
+    if (elements.empty())
+    {
+        return;
+    }
+
+    bool hasChanged = false;
+    for (PDFPageContentElement* rawElement : elements)
+    {
+        std::unique_ptr<PDFPageContentElement> element(rawElement);
+        for (size_t i = 0; i < m_elements.size(); ++i)
+        {
+            if (m_elements[i]->getElementId() == element->getElementId())
+            {
+                m_elements[i] = std::move(element);
+                hasChanged = true;
+                break;
+            }
+        }
+    }
+
+    if (hasChanged)
+    {
+        Q_EMIT sceneChanged(false);
     }
 }
 
@@ -933,6 +977,35 @@ std::map<PDFInteger, std::vector<const PDFPageContentElement*>> PDFPageContentSc
     }
 
     return result;
+}
+
+PDFPageContentScene::SceneState PDFPageContentScene::captureState() const
+{
+    SceneState state;
+    state.selectedElementIds = getSelectedElementIds();
+    state.elements.reserve(m_elements.size());
+
+    for (const auto& element : m_elements)
+    {
+        state.elements.emplace_back(element->clone());
+    }
+
+    return state;
+}
+
+void PDFPageContentScene::restoreState(SceneState state)
+{
+    m_manipulator.reset();
+    m_elements = std::move(state.elements);
+    m_firstFreeId = 1;
+
+    for (const auto& element : m_elements)
+    {
+        m_firstFreeId = qMax(m_firstFreeId, element->getElementId() + 1);
+    }
+
+    Q_EMIT sceneChanged(false);
+    setSelectedElementIds(state.selectedElementIds);
 }
 
 QRectF PDFPageContentScene::getBoundingBox(PDFInteger pageIndex) const
@@ -2222,10 +2295,7 @@ void PDFPageContentElementManipulator::performOperation(Operation operation)
         }
     }
 
-    for (PDFPageContentElement* element : manipulatedElements)
-    {
-        m_scene->replaceElement(element);
-    }
+    m_scene->replaceElements(std::move(manipulatedElements));
 }
 
 void PDFPageContentElementManipulator::performDeleteSelection()
@@ -2303,17 +2373,23 @@ void PDFPageContentElementManipulator::finishManipulation(PDFInteger pageIndex,
 
     if (createCopy)
     {
+        std::vector<PDFPageContentElement*> copies;
+        copies.reserve(m_manipulatedElements.size());
         for (const auto& element : m_manipulatedElements)
         {
-            m_scene->addElement(element->clone());
+            copies.push_back(element->clone());
         }
+        m_scene->addElements(std::move(copies));
     }
     else
     {
+        std::vector<PDFPageContentElement*> replacements;
+        replacements.reserve(m_manipulatedElements.size());
         for (const auto& element : m_manipulatedElements)
         {
-            m_scene->replaceElement(element->clone());
+            replacements.push_back(element->clone());
         }
+        m_scene->replaceElements(std::move(replacements));
     }
 
     cancelManipulation();
