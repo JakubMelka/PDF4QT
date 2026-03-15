@@ -46,6 +46,7 @@ PDFSanitizeDocumentDialog::PDFSanitizeDocumentDialog(const pdf::PDFDocument* doc
     m_wasSanitized(false)
 {
     ui->setupUi(this);
+    m_sanitizer.setFlags(m_sanitizer.getFlags().setFlag(pdf::PDFDocumentSanitizer::InvisibleText, false));
 
     auto addCheckBox = [this](QString text, pdf::PDFDocumentSanitizer::SanitizationFlag flag)
     {
@@ -63,6 +64,7 @@ PDFSanitizeDocumentDialog::PDFSanitizeDocumentDialog(const pdf::PDFDocument* doc
     addCheckBox(tr("Remove comments and other markup annotations"), pdf::PDFDocumentSanitizer::MarkupAnnotations);
     addCheckBox(tr("Remove page thumbnails"), pdf::PDFDocumentSanitizer::PageThumbnails);
     addCheckBox(tr("Remove page labels"), pdf::PDFDocumentSanitizer::PageLabels);
+    addCheckBox(tr("Remove invisible text (OCR layer)"), pdf::PDFDocumentSanitizer::InvisibleText);
 
     m_sanitizeButton = ui->buttonBox->addButton(tr("Sanitize"), QDialogButtonBox::ActionRole);
 

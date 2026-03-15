@@ -16,6 +16,7 @@ CURRENT:
  - Issue #253: undo/redo doesn't work in "edit page content" mode
  - Issue #242: Full screen
  - Issue #234: setting font , font size and area of text annotations
+ - Issue #224: Suggestion - option to remove invisible text
  - Issue #194: Change page size
  - Issue #136: smooth scrolling of document with mouse middle wheel - flywheel
  - Issue #18: Performance optimization - OutputPreview Renderer
