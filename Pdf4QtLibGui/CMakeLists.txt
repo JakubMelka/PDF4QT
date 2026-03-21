@@ -33,6 +33,8 @@ add_library(Pdf4QtLibGui SHARED
     pdfencryptionstrengthhintwidget.h
     pdfoptimizedocumentdialog.cpp
     pdfoptimizedocumentdialog.h
+    pdfoptimizeimagesdialog.cpp
+    pdfoptimizeimagesdialog.h
     pdfprogramcontroller.cpp
     pdfprogramcontroller.h
     pdfrecentfilemanager.cpp
@@ -62,6 +64,7 @@ add_library(Pdf4QtLibGui SHARED
     pdfdocumentpropertiesdialog.ui
     pdfencryptionsettingsdialog.ui
     pdfoptimizedocumentdialog.ui
+    pdfoptimizeimagesdialog.ui
     pdfrendertoimagesdialog.ui
     pdfsidebarwidget.ui
     pdfeditormainwindow.ui

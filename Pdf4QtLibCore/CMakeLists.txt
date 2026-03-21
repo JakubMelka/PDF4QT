@@ -138,6 +138,10 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfnametounicode.h
     sources/pdffont.cpp
     sources/pdffont.h
+    sources/pdfimagecompressor.cpp
+    sources/pdfimagecompressor.h
+    sources/pdfimageoptimizer.cpp
+    sources/pdfimageoptimizer.h
     sources/pdfimage.cpp
     sources/pdfimage.h
     sources/pdfdocumentsanitizer.h

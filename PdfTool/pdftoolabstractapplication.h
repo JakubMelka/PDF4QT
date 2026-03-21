@@ -30,6 +30,7 @@
 #include "pdfrenderer.h"
 #include "pdfcms.h"
 #include "pdfoptimizer.h"
+#include "pdfimageoptimizer.h"
 #include "pdfredact.h"
 
 #include <QtGlobal>
@@ -157,6 +158,7 @@ struct PDFToolOptions
 
     // For option 'Optimize'
     pdf::PDFOptimizer::OptimizationFlags optimizeFlags = pdf::PDFOptimizer::None;
+    pdf::PDFImageOptimizer::Settings imageOptimizationSettings = pdf::PDFImageOptimizer::Settings::createDefault();
 
     // For option 'CertStore'
     bool certStoreEnumerateSystemCertificates = false;

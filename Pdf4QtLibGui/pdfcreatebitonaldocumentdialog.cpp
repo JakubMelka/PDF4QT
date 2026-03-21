@@ -132,14 +132,17 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     m_classifier.classify(document);
     m_imageReferences = m_classifier.getObjectsByType(pdf::PDFObjectClassifier::Image);
 
+    ui->conversionMethodComboBox->addItem(tr("Automatic (Otsu's 1D method)"), static_cast<int>(pdf::PDFImageConversion::ConversionMethod::Automatic));
+    ui->conversionMethodComboBox->addItem(tr("User-defined threshold"), static_cast<int>(pdf::PDFImageConversion::ConversionMethod::Manual));
+    ui->conversionMethodComboBox->addItem(tr("Adaptive thresholding"), static_cast<int>(pdf::PDFImageConversion::ConversionMethod::Adaptive));
+    ui->conversionMethodComboBox->addItem(tr("Dithering (Floyd-Steinberg)"), static_cast<int>(pdf::PDFImageConversion::ConversionMethod::Dither));
+
     m_createBitonalDocumentButton = ui->buttonBox->addButton(tr("Perform"), QDialogButtonBox::ActionRole);
     connect(m_createBitonalDocumentButton, &QPushButton::clicked, this, &PDFCreateBitonalDocumentDialog::onCreateBitonalDocumentButtonClicked);
-    connect(ui->automaticThresholdRadioButton, &QRadioButton::clicked, this, &PDFCreateBitonalDocumentDialog::updateUi);
-    connect(ui->manualThresholdRadioButton, &QRadioButton::clicked, this, &PDFCreateBitonalDocumentDialog::updateUi);
-    connect(ui->automaticThresholdRadioButton, &QRadioButton::clicked, this, &PDFCreateBitonalDocumentDialog::updatePreview);
-    connect(ui->manualThresholdRadioButton, &QRadioButton::clicked, this, &PDFCreateBitonalDocumentDialog::updatePreview);
+    connect(ui->conversionMethodComboBox, qOverload<int>(&QComboBox::currentIndexChanged), this, &PDFCreateBitonalDocumentDialog::updateUi);
+    connect(ui->conversionMethodComboBox, qOverload<int>(&QComboBox::currentIndexChanged), this, &PDFCreateBitonalDocumentDialog::updatePreview);
     connect(ui->imageListWidget, &QListWidget::currentItemChanged, this, &PDFCreateBitonalDocumentDialog::updatePreview);
-    connect(ui->thresholdEditBox, &QSpinBox::editingFinished, this, &PDFCreateBitonalDocumentDialog::updatePreview);
+    connect(ui->thresholdEditBox, qOverload<int>(&QSpinBox::valueChanged), this, &PDFCreateBitonalDocumentDialog::updatePreview);
 
     pdf::PDFWidgetUtils::scaleWidget(this, QSize(1024, 768));
     updateUi();
@@ -270,7 +273,7 @@ void PDFCreateBitonalDocumentDialog::onCreateBitonalDocumentButtonClicked()
     Q_ASSERT(!m_conversionInProgress);
     Q_ASSERT(!m_future.isRunning());
 
-    m_conversionMethod = ui->automaticThresholdRadioButton->isChecked() ? pdf::PDFImageConversion::ConversionMethod::Automatic : pdf::PDFImageConversion::ConversionMethod::Manual;
+    m_conversionMethod = getSelectedConversionMethod();
     m_manualThreshold = ui->thresholdEditBox->value();
 
     m_conversionInProgress = true;
@@ -329,7 +332,11 @@ void PDFCreateBitonalDocumentDialog::loadImages()
 
 void PDFCreateBitonalDocumentDialog::updateUi()
 {
-    ui->thresholdEditBox->setEnabled(ui->manualThresholdRadioButton->isChecked());
+    m_conversionMethod = getSelectedConversionMethod();
+    const bool usesThreshold = m_conversionMethod == pdf::PDFImageConversion::ConversionMethod::Manual ||
+                               m_conversionMethod == pdf::PDFImageConversion::ConversionMethod::Dither;
+    ui->thresholdLabel->setEnabled(usesThreshold);
+    ui->thresholdEditBox->setEnabled(usesThreshold);
 
     ui->buttonBox->button(QDialogButtonBox::Ok)->setEnabled(m_processed && !m_conversionInProgress);
     ui->buttonBox->button(QDialogButtonBox::Cancel)->setEnabled(!m_conversionInProgress);
@@ -355,7 +362,8 @@ void PDFCreateBitonalDocumentDialog::updatePreview()
         QImage image = pdfImage->getImage(&cmsGeneric, &reporter, nullptr);
 
         pdf::PDFImageConversion imageConversion;
-        imageConversion.setConversionMethod(ui->automaticThresholdRadioButton->isChecked() ? pdf::PDFImageConversion::ConversionMethod::Automatic : pdf::PDFImageConversion::ConversionMethod::Manual);
+        m_conversionMethod = getSelectedConversionMethod();
+        imageConversion.setConversionMethod(m_conversionMethod);
         imageConversion.setThreshold(ui->thresholdEditBox->value());
         imageConversion.setImage(image);
 
@@ -368,6 +376,11 @@ void PDFCreateBitonalDocumentDialog::updatePreview()
 
     m_leftPreviewWidget->setImage(m_previewImageLeft);
     m_rightPreviewWidget->setImage(m_previewImageRight);
+}
+
+pdf::PDFImageConversion::ConversionMethod PDFCreateBitonalDocumentDialog::getSelectedConversionMethod() const
+{
+    return static_cast<pdf::PDFImageConversion::ConversionMethod>(ui->conversionMethodComboBox->currentData().toInt());
 }
 
 std::optional<pdf::PDFImage> PDFCreateBitonalDocumentDialog::getImageFromReference(pdf::PDFObjectReference reference) const

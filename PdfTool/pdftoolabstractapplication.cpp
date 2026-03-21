@@ -332,6 +332,33 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         {
             parser->addOption(QCommandLineOption(info.option, info.description));
         }
+
+        parser->addOption(QCommandLineOption("opt-images", "Enable image optimization/compression."));
+        parser->addOption(QCommandLineOption("opt-images-mode", "Image optimization mode (auto|custom).", "mode", "auto"));
+        parser->addOption(QCommandLineOption("opt-images-color-mode", "Image color mode (auto|preserve|color|gray|bitonal).", "mode", "auto"));
+        parser->addOption(QCommandLineOption("opt-images-goal", "Optimization goal (quality|size).", "goal", "quality"));
+        parser->addOption(QCommandLineOption("opt-images-keep-original", "Keep original stream if compression is not smaller.", "bool", "1"));
+        parser->addOption(QCommandLineOption("opt-images-preserve-alpha", "Preserve transparency using soft masks when needed.", "bool", "1"));
+
+        parser->addOption(QCommandLineOption("opt-images-color-alg", "Color image compression algorithm (auto|flate|jpeg|jpx|runlength).", "algorithm", "auto"));
+        parser->addOption(QCommandLineOption("opt-images-color-dpi", "Target DPI for color images (0 disables).", "dpi", "150"));
+        parser->addOption(QCommandLineOption("opt-images-color-jpeg-quality", "JPEG quality for color images (0-100).", "quality", "85"));
+        parser->addOption(QCommandLineOption("opt-images-color-jpx-rate", "JPEG2000 rate for color images (0=lossless).", "rate", "0"));
+        parser->addOption(QCommandLineOption("opt-images-color-resample", "Resample filter for color images (nearest|bilinear|bicubic|lanczos).", "filter", "bicubic"));
+        parser->addOption(QCommandLineOption("opt-images-color-png-predictor", "Enable PNG predictor for flate (color).", "bool", "1"));
+
+        parser->addOption(QCommandLineOption("opt-images-gray-alg", "Grayscale image compression algorithm (auto|flate|jpeg|jpx|runlength).", "algorithm", "auto"));
+        parser->addOption(QCommandLineOption("opt-images-gray-dpi", "Target DPI for grayscale images (0 disables).", "dpi", "150"));
+        parser->addOption(QCommandLineOption("opt-images-gray-jpeg-quality", "JPEG quality for grayscale images (0-100).", "quality", "85"));
+        parser->addOption(QCommandLineOption("opt-images-gray-jpx-rate", "JPEG2000 rate for grayscale images (0=lossless).", "rate", "0"));
+        parser->addOption(QCommandLineOption("opt-images-gray-resample", "Resample filter for grayscale images (nearest|bilinear|bicubic|lanczos).", "filter", "bicubic"));
+        parser->addOption(QCommandLineOption("opt-images-gray-png-predictor", "Enable PNG predictor for flate (grayscale).", "bool", "1"));
+
+        parser->addOption(QCommandLineOption("opt-images-bitonal-alg", "Bitonal image compression algorithm (auto|flate|runlength|ccittg4|jbig2).", "algorithm", "auto"));
+        parser->addOption(QCommandLineOption("opt-images-bitonal-dpi", "Target DPI for bitonal images (0 disables).", "dpi", "300"));
+        parser->addOption(QCommandLineOption("opt-images-bitonal-threshold", "Bitonal threshold (0-255, -1=auto).", "threshold", "-1"));
+        parser->addOption(QCommandLineOption("opt-images-bitonal-resample", "Resample filter for bitonal images (nearest|bilinear|bicubic|lanczos).", "filter", "bicubic"));
+        parser->addOption(QCommandLineOption("opt-images-bitonal-png-predictor", "Enable PNG predictor for flate (bitonal).", "bool", "1"));
     }
 
     if (optionFlags.testFlag(CertStore))
@@ -937,6 +964,190 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
             if (parser->isSet(info.option))
             {
                 options.optimizeFlags |= info.flag;
+            }
+        }
+
+        if (parser->isSet("opt-images"))
+        {
+            options.imageOptimizationSettings = pdf::PDFImageOptimizer::Settings::createDefault();
+            options.imageOptimizationSettings.enabled = true;
+
+            auto parseBool = [&parser](const char* option, bool defaultValue)
+            {
+                if (!parser->isSet(option))
+                {
+                    return defaultValue;
+                }
+                return parser->value(option).toInt() != 0;
+            };
+
+            auto parseMode = [&parser](const QString& value) -> pdf::PDFImageOptimizer::ColorMode
+            {
+                if (value == "auto")
+                {
+                    return pdf::PDFImageOptimizer::ColorMode::Auto;
+                }
+                if (value == "preserve")
+                {
+                    return pdf::PDFImageOptimizer::ColorMode::Preserve;
+                }
+                if (value == "color")
+                {
+                    return pdf::PDFImageOptimizer::ColorMode::Color;
+                }
+                if (value == "gray" || value == "grayscale")
+                {
+                    return pdf::PDFImageOptimizer::ColorMode::Grayscale;
+                }
+                if (value == "bitonal")
+                {
+                    return pdf::PDFImageOptimizer::ColorMode::Bitonal;
+                }
+                return pdf::PDFImageOptimizer::ColorMode::Auto;
+            };
+
+            auto parseAlgorithm = [](const QString& value) -> pdf::PDFImageOptimizer::CompressionAlgorithm
+            {
+                if (value == "auto")
+                {
+                    return pdf::PDFImageOptimizer::CompressionAlgorithm::Auto;
+                }
+                if (value == "flate")
+                {
+                    return pdf::PDFImageOptimizer::CompressionAlgorithm::Flate;
+                }
+                if (value == "jpeg")
+                {
+                    return pdf::PDFImageOptimizer::CompressionAlgorithm::JPEG;
+                }
+                if (value == "jpx" || value == "jpeg2000")
+                {
+                    return pdf::PDFImageOptimizer::CompressionAlgorithm::JPEG2000;
+                }
+                if (value == "runlength")
+                {
+                    return pdf::PDFImageOptimizer::CompressionAlgorithm::RunLength;
+                }
+                if (value == "ccittg4")
+                {
+                    return pdf::PDFImageOptimizer::CompressionAlgorithm::CCITTGroup4;
+                }
+                if (value == "jbig2")
+                {
+                    return pdf::PDFImageOptimizer::CompressionAlgorithm::JBIG2;
+                }
+                return pdf::PDFImageOptimizer::CompressionAlgorithm::Auto;
+            };
+
+            auto parseResample = [](const QString& value) -> pdf::PDFImage::ResampleFilter
+            {
+                if (value == "nearest")
+                {
+                    return pdf::PDFImage::ResampleFilter::Nearest;
+                }
+                if (value == "bilinear")
+                {
+                    return pdf::PDFImage::ResampleFilter::Bilinear;
+                }
+                if (value == "lanczos")
+                {
+                    return pdf::PDFImage::ResampleFilter::Lanczos;
+                }
+                return pdf::PDFImage::ResampleFilter::Bicubic;
+            };
+
+            QString mode = parser->value("opt-images-mode");
+            options.imageOptimizationSettings.autoMode = (mode != "custom");
+            options.imageOptimizationSettings.colorMode = parseMode(parser->value("opt-images-color-mode"));
+
+            QString goal = parser->value("opt-images-goal");
+            options.imageOptimizationSettings.goal = (goal == "size") ? pdf::PDFImageOptimizer::OptimizationGoal::MinimumSize
+                                                                      : pdf::PDFImageOptimizer::OptimizationGoal::PreferQuality;
+
+            options.imageOptimizationSettings.keepOriginalIfLarger = parseBool("opt-images-keep-original", true);
+            options.imageOptimizationSettings.preserveTransparency = parseBool("opt-images-preserve-alpha", true);
+
+            auto applyProfile = [&parser, &parseAlgorithm, &parseResample](pdf::PDFImageOptimizer::CompressionProfile& profile,
+                                                                           const char* algOption,
+                                                                           const char* dpiOption,
+                                                                           const char* qualityOption,
+                                                                           const char* rateOption,
+                                                                           const char* resampleOption,
+                                                                           const char* predictorOption)
+            {
+                if (parser->isSet(algOption))
+                {
+                    profile.algorithm = parseAlgorithm(parser->value(algOption));
+                }
+                if (parser->isSet(dpiOption))
+                {
+                    bool ok = false;
+                    int dpi = parser->value(dpiOption).toInt(&ok);
+                    if (ok)
+                    {
+                        profile.targetDpi = dpi;
+                    }
+                }
+                if (qualityOption && parser->isSet(qualityOption))
+                {
+                    bool ok = false;
+                    int quality = parser->value(qualityOption).toInt(&ok);
+                    if (ok)
+                    {
+                        profile.jpegQuality = qBound(0, quality, 100);
+                    }
+                }
+                if (rateOption && parser->isSet(rateOption))
+                {
+                    bool ok = false;
+                    float rate = parser->value(rateOption).toFloat(&ok);
+                    if (ok)
+                    {
+                        profile.jpeg2000Rate = rate;
+                    }
+                }
+                if (resampleOption && parser->isSet(resampleOption))
+                {
+                    profile.resampleFilter = parseResample(parser->value(resampleOption));
+                }
+                if (predictorOption && parser->isSet(predictorOption))
+                {
+                    profile.enablePngPredictor = parser->value(predictorOption).toInt() != 0;
+                }
+            };
+
+            applyProfile(options.imageOptimizationSettings.colorProfile,
+                         "opt-images-color-alg",
+                         "opt-images-color-dpi",
+                         "opt-images-color-jpeg-quality",
+                         "opt-images-color-jpx-rate",
+                         "opt-images-color-resample",
+                         "opt-images-color-png-predictor");
+
+            applyProfile(options.imageOptimizationSettings.grayProfile,
+                         "opt-images-gray-alg",
+                         "opt-images-gray-dpi",
+                         "opt-images-gray-jpeg-quality",
+                         "opt-images-gray-jpx-rate",
+                         "opt-images-gray-resample",
+                         "opt-images-gray-png-predictor");
+
+            applyProfile(options.imageOptimizationSettings.bitonalProfile,
+                         "opt-images-bitonal-alg",
+                         "opt-images-bitonal-dpi",
+                         nullptr,
+                         nullptr,
+                         "opt-images-bitonal-resample",
+                         "opt-images-bitonal-png-predictor");
+
+            if (parser->isSet("opt-images-bitonal-threshold"))
+            {
+                bool ok = false;
+                int threshold = parser->value("opt-images-bitonal-threshold").toInt(&ok);
+                if (ok)
+                {
+                    options.imageOptimizationSettings.bitonalProfile.monochromeThreshold = threshold;
+                }
             }
         }
     }
