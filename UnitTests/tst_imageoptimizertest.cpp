@@ -43,6 +43,7 @@ private slots:
     void test_bitonal_conversion_manual();
     void test_image_analysis_classification();
     void test_optimizer_keeps_original_if_larger();
+    void test_optimizer_skips_disabled_override();
     void test_optimizer_preserve_keeps_bitonal_encoding();
     void test_optimizer_preserves_smask();
     void test_optimizer_reduces_size_for_photo();
@@ -315,6 +316,45 @@ void ImageOptimizerTest::test_optimizer_keeps_original_if_larger()
     const pdf::PDFObject& filterObject = optimized.getObject(dictionary->get(pdf::PDF_STREAM_DICT_FILTER));
     QVERIFY(filterObject.isName());
     QCOMPARE(QString::fromLatin1(filterObject.getString()), QString("RunLengthDecode"));
+}
+
+void ImageOptimizerTest::test_optimizer_skips_disabled_override()
+{
+    QImage textScan = createTextScanImage(128);
+    pdf::PDFDocument document = createDocumentWithImage(textScan, false, pdf::PDFImage::ImageCompression::Flate);
+
+    std::vector<pdf::PDFImageOptimizer::ImageInfo> infos = pdf::PDFImageOptimizer::collectImageInfos(&document);
+    QCOMPARE(infos.size(), 1u);
+
+    const pdf::PDFObject& originalImageObject = document.getObjectByReference(infos[0].reference);
+    QVERIFY(originalImageObject.isStream());
+    const pdf::PDFStream* originalStream = originalImageObject.getStream();
+    QVERIFY(originalStream);
+
+    pdf::PDFImageOptimizer::Settings settings = pdf::PDFImageOptimizer::Settings::createDefault();
+    settings.enabled = true;
+    settings.autoMode = true;
+    settings.colorMode = pdf::PDFImageOptimizer::ColorMode::Auto;
+    settings.keepOriginalIfLarger = false;
+
+    pdf::PDFImageOptimizer::ImageOverrides overrides;
+    pdf::PDFImageOptimizer::ImageOverride imageOverride;
+    imageOverride.enabled = false;
+    overrides.emplace(infos[0].reference, imageOverride);
+
+    pdf::PDFImageOptimizer optimizer;
+    std::vector<pdf::PDFImageOptimizer::ImageResult> results;
+    pdf::PDFDocument optimized = optimizer.optimize(&document, settings, overrides, nullptr, nullptr, &results);
+
+    QCOMPARE(results.size(), 1u);
+    QVERIFY(results[0].keptOriginal);
+
+    const pdf::PDFObject& optimizedImageObject = optimized.getObjectByReference(infos[0].reference);
+    QVERIFY(optimizedImageObject.isStream());
+    const pdf::PDFStream* optimizedStream = optimizedImageObject.getStream();
+    QVERIFY(optimizedStream);
+
+    QCOMPARE(*optimizedStream->getContent(), *originalStream->getContent());
 }
 
 void ImageOptimizerTest::test_optimizer_preserve_keeps_bitonal_encoding()

@@ -82,6 +82,9 @@ private:
     void updatePreview();
     /// Refreshes widgets related to the currently selected image.
     void updateSelectedImageUi();
+    /// Updates labels that explain whether the settings editor currently
+    /// modifies global settings or an override for the selected image.
+    void updateSettingsEditorContextUi();
     /// Invalidates the last optimization result after a settings change.
     void markOptimizationDirty();
 

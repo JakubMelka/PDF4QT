@@ -99,6 +99,7 @@ PDFOptimizeImagesDialog::PDFOptimizeImagesDialog(const pdf::PDFDocument* documen
     ui->setupUi(this);
 
     m_settings.enabled = true;
+    updateSettingsEditorContextUi();
 
     addItem(ui->modeComboBox, tr("Auto"), 0);
     addItem(ui->modeComboBox, tr("Custom"), 1);
@@ -341,12 +342,24 @@ void PDFOptimizeImagesDialog::updateSelectedImageUi()
     {
         ui->imageEnabledCheckBox->setChecked(false);
         ui->imageOverrideCheckBox->setChecked(false);
+        ui->settingsScopeLabel->clear();
         ui->imageInfoLabel->clear();
+        updateSettingsEditorContextUi();
         return;
     }
 
     ui->imageEnabledCheckBox->setChecked(entry->enabled);
     ui->imageOverrideCheckBox->setChecked(entry->overrideEnabled);
+
+    if (entry->overrideEnabled)
+    {
+        ui->settingsScopeLabel->setText(tr("Edits on the right currently apply only to this image. "
+                                           "The override started as a copy of the global settings."));
+    }
+    else
+    {
+        ui->settingsScopeLabel->setText(tr("Edits on the right currently change the global settings used by images without an override."));
+    }
 
     const pdf::PDFImageOptimizer::ImageInfo& info = entry->info;
     QStringList details;
@@ -365,7 +378,20 @@ void PDFOptimizeImagesDialog::updateSelectedImageUi()
     }
     ui->imageInfoLabel->setText(details.join("\n"));
 
+    updateSettingsEditorContextUi();
     loadSettingsToUi(activeSettings());
+}
+
+void PDFOptimizeImagesDialog::updateSettingsEditorContextUi()
+{
+    const ImageEntry* entry = getSelectedEntry();
+    const bool editingOverride = entry && entry->overrideEnabled;
+
+    ui->globalGroupBox->setTitle(editingOverride ? tr("Settings Editor - Selected Image Override")
+                                                 : tr("Settings Editor - Global Defaults"));
+    ui->profilesTabWidget->setToolTip(editingOverride
+                                      ? tr("These settings currently modify only the selected image override.")
+                                      : tr("These settings currently modify the global defaults used by images without an override."));
 }
 
 void PDFOptimizeImagesDialog::loadSettingsToUi(const pdf::PDFImageOptimizer::Settings& settings)
@@ -621,18 +647,29 @@ void PDFOptimizeImagesDialog::updatePreview()
         return;
     }
 
-    const pdf::PDFImageOptimizer::Settings& settings = entry->overrideEnabled ? entry->overrideSettings : m_settings;
-    pdf::PDFImageOptimizer::ResolvedPlan plan = pdf::PDFImageOptimizer::resolvePlan(entry->info, settings);
-
     QImage before = entry->info.image;
-    QImage after = pdf::PDFImageOptimizer::createPreviewImage(entry->info, plan, true);
-
     const QSize previewSize(200, 200);
     if (!before.isNull())
     {
         QPixmap pix = QPixmap::fromImage(before.scaled(previewSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
         ui->previewBeforeImageLabel->setPixmap(pix);
     }
+
+    if (!entry->enabled)
+    {
+        if (!before.isNull())
+        {
+            QPixmap pix = QPixmap::fromImage(before.scaled(previewSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+            ui->previewAfterImageLabel->setPixmap(pix);
+        }
+        ui->previewInfoLabel->setText(tr("Optimization is disabled for the selected image. The original image will be kept."));
+        return;
+    }
+
+    const pdf::PDFImageOptimizer::Settings& settings = entry->overrideEnabled ? entry->overrideSettings : m_settings;
+    pdf::PDFImageOptimizer::ResolvedPlan plan = pdf::PDFImageOptimizer::resolvePlan(entry->info, settings);
+    QImage after = pdf::PDFImageOptimizer::createPreviewImage(entry->info, plan, true);
+
     if (!after.isNull())
     {
         QPixmap pix = QPixmap::fromImage(after.scaled(previewSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
