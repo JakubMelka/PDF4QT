@@ -521,7 +521,7 @@ void PDFOptimizeImagesDialog::onOptimizeButtonClicked()
         {
             pdf::PDFImageOptimizer::ImageOverride overrideInfo;
             overrideInfo.enabled = false;
-            overrides.emplace(entry.info.reference, overrideInfo);
+            overrides[entry.info.reference] = overrideInfo;
             continue;
         }
 
@@ -531,7 +531,7 @@ void PDFOptimizeImagesDialog::onOptimizeButtonClicked()
             overrideInfo.enabled = true;
             overrideInfo.useCustomSettings = true;
             overrideInfo.settings = entry.overrideSettings;
-            overrides.emplace(entry.info.reference, overrideInfo);
+            overrides[entry.info.reference] = overrideInfo;
         }
     }
 
