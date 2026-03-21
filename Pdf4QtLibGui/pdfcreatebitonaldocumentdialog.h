@@ -89,6 +89,7 @@ private:
 
     void updateUi();
     void updatePreview();
+    pdf::PDFImageConversion::ConversionMethod getSelectedConversionMethod() const;
 
     std::optional<pdf::PDFImage> getImageFromReference(pdf::PDFObjectReference reference) const;
 

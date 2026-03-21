@@ -53,6 +53,20 @@ static Enum currentEnum(const QComboBox* combo, Enum fallback)
     return static_cast<Enum>(value.toInt());
 }
 
+template<typename Enum>
+static void setCurrentEnum(QComboBox* combo, Enum value, Enum fallback)
+{
+    int index = combo->findData(static_cast<int>(value));
+    if (index < 0)
+    {
+        index = combo->findData(static_cast<int>(fallback));
+    }
+    if (index >= 0)
+    {
+        combo->setCurrentIndex(index);
+    }
+}
+
 QString formatBytes(int bytes)
 {
     if (bytes <= 0)
@@ -108,11 +122,6 @@ PDFOptimizeImagesDialog::PDFOptimizeImagesDialog(const pdf::PDFDocument* documen
             addItem(combo, QObject::tr("JPEG2000"), pdf::PDFImageOptimizer::CompressionAlgorithm::JPEG2000);
         }
         addItem(combo, QObject::tr("RunLength"), pdf::PDFImageOptimizer::CompressionAlgorithm::RunLength);
-        if (bitonal)
-        {
-            addItem(combo, QObject::tr("CCITT Group 4"), pdf::PDFImageOptimizer::CompressionAlgorithm::CCITTGroup4);
-            addItem(combo, QObject::tr("JBIG2"), pdf::PDFImageOptimizer::CompressionAlgorithm::JBIG2);
-        }
     };
 
     addAlgItems(ui->colorAlgComboBox, false);
@@ -364,28 +373,28 @@ void PDFOptimizeImagesDialog::loadSettingsToUi(const pdf::PDFImageOptimizer::Set
     pdf::PDFTemporaryValueChange guard(&m_updatingUi, true);
 
     ui->modeComboBox->setCurrentIndex(settings.autoMode ? 0 : 1);
-    ui->colorModeComboBox->setCurrentIndex(ui->colorModeComboBox->findData(static_cast<int>(settings.colorMode)));
-    ui->goalComboBox->setCurrentIndex(ui->goalComboBox->findData(static_cast<int>(settings.goal)));
+    setCurrentEnum(ui->colorModeComboBox, settings.colorMode, pdf::PDFImageOptimizer::ColorMode::Auto);
+    setCurrentEnum(ui->goalComboBox, settings.goal, pdf::PDFImageOptimizer::OptimizationGoal::PreferQuality);
     ui->keepOriginalCheckBox->setChecked(settings.keepOriginalIfLarger);
     ui->preserveAlphaCheckBox->setChecked(settings.preserveTransparency);
 
-    ui->colorAlgComboBox->setCurrentIndex(ui->colorAlgComboBox->findData(static_cast<int>(settings.colorProfile.algorithm)));
+    setCurrentEnum(ui->colorAlgComboBox, settings.colorProfile.algorithm, pdf::PDFImageOptimizer::CompressionAlgorithm::Auto);
     ui->colorDpiSpinBox->setValue(settings.colorProfile.targetDpi);
-    ui->colorResampleComboBox->setCurrentIndex(ui->colorResampleComboBox->findData(static_cast<int>(settings.colorProfile.resampleFilter)));
+    setCurrentEnum(ui->colorResampleComboBox, settings.colorProfile.resampleFilter, pdf::PDFImage::ResampleFilter::Bicubic);
     ui->colorJpegQualitySpinBox->setValue(settings.colorProfile.jpegQuality);
     ui->colorJpxRateSpinBox->setValue(settings.colorProfile.jpeg2000Rate);
     ui->colorPredictorCheckBox->setChecked(settings.colorProfile.enablePngPredictor);
 
-    ui->grayAlgComboBox->setCurrentIndex(ui->grayAlgComboBox->findData(static_cast<int>(settings.grayProfile.algorithm)));
+    setCurrentEnum(ui->grayAlgComboBox, settings.grayProfile.algorithm, pdf::PDFImageOptimizer::CompressionAlgorithm::Auto);
     ui->grayDpiSpinBox->setValue(settings.grayProfile.targetDpi);
-    ui->grayResampleComboBox->setCurrentIndex(ui->grayResampleComboBox->findData(static_cast<int>(settings.grayProfile.resampleFilter)));
+    setCurrentEnum(ui->grayResampleComboBox, settings.grayProfile.resampleFilter, pdf::PDFImage::ResampleFilter::Bicubic);
     ui->grayJpegQualitySpinBox->setValue(settings.grayProfile.jpegQuality);
     ui->grayJpxRateSpinBox->setValue(settings.grayProfile.jpeg2000Rate);
     ui->grayPredictorCheckBox->setChecked(settings.grayProfile.enablePngPredictor);
 
-    ui->bitonalAlgComboBox->setCurrentIndex(ui->bitonalAlgComboBox->findData(static_cast<int>(settings.bitonalProfile.algorithm)));
+    setCurrentEnum(ui->bitonalAlgComboBox, settings.bitonalProfile.algorithm, pdf::PDFImageOptimizer::CompressionAlgorithm::Auto);
     ui->bitonalDpiSpinBox->setValue(settings.bitonalProfile.targetDpi);
-    ui->bitonalResampleComboBox->setCurrentIndex(ui->bitonalResampleComboBox->findData(static_cast<int>(settings.bitonalProfile.resampleFilter)));
+    setCurrentEnum(ui->bitonalResampleComboBox, settings.bitonalProfile.resampleFilter, pdf::PDFImage::ResampleFilter::Bicubic);
     if (settings.bitonalProfile.monochromeThreshold < 0)
     {
         ui->bitonalThresholdAutoCheckBox->setChecked(true);

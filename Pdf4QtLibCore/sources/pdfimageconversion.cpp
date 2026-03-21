@@ -231,6 +231,11 @@ QImage PDFImageConversion::convertAdaptive() const
     const int height = source.height();
     const int radius = ADAPTIVE_WINDOW_RADIUS;
 
+    // Integral image stores, for every position, the sum of all pixels
+    // in the rectangle from the top-left corner to that position.
+    // Thanks to this precomputation we can later get the sum inside any
+    // local window with only a few array reads instead of summing all
+    // pixels in the window again for every output pixel.
     std::vector<int> integral((width + 1) * (height + 1), 0);
 
     for (int y = 1; y <= height; ++y)
@@ -248,6 +253,10 @@ QImage PDFImageConversion::convertAdaptive() const
     QImage bitonal(width, height, QImage::Format_Mono);
     bitonal.fill(0);
 
+    // Adaptive thresholding does not use one global threshold for the whole image.
+    // Instead, each pixel gets its own threshold derived from the average brightness
+    // in its local neighborhood. That makes the result more robust when one part of
+    // the page is bright and another is darker because of shadows or uneven scanning.
     for (int y = 0; y < height; ++y)
     {
         int y0 = qMax(0, y - radius);
@@ -262,6 +271,7 @@ QImage PDFImageConversion::convertAdaptive() const
             const int ax1 = x1 + 1;
             const int ay1 = y1 + 1;
 
+            // Sum of grayscale values in the local window computed from the integral image.
             const int sum = integral[ay1 * (width + 1) + ax1]
                             - integral[ay0 * (width + 1) + ax1]
                             - integral[ay1 * (width + 1) + ax0]
@@ -269,9 +279,13 @@ QImage PDFImageConversion::convertAdaptive() const
 
             const int count = (x1 - x0 + 1) * (y1 - y0 + 1);
             const int mean = count > 0 ? (sum / count) : 0;
+            // We shift the threshold slightly below the neighborhood average.
+            // Without this offset, faint dark strokes could disappear too easily
+            // when the local average is already influenced by a bright background.
             const int threshold = mean - ADAPTIVE_OFFSET;
 
             const int pixelValue = source.pixelColor(x, y).lightness();
+            // Pixels brighter than the local threshold become white, the others black.
             bitonal.setPixel(x, y, pixelValue >= threshold);
         }
     }
@@ -295,6 +309,10 @@ QImage PDFImageConversion::convertDithered(int threshold) const
     const int width = source.width();
     const int height = source.height();
 
+    // Error-diffusion dithering intentionally keeps a working buffer in grayscale.
+    // Each pixel is quantized to pure black or white, and the quantization error
+    // is pushed into neighboring pixels that have not been processed yet.
+    // Visually this replaces missing gray levels with a fine black/white pattern.
     std::vector<float> buffer(width * height, 0.0f);
     for (int y = 0; y < height; ++y)
     {
@@ -314,10 +332,22 @@ QImage PDFImageConversion::convertDithered(int threshold) const
         {
             const int index = y * width + x;
             const float oldPixel = buffer[index];
+            // Reduce the current pixel to the nearest output value:
+            // either full white or full black.
             const float newPixel = oldPixel >= threshold ? 255.0f : 0.0f;
+            // The difference is not discarded. It is redistributed to surrounding
+            // pixels so that the average tone over a larger area stays similar.
             const float error = oldPixel - newPixel;
             bitonal.setPixel(x, y, newPixel >= 128.0f);
 
+            // Floyd-Steinberg diffusion:
+            //   current -> right        7/16
+            //             down-left    3/16
+            //             down         5/16
+            //             down-right   1/16
+            // The weights sum to 1, so the algorithm preserves total brightness
+            // as much as possible while processing the image from left to right,
+            // top to bottom.
             if (x + 1 < width)
             {
                 buffer.at(index + 1) += error * 7.0f / 16.0f;
