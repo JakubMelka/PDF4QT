@@ -160,6 +160,7 @@ private:
     std::vector<pdf::PDFSignatureVerificationResult> m_signatures;
     std::vector<pdf::PDFCertificateInfo> m_certificateInfos;
     std::vector<std::pair<pdf::PDFObjectReference, pdf::PDFInteger>> m_markupAnnotations;
+    Page m_currentPage = Invalid;
     bool m_bookmarkChangeInProgress = false;
 };
 

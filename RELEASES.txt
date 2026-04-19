@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #376: Deleting a note jumps to Outline
  - Issue #373: Ctrl/Shift keyboard selection for Outline
  - Issue #372: Option to not color images
  - Issue #370: Extracting pages within a range

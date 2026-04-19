@@ -292,6 +292,11 @@ void PDFSidebarWidget::setDocument(const pdf::PDFModifiedDocument& document, con
         }
     }
 
+    if (!document.hasReset() && preferred == Invalid && m_currentPage != Invalid && !isEmpty(m_currentPage))
+    {
+        preferred = m_currentPage;
+    }
+
     // Update GUI
     updateGUI(preferred);
     updateButtons();
@@ -357,6 +362,8 @@ bool PDFSidebarWidget::isEmpty(Page page) const
 
 void PDFSidebarWidget::selectPage(Page page)
 {
+    m_currentPage = page;
+
     // Switch state of the buttons and select the page
     for (const auto& pageInfo : m_pageInfo)
     {
