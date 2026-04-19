@@ -32,6 +32,7 @@
 #include "pdfapplicationtranslator.h"
 
 #include <QObject>
+#include <limits>
 
 class QSettings;
 
@@ -69,6 +70,14 @@ public:
         static constexpr int WHEEL_SCROLL_SPEED_PERCENT_MIN = 10;
         static constexpr int WHEEL_SCROLL_SPEED_PERCENT_MAX = 400;
         static constexpr int WHEEL_SCROLL_SPEED_PERCENT_DEFAULT = 100;
+        static constexpr qint64 COMPILED_PAGE_CACHE_LIMIT_MIN_KB = 64 * 1024;
+        static constexpr qint64 COMPILED_PAGE_CACHE_LIMIT_MAX_KB_64BIT = 16LL * 1024 * 1024;
+        static constexpr qint64 COMPILED_PAGE_CACHE_LIMIT_MAX_KB_32BIT = std::numeric_limits<qint32>::max() / 1024;
+
+        static constexpr qint64 getMaximumCompiledPageCacheLimitKB()
+        {
+            return sizeof(qsizetype) >= sizeof(qint64) ? COMPILED_PAGE_CACHE_LIMIT_MAX_KB_64BIT : COMPILED_PAGE_CACHE_LIMIT_MAX_KB_32BIT;
+        }
 
         Settings();
 
@@ -88,7 +97,7 @@ public:
         pdf::PDFExecutionPolicy::Strategy m_multithreadingStrategy;
 
         // Cache settings
-        int m_compiledPageCacheLimit;
+        qint64 m_compiledPageCacheLimit;
         int m_thumbnailsCacheLimit;
         int m_fontCacheLimit;
         int m_instancedFontCacheLimit;
@@ -160,7 +169,7 @@ public:
     pdf::PDFReal getColorTolerance() const { return m_settings.m_colorTolerance; }
     void setColorTolerance(pdf::PDFReal colorTolerance);
 
-    int getCompiledPageCacheLimit() const { return m_settings.m_compiledPageCacheLimit; }
+    qint64 getCompiledPageCacheLimit() const { return m_settings.m_compiledPageCacheLimit; }
     int getThumbnailsCacheLimit() const { return m_settings.m_thumbnailsCacheLimit; }
     int getFontCacheLimit() const { return m_settings.m_fontCacheLimit; }
     int getInstancedFontCacheLimit() const { return m_settings.m_instancedFontCacheLimit; }

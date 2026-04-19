@@ -90,7 +90,7 @@ public:
     /// \param thumbnailsCacheLimit Thumbnail image cache limit [kB]
     /// \param fontCacheLimit Font cache limit [-]
     /// \param instancedFontCacheLimit Instanced font cache limit [-]
-    void updateCacheLimits(int compiledPageCacheLimit, int thumbnailsCacheLimit, int fontCacheLimit, int instancedFontCacheLimit);
+    void updateCacheLimits(qsizetype compiledPageCacheLimit, int thumbnailsCacheLimit, int fontCacheLimit, int instancedFontCacheLimit);
 
     /// Enables/disables smooth scrolling animation for mouse wheel input.
     /// When enabled, wheel deltas are applied gradually over time.

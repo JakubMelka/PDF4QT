@@ -117,6 +117,8 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
 
     ui->maximumRecentFileCountEdit->setMinimum(PDFRecentFileManager::getMinimumRecentFiles());
     ui->maximumRecentFileCountEdit->setMaximum(PDFRecentFileManager::getMaximumRecentFiles());
+    ui->compiledPageCacheSizeEdit->setRange(int(PDFViewerSettings::Settings::COMPILED_PAGE_CACHE_LIMIT_MIN_KB),
+                                            int(PDFViewerSettings::Settings::getMaximumCompiledPageCacheLimitKB()));
 
     // Load CMS data
     ui->cmsTypeComboBox->addItem(pdf::PDFCMSManager::getSystemName(pdf::PDFCMSSettings::System::Generic), int(pdf::PDFCMSSettings::System::Generic));
@@ -318,7 +320,9 @@ void PDFViewerSettingsDialog::loadData()
     ui->colorToleranceEdit->setValue(m_settings.m_colorTolerance);
 
     // Cache
-    ui->compiledPageCacheSizeEdit->setValue(m_settings.m_compiledPageCacheLimit);
+    ui->compiledPageCacheSizeEdit->setValue(int(qBound(PDFViewerSettings::Settings::COMPILED_PAGE_CACHE_LIMIT_MIN_KB,
+                                                       m_settings.m_compiledPageCacheLimit,
+                                                       PDFViewerSettings::Settings::getMaximumCompiledPageCacheLimitKB())));
     ui->thumbnailCacheSizeEdit->setValue(m_settings.m_thumbnailsCacheLimit);
     ui->cachedFontLimitEdit->setValue(m_settings.m_fontCacheLimit);
     ui->cachedInstancedFontLimitEdit->setValue(m_settings.m_instancedFontCacheLimit);
@@ -506,7 +510,7 @@ void PDFViewerSettingsDialog::saveData()
     }
     else if (sender == ui->compiledPageCacheSizeEdit)
     {
-        m_settings.m_compiledPageCacheLimit = ui->compiledPageCacheSizeEdit->value();
+        m_settings.m_compiledPageCacheLimit = qint64(ui->compiledPageCacheSizeEdit->value());
     }
     else if (sender == ui->thumbnailCacheSizeEdit)
     {

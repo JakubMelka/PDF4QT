@@ -661,7 +661,7 @@ void PDFProgramController::initialize(Features features,
 
     m_pdfWidget = new pdf::PDFWidget(m_CMSManager, m_settings->getRendererEngine(), m_mainWindow);
     m_pdfWidget->setObjectName("pdfWidget");
-    m_pdfWidget->updateCacheLimits(m_settings->getCompiledPageCacheLimit() * 1024, m_settings->getThumbnailsCacheLimit(), m_settings->getFontCacheLimit(), m_settings->getInstancedFontCacheLimit());
+    m_pdfWidget->updateCacheLimits(qsizetype(m_settings->getCompiledPageCacheLimit() * 1024LL), m_settings->getThumbnailsCacheLimit(), m_settings->getFontCacheLimit(), m_settings->getInstancedFontCacheLimit());
     m_pdfWidget->getDrawWidgetProxy()->setProgress(m_progress);
 
     connect(this, &PDFProgramController::queryPasswordRequest, this, &PDFProgramController::onQueryPasswordRequest, Qt::BlockingQueuedConnection);
@@ -1920,7 +1920,7 @@ void PDFProgramController::updateActionsAvailability()
 void PDFProgramController::onViewerSettingsChanged()
 {
     m_pdfWidget->updateRenderer(m_settings->getRendererEngine());
-    m_pdfWidget->updateCacheLimits(m_settings->getCompiledPageCacheLimit() * 1024, m_settings->getThumbnailsCacheLimit(), m_settings->getFontCacheLimit(), m_settings->getInstancedFontCacheLimit());
+    m_pdfWidget->updateCacheLimits(qsizetype(m_settings->getCompiledPageCacheLimit() * 1024LL), m_settings->getThumbnailsCacheLimit(), m_settings->getFontCacheLimit(), m_settings->getInstancedFontCacheLimit());
     m_pdfWidget->setSmoothWheelScrolling(m_settings->getSettings().m_smoothWheelScrolling);
     m_pdfWidget->setWheelScrollSpeed(m_settings->getSettings().m_wheelScrollHorizontalSpeedPercent, m_settings->getSettings().m_wheelScrollVerticalSpeedPercent);
     m_pdfWidget->getDrawWidgetProxy()->setFeatures(m_settings->getFeatures());
@@ -2419,7 +2419,7 @@ void PDFProgramController::enterFullscreenMode()
     });
 
     pdf::PDFWidget* fullscreenPdfWidget = m_fullscreenWidget->getPdfWidget();
-    fullscreenPdfWidget->updateCacheLimits(m_settings->getCompiledPageCacheLimit() * 1024,
+    fullscreenPdfWidget->updateCacheLimits(qsizetype(m_settings->getCompiledPageCacheLimit() * 1024LL),
                                            m_settings->getThumbnailsCacheLimit(),
                                            m_settings->getFontCacheLimit(),
                                            m_settings->getInstancedFontCacheLimit());

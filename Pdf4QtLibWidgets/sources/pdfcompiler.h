@@ -92,7 +92,7 @@ public:
 
     /// Sets cache limit in bytes
     /// \param limit Cache limit [bytes]
-    void setCacheLimit(int limit);
+    void setCacheLimit(qsizetype limit);
 
     enum class State
     {

@@ -53,7 +53,9 @@ void PDFViewerSettings::readSettings(QSettings& settings, const pdf::PDFCMSSetti
     m_settings.m_preferredMeshResolutionRatio = settings.value("preferredMeshResolutionRatio", defaultSettings.m_preferredMeshResolutionRatio).toDouble();
     m_settings.m_minimalMeshResolutionRatio = settings.value("minimalMeshResolutionRatio", defaultSettings.m_minimalMeshResolutionRatio).toDouble();
     m_settings.m_colorTolerance = settings.value("colorTolerance", defaultSettings.m_colorTolerance).toDouble();
-    m_settings.m_compiledPageCacheLimit = settings.value("compiledPageCacheLimit", defaultSettings.m_compiledPageCacheLimit).toInt();
+    m_settings.m_compiledPageCacheLimit = qBound(Settings::COMPILED_PAGE_CACHE_LIMIT_MIN_KB,
+                                                 settings.value("compiledPageCacheLimit", defaultSettings.m_compiledPageCacheLimit).toLongLong(),
+                                                 Settings::getMaximumCompiledPageCacheLimitKB());
     m_settings.m_thumbnailsCacheLimit = settings.value("thumbnailsCacheLimit", defaultSettings.m_thumbnailsCacheLimit).toInt();
     m_settings.m_fontCacheLimit = settings.value("fontCacheLimit", defaultSettings.m_fontCacheLimit).toInt();
     m_settings.m_instancedFontCacheLimit = settings.value("instancedFontCacheLimit", defaultSettings.m_instancedFontCacheLimit).toInt();

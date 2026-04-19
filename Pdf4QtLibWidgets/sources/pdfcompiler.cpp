@@ -216,7 +216,7 @@ void PDFAsynchronousPageCompiler::reset()
     start();
 }
 
-void PDFAsynchronousPageCompiler::setCacheLimit(int limit)
+void PDFAsynchronousPageCompiler::setCacheLimit(qsizetype limit)
 {
     m_cache->setMaxCost(limit);
 }
@@ -306,7 +306,9 @@ void PDFAsynchronousPageCompiler::onPageCompiled()
                     {
                         // We can't insert page to the cache, because cache size is too small. We will
                         // emit error string to inform the user, that cache is too small.
-                        QString message = PDFTranslationContext::tr("Precompiled page size is too high (%1 kB). Cache size is %2 kB. Increase the cache size!").arg(memoryConsumptionEstimate / 1024).arg(m_cache->maxCost() / 1024);
+                        QString message = PDFTranslationContext::tr("Precompiled page size is too high (%1 kB). Cache size is %2 kB. Increase the cache size!")
+                                              .arg(qint64(memoryConsumptionEstimate / 1024))
+                                              .arg(qint64(m_cache->maxCost() / 1024));
                         errors[it->first] = PDFRenderError(RenderErrorType::Error, message);
                     }
                 }
