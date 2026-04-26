@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #379: Advanced Find - Wildcard Mode
  - Issue #378: Advanced Find - Should start searching if Enter key is pressed
  - Issue #376: Deleting a note jumps to Outline
  - Issue #375: Not enough maximum compiled page cache

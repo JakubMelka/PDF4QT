@@ -76,6 +76,8 @@ private slots:
     void on_searchButton_clicked();
     void onSelectionChanged();
     void onResultItemDoubleClicked(int row, int column);
+    void onRegularExpressionsCheckboxClicked(bool checked);
+    void onWildcardsCheckboxClicked(bool checked);
 
     void on_clearButton_clicked();
 
@@ -93,6 +95,7 @@ private:
         bool isCaseSensitive = false;
         bool isWholeWordsOnly = false;
         bool isRegularExpression = false;
+        bool isWildcard = false;
         bool isDotMatchingEverything = false;
         bool isMultiline = false;
         bool isSearchFinished = false;

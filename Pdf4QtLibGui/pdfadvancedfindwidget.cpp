@@ -45,7 +45,8 @@ PDFAdvancedFindWidget::PDFAdvancedFindWidget(pdf::PDFDrawWidgetProxy* proxy, QWi
 
     ui->resultsTableWidget->setHorizontalHeaderLabels({ tr("Page No."), tr("Phrase"), tr("Context") });
 
-    connect(ui->regularExpressionsCheckbox, &QCheckBox::clicked, this, &PDFAdvancedFindWidget::updateUI);
+    connect(ui->regularExpressionsCheckbox, &QCheckBox::clicked, this, &PDFAdvancedFindWidget::onRegularExpressionsCheckboxClicked);
+    connect(ui->wildcardsCheckbox, &QCheckBox::clicked, this, &PDFAdvancedFindWidget::onWildcardsCheckboxClicked);
     connect(ui->searchPhraseEdit, &QLineEdit::returnPressed, this, &PDFAdvancedFindWidget::on_searchButton_clicked);
     connect(m_proxy, &pdf::PDFDrawWidgetProxy::textLayoutChanged, this, &PDFAdvancedFindWidget::performSearch);
     connect(ui->resultsTableWidget, &QTableWidget::cellDoubleClicked, this, &PDFAdvancedFindWidget::onResultItemDoubleClicked);
@@ -105,6 +106,7 @@ void PDFAdvancedFindWidget::on_searchButton_clicked()
     m_parameters.isCaseSensitive = ui->caseSensitiveCheckBox->isChecked();
     m_parameters.isWholeWordsOnly = ui->wholeWordsOnlyCheckBox->isChecked();
     m_parameters.isRegularExpression = ui->regularExpressionsCheckbox->isChecked();
+    m_parameters.isWildcard = ui->wildcardsCheckbox->isChecked();
     m_parameters.isDotMatchingEverything = ui->dotMatchesEverythingCheckBox->isChecked();
     m_parameters.isMultiline = ui->multilineMatchingCheckBox->isChecked();
     m_parameters.isSoftHyphenRemoved = ui->removeSoftHyphenCheckBox->isChecked();
@@ -171,6 +173,24 @@ void PDFAdvancedFindWidget::onResultItemDoubleClicked(int row, int column)
     }
 }
 
+void PDFAdvancedFindWidget::onRegularExpressionsCheckboxClicked(bool checked)
+{
+    if (checked)
+    {
+        ui->wildcardsCheckbox->setChecked(false);
+    }
+    updateUI();
+}
+
+void PDFAdvancedFindWidget::onWildcardsCheckboxClicked(bool checked)
+{
+    if (checked)
+    {
+        ui->regularExpressionsCheckbox->setChecked(false);
+    }
+    updateUI();
+}
+
 void PDFAdvancedFindWidget::updateUI()
 {
     const bool enableUI = m_document && m_document->getCatalog()->getPageCount() > 0;
@@ -231,14 +251,21 @@ void PDFAdvancedFindWidget::performSearch()
     }
 
     // Prepare string to search
-    bool useRegularExpression = m_parameters.isRegularExpression;
+    bool useRegularExpression = m_parameters.isRegularExpression || m_parameters.isWildcard;
     QString expression = m_parameters.phrase;
+
+    if (m_parameters.isWildcard)
+    {
+        expression = QRegularExpression::wildcardToRegularExpression(expression,
+                                                                     QRegularExpression::UnanchoredWildcardConversion |
+                                                                     QRegularExpression::NonPathWildcardConversion);
+    }
 
     if (m_parameters.isWholeWordsOnly)
     {
         if (useRegularExpression)
         {
-            expression = QString("\\b%1\\b").arg(expression);
+            expression = QString("\\b(?:%1)\\b").arg(expression);
         }
         else
         {
