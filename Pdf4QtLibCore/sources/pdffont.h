@@ -48,6 +48,7 @@ using CID = unsigned int;
 using GID = unsigned int;
 
 using GlyphIndices = std::array<GID, 256>;
+using GlyphNames = std::array<QByteArray, 256>;
 
 enum class TextRenderingMode
 {
@@ -373,13 +374,18 @@ public:
                            std::vector<PDFInteger> widths,
                            PDFEncoding::Encoding encodingType,
                            encoding::EncodingTable encoding,
+                           encoding::EncodingTable toUnicode,
+                           bool hasToUnicode,
                            StandardFontType standardFontType,
-                           GlyphIndices glyphIndices);
+                           GlyphIndices glyphIndices,
+                           GlyphNames glyphNames);
     virtual ~PDFSimpleFont() override = default;
 
     PDFEncoding::Encoding getEncodingType() const { return m_encodingType; }
     const encoding::EncodingTable* getEncoding() const { return &m_encoding; }
     const GlyphIndices* getGlyphIndices() const { return &m_glyphIndices; }
+    const GlyphNames* getGlyphNames() const { return &m_glyphNames; }
+    QChar getUnicode(CID cid) const;
 
     /// Returns the glyph advance (or zero, if glyph advance is invalid)
     PDFInteger getGlyphAdvance(size_t index) const;
@@ -399,7 +405,10 @@ protected:
     std::vector<PDFInteger> m_widths;
     PDFEncoding::Encoding m_encodingType;
     encoding::EncodingTable m_encoding;
+    encoding::EncodingTable m_toUnicode;
+    bool m_hasToUnicode;
     GlyphIndices m_glyphIndices;
+    GlyphNames m_glyphNames;
     StandardFontType m_standardFontType; ///< Type of the standard font (or invalid, if it is not a standard font)
 };
 
@@ -419,8 +428,11 @@ public:
                           std::vector<PDFInteger> widths,
                           PDFEncoding::Encoding encodingType,
                           encoding::EncodingTable encoding,
+                          encoding::EncodingTable toUnicode,
+                          bool hasToUnicode,
                           StandardFontType standardFontType,
-                          GlyphIndices glyphIndices);
+                          GlyphIndices glyphIndices,
+                          GlyphNames glyphNames);
     virtual ~PDFType1Font() override = default;
 
     virtual FontType getFontType() const override;
