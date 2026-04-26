@@ -275,9 +275,16 @@ public:
     /// \param hint Zoom hint type
     PDFReal getZoomHint(ZoomHint hint) const;
 
+    /// Calculates zoom using given hint for a specific page.
+    /// If page is invalid, the current page (or a suitable fallback) is used.
+    PDFReal getZoomHintForPage(ZoomHint hint, PDFInteger pageIndex) const;
+
     /// Go to the specified page
     /// \param pageIndex Page to scroll to
     void goToPage(PDFInteger pageIndex);
+
+    /// Applies PDF destination to the current view.
+    void goToDestination(const PDFDestination& destination);
 
     /// Go to the specified page and ensures point on the page is visible
     /// \param pageIndex Page to scroll to
@@ -434,8 +441,24 @@ private:
     static constexpr qint64 CACHE_CLEAR_TIMEOUT = 5000;
     static constexpr qint64 CACHE_PAGE_EXPIRATION_TIMEOUT = 30000;
 
+    enum class ZoomMode
+    {
+        Custom,
+        Fit,
+        FitWidth,
+        FitHeight
+    };
+
     /// Converts rectangle from device space to the pixel space
     QRectF fromDeviceSpace(const QRectF& rect) const;
+
+    void zoomImpl(PDFReal zoom, std::optional<QPointF> widgetPosition = std::nullopt);
+    PDFInteger getPreferredPageForZoom(PDFInteger preferredPageIndex = -1) const;
+    PDFReal getZoomForMode(ZoomMode mode, PDFInteger preferredPageIndex = -1) const;
+    void applyZoomMode(ZoomMode mode, PDFInteger preferredPageIndex = -1);
+    std::optional<PDFInteger> getDestinationPageIndex(const PDFDestination& destination) const;
+    void alignViewToPagePoint(PDFInteger pageIndex, std::optional<PDFReal> left, std::optional<PDFReal> top);
+    void fitToDestinationRectangle(PDFInteger pageIndex, const QRectF& rectangle);
 
     void performPageCacheClear();
 
@@ -480,6 +503,7 @@ private:
     /// Zoom from widget space to device space. So, for example 2.00 corresponds to 200% zoom,
     /// and each 1 cm of widget area corresponds to 0.5 cm of the device space area.
     PDFReal m_zoom;
+    ZoomMode m_zoomMode;
 
     /// Converts pixel to device space units (mm) using zoom
     PDFReal m_pixelToDeviceSpaceUnit;

@@ -38,6 +38,8 @@
 #include <QScreen>
 #include <QGuiApplication>
 
+#include <array>
+
 #include "pdfdbgheap.h"
 
 namespace pdf
@@ -462,6 +464,7 @@ PDFDrawWidgetProxy::PDFDrawWidgetProxy(QObject* parent) :
     m_currentBlock(INVALID_BLOCK_INDEX),
     m_pixelPerMM(PDF_DEFAULT_DPMM),
     m_zoom(1.0),
+    m_zoomMode(ZoomMode::Custom),
     m_pixelToDeviceSpaceUnit(0.0),
     m_deviceSpaceUnitToPixel(0.0),
     m_verticalOffset(0),
@@ -563,6 +566,11 @@ void PDFDrawWidgetProxy::update()
         qreal pdpi = primaryScreen->physicalDotsPerInch();
         qreal ratioLogicalToPhysical = ldpi / pdpi;
         m_pixelPerMM *= ratioLogicalToPhysical;
+    }
+
+    if (m_zoomMode != ZoomMode::Custom)
+    {
+        m_zoom = qBound(MIN_ZOOM, getZoomForMode(m_zoomMode), MAX_ZOOM);
     }
 
     Q_ASSERT(m_zoom > 0.0);
@@ -1210,19 +1218,19 @@ void PDFDrawWidgetProxy::performOperation(Operation operation)
 
         case ZoomFit:
         {
-            zoom(getZoomHint(ZoomHint::Fit));
+            applyZoomMode(ZoomMode::Fit);
             break;
         }
 
         case ZoomFitWidth:
         {
-            zoom(getZoomHint(ZoomHint::FitWidth));
+            applyZoomMode(ZoomMode::FitWidth);
             break;
         }
 
         case ZoomFitHeight:
         {
-            zoom(getZoomHint(ZoomHint::FitHeight));
+            applyZoomMode(ZoomMode::FitHeight);
             break;
         }
 
@@ -1258,6 +1266,12 @@ QPoint PDFDrawWidgetProxy::scrollByPixels(QPoint offset)
 }
 
 void PDFDrawWidgetProxy::zoom(PDFReal zoom, std::optional<QPointF> widgetPosition)
+{
+    m_zoomMode = ZoomMode::Custom;
+    zoomImpl(zoom, widgetPosition);
+}
+
+void PDFDrawWidgetProxy::zoomImpl(PDFReal zoom, std::optional<QPointF> widgetPosition)
 {
     const PDFReal clampedZoom = qBound(MIN_ZOOM, zoom, MAX_ZOOM);
     if (m_zoom != clampedZoom)
@@ -1297,7 +1311,27 @@ void PDFDrawWidgetProxy::zoom(PDFReal zoom, std::optional<QPointF> widgetPositio
 
 PDFReal PDFDrawWidgetProxy::getZoomHint(ZoomHint hint) const
 {
-    QSizeF referenceSize = m_controller->getReferenceBoundingBox();
+    return getZoomHintForPage(hint, -1);
+}
+
+PDFReal PDFDrawWidgetProxy::getZoomHintForPage(ZoomHint hint, PDFInteger pageIndex) const
+{
+    pageIndex = getPreferredPageForZoom(pageIndex);
+
+    QSizeF referenceSize;
+    if (pageIndex >= 0)
+    {
+        PDFDrawSpaceController::LayoutItem layoutItem = m_controller->getLayoutItemForPage(pageIndex);
+        if (layoutItem.isValid())
+        {
+            referenceSize = layoutItem.pageRectMM.size();
+        }
+    }
+
+    if (!referenceSize.isValid())
+    {
+        referenceSize = m_controller->getReferenceBoundingBox();
+    }
     if (referenceSize.isValid())
     {
         const PDFReal ratio = 0.95;
@@ -1329,6 +1363,11 @@ PDFReal PDFDrawWidgetProxy::getZoomHint(ZoomHint hint) const
 
 void PDFDrawWidgetProxy::goToPage(PDFInteger pageIndex)
 {
+    if (m_zoomMode != ZoomMode::Custom)
+    {
+        applyZoomMode(m_zoomMode, pageIndex);
+    }
+
     PDFDrawSpaceController::LayoutItem layoutItem = m_controller->getLayoutItemForPage(pageIndex);
 
     if (layoutItem.isValid())
@@ -1430,6 +1469,269 @@ QRectF PDFDrawWidgetProxy::fromDeviceSpace(const QRectF& rect) const
                   rect.top() * m_deviceSpaceUnitToPixel,
                   rect.width() * m_deviceSpaceUnitToPixel,
                   rect.height() * m_deviceSpaceUnitToPixel);
+}
+
+PDFInteger PDFDrawWidgetProxy::getPreferredPageForZoom(PDFInteger preferredPageIndex) const
+{
+    if (preferredPageIndex >= 0)
+    {
+        return preferredPageIndex;
+    }
+
+    if (m_widget)
+    {
+        std::vector<PDFInteger> currentPages = m_widget->getDrawWidget()->getCurrentPages();
+        if (!currentPages.empty())
+        {
+            return currentPages.front();
+        }
+    }
+
+    if (const PDFDocument* document = m_controller->getDocument())
+    {
+        if (document->getCatalog()->getPageCount() > 0)
+        {
+            return 0;
+        }
+    }
+
+    return -1;
+}
+
+PDFReal PDFDrawWidgetProxy::getZoomForMode(ZoomMode mode, PDFInteger preferredPageIndex) const
+{
+    switch (mode)
+    {
+        case ZoomMode::Fit:
+            return getZoomHintForPage(ZoomHint::Fit, preferredPageIndex);
+
+        case ZoomMode::FitWidth:
+            return getZoomHintForPage(ZoomHint::FitWidth, preferredPageIndex);
+
+        case ZoomMode::FitHeight:
+            return getZoomHintForPage(ZoomHint::FitHeight, preferredPageIndex);
+
+        case ZoomMode::Custom:
+            break;
+    }
+
+    return m_zoom;
+}
+
+void PDFDrawWidgetProxy::applyZoomMode(ZoomMode mode, PDFInteger preferredPageIndex)
+{
+    m_zoomMode = mode;
+    zoomImpl(getZoomForMode(mode, preferredPageIndex));
+}
+
+std::optional<PDFInteger> PDFDrawWidgetProxy::getDestinationPageIndex(const PDFDestination& destination) const
+{
+    if (const PDFDocument* document = m_controller->getDocument())
+    {
+        if (destination.getPageReference() != PDFObjectReference())
+        {
+            const size_t pageIndex = document->getCatalog()->getPageIndexFromPageReference(destination.getPageReference());
+            if (pageIndex != PDFCatalog::INVALID_PAGE_INDEX)
+            {
+                return PDFInteger(pageIndex);
+            }
+        }
+
+        const PDFInteger pageIndex = destination.getPageIndex();
+        if (pageIndex >= 0 && pageIndex < PDFInteger(document->getCatalog()->getPageCount()))
+        {
+            return pageIndex;
+        }
+    }
+
+    return std::nullopt;
+}
+
+void PDFDrawWidgetProxy::alignViewToPagePoint(PDFInteger pageIndex, std::optional<PDFReal> left, std::optional<PDFReal> top)
+{
+    PDFDrawSpaceController::LayoutItem layoutItem = m_controller->getLayoutItemForPage(pageIndex);
+    if (!layoutItem.isValid())
+    {
+        return;
+    }
+
+    const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(layoutItem.pageIndex);
+    if (!page)
+    {
+        return;
+    }
+
+    QRectF pageRect = fromDeviceSpace(layoutItem.pageRectMM);
+    QRectF placedRect = pageRect.translated(m_horizontalOffset - m_layout.blockRect.left(), m_verticalOffset - m_layout.blockRect.top());
+    QTransform matrix = QTransform(createPagePointToDevicePointMatrix(page, placedRect));
+
+    QPoint delta;
+    if (top.has_value())
+    {
+        QPointF targetPoint = matrix.map(QPointF(left.value_or(page->getMediaBox().left()), top.value()));
+        delta.ry() = qRound(-targetPoint.y());
+    }
+
+    if (left.has_value())
+    {
+        QPointF targetPoint = matrix.map(QPointF(left.value(), top.value_or(page->getMediaBox().top())));
+        delta.rx() = qRound(-targetPoint.x());
+    }
+
+    if (!delta.isNull())
+    {
+        scrollByPixels(delta);
+    }
+}
+
+void PDFDrawWidgetProxy::fitToDestinationRectangle(PDFInteger pageIndex, const QRectF& rectangle)
+{
+    PDFDrawSpaceController::LayoutItem layoutItem = m_controller->getLayoutItemForPage(pageIndex);
+    const PDFPage* page = m_controller->getDocument()->getCatalog()->getPage(pageIndex);
+    if (!layoutItem.isValid() || !page || !rectangle.isValid())
+    {
+        goToPage(pageIndex);
+        return;
+    }
+
+    const QRectF normalizedRectangle = rectangle.normalized();
+
+    const PDFReal ratio = 0.95;
+    const PDFReal widthMM = m_widget->widthMM() * ratio;
+    const PDFReal heightMM = m_widget->heightMM() * ratio;
+    const QRectF destinationRectangleMM = page->getRectMM(normalizedRectangle);
+
+    if (destinationRectangleMM.isValid() && !qFuzzyIsNull(destinationRectangleMM.width()) && !qFuzzyIsNull(destinationRectangleMM.height()))
+    {
+        const PDFReal widthHint = widthMM / destinationRectangleMM.width();
+        const PDFReal heightHint = heightMM / destinationRectangleMM.height();
+        m_zoomMode = ZoomMode::Custom;
+        zoomImpl(qMin(widthHint, heightHint));
+    }
+
+    goToPage(pageIndex);
+    alignViewToPagePoint(pageIndex, normalizedRectangle.left(), normalizedRectangle.top());
+}
+
+void PDFDrawWidgetProxy::goToDestination(const PDFDestination& destination)
+{
+    if (!destination.isValid())
+    {
+        return;
+    }
+
+    const std::optional<PDFInteger> destinationPageIndex = getDestinationPageIndex(destination);
+    if (!destinationPageIndex.has_value())
+    {
+        return;
+    }
+
+    const PDFInteger pageIndex = *destinationPageIndex;
+
+    switch (destination.getDestinationType())
+    {
+        case DestinationType::XYZ:
+        {
+            std::optional<PDFReal> left = destination.hasLeft() ? std::optional<PDFReal>(destination.getLeft()) : std::nullopt;
+            std::optional<PDFReal> top = destination.hasTop() ? std::optional<PDFReal>(destination.getTop()) : std::nullopt;
+
+            if ((!left.has_value() || !top.has_value()) && m_widget)
+            {
+                const QWidget* viewport = m_widget->getDrawWidget()->getWidget();
+                const QRect rect = viewport->rect();
+                const std::array<QPoint, 4> probePoints =
+                {
+                    rect.topLeft(),
+                    QPoint(rect.center().x(), rect.top()),
+                    QPoint(rect.left(), rect.center().y()),
+                    rect.center()
+                };
+
+                for (const QPoint& probePoint : probePoints)
+                {
+                    QPointF pagePoint;
+                    if (getPageUnderPoint(probePoint, &pagePoint) != -1)
+                    {
+                        if (!left.has_value())
+                        {
+                            left = pagePoint.x();
+                        }
+                        if (!top.has_value())
+                        {
+                            top = pagePoint.y();
+                        }
+                        break;
+                    }
+                }
+            }
+
+            if (destination.hasZoom() && destination.getZoom() > 0.0)
+            {
+                m_zoomMode = ZoomMode::Custom;
+                zoomImpl(destination.getZoom());
+            }
+            else if (m_zoomMode != ZoomMode::Custom)
+            {
+                applyZoomMode(m_zoomMode, pageIndex);
+            }
+
+            goToPage(pageIndex);
+            alignViewToPagePoint(pageIndex, left, top);
+            break;
+        }
+
+        case DestinationType::Fit:
+        case DestinationType::FitB:
+        {
+            applyZoomMode(ZoomMode::Fit, pageIndex);
+            goToPage(pageIndex);
+            break;
+        }
+
+        case DestinationType::FitH:
+        case DestinationType::FitBH:
+        {
+            applyZoomMode(ZoomMode::FitWidth, pageIndex);
+            goToPage(pageIndex);
+            if (destination.hasTop())
+            {
+                alignViewToPagePoint(pageIndex, std::nullopt, destination.getTop());
+            }
+            break;
+        }
+
+        case DestinationType::FitV:
+        case DestinationType::FitBV:
+        {
+            applyZoomMode(ZoomMode::FitHeight, pageIndex);
+            goToPage(pageIndex);
+            if (destination.hasLeft())
+            {
+                alignViewToPagePoint(pageIndex, destination.getLeft(), std::nullopt);
+            }
+            break;
+        }
+
+        case DestinationType::FitR:
+        {
+            if (destination.hasLeft() && destination.hasTop() && destination.hasRight() && destination.hasBottom())
+            {
+                fitToDestinationRectangle(pageIndex, QRectF(QPointF(destination.getLeft(), destination.getTop()),
+                                                            QPointF(destination.getRight(), destination.getBottom())));
+            }
+            else
+            {
+                goToPage(pageIndex);
+            }
+            break;
+        }
+
+        case DestinationType::Named:
+        case DestinationType::Invalid:
+        {
+            break;
+        }
+    }
 }
 
 void PDFDrawWidgetProxy::performPageCacheClear()

@@ -851,7 +851,7 @@ void PDFProgramController::onActionTriggered(const pdf::PDFAction* action)
 
     for (const pdf::PDFAction* currentAction : action->getActionList())
     {
-        switch (action->getType())
+        switch (currentAction->getType())
         {
             case pdf::ActionType::GoTo:
             {
@@ -859,43 +859,21 @@ void PDFProgramController::onActionTriggered(const pdf::PDFAction* action)
                 pdf::PDFDestination destination = typedAction->getDestination();
                 if (destination.getDestinationType() == pdf::DestinationType::Named)
                 {
+                    const QByteArray destinationName = destination.getName();
                     if (const pdf::PDFDestination* targetDestination = m_pdfDocument->getCatalog()->getNamedDestination(destination.getName()))
                     {
                         destination = *targetDestination;
                     }
                     else
                     {
+                        QMessageBox::critical(m_mainWindow, tr("Go to action"), tr("Failed to go to destination '%1'. Destination wasn't found.").arg(pdf::PDFEncoding::convertTextString(destinationName)));
                         destination = pdf::PDFDestination();
-                        QMessageBox::critical(m_mainWindow, tr("Go to action"), tr("Failed to go to destination '%1'. Destination wasn't found.").arg(pdf::PDFEncoding::convertTextString(destination.getName())));
                     }
                 }
 
-                if (destination.getDestinationType() != pdf::DestinationType::Invalid &&
-                    destination.getPageReference() != pdf::PDFObjectReference())
+                if (destination.getDestinationType() != pdf::DestinationType::Invalid)
                 {
-                    const size_t pageIndex = m_pdfDocument->getCatalog()->getPageIndexFromPageReference(destination.getPageReference());
-                    if (pageIndex != pdf::PDFCatalog::INVALID_PAGE_INDEX)
-                    {
-                        m_pdfWidget->getDrawWidgetProxy()->goToPage(pageIndex);
-
-                        switch (destination.getDestinationType())
-                        {
-                            case pdf::DestinationType::Fit:
-                                m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomFit);
-                                break;
-
-                            case pdf::DestinationType::FitH:
-                                m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomFitWidth);
-                                break;
-
-                            case pdf::DestinationType::FitV:
-                                m_pdfWidget->getDrawWidgetProxy()->performOperation(pdf::PDFDrawWidgetProxy::ZoomFitHeight);
-                                break;
-
-                            default:
-                                break;
-                        }
-                    }
+                    m_pdfWidget->getDrawWidgetProxy()->goToDestination(destination);
                 }
 
                 break;
