@@ -87,6 +87,10 @@ private:
     void updateSettingsEditorContextUi();
     /// Invalidates the last optimization result after a settings change.
     void markOptimizationDirty();
+    /// Refreshes the text and visual status for one image row.
+    void updateImageListItem(int row);
+    /// Refreshes all image rows after global settings changed.
+    void updateImageListItems();
 
     /// Loads settings values into UI widgets.
     void loadSettingsToUi(const pdf::PDFImageOptimizer::Settings& settings);

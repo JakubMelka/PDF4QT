@@ -26,6 +26,7 @@
 #include "pdfwidgetutils.h"
 #include "pdfutils.h"
 
+#include <QBrush>
 #include <QLabel>
 #include <QListWidget>
 #include <QtConcurrent/QtConcurrent>
@@ -276,34 +277,101 @@ void PDFOptimizeImagesDialog::loadImages()
             item->setIcon(QIcon(QPixmap::fromImage(iconImage)));
         }
 
-        QStringList lines;
-        lines << tr("Image %1").arg(index++);
-        lines << tr("%1 x %2 px").arg(info.pixelSize.width()).arg(info.pixelSize.height());
-        if (info.minimalDpi.x() > 0.0 || info.minimalDpi.y() > 0.0)
-        {
-            lines << tr("Min DPI: %1 x %2").arg(info.minimalDpi.x(), 0, 'f', 1).arg(info.minimalDpi.y(), 0, 'f', 1);
-        }
-        if (!info.colorSpaceName.isEmpty())
-        {
-            lines << tr("ColorSpace: %1").arg(info.colorSpaceName);
-        }
-        if (!info.filterName.isEmpty())
-        {
-            lines << tr("Filter: %1").arg(info.filterName);
-        }
-        if (info.originalBytes > 0)
-        {
-            lines << tr("Size: %1").arg(formatBytes(info.originalBytes));
-        }
-
-        item->setText(lines.join("\n"));
-
         ImageEntry entry;
         entry.info = std::move(info);
         entry.enabled = true;
         entry.overrideEnabled = false;
         entry.overrideSettings = m_settings;
         m_images.push_back(std::move(entry));
+        updateImageListItem(index - 1);
+        ++index;
+    }
+}
+
+void PDFOptimizeImagesDialog::updateImageListItem(int row)
+{
+    if (row < 0 || row >= static_cast<int>(m_images.size()))
+    {
+        return;
+    }
+
+    QListWidgetItem* item = ui->imageListWidget->item(row);
+    if (!item)
+    {
+        return;
+    }
+
+    const ImageEntry& entry = m_images[static_cast<size_t>(row)];
+    const pdf::PDFImageOptimizer::ImageInfo& info = entry.info;
+
+    QStringList lines;
+    lines << tr("Image %1").arg(row + 1);
+    lines << tr("%1 x %2 px").arg(info.pixelSize.width()).arg(info.pixelSize.height());
+
+    int newBytes = 0;
+    bool willKeepOriginal = false;
+
+    QStringList status;
+    if (!entry.enabled)
+    {
+        status << tr("disabled");
+        willKeepOriginal = true;
+    }
+    if (entry.overrideEnabled)
+    {
+        status << tr("override");
+    }
+
+    if (entry.enabled)
+    {
+        const pdf::PDFImageOptimizer::Settings& settings = entry.overrideEnabled ? entry.overrideSettings : m_settings;
+        const pdf::PDFImageOptimizer::ResolvedPlan plan = pdf::PDFImageOptimizer::resolvePlan(info, settings);
+        newBytes = pdf::PDFImageOptimizer::estimateEncodedBytes(info, plan, nullptr);
+        willKeepOriginal = info.isImageMask || (settings.keepOriginalIfLarger && info.originalBytes > 0 && newBytes >= info.originalBytes);
+        if (willKeepOriginal)
+        {
+            status << tr("will keep original");
+        }
+    }
+
+    if (!status.isEmpty())
+    {
+        lines << tr("Status: %1").arg(status.join(", "));
+    }
+
+    if (info.minimalDpi.x() > 0.0 || info.minimalDpi.y() > 0.0)
+    {
+        lines << tr("Min DPI: %1 x %2").arg(info.minimalDpi.x(), 0, 'f', 1).arg(info.minimalDpi.y(), 0, 'f', 1);
+    }
+    if (!info.colorSpaceName.isEmpty())
+    {
+        lines << tr("ColorSpace: %1").arg(info.colorSpaceName);
+    }
+    if (!info.filterName.isEmpty())
+    {
+        lines << tr("Filter: %1").arg(info.filterName);
+    }
+    if (info.originalBytes > 0)
+    {
+        if (willKeepOriginal || newBytes <= 0)
+        {
+            lines << tr("Size: %1").arg(formatBytes(info.originalBytes));
+        }
+        else
+        {
+            lines << tr("Size: %1 -> %2").arg(formatBytes(info.originalBytes), formatBytes(newBytes));
+        }
+    }
+
+    item->setText(lines.join("\n"));
+    item->setForeground(entry.enabled ? QBrush() : QBrush(Qt::gray));
+}
+
+void PDFOptimizeImagesDialog::updateImageListItems()
+{
+    for (int row = 0; row < static_cast<int>(m_images.size()); ++row)
+    {
+        updateImageListItem(row);
     }
 }
 
@@ -573,6 +641,7 @@ void PDFOptimizeImagesDialog::onSettingsChanged()
 
     applyUiToSettings(activeSettings());
     markOptimizationDirty();
+    updateImageListItems();
     updatePreview();
 }
 
@@ -603,6 +672,7 @@ void PDFOptimizeImagesDialog::onOverrideToggled(bool checked)
 
     markOptimizationDirty();
     updateSelectedImageUi();
+    updateImageListItem(ui->imageListWidget->currentRow());
     updatePreview();
 }
 
@@ -621,6 +691,7 @@ void PDFOptimizeImagesDialog::onImageEnabledToggled(bool checked)
 
     entry->enabled = checked;
     markOptimizationDirty();
+    updateImageListItem(ui->imageListWidget->currentRow());
     updatePreview();
 }
 
