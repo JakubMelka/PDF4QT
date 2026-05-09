@@ -23,6 +23,7 @@
 #include "assembleoutputsettingsdialog.h"
 #include "ui_assembleoutputsettingsdialog.h"
 
+#include "imageoptimizationsettingsdialog.h"
 #include "pdfwidgetutils.h"
 
 #include <QFileDialog>
@@ -32,17 +33,19 @@ namespace pdfpagemaster
 
 AssembleOutputSettingsDialog::AssembleOutputSettingsDialog(QString directory, QWidget* parent) :
     QDialog(parent),
-    ui(new Ui::AssembleOutputSettingsDialog)
+    ui(new Ui::AssembleOutputSettingsDialog),
+    m_imageOptimizationSettings(pdf::PDFImageOptimizer::Settings::createDefault())
 {
     ui->setupUi(this);
     ui->directoryEdit->setText(directory);
+    m_imageOptimizationSettings.enabled = true;
 
     ui->outlineModeComboBox->addItem(tr("No Outline"), int(pdf::PDFDocumentManipulator::OutlineMode::NoOutline));
     ui->outlineModeComboBox->addItem(tr("Join Outlines"), int(pdf::PDFDocumentManipulator::OutlineMode::Join));
     ui->outlineModeComboBox->addItem(tr("Document Parts"), int(pdf::PDFDocumentManipulator::OutlineMode::DocumentParts));
     ui->outlineModeComboBox->setCurrentIndex(ui->outlineModeComboBox->findData(int(pdf::PDFDocumentManipulator::OutlineMode::DocumentParts)));
 
-    pdf::PDFWidgetUtils::scaleWidget(this, QSize(450, 150));
+    pdf::PDFWidgetUtils::scaleWidget(this, QSize(520, 240));
     pdf::PDFWidgetUtils::style(this);
 }
 
@@ -71,12 +74,34 @@ pdf::PDFDocumentManipulator::OutlineMode AssembleOutputSettingsDialog::getOutlin
     return pdf::PDFDocumentManipulator::OutlineMode(ui->outlineModeComboBox->currentData().toInt());
 }
 
+bool AssembleOutputSettingsDialog::isImageOptimizationEnabled() const
+{
+    return ui->optimizeImagesCheckBox->isChecked();
+}
+
+pdf::PDFImageOptimizer::Settings AssembleOutputSettingsDialog::getImageOptimizationSettings() const
+{
+    pdf::PDFImageOptimizer::Settings settings = m_imageOptimizationSettings;
+    settings.enabled = isImageOptimizationEnabled();
+    return settings;
+}
+
 void AssembleOutputSettingsDialog::on_selectDirectoryButton_clicked()
 {
     QString directory = QFileDialog::getExistingDirectory(this, tr("Select output directory"), ui->directoryEdit->text());
     if (!directory.isEmpty())
     {
         ui->directoryEdit->setText(directory);
+    }
+}
+
+void AssembleOutputSettingsDialog::on_imageOptimizationSettingsButton_clicked()
+{
+    ImageOptimizationSettingsDialog dialog(m_imageOptimizationSettings, this);
+    if (dialog.exec() == QDialog::Accepted)
+    {
+        m_imageOptimizationSettings = dialog.getSettings();
+        m_imageOptimizationSettings.enabled = true;
     }
 }
 

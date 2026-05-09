@@ -24,6 +24,7 @@
 #define PDFPAGEMASTER_ASSEMBLEOUTPUTSETTINGSDIALOG_H
 
 #include "pdfdocumentmanipulator.h"
+#include "pdfimageoptimizer.h"
 
 #include <QDialog>
 
@@ -47,12 +48,16 @@ public:
     QString getFileName() const;
     bool isOverwriteFiles() const;
     pdf::PDFDocumentManipulator::OutlineMode getOutlineMode() const;
+    bool isImageOptimizationEnabled() const;
+    pdf::PDFImageOptimizer::Settings getImageOptimizationSettings() const;
 
 private slots:
     void on_selectDirectoryButton_clicked();
+    void on_imageOptimizationSettingsButton_clicked();
 
 private:
     Ui::AssembleOutputSettingsDialog* ui;
+    pdf::PDFImageOptimizer::Settings m_imageOptimizationSettings;
 };
 
 }   // namespace pdfpagemaster

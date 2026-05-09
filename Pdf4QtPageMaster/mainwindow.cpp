@@ -33,6 +33,7 @@
 #include "pdfwidgetutils.h"
 #include "pdfdocumentreader.h"
 #include "pdfdocumentwriter.h"
+#include "pdfimageoptimizer.h"
 
 #include <QFileDialog>
 #include <QMessageBox>
@@ -798,6 +799,8 @@ void MainWindow::performOperation(Operation operation)
                 QString fileNameTemplate = dialog.getFileName();
                 const bool isOverwriteEnabled = dialog.isOverwriteFiles();
                 pdf::PDFDocumentManipulator::OutlineMode outlineMode = dialog.getOutlineMode();
+                const bool isImageOptimizationEnabled = dialog.isImageOptimizationEnabled();
+                const pdf::PDFImageOptimizer::Settings imageOptimizationSettings = dialog.getImageOptimizationSettings();
                 manipulator.setOutlineMode(outlineMode);
 
                 if (!directory.endsWith('/'))
@@ -855,6 +858,12 @@ void MainWindow::performOperation(Operation operation)
                             QMessageBox::critical(this, tr("Error"), geometryResult.getErrorMessage());
                             return;
                         }
+                    }
+
+                    if (isImageOptimizationEnabled)
+                    {
+                        pdf::PDFImageOptimizer imageOptimizer;
+                        assembledDocument = imageOptimizer.optimize(&assembledDocument, imageOptimizationSettings);
                     }
 
                     assembledDocumentStorage.emplace_back(std::make_pair(std::move(fileName), std::move(assembledDocument)));

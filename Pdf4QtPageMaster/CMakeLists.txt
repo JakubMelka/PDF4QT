@@ -25,6 +25,8 @@ add_executable(Pdf4QtPageMaster
     aboutdialog.h
     assembleoutputsettingsdialog.cpp
     assembleoutputsettingsdialog.h
+    imageoptimizationsettingsdialog.cpp
+    imageoptimizationsettingsdialog.h
     main.cpp
     mainwindow.cpp
     mainwindow.h
