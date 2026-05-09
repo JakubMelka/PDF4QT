@@ -341,6 +341,7 @@ void PDFViewerSettingsDialog::loadData()
     ui->logicalPixelZoomCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::LogicalSizeZooming));
     ui->colorSchemeCombo->setCurrentIndex(ui->colorSchemeCombo->findData(static_cast<int>(m_settings.m_colorScheme)));
     ui->sidebarButtonIconSizeComboBox->setCurrentIndex(ui->sidebarButtonIconSizeComboBox->findData(static_cast<int>(m_settings.m_sidebarButtonIconSize)));
+    ui->showSidebarOnDocumentOpenCheckBox->setChecked(m_settings.m_showSidebarOnDocumentOpen);
     ui->smoothMiddleMouseScrollingCheckBox->setChecked(m_settings.m_smoothWheelScrolling);
     ui->horizontalMouseWheelScrollSpeedEdit->setValue(m_settings.m_wheelScrollHorizontalSpeedPercent);
     ui->verticalMouseWheelScrollSpeedEdit->setValue(m_settings.m_wheelScrollVerticalSpeedPercent);
@@ -447,6 +448,10 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->sidebarButtonIconSizeComboBox)
     {
         m_settings.m_sidebarButtonIconSize = static_cast<PDFViewerSettings::SidebarButtonIconSize>(ui->sidebarButtonIconSizeComboBox->currentData().toInt());
+    }
+    else if (sender == ui->showSidebarOnDocumentOpenCheckBox)
+    {
+        m_settings.m_showSidebarOnDocumentOpen = ui->showSidebarOnDocumentOpenCheckBox->isChecked();
     }
     else if (sender == ui->renderingEngineComboBox)
     {

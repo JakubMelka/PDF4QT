@@ -414,13 +414,14 @@ void PDFViewerMainWindow::setDocument(const pdf::PDFModifiedDocument& document)
 
     if (m_sidebarWidget)
     {
-        if (m_sidebarWidget->isEmpty())
+        if (!document || m_sidebarWidget->isEmpty())
         {
             m_sidebarDockWidget->hide();
         }
-        else
+        else if (document.hasReset() && !document.hasPreserveUndoRedo())
         {
-            m_sidebarDockWidget->show();
+            const bool showSidebar = m_programController->getSettings()->getSettings().m_showSidebarOnDocumentOpen;
+            m_sidebarDockWidget->setVisible(showSidebar);
         }
     }
 }

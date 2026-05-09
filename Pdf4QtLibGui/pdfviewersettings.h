@@ -133,6 +133,7 @@ public:
         // UI Dark/Light mode settings
         ColorScheme m_colorScheme;
         SidebarButtonIconSize m_sidebarButtonIconSize;
+        bool m_showSidebarOnDocumentOpen;
 
         // UI scrolling settings
         bool m_smoothWheelScrolling;

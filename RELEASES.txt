@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #382: [feature request] Startup Settings
  - Issue #381: Separated apps for double-click viewer in Linux
  - Issue #380: Ability to run app with custom settings directory - executable parameter with path
  - Issue #379: Advanced Find - Wildcard Mode
