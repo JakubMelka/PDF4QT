@@ -27,6 +27,8 @@
 #include "pdfutils.h"
 
 #include <QBrush>
+#include <QDataStream>
+#include <QIODevice>
 #include <QLabel>
 #include <QListWidget>
 #include <QtConcurrent/QtConcurrent>
@@ -68,7 +70,7 @@ static void setCurrentEnum(QComboBox* combo, Enum value, Enum fallback)
     }
 }
 
-QString formatBytes(int bytes)
+QString formatBytes(qint64 bytes)
 {
     if (bytes <= 0)
     {
@@ -82,6 +84,41 @@ QString formatBytes(int bytes)
     const double mb = kb / 1024.0;
     return QObject::tr("%1 MB").arg(QString::number(mb, 'f', 2));
 }
+
+QByteArray createEstimateCacheKey(const pdf::PDFImageOptimizer::Settings& settings,
+                                  const pdf::PDFImageOptimizer::ResolvedPlan& plan)
+{
+    QByteArray key;
+    QDataStream stream(&key, QIODevice::WriteOnly);
+
+    const auto writeProfile = [&stream](const pdf::PDFImageOptimizer::CompressionProfile& profile)
+    {
+        stream << static_cast<qint32>(profile.algorithm);
+        stream << static_cast<qint32>(profile.targetDpi);
+        stream << static_cast<qint32>(profile.resampleFilter);
+        stream << static_cast<qint32>(profile.jpegQuality);
+        stream << profile.jpeg2000Rate;
+        stream << static_cast<qint32>(profile.monochromeThreshold);
+        stream << profile.enablePngPredictor;
+    };
+
+    stream << settings.enabled;
+    stream << settings.autoMode;
+    stream << static_cast<qint32>(settings.colorMode);
+    stream << static_cast<qint32>(settings.goal);
+    stream << settings.keepOriginalIfLarger;
+    stream << settings.preserveTransparency;
+    writeProfile(settings.colorProfile);
+    writeProfile(settings.grayProfile);
+    writeProfile(settings.bitonalProfile);
+    stream << static_cast<qint32>(plan.algorithm);
+    stream << static_cast<qint32>(plan.resolvedColorMode);
+    stream << plan.targetSize;
+    stream << plan.useSoftMask;
+    stream << plan.hadUnsupportedCompression;
+
+    return key;
+}
 } // namespace
 
 PDFOptimizeImagesDialog::PDFOptimizeImagesDialog(const pdf::PDFDocument* document,
@@ -94,10 +131,14 @@ PDFOptimizeImagesDialog::PDFOptimizeImagesDialog(const pdf::PDFDocument* documen
     m_optimizationInProgress(false),
     m_optimized(false),
     m_updatingUi(false),
+    m_previewUiReady(false),
     m_optimizeButton(nullptr),
     m_settings(pdf::PDFImageOptimizer::Settings::createDefault())
 {
     ui->setupUi(this);
+    m_previewUiReady = true;
+    setWindowFlag(Qt::WindowMaximizeButtonHint, true);
+    setSizeGripEnabled(true);
 
     m_settings.enabled = true;
     updateSettingsEditorContextUi();
@@ -228,10 +269,11 @@ PDFOptimizeImagesDialog::PDFOptimizeImagesDialog(const pdf::PDFDocument* documen
         connectValueChanged(widget);
     }
 
-    pdf::PDFWidgetUtils::scaleWidget(this, QSize(1200, 800));
+    pdf::PDFWidgetUtils::scaleWidget(this, QSize(1400, 800));
     pdf::PDFWidgetUtils::style(this);
 
     loadImages();
+    updateSummaryInfo();
     updateUi();
 
     if (ui->imageListWidget->count() > 0)
@@ -247,6 +289,15 @@ PDFOptimizeImagesDialog::~PDFOptimizeImagesDialog()
     Q_ASSERT(!m_future.isRunning());
 
     delete ui;
+}
+
+void PDFOptimizeImagesDialog::resizeEvent(QResizeEvent* event)
+{
+    QDialog::resizeEvent(event);
+    if (m_previewUiReady)
+    {
+        updatePreview();
+    }
 }
 
 void PDFOptimizeImagesDialog::loadImages()
@@ -301,7 +352,7 @@ void PDFOptimizeImagesDialog::updateImageListItem(int row)
         return;
     }
 
-    const ImageEntry& entry = m_images[static_cast<size_t>(row)];
+    ImageEntry& entry = m_images[static_cast<size_t>(row)];
     const pdf::PDFImageOptimizer::ImageInfo& info = entry.info;
 
     QStringList lines;
@@ -326,7 +377,7 @@ void PDFOptimizeImagesDialog::updateImageListItem(int row)
     {
         const pdf::PDFImageOptimizer::Settings& settings = entry.overrideEnabled ? entry.overrideSettings : m_settings;
         const pdf::PDFImageOptimizer::ResolvedPlan plan = pdf::PDFImageOptimizer::resolvePlan(info, settings);
-        newBytes = pdf::PDFImageOptimizer::estimateEncodedBytes(info, plan, nullptr);
+        newBytes = getEstimatedBytes(entry, settings, plan);
         willKeepOriginal = info.isImageMask || (settings.keepOriginalIfLarger && info.originalBytes > 0 && newBytes >= info.originalBytes);
         if (willKeepOriginal)
         {
@@ -373,6 +424,48 @@ void PDFOptimizeImagesDialog::updateImageListItems()
     {
         updateImageListItem(row);
     }
+}
+
+void PDFOptimizeImagesDialog::updateSummaryInfo()
+{
+    qint64 originalBytes = 0;
+    qint64 optimizedBytes = 0;
+
+    for (ImageEntry& entry : m_images)
+    {
+        const pdf::PDFImageOptimizer::ImageInfo& info = entry.info;
+        originalBytes += info.originalBytes;
+
+        if (!entry.enabled)
+        {
+            optimizedBytes += info.originalBytes;
+            continue;
+        }
+
+        const pdf::PDFImageOptimizer::Settings& settings = entry.overrideEnabled ? entry.overrideSettings : m_settings;
+        const pdf::PDFImageOptimizer::ResolvedPlan plan = pdf::PDFImageOptimizer::resolvePlan(info, settings);
+        const int newBytes = getEstimatedBytes(entry, settings, plan);
+        const bool keepOriginal = info.isImageMask || newBytes <= 0 ||
+                                  (settings.keepOriginalIfLarger && info.originalBytes > 0 && newBytes >= info.originalBytes);
+
+        optimizedBytes += keepOriginal ? info.originalBytes : newBytes;
+    }
+
+    QStringList lines;
+    lines << tr("Original images size: %1").arg(formatBytes(originalBytes));
+    lines << tr("Estimated optimized size: %1").arg(formatBytes(optimizedBytes));
+
+    if (originalBytes > 0)
+    {
+        const double ratio = 100.0 * static_cast<double>(optimizedBytes) / static_cast<double>(originalBytes);
+        lines << tr("Compression ratio: %1%").arg(QString::number(ratio, 'f', 1));
+    }
+    else
+    {
+        lines << tr("Compression ratio: n/a");
+    }
+
+    ui->optimizationSummaryLabel->setText(lines.join("\n"));
 }
 
 void PDFOptimizeImagesDialog::updateUi()
@@ -452,7 +545,7 @@ void PDFOptimizeImagesDialog::updateSelectedImageUi()
 
 void PDFOptimizeImagesDialog::updateSettingsEditorContextUi()
 {
-    const ImageEntry* entry = getSelectedEntry();
+    ImageEntry* entry = getSelectedEntry();
     const bool editingOverride = entry && entry->overrideEnabled;
 
     ui->globalGroupBox->setTitle(editingOverride ? tr("Settings Editor - Selected Image Override")
@@ -550,6 +643,21 @@ pdf::PDFImageOptimizer::Settings& PDFOptimizeImagesDialog::activeSettings()
     return m_settings;
 }
 
+int PDFOptimizeImagesDialog::getEstimatedBytes(ImageEntry& entry,
+                                               const pdf::PDFImageOptimizer::Settings& settings,
+                                               const pdf::PDFImageOptimizer::ResolvedPlan& plan)
+{
+    const QByteArray cacheKey = createEstimateCacheKey(settings, plan);
+    if (!entry.estimateCacheValid || entry.estimateCacheKey != cacheKey)
+    {
+        entry.estimateCacheBytes = pdf::PDFImageOptimizer::estimateEncodedBytes(entry.info, plan, nullptr);
+        entry.estimateCacheKey = cacheKey;
+        entry.estimateCacheValid = true;
+    }
+
+    return entry.estimateCacheBytes;
+}
+
 PDFOptimizeImagesDialog::ImageEntry* PDFOptimizeImagesDialog::getSelectedEntry()
 {
     int row = ui->imageListWidget->currentRow();
@@ -642,6 +750,7 @@ void PDFOptimizeImagesDialog::onSettingsChanged()
     applyUiToSettings(activeSettings());
     markOptimizationDirty();
     updateImageListItems();
+    updateSummaryInfo();
     updatePreview();
 }
 
@@ -673,6 +782,7 @@ void PDFOptimizeImagesDialog::onOverrideToggled(bool checked)
     markOptimizationDirty();
     updateSelectedImageUi();
     updateImageListItem(ui->imageListWidget->currentRow());
+    updateSummaryInfo();
     updatePreview();
 }
 
@@ -692,6 +802,7 @@ void PDFOptimizeImagesDialog::onImageEnabledToggled(bool checked)
     entry->enabled = checked;
     markOptimizationDirty();
     updateImageListItem(ui->imageListWidget->currentRow());
+    updateSummaryInfo();
     updatePreview();
 }
 
@@ -712,27 +823,35 @@ void PDFOptimizeImagesDialog::updatePreview()
     ui->previewAfterImageLabel->clear();
     ui->previewInfoLabel->clear();
 
-    const ImageEntry* entry = getSelectedEntry();
+    auto setPreviewPixmap = [](QLabel* label, const QImage& image)
+    {
+        if (!label || image.isNull())
+        {
+            return;
+        }
+
+        QSize previewSize = label->contentsRect().size();
+        if (previewSize.width() <= 0 || previewSize.height() <= 0)
+        {
+            previewSize = QSize(320, 320);
+        }
+
+        QPixmap pix = QPixmap::fromImage(image.scaled(previewSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        label->setPixmap(pix);
+    };
+
+    ImageEntry* entry = getSelectedEntry();
     if (!entry)
     {
         return;
     }
 
     QImage before = entry->info.image;
-    const QSize previewSize(200, 200);
-    if (!before.isNull())
-    {
-        QPixmap pix = QPixmap::fromImage(before.scaled(previewSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-        ui->previewBeforeImageLabel->setPixmap(pix);
-    }
+    setPreviewPixmap(ui->previewBeforeImageLabel, before);
 
     if (!entry->enabled)
     {
-        if (!before.isNull())
-        {
-            QPixmap pix = QPixmap::fromImage(before.scaled(previewSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-            ui->previewAfterImageLabel->setPixmap(pix);
-        }
+        setPreviewPixmap(ui->previewAfterImageLabel, before);
         ui->previewInfoLabel->setText(tr("Optimization is disabled for the selected image. The original image will be kept."));
         return;
     }
@@ -743,11 +862,10 @@ void PDFOptimizeImagesDialog::updatePreview()
 
     if (!after.isNull())
     {
-        QPixmap pix = QPixmap::fromImage(after.scaled(previewSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
-        ui->previewAfterImageLabel->setPixmap(pix);
+        setPreviewPixmap(ui->previewAfterImageLabel, after);
     }
 
-    int newBytes = pdf::PDFImageOptimizer::estimateEncodedBytes(entry->info, plan, nullptr);
+    int newBytes = getEstimatedBytes(*entry, settings, plan);
     QString infoText = tr("Estimated size: %1 -> %2").arg(formatBytes(entry->info.originalBytes),
                                                           formatBytes(newBytes));
     if (settings.keepOriginalIfLarger && entry->info.originalBytes > 0 && newBytes >= entry->info.originalBytes)

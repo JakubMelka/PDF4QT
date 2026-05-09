@@ -26,12 +26,15 @@
 #include "pdfimageoptimizer.h"
 #include "pdfdocument.h"
 
+#include <QByteArray>
 #include <QDialog>
 #include <QFuture>
 #include <QFutureWatcher>
 #include <QPushButton>
 
 #include <optional>
+
+class QResizeEvent;
 
 namespace Ui
 {
@@ -62,6 +65,9 @@ public:
     /// Call after optimization is finished.
     pdf::PDFDocument takeOptimizedDocument() { return qMove(m_optimizedDocument); }
 
+protected:
+    virtual void resizeEvent(QResizeEvent* event) override;
+
 private:
     /// UI state and settings for a single image row.
     struct ImageEntry
@@ -70,6 +76,9 @@ private:
         bool enabled = true; ///< Whether this image participates in optimization.
         bool overrideEnabled = false; ///< Whether per-image settings override global settings.
         pdf::PDFImageOptimizer::Settings overrideSettings = pdf::PDFImageOptimizer::Settings::createDefault(); ///< Custom settings.
+        QByteArray estimateCacheKey; ///< Key for cached encoded size estimate.
+        int estimateCacheBytes = 0; ///< Cached encoded size estimate.
+        bool estimateCacheValid = false; ///< True if encoded size estimate is cached.
     };
 
     /// Populates the internal list of images and initializes UI state.
@@ -91,6 +100,8 @@ private:
     void updateImageListItem(int row);
     /// Refreshes all image rows after global settings changed.
     void updateImageListItems();
+    /// Refreshes aggregate size estimates for all images.
+    void updateSummaryInfo();
 
     /// Loads settings values into UI widgets.
     void loadSettingsToUi(const pdf::PDFImageOptimizer::Settings& settings);
@@ -98,6 +109,10 @@ private:
     void applyUiToSettings(pdf::PDFImageOptimizer::Settings& settings);
     /// Returns active settings for the current selection (global or override).
     pdf::PDFImageOptimizer::Settings& activeSettings();
+    /// Returns an encoded byte estimate, cached per image/settings combination.
+    int getEstimatedBytes(ImageEntry& entry,
+                          const pdf::PDFImageOptimizer::Settings& settings,
+                          const pdf::PDFImageOptimizer::ResolvedPlan& plan);
 
     /// Returns the selected image entry or null if none is selected.
     ImageEntry* getSelectedEntry();
@@ -123,6 +138,7 @@ private:
     bool m_optimizationInProgress;
     bool m_optimized;
     bool m_updatingUi;
+    bool m_previewUiReady;
     QPushButton* m_optimizeButton;
     QFuture<pdf::PDFDocument> m_future;
     std::optional<QFutureWatcher<pdf::PDFDocument>> m_futureWatcher;

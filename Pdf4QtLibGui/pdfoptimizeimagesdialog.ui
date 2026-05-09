@@ -362,96 +362,117 @@
       </widget>
      </item>
      <item>
-      <widget class="QGroupBox" name="previewGroupBox">
-       <property name="title">
-        <string>Preview</string>
-       </property>
-       <layout class="QVBoxLayout" name="previewLayout">
-        <item>
-         <layout class="QHBoxLayout" name="previewImagesLayout">
-          <item>
-           <layout class="QVBoxLayout" name="previewBeforeLayout">
-            <item>
-             <widget class="QLabel" name="previewBeforeLabel">
-              <property name="text">
-               <string>Before</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignCenter</set>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QLabel" name="previewBeforeImageLabel">
-              <property name="minimumSize">
-               <size>
-                <width>180</width>
-                <height>180</height>
-               </size>
-              </property>
-              <property name="frameShape">
-               <enum>QFrame::StyledPanel</enum>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignCenter</set>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item>
-           <layout class="QVBoxLayout" name="previewAfterLayout">
-            <item>
-             <widget class="QLabel" name="previewAfterLabel">
-              <property name="text">
-               <string>After</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignCenter</set>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QLabel" name="previewAfterImageLabel">
-              <property name="minimumSize">
-               <size>
-                <width>180</width>
-                <height>180</height>
-               </size>
-              </property>
-              <property name="frameShape">
-               <enum>QFrame::StyledPanel</enum>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignCenter</set>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <widget class="QLabel" name="previewInfoLabel">
-          <property name="text">
-           <string/>
-          </property>
-          <property name="wordWrap">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </widget>
-     </item>
-     <item>
       <widget class="QDialogButtonBox" name="buttonBox">
        <property name="standardButtons">
         <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
        </property>
-      </widget>
+     </widget>
      </item>
     </layout>
+   </item>
+   <item row="0" column="2">
+    <widget class="QGroupBox" name="previewGroupBox">
+     <property name="minimumSize">
+      <size>
+       <width>360</width>
+       <height>400</height>
+      </size>
+     </property>
+     <property name="title">
+      <string>Preview</string>
+     </property>
+     <layout class="QVBoxLayout" name="previewLayout">
+      <item>
+       <layout class="QVBoxLayout" name="previewBeforeLayout">
+        <item>
+         <widget class="QLabel" name="previewBeforeLabel">
+          <property name="text">
+           <string>Before</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="previewBeforeImageLabel">
+          <property name="minimumSize">
+           <size>
+            <width>320</width>
+            <height>220</height>
+           </size>
+          </property>
+          <property name="frameShape">
+           <enum>QFrame::StyledPanel</enum>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QVBoxLayout" name="previewAfterLayout">
+        <item>
+         <widget class="QLabel" name="previewAfterLabel">
+          <property name="text">
+           <string>After</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="previewAfterImageLabel">
+          <property name="minimumSize">
+           <size>
+            <width>320</width>
+            <height>220</height>
+           </size>
+          </property>
+          <property name="frameShape">
+           <enum>QFrame::StyledPanel</enum>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QLabel" name="previewInfoLabel">
+        <property name="text">
+         <string/>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QGroupBox" name="summaryGroupBox">
+        <property name="title">
+         <string>Summary</string>
+        </property>
+        <layout class="QVBoxLayout" name="summaryLayout">
+         <item>
+          <widget class="QLabel" name="optimizationSummaryLabel">
+           <property name="text">
+            <string/>
+           </property>
+           <property name="wordWrap">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+     </layout>
+    </widget>
    </item>
   </layout>
  </widget>
