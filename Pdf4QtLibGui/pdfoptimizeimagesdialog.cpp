@@ -137,6 +137,9 @@ PDFOptimizeImagesDialog::PDFOptimizeImagesDialog(const pdf::PDFDocument* documen
 {
     ui->setupUi(this);
     m_previewUiReady = true;
+    ui->gridLayout->setColumnStretch(0, 0);
+    ui->gridLayout->setColumnStretch(1, 0);
+    ui->gridLayout->setColumnStretch(2, 1);
     setWindowFlag(Qt::WindowMaximizeButtonHint, true);
     setSizeGripEnabled(true);
 
@@ -836,7 +839,10 @@ void PDFOptimizeImagesDialog::updatePreview()
             previewSize = QSize(320, 320);
         }
 
-        QPixmap pix = QPixmap::fromImage(image.scaled(previewSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        const qreal devicePixelRatio = label->devicePixelRatioF();
+        const QSize physicalPreviewSize = previewSize * devicePixelRatio;
+        QPixmap pix = QPixmap::fromImage(image.scaled(physicalPreviewSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        pix.setDevicePixelRatio(devicePixelRatio);
         label->setPixmap(pix);
     };
 
