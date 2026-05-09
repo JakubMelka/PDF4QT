@@ -21,11 +21,16 @@
 // SOFTWARE.
 
 #include "launchdialog.h"
+#include "launchapplication.h"
 #include "pdfapplicationtranslator.h"
 #include "pdfsettings.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
+#include <QFileInfo>
+#include <QStringList>
+
+#include <cstdlib>
 
 int main(int argc, char *argv[])
 {
@@ -41,8 +46,20 @@ int main(int argc, char *argv[])
     parser.setApplicationDescription(QCoreApplication::applicationName());
     parser.addOption(configPath);
     parser.addHelpOption();
+    parser.addPositionalArgument("file", "The PDF file to open in PDF4QT Viewer.");
     parser.process(application);
     pdf::PDFSettings::applyCommandLineSettingsPath(parser);
+
+    const QStringList positionalArguments = parser.positionalArguments();
+    if (!positionalArguments.isEmpty())
+    {
+        QFileInfo fileInfo(positionalArguments.front());
+        if (fileInfo.exists() && fileInfo.isFile())
+        {
+            const bool launched = LaunchApplication::start("Pdf4QtViewer", QStringList{ fileInfo.absoluteFilePath() }, nullptr);
+            return launched ? EXIT_SUCCESS : EXIT_FAILURE;
+        }
+    }
 
     pdf::PDFApplicationTranslator translator;
     translator.installTranslator();

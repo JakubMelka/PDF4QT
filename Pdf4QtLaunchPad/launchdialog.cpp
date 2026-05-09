@@ -21,15 +21,12 @@
 // SOFTWARE.
 
 #include "launchdialog.h"
+#include "launchapplication.h"
 #include "launchapplicationwidget.h"
-#include "pdfsettings.h"
 #include "ui_launchdialog.h"
 
 #include <QLabel>
 #include <QPushButton>
-#include <QProcess>
-#include <QMessageBox>
-#include <QStringList>
 
 LaunchDialog::LaunchDialog(QWidget* parent)
     : QDialog(parent, Qt::WindowStaysOnTopHint | Qt::Window | Qt::Dialog)
@@ -107,42 +104,8 @@ void LaunchDialog::startDiff()
 
 void LaunchDialog::startProgram(const QString& program)
 {
-    QStringList arguments;
-    const QString settingsPath = pdf::PDFSettings::getSettingsPath();
-    if (!settingsPath.isEmpty())
+    if (LaunchApplication::start(program, {}, this))
     {
-        arguments << QString("--config=%1").arg(settingsPath);
+        close();
     }
-
-#ifndef Q_OS_WIN
-    QString appDir = qgetenv("APPDIR");
-#if defined(PDF4QT_FLATPAK_BUILD)
-    QString flatpakAppDir = "/app";
-#else
-    QString flatpakAppDir;
-#endif
-    QString internalToolPath;
-
-    if (!flatpakAppDir.isEmpty())
-    {
-        internalToolPath = QString("%1/bin/%2").arg(flatpakAppDir, program);
-    }
-    else if (!appDir.isEmpty())
-    {
-        internalToolPath = QString("%1/usr/bin/%2").arg(appDir, program);
-    }
-    else
-    {
-        internalToolPath = QString("./%1").arg(program);
-    }
-
-    qint64 pid = 0;
-    if (!QProcess::startDetached(internalToolPath, arguments, QString(), &pid))
-    {
-        QMessageBox::critical(this, tr("Error"), tr("Failed to start process '%1'").arg(internalToolPath));
-    }
-#else
-    QProcess::startDetached(program, arguments);
-#endif
-    close();
 }

@@ -24,6 +24,8 @@ add_executable(Pdf4QtLaunchPad
     main.cpp
     icon.rc
     app.qrc
+    launchapplication.h
+    launchapplication.cpp
     launchapplicationwidget.h
     launchapplicationwidget.cpp
     launchapplicationwidget.ui
