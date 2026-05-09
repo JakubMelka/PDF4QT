@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/pdfplugins/scannerplugin">
+        <file>scan.svg</file>
+    </qresource>
+</RCC>

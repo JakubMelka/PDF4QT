@@ -2137,9 +2137,8 @@ void PDFProgramController::onDocumentModified(pdf::PDFModifiedDocument document)
     // because new document is modification of old document with flags.
 
     pdf::PDFBoolGuard guard(m_isDocumentSetInProgress);
-    Q_ASSERT(m_pdfDocument);
 
-    if (m_undoRedoManager)
+    if (m_undoRedoManager && m_pdfDocument)
     {
         m_undoRedoManager->createUndo(document, m_pdfDocument);
     }

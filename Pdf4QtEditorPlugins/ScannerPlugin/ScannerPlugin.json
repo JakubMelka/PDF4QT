@@ -1,0 +1,7 @@
+{
+    "Name" : "Scanner",
+    "Author" : "Jakub Melka",
+    "Version" : "1.0.0",
+    "License" : "LGPL v3",
+    "Description" : "Scan pages from a document scanner and append them to the current PDF document."
+}
