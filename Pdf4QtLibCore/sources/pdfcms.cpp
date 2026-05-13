@@ -26,6 +26,8 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QStringList>
 #include <QBuffer>
 #include <QCoreApplication>
 #include <QReadWriteLock>
@@ -66,9 +68,157 @@
 #endif
 
 #include <unordered_map>
+#include <iterator>
+#include <string>
 
 namespace pdf
 {
+
+QString getInfoFromProfile(cmsHPROFILE profile, cmsInfoType infoType);
+
+#if defined(Q_OS_WIN)
+static QStringList parseMultiString(const wchar_t* string)
+{
+    QStringList result;
+    const wchar_t* current = string;
+    while (current && *current)
+    {
+        const QString value = QString::fromWCharArray(current);
+        if (!value.isEmpty())
+        {
+            result << value;
+        }
+        current += value.size() + 1;
+    }
+
+    return result;
+}
+
+static QByteArray getWindowsColorProfileData(const QString& profileName)
+{
+    std::wstring profileNameW = profileName.toStdWString();
+
+    PROFILE profile = { };
+    profile.dwType = PROFILE_FILENAME;
+    profile.pProfileData = profileNameW.data();
+    profile.cbDataSize = DWORD((profileNameW.size() + 1) * sizeof(wchar_t));
+
+    HPROFILE profileHandle = OpenColorProfileW(&profile, PROFILE_READ, FILE_SHARE_READ, OPEN_EXISTING);
+    if (!profileHandle)
+    {
+        return { };
+    }
+
+    DWORD profileSize = 0;
+    QByteArray result;
+    if (!GetColorProfileFromHandle(profileHandle, nullptr, &profileSize) && GetLastError() != ERROR_INSUFFICIENT_BUFFER)
+    {
+        CloseColorProfile(profileHandle);
+        return { };
+    }
+
+    if (profileSize > 0)
+    {
+        result.resize(int(profileSize));
+        if (!GetColorProfileFromHandle(profileHandle, reinterpret_cast<PBYTE>(result.data()), &profileSize))
+        {
+            result.clear();
+        }
+        else
+        {
+            result.resize(int(profileSize));
+        }
+    }
+
+    CloseColorProfile(profileHandle);
+    return result;
+}
+
+static HPROFILE openWindowsColorProfile(const QString& profileName)
+{
+    std::wstring profileNameW = profileName.toStdWString();
+
+    PROFILE profile = { };
+    profile.dwType = PROFILE_FILENAME;
+    profile.pProfileData = profileNameW.data();
+    profile.cbDataSize = DWORD((profileNameW.size() + 1) * sizeof(wchar_t));
+
+    return OpenColorProfileW(&profile, PROFILE_READ, FILE_SHARE_READ, OPEN_EXISTING);
+}
+
+static PDFColorProfileIdentifier::Type getWindowsColorProfileType(HPROFILE profileHandle)
+{
+    PROFILEHEADER header = { };
+    if (!GetColorProfileHeader(profileHandle, &header))
+    {
+        return PDFColorProfileIdentifier::Type::Invalid;
+    }
+
+    switch (header.phDataColorSpace)
+    {
+        case SPACE_GRAY:
+            return PDFColorProfileIdentifier::Type::WindowsSystemGray;
+
+        case SPACE_RGB:
+            return PDFColorProfileIdentifier::Type::WindowsSystemRGB;
+
+        case SPACE_CMYK:
+            return PDFColorProfileIdentifier::Type::WindowsSystemCMYK;
+
+        default:
+            break;
+    }
+
+    return PDFColorProfileIdentifier::Type::Invalid;
+}
+
+static PDFColorProfileIdentifiers getInstalledWindowsColorProfiles()
+{
+    PDFColorProfileIdentifiers result;
+
+    ENUMTYPEW enumRecord = { };
+    enumRecord.dwSize = sizeof(ENUMTYPEW);
+    enumRecord.dwVersion = ENUM_TYPE_VERSION;
+
+    DWORD bufferSize = 0;
+    DWORD profileCount = 0;
+    if (!EnumColorProfilesW(nullptr, &enumRecord, nullptr, &bufferSize, &profileCount) && GetLastError() != ERROR_INSUFFICIENT_BUFFER)
+    {
+        return result;
+    }
+
+    if (bufferSize == 0)
+    {
+        return result;
+    }
+
+    QByteArray buffer(int(bufferSize), Qt::Uninitialized);
+    if (!EnumColorProfilesW(nullptr, &enumRecord, reinterpret_cast<PBYTE>(buffer.data()), &bufferSize, &profileCount))
+    {
+        return result;
+    }
+
+    for (const QString& profileName : parseMultiString(reinterpret_cast<const wchar_t*>(buffer.constData())))
+    {
+        HPROFILE profileHandle = openWindowsColorProfile(profileName);
+        if (!profileHandle)
+        {
+            continue;
+        }
+
+        const PDFColorProfileIdentifier::Type csiType = getWindowsColorProfileType(profileHandle);
+        CloseColorProfile(profileHandle);
+
+        if (csiType != PDFColorProfileIdentifier::Type::Invalid)
+        {
+            QString description = QFileInfo(profileName).completeBaseName();
+            result.emplace_back(PDFColorProfileIdentifier::createWindowsSystem(csiType, qMove(description), profileName));
+        }
+    }
+
+    return result;
+}
+#endif
 
 class PDFLittleCMS : public PDFCMS
 {
@@ -942,6 +1092,21 @@ cmsHPROFILE PDFLittleCMS::createProfile(const QString& id, const PDFColorProfile
                 break;
             }
 
+            case PDFColorProfileIdentifier::Type::WindowsSystemGray:
+            case PDFColorProfileIdentifier::Type::WindowsSystemRGB:
+            case PDFColorProfileIdentifier::Type::WindowsSystemCMYK:
+            {
+#if defined(Q_OS_WIN)
+                QByteArray fileContent = getWindowsColorProfileData(identifier.id);
+                if (!fileContent.isEmpty())
+                {
+                    return cmsOpenProfileFromMem(fileContent.data(), fileContent.size());
+                }
+#endif
+
+                break;
+            }
+
             case PDFColorProfileIdentifier::Type::MemoryGray:
             case PDFColorProfileIdentifier::Type::MemoryRGB:
             case PDFColorProfileIdentifier::Type::MemoryCMYK:
@@ -1768,16 +1933,8 @@ PDFColorProfileIdentifiers PDFCMSManager::getExternalProfilesImpl() const
     QStringList directories(m_settings.profileDirectory);
 
 #if defined(Q_OS_WIN)
-    std::array<WCHAR, _MAX_PATH> buffer = { };
-    DWORD bufferSize = DWORD(buffer.size() * sizeof(WCHAR));
-    if (GetColorDirectoryW(NULL, buffer.data(), &bufferSize))
-    {
-        const DWORD charactersWithNull = bufferSize / sizeof(WCHAR);
-        const DWORD charactersWithoutNull = bufferSize > 0 ? charactersWithNull - 1 : 0;
-
-        QString directory = QString::fromWCharArray(buffer.data(), int(charactersWithoutNull));
-        directories << QDir::fromNativeSeparators(directory);
-    }
+    PDFColorProfileIdentifiers windowsProfiles = getInstalledWindowsColorProfiles();
+    result.insert(result.end(), std::make_move_iterator(windowsProfiles.begin()), std::make_move_iterator(windowsProfiles.end()));
 #elif defined(Q_OS_UNIX)
     QDir directory(QStringLiteral("/usr/share/color/icc"));
     if (directory.exists())
@@ -1805,7 +1962,31 @@ PDFColorProfileIdentifiers PDFCMSManager::getFilteredExternalProfiles(PDFColorPr
 {
     PDFColorProfileIdentifiers result;
     const PDFColorProfileIdentifiers& externalProfiles = getExternalProfiles();
-    std::copy_if(externalProfiles.cbegin(), externalProfiles.cend(), std::back_inserter(result), [type](const PDFColorProfileIdentifier& identifier) { return identifier.type == type; });
+    auto isMatchingProfileType = [type](const PDFColorProfileIdentifier& identifier)
+    {
+        if (identifier.type == type)
+        {
+            return true;
+        }
+
+        switch (type)
+        {
+            case PDFColorProfileIdentifier::Type::FileGray:
+                return identifier.type == PDFColorProfileIdentifier::Type::WindowsSystemGray;
+
+            case PDFColorProfileIdentifier::Type::FileRGB:
+                return identifier.type == PDFColorProfileIdentifier::Type::WindowsSystemRGB;
+
+            case PDFColorProfileIdentifier::Type::FileCMYK:
+                return identifier.type == PDFColorProfileIdentifier::Type::WindowsSystemCMYK;
+
+            default:
+                break;
+        }
+
+        return false;
+    };
+    std::copy_if(externalProfiles.cbegin(), externalProfiles.cend(), std::back_inserter(result), isMatchingProfileType);
     return result;
 }
 
@@ -1851,6 +2032,15 @@ PDFColorProfileIdentifier PDFColorProfileIdentifier::createRGB(QString name, QSt
 }
 
 PDFColorProfileIdentifier PDFColorProfileIdentifier::createFile(Type type, QString name, QString id)
+{
+    PDFColorProfileIdentifier result;
+    result.type = type;
+    result.name = qMove(name);
+    result.id = qMove(id);
+    return result;
+}
+
+PDFColorProfileIdentifier PDFColorProfileIdentifier::createWindowsSystem(Type type, QString name, QString id)
 {
     PDFColorProfileIdentifier result;
     result.type = type;

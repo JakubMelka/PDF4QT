@@ -982,12 +982,12 @@ bool PDFSidebarWidget::saveAttachmentToFile(const pdf::PDFFileSpecification* fil
 
     try
     {
-        QByteArray data = m_document->getDecodedStream(platformFile->getStream());
+        QByteArray decodedStreamData = m_document->getDecodedStream(platformFile->getStream());
 
         QFile file(fileName);
         if (file.open(QFile::WriteOnly | QFile::Truncate))
         {
-            file.write(data);
+            file.write(decodedStreamData);
             file.close();
             return true;
         }

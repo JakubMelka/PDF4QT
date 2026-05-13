@@ -1375,8 +1375,8 @@ CharacterInfos PDFRealizedFontImpl::getCharacterInfos() const
                         continue;
                     }
 
-                    const QChar character = toUnicode->getToUnicode(cid);
-                    if (!canRenderGlyphIndex(*gid, character))
+                    const QChar unicodeCharacter = toUnicode->getToUnicode(cid);
+                    if (!canRenderGlyphIndex(*gid, unicodeCharacter))
                     {
                         continue;
                     }
@@ -1385,7 +1385,7 @@ CharacterInfos PDFRealizedFontImpl::getCharacterInfos() const
                     {
                         CharacterInfo info;
                         info.gid = *gid;
-                        info.character = character;
+                        info.character = unicodeCharacter;
                         result.emplace_back(qMove(info));
                     }
                 }
