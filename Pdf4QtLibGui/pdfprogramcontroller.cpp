@@ -1218,6 +1218,11 @@ void PDFProgramController::saveDocument(const QString& fileName)
 {
     updateFileWatcher(true);
 
+    if (m_formManager)
+    {
+        m_formManager->setFocusToEditor(nullptr);
+    }
+
     pdf::PDFDocumentWriter writer(nullptr);
     pdf::PDFOperationResult result = writer.write(fileName, m_pdfDocument.data(), true);
     if (result)

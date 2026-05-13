@@ -303,8 +303,9 @@ public:
     const QStringList& getOptions() const { return m_options; }
 
     /// Returns appearance state, which corresponds to the checked
-    /// state of checkbox or radio button. If error occurs, then
-    /// empty byte array is returned.
+    /// state of checkbox or radio button. For checkboxes without
+    /// an explicit on-state, returns the common 'Yes' state. If no
+    /// state can be resolved, then empty byte array is returned.
     /// \param formManager Form manager
     /// \param widget Widget
     static QByteArray getOnAppearanceState(const PDFFormManager* formManager, const PDFFormWidget* widget);
