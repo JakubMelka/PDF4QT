@@ -1,5 +1,6 @@
 CURRENT:
- - Issue #388: Update windows color management system
+ - Issue #388: Update windows color management systém
+ - Issue #385: PDFTextLayoutGenerator::isContentKindSuppressed(ContentKind kind) is missing ContentKind::Form
  - Issue #382: [feature request] Startup Settings
  - Issue #381: Separated apps for double-click viewer in Linux
  - Issue #380: Ability to run app with custom settings directory - executable parameter with path
