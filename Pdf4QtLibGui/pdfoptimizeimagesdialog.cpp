@@ -33,6 +33,8 @@
 #include <QListWidget>
 #include <QtConcurrent/QtConcurrent>
 
+#include <cmath>
+
 #include "pdfdbgheap.h"
 
 namespace pdfviewer
@@ -118,6 +120,28 @@ QByteArray createEstimateCacheKey(const pdf::PDFImageOptimizer::Settings& settin
     stream << plan.hadUnsupportedCompression;
 
     return key;
+}
+
+QPointF getEffectiveMinimalDpi(const pdf::PDFImageOptimizer::ImageInfo& info,
+                               const pdf::PDFImageOptimizer::ResolvedPlan& plan)
+{
+    QPointF effectiveDpi = info.minimalDpi;
+    if (!plan.targetSize.isValid() || plan.targetSize.isEmpty() || info.image.isNull())
+    {
+        return effectiveDpi;
+    }
+
+    const QSize sourceSize = info.image.size();
+    if (sourceSize.width() > 0 && std::isfinite(effectiveDpi.x()) && effectiveDpi.x() > 0.0)
+    {
+        effectiveDpi.setX(effectiveDpi.x() * static_cast<double>(plan.targetSize.width()) / static_cast<double>(sourceSize.width()));
+    }
+    if (sourceSize.height() > 0 && std::isfinite(effectiveDpi.y()) && effectiveDpi.y() > 0.0)
+    {
+        effectiveDpi.setY(effectiveDpi.y() * static_cast<double>(plan.targetSize.height()) / static_cast<double>(sourceSize.height()));
+    }
+
+    return effectiveDpi;
 }
 } // namespace
 
@@ -357,6 +381,7 @@ void PDFOptimizeImagesDialog::updateImageListItem(int row)
 
     ImageEntry& entry = m_images[static_cast<size_t>(row)];
     const pdf::PDFImageOptimizer::ImageInfo& info = entry.info;
+    QPointF effectiveMinimalDpi = info.minimalDpi;
 
     QStringList lines;
     lines << tr("Image %1").arg(row + 1);
@@ -380,6 +405,7 @@ void PDFOptimizeImagesDialog::updateImageListItem(int row)
     {
         const pdf::PDFImageOptimizer::Settings& settings = entry.overrideEnabled ? entry.overrideSettings : m_settings;
         const pdf::PDFImageOptimizer::ResolvedPlan plan = pdf::PDFImageOptimizer::resolvePlan(info, settings);
+        effectiveMinimalDpi = getEffectiveMinimalDpi(info, plan);
         newBytes = getEstimatedBytes(entry, settings, plan);
         willKeepOriginal = info.isImageMask || (settings.keepOriginalIfLarger && info.originalBytes > 0 && newBytes >= info.originalBytes);
         if (willKeepOriginal)
@@ -393,9 +419,9 @@ void PDFOptimizeImagesDialog::updateImageListItem(int row)
         lines << tr("Status: %1").arg(status.join(", "));
     }
 
-    if (info.minimalDpi.x() > 0.0 || info.minimalDpi.y() > 0.0)
+    if (effectiveMinimalDpi.x() > 0.0 || effectiveMinimalDpi.y() > 0.0)
     {
-        lines << tr("Min DPI: %1 x %2").arg(info.minimalDpi.x(), 0, 'f', 1).arg(info.minimalDpi.y(), 0, 'f', 1);
+        lines << tr("Min DPI: %1 x %2").arg(effectiveMinimalDpi.x(), 0, 'f', 1).arg(effectiveMinimalDpi.y(), 0, 'f', 1);
     }
     if (!info.colorSpaceName.isEmpty())
     {
