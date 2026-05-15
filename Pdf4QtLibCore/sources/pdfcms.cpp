@@ -1504,29 +1504,65 @@ QColor PDFCMSGeneric::getColorFromICC(const PDFColor& color,
 
 bool PDFCMSGeneric::fillRGBBufferFromDeviceGray(const std::vector<float>& colors, RenderingIntent intent, unsigned char* outputBuffer, PDFRenderErrorReporter* reporter) const
 {
-    Q_UNUSED(colors);
     Q_UNUSED(intent);
-    Q_UNUSED(outputBuffer);
     Q_UNUSED(reporter);
-    return false;
+
+    for (float gray : colors)
+    {
+        const unsigned char value = static_cast<unsigned char>(qRound(qBound(0.0f, gray, 1.0f) * 255.0f));
+        *outputBuffer++ = value;
+        *outputBuffer++ = value;
+        *outputBuffer++ = value;
+    }
+
+    return true;
 }
 
 bool PDFCMSGeneric::fillRGBBufferFromDeviceRGB(const std::vector<float>& colors, RenderingIntent intent, unsigned char* outputBuffer, PDFRenderErrorReporter* reporter) const
 {
-    Q_UNUSED(colors);
     Q_UNUSED(intent);
-    Q_UNUSED(outputBuffer);
     Q_UNUSED(reporter);
-    return false;
+
+    if (colors.size() % 3 != 0)
+    {
+        return false;
+    }
+
+    for (float component : colors)
+    {
+        *outputBuffer++ = static_cast<unsigned char>(qRound(qBound(0.0f, component, 1.0f) * 255.0f));
+    }
+
+    return true;
 }
 
 bool PDFCMSGeneric::fillRGBBufferFromDeviceCMYK(const std::vector<float>& colors, RenderingIntent intent, unsigned char* outputBuffer, PDFRenderErrorReporter* reporter) const
 {
-    Q_UNUSED(colors);
     Q_UNUSED(intent);
-    Q_UNUSED(outputBuffer);
     Q_UNUSED(reporter);
-    return false;
+
+    if (colors.size() % 4 != 0)
+    {
+        return false;
+    }
+
+    for (size_t i = 0, count = colors.size(); i < count; i += 4)
+    {
+        const float c = qBound(0.0f, colors[i + 0], 1.0f);
+        const float m = qBound(0.0f, colors[i + 1], 1.0f);
+        const float y = qBound(0.0f, colors[i + 2], 1.0f);
+        const float k = qBound(0.0f, colors[i + 3], 1.0f);
+
+        const float r = (1.0f - c) * (1.0f - k);
+        const float g = (1.0f - m) * (1.0f - k);
+        const float b = (1.0f - y) * (1.0f - k);
+
+        *outputBuffer++ = static_cast<unsigned char>(qRound(r * 255.0f));
+        *outputBuffer++ = static_cast<unsigned char>(qRound(g * 255.0f));
+        *outputBuffer++ = static_cast<unsigned char>(qRound(b * 255.0f));
+    }
+
+    return true;
 }
 
 bool PDFCMSGeneric::fillRGBBufferFromXYZ(const PDFColor3& whitePoint, const std::vector<float>& colors, RenderingIntent intent, unsigned char* outputBuffer, PDFRenderErrorReporter* reporter) const
