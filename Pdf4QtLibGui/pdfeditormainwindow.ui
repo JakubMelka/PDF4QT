@@ -202,8 +202,22 @@
      <addaction name="actionCreateTextStrikeout"/>
      <addaction name="actionCreateTextSquiggly"/>
     </widget>
+    <widget class="QMenu" name="menuHyperlinkToThisPDF">
+     <property name="title">
+      <string>Hyperlink to this PDF</string>
+     </property>
+     <addaction name="actionCreateHyperlinkToThisPDFFit"/>
+     <addaction name="actionCreateHyperlinkToThisPDFFitH"/>
+     <addaction name="actionCreateHyperlinkToThisPDFFitV"/>
+     <addaction name="actionCreateHyperlinkToThisPDFFitR"/>
+     <addaction name="actionCreateHyperlinkToThisPDFFitB"/>
+     <addaction name="actionCreateHyperlinkToThisPDFFitBH"/>
+     <addaction name="actionCreateHyperlinkToThisPDFFitBV"/>
+     <addaction name="actionCreateHyperlinkToThisPDFXYZ"/>
+    </widget>
     <addaction name="menuSticky_Note"/>
     <addaction name="actionCreateHyperlink"/>
+    <addaction name="menuHyperlinkToThisPDF"/>
     <addaction name="actionInlineText"/>
     <addaction name="actionCreateStraightLine"/>
     <addaction name="actionCreatePolyline"/>
@@ -858,6 +872,70 @@
    </property>
    <property name="text">
     <string>&amp;Hyperlink</string>
+   </property>
+  </action>
+  <action name="actionCreateHyperlinkToThisPDFFit">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Fit Page</string>
+   </property>
+  </action>
+  <action name="actionCreateHyperlinkToThisPDFFitH">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Fit Page Horizontally</string>
+   </property>
+  </action>
+  <action name="actionCreateHyperlinkToThisPDFFitV">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Fit Page Vertically</string>
+   </property>
+  </action>
+  <action name="actionCreateHyperlinkToThisPDFFitR">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Fit Rectangle</string>
+   </property>
+  </action>
+  <action name="actionCreateHyperlinkToThisPDFFitB">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Fit Bounding Box</string>
+   </property>
+  </action>
+  <action name="actionCreateHyperlinkToThisPDFFitBH">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Fit Bounding Box Horizontally</string>
+   </property>
+  </action>
+  <action name="actionCreateHyperlinkToThisPDFFitBV">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Fit Bounding Box Vertically</string>
+   </property>
+  </action>
+  <action name="actionCreateHyperlinkToThisPDFXYZ">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>XYZ</string>
    </property>
   </action>
   <action name="actionInlineText">

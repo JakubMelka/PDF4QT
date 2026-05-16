@@ -97,6 +97,44 @@ private:
     LinkHighlightMode m_highlightMode = LinkHighlightMode::Outline;
 };
 
+/// Tool that creates link annotation pointing to destination in the same PDF document.
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFCreateInDocumentHyperlinkTool : public PDFWidgetTool
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFWidgetTool;
+
+public:
+    explicit PDFCreateInDocumentHyperlinkTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QActionGroup* actionGroup, QObject* parent);
+
+    LinkHighlightMode getHighlightMode() const;
+    void setHighlightMode(const LinkHighlightMode& highlightMode);
+
+protected:
+    virtual void updateActions() override;
+    virtual void setActiveImpl(bool active) override;
+
+private:
+    void onActionTriggered(QAction* action);
+    void onLinkRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
+    void onTargetPagePicked(pdf::PDFInteger pageIndex);
+    void onTargetRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
+    void createLinkAnnotation(const PDFDestination& destination);
+    PDFDestination createDestination(pdf::PDFInteger pageIndex, QRectF pageRectangle) const;
+    bool isRectangleDestination() const;
+    void resetPendingLink();
+
+    PDFToolManager* m_toolManager;
+    QActionGroup* m_actionGroup;
+    PDFPickTool* m_pickTool;
+    DestinationType m_destinationType = DestinationType::Fit;
+    LinkHighlightMode m_highlightMode = LinkHighlightMode::Outline;
+    PDFInteger m_linkPageIndex = -1;
+    QRectF m_linkRectangle;
+    bool m_isPickingTarget = false;
+};
+
 /// Tool that creates free text note without callout line.
 class PDF4QTLIBWIDGETSSHARED_EXPORT PDFCreateFreeTextTool : public PDFCreateAnnotationTool
 {

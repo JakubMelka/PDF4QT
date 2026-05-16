@@ -166,6 +166,190 @@ void PDFCreateHyperlinkTool::onRectanglePicked(PDFInteger pageIndex, QRectF page
     }
 }
 
+PDFCreateInDocumentHyperlinkTool::PDFCreateInDocumentHyperlinkTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QActionGroup* actionGroup, QObject* parent) :
+    BaseClass(proxy, parent),
+    m_toolManager(toolManager),
+    m_actionGroup(actionGroup),
+    m_pickTool(nullptr)
+{
+    m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Rectangles, this);
+    m_pickTool->setSnapToAnnotations(true);
+    addTool(m_pickTool);
+    connect(m_pickTool, &PDFPickTool::rectanglePicked, this, &PDFCreateInDocumentHyperlinkTool::onLinkRectanglePicked);
+    connect(m_actionGroup, &QActionGroup::triggered, this, &PDFCreateInDocumentHyperlinkTool::onActionTriggered);
+
+    updateActions();
+}
+
+LinkHighlightMode PDFCreateInDocumentHyperlinkTool::getHighlightMode() const
+{
+    return m_highlightMode;
+}
+
+void PDFCreateInDocumentHyperlinkTool::setHighlightMode(const LinkHighlightMode& highlightMode)
+{
+    m_highlightMode = highlightMode;
+}
+
+void PDFCreateInDocumentHyperlinkTool::updateActions()
+{
+    BaseClass::updateActions();
+
+    if (m_actionGroup)
+    {
+        const bool isEnabled = getDocument() && getDocument()->getStorage().getSecurityHandler()->isAllowed(PDFSecurityHandler::Permission::ModifyInteractiveItems);
+        m_actionGroup->setEnabled(isEnabled);
+
+        if (!isActive() && m_actionGroup->checkedAction())
+        {
+            m_actionGroup->checkedAction()->setChecked(false);
+        }
+    }
+}
+
+void PDFCreateInDocumentHyperlinkTool::setActiveImpl(bool active)
+{
+    BaseClass::setActiveImpl(active);
+
+    if (active)
+    {
+        resetPendingLink();
+        Q_EMIT messageDisplayRequest(tr("Select hyperlink rectangle."), 5000);
+    }
+    else
+    {
+        if (!m_isPickingTarget)
+        {
+            resetPendingLink();
+        }
+        m_pickTool->resetTool();
+    }
+}
+
+void PDFCreateInDocumentHyperlinkTool::onActionTriggered(QAction* action)
+{
+    setActive(action && action->isChecked());
+
+    if (action)
+    {
+        m_destinationType = static_cast<DestinationType>(action->data().toInt());
+    }
+}
+
+void PDFCreateInDocumentHyperlinkTool::onLinkRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
+{
+    if (pageRectangle.isEmpty())
+    {
+        m_pickTool->resetTool();
+        return;
+    }
+
+    m_linkPageIndex = pageIndex;
+    m_linkRectangle = pageRectangle;
+
+    if (isRectangleDestination())
+    {
+        Q_EMIT messageDisplayRequest(tr("Select target rectangle."), 5000);
+        m_isPickingTarget = true;
+        m_toolManager->pickRectangle([this](PDFInteger targetPageIndex, QRectF targetRectangle) { onTargetRectanglePicked(targetPageIndex, targetRectangle); });
+    }
+    else
+    {
+        Q_EMIT messageDisplayRequest(tr("Select target page."), 5000);
+        m_isPickingTarget = true;
+        m_toolManager->pickPage([this](PDFInteger targetPageIndex) { onTargetPagePicked(targetPageIndex); });
+    }
+}
+
+void PDFCreateInDocumentHyperlinkTool::onTargetPagePicked(PDFInteger pageIndex)
+{
+    createLinkAnnotation(createDestination(pageIndex, QRectF()));
+}
+
+void PDFCreateInDocumentHyperlinkTool::onTargetRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
+{
+    if (pageRectangle.isEmpty())
+    {
+        resetPendingLink();
+        updateActions();
+        return;
+    }
+
+    createLinkAnnotation(createDestination(pageIndex, pageRectangle));
+}
+
+void PDFCreateInDocumentHyperlinkTool::createLinkAnnotation(const PDFDestination& destination)
+{
+    if (m_linkPageIndex < 0 || m_linkRectangle.isEmpty() || !destination.isValid())
+    {
+        return;
+    }
+
+    PDFDocumentModifier modifier(getDocument());
+
+    PDFObjectReference page = getDocument()->getCatalog()->getPage(m_linkPageIndex)->getPageReference();
+    PDFObjectReference action = modifier.getBuilder()->createActionGoTo(destination);
+    modifier.getBuilder()->createAnnotationLink(page, m_linkRectangle, action, m_highlightMode);
+    modifier.markAnnotationsChanged();
+
+    if (modifier.finalize())
+    {
+        Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+    }
+
+    resetPendingLink();
+    setActive(false);
+    updateActions();
+}
+
+PDFDestination PDFCreateInDocumentHyperlinkTool::createDestination(PDFInteger pageIndex, QRectF pageRectangle) const
+{
+    PDFDestination destination;
+    destination.setDestinationType(m_destinationType);
+    destination.setPageIndex(pageIndex);
+    destination.setPageReference(getDocument()->getCatalog()->getPage(pageIndex)->getPageReference());
+    destination.setZoom(getProxy()->getZoom());
+
+    if (!pageRectangle.isEmpty())
+    {
+        destination.setLeft(pageRectangle.left());
+        destination.setRight(pageRectangle.right());
+        destination.setTop(pageRectangle.bottom());
+        destination.setBottom(pageRectangle.top());
+    }
+
+    return destination;
+}
+
+bool PDFCreateInDocumentHyperlinkTool::isRectangleDestination() const
+{
+    switch (m_destinationType)
+    {
+        case DestinationType::FitR:
+        case DestinationType::XYZ:
+            return true;
+
+        case DestinationType::Fit:
+        case DestinationType::FitH:
+        case DestinationType::FitV:
+        case DestinationType::FitB:
+        case DestinationType::FitBH:
+        case DestinationType::FitBV:
+        case DestinationType::Invalid:
+        case DestinationType::Named:
+            break;
+    }
+
+    return false;
+}
+
+void PDFCreateInDocumentHyperlinkTool::resetPendingLink()
+{
+    m_isPickingTarget = false;
+    m_linkPageIndex = -1;
+    m_linkRectangle = QRectF();
+}
+
 PDFCreateFreeTextTool::PDFCreateFreeTextTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QAction* action, QObject* parent) :
     BaseClass(proxy, action, parent),
     m_toolManager(toolManager),

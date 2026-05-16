@@ -153,6 +153,14 @@ PDFEditorMainWindow::PDFEditorMainWindow(QWidget* parent) :
     m_actionManager->setAction(PDFActionManager::CreateTextStrikeout, ui->actionCreateTextStrikeout);
     m_actionManager->setAction(PDFActionManager::CreateTextSquiggly, ui->actionCreateTextSquiggly);
     m_actionManager->setAction(PDFActionManager::CreateHyperlink, ui->actionCreateHyperlink);
+    m_actionManager->setAction(PDFActionManager::CreateHyperlinkToThisPDFFit, ui->actionCreateHyperlinkToThisPDFFit);
+    m_actionManager->setAction(PDFActionManager::CreateHyperlinkToThisPDFFitH, ui->actionCreateHyperlinkToThisPDFFitH);
+    m_actionManager->setAction(PDFActionManager::CreateHyperlinkToThisPDFFitV, ui->actionCreateHyperlinkToThisPDFFitV);
+    m_actionManager->setAction(PDFActionManager::CreateHyperlinkToThisPDFFitR, ui->actionCreateHyperlinkToThisPDFFitR);
+    m_actionManager->setAction(PDFActionManager::CreateHyperlinkToThisPDFFitB, ui->actionCreateHyperlinkToThisPDFFitB);
+    m_actionManager->setAction(PDFActionManager::CreateHyperlinkToThisPDFFitBH, ui->actionCreateHyperlinkToThisPDFFitBH);
+    m_actionManager->setAction(PDFActionManager::CreateHyperlinkToThisPDFFitBV, ui->actionCreateHyperlinkToThisPDFFitBV);
+    m_actionManager->setAction(PDFActionManager::CreateHyperlinkToThisPDFXYZ, ui->actionCreateHyperlinkToThisPDFXYZ);
     m_actionManager->setAction(PDFActionManager::CreateInlineText, ui->actionInlineText);
     m_actionManager->setAction(PDFActionManager::CreateStraightLine, ui->actionCreateStraightLine);
     m_actionManager->setAction(PDFActionManager::CreatePolyline, ui->actionCreatePolyline);

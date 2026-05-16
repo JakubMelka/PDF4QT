@@ -275,6 +275,30 @@ void PDFActionManager::initActions(QSize iconSize, bool initializeStampActions)
         getAction(CreateTextSquiggly)->setData(int(pdf::AnnotationType::Squiggly));
     }
 
+    if (hasActions({ CreateHyperlinkToThisPDFFit, CreateHyperlinkToThisPDFFitH, CreateHyperlinkToThisPDFFitV, CreateHyperlinkToThisPDFFitR,
+                     CreateHyperlinkToThisPDFFitB, CreateHyperlinkToThisPDFFitBH, CreateHyperlinkToThisPDFFitBV, CreateHyperlinkToThisPDFXYZ }))
+    {
+        m_actionGroups[CreateInDocumentHyperlinkGroup] = new QActionGroup(this);
+        m_actionGroups[CreateInDocumentHyperlinkGroup]->setExclusionPolicy(QActionGroup::ExclusionPolicy::ExclusiveOptional);
+        m_actionGroups[CreateInDocumentHyperlinkGroup]->addAction(getAction(CreateHyperlinkToThisPDFFit));
+        m_actionGroups[CreateInDocumentHyperlinkGroup]->addAction(getAction(CreateHyperlinkToThisPDFFitH));
+        m_actionGroups[CreateInDocumentHyperlinkGroup]->addAction(getAction(CreateHyperlinkToThisPDFFitV));
+        m_actionGroups[CreateInDocumentHyperlinkGroup]->addAction(getAction(CreateHyperlinkToThisPDFFitR));
+        m_actionGroups[CreateInDocumentHyperlinkGroup]->addAction(getAction(CreateHyperlinkToThisPDFFitB));
+        m_actionGroups[CreateInDocumentHyperlinkGroup]->addAction(getAction(CreateHyperlinkToThisPDFFitBH));
+        m_actionGroups[CreateInDocumentHyperlinkGroup]->addAction(getAction(CreateHyperlinkToThisPDFFitBV));
+        m_actionGroups[CreateInDocumentHyperlinkGroup]->addAction(getAction(CreateHyperlinkToThisPDFXYZ));
+
+        getAction(CreateHyperlinkToThisPDFFit)->setData(int(pdf::DestinationType::Fit));
+        getAction(CreateHyperlinkToThisPDFFitH)->setData(int(pdf::DestinationType::FitH));
+        getAction(CreateHyperlinkToThisPDFFitV)->setData(int(pdf::DestinationType::FitV));
+        getAction(CreateHyperlinkToThisPDFFitR)->setData(int(pdf::DestinationType::FitR));
+        getAction(CreateHyperlinkToThisPDFFitB)->setData(int(pdf::DestinationType::FitB));
+        getAction(CreateHyperlinkToThisPDFFitBH)->setData(int(pdf::DestinationType::FitBH));
+        getAction(CreateHyperlinkToThisPDFFitBV)->setData(int(pdf::DestinationType::FitBV));
+        getAction(CreateHyperlinkToThisPDFXYZ)->setData(int(pdf::DestinationType::XYZ));
+    }
+
     setUserData(RenderOptionAntialiasing, pdf::PDFRenderer::Antialiasing);
     setUserData(RenderOptionTextAntialiasing, pdf::PDFRenderer::TextAntialiasing);
     setUserData(RenderOptionSmoothPictures, pdf::PDFRenderer::SmoothImages);
@@ -1092,6 +1116,11 @@ void PDFProgramController::initializeToolManager()
     {
         pdf::PDFCreateHyperlinkTool* createHyperlinkTool = new pdf::PDFCreateHyperlinkTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, action, this);
         m_toolManager->addTool(createHyperlinkTool);
+    }
+    if (QActionGroup* inDocumentHyperlinkGroup = m_actionManager->getActionGroup(PDFActionManager::CreateInDocumentHyperlinkGroup))
+    {
+        pdf::PDFCreateInDocumentHyperlinkTool* createInDocumentHyperlinkTool = new pdf::PDFCreateInDocumentHyperlinkTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, inDocumentHyperlinkGroup, this);
+        m_toolManager->addTool(createInDocumentHyperlinkTool);
     }
     if (QAction* action = m_actionManager->getAction(PDFActionManager::CreateInlineText))
     {

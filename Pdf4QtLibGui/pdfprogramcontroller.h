@@ -146,6 +146,14 @@ public:
         CreateTextStrikeout,
         CreateTextSquiggly,
         CreateHyperlink,
+        CreateHyperlinkToThisPDFFit,
+        CreateHyperlinkToThisPDFFitH,
+        CreateHyperlinkToThisPDFFitV,
+        CreateHyperlinkToThisPDFFitR,
+        CreateHyperlinkToThisPDFFitB,
+        CreateHyperlinkToThisPDFFitBH,
+        CreateHyperlinkToThisPDFFitBV,
+        CreateHyperlinkToThisPDFXYZ,
         CreateInlineText,
         CreateStraightLine,
         CreatePolyline,
@@ -204,6 +212,7 @@ public:
     {
         CreateStickyNoteGroup,
         CreateTextHighlightGroup,
+        CreateInDocumentHyperlinkGroup,
         CreateStampGroup,
         LastActionGroup
     };
