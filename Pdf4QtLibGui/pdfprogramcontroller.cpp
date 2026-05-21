@@ -1222,6 +1222,7 @@ void PDFProgramController::saveDocument(const QString& fileName)
     {
         m_formManager->setFocusToEditor(nullptr);
     }
+    prepareFormFieldAppearancesForSave();
 
     pdf::PDFDocumentWriter writer(nullptr);
     pdf::PDFOperationResult result = writer.write(fileName, m_pdfDocument.data(), true);
@@ -1246,6 +1247,72 @@ void PDFProgramController::saveDocument(const QString& fileName)
     }
 
     updateFileWatcher();
+}
+
+void PDFProgramController::prepareFormFieldAppearancesForSave()
+{
+    if (!m_pdfDocument || !m_formManager || !m_formManager->hasAcroForm())
+    {
+        return;
+    }
+
+    pdf::PDFDocumentModifier modifier(m_pdfDocument.data());
+    pdf::PDFDocumentBuilder* builder = modifier.getBuilder();
+    builder->setFormManager(m_formManager);
+
+    const pdf::PDFObject& acroFormObject = m_pdfDocument->getCatalog()->getFormObject();
+    if (acroFormObject.isReference())
+    {
+        pdf::PDFObjectFactory objectBuilder;
+        objectBuilder.beginDictionary();
+        objectBuilder.beginDictionaryItem("NeedAppearances");
+        objectBuilder << true;
+        objectBuilder.endDictionaryItem();
+        objectBuilder.endDictionary();
+
+        builder->mergeTo(acroFormObject.getReference(), objectBuilder.takeObject());
+        modifier.markFormFieldChanged();
+    }
+
+    bool appearanceUpdated = false;
+    const pdf::PDFFormWidgets widgets = m_formManager->getWidgets();
+    for (const pdf::PDFFormWidget& widget : widgets)
+    {
+        const pdf::PDFFormField* formField = m_formManager->getFormFieldForWidget(widget.getWidget());
+        if (!formField)
+        {
+            continue;
+        }
+
+        switch (formField->getFieldType())
+        {
+            case pdf::PDFFormField::FieldType::Button:
+            case pdf::PDFFormField::FieldType::Text:
+            case pdf::PDFFormField::FieldType::Choice:
+                builder->updateAnnotationAppearanceStreams(widget.getWidget());
+                appearanceUpdated = true;
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    if (appearanceUpdated)
+    {
+        modifier.markAnnotationsChanged();
+    }
+
+    if (modifier.finalize())
+    {
+        pdf::PDFModifiedDocument document(modifier.getDocument(), m_optionalContentActivity, modifier.getFlags());
+        pdf::PDFDocumentPointer oldDocument = std::move(m_pdfDocument);
+        Q_UNUSED(oldDocument);
+
+        m_pdfDocument = document;
+        document.setOptionalContentActivity(m_optionalContentActivity);
+        setDocument(document, {}, false);
+    }
 }
 
 void PDFProgramController::savePageLayoutPerDocument()
