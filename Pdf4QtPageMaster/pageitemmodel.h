@@ -230,6 +230,9 @@ public:
 
     const std::map<int, DocumentItem>& getDocuments() const { return m_documents; }
     const std::map<int, ImageItem>& getImages() const { return m_images; }
+    const std::vector<PageGroupItem>& getPageGroupItems() const { return m_pageGroupItems; }
+    void setWorkspaceData(std::map<int, DocumentItem> documents, std::map<int, ImageItem> images, std::vector<PageGroupItem> pageGroupItems);
+    void setWorkspaceState(std::map<int, ImageItem> images, std::vector<PageGroupItem> pageGroupItems);
 
     struct SelectionInfo
     {

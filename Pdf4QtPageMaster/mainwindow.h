@@ -30,6 +30,7 @@
 #include "pageitemdelegate.h"
 
 #include <QMainWindow>
+#include <QJsonObject>
 #include <QSignalMapper>
 
 namespace Ui
@@ -129,6 +130,10 @@ public:
         SortByType,
         ReverseOrder,
         SelectVisible,
+        SaveWorkspace,
+        OpenWorkspace,
+        SaveCheckpoint,
+        LoadCheckpoint,
     };
 
 protected:
@@ -160,6 +165,14 @@ private:
     void selectSourceSelection(const QItemSelection& selection, bool addToExisting = false);
     void setDetailsViewVisible(bool visible);
     void showItemProperties();
+    void saveWorkspace();
+    void openWorkspace();
+    void saveCheckpoint();
+    void loadCheckpoint();
+    QJsonObject createWorkspaceStateJson() const;
+    bool restoreWorkspaceStateFromJson(const QJsonObject& state, QString* errorMessage);
+    QJsonObject createProjectJson() const;
+    bool loadProjectJson(const QJsonObject& project, QString* errorMessage);
     void updateSearchFilter();
     void updateSearchResultLabel();
 
@@ -188,6 +201,10 @@ private:
     QAction* m_insertPDFPagesAction;
     QAction* m_splitAction;
     QAction* m_selectPageRangeAction;
+    QAction* m_saveWorkspaceAction;
+    QAction* m_openWorkspaceAction;
+    QAction* m_saveCheckpointAction;
+    QAction* m_loadCheckpointAction;
     QAction* m_clearSearchAction;
     QAction* m_selectVisibleAction;
     QLineEdit* m_searchEdit;
@@ -197,6 +214,14 @@ private:
     Qt::DropAction m_dropAction;
     bool m_hasPageGeometrySettings = false;
     pdf::PDFPageGeometrySettings m_pageGeometrySettings;
+
+    struct WorkspaceCheckpoint
+    {
+        QString name;
+        QJsonObject state;
+    };
+
+    std::vector<WorkspaceCheckpoint> m_checkpoints;
 };
 
 }   // namespace pdfpagemaster

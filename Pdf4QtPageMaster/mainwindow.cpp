@@ -41,6 +41,7 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QInputDialog>
+#include <QBuffer>
 #include <QComboBox>
 #include <QClipboard>
 #include <QDialog>
@@ -51,10 +52,12 @@
 #include <QDesktopServices>
 #include <QImageReader>
 #include <QPixmapCache>
+#include <QSaveFile>
 #include <QScreen>
 #include <QGuiApplication>
 #include <QDragEnterEvent>
 #include <QDropEvent>
+#include <QFile>
 #include <QSettings>
 #include <QMimeData>
 #include <QTableView>
@@ -69,6 +72,9 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QSortFilterProxyModel>
 #include <QSpinBox>
 
@@ -122,6 +128,115 @@ QString sanitizeOutputFileName(QString fileName)
 QString normalizedOutputPathKey(const QString& fileName)
 {
     return QDir::cleanPath(fileName).toCaseFolded();
+}
+
+int pageRotationToInt(pdf::PageRotation rotation)
+{
+    return int(rotation);
+}
+
+pdf::PageRotation pageRotationFromInt(int value)
+{
+    switch (pdf::PageRotation(value))
+    {
+        case pdf::PageRotation::None:
+        case pdf::PageRotation::Rotate90:
+        case pdf::PageRotation::Rotate180:
+        case pdf::PageRotation::Rotate270:
+            return pdf::PageRotation(value);
+        default:
+            break;
+    }
+
+    return pdf::PageRotation::None;
+}
+
+QJsonObject sizeToJson(const QSizeF& size)
+{
+    QJsonObject object;
+    object["width"] = size.width();
+    object["height"] = size.height();
+    return object;
+}
+
+QSizeF sizeFromJson(const QJsonObject& object, const QSizeF& fallback = QSizeF())
+{
+    return QSizeF(object["width"].toDouble(fallback.width()), object["height"].toDouble(fallback.height()));
+}
+
+QJsonObject pointToJson(const QPointF& point)
+{
+    QJsonObject object;
+    object["x"] = point.x();
+    object["y"] = point.y();
+    return object;
+}
+
+QPointF pointFromJson(const QJsonObject& object, const QPointF& fallback = QPointF())
+{
+    return QPointF(object["x"].toDouble(fallback.x()), object["y"].toDouble(fallback.y()));
+}
+
+QJsonObject marginsToJson(const QMarginsF& margins)
+{
+    QJsonObject object;
+    object["left"] = margins.left();
+    object["top"] = margins.top();
+    object["right"] = margins.right();
+    object["bottom"] = margins.bottom();
+    return object;
+}
+
+QMarginsF marginsFromJson(const QJsonObject& object, const QMarginsF& fallback = QMarginsF())
+{
+    return QMarginsF(object["left"].toDouble(fallback.left()),
+                     object["top"].toDouble(fallback.top()),
+                     object["right"].toDouble(fallback.right()),
+                     object["bottom"].toDouble(fallback.bottom()));
+}
+
+QJsonObject pageGeometrySettingsToJson(const pdf::PDFPageGeometrySettings& settings)
+{
+    QJsonObject object;
+    object["pageRange"] = settings.pageRange;
+    object["pageSubset"] = int(settings.pageSubset);
+    object["referenceBox"] = int(settings.referenceBox);
+    object["applyMediaBox"] = settings.applyMediaBox;
+    object["applyCropBox"] = settings.applyCropBox;
+    object["applyBleedBox"] = settings.applyBleedBox;
+    object["applyTrimBox"] = settings.applyTrimBox;
+    object["applyArtBox"] = settings.applyArtBox;
+    object["useTargetPageSize"] = settings.useTargetPageSize;
+    object["targetPageSizeMM"] = sizeToJson(settings.targetPageSizeMM);
+    object["marginsMM"] = marginsToJson(settings.marginsMM);
+    object["anchor"] = int(settings.anchor);
+    object["offsetMM"] = pointToJson(settings.offsetMM);
+    object["scaleContent"] = settings.scaleContent;
+    object["preserveAspectRatio"] = settings.preserveAspectRatio;
+    object["scaleAnnotationsAndFormFields"] = settings.scaleAnnotationsAndFormFields;
+    return object;
+}
+
+pdf::PDFPageGeometrySettings pageGeometrySettingsFromJson(const QJsonObject& object)
+{
+    pdf::PDFPageGeometrySettings settings;
+    settings.pageRange = object["pageRange"].toString(settings.pageRange);
+    settings.pageSubset = pdf::PDFPageGeometrySettings::PageSubset(object["pageSubset"].toInt(int(settings.pageSubset)));
+    settings.referenceBox = pdf::PDFPageGeometrySettings::ReferenceBox(object["referenceBox"].toInt(int(settings.referenceBox)));
+    settings.applyMediaBox = object["applyMediaBox"].toBool(settings.applyMediaBox);
+    settings.applyCropBox = object["applyCropBox"].toBool(settings.applyCropBox);
+    settings.applyBleedBox = object["applyBleedBox"].toBool(settings.applyBleedBox);
+    settings.applyTrimBox = object["applyTrimBox"].toBool(settings.applyTrimBox);
+    settings.applyArtBox = object["applyArtBox"].toBool(settings.applyArtBox);
+    settings.useTargetPageSize = object["useTargetPageSize"].toBool(settings.useTargetPageSize);
+    settings.targetPageSizeMM = sizeFromJson(object["targetPageSizeMM"].toObject(), settings.targetPageSizeMM);
+    settings.marginsMM = marginsFromJson(object["marginsMM"].toObject(), settings.marginsMM);
+    settings.anchor = pdf::PDFPageGeometrySettings::Anchor(object["anchor"].toInt(int(settings.anchor)));
+    settings.offsetMM = pointFromJson(object["offsetMM"].toObject(), settings.offsetMM);
+    settings.scaleContent = object["scaleContent"].toBool(settings.scaleContent);
+    settings.preserveAspectRatio = object["preserveAspectRatio"].toBool(settings.preserveAspectRatio);
+    settings.scaleAnnotationsAndFormFields = object["scaleAnnotationsAndFormFields"].toBool(settings.scaleAnnotationsAndFormFields);
+    return settings;
 }
 
 void replaceInString(QString& templateString, QChar character, int number)
@@ -410,6 +525,10 @@ MainWindow::MainWindow(QWidget* parent) :
     m_insertPDFPagesAction(nullptr),
     m_splitAction(nullptr),
     m_selectPageRangeAction(nullptr),
+    m_saveWorkspaceAction(nullptr),
+    m_openWorkspaceAction(nullptr),
+    m_saveCheckpointAction(nullptr),
+    m_loadCheckpointAction(nullptr),
     m_clearSearchAction(nullptr),
     m_selectVisibleAction(nullptr),
     m_searchEdit(new QLineEdit(this)),
@@ -513,6 +632,14 @@ MainWindow::MainWindow(QWidget* parent) :
     m_splitAction->setData(int(Operation::Split));
     m_selectPageRangeAction = new QAction(tr("Select Page Range..."), this);
     m_selectPageRangeAction->setData(int(Operation::SelectPageRange));
+    m_saveWorkspaceAction = new QAction(tr("Save Workspace..."), this);
+    m_saveWorkspaceAction->setData(int(Operation::SaveWorkspace));
+    m_openWorkspaceAction = new QAction(tr("Open Workspace..."), this);
+    m_openWorkspaceAction->setData(int(Operation::OpenWorkspace));
+    m_saveCheckpointAction = new QAction(tr("Save Checkpoint..."), this);
+    m_saveCheckpointAction->setData(int(Operation::SaveCheckpoint));
+    m_loadCheckpointAction = new QAction(tr("Load Checkpoint..."), this);
+    m_loadCheckpointAction->setData(int(Operation::LoadCheckpoint));
     m_clearSearchAction = new QAction(tr("Clear Search"), this);
     m_selectVisibleAction = new QAction(tr("Select Visible"), this);
     m_selectVisibleAction->setData(int(Operation::SelectVisible));
@@ -525,6 +652,12 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->menuEdit->addAction(m_resetRotationAction);
     ui->menuEdit->addAction(m_renameGroupAction);
     ui->menuEdit->addAction(m_propertiesAction);
+    ui->menuFile->insertAction(ui->actionAddDocuments, m_openWorkspaceAction);
+    ui->menuFile->insertAction(ui->actionAddDocuments, m_saveWorkspaceAction);
+    ui->menuFile->insertSeparator(ui->actionAddDocuments);
+    ui->menuFile->insertAction(ui->actionClear, m_saveCheckpointAction);
+    ui->menuFile->insertAction(ui->actionClear, m_loadCheckpointAction);
+    ui->menuFile->insertSeparator(ui->actionClear);
     ui->menuInsert->addAction(m_insertPDFPagesAction);
     ui->menuMake->addSeparator();
     ui->menuMake->addAction(m_splitAction);
@@ -1141,6 +1274,16 @@ bool MainWindow::canPerformOperation(Operation operation) const
         case Operation::ShowDocumentTitle:
         case Operation::ShowDetailsView:
             return true;
+
+        case Operation::OpenWorkspace:
+            return true;
+
+        case Operation::SaveWorkspace:
+        case Operation::SaveCheckpoint:
+            return !isModelEmpty;
+
+        case Operation::LoadCheckpoint:
+            return !m_checkpoints.empty();
 
         case Operation::SortByFileName:
         case Operation::SortBySource:
@@ -1782,6 +1925,430 @@ void MainWindow::selectPageRange()
     dialog.exec();
 }
 
+QJsonObject MainWindow::createWorkspaceStateJson() const
+{
+    QJsonObject state;
+    QJsonArray imageDisplayNames;
+    for (const auto& imageItem : m_model->getImages())
+    {
+        QJsonObject imageObject;
+        imageObject["id"] = imageItem.first;
+        imageObject["displayName"] = imageItem.second.displayName;
+        imageDisplayNames.append(imageObject);
+    }
+    state["imageDisplayNames"] = imageDisplayNames;
+
+    QJsonArray itemsArray;
+    for (const PageGroupItem& item : m_model->getPageGroupItems())
+    {
+        QJsonObject itemObject;
+        itemObject["customName"] = item.customName;
+
+        QJsonArray groupsArray;
+        for (const PageGroupItem::GroupItem& groupItem : item.groups)
+        {
+            QJsonObject groupObject;
+            groupObject["type"] = int(groupItem.pageType);
+            groupObject["documentIndex"] = groupItem.documentIndex;
+            groupObject["imageIndex"] = int(groupItem.imageIndex);
+            groupObject["pageIndex"] = qint64(groupItem.pageIndex);
+            groupObject["sizeMM"] = sizeToJson(groupItem.rotatedPageDimensionsMM);
+            groupObject["rotation"] = pageRotationToInt(groupItem.pageAdditionalRotation);
+            groupsArray.append(groupObject);
+        }
+        itemObject["groups"] = groupsArray;
+        itemsArray.append(itemObject);
+    }
+    state["items"] = itemsArray;
+    return state;
+}
+
+bool MainWindow::restoreWorkspaceStateFromJson(const QJsonObject& state, QString* errorMessage)
+{
+    const std::map<int, DocumentItem>& documents = m_model->getDocuments();
+    std::map<int, ImageItem> images = m_model->getImages();
+
+    const QJsonArray imageDisplayNames = state["imageDisplayNames"].toArray();
+    for (const QJsonValue& value : imageDisplayNames)
+    {
+        const QJsonObject object = value.toObject();
+        const int id = object["id"].toInt(-1);
+        auto it = images.find(id);
+        if (it != images.end())
+        {
+            it->second.displayName = object["displayName"].toString(it->second.displayName);
+        }
+    }
+
+    std::vector<PageGroupItem> pageGroupItems;
+    const QJsonArray itemsArray = state["items"].toArray();
+    pageGroupItems.reserve(itemsArray.size());
+    for (const QJsonValue& itemValue : itemsArray)
+    {
+        const QJsonObject itemObject = itemValue.toObject();
+        PageGroupItem item;
+        item.customName = itemObject["customName"].toString();
+
+        const QJsonArray groupsArray = itemObject["groups"].toArray();
+        for (const QJsonValue& groupValue : groupsArray)
+        {
+            const QJsonObject groupObject = groupValue.toObject();
+            PageGroupItem::GroupItem groupItem;
+            groupItem.pageType = PageType(groupObject["type"].toInt(int(PT_DocumentPage)));
+            groupItem.documentIndex = groupObject["documentIndex"].toInt(-1);
+            groupItem.imageIndex = groupObject["imageIndex"].toInt(-1);
+            groupItem.pageIndex = groupObject["pageIndex"].toInteger(-1);
+            groupItem.rotatedPageDimensionsMM = sizeFromJson(groupObject["sizeMM"].toObject(), QSizeF(210.0, 297.0));
+            groupItem.pageAdditionalRotation = pageRotationFromInt(groupObject["rotation"].toInt());
+
+            if (groupItem.pageType == PT_DocumentPage && documents.find(groupItem.documentIndex) == documents.end())
+            {
+                if (errorMessage)
+                {
+                    *errorMessage = tr("Workspace references a PDF source that is not loaded.");
+                }
+                return false;
+            }
+            if (groupItem.pageType == PT_Image && images.find(groupItem.imageIndex) == images.end())
+            {
+                if (errorMessage)
+                {
+                    *errorMessage = tr("Workspace references an image source that is not loaded.");
+                }
+                return false;
+            }
+
+            item.groups.push_back(groupItem);
+        }
+
+        if (!item.groups.empty())
+        {
+            pageGroupItems.push_back(std::move(item));
+        }
+    }
+
+    m_model->setWorkspaceState(std::move(images), std::move(pageGroupItems));
+    QPixmapCache::clear();
+    updateActions();
+    return true;
+}
+
+QJsonObject MainWindow::createProjectJson() const
+{
+    QJsonObject project;
+    project["format"] = QStringLiteral("Pdf4QtPageMasterWorkspace");
+    project["version"] = 1;
+
+    QJsonArray documentsArray;
+    for (const auto& documentItem : m_model->getDocuments())
+    {
+        QJsonObject object;
+        object["id"] = documentItem.first;
+        object["path"] = documentItem.second.fileName;
+        documentsArray.append(object);
+    }
+    project["documents"] = documentsArray;
+
+    QJsonArray imagesArray;
+    for (const auto& imageItem : m_model->getImages())
+    {
+        const ImageItem& image = imageItem.second;
+        QJsonObject object;
+        object["id"] = imageItem.first;
+        object["fileName"] = image.fileName;
+        object["displayName"] = image.displayName;
+        object["sourcePath"] = image.sourcePath;
+        object["format"] = image.format;
+
+        QByteArray embeddedData = image.imageData;
+        QString embeddedFormat = image.format;
+        if (embeddedData.isEmpty() && !image.image.isNull())
+        {
+            QBuffer buffer(&embeddedData);
+            buffer.open(QIODevice::WriteOnly);
+            image.image.save(&buffer, "PNG");
+            embeddedFormat = QStringLiteral("png");
+        }
+        object["embeddedFormat"] = embeddedFormat;
+        object["embeddedData"] = QString::fromLatin1(embeddedData.toBase64());
+        imagesArray.append(object);
+    }
+    project["images"] = imagesArray;
+
+    project["workspace"] = createWorkspaceStateJson();
+
+    QJsonArray checkpointsArray;
+    for (const WorkspaceCheckpoint& checkpoint : m_checkpoints)
+    {
+        QJsonObject checkpointObject;
+        checkpointObject["name"] = checkpoint.name;
+        checkpointObject["state"] = checkpoint.state;
+        checkpointsArray.append(checkpointObject);
+    }
+    project["checkpoints"] = checkpointsArray;
+
+    QJsonObject settingsObject;
+    settingsObject["directory"] = m_settings.directory;
+    QJsonObject pageGeometryObject;
+    pageGeometryObject["enabled"] = m_hasPageGeometrySettings;
+    pageGeometryObject["settings"] = pageGeometrySettingsToJson(m_pageGeometrySettings);
+    settingsObject["pageGeometry"] = pageGeometryObject;
+    project["settings"] = settingsObject;
+
+    return project;
+}
+
+bool MainWindow::loadProjectJson(const QJsonObject& project, QString* errorMessage)
+{
+    if (project["format"].toString() != QStringLiteral("Pdf4QtPageMasterWorkspace"))
+    {
+        if (errorMessage)
+        {
+            *errorMessage = tr("The selected file is not a PageMaster workspace project.");
+        }
+        return false;
+    }
+
+    std::map<int, DocumentItem> documents;
+    QStringList missingSources;
+    const QJsonArray documentsArray = project["documents"].toArray();
+    for (const QJsonValue& value : documentsArray)
+    {
+        const QJsonObject object = value.toObject();
+        const int id = object["id"].toInt(-1);
+        const QString path = object["path"].toString();
+        if (id < 0 || path.isEmpty())
+        {
+            continue;
+        }
+        if (!QFileInfo::exists(path))
+        {
+            missingSources << path;
+            continue;
+        }
+
+        QFileInfo fileInfo(path);
+        auto queryPassword = [this, &fileInfo](bool* ok)
+        {
+            *ok = false;
+            return QInputDialog::getText(this, tr("Encrypted document"), tr("Enter password to access document '%1'").arg(fileInfo.fileName()), QLineEdit::Password, QString(), ok);
+        };
+
+        pdf::PDFDocumentReader reader(nullptr, qMove(queryPassword), true, false);
+        pdf::PDFDocument document = reader.readFromFile(path);
+        if (reader.getReadingResult() != pdf::PDFDocumentReader::Result::OK)
+        {
+            if (errorMessage)
+            {
+                *errorMessage = reader.getErrorMessage();
+            }
+            return false;
+        }
+        documents[id] = { path, qMove(document) };
+    }
+
+    std::map<int, ImageItem> images;
+    const QJsonArray imagesArray = project["images"].toArray();
+    for (const QJsonValue& value : imagesArray)
+    {
+        const QJsonObject object = value.toObject();
+        const int id = object["id"].toInt(-1);
+        if (id < 0)
+        {
+            continue;
+        }
+
+        ImageItem imageItem;
+        imageItem.fileName = object["fileName"].toString();
+        imageItem.displayName = object["displayName"].toString();
+        imageItem.sourcePath = object["sourcePath"].toString();
+        imageItem.format = object["format"].toString();
+
+        const QString imagePath = !imageItem.sourcePath.isEmpty() ? imageItem.sourcePath : imageItem.fileName;
+        if (!imagePath.isEmpty() && QFileInfo::exists(imagePath))
+        {
+            QFile file(imagePath);
+            if (file.open(QFile::ReadOnly))
+            {
+                imageItem.imageData = file.readAll();
+            }
+            QImageReader reader(imagePath);
+            imageItem.image = reader.read();
+            if (imageItem.format.isEmpty())
+            {
+                imageItem.format = QString::fromLatin1(reader.format()).toLower();
+            }
+        }
+
+        if (imageItem.image.isNull())
+        {
+            imageItem.imageData = QByteArray::fromBase64(object["embeddedData"].toString().toLatin1());
+            imageItem.image.loadFromData(imageItem.imageData);
+            if (imageItem.format.isEmpty())
+            {
+                imageItem.format = object["embeddedFormat"].toString();
+            }
+        }
+
+        if (imageItem.image.isNull())
+        {
+            missingSources << imagePath;
+            continue;
+        }
+
+        images[id] = std::move(imageItem);
+    }
+
+    if (!missingSources.isEmpty())
+    {
+        if (errorMessage)
+        {
+            *errorMessage = tr("The following workspace sources are missing:\n%1").arg(missingSources.join(QLatin1Char('\n')));
+        }
+        return false;
+    }
+
+    m_model->setWorkspaceData(std::move(documents), std::move(images), {});
+    if (!restoreWorkspaceStateFromJson(project["workspace"].toObject(), errorMessage))
+    {
+        return false;
+    }
+
+    m_checkpoints.clear();
+    const QJsonArray checkpointsArray = project["checkpoints"].toArray();
+    for (const QJsonValue& value : checkpointsArray)
+    {
+        const QJsonObject checkpointObject = value.toObject();
+        WorkspaceCheckpoint checkpoint;
+        checkpoint.name = checkpointObject["name"].toString();
+        checkpoint.state = checkpointObject["state"].toObject();
+        if (!checkpoint.name.isEmpty() && !checkpoint.state.isEmpty())
+        {
+            m_checkpoints.push_back(std::move(checkpoint));
+        }
+    }
+
+    const QJsonObject settingsObject = project["settings"].toObject();
+    m_settings.directory = settingsObject["directory"].toString(m_settings.directory);
+    const QJsonObject pageGeometryObject = settingsObject["pageGeometry"].toObject();
+    m_hasPageGeometrySettings = pageGeometryObject["enabled"].toBool(false);
+    if (pageGeometryObject.contains("settings"))
+    {
+        m_pageGeometrySettings = pageGeometrySettingsFromJson(pageGeometryObject["settings"].toObject());
+    }
+
+    updateActions();
+    return true;
+}
+
+void MainWindow::saveWorkspace()
+{
+    QString fileName = QFileDialog::getSaveFileName(this, tr("Save Workspace"), m_settings.directory, tr("PageMaster Workspace (*.pagemaster)"));
+    if (fileName.isEmpty())
+    {
+        return;
+    }
+    if (!fileName.endsWith(QStringLiteral(".pagemaster"), Qt::CaseInsensitive))
+    {
+        fileName += QStringLiteral(".pagemaster");
+    }
+
+    QSaveFile file(fileName);
+    if (!file.open(QIODevice::WriteOnly))
+    {
+        QMessageBox::critical(this, tr("Error"), tr("Cannot write workspace file '%1'.").arg(fileName));
+        return;
+    }
+
+    const QJsonDocument document(createProjectJson());
+    file.write(document.toJson(QJsonDocument::Indented));
+    if (!file.commit())
+    {
+        QMessageBox::critical(this, tr("Error"), tr("Cannot write workspace file '%1'.").arg(fileName));
+        return;
+    }
+
+    m_settings.directory = QFileInfo(fileName).absolutePath();
+}
+
+void MainWindow::openWorkspace()
+{
+    const QString fileName = QFileDialog::getOpenFileName(this, tr("Open Workspace"), m_settings.directory, tr("PageMaster Workspace (*.pagemaster)"));
+    if (fileName.isEmpty())
+    {
+        return;
+    }
+
+    QFile file(fileName);
+    if (!file.open(QIODevice::ReadOnly))
+    {
+        QMessageBox::critical(this, tr("Error"), tr("Cannot open workspace file '%1'.").arg(fileName));
+        return;
+    }
+
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject())
+    {
+        QMessageBox::critical(this, tr("Error"), tr("Cannot parse workspace JSON: %1").arg(parseError.errorString()));
+        return;
+    }
+
+    QString errorMessage;
+    if (!loadProjectJson(document.object(), &errorMessage))
+    {
+        QMessageBox::critical(this, tr("Error"), errorMessage);
+        return;
+    }
+
+    m_settings.directory = QFileInfo(fileName).absolutePath();
+}
+
+void MainWindow::saveCheckpoint()
+{
+    const QString defaultName = tr("Checkpoint #%1").arg(m_checkpoints.size() + 1);
+    bool ok = false;
+    const QString name = QInputDialog::getText(this, tr("Save Checkpoint"), tr("Checkpoint name"), QLineEdit::Normal, defaultName, &ok).trimmed();
+    if (!ok || name.isEmpty())
+    {
+        return;
+    }
+
+    WorkspaceCheckpoint checkpoint;
+    checkpoint.name = name;
+    checkpoint.state = createWorkspaceStateJson();
+    m_checkpoints.push_back(std::move(checkpoint));
+    updateActions();
+}
+
+void MainWindow::loadCheckpoint()
+{
+    QStringList checkpointNames;
+    for (const WorkspaceCheckpoint& checkpoint : m_checkpoints)
+    {
+        checkpointNames << checkpoint.name;
+    }
+
+    bool ok = false;
+    const QString name = QInputDialog::getItem(this, tr("Load Checkpoint"), tr("Checkpoint"), checkpointNames, qMax(0, checkpointNames.size() - 1), false, &ok);
+    if (!ok || name.isEmpty())
+    {
+        return;
+    }
+
+    auto it = std::find_if(m_checkpoints.cbegin(), m_checkpoints.cend(), [&name](const WorkspaceCheckpoint& checkpoint) { return checkpoint.name == name; });
+    if (it == m_checkpoints.cend())
+    {
+        return;
+    }
+
+    QString errorMessage;
+    if (!restoreWorkspaceStateFromJson(it->state, &errorMessage))
+    {
+        QMessageBox::critical(this, tr("Error"), errorMessage);
+    }
+}
+
 void MainWindow::performOperation(Operation operation)
 {
     switch (operation)
@@ -1789,7 +2356,9 @@ void MainWindow::performOperation(Operation operation)
         case Operation::Clear:
         {
             m_model->clear();
+            m_checkpoints.clear();
             QPixmapCache::clear();
+            updateActions();
             break;
         }
         case Operation::CloneSelection:
@@ -2045,6 +2614,22 @@ void MainWindow::performOperation(Operation operation)
 
         case Operation::Properties:
             showItemProperties();
+            break;
+
+        case Operation::SaveWorkspace:
+            saveWorkspace();
+            break;
+
+        case Operation::OpenWorkspace:
+            openWorkspace();
+            break;
+
+        case Operation::SaveCheckpoint:
+            saveCheckpoint();
+            break;
+
+        case Operation::LoadCheckpoint:
+            loadCheckpoint();
             break;
 
         case Operation::Unite:

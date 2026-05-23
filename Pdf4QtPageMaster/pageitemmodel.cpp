@@ -956,6 +956,35 @@ void PageItemModel::setImageDisplayName(int imageIndex, const QString& displayNa
     }
 }
 
+void PageItemModel::setWorkspaceData(std::map<int, DocumentItem> documents, std::map<int, ImageItem> images, std::vector<PageGroupItem> pageGroupItems)
+{
+    beginResetModel();
+    m_documents = std::move(documents);
+    m_images = std::move(images);
+    for (PageGroupItem& item : pageGroupItems)
+    {
+        updateItemCaptionAndTags(item);
+    }
+    m_pageGroupItems = std::move(pageGroupItems);
+    m_trashBin.clear();
+    clearUndoRedo();
+    endResetModel();
+}
+
+void PageItemModel::setWorkspaceState(std::map<int, ImageItem> images, std::vector<PageGroupItem> pageGroupItems)
+{
+    beginResetModel();
+    m_images = std::move(images);
+    for (PageGroupItem& item : pageGroupItems)
+    {
+        updateItemCaptionAndTags(item);
+    }
+    m_pageGroupItems = std::move(pageGroupItems);
+    m_trashBin.clear();
+    clearUndoRedo();
+    endResetModel();
+}
+
 QString PageItemModel::getItemDisplayText(const PageGroupItem *item) const
 {
     if (!item->customName.isEmpty())
