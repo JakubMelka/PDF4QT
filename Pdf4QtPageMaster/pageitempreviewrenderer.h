@@ -33,6 +33,7 @@
 #include <QFutureWatcher>
 #include <QImage>
 #include <QList>
+#include <QMarginsF>
 #include <QMutex>
 #include <QObject>
 #include <QPointer>
@@ -133,6 +134,8 @@ private:
         int documentIndex = -1;
         pdf::PDFInteger pageIndex = -1;
         QImage image;
+        QSizeF sourcePageSize;
+        QMarginsF cropMarginsMM;
         pdf::PageRotation pageAdditionalRotation = pdf::PageRotation::None;
         QSize logicalSize;
         qreal devicePixelRatio = 1.0;

@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>CropPagesDialog</class>
+ <widget class="QDialog" name="CropPagesDialog">
+  <property name="windowTitle">
+   <string>Crop Pages</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QLabel" name="descriptionLabel">
+     <property name="text">
+      <string>Crop selected workspace pages. PDF pages are cropped in assembled output; images are cropped before being placed into output pages.</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QFormLayout" name="formLayout">
+     <item row="0" column="0">
+      <widget class="QLabel" name="pageSizeLabel">
+       <property name="text">
+        <string>Reference page size</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <widget class="QLabel" name="pageSizeValueLabel"/>
+     </item>
+     <item row="1" column="0">
+      <widget class="QLabel" name="scopeLabel">
+       <property name="text">
+        <string>Apply</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="1">
+      <widget class="QComboBox" name="scopeComboBox"/>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="presetGroupBox">
+     <property name="title">
+      <string>Preset</string>
+     </property>
+     <layout class="QVBoxLayout" name="presetLayout">
+      <item>
+       <widget class="QRadioButton" name="equalMarginsRadioButton">
+        <property name="text">
+         <string>Crop margins equally</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QFormLayout" name="equalMarginsLayout">
+        <item row="0" column="0">
+         <widget class="QLabel" name="equalMarginLabel">
+          <property name="text">
+           <string>Margin</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QDoubleSpinBox" name="equalMarginSpinBox"/>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QRadioButton" name="manualBoxRadioButton">
+        <property name="text">
+         <string>Set crop box manually</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QFormLayout" name="manualBoxLayout">
+        <item row="0" column="0">
+         <widget class="QLabel" name="cropLeftLabel">
+          <property name="text">
+           <string>Left</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="QDoubleSpinBox" name="cropLeftSpinBox"/>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="cropTopLabel">
+          <property name="text">
+           <string>Top</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QDoubleSpinBox" name="cropTopSpinBox"/>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="cropWidthLabel">
+          <property name="text">
+           <string>Width</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QDoubleSpinBox" name="cropWidthSpinBox"/>
+        </item>
+        <item row="3" column="0">
+         <widget class="QLabel" name="cropHeightLabel">
+          <property name="text">
+           <string>Height</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="1">
+         <widget class="QDoubleSpinBox" name="cropHeightSpinBox"/>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <layout class="QFormLayout" name="resultLayout">
+     <item row="0" column="0">
+      <widget class="QLabel" name="resultLabel">
+       <property name="text">
+        <string>Resulting page size</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <widget class="QLabel" name="resultValueLabel"/>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QLabel" name="previewLabel">
+     <property name="minimumSize">
+      <size>
+       <width>220</width>
+       <height>150</height>
+      </size>
+     </property>
+     <property name="frameShape">
+      <enum>QFrame::StyledPanel</enum>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>accepted()</signal>
+   <receiver>CropPagesDialog</receiver>
+   <slot>accept()</slot>
+  </connection>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>rejected()</signal>
+   <receiver>CropPagesDialog</receiver>
+   <slot>reject()</slot>
+  </connection>
+ </connections>
+</ui>

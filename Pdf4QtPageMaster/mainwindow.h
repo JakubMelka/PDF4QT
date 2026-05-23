@@ -87,6 +87,7 @@ public:
         Ungroup,
         RenameGroup,
         Properties,
+        CropPages,
 
         SelectNone,
         SelectAll,
@@ -165,6 +166,7 @@ private:
     void selectSourceSelection(const QItemSelection& selection, bool addToExisting = false);
     void setDetailsViewVisible(bool visible);
     void showItemProperties();
+    void cropPages();
     void saveWorkspace();
     void openWorkspace();
     void saveCheckpoint();
@@ -197,6 +199,7 @@ private:
     QAction* m_resetRotationAction;
     QAction* m_renameGroupAction;
     QAction* m_propertiesAction;
+    QAction* m_cropPagesAction;
     QAction* m_showDetailsViewAction;
     QAction* m_insertPDFPagesAction;
     QAction* m_splitAction;

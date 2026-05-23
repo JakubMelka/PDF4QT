@@ -174,7 +174,7 @@ QRect PageItemDelegate::getPageImageRect(const PageGroupItem* item, const QRect&
     }
 
     const PageGroupItem::GroupItem& groupItem = item->groups.front();
-    QSizeF rotatedPageSize = pdf::PDFPage::getRotatedBox(QRectF(QPointF(0, 0), groupItem.rotatedPageDimensionsMM), groupItem.pageAdditionalRotation).size();
+    QSizeF rotatedPageSize = pdf::PDFPage::getRotatedBox(QRectF(QPointF(0, 0), PageItemModel::getCroppedPageDimensionsMM(groupItem)), groupItem.pageAdditionalRotation).size();
     QSize pageImageSize = rotatedPageSize.scaled(pageBoundingRect.size(), Qt::KeepAspectRatio).toSize();
     return QRect(pageBoundingRect.topLeft() + QPoint((pageBoundingRect.width() - pageImageSize.width()) / 2, (pageBoundingRect.height() - pageImageSize.height()) / 2), pageImageSize);
 }

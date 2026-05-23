@@ -30,6 +30,7 @@
 #include <QImage>
 #include <QItemSelection>
 #include <QAbstractItemModel>
+#include <QMarginsF>
 
 #include <functional>
 
@@ -54,19 +55,20 @@ struct PageGroupItem
 
     struct GroupItem
     {
-        auto operator<=>(const GroupItem&) const = default;
+        bool operator==(const GroupItem&) const = default;
 
         int documentIndex = -1;
         pdf::PDFInteger pageIndex = -1;
         pdf::PDFInteger imageIndex = -1;
         QSizeF rotatedPageDimensionsMM; ///< Rotated page dimensions, but without additional rotation
+        QMarginsF cropMarginsMM; ///< Visual/output crop margins in millimeters: left, top, right, bottom
         pdf::PageRotation pageAdditionalRotation = pdf::PageRotation::None; ///< Additional rotation applied to the page
         PageType pageType = PT_DocumentPage;
     };
 
     std::vector<GroupItem> groups;
 
-    auto operator<=>(const PageGroupItem&) const = default;
+    bool operator==(const PageGroupItem&) const = default;
 
     bool isGrouped() const { return groups.size() > 1; }
 
@@ -225,6 +227,7 @@ public:
     void sortItems(const QModelIndexList& list, SortMode mode, Qt::SortOrder order);
     void renameItems(const QModelIndexList& list, const QString& name);
     void setImageDisplayName(int imageIndex, const QString& displayName);
+    void cropItems(const QModelIndexList& list, const QMarginsF& cropMarginsMM, bool applyToSameSource);
 
     static QString getMimeDataType() { return QLatin1String("application/pagemodel.PDF4QtPageMaster"); }
 
@@ -257,6 +260,8 @@ public:
     QString getItemSourceFileName(const PageGroupItem* item) const;
     QString getItemSourceBaseName(const PageGroupItem* item) const;
     QString getItemSourceExtension(const PageGroupItem* item) const;
+    static QSizeF getCroppedPageDimensionsMM(const PageGroupItem::GroupItem& groupItem);
+    static bool isCropped(const PageGroupItem::GroupItem& groupItem);
 
     SelectionInfo getSelectionInfo(const QModelIndexList& list) const;
 

@@ -25,6 +25,7 @@
 
 #include "aboutdialog.h"
 #include "assembleoutputsettingsdialog.h"
+#include "croppagesdialog.h"
 #include "itempropertiesdialog.h"
 #include "pdfpageimportdialog.h"
 #include "selectoutlinetoregroupdialog.h"
@@ -521,6 +522,7 @@ MainWindow::MainWindow(QWidget* parent) :
     m_resetRotationAction(nullptr),
     m_renameGroupAction(nullptr),
     m_propertiesAction(nullptr),
+    m_cropPagesAction(nullptr),
     m_showDetailsViewAction(nullptr),
     m_insertPDFPagesAction(nullptr),
     m_splitAction(nullptr),
@@ -623,6 +625,8 @@ MainWindow::MainWindow(QWidget* parent) :
     m_renameGroupAction->setData(int(Operation::RenameGroup));
     m_propertiesAction = new QAction(tr("Properties..."), this);
     m_propertiesAction->setData(int(Operation::Properties));
+    m_cropPagesAction = new QAction(tr("Crop Pages..."), this);
+    m_cropPagesAction->setData(int(Operation::CropPages));
     m_showDetailsViewAction = new QAction(tr("Details View"), this);
     m_showDetailsViewAction->setCheckable(true);
     m_showDetailsViewAction->setData(int(Operation::ShowDetailsView));
@@ -651,6 +655,7 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->menuView->insertAction(ui->actionSelect_Even, m_selectPageRangeAction);
     ui->menuEdit->addAction(m_resetRotationAction);
     ui->menuEdit->addAction(m_renameGroupAction);
+    ui->menuEdit->addAction(m_cropPagesAction);
     ui->menuEdit->addAction(m_propertiesAction);
     ui->menuFile->insertAction(ui->actionAddDocuments, m_openWorkspaceAction);
     ui->menuFile->insertAction(ui->actionAddDocuments, m_saveWorkspaceAction);
@@ -723,6 +728,7 @@ MainWindow::MainWindow(QWidget* parent) :
     mainToolbar->addActions({ ui->actionGroup, ui->actionUngroup });
     mainToolbar->addSeparator();
     mainToolbar->addAction(ui->actionPageGeometry);
+    mainToolbar->addAction(m_cropPagesAction);
     mainToolbar->addAction(m_propertiesAction);
     QToolBar* insertToolbar = addToolBar(tr("&Insert"));
     insertToolbar->setObjectName("insert_toolbar");
@@ -902,6 +908,7 @@ void MainWindow::onWorkspaceCustomContextMenuRequested(const QPoint& point)
     contextMenu->addAction(ui->actionGroup);
     contextMenu->addAction(ui->actionUngroup);
     contextMenu->addAction(m_renameGroupAction);
+    contextMenu->addAction(m_cropPagesAction);
     contextMenu->addSeparator();
     contextMenu->addAction(m_sortByFileNameAction);
     contextMenu->addAction(m_reverseOrderAction);
@@ -1110,6 +1117,31 @@ void MainWindow::showItemProperties()
     }
 }
 
+void MainWindow::cropPages()
+{
+    const QModelIndexList selection = getSelectedRows();
+    if (selection.isEmpty())
+    {
+        return;
+    }
+
+    const PageGroupItem* item = m_model->getItem(selection.front());
+    if (!item || item->groups.empty())
+    {
+        return;
+    }
+
+    const QSizeF referenceSize = PageItemModel::getCroppedPageDimensionsMM(item->groups.front());
+    CropPagesDialog dialog(referenceSize, this);
+    if (dialog.exec() != QDialog::Accepted)
+    {
+        return;
+    }
+
+    m_model->cropItems(selection, dialog.getCropMarginsMM(), dialog.isApplyToSameSource());
+    QPixmapCache::clear();
+}
+
 void MainWindow::updateSearchFilter()
 {
     m_filterModel->setFilterText(m_searchEdit->text());
@@ -1236,6 +1268,7 @@ bool MainWindow::canPerformOperation(Operation operation) const
         case Operation::Ungroup:
             return m_model->isGrouped(selection);
         case Operation::RenameGroup:
+        case Operation::CropPages:
         case Operation::Properties:
             return isSelected;
 
@@ -1953,6 +1986,7 @@ QJsonObject MainWindow::createWorkspaceStateJson() const
             groupObject["imageIndex"] = int(groupItem.imageIndex);
             groupObject["pageIndex"] = qint64(groupItem.pageIndex);
             groupObject["sizeMM"] = sizeToJson(groupItem.rotatedPageDimensionsMM);
+            groupObject["cropMarginsMM"] = marginsToJson(groupItem.cropMarginsMM);
             groupObject["rotation"] = pageRotationToInt(groupItem.pageAdditionalRotation);
             groupsArray.append(groupObject);
         }
@@ -1999,6 +2033,7 @@ bool MainWindow::restoreWorkspaceStateFromJson(const QJsonObject& state, QString
             groupItem.imageIndex = groupObject["imageIndex"].toInt(-1);
             groupItem.pageIndex = groupObject["pageIndex"].toInteger(-1);
             groupItem.rotatedPageDimensionsMM = sizeFromJson(groupObject["sizeMM"].toObject(), QSizeF(210.0, 297.0));
+            groupItem.cropMarginsMM = marginsFromJson(groupObject["cropMarginsMM"].toObject(), QMarginsF());
             groupItem.pageAdditionalRotation = pageRotationFromInt(groupObject["rotation"].toInt());
 
             if (groupItem.pageType == PT_DocumentPage && documents.find(groupItem.documentIndex) == documents.end())
@@ -2614,6 +2649,10 @@ void MainWindow::performOperation(Operation operation)
 
         case Operation::Properties:
             showItemProperties();
+            break;
+
+        case Operation::CropPages:
+            cropPages();
             break;
 
         case Operation::SaveWorkspace:

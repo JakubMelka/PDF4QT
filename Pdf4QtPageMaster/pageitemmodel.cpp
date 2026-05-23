@@ -350,12 +350,12 @@ QItemSelection PageItemModel::getSelectionOdd() const
 
 QItemSelection PageItemModel::getSelectionPortrait() const
 {
-    return getSelectionImpl([](const PageGroupItem::GroupItem& groupItem) { return groupItem.rotatedPageDimensionsMM.width() <= groupItem.rotatedPageDimensionsMM.height(); });
+    return getSelectionImpl([](const PageGroupItem::GroupItem& groupItem) { return PageItemModel::getCroppedPageDimensionsMM(groupItem).width() <= PageItemModel::getCroppedPageDimensionsMM(groupItem).height(); });
 }
 
 QItemSelection PageItemModel::getSelectionLandscape() const
 {
-    return getSelectionImpl([](const PageGroupItem::GroupItem& groupItem) { return groupItem.rotatedPageDimensionsMM.width() >= groupItem.rotatedPageDimensionsMM.height(); });
+    return getSelectionImpl([](const PageGroupItem::GroupItem& groupItem) { return PageItemModel::getCroppedPageDimensionsMM(groupItem).width() >= PageItemModel::getCroppedPageDimensionsMM(groupItem).height(); });
 }
 
 void PageItemModel::group(const QModelIndexList& list)
@@ -985,6 +985,112 @@ void PageItemModel::setWorkspaceState(std::map<int, ImageItem> images, std::vect
     endResetModel();
 }
 
+void PageItemModel::cropItems(const QModelIndexList& list, const QMarginsF& cropMarginsMM, bool applyToSameSource)
+{
+    if (list.isEmpty())
+    {
+        return;
+    }
+
+    std::set<int> selectedRows;
+    std::set<int> documentSources;
+    std::set<int> imageSources;
+    for (const QModelIndex& index : list)
+    {
+        if (!index.isValid())
+        {
+            continue;
+        }
+
+        selectedRows.insert(index.row());
+        if (const PageGroupItem* item = getItem(index))
+        {
+            for (const PageGroupItem::GroupItem& groupItem : item->groups)
+            {
+                if (groupItem.pageType == PT_DocumentPage && groupItem.documentIndex != -1)
+                {
+                    documentSources.insert(groupItem.documentIndex);
+                }
+                else if (groupItem.pageType == PT_Image && groupItem.imageIndex != -1)
+                {
+                    imageSources.insert(int(groupItem.imageIndex));
+                }
+            }
+        }
+    }
+
+    if (selectedRows.empty())
+    {
+        return;
+    }
+
+    Modifier modifier(this);
+    int rowMin = rowCount(QModelIndex());
+    int rowMax = -1;
+
+    for (int row = 0; row < rowCount(QModelIndex()); ++row)
+    {
+        PageGroupItem& item = m_pageGroupItems[row];
+        bool itemChanged = false;
+        const bool isSelectedRow = selectedRows.count(row) != 0;
+
+        for (PageGroupItem::GroupItem& groupItem : item.groups)
+        {
+            bool shouldCrop = isSelectedRow;
+            if (applyToSameSource)
+            {
+                shouldCrop = (groupItem.pageType == PT_DocumentPage && documentSources.count(groupItem.documentIndex) != 0) ||
+                             (groupItem.pageType == PT_Image && imageSources.count(int(groupItem.imageIndex)) != 0);
+            }
+
+            if (!shouldCrop)
+            {
+                continue;
+            }
+
+            const QSizeF pageSize = groupItem.rotatedPageDimensionsMM;
+            QMarginsF normalizedMargins(qMax(0.0, cropMarginsMM.left()),
+                                        qMax(0.0, cropMarginsMM.top()),
+                                        qMax(0.0, cropMarginsMM.right()),
+                                        qMax(0.0, cropMarginsMM.bottom()));
+
+            const double maxHorizontalCrop = qMax(0.0, pageSize.width() - 1.0);
+            if (normalizedMargins.left() + normalizedMargins.right() > maxHorizontalCrop)
+            {
+                const double scale = maxHorizontalCrop / (normalizedMargins.left() + normalizedMargins.right());
+                normalizedMargins.setLeft(normalizedMargins.left() * scale);
+                normalizedMargins.setRight(normalizedMargins.right() * scale);
+            }
+
+            const double maxVerticalCrop = qMax(0.0, pageSize.height() - 1.0);
+            if (normalizedMargins.top() + normalizedMargins.bottom() > maxVerticalCrop)
+            {
+                const double scale = maxVerticalCrop / (normalizedMargins.top() + normalizedMargins.bottom());
+                normalizedMargins.setTop(normalizedMargins.top() * scale);
+                normalizedMargins.setBottom(normalizedMargins.bottom() * scale);
+            }
+
+            if (groupItem.cropMarginsMM != normalizedMargins)
+            {
+                groupItem.cropMarginsMM = normalizedMargins;
+                itemChanged = true;
+            }
+        }
+
+        if (itemChanged)
+        {
+            updateItemCaptionAndTags(item);
+            rowMin = qMin(rowMin, row);
+            rowMax = qMax(rowMax, row);
+        }
+    }
+
+    if (rowMax >= rowMin)
+    {
+        Q_EMIT dataChanged(index(rowMin, 0, QModelIndex()), index(rowMax, ColumnCount - 1, QModelIndex()));
+    }
+}
+
 QString PageItemModel::getItemDisplayText(const PageGroupItem *item) const
 {
     if (!item->customName.isEmpty())
@@ -1210,6 +1316,20 @@ QString PageItemModel::getItemSourceExtension(const PageGroupItem* item) const
     }
 
     return getSourceExtension(item->groups.front());
+}
+
+QSizeF PageItemModel::getCroppedPageDimensionsMM(const PageGroupItem::GroupItem& groupItem)
+{
+    return QSizeF(qMax(1.0, groupItem.rotatedPageDimensionsMM.width() - groupItem.cropMarginsMM.left() - groupItem.cropMarginsMM.right()),
+                  qMax(1.0, groupItem.rotatedPageDimensionsMM.height() - groupItem.cropMarginsMM.top() - groupItem.cropMarginsMM.bottom()));
+}
+
+bool PageItemModel::isCropped(const PageGroupItem::GroupItem& groupItem)
+{
+    return !qFuzzyIsNull(groupItem.cropMarginsMM.left()) ||
+           !qFuzzyIsNull(groupItem.cropMarginsMM.top()) ||
+           !qFuzzyIsNull(groupItem.cropMarginsMM.right()) ||
+           !qFuzzyIsNull(groupItem.cropMarginsMM.bottom());
 }
 
 void PageItemModel::regroupReversed(const QModelIndexList& list)
@@ -1796,9 +1916,10 @@ QString PageItemModel::getPageText(const PageGroupItem::GroupItem& groupItem) co
 
 QString PageItemModel::getSizeText(const PageGroupItem::GroupItem& groupItem) const
 {
+    const QSizeF croppedPageDimensions = getCroppedPageDimensionsMM(groupItem);
     QString text = QString("%1 x %2 mm")
-            .arg(groupItem.rotatedPageDimensionsMM.width(), 0, 'f', 1)
-            .arg(groupItem.rotatedPageDimensionsMM.height(), 0, 'f', 1);
+            .arg(croppedPageDimensions.width(), 0, 'f', 1)
+            .arg(croppedPageDimensions.height(), 0, 'f', 1);
 
     if (groupItem.pageType == PT_Image)
     {
@@ -1922,6 +2043,10 @@ void PageItemModel::updateItemCaptionAndTags(PageGroupItem& item) const
     if (hasImages)
     {
         item.tags << tr("#24A5EA@Image");
+    }
+    if (std::any_of(item.groups.cbegin(), item.groups.cend(), [](const PageGroupItem::GroupItem& group) { return PageItemModel::isCropped(group); }))
+    {
+        item.tags << tr("#9C5BD1@Crop");
     }
 }
 
@@ -2162,7 +2287,10 @@ pdf::PDFDocumentManipulator::AssembledPage PageItemModel::createAssembledPage(co
     }
 
     assembledPage.pageRotation = pdf::getPageRotationCombined(originalPageRotation, item.pageAdditionalRotation);
-    assembledPage.pageSize = item.rotatedPageDimensionsMM;
+    assembledPage.pageSize = getCroppedPageDimensionsMM(item);
+    assembledPage.cropMarginsMM = item.cropMarginsMM;
+    assembledPage.sourcePageSize = item.rotatedPageDimensionsMM;
+    assembledPage.sourcePageRotation = originalPageRotation;
 
     return assembledPage;
 }

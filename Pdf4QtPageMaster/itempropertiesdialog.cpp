@@ -128,9 +128,10 @@ QString ItemPropertiesDialog::getImagePixelDimensionsText(const PageGroupItem::G
 
 QString ItemPropertiesDialog::getPageSizeText(const PageGroupItem::GroupItem& groupItem) const
 {
+    const QSizeF pageSize = PageItemModel::getCroppedPageDimensionsMM(groupItem);
     return QString("%1 x %2 mm")
-            .arg(groupItem.rotatedPageDimensionsMM.width(), 0, 'f', 1)
-            .arg(groupItem.rotatedPageDimensionsMM.height(), 0, 'f', 1);
+            .arg(pageSize.width(), 0, 'f', 1)
+            .arg(pageSize.height(), 0, 'f', 1);
 }
 
 QString ItemPropertiesDialog::getRotationText(pdf::PageRotation rotation) const
