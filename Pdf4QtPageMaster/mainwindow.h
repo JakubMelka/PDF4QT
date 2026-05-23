@@ -31,7 +31,10 @@
 
 #include <QMainWindow>
 #include <QJsonObject>
+#include <QList>
+#include <QPoint>
 #include <QSignalMapper>
+#include <QUrl>
 
 namespace Ui
 {
@@ -39,8 +42,12 @@ class MainWindow;
 }
 
 class QAction;
+class QAbstractItemView;
+class QEvent;
+class QFrame;
 class QLabel;
 class QLineEdit;
+class QMimeData;
 class QTableView;
 
 namespace pdfpagemaster
@@ -138,6 +145,7 @@ public:
     };
 
 protected:
+    virtual bool eventFilter(QObject* watched, QEvent* event) override;
     virtual void resizeEvent(QResizeEvent* resizeEvent) override;
 
 private slots:
@@ -177,6 +185,16 @@ private:
     bool loadProjectJson(const QJsonObject& project, QString* errorMessage);
     void updateSearchFilter();
     void updateSearchResultLabel();
+    bool isWorkspaceExternalDrop(const QMimeData* mimeData) const;
+    bool isSupportedWorkspaceDropUrl(const QUrl& url) const;
+    QList<QUrl> getSupportedWorkspaceDropUrls(const QMimeData* mimeData, int* unsupportedCount) const;
+    QAbstractItemView* getWorkspaceDropView(QObject* watched) const;
+    int getWorkspaceDropInsertProxyRow(QAbstractItemView* view, const QPoint& viewportPosition) const;
+    int getWorkspaceDropInsertSourceRow(QAbstractItemView* view, const QPoint& viewportPosition) const;
+    void updateWorkspaceDropFeedback(QAbstractItemView* view, const QPoint& viewportPosition, int insertProxyRow, const QString& message, bool accepted);
+    void hideWorkspaceDropFeedback();
+    bool dropWorkspaceExternalMimeData(const QMimeData* mimeData, int insertSourceRow);
+    bool insertDocument(const QString& fileName, int insertRow, const std::vector<pdf::PDFInteger>& pages = {});
 
     struct Settings
     {
@@ -212,6 +230,9 @@ private:
     QAction* m_selectVisibleAction;
     QLineEdit* m_searchEdit;
     QLabel* m_searchResultLabel;
+    QLabel* m_dropFeedbackLabel;
+    QFrame* m_dropInsertionMarker;
+    QWidget* m_dropFeedbackViewport;
     Settings m_settings;
     QSignalMapper m_mapper;
     Qt::DropAction m_dropAction;

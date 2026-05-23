@@ -168,13 +168,19 @@ int PageItemModel::insertDocument(QString fileName, pdf::PDFDocument document, c
 
 int PageItemModel::insertDocument(QString fileName, pdf::PDFDocument document, const QModelIndex& index, const std::vector<pdf::PDFInteger>& pages)
 {
+    const int insertRow = index.isValid() ? index.row() + 1 : int(m_pageGroupItems.size());
+    return insertDocument(qMove(fileName), qMove(document), insertRow, pages);
+}
+
+int PageItemModel::insertDocument(QString fileName, pdf::PDFDocument document, int insertRow, const std::vector<pdf::PDFInteger>& pages)
+{
     Modifier modifier(this, pages.empty() ? tr("Add Documents") : tr("Insert PDF Pages"));
     auto it = std::find_if(m_documents.cbegin(), m_documents.cend(), [&](const auto& item) { return item.second.fileName == fileName; });
     if (it != m_documents.cend())
     {
         if (!pages.empty())
         {
-            createDocumentGroup(it->first, index, pages);
+            createDocumentGroup(it->first, insertRow, pages);
             return it->first;
         }
         return -1;
@@ -188,11 +194,17 @@ int PageItemModel::insertDocument(QString fileName, pdf::PDFDocument document, c
     }
 
     m_documents[newIndex] = { qMove(fileName), qMove(document) };
-    createDocumentGroup(newIndex, index, pages);
+    createDocumentGroup(newIndex, insertRow, pages);
     return newIndex;
 }
 
 int PageItemModel::insertImage(QString fileName, const QModelIndex& index)
+{
+    const int insertRow = index.isValid() ? index.row() + 1 : int(m_pageGroupItems.size());
+    return insertImage(qMove(fileName), insertRow);
+}
+
+int PageItemModel::insertImage(QString fileName, int insertRow)
 {
     Modifier modifier(this, tr("Insert Image"));
     QFile file(fileName);
@@ -236,7 +248,7 @@ int PageItemModel::insertImage(QString fileName, const QModelIndex& index)
             newItem.groups.push_back(qMove(groupItem));
 
             updateItemCaptionAndTags(newItem);
-            int insertRow = index.isValid() ? index.row() + 1 : int(m_pageGroupItems.size());
+            insertRow = qBound(0, insertRow, int(m_pageGroupItems.size()));
 
             beginInsertRows(QModelIndex(), insertRow, insertRow);
             m_pageGroupItems.insert(std::next(m_pageGroupItems.begin(), insertRow), qMove(newItem));
@@ -250,6 +262,12 @@ int PageItemModel::insertImage(QString fileName, const QModelIndex& index)
 }
 
 int PageItemModel::insertImage(QImage image, const QModelIndex& index)
+{
+    const int insertRow = index.isValid() ? index.row() + 1 : int(m_pageGroupItems.size());
+    return insertImage(qMove(image), insertRow);
+}
+
+int PageItemModel::insertImage(QImage image, int insertRow)
 {
     Modifier modifier(this, tr("Paste Image"));
 
@@ -288,7 +306,7 @@ int PageItemModel::insertImage(QImage image, const QModelIndex& index)
         newItem.groups.push_back(qMove(groupItem));
 
         updateItemCaptionAndTags(newItem);
-        int insertRow = index.isValid() ? index.row() + 1 : int(m_pageGroupItems.size());
+        insertRow = qBound(0, insertRow, int(m_pageGroupItems.size()));
 
         beginInsertRows(QModelIndex(), insertRow, insertRow);
         m_pageGroupItems.insert(std::next(m_pageGroupItems.begin(), insertRow), qMove(newItem));
@@ -1741,6 +1759,12 @@ void PageItemModel::setShowTitleInDescription(bool newShowTitleInDescription)
 
 void PageItemModel::createDocumentGroup(int index, const QModelIndex& insertIndex, const std::vector<pdf::PDFInteger>& pages)
 {
+    const int insertRow = insertIndex.isValid() ? insertIndex.row() + 1 : rowCount(QModelIndex());
+    createDocumentGroup(index, insertRow, pages);
+}
+
+void PageItemModel::createDocumentGroup(int index, int insertRow, const std::vector<pdf::PDFInteger>& pages)
+{
     const DocumentItem& item = m_documents.at(index);
     const pdf::PDFInteger pageCount = item.document.getCatalog()->getPageCount();
     std::vector<pdf::PDFInteger> insertedPages = pages;
@@ -1794,11 +1818,7 @@ void PageItemModel::createDocumentGroup(int index, const QModelIndex& insertInde
         newItem.groups.push_back(qMove(groupItem));
     }
 
-    int insertRow = rowCount(QModelIndex());
-    if (insertIndex.isValid())
-    {
-        insertRow = insertIndex.row() + 1;
-    }
+    insertRow = qBound(0, insertRow, rowCount(QModelIndex()));
 
     beginInsertRows(QModelIndex(), insertRow, insertRow);
     m_pageGroupItems.insert(std::next(m_pageGroupItems.begin(), insertRow), qMove(newItem));

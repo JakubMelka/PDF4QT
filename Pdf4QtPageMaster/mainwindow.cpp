@@ -57,13 +57,17 @@
 #include <QScreen>
 #include <QGuiApplication>
 #include <QDragEnterEvent>
+#include <QDragMoveEvent>
 #include <QDropEvent>
 #include <QFile>
+#include <QFrame>
 #include <QSettings>
 #include <QMimeData>
 #include <QTableView>
 #include <QHeaderView>
 #include <QAbstractScrollArea>
+#include <QAbstractItemView>
+#include <QStatusBar>
 #include <QVBoxLayout>
 #include <QDate>
 #include <QDir>
@@ -536,6 +540,9 @@ MainWindow::MainWindow(QWidget* parent) :
     m_selectVisibleAction(nullptr),
     m_searchEdit(new QLineEdit(this)),
     m_searchResultLabel(new QLabel(this)),
+    m_dropFeedbackLabel(new QLabel(this)),
+    m_dropInsertionMarker(new QFrame(this)),
+    m_dropFeedbackViewport(nullptr),
     m_dropAction(Qt::IgnoreAction)
 {
     ui->setupUi(this);
@@ -545,7 +552,11 @@ MainWindow::MainWindow(QWidget* parent) :
 
     ui->documentItemsView->setModel(m_filterModel);
     ui->documentItemsView->setItemDelegate(m_delegate);
+    ui->documentItemsView->setAcceptDrops(true);
+    ui->documentItemsView->setDropIndicatorShown(true);
+    ui->documentItemsView->setDragDropOverwriteMode(false);
     m_previewRenderer->setView(ui->documentItemsView);
+    ui->documentItemsView->viewport()->installEventFilter(this);
     connect(m_previewRenderer, &PageItemPreviewRenderer::previewUpdated, this, &MainWindow::onPreviewUpdated);
     connect(ui->documentItemsView, &QListView::customContextMenuRequested, this, &MainWindow::onWorkspaceCustomContextMenuRequested);
 
@@ -558,13 +569,23 @@ MainWindow::MainWindow(QWidget* parent) :
     m_detailsView->setDragDropMode(QAbstractItemView::DragDrop);
     m_detailsView->setDragDropOverwriteMode(false);
     m_detailsView->setDefaultDropAction(Qt::MoveAction);
+    m_detailsView->setDropIndicatorShown(true);
     m_detailsView->setSortingEnabled(false);
     m_detailsView->setContextMenuPolicy(Qt::CustomContextMenu);
     m_detailsView->horizontalHeader()->setStretchLastSection(true);
     m_detailsView->verticalHeader()->hide();
     m_detailsView->hide();
+    m_detailsView->viewport()->installEventFilter(this);
     ui->verticalLayout->addWidget(m_detailsView);
     connect(m_detailsView, &QTableView::customContextMenuRequested, this, &MainWindow::onWorkspaceCustomContextMenuRequested);
+
+    m_dropFeedbackLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_dropFeedbackLabel->setAlignment(Qt::AlignCenter);
+    m_dropFeedbackLabel->setMargin(pdf::PDFWidgetUtils::scaleDPI_x(this, 8));
+    m_dropFeedbackLabel->hide();
+    m_dropInsertionMarker->setAttribute(Qt::WA_TransparentForMouseEvents);
+    m_dropInsertionMarker->setFrameShape(QFrame::NoFrame);
+    m_dropInsertionMarker->hide();
 
     setMinimumSize(pdf::PDFWidgetUtils::scaleDPI(this, QSize(800, 600)));
 
@@ -834,6 +855,103 @@ QSize MainWindow::getDefaultPageImageSize() const
 QSize MainWindow::getMaxPageImageSize() const
 {
     return pdf::PDFWidgetUtils::scaleDPI(this, QSize(250, 250));
+}
+
+bool MainWindow::eventFilter(QObject* watched, QEvent* event)
+{
+    QAbstractItemView* dropView = getWorkspaceDropView(watched);
+    if (!dropView)
+    {
+        return QMainWindow::eventFilter(watched, event);
+    }
+
+    switch (event->type())
+    {
+        case QEvent::DragEnter:
+        case QEvent::DragMove:
+        {
+            QDragMoveEvent* dragEvent = static_cast<QDragMoveEvent*>(event);
+            const QMimeData* mimeData = dragEvent->mimeData();
+            if (!isWorkspaceExternalDrop(mimeData))
+            {
+                hideWorkspaceDropFeedback();
+                return QMainWindow::eventFilter(watched, event);
+            }
+
+            int unsupportedCount = 0;
+            const QList<QUrl> supportedUrls = getSupportedWorkspaceDropUrls(mimeData, &unsupportedCount);
+            const bool hasImage = mimeData->hasImage();
+            const int supportedCount = supportedUrls.size() + (hasImage ? 1 : 0);
+            if (supportedCount == 0)
+            {
+                hideWorkspaceDropFeedback();
+                statusBar()->showMessage(tr("Unsupported files cannot be inserted."), 3000);
+                dragEvent->ignore();
+                return true;
+            }
+
+            const QPoint position = dragEvent->position().toPoint();
+            const int insertProxyRow = getWorkspaceDropInsertProxyRow(dropView, position);
+            QString message = hasImage && supportedUrls.empty() ? tr("Insert image here") :
+                              tr("Insert %1 %2 here").arg(supportedCount).arg(supportedCount == 1 ? tr("file") : tr("files"));
+            if (unsupportedCount > 0)
+            {
+                message += tr(" (%1 unsupported skipped)").arg(unsupportedCount);
+                statusBar()->showMessage(tr("%1 unsupported file(s) will be skipped.").arg(unsupportedCount), 3000);
+            }
+            else
+            {
+                statusBar()->clearMessage();
+            }
+
+            updateWorkspaceDropFeedback(dropView, position, insertProxyRow, message, true);
+            dragEvent->setDropAction(Qt::CopyAction);
+            dragEvent->accept();
+            return true;
+        }
+
+        case QEvent::DragLeave:
+            hideWorkspaceDropFeedback();
+            statusBar()->clearMessage();
+            return QMainWindow::eventFilter(watched, event);
+
+        case QEvent::Drop:
+        {
+            QDropEvent* dropEvent = static_cast<QDropEvent*>(event);
+            const QMimeData* mimeData = dropEvent->mimeData();
+            if (!isWorkspaceExternalDrop(mimeData))
+            {
+                hideWorkspaceDropFeedback();
+                return QMainWindow::eventFilter(watched, event);
+            }
+
+            const int insertSourceRow = getWorkspaceDropInsertSourceRow(dropView, dropEvent->position().toPoint());
+            const bool dropped = dropWorkspaceExternalMimeData(mimeData, insertSourceRow);
+            hideWorkspaceDropFeedback();
+            if (dropped)
+            {
+                statusBar()->showMessage(tr("Files inserted."), 2000);
+                dropEvent->setDropAction(Qt::CopyAction);
+                dropEvent->accept();
+            }
+            else
+            {
+                statusBar()->showMessage(tr("No supported files were inserted."), 3000);
+                dropEvent->ignore();
+            }
+            return true;
+        }
+
+        case QEvent::Hide:
+        case QEvent::Resize:
+            hideWorkspaceDropFeedback();
+            break;
+
+        default:
+            break;
+    }
+
+    return QMainWindow::eventFilter(watched, event);
 }
 
 void MainWindow::resizeEvent(QResizeEvent* resizeEvent)
@@ -1176,12 +1294,240 @@ void MainWindow::updateSearchResultLabel()
     m_clearSearchAction->setEnabled(m_filterModel->isFiltering());
 }
 
+bool MainWindow::isWorkspaceExternalDrop(const QMimeData* mimeData) const
+{
+    return mimeData && (mimeData->hasImage() || mimeData->hasUrls()) && !mimeData->hasFormat(PageItemModel::getMimeDataType());
+}
+
+bool MainWindow::isSupportedWorkspaceDropUrl(const QUrl& url) const
+{
+    if (!url.isLocalFile())
+    {
+        return false;
+    }
+
+    const QFileInfo fileInfo(url.toLocalFile());
+    const QString suffix = fileInfo.suffix().toLower();
+    if (suffix == QLatin1String("pdf"))
+    {
+        return true;
+    }
+
+    const QList<QByteArray> supportedImageFormats = QImageReader::supportedImageFormats();
+    return supportedImageFormats.contains(suffix.toUtf8());
+}
+
+QList<QUrl> MainWindow::getSupportedWorkspaceDropUrls(const QMimeData* mimeData, int* unsupportedCount) const
+{
+    if (unsupportedCount)
+    {
+        *unsupportedCount = 0;
+    }
+
+    QList<QUrl> supportedUrls;
+    if (!mimeData || !mimeData->hasUrls())
+    {
+        return supportedUrls;
+    }
+
+    for (const QUrl& url : mimeData->urls())
+    {
+        if (isSupportedWorkspaceDropUrl(url))
+        {
+            supportedUrls << url;
+        }
+        else if (unsupportedCount)
+        {
+            ++(*unsupportedCount);
+        }
+    }
+    return supportedUrls;
+}
+
+QAbstractItemView* MainWindow::getWorkspaceDropView(QObject* watched) const
+{
+    if (watched == ui->documentItemsView->viewport())
+    {
+        return ui->documentItemsView;
+    }
+    if (watched == m_detailsView->viewport())
+    {
+        return m_detailsView;
+    }
+    return nullptr;
+}
+
+int MainWindow::getWorkspaceDropInsertProxyRow(QAbstractItemView* view, const QPoint& viewportPosition) const
+{
+    const int rowCount = m_filterModel->rowCount(QModelIndex());
+    if (rowCount <= 0)
+    {
+        return 0;
+    }
+
+    const QModelIndex hoverIndex = view->indexAt(viewportPosition);
+    if (!hoverIndex.isValid())
+    {
+        return rowCount;
+    }
+
+    const QRect itemRect = view->visualRect(hoverIndex);
+    const bool insertAfter = (view == m_detailsView) ? viewportPosition.y() > itemRect.center().y()
+                                                     : viewportPosition.x() > itemRect.center().x();
+    return qBound(0, hoverIndex.row() + (insertAfter ? 1 : 0), rowCount);
+}
+
+int MainWindow::getWorkspaceDropInsertSourceRow(QAbstractItemView* view, const QPoint& viewportPosition) const
+{
+    const int insertProxyRow = getWorkspaceDropInsertProxyRow(view, viewportPosition);
+    if (insertProxyRow >= m_filterModel->rowCount(QModelIndex()))
+    {
+        return m_model->rowCount(QModelIndex());
+    }
+
+    const QModelIndex proxyIndex = m_filterModel->index(insertProxyRow, 0, QModelIndex());
+    const QModelIndex sourceIndex = m_filterModel->mapToSource(proxyIndex);
+    return sourceIndex.isValid() ? sourceIndex.row() : m_model->rowCount(QModelIndex());
+}
+
+void MainWindow::updateWorkspaceDropFeedback(QAbstractItemView* view, const QPoint& viewportPosition, int insertProxyRow, const QString& message, bool accepted)
+{
+    QWidget* viewport = view ? view->viewport() : nullptr;
+    if (!viewport)
+    {
+        hideWorkspaceDropFeedback();
+        return;
+    }
+
+    if (m_dropFeedbackViewport != viewport)
+    {
+        m_dropFeedbackLabel->setParent(viewport);
+        m_dropInsertionMarker->setParent(viewport);
+        m_dropFeedbackViewport = viewport;
+    }
+
+    const QColor markerColor = accepted ? viewport->palette().color(QPalette::Active, QPalette::Highlight) : QColor(180, 60, 60);
+    m_dropInsertionMarker->setStyleSheet(QStringLiteral("background:%1; border:0px;").arg(markerColor.name()));
+
+    if (view == m_detailsView)
+    {
+        int y = 4;
+        if (insertProxyRow < m_filterModel->rowCount(QModelIndex()))
+        {
+            const QRect itemRect = view->visualRect(m_filterModel->index(insertProxyRow, 0, QModelIndex()));
+            y = itemRect.isValid() ? itemRect.top() : viewportPosition.y();
+        }
+        else if (m_filterModel->rowCount(QModelIndex()) > 0)
+        {
+            const QRect itemRect = view->visualRect(m_filterModel->index(m_filterModel->rowCount(QModelIndex()) - 1, 0, QModelIndex()));
+            y = itemRect.isValid() ? itemRect.bottom() + 1 : viewportPosition.y();
+        }
+        m_dropInsertionMarker->setGeometry(4, qMax(2, y - 1), qMax(20, viewport->width() - 8), 3);
+    }
+    else
+    {
+        QRect markerRect(4, 4, 3, qMax(20, viewport->height() - 8));
+        if (m_filterModel->rowCount(QModelIndex()) > 0)
+        {
+            if (insertProxyRow < m_filterModel->rowCount(QModelIndex()))
+            {
+                const QRect itemRect = view->visualRect(m_filterModel->index(insertProxyRow, 0, QModelIndex()));
+                if (itemRect.isValid())
+                {
+                    markerRect = QRect(itemRect.left() - 2, itemRect.top(), 3, itemRect.height());
+                }
+            }
+            else
+            {
+                const QRect itemRect = view->visualRect(m_filterModel->index(m_filterModel->rowCount(QModelIndex()) - 1, 0, QModelIndex()));
+                if (itemRect.isValid())
+                {
+                    markerRect = QRect(itemRect.right() + 2, itemRect.top(), 3, itemRect.height());
+                }
+            }
+        }
+        m_dropInsertionMarker->setGeometry(markerRect);
+    }
+    m_dropInsertionMarker->show();
+    m_dropInsertionMarker->raise();
+
+    m_dropFeedbackLabel->setText(message);
+    m_dropFeedbackLabel->setStyleSheet(QStringLiteral("QLabel { background: rgba(30, 30, 30, 210); color: white; border-radius: 4px; padding: 6px 10px; }"));
+    m_dropFeedbackLabel->adjustSize();
+    const QSize labelSize = m_dropFeedbackLabel->sizeHint();
+    const int x = qBound(8, viewportPosition.x() - labelSize.width() / 2, qMax(8, viewport->width() - labelSize.width() - 8));
+    const int y = qBound(8, viewportPosition.y() - labelSize.height() - 14, qMax(8, viewport->height() - labelSize.height() - 8));
+    m_dropFeedbackLabel->setGeometry(QRect(QPoint(x, y), labelSize));
+    m_dropFeedbackLabel->show();
+    m_dropFeedbackLabel->raise();
+}
+
+void MainWindow::hideWorkspaceDropFeedback()
+{
+    m_dropFeedbackLabel->hide();
+    m_dropInsertionMarker->hide();
+}
+
+bool MainWindow::dropWorkspaceExternalMimeData(const QMimeData* mimeData, int insertSourceRow)
+{
+    if (!mimeData)
+    {
+        return false;
+    }
+
+    insertSourceRow = qBound(0, insertSourceRow, m_model->rowCount(QModelIndex()));
+
+    bool inserted = false;
+    if (mimeData->hasImage())
+    {
+        QImage image = mimeData->imageData().value<QImage>();
+        if (!image.isNull() && m_model->insertImage(image, insertSourceRow) != -1)
+        {
+            inserted = true;
+            ++insertSourceRow;
+        }
+    }
+
+    int unsupportedCount = 0;
+    const QList<QUrl> urls = getSupportedWorkspaceDropUrls(mimeData, &unsupportedCount);
+    for (const QUrl& url : urls)
+    {
+        const QString fileName = url.toLocalFile();
+        const QString suffix = QFileInfo(fileName).suffix().toLower();
+        bool ok = false;
+        if (suffix == QLatin1String("pdf"))
+        {
+            ok = insertDocument(fileName, insertSourceRow);
+        }
+        else
+        {
+            ok = m_model->insertImage(fileName, insertSourceRow) != -1;
+        }
+
+        if (ok)
+        {
+            inserted = true;
+            ++insertSourceRow;
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    if (unsupportedCount > 0)
+    {
+        statusBar()->showMessage(tr("%1 unsupported file(s) skipped.").arg(unsupportedCount), 3000);
+    }
+    return inserted;
+}
+
 bool MainWindow::insertDocument(const QString& fileName, const QModelIndex& insertIndex)
 {
     return insertDocument(fileName, insertIndex, {});
 }
 
-bool MainWindow::insertDocument(const QString& fileName, const QModelIndex& insertIndex, const std::vector<pdf::PDFInteger>& pages)
+bool MainWindow::insertDocument(const QString& fileName, int insertRow, const std::vector<pdf::PDFInteger>& pages)
 {
     bool isDocumentInserted = true;
 
@@ -1193,10 +1539,8 @@ bool MainWindow::insertDocument(const QString& fileName, const QModelIndex& inse
         return QInputDialog::getText(this, tr("Encrypted document"), tr("Enter password to access document '%1'").arg(fileInfo.fileName()), QLineEdit::Password, QString(), ok);
     };
 
-    // Mark current directory as this
     m_settings.directory = fileInfo.dir().absolutePath();
 
-    // Try to open a new document
     pdf::PDFDocumentReader reader(nullptr, qMove(queryPassword), true, false);
     pdf::PDFDocument document = reader.readFromFile(fileName);
 
@@ -1208,7 +1552,7 @@ bool MainWindow::insertDocument(const QString& fileName, const QModelIndex& inse
         if (securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::Assemble) ||
             securityHandler->isAllowed(pdf::PDFSecurityHandler::Permission::Modify))
         {
-            if (m_model->insertDocument(fileName, qMove(document), insertIndex, pages) == -1)
+            if (m_model->insertDocument(fileName, qMove(document), insertRow, pages) == -1)
             {
                 isDocumentInserted = false;
                 QMessageBox::critical(this, tr("Error"), tr("Document '%1' is already in the workspace.").arg(fileInfo.fileName()));
@@ -1229,7 +1573,18 @@ bool MainWindow::insertDocument(const QString& fileName, const QModelIndex& inse
     {
         isDocumentInserted = false;
     }
+    else
+    {
+        Q_ASSERT(false);
+    }
 
+    return isDocumentInserted;
+}
+
+bool MainWindow::insertDocument(const QString& fileName, const QModelIndex& insertIndex, const std::vector<pdf::PDFInteger>& pages)
+{
+    const int insertRow = insertIndex.isValid() ? insertIndex.row() + 1 : m_model->rowCount(QModelIndex());
+    const bool isDocumentInserted = insertDocument(fileName, insertRow, pages);
     updateActions();
     return isDocumentInserted;
 }
@@ -3171,9 +3526,22 @@ void MainWindow::performOperation(Operation operation)
 void MainWindow::dragEnterEvent(QDragEnterEvent* event)
 {
     const QMimeData* mimeData = event->mimeData();
-    if (mimeData->hasImage() || mimeData->hasUrls())
+    if (!isWorkspaceExternalDrop(mimeData))
     {
-        event->acceptProposedAction();
+        return;
+    }
+
+    int unsupportedCount = 0;
+    const int supportedCount = getSupportedWorkspaceDropUrls(mimeData, &unsupportedCount).size() + (mimeData->hasImage() ? 1 : 0);
+    if (supportedCount > 0)
+    {
+        event->setDropAction(Qt::CopyAction);
+        event->accept();
+    }
+    else
+    {
+        statusBar()->showMessage(tr("Unsupported files cannot be inserted."), 3000);
+        event->ignore();
     }
 }
 
@@ -3182,61 +3550,13 @@ void MainWindow::dropEvent(QDropEvent* event)
     event->ignore();
 
     const QMimeData* mimeData = event->mimeData();
-    if (mimeData->hasImage())
+    if (isWorkspaceExternalDrop(mimeData))
     {
-        QImage image = mimeData->imageData().value<QImage>();
-        if (!image.isNull())
+        const int insertSourceRow = m_model->rowCount(QModelIndex());
+        if (dropWorkspaceExternalMimeData(mimeData, insertSourceRow))
         {
-            QModelIndexList indexes = getSelectedRows();
-            QModelIndex insertIndex = !indexes.isEmpty() ? indexes.front() : QModelIndex();
-            m_model->insertImage(image, insertIndex);
+            event->setDropAction(Qt::CopyAction);
             event->accept();
-        }
-    }
-    else if (mimeData->hasUrls())
-    {
-        QModelIndexList indexes = getSelectedRows();
-        QModelIndex insertIndex = !indexes.isEmpty() ? indexes.front() : QModelIndex();
-
-        QList<QUrl> urls = mimeData->urls();
-        std::reverse(urls.begin(), urls.end());
-        QList<QByteArray> supportedImageFormats = QImageReader::supportedImageFormats();
-
-        for (QUrl url : urls)
-        {
-            event->accept();
-
-            if (url.isLocalFile())
-            {
-                QString fileName = url.toLocalFile();
-                QFileInfo fileInfo(fileName);
-                QString suffix = fileInfo.suffix().toLower();
-
-                if (supportedImageFormats.contains(suffix.toUtf8()))
-                {
-                    if (m_model->insertImage(fileName, insertIndex) == -1)
-                    {
-                        // Exit the loop if the image was not inserted.
-                        event->ignore();
-                        break;
-                    }
-                }
-                else if (suffix == "pdf")
-                {
-                    if (!insertDocument(url.toLocalFile(), insertIndex))
-                    {
-                        // Exit the loop if the document was not inserted. This could be because
-                        // the document requires a password and the user might have provided an incorrect one,
-                        // or the file couldn't be opened. We don't want to proceed with the next file.
-                        event->ignore();
-                        break;
-                    }
-                }
-                else
-                {
-                    // We ignore other file extensions.
-                }
-            }
         }
     }
 }

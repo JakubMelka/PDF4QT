@@ -176,6 +176,7 @@ public:
     /// \returns Identifier of the document (internal index)
     int insertDocument(QString fileName, pdf::PDFDocument document, const QModelIndex& index);
     int insertDocument(QString fileName, pdf::PDFDocument document, const QModelIndex& index, const std::vector<pdf::PDFInteger>& pages);
+    int insertDocument(QString fileName, pdf::PDFDocument document, int insertRow, const std::vector<pdf::PDFInteger>& pages = {});
 
     /// Adds image to the model, inserts one single page containing
     /// the image. Returns index of a newly added image. If image
@@ -184,6 +185,7 @@ public:
     /// \param index Index, where image is inserted
     /// \returns Identifier of the image (internal index)
     int insertImage(QString fileName, const QModelIndex& index);
+    int insertImage(QString fileName, int insertRow);
 
     /// Adds image to the model, inserts one single page containing
     /// the image. Returns index of a newly added image.
@@ -191,6 +193,7 @@ public:
     /// \param index Index, where image is inserted
     /// \returns Identifier of the image (internal index)
     int insertImage(QImage image, const QModelIndex& index);
+    int insertImage(QImage image, int insertRow);
 
     /// Returns item at a given index. If item doesn't exist,
     /// then nullptr is returned.
@@ -289,6 +292,7 @@ private:
     static const int MAX_UNDO_REDO_STEPS = 10;
 
     void createDocumentGroup(int index, const QModelIndex& insertIndex, const std::vector<pdf::PDFInteger>& pages = {});
+    void createDocumentGroup(int index, int insertRow, const std::vector<pdf::PDFInteger>& pages = {});
     pdf::PDFDocumentManipulator::AssembledPage createAssembledPage(const PageGroupItem::GroupItem& item) const;
     std::vector<PageGroupItem::GroupItem> getSelectedGroupItems(const QModelIndexList& list) const;
     qint64 getApproximateSourceByteSize(const PageGroupItem::GroupItem& item) const;
