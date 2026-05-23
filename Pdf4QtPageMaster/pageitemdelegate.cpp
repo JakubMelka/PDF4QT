@@ -28,6 +28,7 @@
 
 #include <QPainter>
 #include <QSortFilterProxyModel>
+#include <QStringList>
 
 #include <algorithm>
 
@@ -68,10 +69,12 @@ void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& opti
 
     QRect pageBoundingRect = QRect(QPoint(rect.left() + (rect.width() - scaledSize.width()) / 2, rect.top() + verticalSpacing), scaledSize);
 
+    QRect pageImageRect;
+
     // Draw page preview
     if (!item->groups.empty())
     {
-        const QRect pageImageRect = getPageImageRect(item, rect, option.widget);
+        pageImageRect = getPageImageRect(item, rect, option.widget);
 
         painter->fillRect(pageImageRect, Qt::white);
 
@@ -124,15 +127,45 @@ void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& opti
 
     if (item->groups.cend() != std::find_if(item->groups.cbegin(), item->groups.cend(), [](const PageGroupItem::GroupItem& groupItem) { return groupItem.pageAdditionalRotation != pdf::PageRotation::None; }))
     {
+        QStringList rotations;
+        for (const PageGroupItem::GroupItem& groupItem : item->groups)
+        {
+            QString rotationText;
+            switch (groupItem.pageAdditionalRotation)
+            {
+                case pdf::PageRotation::None:
+                    break;
+                case pdf::PageRotation::Rotate90:
+                    rotationText = tr("90°");
+                    break;
+                case pdf::PageRotation::Rotate180:
+                    rotationText = tr("180°");
+                    break;
+                case pdf::PageRotation::Rotate270:
+                    rotationText = tr("270°");
+                    break;
+                default:
+                    rotationText = QString::number(int(groupItem.pageAdditionalRotation));
+                    break;
+            }
+
+            if (!rotationText.isEmpty() && !rotations.contains(rotationText))
+            {
+                rotations << rotationText;
+            }
+        }
+
         QRect rotationRect = pageImageRect.adjusted(horizontalSpacing, horizontalSpacing, -horizontalSpacing, -horizontalSpacing);
-        rotationRect.setSize(QSize(option.fontMetrics.horizontalAdvance("270°") + horizontalSpacing * 2, option.fontMetrics.lineSpacing() + verticalSpacing));
+        const QString rotationText = rotations.join(", ");
+        const int maximumBadgeWidth = qMax(horizontalSpacing * 4, pageImageRect.width() - horizontalSpacing * 2);
+        rotationRect.setSize(QSize(qMin(maximumBadgeWidth, option.fontMetrics.horizontalAdvance(rotationText) + horizontalSpacing * 2), option.fontMetrics.lineSpacing() + verticalSpacing));
         QColor badgeColor = option.palette.color(QPalette::Active, QPalette::Highlight);
         badgeColor.setAlphaF(0.85);
         painter->setPen(Qt::NoPen);
         painter->setBrush(badgeColor);
         painter->drawRoundedRect(rotationRect, 4, 4);
         painter->setPen(option.palette.color(QPalette::Active, QPalette::HighlightedText));
-        painter->drawText(rotationRect, Qt::AlignCenter, m_model->getItemRotationText(item));
+        painter->drawText(rotationRect, Qt::AlignCenter, option.fontMetrics.elidedText(rotationText, Qt::ElideRight, rotationRect.width() - horizontalSpacing));
     }
 }
 
@@ -174,7 +207,7 @@ QRect PageItemDelegate::getPageImageRect(const PageGroupItem* item, const QRect&
     }
 
     const PageGroupItem::GroupItem& groupItem = item->groups.front();
-    QSizeF rotatedPageSize = pdf::PDFPage::getRotatedBox(QRectF(QPointF(0, 0), PageItemModel::getCroppedPageDimensionsMM(groupItem)), groupItem.pageAdditionalRotation).size();
+    QSizeF rotatedPageSize = PageItemModel::getDisplayedPageDimensionsMM(groupItem);
     QSize pageImageSize = rotatedPageSize.scaled(pageBoundingRect.size(), Qt::KeepAspectRatio).toSize();
     return QRect(pageBoundingRect.topLeft() + QPoint((pageBoundingRect.width() - pageImageSize.width()) / 2, (pageBoundingRect.height() - pageImageSize.height()) / 2), pageImageSize);
 }

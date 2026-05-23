@@ -445,12 +445,13 @@ protected:
         terms << (item->isGrouped() ? QObject::tr("Grouped") : QObject::tr("Ungrouped"));
         for (const PageGroupItem::GroupItem& groupItem : item->groups)
         {
-            if (groupItem.rotatedPageDimensionsMM.width() <= groupItem.rotatedPageDimensionsMM.height())
+            const QSizeF displayedPageSize = PageItemModel::getDisplayedPageDimensionsMM(groupItem);
+            if (displayedPageSize.width() <= displayedPageSize.height())
             {
                 hasPortrait = true;
                 terms << QObject::tr("Portrait");
             }
-            if (groupItem.rotatedPageDimensionsMM.width() >= groupItem.rotatedPageDimensionsMM.height())
+            if (displayedPageSize.width() >= displayedPageSize.height())
             {
                 hasLandscape = true;
                 terms << QObject::tr("Landscape");
@@ -1260,8 +1261,17 @@ bool MainWindow::canPerformOperation(Operation operation) const
 
         case Operation::RotateLeft:
         case Operation::RotateRight:
-        case Operation::ResetRotation:
             return isSelected;
+
+        case Operation::ResetRotation:
+            return std::any_of(selection.cbegin(), selection.cend(), [this](const QModelIndex& index)
+            {
+                const PageGroupItem* item = m_model->getItem(index);
+                return item && std::any_of(item->groups.cbegin(), item->groups.cend(), [](const PageGroupItem::GroupItem& groupItem)
+                {
+                    return groupItem.pageAdditionalRotation != pdf::PageRotation::None;
+                });
+            });
 
         case Operation::Group:
             return isMultiSelected;

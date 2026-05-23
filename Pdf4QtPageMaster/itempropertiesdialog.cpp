@@ -128,10 +128,20 @@ QString ItemPropertiesDialog::getImagePixelDimensionsText(const PageGroupItem::G
 
 QString ItemPropertiesDialog::getPageSizeText(const PageGroupItem::GroupItem& groupItem) const
 {
-    const QSizeF pageSize = PageItemModel::getCroppedPageDimensionsMM(groupItem);
+    const QSizeF pageSize = PageItemModel::getDisplayedPageDimensionsMM(groupItem);
     return QString("%1 x %2 mm")
             .arg(pageSize.width(), 0, 'f', 1)
             .arg(pageSize.height(), 0, 'f', 1);
+}
+
+QString ItemPropertiesDialog::getOrientationText(const PageGroupItem::GroupItem& groupItem) const
+{
+    const QSizeF pageSize = PageItemModel::getDisplayedPageDimensionsMM(groupItem);
+    if (qFuzzyCompare(pageSize.width(), pageSize.height()))
+    {
+        return tr("Square");
+    }
+    return pageSize.width() > pageSize.height() ? tr("Landscape") : tr("Portrait");
 }
 
 QString ItemPropertiesDialog::getRotationText(pdf::PageRotation rotation) const
@@ -191,6 +201,7 @@ void ItemPropertiesDialog::loadItem(const QModelIndex& index)
     QStringList sourcePaths;
     QStringList pixelDimensions;
     QStringList pageSizes;
+    QStringList orientations;
     QStringList contentLines;
     int contentIndex = 1;
 
@@ -214,6 +225,12 @@ void ItemPropertiesDialog::loadItem(const QModelIndex& index)
             pageSizes << pageSize;
         }
 
+        const QString orientation = getOrientationText(groupItem);
+        if (!orientation.isEmpty() && !orientations.contains(orientation))
+        {
+            orientations << orientation;
+        }
+
         QStringList parts;
         parts << getTypeText(groupItem);
         if (!sourcePath.isEmpty())
@@ -229,6 +246,7 @@ void ItemPropertiesDialog::loadItem(const QModelIndex& index)
             parts << pixelDimension;
         }
         parts << pageSize;
+        parts << orientation;
         parts << getRotationText(groupItem.pageAdditionalRotation);
         contentLines << QString("%1. %2").arg(contentIndex++).arg(parts.join(QStringLiteral(" | ")));
     }
@@ -238,6 +256,7 @@ void ItemPropertiesDialog::loadItem(const QModelIndex& index)
     setValueLabelText(ui->originalPageValueLabel, originalPageText.isEmpty() ? tr("Not applicable") : originalPageText);
     setValueLabelText(ui->pixelDimensionsValueLabel, pixelDimensions.isEmpty() ? tr("Not applicable") : pixelDimensions.join(QLatin1String(", ")));
     setValueLabelText(ui->pageSizeValueLabel, pageSizes.join(QLatin1String(", ")));
+    setValueLabelText(ui->orientationValueLabel, orientations.join(QLatin1String(", ")));
     setValueLabelText(ui->rotationValueLabel, m_model->getItemRotationText(item));
     ui->groupContentsEdit->setPlainText(contentLines.join(QLatin1Char('\n')));
 }

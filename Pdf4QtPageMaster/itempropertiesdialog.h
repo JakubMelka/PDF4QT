@@ -55,6 +55,7 @@ private:
     QString getSourcePathText(const PageGroupItem::GroupItem& groupItem) const;
     QString getImagePixelDimensionsText(const PageGroupItem::GroupItem& groupItem) const;
     QString getPageSizeText(const PageGroupItem::GroupItem& groupItem) const;
+    QString getOrientationText(const PageGroupItem::GroupItem& groupItem) const;
     QString getRotationText(pdf::PageRotation rotation) const;
     void setValueLabelText(QLabel* label, const QString& text) const;
     void loadItem(const QModelIndex& index);

@@ -59,6 +59,8 @@ QVariant PageItemModel::headerData(int section, Qt::Orientation orientation, int
                 return tr("Pages in Group");
             case ColumnSize:
                 return tr("Size");
+            case ColumnOrientation:
+                return tr("Orientation");
             case ColumnRotation:
                 return tr("Rotation");
             case ColumnTags:
@@ -136,6 +138,8 @@ QVariant PageItemModel::data(const QModelIndex& index, int role) const
                     return int(item->groups.size());
                 case ColumnSize:
                     return getItemSizeText(item);
+                case ColumnOrientation:
+                    return getItemOrientationText(item);
                 case ColumnRotation:
                     return getItemRotationText(item);
                 case ColumnTags:
@@ -1177,6 +1181,25 @@ QString PageItemModel::getItemSizeText(const PageGroupItem* item) const
     return sizes.join(", ");
 }
 
+QString PageItemModel::getItemOrientationText(const PageGroupItem* item) const
+{
+    if (!item || item->groups.empty())
+    {
+        return QString();
+    }
+
+    QStringList orientations;
+    for (const PageGroupItem::GroupItem& groupItem : item->groups)
+    {
+        const QString orientation = getOrientationText(groupItem);
+        if (!orientation.isEmpty() && !orientations.contains(orientation))
+        {
+            orientations << orientation;
+        }
+    }
+    return orientations.join(", ");
+}
+
 QString PageItemModel::getItemRotationText(const PageGroupItem* item) const
 {
     if (!item || item->groups.empty())
@@ -1241,6 +1264,7 @@ QString PageItemModel::getItemTooltipText(const PageGroupItem* item) const
     texts << tableRow(tr("Original page"), getItemOriginalPageText(item));
     texts << tableRow(tr("Page count"), QString::number(item->groups.size()));
     texts << tableRow(tr("Size"), getItemSizeText(item));
+    texts << tableRow(tr("Orientation"), getItemOrientationText(item));
     texts << tableRow(tr("Rotation"), getItemRotationText(item));
     texts << tableRow(tr("Tags"), getItemTagsText(item));
 
@@ -1322,6 +1346,11 @@ QSizeF PageItemModel::getCroppedPageDimensionsMM(const PageGroupItem::GroupItem&
 {
     return QSizeF(qMax(1.0, groupItem.rotatedPageDimensionsMM.width() - groupItem.cropMarginsMM.left() - groupItem.cropMarginsMM.right()),
                   qMax(1.0, groupItem.rotatedPageDimensionsMM.height() - groupItem.cropMarginsMM.top() - groupItem.cropMarginsMM.bottom()));
+}
+
+QSizeF PageItemModel::getDisplayedPageDimensionsMM(const PageGroupItem::GroupItem& groupItem)
+{
+    return pdf::PDFPage::getRotatedSize(getCroppedPageDimensionsMM(groupItem), groupItem.pageAdditionalRotation);
 }
 
 bool PageItemModel::isCropped(const PageGroupItem::GroupItem& groupItem)
@@ -1916,7 +1945,7 @@ QString PageItemModel::getPageText(const PageGroupItem::GroupItem& groupItem) co
 
 QString PageItemModel::getSizeText(const PageGroupItem::GroupItem& groupItem) const
 {
-    const QSizeF croppedPageDimensions = getCroppedPageDimensionsMM(groupItem);
+    const QSizeF croppedPageDimensions = getDisplayedPageDimensionsMM(groupItem);
     QString text = QString("%1 x %2 mm")
             .arg(croppedPageDimensions.width(), 0, 'f', 1)
             .arg(croppedPageDimensions.height(), 0, 'f', 1);
@@ -1931,6 +1960,16 @@ QString PageItemModel::getSizeText(const PageGroupItem::GroupItem& groupItem) co
     }
 
     return text;
+}
+
+QString PageItemModel::getOrientationText(const PageGroupItem::GroupItem& groupItem) const
+{
+    const QSizeF pageSize = getDisplayedPageDimensionsMM(groupItem);
+    if (qFuzzyCompare(pageSize.width(), pageSize.height()))
+    {
+        return tr("Square");
+    }
+    return pageSize.width() > pageSize.height() ? tr("Landscape") : tr("Portrait");
 }
 
 QString PageItemModel::getRotationText(const PageGroupItem::GroupItem& groupItem) const

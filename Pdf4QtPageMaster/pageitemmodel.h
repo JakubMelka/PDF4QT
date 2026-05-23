@@ -123,6 +123,7 @@ public:
         ColumnOriginalPage,
         ColumnGroupPages,
         ColumnSize,
+        ColumnOrientation,
         ColumnRotation,
         ColumnTags,
         ColumnCount
@@ -254,6 +255,7 @@ public:
     QString getItemSourceText(const PageGroupItem* item) const;
     QString getItemOriginalPageText(const PageGroupItem* item) const;
     QString getItemSizeText(const PageGroupItem* item) const;
+    QString getItemOrientationText(const PageGroupItem* item) const;
     QString getItemRotationText(const PageGroupItem* item) const;
     QString getItemTagsText(const PageGroupItem* item) const;
     QString getItemTooltipText(const PageGroupItem* item) const;
@@ -261,6 +263,7 @@ public:
     QString getItemSourceBaseName(const PageGroupItem* item) const;
     QString getItemSourceExtension(const PageGroupItem* item) const;
     static QSizeF getCroppedPageDimensionsMM(const PageGroupItem::GroupItem& groupItem);
+    static QSizeF getDisplayedPageDimensionsMM(const PageGroupItem::GroupItem& groupItem);
     static bool isCropped(const PageGroupItem::GroupItem& groupItem);
 
     SelectionInfo getSelectionInfo(const QModelIndexList& list) const;
@@ -295,6 +298,7 @@ private:
     QString getTypeText(const PageGroupItem::GroupItem& groupItem) const;
     QString getPageText(const PageGroupItem::GroupItem& groupItem) const;
     QString getSizeText(const PageGroupItem::GroupItem& groupItem) const;
+    QString getOrientationText(const PageGroupItem::GroupItem& groupItem) const;
     QString getRotationText(const PageGroupItem::GroupItem& groupItem) const;
     void updateItemCaptionAndTags(PageGroupItem& item) const;
     void insertEmptyPage(const QModelIndex& index);
