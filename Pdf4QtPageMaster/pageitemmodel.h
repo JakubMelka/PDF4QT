@@ -276,6 +276,8 @@ public:
 
     bool canUndo() const { return !m_undoSteps.empty(); }
     bool canRedo() const { return !m_redoSteps.empty(); }
+    QString getUndoActionLabel() const;
+    QString getRedoActionLabel() const;
 
     void undo();
     void redo();
@@ -302,26 +304,33 @@ private:
     QString getRotationText(const PageGroupItem::GroupItem& groupItem) const;
     void updateItemCaptionAndTags(PageGroupItem& item) const;
     void insertEmptyPage(const QModelIndex& index);
-    void reorderItems(const QModelIndexList& list, std::function<void(std::vector<PageGroupItem>&)> reorder);
+    void reorderItems(const QModelIndexList& list, QString actionLabel, std::function<void(std::vector<PageGroupItem>&)> reorder);
 
     struct UndoRedoStep
     {
-        bool operator==(const UndoRedoStep&) const = default;
+        bool operator==(const UndoRedoStep& other) const
+        {
+            return pageGroupItems == other.pageGroupItems &&
+                   trashBin == other.trashBin &&
+                   images == other.images;
+        }
 
         std::vector<PageGroupItem> pageGroupItems;
         std::vector<PageGroupItem> trashBin;
         std::map<int, ImageItem> images;
+        QString actionLabel;
     };
 
     class Modifier
     {
     public:
-        explicit Modifier(PageItemModel* model);
+        explicit Modifier(PageItemModel* model, QString actionLabel = QString());
         ~Modifier();
 
     private:
         PageItemModel* m_model;
         UndoRedoStep m_stateBeforeModification;
+        QString m_actionLabel;
     };
 
     std::vector<PageGroupItem::GroupItem> extractItems(std::vector<PageGroupItem>& items, const QModelIndexList& selection) const;

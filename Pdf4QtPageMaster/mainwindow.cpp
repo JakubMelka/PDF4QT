@@ -771,6 +771,10 @@ MainWindow::MainWindow(QWidget* parent) :
 
     connect(&m_mapper, &QSignalMapper::mappedInt, this, &MainWindow::onMappedActionTriggered);
     connect(ui->documentItemsView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &MainWindow::updateActions);
+    connect(m_model, &QAbstractItemModel::dataChanged, this, &MainWindow::updateActions);
+    connect(m_model, &QAbstractItemModel::modelReset, this, &MainWindow::updateActions);
+    connect(m_model, &QAbstractItemModel::rowsInserted, this, &MainWindow::updateActions);
+    connect(m_model, &QAbstractItemModel::rowsRemoved, this, &MainWindow::updateActions);
     connect(m_searchEdit, &QLineEdit::textChanged, this, &MainWindow::updateSearchFilter);
     connect(m_clearSearchAction, &QAction::triggered, m_searchEdit, &QLineEdit::clear);
     connect(m_filterModel, &QAbstractItemModel::modelReset, this, &MainWindow::updateSearchResultLabel);
@@ -923,6 +927,13 @@ void MainWindow::onWorkspaceCustomContextMenuRequested(const QPoint& point)
 
 void MainWindow::updateActions()
 {
+    const QString undoLabel = m_model->getUndoActionLabel();
+    const QString redoLabel = m_model->getRedoActionLabel();
+    ui->actionUndo->setText(undoLabel.isEmpty() ? tr("&Undo") : tr("&Undo %1").arg(undoLabel));
+    ui->actionRedo->setText(redoLabel.isEmpty() ? tr("&Redo") : tr("&Redo %1").arg(redoLabel));
+    ui->actionUndo->setToolTip(undoLabel.isEmpty() ? tr("Undo") : tr("Undo %1").arg(undoLabel));
+    ui->actionRedo->setToolTip(redoLabel.isEmpty() ? tr("Redo") : tr("Redo %1").arg(redoLabel));
+
     QList<QAction*> actions = findChildren<QAction*>();
     for (QAction* action : actions)
     {
