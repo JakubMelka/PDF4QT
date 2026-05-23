@@ -76,6 +76,7 @@
 #include <QFileInfo>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
 #include <QPushButton>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -87,6 +88,39 @@
 
 namespace pdfpagemaster
 {
+
+class MainWindowRecentHelper final
+{
+public:
+    static constexpr int recentItemLimit = 10;
+
+    static QString normalizedPath(const QString& path)
+    {
+        QFileInfo info(path);
+        return info.exists() ? info.canonicalFilePath() : info.absoluteFilePath();
+    }
+
+    static void addPath(QStringList* paths, const QString& path)
+    {
+        const QString normalizedPath = MainWindowRecentHelper::normalizedPath(path);
+        if (normalizedPath.isEmpty())
+        {
+            return;
+        }
+
+        paths->removeAll(normalizedPath);
+        paths->prepend(normalizedPath);
+        while (paths->size() > recentItemLimit)
+        {
+            paths->removeLast();
+        }
+    }
+
+    static QString actionText(const QString& path)
+    {
+        return QDir::toNativeSeparators(path).replace("&", "&&");
+    }
+};
 
 namespace
 {
@@ -536,6 +570,8 @@ MainWindow::MainWindow(QWidget* parent) :
     m_openWorkspaceAction(nullptr),
     m_saveCheckpointAction(nullptr),
     m_loadCheckpointAction(nullptr),
+    m_recentMenu(nullptr),
+    m_clearRecentAction(nullptr),
     m_clearSearchAction(nullptr),
     m_selectVisibleAction(nullptr),
     m_searchEdit(new QLineEdit(this)),
@@ -666,6 +702,8 @@ MainWindow::MainWindow(QWidget* parent) :
     m_saveCheckpointAction->setData(int(Operation::SaveCheckpoint));
     m_loadCheckpointAction = new QAction(tr("Load Checkpoint..."), this);
     m_loadCheckpointAction->setData(int(Operation::LoadCheckpoint));
+    m_recentMenu = new QMenu(tr("Recent"), this);
+    m_clearRecentAction = new QAction(tr("Clear Recent"), this);
     m_clearSearchAction = new QAction(tr("Clear Search"), this);
     m_selectVisibleAction = new QAction(tr("Select Visible"), this);
     m_selectVisibleAction->setData(int(Operation::SelectVisible));
@@ -685,6 +723,7 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->menuFile->insertAction(ui->actionClear, m_saveCheckpointAction);
     ui->menuFile->insertAction(ui->actionClear, m_loadCheckpointAction);
     ui->menuFile->insertSeparator(ui->actionClear);
+    ui->menuFile->insertMenu(ui->actionClear, m_recentMenu);
     ui->menuInsert->addAction(m_insertPDFPagesAction);
     ui->menuMake->addSeparator();
     ui->menuMake->addAction(m_splitAction);
@@ -802,6 +841,7 @@ MainWindow::MainWindow(QWidget* parent) :
     connect(m_filterModel, &QAbstractItemModel::rowsInserted, this, &MainWindow::updateSearchResultLabel);
     connect(m_filterModel, &QAbstractItemModel::rowsRemoved, this, &MainWindow::updateSearchResultLabel);
     connect(m_filterModel, &QAbstractItemModel::layoutChanged, this, &MainWindow::updateSearchResultLabel);
+    connect(m_clearRecentAction, &QAction::triggered, this, &MainWindow::onClearRecentTriggered);
 
     QList<QAction*> actions = findChildren<QAction*>();
     for (QAction* action : actions)
@@ -828,6 +868,7 @@ MainWindow::MainWindow(QWidget* parent) :
     QPixmapCache::setCacheLimit(kBytes);
 
     loadSettings();
+    updateRecentMenu();
     updateSearchFilter();
     updateActions();
 
@@ -1063,6 +1104,102 @@ void MainWindow::updateActions()
     }
 }
 
+void MainWindow::onClearRecentTriggered()
+{
+    m_settings.recentSourceFiles.clear();
+    m_settings.recentWorkspaceFiles.clear();
+    m_settings.recentDirectories.clear();
+    saveSettings();
+    updateRecentMenu();
+}
+
+void MainWindow::onRecentSourceFileTriggered()
+{
+    QAction* action = qobject_cast<QAction*>(sender());
+    if (!action)
+    {
+        return;
+    }
+
+    const QString fileName = action->data().toString();
+    QFileInfo fileInfo(fileName);
+    if (!fileInfo.exists())
+    {
+        QMessageBox::warning(this, tr("Recent File"), tr("File '%1' no longer exists.").arg(fileName));
+        m_settings.recentSourceFiles.removeAll(fileName);
+        m_settings.recentSourceFiles.removeAll(MainWindowRecentHelper::normalizedPath(fileName));
+        saveSettings();
+        updateRecentMenu();
+        return;
+    }
+
+    const QString suffix = fileInfo.suffix().toLower();
+    if (suffix == QLatin1String("pdf"))
+    {
+        insertDocument(fileName, QModelIndex());
+        return;
+    }
+
+    const QList<QByteArray> supportedFormats = QImageReader::supportedImageFormats();
+    if (supportedFormats.contains(suffix.toLatin1()))
+    {
+        if (m_model->insertImage(fileName, QModelIndex()) != -1)
+        {
+            m_settings.directory = fileInfo.absolutePath();
+            addRecentSourceFile(fileName);
+        }
+        return;
+    }
+
+    QMessageBox::warning(this, tr("Recent File"), tr("File '%1' is not a supported PDF or image file.").arg(fileName));
+}
+
+void MainWindow::onRecentWorkspaceFileTriggered()
+{
+    QAction* action = qobject_cast<QAction*>(sender());
+    if (!action)
+    {
+        return;
+    }
+
+    const QString fileName = action->data().toString();
+    if (!QFileInfo::exists(fileName))
+    {
+        QMessageBox::warning(this, tr("Recent Workspace"), tr("Workspace '%1' no longer exists.").arg(fileName));
+        m_settings.recentWorkspaceFiles.removeAll(fileName);
+        m_settings.recentWorkspaceFiles.removeAll(MainWindowRecentHelper::normalizedPath(fileName));
+        saveSettings();
+        updateRecentMenu();
+        return;
+    }
+
+    openWorkspaceFile(fileName);
+}
+
+void MainWindow::onRecentDirectoryTriggered()
+{
+    QAction* action = qobject_cast<QAction*>(sender());
+    if (!action)
+    {
+        return;
+    }
+
+    const QString directory = action->data().toString();
+    if (!QDir(directory).exists())
+    {
+        QMessageBox::warning(this, tr("Recent Folder"), tr("Folder '%1' no longer exists.").arg(directory));
+        m_settings.recentDirectories.removeAll(directory);
+        m_settings.recentDirectories.removeAll(MainWindowRecentHelper::normalizedPath(directory));
+        saveSettings();
+        updateRecentMenu();
+        return;
+    }
+
+    m_settings.directory = directory;
+    addRecentDirectory(directory);
+    statusBar()->showMessage(tr("Current folder set to '%1'.").arg(QDir::toNativeSeparators(directory)), 3000);
+}
+
 void MainWindow::loadSettings()
 {
     QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
@@ -1090,6 +1227,12 @@ void MainWindow::loadSettings()
     settings.beginGroup("Settings");
     m_settings.directory = settings.value("directory").toString();
     settings.endGroup();
+
+    settings.beginGroup("Recent");
+    m_settings.recentSourceFiles = settings.value("sourceFiles").toStringList();
+    m_settings.recentWorkspaceFiles = settings.value("workspaceFiles").toStringList();
+    m_settings.recentDirectories = settings.value("directories").toStringList();
+    settings.endGroup();
 }
 
 void MainWindow::saveSettings()
@@ -1103,6 +1246,109 @@ void MainWindow::saveSettings()
     settings.beginGroup("Settings");
     settings.setValue("directory", m_settings.directory);
     settings.endGroup();
+
+    settings.beginGroup("Recent");
+    settings.setValue("sourceFiles", m_settings.recentSourceFiles);
+    settings.setValue("workspaceFiles", m_settings.recentWorkspaceFiles);
+    settings.setValue("directories", m_settings.recentDirectories);
+    settings.endGroup();
+}
+
+bool MainWindow::openWorkspaceFile(const QString& fileName)
+{
+    QFile file(fileName);
+    if (!file.open(QIODevice::ReadOnly))
+    {
+        QMessageBox::critical(this, tr("Error"), tr("Cannot open workspace file '%1'.").arg(fileName));
+        return false;
+    }
+
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject())
+    {
+        QMessageBox::critical(this, tr("Error"), tr("Cannot parse workspace JSON: %1").arg(parseError.errorString()));
+        return false;
+    }
+
+    QString errorMessage;
+    if (!loadProjectJson(document.object(), &errorMessage))
+    {
+        QMessageBox::critical(this, tr("Error"), errorMessage);
+        return false;
+    }
+
+    m_settings.directory = QFileInfo(fileName).absolutePath();
+    addRecentWorkspaceFile(fileName);
+    return true;
+}
+
+void MainWindow::addRecentSourceFile(const QString& fileName)
+{
+    MainWindowRecentHelper::addPath(&m_settings.recentSourceFiles, fileName);
+    addRecentDirectory(QFileInfo(fileName).absolutePath());
+}
+
+void MainWindow::addRecentWorkspaceFile(const QString& fileName)
+{
+    MainWindowRecentHelper::addPath(&m_settings.recentWorkspaceFiles, fileName);
+    addRecentDirectory(QFileInfo(fileName).absolutePath());
+}
+
+void MainWindow::addRecentDirectory(const QString& directory)
+{
+    MainWindowRecentHelper::addPath(&m_settings.recentDirectories, directory);
+    saveSettings();
+    updateRecentMenu();
+}
+
+void MainWindow::updateRecentMenu()
+{
+    if (!m_recentMenu)
+    {
+        return;
+    }
+
+    m_recentMenu->clear();
+    bool hasItems = false;
+
+    addRecentMenuSection(tr("Source Files"), m_settings.recentSourceFiles, &MainWindow::onRecentSourceFileTriggered, &hasItems);
+    addRecentMenuSection(tr("Workspaces"), m_settings.recentWorkspaceFiles, &MainWindow::onRecentWorkspaceFileTriggered, &hasItems);
+    addRecentMenuSection(tr("Folders"), m_settings.recentDirectories, &MainWindow::onRecentDirectoryTriggered, &hasItems);
+
+    if (!hasItems)
+    {
+        QAction* emptyAction = m_recentMenu->addAction(tr("No Recent Items"));
+        emptyAction->setEnabled(false);
+    }
+
+    m_recentMenu->addSeparator();
+    m_clearRecentAction->setEnabled(hasItems);
+    m_recentMenu->addAction(m_clearRecentAction);
+}
+
+void MainWindow::addRecentMenuSection(const QString& title, const QStringList& paths, void (MainWindow::*slot)(), bool* hasItems)
+{
+    if (paths.isEmpty())
+    {
+        return;
+    }
+
+    if (*hasItems)
+    {
+        m_recentMenu->addSeparator();
+    }
+
+    QAction* titleAction = m_recentMenu->addAction(title);
+    titleAction->setEnabled(false);
+    for (const QString& path : paths)
+    {
+        QAction* action = m_recentMenu->addAction(MainWindowRecentHelper::actionText(path));
+        action->setData(path);
+        action->setToolTip(QDir::toNativeSeparators(path));
+        connect(action, &QAction::triggered, this, slot);
+    }
+    *hasItems = true;
 }
 
 QModelIndexList MainWindow::getSelectedRows() const
@@ -1502,6 +1748,11 @@ bool MainWindow::dropWorkspaceExternalMimeData(const QMimeData* mimeData, int in
         else
         {
             ok = m_model->insertImage(fileName, insertSourceRow) != -1;
+            if (ok)
+            {
+                m_settings.directory = QFileInfo(fileName).absolutePath();
+                addRecentSourceFile(fileName);
+            }
         }
 
         if (ok)
@@ -1576,6 +1827,11 @@ bool MainWindow::insertDocument(const QString& fileName, int insertRow, const st
     else
     {
         Q_ASSERT(false);
+    }
+
+    if (isDocumentInserted)
+    {
+        addRecentSourceFile(fileName);
     }
 
     return isDocumentInserted;
@@ -1843,6 +2099,11 @@ void MainWindow::exportAssembledDocuments(std::vector<std::vector<pdf::PDFDocume
     const int documentCount = int(m_model->getDocuments().size());
 
     QString directory = dialog.getDirectory();
+    if (!directory.isEmpty())
+    {
+        m_settings.directory = QDir(directory).absolutePath();
+        addRecentDirectory(m_settings.directory);
+    }
     QString fileNameTemplate = dialog.getFileName();
     const bool isOverwriteEnabled = dialog.isOverwriteFiles();
     pdf::PDFDocumentManipulator::OutlineMode outlineMode = dialog.getOutlineMode();
@@ -2680,6 +2941,7 @@ void MainWindow::saveWorkspace()
     }
 
     m_settings.directory = QFileInfo(fileName).absolutePath();
+    addRecentWorkspaceFile(fileName);
 }
 
 void MainWindow::openWorkspace()
@@ -2689,30 +2951,7 @@ void MainWindow::openWorkspace()
     {
         return;
     }
-
-    QFile file(fileName);
-    if (!file.open(QIODevice::ReadOnly))
-    {
-        QMessageBox::critical(this, tr("Error"), tr("Cannot open workspace file '%1'.").arg(fileName));
-        return;
-    }
-
-    QJsonParseError parseError;
-    const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parseError);
-    if (parseError.error != QJsonParseError::NoError || !document.isObject())
-    {
-        QMessageBox::critical(this, tr("Error"), tr("Cannot parse workspace JSON: %1").arg(parseError.errorString()));
-        return;
-    }
-
-    QString errorMessage;
-    if (!loadProjectJson(document.object(), &errorMessage))
-    {
-        QMessageBox::critical(this, tr("Error"), errorMessage);
-        return;
-    }
-
-    m_settings.directory = QFileInfo(fileName).absolutePath();
+    openWorkspaceFile(fileName);
 }
 
 void MainWindow::saveCheckpoint()
@@ -3193,6 +3432,11 @@ void MainWindow::performOperation(Operation operation)
                 int documentCount = int(m_model->getDocuments().size());
 
                 QString directory = dialog.getDirectory();
+                if (!directory.isEmpty())
+                {
+                    m_settings.directory = QDir(directory).absolutePath();
+                    addRecentDirectory(m_settings.directory);
+                }
                 QString fileNameTemplate = dialog.getFileName();
                 const bool isOverwriteEnabled = dialog.isOverwriteFiles();
                 pdf::PDFDocumentManipulator::OutlineMode outlineMode = dialog.getOutlineMode();
@@ -3329,7 +3573,11 @@ void MainWindow::performOperation(Operation operation)
 
                 for (const QString& fileName : fileNames)
                 {
-                    m_model->insertImage(fileName, insertIndex);
+                    if (m_model->insertImage(fileName, insertIndex) != -1)
+                    {
+                        m_settings.directory = QFileInfo(fileName).absolutePath();
+                        addRecentSourceFile(fileName);
+                    }
                     insertIndex = insertIndex.sibling(insertIndex.row() + 1, insertIndex.column());
                 }
             }
@@ -3407,6 +3655,10 @@ void MainWindow::performOperation(Operation operation)
             if (m_model->insertDocument(fileName, qMove(document), insertIndex, pages) == -1)
             {
                 QMessageBox::critical(this, tr("Error"), tr("Document '%1' is already in the workspace.").arg(fileInfo.fileName()));
+            }
+            else
+            {
+                addRecentSourceFile(fileName);
             }
             break;
         }

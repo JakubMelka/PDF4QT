@@ -27,16 +27,55 @@
 #include "pdfwidgetutils.h"
 
 #include <QCheckBox>
+#include <QCoreApplication>
 #include <QFileDialog>
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QSettings>
 #include <QTableWidget>
 #include <QVBoxLayout>
 
 namespace pdfpagemaster
 {
+
+class AssembleOutputSettingsHelper final
+{
+public:
+    template<typename Enum>
+    static Enum readEnumValue(QSettings& settings, const QString& key, Enum fallback, int minimum, int maximum)
+    {
+        const int value = settings.value(key, int(fallback)).toInt();
+        return (value >= minimum && value <= maximum) ? Enum(value) : fallback;
+    }
+
+    static void loadCompressionProfile(QSettings& settings, const QString& groupName, pdf::PDFImageOptimizer::CompressionProfile* profile)
+    {
+        settings.beginGroup(groupName);
+        profile->algorithm = readEnumValue(settings, "algorithm", profile->algorithm, int(pdf::PDFImageOptimizer::CompressionAlgorithm::Auto), int(pdf::PDFImageOptimizer::CompressionAlgorithm::JBIG2));
+        profile->targetDpi = qMax(0, settings.value("targetDpi", profile->targetDpi).toInt());
+        profile->resampleFilter = readEnumValue(settings, "resampleFilter", profile->resampleFilter, int(pdf::PDFImage::ResampleFilter::Nearest), int(pdf::PDFImage::ResampleFilter::Lanczos));
+        profile->jpegQuality = qBound(0, settings.value("jpegQuality", profile->jpegQuality).toInt(), 100);
+        profile->jpeg2000Rate = qMax(0.0f, settings.value("jpeg2000Rate", profile->jpeg2000Rate).toFloat());
+        profile->monochromeThreshold = qBound(-1, settings.value("monochromeThreshold", profile->monochromeThreshold).toInt(), 255);
+        profile->enablePngPredictor = settings.value("enablePngPredictor", profile->enablePngPredictor).toBool();
+        settings.endGroup();
+    }
+
+    static void saveCompressionProfile(QSettings& settings, const QString& groupName, const pdf::PDFImageOptimizer::CompressionProfile& profile)
+    {
+        settings.beginGroup(groupName);
+        settings.setValue("algorithm", int(profile.algorithm));
+        settings.setValue("targetDpi", profile.targetDpi);
+        settings.setValue("resampleFilter", int(profile.resampleFilter));
+        settings.setValue("jpegQuality", profile.jpegQuality);
+        settings.setValue("jpeg2000Rate", profile.jpeg2000Rate);
+        settings.setValue("monochromeThreshold", profile.monochromeThreshold);
+        settings.setValue("enablePngPredictor", profile.enablePngPredictor);
+        settings.endGroup();
+    }
+};
 
 AssembleOutputSettingsDialog::AssembleOutputSettingsDialog(QString directory, QWidget* parent) :
     QDialog(parent),
@@ -59,6 +98,7 @@ AssembleOutputSettingsDialog::AssembleOutputSettingsDialog(QString directory, QW
                               "<p>Named tokens: {source_name}, {source_base}, {source_ext}, {source_page}, {output_index}, {group_index}, {date}.</p>"
                               "<p>Examples: {source_base}.pdf, document-{output_index}.pdf, {date}-{source_base}.pdf</p>"
                               "</body></html>"));
+    loadSettings();
 
     m_previewTable->setColumnCount(5);
     m_previewTable->setHorizontalHeaderLabels({ tr("Output file"), tr("Pages"), tr("First source"), tr("Mode"), tr("Status") });
@@ -79,6 +119,71 @@ AssembleOutputSettingsDialog::AssembleOutputSettingsDialog(QString directory, QW
 AssembleOutputSettingsDialog::~AssembleOutputSettingsDialog()
 {
     delete ui;
+}
+
+void AssembleOutputSettingsDialog::loadSettings()
+{
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
+    settings.beginGroup("AssembleOutputSettingsDialog");
+
+    const QString savedDirectory = settings.value("directory").toString();
+    if (!savedDirectory.isEmpty())
+    {
+        ui->directoryEdit->setText(savedDirectory);
+    }
+    if (settings.contains("fileTemplate"))
+    {
+        ui->fileTemplateEdit->setText(settings.value("fileTemplate").toString());
+    }
+    ui->overwriteFilesCheckBox->setChecked(settings.value("overwriteFiles", ui->overwriteFilesCheckBox->isChecked()).toBool());
+    ui->optimizeImagesCheckBox->setChecked(settings.value("optimizeImages", ui->optimizeImagesCheckBox->isChecked()).toBool());
+
+    const pdf::PDFDocumentManipulator::OutlineMode outlineMode = AssembleOutputSettingsHelper::readEnumValue(settings, "outlineMode", pdf::PDFDocumentManipulator::OutlineMode::DocumentParts, int(pdf::PDFDocumentManipulator::OutlineMode::NoOutline), int(pdf::PDFDocumentManipulator::OutlineMode::DocumentParts));
+    const int outlineModeIndex = ui->outlineModeComboBox->findData(int(outlineMode));
+    if (outlineModeIndex != -1)
+    {
+        ui->outlineModeComboBox->setCurrentIndex(outlineModeIndex);
+    }
+
+    settings.beginGroup("ImageOptimization");
+    m_imageOptimizationSettings.enabled = ui->optimizeImagesCheckBox->isChecked();
+    m_imageOptimizationSettings.autoMode = settings.value("autoMode", m_imageOptimizationSettings.autoMode).toBool();
+    m_imageOptimizationSettings.colorMode = AssembleOutputSettingsHelper::readEnumValue(settings, "colorMode", m_imageOptimizationSettings.colorMode, int(pdf::PDFImageOptimizer::ColorMode::Auto), int(pdf::PDFImageOptimizer::ColorMode::Bitonal));
+    m_imageOptimizationSettings.goal = AssembleOutputSettingsHelper::readEnumValue(settings, "goal", m_imageOptimizationSettings.goal, int(pdf::PDFImageOptimizer::OptimizationGoal::PreferQuality), int(pdf::PDFImageOptimizer::OptimizationGoal::MinimumSize));
+    m_imageOptimizationSettings.keepOriginalIfLarger = settings.value("keepOriginalIfLarger", m_imageOptimizationSettings.keepOriginalIfLarger).toBool();
+    m_imageOptimizationSettings.preserveTransparency = settings.value("preserveTransparency", m_imageOptimizationSettings.preserveTransparency).toBool();
+    AssembleOutputSettingsHelper::loadCompressionProfile(settings, "ColorProfile", &m_imageOptimizationSettings.colorProfile);
+    AssembleOutputSettingsHelper::loadCompressionProfile(settings, "GrayProfile", &m_imageOptimizationSettings.grayProfile);
+    AssembleOutputSettingsHelper::loadCompressionProfile(settings, "BitonalProfile", &m_imageOptimizationSettings.bitonalProfile);
+    settings.endGroup();
+
+    settings.endGroup();
+}
+
+void AssembleOutputSettingsDialog::saveSettings() const
+{
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
+    settings.beginGroup("AssembleOutputSettingsDialog");
+    settings.setValue("directory", ui->directoryEdit->text());
+    settings.setValue("fileTemplate", ui->fileTemplateEdit->text());
+    settings.setValue("overwriteFiles", ui->overwriteFilesCheckBox->isChecked());
+    settings.setValue("optimizeImages", ui->optimizeImagesCheckBox->isChecked());
+    settings.setValue("outlineMode", ui->outlineModeComboBox->currentData().toInt());
+
+    const pdf::PDFImageOptimizer::Settings imageOptimizationSettings = getImageOptimizationSettings();
+    settings.beginGroup("ImageOptimization");
+    settings.setValue("enabled", imageOptimizationSettings.enabled);
+    settings.setValue("autoMode", imageOptimizationSettings.autoMode);
+    settings.setValue("colorMode", int(imageOptimizationSettings.colorMode));
+    settings.setValue("goal", int(imageOptimizationSettings.goal));
+    settings.setValue("keepOriginalIfLarger", imageOptimizationSettings.keepOriginalIfLarger);
+    settings.setValue("preserveTransparency", imageOptimizationSettings.preserveTransparency);
+    AssembleOutputSettingsHelper::saveCompressionProfile(settings, "ColorProfile", imageOptimizationSettings.colorProfile);
+    AssembleOutputSettingsHelper::saveCompressionProfile(settings, "GrayProfile", imageOptimizationSettings.grayProfile);
+    AssembleOutputSettingsHelper::saveCompressionProfile(settings, "BitonalProfile", imageOptimizationSettings.bitonalProfile);
+    settings.endGroup();
+
+    settings.endGroup();
 }
 
 QString AssembleOutputSettingsDialog::getDirectory() const
@@ -153,6 +258,7 @@ void AssembleOutputSettingsDialog::accept()
         return;
     }
 
+    saveSettings();
     QDialog::accept();
 }
 

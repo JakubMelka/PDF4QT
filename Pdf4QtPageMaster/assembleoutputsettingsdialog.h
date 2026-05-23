@@ -77,6 +77,9 @@ private slots:
     void refreshOutputPreview();
 
 private:
+    void loadSettings();
+    void saveSettings() const;
+
     Ui::AssembleOutputSettingsDialog* ui;
     QTableWidget* m_previewTable;
     std::function<std::vector<OutputPreviewItem>()> m_outputPreviewFactory;

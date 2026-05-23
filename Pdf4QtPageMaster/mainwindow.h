@@ -34,6 +34,7 @@
 #include <QList>
 #include <QPoint>
 #include <QSignalMapper>
+#include <QStringList>
 #include <QUrl>
 
 namespace Ui
@@ -47,6 +48,7 @@ class QEvent;
 class QFrame;
 class QLabel;
 class QLineEdit;
+class QMenu;
 class QMimeData;
 class QTableView;
 
@@ -155,6 +157,10 @@ private slots:
     void onPreviewUpdated();
     void onWorkspaceCustomContextMenuRequested(const QPoint& point);
     void updateActions();
+    void onClearRecentTriggered();
+    void onRecentSourceFileTriggered();
+    void onRecentWorkspaceFileTriggered();
+    void onRecentDirectoryTriggered();
 
 private:
     void loadSettings();
@@ -179,6 +185,12 @@ private:
     void openWorkspace();
     void saveCheckpoint();
     void loadCheckpoint();
+    bool openWorkspaceFile(const QString& fileName);
+    void addRecentSourceFile(const QString& fileName);
+    void addRecentWorkspaceFile(const QString& fileName);
+    void addRecentDirectory(const QString& directory);
+    void updateRecentMenu();
+    void addRecentMenuSection(const QString& title, const QStringList& paths, void (MainWindow::*slot)(), bool* hasItems);
     QJsonObject createWorkspaceStateJson() const;
     bool restoreWorkspaceStateFromJson(const QJsonObject& state, QString* errorMessage);
     QJsonObject createProjectJson() const;
@@ -199,6 +211,9 @@ private:
     struct Settings
     {
         QString directory;
+        QStringList recentSourceFiles;
+        QStringList recentWorkspaceFiles;
+        QStringList recentDirectories;
     };
 
     Ui::MainWindow* ui;
@@ -226,6 +241,8 @@ private:
     QAction* m_openWorkspaceAction;
     QAction* m_saveCheckpointAction;
     QAction* m_loadCheckpointAction;
+    QMenu* m_recentMenu;
+    QAction* m_clearRecentAction;
     QAction* m_clearSearchAction;
     QAction* m_selectVisibleAction;
     QLineEdit* m_searchEdit;
