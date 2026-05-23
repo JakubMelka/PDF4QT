@@ -314,13 +314,29 @@ private:
     {
         bool operator==(const UndoRedoStep& other) const
         {
-            return pageGroupItems == other.pageGroupItems &&
-                   trashBin == other.trashBin &&
-                   images == other.images;
+            if (pageGroupItems != other.pageGroupItems ||
+                trashBin != other.trashBin ||
+                images != other.images ||
+                documents.size() != other.documents.size())
+            {
+                return false;
+            }
+
+            for (const auto& document : documents)
+            {
+                auto otherIt = other.documents.find(document.first);
+                if (otherIt == other.documents.cend() || otherIt->second.fileName != document.second.fileName)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         std::vector<PageGroupItem> pageGroupItems;
         std::vector<PageGroupItem> trashBin;
+        std::map<int, DocumentItem> documents;
         std::map<int, ImageItem> images;
         QString actionLabel;
     };
@@ -341,7 +357,7 @@ private:
 
     QItemSelection getSelectionImpl(std::function<bool(const PageGroupItem::GroupItem&)> filter) const;
 
-    UndoRedoStep getCurrentStep() const { return UndoRedoStep{ m_pageGroupItems, m_trashBin, m_images }; }
+    UndoRedoStep getCurrentStep() const { return UndoRedoStep{ m_pageGroupItems, m_trashBin, m_documents, m_images }; }
     void updateUndoRedoSteps();
     void clearUndoRedo();
 

@@ -300,6 +300,7 @@ QString createOutputFileName(QString fileNameTemplate,
                              int groupIndex,
                              int sourceDocumentIndex,
                              int sourcePageIndex,
+                             const QString& groupName,
                              const QString& sourceName,
                              const QString& sourceBase,
                              const QString& sourceExtension)
@@ -314,6 +315,7 @@ QString createOutputFileName(QString fileNameTemplate,
     fileNameTemplate.replace("{source_page}", QString::number(sourcePageIndex));
     fileNameTemplate.replace("{output_index}", QString::number(outputIndex));
     fileNameTemplate.replace("{group_index}", QString::number(groupIndex));
+    fileNameTemplate.replace("{group_name}", groupName);
     fileNameTemplate.replace("{date}", QDate::currentDate().toString(Qt::ISODate));
 
     if (!fileNameTemplate.endsWith(".pdf", Qt::CaseInsensitive))
@@ -1878,7 +1880,7 @@ bool MainWindow::canPerformOperation(Operation operation) const
         case Operation::Paste:
         {
             const QMimeData* mimeData = QApplication::clipboard()->mimeData();
-            return mimeData && mimeData->hasFormat(PageItemModel::getMimeDataType());
+            return mimeData && (mimeData->hasFormat(PageItemModel::getMimeDataType()) || mimeData->hasImage());
         }
 
         case Operation::RotateLeft:
@@ -1996,12 +1998,16 @@ bool MainWindow::canPerformOperation(Operation operation) const
     return false;
 }
 
-void MainWindow::exportAssembledDocuments(std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> assembledDocuments, const QString& assembleModeText)
+void MainWindow::exportAssembledDocuments(std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> assembledDocuments, const QString& assembleModeText, std::vector<QString> assembledDocumentGroupNames)
 {
     if (assembledDocuments.empty())
     {
         QMessageBox::critical(this, tr("Error"), tr("No documents to assemble."));
         return;
+    }
+    if (assembledDocumentGroupNames.size() < assembledDocuments.size())
+    {
+        assembledDocumentGroupNames.resize(assembledDocuments.size());
     }
 
     auto sourceInfo = [this](const pdf::PDFDocumentManipulator::AssembledPage& page)
@@ -2053,8 +2059,9 @@ void MainWindow::exportAssembledDocuments(std::vector<std::vector<pdf::PDFDocume
             const pdf::PDFDocumentManipulator::AssembledPage samplePage = assembledPages.front();
             const int sourceDocumentIndex = samplePage.documentIndex == -1 ? documentCount + samplePage.imageIndex : samplePage.documentIndex;
             const int sourcePageIndex = qMax(int(samplePage.pageIndex + 1), 1);
+            const QString groupName = assembledDocumentGroupNames[outputIndex - 1];
             auto [sourceName, sourceBase, sourceExtension] = sourceInfo(samplePage);
-            const QString fileName = createOutputFileName(dialog.getFileName(), dialog.getDirectory(), outputIndex, outputIndex, sourceDocumentIndex, sourcePageIndex, sourceName, sourceBase, sourceExtension);
+            const QString fileName = createOutputFileName(dialog.getFileName(), dialog.getDirectory(), outputIndex, outputIndex, sourceDocumentIndex, sourcePageIndex, groupName, sourceName, sourceBase, sourceExtension);
 
             QString status = tr("Ready");
             bool isBlocking = false;
@@ -2129,8 +2136,9 @@ void MainWindow::exportAssembledDocuments(std::vector<std::vector<pdf::PDFDocume
         const pdf::PDFDocumentManipulator::AssembledPage samplePage = assembledPages.front();
         const int validationSourceDocumentIndex = samplePage.documentIndex == -1 ? documentCount + samplePage.imageIndex : samplePage.documentIndex;
         const int validationSourcePageIndex = qMax(int(samplePage.pageIndex + 1), 1);
+        const QString validationGroupName = assembledDocumentGroupNames[validationOutputIndex - 1];
         auto [validationSourceName, validationSourceBase, validationSourceExtension] = sourceInfo(samplePage);
-        const QString validationFileName = createOutputFileName(fileNameTemplate, directory, validationOutputIndex, validationOutputIndex, validationSourceDocumentIndex, validationSourcePageIndex, validationSourceName, validationSourceBase, validationSourceExtension);
+        const QString validationFileName = createOutputFileName(fileNameTemplate, directory, validationOutputIndex, validationOutputIndex, validationSourceDocumentIndex, validationSourcePageIndex, validationGroupName, validationSourceName, validationSourceBase, validationSourceExtension);
 
         const QString validationFileNameKey = normalizedOutputPathKey(validationFileName);
         if (generatedFileNames.contains(validationFileNameKey))
@@ -2161,9 +2169,10 @@ void MainWindow::exportAssembledDocuments(std::vector<std::vector<pdf::PDFDocume
         pdf::PDFDocumentManipulator::AssembledPage samplePage = assembledPages.front();
         const int sourceDocumentIndex = samplePage.documentIndex == -1 ? documentCount + samplePage.imageIndex : samplePage.documentIndex;
         const int sourcePageIndex = qMax(int(samplePage.pageIndex + 1), 1);
+        const QString groupName = assembledDocumentGroupNames[assembledDocumentIndex - 1];
 
         auto [sourceName, sourceBase, sourceExtension] = sourceInfo(samplePage);
-        QString fileName = createOutputFileName(fileNameTemplate, directory, assembledDocumentIndex, assembledDocumentIndex, sourceDocumentIndex, sourcePageIndex, sourceName, sourceBase, sourceExtension);
+        QString fileName = createOutputFileName(fileNameTemplate, directory, assembledDocumentIndex, assembledDocumentIndex, sourceDocumentIndex, sourcePageIndex, groupName, sourceName, sourceBase, sourceExtension);
 
         pdf::PDFDocument assembledDocument = manipulator.takeAssembledDocument();
         if (m_hasPageGeometrySettings)
@@ -3083,6 +3092,14 @@ void MainWindow::performOperation(Operation operation)
             {
                 m_model->dropMimeData(mimeData, m_dropAction, -1, -1, insertIndex);
             }
+            else if (mimeData && mimeData->hasImage())
+            {
+                QImage image = mimeData->imageData().value<QImage>();
+                if (!image.isNull())
+                {
+                    m_model->insertImage(qMove(image), insertIndex);
+                }
+            }
             break;
         }
 
@@ -3336,6 +3353,36 @@ void MainWindow::performOperation(Operation operation)
                 break;
             }
 
+            std::vector<QString> assembledDocumentGroupNames;
+            switch (assembleMode)
+            {
+                case PageItemModel::AssembleMode::Unite:
+                    assembledDocumentGroupNames.emplace_back();
+                    break;
+
+                case PageItemModel::AssembleMode::Separate:
+                    for (const PageGroupItem& item : m_model->getPageGroupItems())
+                    {
+                        const QString groupName = m_model->getItemDisplayText(&item);
+                        for (size_t i = 0; i < item.groups.size(); ++i)
+                        {
+                            assembledDocumentGroupNames.push_back(groupName);
+                        }
+                    }
+                    break;
+
+                case PageItemModel::AssembleMode::SeparateGrouped:
+                    for (const PageGroupItem& item : m_model->getPageGroupItems())
+                    {
+                        assembledDocumentGroupNames.push_back(m_model->getItemDisplayText(&item));
+                    }
+                    break;
+            }
+            if (assembledDocumentGroupNames.size() < assembledDocuments.size())
+            {
+                assembledDocumentGroupNames.resize(assembledDocuments.size());
+            }
+
             auto sourceInfo = [this](const pdf::PDFDocumentManipulator::AssembledPage& page)
             {
                 QFileInfo info;
@@ -3385,8 +3432,9 @@ void MainWindow::performOperation(Operation operation)
                     const pdf::PDFDocumentManipulator::AssembledPage samplePage = assembledPages.front();
                     const int sourceDocumentIndex = samplePage.documentIndex == -1 ? documentCount + samplePage.imageIndex : samplePage.documentIndex;
                     const int sourcePageIndex = qMax(int(samplePage.pageIndex + 1), 1);
+                    const QString groupName = assembledDocumentGroupNames[outputIndex - 1];
                     auto [sourceName, sourceBase, sourceExtension] = sourceInfo(samplePage);
-                    const QString fileName = createOutputFileName(dialog.getFileName(), dialog.getDirectory(), outputIndex, outputIndex, sourceDocumentIndex, sourcePageIndex, sourceName, sourceBase, sourceExtension);
+                    const QString fileName = createOutputFileName(dialog.getFileName(), dialog.getDirectory(), outputIndex, outputIndex, sourceDocumentIndex, sourcePageIndex, groupName, sourceName, sourceBase, sourceExtension);
 
                     QString status = tr("Ready");
                     bool isBlocking = false;
@@ -3462,8 +3510,9 @@ void MainWindow::performOperation(Operation operation)
                     const pdf::PDFDocumentManipulator::AssembledPage samplePage = assembledPages.front();
                     const int validationSourceDocumentIndex = samplePage.documentIndex == -1 ? documentCount + samplePage.imageIndex : samplePage.documentIndex;
                     const int validationSourcePageIndex = qMax(int(samplePage.pageIndex + 1), 1);
+                    const QString validationGroupName = assembledDocumentGroupNames[validationOutputIndex - 1];
                     auto [validationSourceName, validationSourceBase, validationSourceExtension] = sourceInfo(samplePage);
-                    const QString validationFileName = createOutputFileName(fileNameTemplate, directory, validationOutputIndex, validationOutputIndex, validationSourceDocumentIndex, validationSourcePageIndex, validationSourceName, validationSourceBase, validationSourceExtension);
+                    const QString validationFileName = createOutputFileName(fileNameTemplate, directory, validationOutputIndex, validationOutputIndex, validationSourceDocumentIndex, validationSourcePageIndex, validationGroupName, validationSourceName, validationSourceBase, validationSourceExtension);
 
                     const QString validationFileNameKey = normalizedOutputPathKey(validationFileName);
                     if (generatedFileNames.contains(validationFileNameKey))
@@ -3494,9 +3543,10 @@ void MainWindow::performOperation(Operation operation)
                     pdf::PDFDocumentManipulator::AssembledPage samplePage = assembledPages.front();
                     sourceDocumentIndex = samplePage.documentIndex == -1 ? documentCount + samplePage.imageIndex : samplePage.documentIndex;
                     sourcePageIndex = qMax(int(samplePage.pageIndex + 1), 1);
+                    const QString groupName = assembledDocumentGroupNames[assembledDocumentIndex - 1];
 
                     auto [sourceName, sourceBase, sourceExtension] = sourceInfo(samplePage);
-                    QString fileName = createOutputFileName(fileNameTemplate, directory, assembledDocumentIndex, assembledDocumentIndex, sourceDocumentIndex, sourcePageIndex, sourceName, sourceBase, sourceExtension);
+                    QString fileName = createOutputFileName(fileNameTemplate, directory, assembledDocumentIndex, assembledDocumentIndex, sourceDocumentIndex, sourcePageIndex, groupName, sourceName, sourceBase, sourceExtension);
 
                     pdf::PDFDocument assembledDocument = manipulator.takeAssembledDocument();
                     if (m_hasPageGeometrySettings)

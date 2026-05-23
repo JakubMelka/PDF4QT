@@ -174,7 +174,7 @@ private:
     QModelIndexList getSelectedRowsOrAll() const;
     QModelIndexList getSelectedRowsForOrdering() const;
     QModelIndexList getVisibleRows() const;
-    void exportAssembledDocuments(std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> assembledDocuments, const QString& assembleModeText);
+    void exportAssembledDocuments(std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> assembledDocuments, const QString& assembleModeText, std::vector<QString> assembledDocumentGroupNames = {});
     void splitDocuments();
     void selectPageRange();
     void selectSourceSelection(const QItemSelection& selection, bool addToExisting = false);

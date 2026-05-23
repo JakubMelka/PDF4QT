@@ -1682,6 +1682,7 @@ void PageItemModel::performUndoRedo(std::vector<PageItemModel::UndoRedoStep>& lo
     beginResetModel();
     m_pageGroupItems = std::move(step.pageGroupItems);
     m_trashBin = std::move(step.trashBin);
+    m_documents = std::move(step.documents);
     m_images = std::move(step.images);
     endResetModel();
 }
@@ -2513,11 +2514,6 @@ std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> PageItemMod
     {
         return result;
     }
-
-    std::sort(selectedItems.begin(), selectedItems.end(), [](const PageGroupItem::GroupItem& left, const PageGroupItem::GroupItem& right)
-    {
-        return left.pageIndex < right.pageIndex;
-    });
 
     std::vector<pdf::PDFInteger> breakPageIndices = pageIndices;
     std::sort(breakPageIndices.begin(), breakPageIndices.end());

@@ -95,8 +95,8 @@ AssembleOutputSettingsDialog::AssembleOutputSettingsDialog(QString directory, QW
     ui->infoLabel->setText(tr("<html><body>"
                               "<p><b>File template placeholders</b></p>"
                               "<p># = output number, @ = source page, % = source document index. Repeat them to pad with zeroes, for example ###.</p>"
-                              "<p>Named tokens: {source_name}, {source_base}, {source_ext}, {source_page}, {output_index}, {group_index}, {date}.</p>"
-                              "<p>Examples: {source_base}.pdf, document-{output_index}.pdf, {date}-{source_base}.pdf</p>"
+                              "<p>Named tokens: {source_name}, {source_base}, {source_ext}, {source_page}, {output_index}, {group_index}, {group_name}, {date}.</p>"
+                              "<p>Examples: {source_base}.pdf, {group_name}.pdf, document-{output_index}.pdf, {date}-{source_base}.pdf</p>"
                               "</body></html>"));
     loadSettings();
 
