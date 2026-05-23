@@ -28,10 +28,15 @@
 
 #include <QDialog>
 
+#include <functional>
+#include <vector>
+
 namespace Ui
 {
 class AssembleOutputSettingsDialog;
 }
+
+class QTableWidget;
 
 namespace pdfpagemaster
 {
@@ -41,6 +46,16 @@ class AssembleOutputSettingsDialog : public QDialog
     Q_OBJECT
 
 public:
+    struct OutputPreviewItem
+    {
+        QString fileName;
+        QString pageCount;
+        QString firstSource;
+        QString mode;
+        QString status;
+        bool isBlocking = false;
+    };
+
     explicit AssembleOutputSettingsDialog(QString directory, QWidget* parent);
     virtual ~AssembleOutputSettingsDialog() override;
 
@@ -50,13 +65,22 @@ public:
     pdf::PDFDocumentManipulator::OutlineMode getOutlineMode() const;
     bool isImageOptimizationEnabled() const;
     pdf::PDFImageOptimizer::Settings getImageOptimizationSettings() const;
+    void setOutputPreview(const std::vector<OutputPreviewItem>& items);
+    void setOutputPreviewFactory(std::function<std::vector<OutputPreviewItem>()> factory);
+
+public slots:
+    virtual void accept() override;
 
 private slots:
     void on_selectDirectoryButton_clicked();
     void on_imageOptimizationSettingsButton_clicked();
+    void refreshOutputPreview();
 
 private:
     Ui::AssembleOutputSettingsDialog* ui;
+    QTableWidget* m_previewTable;
+    std::function<std::vector<OutputPreviewItem>()> m_outputPreviewFactory;
+    bool m_hasBlockingPreviewItems = false;
     pdf::PDFImageOptimizer::Settings m_imageOptimizationSettings;
 };
 

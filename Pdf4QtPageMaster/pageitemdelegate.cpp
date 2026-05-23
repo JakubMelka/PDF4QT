@@ -27,6 +27,9 @@
 #include "pdfpainterutils.h"
 
 #include <QPainter>
+#include <QSortFilterProxyModel>
+
+#include <algorithm>
 
 namespace pdfpagemaster
 {
@@ -43,7 +46,13 @@ PageItemDelegate::~PageItemDelegate() = default;
 
 void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const
 {
-    const PageGroupItem* item = m_model->getItem(index);
+    QModelIndex sourceIndex = index;
+    if (const QSortFilterProxyModel* proxyModel = qobject_cast<const QSortFilterProxyModel*>(index.model()))
+    {
+        sourceIndex = proxyModel->mapToSource(index);
+    }
+
+    const PageGroupItem* item = m_model->getItem(sourceIndex);
 
     if (!item)
     {
@@ -73,7 +82,7 @@ void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& opti
         }
         else
         {
-            m_previewRenderer->requestPreview(item, pageImageRect, index.row(), m_dpiScaleRatio);
+            m_previewRenderer->requestPreview(item, pageImageRect, sourceIndex.row(), m_dpiScaleRatio);
         }
 
         painter->setPen(QPen(Qt::black));
@@ -86,9 +95,11 @@ void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& opti
     textRect.setTop(textOffset);
     textRect.setHeight(option.fontMetrics.lineSpacing());
     painter->setPen(option.palette.color(QPalette::Normal, QPalette::Text));
-    painter->drawText(textRect, Qt::AlignCenter | Qt::TextSingleLine, m_model->getItemDisplayText(item));
+    const QString displayText = option.fontMetrics.elidedText(m_model->getItemDisplayText(item), Qt::ElideMiddle, textRect.width() - horizontalSpacing * 2);
+    painter->drawText(textRect, Qt::AlignCenter | Qt::TextSingleLine, displayText);
     textRect.translate(0, textRect.height());
-    painter->drawText(textRect, Qt::AlignCenter | Qt::TextSingleLine, item->pagesCaption);
+    const QString pageText = option.fontMetrics.elidedText(item->pagesCaption, Qt::ElideRight, textRect.width() - horizontalSpacing * 2);
+    painter->drawText(textRect, Qt::AlignCenter | Qt::TextSingleLine, pageText);
 
     if (option.state.testFlag(QStyle::State_Selected))
     {
@@ -109,6 +120,19 @@ void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& opti
         QColor color = QColor::fromString(splitted.front());
         QRect bubbleRect = pdf::PDFPainterHelper::drawBubble(painter, tagPoint, color, splitted.back(), Qt::AlignLeft | Qt::AlignBottom);
         tagPoint.ry() += bubbleRect.height() + verticalSpacing;
+    }
+
+    if (item->groups.cend() != std::find_if(item->groups.cbegin(), item->groups.cend(), [](const PageGroupItem::GroupItem& groupItem) { return groupItem.pageAdditionalRotation != pdf::PageRotation::None; }))
+    {
+        QRect rotationRect = pageImageRect.adjusted(horizontalSpacing, horizontalSpacing, -horizontalSpacing, -horizontalSpacing);
+        rotationRect.setSize(QSize(option.fontMetrics.horizontalAdvance("270°") + horizontalSpacing * 2, option.fontMetrics.lineSpacing() + verticalSpacing));
+        QColor badgeColor = option.palette.color(QPalette::Active, QPalette::Highlight);
+        badgeColor.setAlphaF(0.85);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(badgeColor);
+        painter->drawRoundedRect(rotationRect, 4, 4);
+        painter->setPen(option.palette.color(QPalette::Active, QPalette::HighlightedText));
+        painter->drawText(rotationRect, Qt::AlignCenter, m_model->getItemRotationText(item));
     }
 }
 

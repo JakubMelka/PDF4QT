@@ -31,6 +31,7 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QScrollBar>
+#include <QSortFilterProxyModel>
 #include <QtConcurrent/QtConcurrent>
 #include <limits>
 #include <numeric>
@@ -266,8 +267,18 @@ bool PageItemPreviewRenderer::isRowVisible(int row) const
         return false;
     }
 
+    QModelIndex viewIndex = index;
+    if (const QSortFilterProxyModel* proxyModel = qobject_cast<const QSortFilterProxyModel*>(m_view->model()))
+    {
+        viewIndex = proxyModel->mapFromSource(index);
+        if (!viewIndex.isValid())
+        {
+            return false;
+        }
+    }
+
     const QRect visibleRect = m_view->viewport()->rect();
-    const QRect itemRect = m_view->visualRect(index);
+    const QRect itemRect = m_view->visualRect(viewIndex);
     return itemRect.isValid() && itemRect.intersects(visibleRect);
 }
 

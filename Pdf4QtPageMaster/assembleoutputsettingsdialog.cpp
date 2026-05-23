@@ -26,7 +26,14 @@
 #include "imageoptimizationsettingsdialog.h"
 #include "pdfwidgetutils.h"
 
+#include <QCheckBox>
 #include <QFileDialog>
+#include <QHeaderView>
+#include <QLabel>
+#include <QLineEdit>
+#include <QMessageBox>
+#include <QTableWidget>
+#include <QVBoxLayout>
 
 namespace pdfpagemaster
 {
@@ -34,6 +41,7 @@ namespace pdfpagemaster
 AssembleOutputSettingsDialog::AssembleOutputSettingsDialog(QString directory, QWidget* parent) :
     QDialog(parent),
     ui(new Ui::AssembleOutputSettingsDialog),
+    m_previewTable(new QTableWidget(this)),
     m_imageOptimizationSettings(pdf::PDFImageOptimizer::Settings::createDefault())
 {
     ui->setupUi(this);
@@ -45,7 +53,26 @@ AssembleOutputSettingsDialog::AssembleOutputSettingsDialog(QString directory, QW
     ui->outlineModeComboBox->addItem(tr("Document Parts"), int(pdf::PDFDocumentManipulator::OutlineMode::DocumentParts));
     ui->outlineModeComboBox->setCurrentIndex(ui->outlineModeComboBox->findData(int(pdf::PDFDocumentManipulator::OutlineMode::DocumentParts)));
 
-    pdf::PDFWidgetUtils::scaleWidget(this, QSize(520, 240));
+    ui->infoLabel->setText(tr("<html><body>"
+                              "<p><b>File template placeholders</b></p>"
+                              "<p># = output number, @ = source page, % = source document index. Repeat them to pad with zeroes, for example ###.</p>"
+                              "<p>Named tokens: {source_name}, {source_base}, {source_ext}, {source_page}, {output_index}, {group_index}, {date}.</p>"
+                              "<p>Examples: {source_base}.pdf, document-{output_index}.pdf, {date}-{source_base}.pdf</p>"
+                              "</body></html>"));
+
+    m_previewTable->setColumnCount(5);
+    m_previewTable->setHorizontalHeaderLabels({ tr("Output file"), tr("Pages"), tr("First source"), tr("Mode"), tr("Status") });
+    m_previewTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_previewTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_previewTable->horizontalHeader()->setStretchLastSection(true);
+    m_previewTable->verticalHeader()->hide();
+    ui->verticalLayout->insertWidget(1, m_previewTable);
+    setSizeGripEnabled(true);
+    connect(ui->directoryEdit, &QLineEdit::textChanged, this, &AssembleOutputSettingsDialog::refreshOutputPreview);
+    connect(ui->fileTemplateEdit, &QLineEdit::textChanged, this, &AssembleOutputSettingsDialog::refreshOutputPreview);
+    connect(ui->overwriteFilesCheckBox, &QCheckBox::toggled, this, &AssembleOutputSettingsDialog::refreshOutputPreview);
+
+    pdf::PDFWidgetUtils::scaleWidget(this, QSize(720, 420));
     pdf::PDFWidgetUtils::style(this);
 }
 
@@ -86,6 +113,49 @@ pdf::PDFImageOptimizer::Settings AssembleOutputSettingsDialog::getImageOptimizat
     return settings;
 }
 
+void AssembleOutputSettingsDialog::setOutputPreview(const std::vector<OutputPreviewItem>& items)
+{
+    m_hasBlockingPreviewItems = items.empty();
+    m_previewTable->setRowCount(int(items.size()));
+    if (items.empty())
+    {
+        m_previewTable->setRowCount(1);
+        m_previewTable->setItem(0, 4, new QTableWidgetItem(tr("Empty output")));
+        m_previewTable->resizeColumnsToContents();
+        return;
+    }
+
+    for (int row = 0; row < int(items.size()); ++row)
+    {
+        const OutputPreviewItem& item = items[row];
+        m_previewTable->setItem(row, 0, new QTableWidgetItem(item.fileName));
+        m_previewTable->setItem(row, 1, new QTableWidgetItem(item.pageCount));
+        m_previewTable->setItem(row, 2, new QTableWidgetItem(item.firstSource));
+        m_previewTable->setItem(row, 3, new QTableWidgetItem(item.mode));
+        m_previewTable->setItem(row, 4, new QTableWidgetItem(item.status));
+        m_hasBlockingPreviewItems = m_hasBlockingPreviewItems || item.isBlocking;
+    }
+    m_previewTable->resizeColumnsToContents();
+}
+
+void AssembleOutputSettingsDialog::setOutputPreviewFactory(std::function<std::vector<OutputPreviewItem>()> factory)
+{
+    m_outputPreviewFactory = qMove(factory);
+    refreshOutputPreview();
+}
+
+void AssembleOutputSettingsDialog::accept()
+{
+    refreshOutputPreview();
+    if (m_hasBlockingPreviewItems)
+    {
+        QMessageBox::warning(this, tr("Output Preview"), tr("The output preview contains errors. Please fix them before assembling documents."));
+        return;
+    }
+
+    QDialog::accept();
+}
+
 void AssembleOutputSettingsDialog::on_selectDirectoryButton_clicked()
 {
     QString directory = QFileDialog::getExistingDirectory(this, tr("Select output directory"), ui->directoryEdit->text());
@@ -102,6 +172,14 @@ void AssembleOutputSettingsDialog::on_imageOptimizationSettingsButton_clicked()
     {
         m_imageOptimizationSettings = dialog.getSettings();
         m_imageOptimizationSettings.enabled = true;
+    }
+}
+
+void AssembleOutputSettingsDialog::refreshOutputPreview()
+{
+    if (m_outputPreviewFactory)
+    {
+        setOutputPreview(m_outputPreviewFactory());
     }
 }
 

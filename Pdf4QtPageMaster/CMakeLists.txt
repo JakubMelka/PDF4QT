@@ -27,11 +27,15 @@ add_executable(Pdf4QtPageMaster
     assembleoutputsettingsdialog.h
     imageoptimizationsettingsdialog.cpp
     imageoptimizationsettingsdialog.h
+    itempropertiesdialog.cpp
+    itempropertiesdialog.h
     main.cpp
     mainwindow.cpp
     mainwindow.h
     pageitemdelegate.cpp
     pageitemdelegate.h
+    pdfpageimportdialog.cpp
+    pdfpageimportdialog.h
     pageitempreviewrenderer.cpp
     pageitempreviewrenderer.h
     pageitemmodel.cpp
@@ -40,7 +44,9 @@ add_executable(Pdf4QtPageMaster
     selectoutlinetoregroupdialog.h
     aboutdialog.ui
     assembleoutputsettingsdialog.ui
+    itempropertiesdialog.ui
     mainwindow.ui
+    pdfpageimportdialog.ui
     selectoutlinetoregroupdialog.ui
     resources.qrc
     icon.rc

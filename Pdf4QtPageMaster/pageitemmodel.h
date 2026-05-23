@@ -31,6 +31,8 @@
 #include <QItemSelection>
 #include <QAbstractItemModel>
 
+#include <functional>
+
 namespace pdfpagemaster
 {
 
@@ -46,6 +48,7 @@ struct PageGroupItem
 {
     QString groupNameWithTitle;
     QString groupNameWithoutTitle;
+    QString customName;
     QString pagesCaption;
     QStringList tags;
 
@@ -81,8 +84,22 @@ struct DocumentItem
 
 struct ImageItem
 {
+    bool operator==(const ImageItem& other) const
+    {
+        return image.cacheKey() == other.image.cacheKey() &&
+               imageData == other.imageData &&
+               fileName == other.fileName &&
+               displayName == other.displayName &&
+               sourcePath == other.sourcePath &&
+               format == other.format;
+    }
+
     QImage image;
     QByteArray imageData;
+    QString fileName;
+    QString displayName;
+    QString sourcePath;
+    QString format;
 };
 
 class PageItemModel : public QAbstractItemModel
@@ -94,6 +111,28 @@ private:
 
 public:
     explicit PageItemModel(QObject* parent);
+
+    enum Column
+    {
+        ColumnOrder,
+        ColumnName,
+        ColumnType,
+        ColumnSource,
+        ColumnOriginalPage,
+        ColumnGroupPages,
+        ColumnSize,
+        ColumnRotation,
+        ColumnTags,
+        ColumnCount
+    };
+
+    enum class SortMode
+    {
+        FileName,
+        Source,
+        PageNumber,
+        Type
+    };
 
     virtual QVariant headerData(int section, Qt::Orientation orientation, int role) const override;
     virtual QModelIndex index(int row, int column, const QModelIndex& parent) const override;
@@ -117,6 +156,10 @@ public:
     };
 
     std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> getAssembledPages(AssembleMode mode) const;
+    std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> getSplitAssembledPagesEveryN(const QModelIndexList& list, int pageCount) const;
+    std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> getSplitAssembledPagesAtPagePositions(const QModelIndexList& list, const std::vector<int>& pagePositions) const;
+    std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> getSplitAssembledPagesAtDocumentPages(const QModelIndexList& list, const std::vector<pdf::PDFInteger>& pageIndices) const;
+    std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> getSplitAssembledPagesByApproximateSize(const QModelIndexList& list, qint64 maximumSizeBytes) const;
 
     /// Clear all data and undo/redo
     void clear();
@@ -129,6 +172,7 @@ public:
     /// \param index Index, where image is inserted
     /// \returns Identifier of the document (internal index)
     int insertDocument(QString fileName, pdf::PDFDocument document, const QModelIndex& index);
+    int insertDocument(QString fileName, pdf::PDFDocument document, const QModelIndex& index, const std::vector<pdf::PDFInteger>& pages);
 
     /// Adds image to the model, inserts one single page containing
     /// the image. Returns index of a newly added image. If image
@@ -176,6 +220,11 @@ public:
 
     void rotateLeft(const QModelIndexList& list);
     void rotateRight(const QModelIndexList& list);
+    void resetRotation(const QModelIndexList& list);
+    void reverseItems(const QModelIndexList& list);
+    void sortItems(const QModelIndexList& list, SortMode mode, Qt::SortOrder order);
+    void renameItems(const QModelIndexList& list, const QString& name);
+    void setImageDisplayName(int imageIndex, const QString& displayName);
 
     static QString getMimeDataType() { return QLatin1String("application/pagemodel.PDF4QtPageMaster"); }
 
@@ -195,6 +244,16 @@ public:
     };
 
     QString getItemDisplayText(const PageGroupItem* item) const;
+    QString getItemTypeText(const PageGroupItem* item) const;
+    QString getItemSourceText(const PageGroupItem* item) const;
+    QString getItemOriginalPageText(const PageGroupItem* item) const;
+    QString getItemSizeText(const PageGroupItem* item) const;
+    QString getItemRotationText(const PageGroupItem* item) const;
+    QString getItemTagsText(const PageGroupItem* item) const;
+    QString getItemTooltipText(const PageGroupItem* item) const;
+    QString getItemSourceFileName(const PageGroupItem* item) const;
+    QString getItemSourceBaseName(const PageGroupItem* item) const;
+    QString getItemSourceExtension(const PageGroupItem* item) const;
 
     SelectionInfo getSelectionInfo(const QModelIndexList& list) const;
 
@@ -216,17 +275,30 @@ public:
 private:
     static const int MAX_UNDO_REDO_STEPS = 10;
 
-    void createDocumentGroup(int index, const QModelIndex& insertIndex);
+    void createDocumentGroup(int index, const QModelIndex& insertIndex, const std::vector<pdf::PDFInteger>& pages = {});
+    pdf::PDFDocumentManipulator::AssembledPage createAssembledPage(const PageGroupItem::GroupItem& item) const;
+    std::vector<PageGroupItem::GroupItem> getSelectedGroupItems(const QModelIndexList& list) const;
+    qint64 getApproximateSourceByteSize(const PageGroupItem::GroupItem& item) const;
     QString getGroupNameFromDocument(int index, bool useTitle) const;
+    QString getImageDisplayName(int imageIndex) const;
+    QString getSourceFileName(const PageGroupItem::GroupItem& groupItem) const;
+    QString getSourceBaseName(const PageGroupItem::GroupItem& groupItem) const;
+    QString getSourceExtension(const PageGroupItem::GroupItem& groupItem) const;
+    QString getTypeText(const PageGroupItem::GroupItem& groupItem) const;
+    QString getPageText(const PageGroupItem::GroupItem& groupItem) const;
+    QString getSizeText(const PageGroupItem::GroupItem& groupItem) const;
+    QString getRotationText(const PageGroupItem::GroupItem& groupItem) const;
     void updateItemCaptionAndTags(PageGroupItem& item) const;
     void insertEmptyPage(const QModelIndex& index);
+    void reorderItems(const QModelIndexList& list, std::function<void(std::vector<PageGroupItem>&)> reorder);
 
     struct UndoRedoStep
     {
-        auto operator<=>(const UndoRedoStep&) const = default;
+        bool operator==(const UndoRedoStep&) const = default;
 
         std::vector<PageGroupItem> pageGroupItems;
         std::vector<PageGroupItem> trashBin;
+        std::map<int, ImageItem> images;
     };
 
     class Modifier
@@ -244,7 +316,7 @@ private:
 
     QItemSelection getSelectionImpl(std::function<bool(const PageGroupItem::GroupItem&)> filter) const;
 
-    UndoRedoStep getCurrentStep() const { return UndoRedoStep{ m_pageGroupItems, m_trashBin }; }
+    UndoRedoStep getCurrentStep() const { return UndoRedoStep{ m_pageGroupItems, m_trashBin, m_images }; }
     void updateUndoRedoSteps();
     void clearUndoRedo();
 

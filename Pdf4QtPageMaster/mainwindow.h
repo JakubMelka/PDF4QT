@@ -37,10 +37,16 @@ namespace Ui
 class MainWindow;
 }
 
+class QAction;
+class QLabel;
+class QLineEdit;
+class QTableView;
+
 namespace pdfpagemaster
 {
 
 class PageItemPreviewRenderer;
+class WorkspaceFilterProxyModel;
 
 class MainWindow : public QMainWindow
 {
@@ -74,9 +80,12 @@ public:
 
         RotateLeft,
         RotateRight,
+        ResetRotation,
 
         Group,
         Ungroup,
+        RenameGroup,
+        Properties,
 
         SelectNone,
         SelectAll,
@@ -85,6 +94,7 @@ public:
         SelectPortrait,
         SelectLandscape,
         InvertSelection,
+        SelectPageRange,
 
         ZoomIn,
         ZoomOut,
@@ -92,11 +102,13 @@ public:
         Unite,
         Separate,
         SeparateGrouped,
+        Split,
 
         InsertImage,
         InsertEmptyPage,
         InsertPDF,
         ConfigurePageGeometry,
+        InsertPDFPages,
 
         RegroupEvenOdd,
         RegroupPaired,
@@ -110,6 +122,13 @@ public:
         About,
         PrepareIconTheme,
         ShowDocumentTitle,
+        ShowDetailsView,
+        SortByFileName,
+        SortBySource,
+        SortByPageNumber,
+        SortByType,
+        ReverseOrder,
+        SelectVisible,
     };
 
 protected:
@@ -127,9 +146,22 @@ private:
     void loadSettings();
     void saveSettings();
     bool insertDocument(const QString& fileName, const QModelIndex& insertIndex);
+    bool insertDocument(const QString& fileName, const QModelIndex& insertIndex, const std::vector<pdf::PDFInteger>& pages);
 
     bool canPerformOperation(Operation operation) const;
     void performOperation(Operation operation);
+    QModelIndexList getSelectedRows() const;
+    QModelIndexList getSelectedRowsOrAll() const;
+    QModelIndexList getSelectedRowsForOrdering() const;
+    QModelIndexList getVisibleRows() const;
+    void exportAssembledDocuments(std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> assembledDocuments, const QString& assembleModeText);
+    void splitDocuments();
+    void selectPageRange();
+    void selectSourceSelection(const QItemSelection& selection, bool addToExisting = false);
+    void setDetailsViewVisible(bool visible);
+    void showItemProperties();
+    void updateSearchFilter();
+    void updateSearchResultLabel();
 
     struct Settings
     {
@@ -142,6 +174,24 @@ private:
     PageItemModel* m_model;
     PageItemPreviewRenderer* m_previewRenderer;
     PageItemDelegate* m_delegate;
+    WorkspaceFilterProxyModel* m_filterModel;
+    QTableView* m_detailsView;
+    QAction* m_sortByFileNameAction;
+    QAction* m_sortBySourceAction;
+    QAction* m_sortByPageNumberAction;
+    QAction* m_sortByTypeAction;
+    QAction* m_reverseOrderAction;
+    QAction* m_resetRotationAction;
+    QAction* m_renameGroupAction;
+    QAction* m_propertiesAction;
+    QAction* m_showDetailsViewAction;
+    QAction* m_insertPDFPagesAction;
+    QAction* m_splitAction;
+    QAction* m_selectPageRangeAction;
+    QAction* m_clearSearchAction;
+    QAction* m_selectVisibleAction;
+    QLineEdit* m_searchEdit;
+    QLabel* m_searchResultLabel;
     Settings m_settings;
     QSignalMapper m_mapper;
     Qt::DropAction m_dropAction;
