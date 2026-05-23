@@ -160,7 +160,7 @@ void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& opti
         const int maximumBadgeWidth = qMax(horizontalSpacing * 4, pageImageRect.width() - horizontalSpacing * 2);
         rotationRect.setSize(QSize(qMin(maximumBadgeWidth, option.fontMetrics.horizontalAdvance(rotationText) + horizontalSpacing * 2), option.fontMetrics.lineSpacing() + verticalSpacing));
         QColor badgeColor = option.palette.color(QPalette::Active, QPalette::Highlight);
-        badgeColor.setAlphaF(0.85);
+        badgeColor.setAlphaF(0.85f);
         painter->setPen(Qt::NoPen);
         painter->setBrush(badgeColor);
         painter->drawRoundedRect(rotationRect, 4, 4);

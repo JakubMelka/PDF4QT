@@ -2682,13 +2682,29 @@ bool MainWindow::restoreWorkspaceStateFromJson(const QJsonObject& state, QString
             groupItem.cropMarginsMM = marginsFromJson(groupObject["cropMarginsMM"].toObject(), QMarginsF());
             groupItem.pageAdditionalRotation = pageRotationFromInt(groupObject["rotation"].toInt());
 
-            if (groupItem.pageType == PT_DocumentPage && documents.find(groupItem.documentIndex) == documents.end())
+            if (groupItem.pageType == PT_DocumentPage)
             {
-                if (errorMessage)
+                auto documentIt = documents.find(groupItem.documentIndex);
+                if (documentIt == documents.end())
                 {
-                    *errorMessage = tr("Workspace references a PDF source that is not loaded.");
+                    if (errorMessage)
+                    {
+                        *errorMessage = tr("Workspace references a PDF source that is not loaded.");
+                    }
+                    return false;
                 }
-                return false;
+
+                const pdf::PDFInteger pageCount = documentIt->second.document.getCatalog()->getPageCount();
+                if (groupItem.pageIndex < 1 || groupItem.pageIndex > pageCount)
+                {
+                    if (errorMessage)
+                    {
+                        *errorMessage = tr("Workspace references page %1 outside the loaded PDF source '%2'.")
+                                .arg(groupItem.pageIndex)
+                                .arg(QFileInfo(documentIt->second.fileName).fileName());
+                    }
+                    return false;
+                }
             }
             if (groupItem.pageType == PT_Image && images.find(groupItem.imageIndex) == images.end())
             {
@@ -3383,221 +3399,7 @@ void MainWindow::performOperation(Operation operation)
                 assembledDocumentGroupNames.resize(assembledDocuments.size());
             }
 
-            auto sourceInfo = [this](const pdf::PDFDocumentManipulator::AssembledPage& page)
-            {
-                QFileInfo info;
-                QString name;
-                QString extension;
-                if (page.documentIndex != -1)
-                {
-                    auto it = m_model->getDocuments().find(page.documentIndex);
-                    if (it != m_model->getDocuments().cend())
-                    {
-                        info = QFileInfo(it->second.fileName);
-                        name = info.fileName();
-                        extension = info.suffix();
-                    }
-                }
-                else if (page.imageIndex != -1)
-                {
-                    auto it = m_model->getImages().find(page.imageIndex);
-                    if (it != m_model->getImages().cend())
-                    {
-                        const ImageItem& image = it->second;
-                        info = QFileInfo(!image.fileName.isEmpty() ? image.fileName : image.displayName);
-                        name = !image.displayName.isEmpty() ? image.displayName : info.fileName();
-                        extension = !info.suffix().isEmpty() ? info.suffix() : image.format;
-                    }
-                }
-
-                return std::make_tuple(name, info.completeBaseName(), extension);
-            };
-
-            AssembleOutputSettingsDialog dialog(m_settings.directory, this);
-            dialog.setOutputPreviewFactory([&]()
-            {
-                std::vector<AssembleOutputSettingsDialog::OutputPreviewItem> previewItems;
-                previewItems.reserve(assembledDocuments.size());
-                QSet<QString> generatedNames;
-                int outputIndex = 1;
-                const int documentCount = int(m_model->getDocuments().size());
-                if (!QDir(dialog.getDirectory()).exists())
-                {
-                    previewItems.push_back({ dialog.getDirectory(), QString(), QString(), assembleModeText, tr("Output directory does not exist"), true });
-                    return previewItems;
-                }
-
-                for (const std::vector<pdf::PDFDocumentManipulator::AssembledPage>& assembledPages : assembledDocuments)
-                {
-                    const pdf::PDFDocumentManipulator::AssembledPage samplePage = assembledPages.front();
-                    const int sourceDocumentIndex = samplePage.documentIndex == -1 ? documentCount + samplePage.imageIndex : samplePage.documentIndex;
-                    const int sourcePageIndex = qMax(int(samplePage.pageIndex + 1), 1);
-                    const QString groupName = assembledDocumentGroupNames[outputIndex - 1];
-                    auto [sourceName, sourceBase, sourceExtension] = sourceInfo(samplePage);
-                    const QString fileName = createOutputFileName(dialog.getFileName(), dialog.getDirectory(), outputIndex, outputIndex, sourceDocumentIndex, sourcePageIndex, groupName, sourceName, sourceBase, sourceExtension);
-
-                    QString status = tr("Ready");
-                    bool isBlocking = false;
-                    if (QFile::exists(fileName))
-                    {
-                        status = dialog.isOverwriteFiles() ? tr("Will overwrite") : tr("Already exists");
-                        isBlocking = !dialog.isOverwriteFiles();
-                    }
-                    const QString fileNameKey = normalizedOutputPathKey(fileName);
-                    if (generatedNames.contains(fileNameKey))
-                    {
-                        status = tr("Duplicate name");
-                        isBlocking = true;
-                    }
-                    generatedNames.insert(fileNameKey);
-
-                    previewItems.push_back({ fileName, QString::number(assembledPages.size()), sourceName, assembleModeText, status, isBlocking });
-                    ++outputIndex;
-                }
-                return previewItems;
-            });
-            if (dialog.exec() == QDialog::Accepted)
-            {
-                pdf::PDFDocumentManipulator manipulator;
-
-                // Add documents and images
-                for (const auto& documentItem : m_model->getDocuments())
-                {
-                    manipulator.addDocument(documentItem.first, &documentItem.second.document);
-                }
-                for (const auto& imageItem : m_model->getImages())
-                {
-                    manipulator.addImage(imageItem.first, imageItem.second.image);
-                }
-
-                // Jakub Melka: create assembled documents
-                pdf::PDFOperationResult result(true);
-                std::vector<std::pair<QString, pdf::PDFDocument>> assembledDocumentStorage;
-
-                int sourceDocumentIndex = 1;
-                int assembledDocumentIndex = 1;
-                int sourcePageIndex = 1;
-                int documentCount = int(m_model->getDocuments().size());
-
-                QString directory = dialog.getDirectory();
-                if (!directory.isEmpty())
-                {
-                    m_settings.directory = QDir(directory).absolutePath();
-                    addRecentDirectory(m_settings.directory);
-                }
-                QString fileNameTemplate = dialog.getFileName();
-                const bool isOverwriteEnabled = dialog.isOverwriteFiles();
-                pdf::PDFDocumentManipulator::OutlineMode outlineMode = dialog.getOutlineMode();
-                const bool isImageOptimizationEnabled = dialog.isImageOptimizationEnabled();
-                const pdf::PDFImageOptimizer::Settings imageOptimizationSettings = dialog.getImageOptimizationSettings();
-                manipulator.setOutlineMode(outlineMode);
-
-                if (!directory.endsWith('/'))
-                {
-                    directory += "/";
-                }
-
-                if (!QDir(directory).exists())
-                {
-                    QMessageBox::critical(this, tr("Error"), tr("Output directory does not exist."));
-                    return;
-                }
-
-                QSet<QString> generatedFileNames;
-                int validationOutputIndex = 1;
-                for (const std::vector<pdf::PDFDocumentManipulator::AssembledPage>& assembledPages : assembledDocuments)
-                {
-                    const pdf::PDFDocumentManipulator::AssembledPage samplePage = assembledPages.front();
-                    const int validationSourceDocumentIndex = samplePage.documentIndex == -1 ? documentCount + samplePage.imageIndex : samplePage.documentIndex;
-                    const int validationSourcePageIndex = qMax(int(samplePage.pageIndex + 1), 1);
-                    const QString validationGroupName = assembledDocumentGroupNames[validationOutputIndex - 1];
-                    auto [validationSourceName, validationSourceBase, validationSourceExtension] = sourceInfo(samplePage);
-                    const QString validationFileName = createOutputFileName(fileNameTemplate, directory, validationOutputIndex, validationOutputIndex, validationSourceDocumentIndex, validationSourcePageIndex, validationGroupName, validationSourceName, validationSourceBase, validationSourceExtension);
-
-                    const QString validationFileNameKey = normalizedOutputPathKey(validationFileName);
-                    if (generatedFileNames.contains(validationFileNameKey))
-                    {
-                        QMessageBox::critical(this, tr("Error"), tr("Output file name '%1' is generated more than once. Please change the file template.").arg(validationFileName));
-                        return;
-                    }
-                    generatedFileNames.insert(validationFileNameKey);
-
-                    if (!isOverwriteEnabled && QFile::exists(validationFileName))
-                    {
-                        QMessageBox::critical(this, tr("Error"), tr("Document with filename '%1' already exists.").arg(validationFileName));
-                        return;
-                    }
-
-                    ++validationOutputIndex;
-                }
-
-                for (const std::vector<pdf::PDFDocumentManipulator::AssembledPage>& assembledPages : assembledDocuments)
-                {
-                    pdf::PDFOperationResult currentResult = manipulator.assemble(assembledPages);
-                    if (!currentResult && result)
-                    {
-                        result = currentResult;
-                        break;
-                    }
-
-                    pdf::PDFDocumentManipulator::AssembledPage samplePage = assembledPages.front();
-                    sourceDocumentIndex = samplePage.documentIndex == -1 ? documentCount + samplePage.imageIndex : samplePage.documentIndex;
-                    sourcePageIndex = qMax(int(samplePage.pageIndex + 1), 1);
-                    const QString groupName = assembledDocumentGroupNames[assembledDocumentIndex - 1];
-
-                    auto [sourceName, sourceBase, sourceExtension] = sourceInfo(samplePage);
-                    QString fileName = createOutputFileName(fileNameTemplate, directory, assembledDocumentIndex, assembledDocumentIndex, sourceDocumentIndex, sourcePageIndex, groupName, sourceName, sourceBase, sourceExtension);
-
-                    pdf::PDFDocument assembledDocument = manipulator.takeAssembledDocument();
-                    if (m_hasPageGeometrySettings)
-                    {
-                        const pdf::PDFOperationResult geometryResult = pdf::PDFPageGeometry::apply(&assembledDocument, m_pageGeometrySettings);
-                        if (!geometryResult)
-                        {
-                            QMessageBox::critical(this, tr("Error"), geometryResult.getErrorMessage());
-                            return;
-                        }
-                    }
-
-                    if (isImageOptimizationEnabled)
-                    {
-                        pdf::PDFImageOptimizer imageOptimizer;
-                        assembledDocument = imageOptimizer.optimize(&assembledDocument, imageOptimizationSettings);
-                    }
-
-                    assembledDocumentStorage.emplace_back(std::make_pair(std::move(fileName), std::move(assembledDocument)));
-                    ++assembledDocumentIndex;
-                }
-
-                if (!result)
-                {
-                    QMessageBox::critical(this, tr("Error"), result.getErrorMessage());
-                    return;
-                }
-
-                // Now, try to save files
-                for (const auto& assembledDocumentItem : assembledDocumentStorage)
-                {
-                    QString filename = assembledDocumentItem.first;
-                    const pdf::PDFDocument* document = &assembledDocumentItem.second;
-
-                    const bool isDocumentFileAlreadyExisting = QFile::exists(filename);
-                    if (!isOverwriteEnabled && isDocumentFileAlreadyExisting)
-                    {
-                        QMessageBox::critical(this, tr("Error"), tr("Document with given filename already exists."));
-                        return;
-                    }
-
-                    pdf::PDFDocumentWriter writer(nullptr);
-                    pdf::PDFOperationResult writeResult = writer.write(filename, document, isDocumentFileAlreadyExisting);
-
-                    if (!writeResult)
-                    {
-                        QMessageBox::critical(this, tr("Error"), writeResult.getErrorMessage());
-                        return;
-                    }
-                }
-            }
+            exportAssembledDocuments(std::move(assembledDocuments), assembleModeText, std::move(assembledDocumentGroupNames));
 
             break;
         }
