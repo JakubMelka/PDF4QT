@@ -29,6 +29,39 @@
 
 #include <QApplication>
 #include <QCommandLineParser>
+#include <QMenu>
+#include <QProxyStyle>
+
+namespace
+{
+
+class PageMasterStyle : public QProxyStyle
+{
+public:
+    explicit PageMasterStyle(const QString& key) :
+        QProxyStyle(key)
+    {
+
+    }
+
+    int pixelMetric(PixelMetric metric, const QStyleOption* option = nullptr, const QWidget* widget = nullptr) const override
+    {
+        if (metric == QStyle::PM_SmallIconSize && qobject_cast<const QMenu*>(widget))
+        {
+            return pdf::PDFWidgetUtils::scaleDPI_x(widget, 24);
+        }
+
+        return QProxyStyle::pixelMetric(metric, option, widget);
+    }
+};
+
+void installPageMasterStyle(QApplication& application)
+{
+    QStyle* currentStyle = application.style();
+    application.setStyle(new PageMasterStyle(currentStyle ? currentStyle->objectName() : QString()));
+}
+
+}   // namespace
 
 int main(int argc, char *argv[])
 {
@@ -63,6 +96,7 @@ int main(int argc, char *argv[])
     }
 
     pdf::PDFWidgetUtils::setDarkTheme(parser.isSet(lightGui), parser.isSet(darkGui));
+    installPageMasterStyle(application);
 
     pdf::PDFApplicationTranslator translator;
     translator.installTranslator();

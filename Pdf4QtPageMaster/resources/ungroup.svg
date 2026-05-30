@@ -1,14 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Generator: Adobe Illustrator 16.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
-<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg version="1.1" id="Vrstva_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
-	 width="24px" height="24px" viewBox="0 0 24 24" enable-background="new 0 0 24 24" xml:space="preserve">
-<g>
-	<path fill="none" stroke="#292D32" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M14.375,14.075h3.865
-		c3.221,0,4.508-1.288,4.508-4.507V5.701c0-3.221-1.287-4.51-4.508-4.51h-3.865c-3.221,0-4.51,1.289-4.51,4.51v3.867
-		C9.865,12.787,11.154,14.075,14.375,14.075z"/>
-	<path fill="none" stroke="#292D32" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M5.761,22.809h3.865
-		c3.22,0,4.511-1.288,4.511-4.508v-3.864c0-3.222-1.291-4.51-4.511-4.51H5.761c-3.22,0-4.509,1.288-4.509,4.51v3.864
-		C1.251,21.521,2.541,22.809,5.761,22.809z"/>
-</g>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <g fill="#5F6368">
+    <path d="M5 5h5v5H5V5zm9 0h5v5h-5V5zM5 14h5v5H5v-5zm9 0h5v5h-5v-5z"/>
+    <path d="M3 3h4v2H5v2H3V3zm14 0h4v4h-2V5h-2V3zM3 17h2v2h2v2H3v-4zm16 0h2v4h-4v-2h2v-2z" opacity=".45"/>
+    <path d="M10 11h4v2h-4v-2z" fill="#FFFFFF"/>
+  </g>
 </svg>
