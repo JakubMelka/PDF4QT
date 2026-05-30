@@ -42,7 +42,6 @@ namespace Ui
 class MainWindow;
 }
 
-class QAction;
 class QAbstractItemView;
 class QEvent;
 class QFrame;
@@ -224,27 +223,7 @@ private:
     PageItemDelegate* m_delegate;
     WorkspaceFilterProxyModel* m_filterModel;
     QTableView* m_detailsView;
-    QAction* m_sortByFileNameAction;
-    QAction* m_sortBySourceAction;
-    QAction* m_sortByPageNumberAction;
-    QAction* m_sortByTypeAction;
-    QAction* m_reverseOrderAction;
-    QAction* m_resetRotationAction;
-    QAction* m_renameGroupAction;
-    QAction* m_propertiesAction;
-    QAction* m_cropPagesAction;
-    QAction* m_showDetailsViewAction;
-    QAction* m_insertPDFPagesAction;
-    QAction* m_splitAction;
-    QAction* m_selectPageRangeAction;
-    QAction* m_saveWorkspaceAction;
-    QAction* m_openWorkspaceAction;
-    QAction* m_saveCheckpointAction;
-    QAction* m_loadCheckpointAction;
     QMenu* m_recentMenu;
-    QAction* m_clearRecentAction;
-    QAction* m_clearSearchAction;
-    QAction* m_selectVisibleAction;
     QLineEdit* m_searchEdit;
     QLabel* m_searchResultLabel;
     QLabel* m_dropFeedbackLabel;

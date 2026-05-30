@@ -61,7 +61,20 @@
     <property name="title">
      <string>&amp;File</string>
     </property>
+    <widget class="QMenu" name="menuRecent">
+     <property name="title">
+      <string>&amp;Recent</string>
+     </property>
+     <addaction name="actionClearRecent"/>
+    </widget>
+    <addaction name="actionOpenWorkspace"/>
+    <addaction name="actionSaveWorkspace"/>
+    <addaction name="separator"/>
     <addaction name="actionAddDocuments"/>
+    <addaction name="actionSaveCheckpoint"/>
+    <addaction name="actionLoadCheckpoint"/>
+    <addaction name="separator"/>
+    <addaction name="menuRecent"/>
     <addaction name="actionClear"/>
     <addaction name="actionClose"/>
    </widget>
@@ -69,6 +82,17 @@
     <property name="title">
      <string>&amp;Edit</string>
     </property>
+    <widget class="QMenu" name="menuSort">
+     <property name="title">
+      <string>&amp;Sort</string>
+     </property>
+     <addaction name="actionSortByFileName"/>
+     <addaction name="actionSortBySource"/>
+     <addaction name="actionSortByPageNumber"/>
+     <addaction name="actionSortByType"/>
+     <addaction name="separator"/>
+     <addaction name="actionReverseOrder"/>
+    </widget>
     <addaction name="actionUndo"/>
     <addaction name="actionRedo"/>
     <addaction name="separator"/>
@@ -85,15 +109,22 @@
     <addaction name="separator"/>
     <addaction name="actionRotate_Left"/>
     <addaction name="actionRotate_Right"/>
+    <addaction name="actionResetRotation"/>
     <addaction name="separator"/>
     <addaction name="actionGroup"/>
     <addaction name="actionUngroup"/>
+    <addaction name="actionRenameGroup"/>
+    <addaction name="actionCropPages"/>
+    <addaction name="actionProperties"/>
+    <addaction name="separator"/>
+    <addaction name="menuSort"/>
    </widget>
    <widget class="QMenu" name="menuInsert">
     <property name="title">
      <string>&amp;Insert</string>
     </property>
     <addaction name="actionInsert_PDF"/>
+    <addaction name="actionInsertPDFPages"/>
     <addaction name="actionInsert_Image"/>
     <addaction name="actionInsert_Empty_Page"/>
    </widget>
@@ -103,16 +134,19 @@
     </property>
     <addaction name="actionSelect_None"/>
     <addaction name="actionSelect_All"/>
+    <addaction name="actionSelectPageRange"/>
     <addaction name="actionSelect_Even"/>
     <addaction name="actionSelect_Odd"/>
     <addaction name="actionSelect_Portrait"/>
     <addaction name="actionSelect_Landscape"/>
+    <addaction name="actionSelectVisible"/>
     <addaction name="actionInvert_Selection"/>
     <addaction name="separator"/>
     <addaction name="actionZoom_In"/>
     <addaction name="actionZoom_Out"/>
     <addaction name="separator"/>
     <addaction name="actionShow_Document_Title_in_Items"/>
+    <addaction name="actionShowDetailsView"/>
    </widget>
    <widget class="QMenu" name="menuMake">
     <property name="title">
@@ -121,6 +155,8 @@
     <addaction name="actionUnited_Document"/>
     <addaction name="actionSeparate_to_Multiple_Documents"/>
     <addaction name="actionSeparate_to_Multiple_Documents_Grouped"/>
+    <addaction name="separator"/>
+    <addaction name="actionSplit"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -638,6 +674,189 @@
    </property>
    <property name="menuRole">
     <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionOpenWorkspace">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/open-workspace.svg</normaloff>:/pdfpagemaster/resources/open-workspace.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Open Workspace...</string>
+   </property>
+  </action>
+  <action name="actionSaveWorkspace">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/save-workspace.svg</normaloff>:/pdfpagemaster/resources/save-workspace.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Save Workspace...</string>
+   </property>
+  </action>
+  <action name="actionSaveCheckpoint">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/save-checkpoint.svg</normaloff>:/pdfpagemaster/resources/save-checkpoint.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Save Checkpoint...</string>
+   </property>
+  </action>
+  <action name="actionLoadCheckpoint">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/load-checkpoint.svg</normaloff>:/pdfpagemaster/resources/load-checkpoint.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Load Checkpoint...</string>
+   </property>
+  </action>
+  <action name="actionClearRecent">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/clear-recent.svg</normaloff>:/pdfpagemaster/resources/clear-recent.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Clear Recent</string>
+   </property>
+  </action>
+  <action name="actionInsertPDFPages">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/insert-pdf-pages.svg</normaloff>:/pdfpagemaster/resources/insert-pdf-pages.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Insert PDF Pages...</string>
+   </property>
+  </action>
+  <action name="actionSplit">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/split.svg</normaloff>:/pdfpagemaster/resources/split.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Split...</string>
+   </property>
+  </action>
+  <action name="actionSelectPageRange">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/select-page-range.svg</normaloff>:/pdfpagemaster/resources/select-page-range.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Select Page Range...</string>
+   </property>
+  </action>
+  <action name="actionSelectVisible">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/select-visible.svg</normaloff>:/pdfpagemaster/resources/select-visible.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Select Visible</string>
+   </property>
+  </action>
+  <action name="actionClearSearch">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/clear-search.svg</normaloff>:/pdfpagemaster/resources/clear-search.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Clear Search</string>
+   </property>
+  </action>
+  <action name="actionSortByFileName">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/sort-file-name.svg</normaloff>:/pdfpagemaster/resources/sort-file-name.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Sort by File Name</string>
+   </property>
+  </action>
+  <action name="actionSortBySource">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/sort-source.svg</normaloff>:/pdfpagemaster/resources/sort-source.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Sort by Source</string>
+   </property>
+  </action>
+  <action name="actionSortByPageNumber">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/sort-page-number.svg</normaloff>:/pdfpagemaster/resources/sort-page-number.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Sort by Page Number</string>
+   </property>
+  </action>
+  <action name="actionSortByType">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/sort-type.svg</normaloff>:/pdfpagemaster/resources/sort-type.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Sort by Type</string>
+   </property>
+  </action>
+  <action name="actionReverseOrder">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/reverse-order.svg</normaloff>:/pdfpagemaster/resources/reverse-order.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Reverse Order</string>
+   </property>
+  </action>
+  <action name="actionResetRotation">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/reset-rotation.svg</normaloff>:/pdfpagemaster/resources/reset-rotation.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Reset Rotation</string>
+   </property>
+  </action>
+  <action name="actionRenameGroup">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/rename-group.svg</normaloff>:/pdfpagemaster/resources/rename-group.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Rename Item or Group...</string>
+   </property>
+  </action>
+  <action name="actionCropPages">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/crop-pages.svg</normaloff>:/pdfpagemaster/resources/crop-pages.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Crop Pages...</string>
+   </property>
+  </action>
+  <action name="actionProperties">
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/properties.svg</normaloff>:/pdfpagemaster/resources/properties.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Properties...</string>
+   </property>
+  </action>
+  <action name="actionShowDetailsView">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="resources.qrc">
+     <normaloff>:/pdfpagemaster/resources/details-view.svg</normaloff>:/pdfpagemaster/resources/details-view.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Details View</string>
    </property>
   </action>
  </widget>

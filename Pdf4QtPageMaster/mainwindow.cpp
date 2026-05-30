@@ -555,27 +555,7 @@ MainWindow::MainWindow(QWidget* parent) :
     m_delegate(new PageItemDelegate(m_model, m_previewRenderer, this)),
     m_filterModel(new WorkspaceFilterProxyModel(this)),
     m_detailsView(new QTableView(this)),
-    m_sortByFileNameAction(nullptr),
-    m_sortBySourceAction(nullptr),
-    m_sortByPageNumberAction(nullptr),
-    m_sortByTypeAction(nullptr),
-    m_reverseOrderAction(nullptr),
-    m_resetRotationAction(nullptr),
-    m_renameGroupAction(nullptr),
-    m_propertiesAction(nullptr),
-    m_cropPagesAction(nullptr),
-    m_showDetailsViewAction(nullptr),
-    m_insertPDFPagesAction(nullptr),
-    m_splitAction(nullptr),
-    m_selectPageRangeAction(nullptr),
-    m_saveWorkspaceAction(nullptr),
-    m_openWorkspaceAction(nullptr),
-    m_saveCheckpointAction(nullptr),
-    m_loadCheckpointAction(nullptr),
     m_recentMenu(nullptr),
-    m_clearRecentAction(nullptr),
-    m_clearSearchAction(nullptr),
-    m_selectVisibleAction(nullptr),
     m_searchEdit(new QLineEdit(this)),
     m_searchResultLabel(new QLabel(this)),
     m_dropFeedbackLabel(new QLabel(this)),
@@ -668,69 +648,25 @@ MainWindow::MainWindow(QWidget* parent) :
     ui->actionRegroup_by_Alternating_Pages_Reversed_Order->setData(int(Operation::RegroupAlternatingPagesReversed));
     ui->actionPrepare_Icon_Theme->setData(int(Operation::PrepareIconTheme));
     ui->actionShow_Document_Title_in_Items->setData(int(Operation::ShowDocumentTitle));
-
-    m_sortByFileNameAction = new QAction(tr("Sort by File Name"), this);
-    m_sortByFileNameAction->setData(int(Operation::SortByFileName));
-    m_sortBySourceAction = new QAction(tr("Sort by Source"), this);
-    m_sortBySourceAction->setData(int(Operation::SortBySource));
-    m_sortByPageNumberAction = new QAction(tr("Sort by Page Number"), this);
-    m_sortByPageNumberAction->setData(int(Operation::SortByPageNumber));
-    m_sortByTypeAction = new QAction(tr("Sort by Type"), this);
-    m_sortByTypeAction->setData(int(Operation::SortByType));
-    m_reverseOrderAction = new QAction(tr("Reverse Order"), this);
-    m_reverseOrderAction->setData(int(Operation::ReverseOrder));
-    m_resetRotationAction = new QAction(tr("Reset Rotation"), this);
-    m_resetRotationAction->setData(int(Operation::ResetRotation));
-    m_renameGroupAction = new QAction(tr("Rename Item or Group..."), this);
-    m_renameGroupAction->setData(int(Operation::RenameGroup));
-    m_propertiesAction = new QAction(tr("Properties..."), this);
-    m_propertiesAction->setData(int(Operation::Properties));
-    m_cropPagesAction = new QAction(tr("Crop Pages..."), this);
-    m_cropPagesAction->setData(int(Operation::CropPages));
-    m_showDetailsViewAction = new QAction(tr("Details View"), this);
-    m_showDetailsViewAction->setCheckable(true);
-    m_showDetailsViewAction->setData(int(Operation::ShowDetailsView));
-    m_insertPDFPagesAction = new QAction(tr("Insert PDF Pages..."), this);
-    m_insertPDFPagesAction->setData(int(Operation::InsertPDFPages));
-    m_splitAction = new QAction(tr("Split..."), this);
-    m_splitAction->setData(int(Operation::Split));
-    m_selectPageRangeAction = new QAction(tr("Select Page Range..."), this);
-    m_selectPageRangeAction->setData(int(Operation::SelectPageRange));
-    m_saveWorkspaceAction = new QAction(tr("Save Workspace..."), this);
-    m_saveWorkspaceAction->setData(int(Operation::SaveWorkspace));
-    m_openWorkspaceAction = new QAction(tr("Open Workspace..."), this);
-    m_openWorkspaceAction->setData(int(Operation::OpenWorkspace));
-    m_saveCheckpointAction = new QAction(tr("Save Checkpoint..."), this);
-    m_saveCheckpointAction->setData(int(Operation::SaveCheckpoint));
-    m_loadCheckpointAction = new QAction(tr("Load Checkpoint..."), this);
-    m_loadCheckpointAction->setData(int(Operation::LoadCheckpoint));
-    m_recentMenu = new QMenu(tr("Recent"), this);
-    m_clearRecentAction = new QAction(tr("Clear Recent"), this);
-    m_clearSearchAction = new QAction(tr("Clear Search"), this);
-    m_selectVisibleAction = new QAction(tr("Select Visible"), this);
-    m_selectVisibleAction->setData(int(Operation::SelectVisible));
-
-    QMenu* sortMenu = ui->menuEdit->addMenu(tr("Sort"));
-    sortMenu->addActions({ m_sortByFileNameAction, m_sortBySourceAction, m_sortByPageNumberAction, m_sortByTypeAction });
-    sortMenu->addSeparator();
-    sortMenu->addAction(m_reverseOrderAction);
-    ui->menuView->insertAction(ui->actionSelect_Even, m_selectPageRangeAction);
-    ui->menuEdit->addAction(m_resetRotationAction);
-    ui->menuEdit->addAction(m_renameGroupAction);
-    ui->menuEdit->addAction(m_cropPagesAction);
-    ui->menuEdit->addAction(m_propertiesAction);
-    ui->menuFile->insertAction(ui->actionAddDocuments, m_openWorkspaceAction);
-    ui->menuFile->insertAction(ui->actionAddDocuments, m_saveWorkspaceAction);
-    ui->menuFile->insertSeparator(ui->actionAddDocuments);
-    ui->menuFile->insertAction(ui->actionClear, m_saveCheckpointAction);
-    ui->menuFile->insertAction(ui->actionClear, m_loadCheckpointAction);
-    ui->menuFile->insertSeparator(ui->actionClear);
-    ui->menuFile->insertMenu(ui->actionClear, m_recentMenu);
-    ui->menuInsert->addAction(m_insertPDFPagesAction);
-    ui->menuMake->addSeparator();
-    ui->menuMake->addAction(m_splitAction);
-    ui->menuView->addSeparator();
-    ui->menuView->addAction(m_showDetailsViewAction);
+    ui->actionSelectPageRange->setData(int(Operation::SelectPageRange));
+    ui->actionSelectVisible->setData(int(Operation::SelectVisible));
+    ui->actionResetRotation->setData(int(Operation::ResetRotation));
+    ui->actionRenameGroup->setData(int(Operation::RenameGroup));
+    ui->actionProperties->setData(int(Operation::Properties));
+    ui->actionCropPages->setData(int(Operation::CropPages));
+    ui->actionShowDetailsView->setData(int(Operation::ShowDetailsView));
+    ui->actionInsertPDFPages->setData(int(Operation::InsertPDFPages));
+    ui->actionSplit->setData(int(Operation::Split));
+    ui->actionSortByFileName->setData(int(Operation::SortByFileName));
+    ui->actionSortBySource->setData(int(Operation::SortBySource));
+    ui->actionSortByPageNumber->setData(int(Operation::SortByPageNumber));
+    ui->actionSortByType->setData(int(Operation::SortByType));
+    ui->actionReverseOrder->setData(int(Operation::ReverseOrder));
+    ui->actionSaveWorkspace->setData(int(Operation::SaveWorkspace));
+    ui->actionOpenWorkspace->setData(int(Operation::OpenWorkspace));
+    ui->actionSaveCheckpoint->setData(int(Operation::SaveCheckpoint));
+    ui->actionLoadCheckpoint->setData(int(Operation::LoadCheckpoint));
+    m_recentMenu = ui->menuRecent;
 
     m_iconTheme.registerAction(ui->actionAddDocuments, ":/pdfpagemaster/resources/open.svg");
     m_iconTheme.registerAction(ui->actionClose, ":/pdfpagemaster/resources/close.svg");
@@ -746,14 +682,14 @@ MainWindow::MainWindow(QWidget* parent) :
     m_iconTheme.registerAction(ui->actionReplaceSelection, ":/pdfpagemaster/resources/replace-selection.svg");
     m_iconTheme.registerAction(ui->actionSelect_None, ":/pdfpagemaster/resources/select-none.svg");
     m_iconTheme.registerAction(ui->actionSelect_All, ":/pdfpagemaster/resources/select-all.svg");
-    m_iconTheme.registerAction(m_selectPageRangeAction, ":/pdfpagemaster/resources/select-page-range.svg");
+    m_iconTheme.registerAction(ui->actionSelectPageRange, ":/pdfpagemaster/resources/select-page-range.svg");
     m_iconTheme.registerAction(ui->actionSelect_Even, ":/pdfpagemaster/resources/select-even.svg");
     m_iconTheme.registerAction(ui->actionSelect_Odd, ":/pdfpagemaster/resources/select-odd.svg");
     m_iconTheme.registerAction(ui->actionSelect_Portrait, ":/pdfpagemaster/resources/select-portrait.svg");
     m_iconTheme.registerAction(ui->actionSelect_Landscape, ":/pdfpagemaster/resources/select-landscape.svg");
     m_iconTheme.registerAction(ui->actionRotate_Right, ":/pdfpagemaster/resources/rotate-right.svg");
     m_iconTheme.registerAction(ui->actionRotate_Left, ":/pdfpagemaster/resources/rotate-left.svg");
-    m_iconTheme.registerAction(m_resetRotationAction, ":/pdfpagemaster/resources/reset-rotation.svg");
+    m_iconTheme.registerAction(ui->actionResetRotation, ":/pdfpagemaster/resources/reset-rotation.svg");
     m_iconTheme.registerAction(ui->actionZoom_In, ":/pdfpagemaster/resources/zoom-in.svg");
     m_iconTheme.registerAction(ui->actionZoom_Out, ":/pdfpagemaster/resources/zoom-out.svg");
     m_iconTheme.registerAction(ui->actionPageGeometry, ":/pdfpagemaster/resources/page-geometry.svg");
@@ -763,12 +699,12 @@ MainWindow::MainWindow(QWidget* parent) :
     m_iconTheme.registerAction(ui->actionUnited_Document, ":/pdfpagemaster/resources/make-united-document.svg");
     m_iconTheme.registerAction(ui->actionSeparate_to_Multiple_Documents, ":/pdfpagemaster/resources/make-separated-document.svg");
     m_iconTheme.registerAction(ui->actionSeparate_to_Multiple_Documents_Grouped, ":/pdfpagemaster/resources/make-separated-document-from-groups.svg");
-    m_iconTheme.registerAction(m_splitAction, ":/pdfpagemaster/resources/split.svg");
+    m_iconTheme.registerAction(ui->actionSplit, ":/pdfpagemaster/resources/split.svg");
     m_iconTheme.registerAction(ui->actionGroup, ":/pdfpagemaster/resources/group.svg");
     m_iconTheme.registerAction(ui->actionUngroup, ":/pdfpagemaster/resources/ungroup.svg");
-    m_iconTheme.registerAction(m_renameGroupAction, ":/pdfpagemaster/resources/rename-group.svg");
-    m_iconTheme.registerAction(m_propertiesAction, ":/pdfpagemaster/resources/properties.svg");
-    m_iconTheme.registerAction(m_cropPagesAction, ":/pdfpagemaster/resources/crop-pages.svg");
+    m_iconTheme.registerAction(ui->actionRenameGroup, ":/pdfpagemaster/resources/rename-group.svg");
+    m_iconTheme.registerAction(ui->actionProperties, ":/pdfpagemaster/resources/properties.svg");
+    m_iconTheme.registerAction(ui->actionCropPages, ":/pdfpagemaster/resources/crop-pages.svg");
     m_iconTheme.registerAction(ui->actionClear, ":/pdfpagemaster/resources/clear.svg");
     m_iconTheme.registerAction(ui->actionRegroup_Even_Odd, ":/pdfpagemaster/resources/regroup-even-odd.svg");
     m_iconTheme.registerAction(ui->actionRegroup_by_Page_Pairs, ":/pdfpagemaster/resources/regroup-pairs.svg");
@@ -781,20 +717,20 @@ MainWindow::MainWindow(QWidget* parent) :
     m_iconTheme.registerAction(ui->actionRedo, ":/pdfpagemaster/resources/redo.svg");
     m_iconTheme.registerAction(ui->actionShow_Document_Title_in_Items, ":/pdfpagemaster/resources/show-document-title.svg");
     m_iconTheme.registerAction(ui->actionPrepare_Icon_Theme, ":/pdfpagemaster/resources/prepare-icon-theme.svg");
-    m_iconTheme.registerAction(m_sortByFileNameAction, ":/pdfpagemaster/resources/sort-file-name.svg");
-    m_iconTheme.registerAction(m_sortBySourceAction, ":/pdfpagemaster/resources/sort-source.svg");
-    m_iconTheme.registerAction(m_sortByPageNumberAction, ":/pdfpagemaster/resources/sort-page-number.svg");
-    m_iconTheme.registerAction(m_sortByTypeAction, ":/pdfpagemaster/resources/sort-type.svg");
-    m_iconTheme.registerAction(m_reverseOrderAction, ":/pdfpagemaster/resources/reverse-order.svg");
-    m_iconTheme.registerAction(m_showDetailsViewAction, ":/pdfpagemaster/resources/details-view.svg");
-    m_iconTheme.registerAction(m_insertPDFPagesAction, ":/pdfpagemaster/resources/insert-pdf-pages.svg");
-    m_iconTheme.registerAction(m_saveWorkspaceAction, ":/pdfpagemaster/resources/save-workspace.svg");
-    m_iconTheme.registerAction(m_openWorkspaceAction, ":/pdfpagemaster/resources/open-workspace.svg");
-    m_iconTheme.registerAction(m_saveCheckpointAction, ":/pdfpagemaster/resources/save-checkpoint.svg");
-    m_iconTheme.registerAction(m_loadCheckpointAction, ":/pdfpagemaster/resources/load-checkpoint.svg");
-    m_iconTheme.registerAction(m_clearRecentAction, ":/pdfpagemaster/resources/clear-recent.svg");
-    m_iconTheme.registerAction(m_clearSearchAction, ":/pdfpagemaster/resources/clear-search.svg");
-    m_iconTheme.registerAction(m_selectVisibleAction, ":/pdfpagemaster/resources/select-visible.svg");
+    m_iconTheme.registerAction(ui->actionSortByFileName, ":/pdfpagemaster/resources/sort-file-name.svg");
+    m_iconTheme.registerAction(ui->actionSortBySource, ":/pdfpagemaster/resources/sort-source.svg");
+    m_iconTheme.registerAction(ui->actionSortByPageNumber, ":/pdfpagemaster/resources/sort-page-number.svg");
+    m_iconTheme.registerAction(ui->actionSortByType, ":/pdfpagemaster/resources/sort-type.svg");
+    m_iconTheme.registerAction(ui->actionReverseOrder, ":/pdfpagemaster/resources/reverse-order.svg");
+    m_iconTheme.registerAction(ui->actionShowDetailsView, ":/pdfpagemaster/resources/details-view.svg");
+    m_iconTheme.registerAction(ui->actionInsertPDFPages, ":/pdfpagemaster/resources/insert-pdf-pages.svg");
+    m_iconTheme.registerAction(ui->actionSaveWorkspace, ":/pdfpagemaster/resources/save-workspace.svg");
+    m_iconTheme.registerAction(ui->actionOpenWorkspace, ":/pdfpagemaster/resources/open-workspace.svg");
+    m_iconTheme.registerAction(ui->actionSaveCheckpoint, ":/pdfpagemaster/resources/save-checkpoint.svg");
+    m_iconTheme.registerAction(ui->actionLoadCheckpoint, ":/pdfpagemaster/resources/load-checkpoint.svg");
+    m_iconTheme.registerAction(ui->actionClearRecent, ":/pdfpagemaster/resources/clear-recent.svg");
+    m_iconTheme.registerAction(ui->actionClearSearch, ":/pdfpagemaster/resources/clear-search.svg");
+    m_iconTheme.registerAction(ui->actionSelectVisible, ":/pdfpagemaster/resources/select-visible.svg");
 
     m_iconTheme.setDirectory("pdfpagemaster_theme");
     m_iconTheme.setPrefix(":/pdfpagemaster/resources/");
@@ -813,26 +749,26 @@ MainWindow::MainWindow(QWidget* parent) :
     mainToolbar->addActions({ ui->actionGroup, ui->actionUngroup });
     mainToolbar->addSeparator();
     mainToolbar->addAction(ui->actionPageGeometry);
-    mainToolbar->addAction(m_cropPagesAction);
-    mainToolbar->addAction(m_propertiesAction);
+    mainToolbar->addAction(ui->actionCropPages);
+    mainToolbar->addAction(ui->actionProperties);
     QToolBar* insertToolbar = addToolBar(tr("&Insert"));
     insertToolbar->setObjectName("insert_toolbar");
-    insertToolbar->addActions({ ui->actionInsert_PDF, m_insertPDFPagesAction, ui->actionInsert_Image, ui->actionInsert_Empty_Page });
+    insertToolbar->addActions({ ui->actionInsert_PDF, ui->actionInsertPDFPages, ui->actionInsert_Image, ui->actionInsert_Empty_Page });
     QToolBar* selectToolbar = addToolBar(tr("&Select"));
     selectToolbar->setObjectName("select_toolbar");
-    selectToolbar->addActions({ ui->actionSelect_None, ui->actionSelect_All, m_selectPageRangeAction, ui->actionSelect_Even, ui->actionSelect_Odd, ui->actionSelect_Portrait, ui->actionSelect_Landscape, ui->actionInvert_Selection, m_selectVisibleAction });
+    selectToolbar->addActions({ ui->actionSelect_None, ui->actionSelect_All, ui->actionSelectPageRange, ui->actionSelect_Even, ui->actionSelect_Odd, ui->actionSelect_Portrait, ui->actionSelect_Landscape, ui->actionInvert_Selection, ui->actionSelectVisible });
     QToolBar* regroupToolbar = addToolBar(tr("&Regroup"));
     regroupToolbar->setObjectName("regroup_toolbar");
     regroupToolbar->addActions({ ui->actionRegroup_Even_Odd, ui->actionRegroup_by_Page_Pairs, ui->actionRegroup_by_Outline, ui->actionRegroup_by_Alternating_Pages, ui->actionRegroup_by_Alternating_Pages_Reversed_Order, ui->actionRegroup_Reverse });
     QToolBar* arrangeToolbar = addToolBar(tr("&Arrange"));
     arrangeToolbar->setObjectName("arrange_toolbar");
-    arrangeToolbar->addActions({ m_sortByFileNameAction, m_sortBySourceAction, m_sortByPageNumberAction, m_reverseOrderAction, m_resetRotationAction });
+    arrangeToolbar->addActions({ ui->actionSortByFileName, ui->actionSortBySource, ui->actionSortByPageNumber, ui->actionReverseOrder, ui->actionResetRotation });
     QToolBar* zoomToolbar = addToolBar(tr("&Zoom"));
     zoomToolbar->setObjectName("zoom_toolbar");
     zoomToolbar->addActions({ ui->actionZoom_In, ui->actionZoom_Out });
     QToolBar* makeToolbar = addToolBar(tr("Ma&ke"));
     makeToolbar->setObjectName("make_toolbar");
-    makeToolbar->addActions({ ui->actionUnited_Document, ui->actionSeparate_to_Multiple_Documents, ui->actionSeparate_to_Multiple_Documents_Grouped, m_splitAction });
+    makeToolbar->addActions({ ui->actionUnited_Document, ui->actionSeparate_to_Multiple_Documents, ui->actionSeparate_to_Multiple_Documents_Grouped, ui->actionSplit });
     QToolBar* searchToolbar = addToolBar(tr("&Search"));
     searchToolbar->setObjectName("search_toolbar");
     m_searchEdit->setClearButtonEnabled(true);
@@ -841,7 +777,7 @@ MainWindow::MainWindow(QWidget* parent) :
     m_searchResultLabel->setMinimumWidth(pdf::PDFWidgetUtils::scaleDPI_x(this, 90));
     searchToolbar->addWidget(new QLabel(tr("Search"), this));
     searchToolbar->addWidget(m_searchEdit);
-    searchToolbar->addAction(m_clearSearchAction);
+    searchToolbar->addAction(ui->actionClearSearch);
     searchToolbar->addSeparator();
     searchToolbar->addWidget(m_searchResultLabel);
 
@@ -860,12 +796,12 @@ MainWindow::MainWindow(QWidget* parent) :
     connect(m_model, &QAbstractItemModel::rowsInserted, this, &MainWindow::updateActions);
     connect(m_model, &QAbstractItemModel::rowsRemoved, this, &MainWindow::updateActions);
     connect(m_searchEdit, &QLineEdit::textChanged, this, &MainWindow::updateSearchFilter);
-    connect(m_clearSearchAction, &QAction::triggered, m_searchEdit, &QLineEdit::clear);
+    connect(ui->actionClearSearch, &QAction::triggered, m_searchEdit, &QLineEdit::clear);
     connect(m_filterModel, &QAbstractItemModel::modelReset, this, &MainWindow::updateSearchResultLabel);
     connect(m_filterModel, &QAbstractItemModel::rowsInserted, this, &MainWindow::updateSearchResultLabel);
     connect(m_filterModel, &QAbstractItemModel::rowsRemoved, this, &MainWindow::updateSearchResultLabel);
     connect(m_filterModel, &QAbstractItemModel::layoutChanged, this, &MainWindow::updateSearchResultLabel);
-    connect(m_clearRecentAction, &QAction::triggered, this, &MainWindow::onClearRecentTriggered);
+    connect(ui->actionClearRecent, &QAction::triggered, this, &MainWindow::onClearRecentTriggered);
 
     QList<QAction*> actions = findChildren<QAction*>();
     for (QAction* action : actions)
@@ -1075,15 +1011,15 @@ void MainWindow::onWorkspaceCustomContextMenuRequested(const QPoint& point)
     contextMenu->addSeparator();
     contextMenu->addAction(ui->actionRotate_Left);
     contextMenu->addAction(ui->actionRotate_Right);
-    contextMenu->addAction(m_resetRotationAction);
+    contextMenu->addAction(ui->actionResetRotation);
     QMenu* selectMenu = contextMenu->addMenu(tr("Select"));
     selectMenu->addAction(ui->actionSelect_All);
-    selectMenu->addAction(m_selectPageRangeAction);
+    selectMenu->addAction(ui->actionSelectPageRange);
     selectMenu->addAction(ui->actionSelect_Even);
     selectMenu->addAction(ui->actionSelect_Odd);
     selectMenu->addAction(ui->actionSelect_Landscape);
     selectMenu->addAction(ui->actionSelect_Portrait);
-    selectMenu->addAction(m_selectVisibleAction);
+    selectMenu->addAction(ui->actionSelectVisible);
     selectMenu->addAction(ui->actionSelect_None);
     QMenu* regroupMenu = contextMenu->addMenu(tr("Regroup"));
     regroupMenu->addAction(ui->actionRegroup_Even_Odd);
@@ -1095,15 +1031,15 @@ void MainWindow::onWorkspaceCustomContextMenuRequested(const QPoint& point)
     contextMenu->addSeparator();
     contextMenu->addAction(ui->actionGroup);
     contextMenu->addAction(ui->actionUngroup);
-    contextMenu->addAction(m_renameGroupAction);
-    contextMenu->addAction(m_cropPagesAction);
+    contextMenu->addAction(ui->actionRenameGroup);
+    contextMenu->addAction(ui->actionCropPages);
     contextMenu->addSeparator();
-    contextMenu->addAction(m_sortByFileNameAction);
-    contextMenu->addAction(m_reverseOrderAction);
+    contextMenu->addAction(ui->actionSortByFileName);
+    contextMenu->addAction(ui->actionReverseOrder);
     contextMenu->addSeparator();
-    contextMenu->addAction(m_splitAction);
+    contextMenu->addAction(ui->actionSplit);
     contextMenu->addSeparator();
-    contextMenu->addAction(m_propertiesAction);
+    contextMenu->addAction(ui->actionProperties);
 
     contextMenu->exec(viewport->mapToGlobal(point));
 }
@@ -1347,8 +1283,8 @@ void MainWindow::updateRecentMenu()
     }
 
     m_recentMenu->addSeparator();
-    m_clearRecentAction->setEnabled(hasItems);
-    m_recentMenu->addAction(m_clearRecentAction);
+    ui->actionClearRecent->setEnabled(hasItems);
+    m_recentMenu->addAction(ui->actionClearRecent);
 }
 
 void MainWindow::addRecentMenuSection(const QString& title, const QStringList& paths, void (MainWindow::*slot)(), bool* hasItems)
@@ -1561,7 +1497,7 @@ void MainWindow::updateSearchResultLabel()
     {
         m_searchResultLabel->setText(tr("%1 items").arg(totalCount));
     }
-    m_clearSearchAction->setEnabled(m_filterModel->isFiltering());
+    ui->actionClearSearch->setEnabled(m_filterModel->isFiltering());
 }
 
 bool MainWindow::isWorkspaceExternalDrop(const QMimeData* mimeData) const
@@ -3275,7 +3211,7 @@ void MainWindow::performOperation(Operation operation)
             break;
 
         case Operation::ShowDetailsView:
-            setDetailsViewVisible(m_showDetailsViewAction->isChecked());
+            setDetailsViewVisible(ui->actionShowDetailsView->isChecked());
             break;
 
         case Operation::SortByFileName:
