@@ -453,6 +453,75 @@ public:
     QString filterText() const { return m_filterText; }
     bool isFiltering() const { return !m_filterText.isEmpty(); }
 
+    virtual QStringList mimeTypes() const override
+    {
+        return sourceModel() ? sourceModel()->mimeTypes() : QStringList();
+    }
+
+    virtual QMimeData* mimeData(const QModelIndexList& indexes) const override
+    {
+        if (!sourceModel())
+        {
+            return nullptr;
+        }
+
+        QModelIndexList sourceIndexes;
+        sourceIndexes.reserve(indexes.size());
+        for (const QModelIndex& index : indexes)
+        {
+            const QModelIndex sourceIndex = mapToSource(index);
+            if (sourceIndex.isValid())
+            {
+                sourceIndexes << sourceIndex;
+            }
+        }
+        return sourceModel()->mimeData(sourceIndexes);
+    }
+
+    virtual bool canDropMimeData(const QMimeData* data, Qt::DropAction action, int row, int column, const QModelIndex& parent) const override
+    {
+        if (!sourceModel())
+        {
+            return false;
+        }
+
+        int sourceRow = row;
+        const QModelIndex sourceParent = mapToSource(parent);
+        if (row >= 0)
+        {
+            sourceRow = row >= rowCount(parent) ? sourceModel()->rowCount(sourceParent)
+                                                : mapToSource(index(row, 0, parent)).row();
+        }
+        return sourceModel()->canDropMimeData(data, action, sourceRow, column, sourceParent);
+    }
+
+    virtual bool dropMimeData(const QMimeData* data, Qt::DropAction action, int row, int column, const QModelIndex& parent) override
+    {
+        if (!sourceModel())
+        {
+            return false;
+        }
+
+        int sourceRow = row;
+        const QModelIndex sourceParent = mapToSource(parent);
+        if (row >= 0)
+        {
+            sourceRow = row >= rowCount(parent) ? sourceModel()->rowCount(sourceParent)
+                                                : mapToSource(index(row, 0, parent)).row();
+        }
+        return sourceModel()->dropMimeData(data, action, sourceRow, column, sourceParent);
+    }
+
+    virtual Qt::DropActions supportedDropActions() const override
+    {
+        return sourceModel() ? sourceModel()->supportedDropActions() : Qt::DropActions();
+    }
+
+    virtual Qt::DropActions supportedDragActions() const override
+    {
+        return sourceModel() ? sourceModel()->supportedDragActions() : Qt::DropActions();
+    }
+
 protected:
     virtual bool filterAcceptsRow(int sourceRow, const QModelIndex& sourceParent) const override
     {
@@ -873,6 +942,16 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event)
         {
             QDragMoveEvent* dragEvent = static_cast<QDragMoveEvent*>(event);
             const QMimeData* mimeData = dragEvent->mimeData();
+            if (isWorkspaceInternalDrop(mimeData))
+            {
+                const QPoint position = dragEvent->position().toPoint();
+                const int insertProxyRow = getWorkspaceDropInsertProxyRow(dropView, position);
+                updateWorkspaceDropFeedback(dropView, position, insertProxyRow, tr("Move items here"), true);
+                dragEvent->setDropAction(Qt::MoveAction);
+                dragEvent->accept();
+                return true;
+            }
+
             if (!isWorkspaceExternalDrop(mimeData))
             {
                 hideWorkspaceDropFeedback();
@@ -920,6 +999,23 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event)
         {
             QDropEvent* dropEvent = static_cast<QDropEvent*>(event);
             const QMimeData* mimeData = dropEvent->mimeData();
+            if (isWorkspaceInternalDrop(mimeData))
+            {
+                const int insertSourceRow = getWorkspaceDropInsertSourceRow(dropView, dropEvent->position().toPoint());
+                const bool dropped = dropWorkspaceInternalMimeData(mimeData, insertSourceRow);
+                hideWorkspaceDropFeedback();
+                if (dropped)
+                {
+                    dropEvent->setDropAction(Qt::MoveAction);
+                    dropEvent->accept();
+                }
+                else
+                {
+                    dropEvent->ignore();
+                }
+                return true;
+            }
+
             if (!isWorkspaceExternalDrop(mimeData))
             {
                 hideWorkspaceDropFeedback();
@@ -1505,6 +1601,11 @@ bool MainWindow::isWorkspaceExternalDrop(const QMimeData* mimeData) const
     return mimeData && (mimeData->hasImage() || mimeData->hasUrls()) && !mimeData->hasFormat(PageItemModel::getMimeDataType());
 }
 
+bool MainWindow::isWorkspaceInternalDrop(const QMimeData* mimeData) const
+{
+    return mimeData && mimeData->hasFormat(PageItemModel::getMimeDataType());
+}
+
 bool MainWindow::isSupportedWorkspaceDropUrl(const QUrl& url) const
 {
     if (!url.isLocalFile())
@@ -1731,6 +1832,13 @@ bool MainWindow::dropWorkspaceExternalMimeData(const QMimeData* mimeData, int in
         statusBar()->showMessage(tr("%1 unsupported file(s) skipped.").arg(unsupportedCount), 3000);
     }
     return inserted;
+}
+
+bool MainWindow::dropWorkspaceInternalMimeData(const QMimeData* mimeData, int insertSourceRow)
+{
+    insertSourceRow = qBound(0, insertSourceRow, m_model->rowCount(QModelIndex()));
+    return m_model->canDropMimeData(mimeData, Qt::MoveAction, insertSourceRow, 0, QModelIndex()) &&
+           m_model->dropMimeData(mimeData, Qt::MoveAction, insertSourceRow, 0, QModelIndex());
 }
 
 bool MainWindow::insertDocument(const QString& fileName, const QModelIndex& insertIndex)

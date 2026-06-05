@@ -197,6 +197,7 @@ private:
     void updateSearchFilter();
     void updateSearchResultLabel();
     bool isWorkspaceExternalDrop(const QMimeData* mimeData) const;
+    bool isWorkspaceInternalDrop(const QMimeData* mimeData) const;
     bool isSupportedWorkspaceDropUrl(const QUrl& url) const;
     QList<QUrl> getSupportedWorkspaceDropUrls(const QMimeData* mimeData, int* unsupportedCount) const;
     QAbstractItemView* getWorkspaceDropView(QObject* watched) const;
@@ -205,6 +206,7 @@ private:
     void updateWorkspaceDropFeedback(QAbstractItemView* view, const QPoint& viewportPosition, int insertProxyRow, const QString& message, bool accepted);
     void hideWorkspaceDropFeedback();
     bool dropWorkspaceExternalMimeData(const QMimeData* mimeData, int insertSourceRow);
+    bool dropWorkspaceInternalMimeData(const QMimeData* mimeData, int insertSourceRow);
     bool insertDocument(const QString& fileName, int insertRow, const std::vector<pdf::PDFInteger>& pages = {});
 
     struct Settings

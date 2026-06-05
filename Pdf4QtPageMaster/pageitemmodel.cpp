@@ -2294,11 +2294,6 @@ bool PageItemModel::dropMimeData(const QMimeData* data, Qt::DropAction action, i
     if (action == Qt::MoveAction)
     {
         const int originalInsertRow = insertRow;
-        if (rows.front() < originalInsertRow)
-        {
-            ++insertRow;
-        }
-
         for (int currentRow : rows)
         {
             if (currentRow < originalInsertRow)
