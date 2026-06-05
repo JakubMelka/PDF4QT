@@ -30,17 +30,32 @@
 #include "pageitemdelegate.h"
 
 #include <QMainWindow>
+#include <QJsonObject>
+#include <QList>
+#include <QPoint>
 #include <QSignalMapper>
+#include <QStringList>
+#include <QUrl>
 
 namespace Ui
 {
 class MainWindow;
 }
 
+class QAbstractItemView;
+class QEvent;
+class QFrame;
+class QLabel;
+class QLineEdit;
+class QMenu;
+class QMimeData;
+class QTableView;
+
 namespace pdfpagemaster
 {
 
 class PageItemPreviewRenderer;
+class WorkspaceFilterProxyModel;
 
 class MainWindow : public QMainWindow
 {
@@ -74,9 +89,13 @@ public:
 
         RotateLeft,
         RotateRight,
+        ResetRotation,
 
         Group,
         Ungroup,
+        RenameGroup,
+        Properties,
+        CropPages,
 
         SelectNone,
         SelectAll,
@@ -85,6 +104,7 @@ public:
         SelectPortrait,
         SelectLandscape,
         InvertSelection,
+        SelectPageRange,
 
         ZoomIn,
         ZoomOut,
@@ -92,11 +112,13 @@ public:
         Unite,
         Separate,
         SeparateGrouped,
+        Split,
 
         InsertImage,
         InsertEmptyPage,
         InsertPDF,
         ConfigurePageGeometry,
+        InsertPDFPages,
 
         RegroupEvenOdd,
         RegroupPaired,
@@ -110,9 +132,21 @@ public:
         About,
         PrepareIconTheme,
         ShowDocumentTitle,
+        ShowDetailsView,
+        SortByFileName,
+        SortBySource,
+        SortByPageNumber,
+        SortByType,
+        ReverseOrder,
+        SelectVisible,
+        SaveWorkspace,
+        OpenWorkspace,
+        SaveCheckpoint,
+        LoadCheckpoint,
     };
 
 protected:
+    virtual bool eventFilter(QObject* watched, QEvent* event) override;
     virtual void resizeEvent(QResizeEvent* resizeEvent) override;
 
 private slots:
@@ -122,18 +156,65 @@ private slots:
     void onPreviewUpdated();
     void onWorkspaceCustomContextMenuRequested(const QPoint& point);
     void updateActions();
+    void onClearRecentTriggered();
+    void onRecentSourceFileTriggered();
+    void onRecentWorkspaceFileTriggered();
+    void onRecentDirectoryTriggered();
 
 private:
     void loadSettings();
     void saveSettings();
     bool insertDocument(const QString& fileName, const QModelIndex& insertIndex);
+    bool insertDocument(const QString& fileName, const QModelIndex& insertIndex, const std::vector<pdf::PDFInteger>& pages);
 
     bool canPerformOperation(Operation operation) const;
     void performOperation(Operation operation);
+    QModelIndexList getSelectedRows() const;
+    QModelIndexList getSelectedRowsOrAll() const;
+    QModelIndexList getSelectedRowsForOrdering() const;
+    QModelIndexList getVisibleRows() const;
+    void exportAssembledDocuments(std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> assembledDocuments, const QString& assembleModeText, std::vector<QString> assembledDocumentGroupNames = {});
+    void splitDocuments();
+    void selectPageRange();
+    void selectSourceSelection(const QItemSelection& selection, bool addToExisting = false);
+    void setDetailsViewVisible(bool visible);
+    void showItemProperties();
+    void cropPages();
+    void saveWorkspace();
+    void openWorkspace();
+    void saveCheckpoint();
+    void loadCheckpoint();
+    bool openWorkspaceFile(const QString& fileName);
+    void addRecentSourceFile(const QString& fileName);
+    void addRecentWorkspaceFile(const QString& fileName);
+    void addRecentDirectory(const QString& directory);
+    void updateRecentMenu();
+    void addRecentMenuSection(const QString& title, const QStringList& paths, void (MainWindow::*slot)(), bool* hasItems);
+    QJsonObject createWorkspaceStateJson() const;
+    bool restoreWorkspaceStateFromJson(const QJsonObject& state, QString* errorMessage);
+    QJsonObject createProjectJson() const;
+    bool loadProjectJson(const QJsonObject& project, QString* errorMessage);
+    void updateSearchFilter();
+    void updateSearchResultLabel();
+    bool isWorkspaceExternalDrop(const QMimeData* mimeData) const;
+    bool isWorkspaceInternalDrop(const QMimeData* mimeData) const;
+    bool isSupportedWorkspaceDropUrl(const QUrl& url) const;
+    QList<QUrl> getSupportedWorkspaceDropUrls(const QMimeData* mimeData, int* unsupportedCount) const;
+    QAbstractItemView* getWorkspaceDropView(QObject* watched) const;
+    int getWorkspaceDropInsertProxyRow(QAbstractItemView* view, const QPoint& viewportPosition) const;
+    int getWorkspaceDropInsertSourceRow(QAbstractItemView* view, const QPoint& viewportPosition) const;
+    void updateWorkspaceDropFeedback(QAbstractItemView* view, const QPoint& viewportPosition, int insertProxyRow, const QString& message, bool accepted);
+    void hideWorkspaceDropFeedback();
+    bool dropWorkspaceExternalMimeData(const QMimeData* mimeData, int insertSourceRow);
+    bool dropWorkspaceInternalMimeData(const QMimeData* mimeData, int insertSourceRow);
+    bool insertDocument(const QString& fileName, int insertRow, const std::vector<pdf::PDFInteger>& pages = {});
 
     struct Settings
     {
         QString directory;
+        QStringList recentSourceFiles;
+        QStringList recentWorkspaceFiles;
+        QStringList recentDirectories;
     };
 
     Ui::MainWindow* ui;
@@ -142,11 +223,27 @@ private:
     PageItemModel* m_model;
     PageItemPreviewRenderer* m_previewRenderer;
     PageItemDelegate* m_delegate;
+    WorkspaceFilterProxyModel* m_filterModel;
+    QTableView* m_detailsView;
+    QMenu* m_recentMenu;
+    QLineEdit* m_searchEdit;
+    QLabel* m_searchResultLabel;
+    QLabel* m_dropFeedbackLabel;
+    QFrame* m_dropInsertionMarker;
+    QWidget* m_dropFeedbackViewport;
     Settings m_settings;
     QSignalMapper m_mapper;
     Qt::DropAction m_dropAction;
     bool m_hasPageGeometrySettings = false;
     pdf::PDFPageGeometrySettings m_pageGeometrySettings;
+
+    struct WorkspaceCheckpoint
+    {
+        QString name;
+        QJsonObject state;
+    };
+
+    std::vector<WorkspaceCheckpoint> m_checkpoints;
 };
 
 }   // namespace pdfpagemaster

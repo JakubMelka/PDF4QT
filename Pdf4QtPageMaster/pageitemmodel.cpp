@@ -25,6 +25,7 @@
 #include <QFileInfo>
 #include <QImageReader>
 #include <QMimeData>
+#include <QCollator>
 
 #include <iterator>
 
@@ -40,9 +41,34 @@ PageItemModel::PageItemModel(QObject* parent) :
 
 QVariant PageItemModel::headerData(int section, Qt::Orientation orientation, int role) const
 {
-    Q_UNUSED(section);
-    Q_UNUSED(orientation);
-    Q_UNUSED(role);
+    if (orientation == Qt::Horizontal && role == Qt::DisplayRole)
+    {
+        switch (section)
+        {
+            case ColumnOrder:
+                return tr("Order");
+            case ColumnName:
+                return tr("Name");
+            case ColumnType:
+                return tr("Type");
+            case ColumnSource:
+                return tr("Source");
+            case ColumnOriginalPage:
+                return tr("Original Page");
+            case ColumnGroupPages:
+                return tr("Pages in Group");
+            case ColumnSize:
+                return tr("Size");
+            case ColumnOrientation:
+                return tr("Orientation");
+            case ColumnRotation:
+                return tr("Rotation");
+            case ColumnTags:
+                return tr("Tags");
+            default:
+                break;
+        }
+    }
 
     return QVariant();
 }
@@ -81,7 +107,7 @@ int PageItemModel::columnCount(const QModelIndex& parent) const
         return 0;
     }
 
-    return 1;
+    return ColumnCount;
 }
 
 QVariant PageItemModel::data(const QModelIndex& index, int role) const
@@ -95,20 +121,37 @@ QVariant PageItemModel::data(const QModelIndex& index, int role) const
     switch (role)
     {
         case Qt::DisplayRole:
-            return getItemDisplayText(item);
+        {
+            switch (index.column())
+            {
+                case ColumnOrder:
+                    return index.row() + 1;
+                case ColumnName:
+                    return getItemDisplayText(item);
+                case ColumnType:
+                    return getItemTypeText(item);
+                case ColumnSource:
+                    return getItemSourceText(item);
+                case ColumnOriginalPage:
+                    return getItemOriginalPageText(item);
+                case ColumnGroupPages:
+                    return int(item->groups.size());
+                case ColumnSize:
+                    return getItemSizeText(item);
+                case ColumnOrientation:
+                    return getItemOrientationText(item);
+                case ColumnRotation:
+                    return getItemRotationText(item);
+                case ColumnTags:
+                    return getItemTagsText(item);
+                default:
+                    break;
+            }
+            break;
+        }
 
         case Qt::ToolTipRole:
-        {
-            QStringList texts;
-            texts << QString("<b>%1</b>").arg(getItemDisplayText(item));
-
-            if (item->isGrouped())
-            {
-                texts << QString("%1 pages").arg(item->groups.size());
-            }
-
-            return texts.join("<br>");
-        }
+            return getItemTooltipText(item);
 
 
         default:
@@ -120,10 +163,26 @@ QVariant PageItemModel::data(const QModelIndex& index, int role) const
 
 int PageItemModel::insertDocument(QString fileName, pdf::PDFDocument document, const QModelIndex& index)
 {
-    Modifier modifier(this);
+    return insertDocument(qMove(fileName), qMove(document), index, {});
+}
+
+int PageItemModel::insertDocument(QString fileName, pdf::PDFDocument document, const QModelIndex& index, const std::vector<pdf::PDFInteger>& pages)
+{
+    const int insertRow = index.isValid() ? index.row() + 1 : int(m_pageGroupItems.size());
+    return insertDocument(qMove(fileName), qMove(document), insertRow, pages);
+}
+
+int PageItemModel::insertDocument(QString fileName, pdf::PDFDocument document, int insertRow, const std::vector<pdf::PDFInteger>& pages)
+{
+    Modifier modifier(this, pages.empty() ? tr("Add Documents") : tr("Insert PDF Pages"));
     auto it = std::find_if(m_documents.cbegin(), m_documents.cend(), [&](const auto& item) { return item.second.fileName == fileName; });
     if (it != m_documents.cend())
     {
+        if (!pages.empty())
+        {
+            createDocumentGroup(it->first, insertRow, pages);
+            return it->first;
+        }
         return -1;
     }
 
@@ -135,13 +194,19 @@ int PageItemModel::insertDocument(QString fileName, pdf::PDFDocument document, c
     }
 
     m_documents[newIndex] = { qMove(fileName), qMove(document) };
-    createDocumentGroup(newIndex, index);
+    createDocumentGroup(newIndex, insertRow, pages);
     return newIndex;
 }
 
 int PageItemModel::insertImage(QString fileName, const QModelIndex& index)
 {
-    Modifier modifier(this);
+    const int insertRow = index.isValid() ? index.row() + 1 : int(m_pageGroupItems.size());
+    return insertImage(qMove(fileName), insertRow);
+}
+
+int PageItemModel::insertImage(QString fileName, int insertRow)
+{
+    Modifier modifier(this, tr("Insert Image"));
     QFile file(fileName);
 
     if (file.open(QFile::ReadOnly))
@@ -150,6 +215,7 @@ int PageItemModel::insertImage(QString fileName, const QModelIndex& index)
         item.imageData = file.readAll();
 
         QImageReader reader(fileName);
+        item.format = QString::fromLatin1(reader.format()).toLower();
         item.image = reader.read();
 
         file.close();
@@ -162,6 +228,11 @@ int PageItemModel::insertImage(QString fileName, const QModelIndex& index)
             {
                 newIndex = (m_images.rbegin()->first) + 1;
             }
+
+            QFileInfo fileInfo(fileName);
+            item.fileName = fileInfo.fileName();
+            item.displayName = item.fileName;
+            item.sourcePath = fileInfo.absoluteFilePath();
 
             m_images[newIndex] = qMove(item);
 
@@ -177,7 +248,7 @@ int PageItemModel::insertImage(QString fileName, const QModelIndex& index)
             newItem.groups.push_back(qMove(groupItem));
 
             updateItemCaptionAndTags(newItem);
-            int insertRow = index.isValid() ? index.row() + 1 : int(m_pageGroupItems.size());
+            insertRow = qBound(0, insertRow, int(m_pageGroupItems.size()));
 
             beginInsertRows(QModelIndex(), insertRow, insertRow);
             m_pageGroupItems.insert(std::next(m_pageGroupItems.begin(), insertRow), qMove(newItem));
@@ -192,12 +263,28 @@ int PageItemModel::insertImage(QString fileName, const QModelIndex& index)
 
 int PageItemModel::insertImage(QImage image, const QModelIndex& index)
 {
-    Modifier modifier(this);
+    const int insertRow = index.isValid() ? index.row() + 1 : int(m_pageGroupItems.size());
+    return insertImage(qMove(image), insertRow);
+}
+
+int PageItemModel::insertImage(QImage image, int insertRow)
+{
+    Modifier modifier(this, tr("Paste Image"));
 
     if (!image.isNull())
     {
         ImageItem item;
         item.image = image;
+
+        int generatedImageIndex = 1;
+        for (const auto& existingImage : m_images)
+        {
+            if (existingImage.second.fileName.isEmpty())
+            {
+                ++generatedImageIndex;
+            }
+        }
+        item.displayName = tr("Pasted image %1").arg(generatedImageIndex);
         int newIndex = 1;
 
         if (!m_images.empty())
@@ -219,7 +306,7 @@ int PageItemModel::insertImage(QImage image, const QModelIndex& index)
         newItem.groups.push_back(qMove(groupItem));
 
         updateItemCaptionAndTags(newItem);
-        int insertRow = index.isValid() ? index.row() + 1 : int(m_pageGroupItems.size());
+        insertRow = qBound(0, insertRow, int(m_pageGroupItems.size()));
 
         beginInsertRows(QModelIndex(), insertRow, insertRow);
         m_pageGroupItems.insert(std::next(m_pageGroupItems.begin(), insertRow), qMove(newItem));
@@ -285,12 +372,12 @@ QItemSelection PageItemModel::getSelectionOdd() const
 
 QItemSelection PageItemModel::getSelectionPortrait() const
 {
-    return getSelectionImpl([](const PageGroupItem::GroupItem& groupItem) { return groupItem.rotatedPageDimensionsMM.width() <= groupItem.rotatedPageDimensionsMM.height(); });
+    return getSelectionImpl([](const PageGroupItem::GroupItem& groupItem) { return PageItemModel::getCroppedPageDimensionsMM(groupItem).width() <= PageItemModel::getCroppedPageDimensionsMM(groupItem).height(); });
 }
 
 QItemSelection PageItemModel::getSelectionLandscape() const
 {
-    return getSelectionImpl([](const PageGroupItem::GroupItem& groupItem) { return groupItem.rotatedPageDimensionsMM.width() >= groupItem.rotatedPageDimensionsMM.height(); });
+    return getSelectionImpl([](const PageGroupItem::GroupItem& groupItem) { return PageItemModel::getCroppedPageDimensionsMM(groupItem).width() >= PageItemModel::getCroppedPageDimensionsMM(groupItem).height(); });
 }
 
 void PageItemModel::group(const QModelIndexList& list)
@@ -300,7 +387,7 @@ void PageItemModel::group(const QModelIndexList& list)
         return;
     }
 
-    Modifier modifier(this);
+    Modifier modifier(this, tr("Group"));
 
     std::vector<size_t> groupedIndices;
     groupedIndices.reserve(list.size());
@@ -343,7 +430,7 @@ void PageItemModel::ungroup(const QModelIndexList& list)
         return;
     }
 
-    Modifier modifier(this);
+    Modifier modifier(this, tr("Ungroup"));
 
     std::vector<size_t> ungroupedIndices;
     ungroupedIndices.reserve(list.size());
@@ -389,7 +476,7 @@ QModelIndexList PageItemModel::restoreRemovedItems()
         return result;
     }
 
-    Modifier modifier(this);
+    Modifier modifier(this, tr("Restore Removed Items"));
 
     const int trashBinSize = int(m_trashBin.size());
     const int rowCount = this->rowCount(QModelIndex());
@@ -417,7 +504,7 @@ QModelIndexList PageItemModel::cloneSelection(const QModelIndexList& list)
         return result;
     }
 
-    Modifier modifier(this);
+    Modifier modifier(this, tr("Clone Selection"));
 
     std::vector<int> rows;
     rows.reserve(list.size());
@@ -455,7 +542,7 @@ void PageItemModel::removeSelection(const QModelIndexList& list)
         return;
     }
 
-    Modifier modifier(this);
+    Modifier modifier(this, tr("Remove Selection"));
 
     std::vector<int> rows;
     rows.reserve(list.size());
@@ -473,7 +560,7 @@ void PageItemModel::removeSelection(const QModelIndexList& list)
 
 void PageItemModel::insertEmptyPage(const QModelIndexList& list)
 {
-    Modifier modifier(this);
+    Modifier modifier(this, tr("Insert Empty Page"));
 
     if (list.isEmpty())
     {
@@ -532,6 +619,66 @@ std::vector<PageGroupItem::GroupItem> PageItemModel::extractItems(std::vector<Pa
     return extractedItems;
 }
 
+void PageItemModel::reorderItems(const QModelIndexList& list, QString actionLabel, std::function<void (std::vector<PageGroupItem>&)> reorder)
+{
+    if (m_pageGroupItems.empty())
+    {
+        return;
+    }
+
+    Modifier modifier(this, std::move(actionLabel));
+
+    std::vector<int> rows;
+    if (list.isEmpty())
+    {
+        rows.reserve(m_pageGroupItems.size());
+        for (int i = 0; i < rowCount(QModelIndex()); ++i)
+        {
+            rows.push_back(i);
+        }
+    }
+    else
+    {
+        rows.reserve(list.size());
+        for (const QModelIndex& index : list)
+        {
+            if (index.isValid() && index.row() >= 0 && index.row() < rowCount(QModelIndex()))
+            {
+                rows.push_back(index.row());
+            }
+        }
+        std::sort(rows.begin(), rows.end());
+        rows.erase(std::unique(rows.begin(), rows.end()), rows.end());
+    }
+
+    if (rows.size() < 2)
+    {
+        return;
+    }
+
+    std::vector<PageGroupItem> selectedItems;
+    selectedItems.reserve(rows.size());
+    for (int row : rows)
+    {
+        selectedItems.push_back(m_pageGroupItems[row]);
+    }
+
+    reorder(selectedItems);
+
+    std::vector<PageGroupItem> newItems = m_pageGroupItems;
+    for (size_t i = 0; i < rows.size(); ++i)
+    {
+        newItems[rows[i]] = selectedItems[i];
+    }
+
+    if (newItems != m_pageGroupItems)
+    {
+        beginResetModel();
+        m_pageGroupItems = std::move(newItems);
+        endResetModel();
+    }
+}
+
 void PageItemModel::rotateLeft(const QModelIndexList& list)
 {
     if (list.isEmpty())
@@ -539,7 +686,7 @@ void PageItemModel::rotateLeft(const QModelIndexList& list)
         return;
     }
 
-    Modifier modifier(this);
+    Modifier modifier(this, tr("Rotate Left"));
 
     int rowMin = list.front().row();
     int rowMax = list.front().row();
@@ -558,7 +705,7 @@ void PageItemModel::rotateLeft(const QModelIndexList& list)
     rowMin = qMax(rowMin, 0);
     rowMax = qMin(rowMax, rowCount(QModelIndex()) - 1);
 
-    Q_EMIT dataChanged(index(rowMin, 0, QModelIndex()), index(rowMax, 0, QModelIndex()));
+    Q_EMIT dataChanged(index(rowMin, 0, QModelIndex()), index(rowMax, ColumnCount - 1, QModelIndex()));
 }
 
 void PageItemModel::rotateRight(const QModelIndexList& list)
@@ -568,7 +715,7 @@ void PageItemModel::rotateRight(const QModelIndexList& list)
         return;
     }
 
-    Modifier modifier(this);
+    Modifier modifier(this, tr("Rotate Right"));
 
     int rowMin = list.front().row();
     int rowMax = list.front().row();
@@ -587,12 +734,673 @@ void PageItemModel::rotateRight(const QModelIndexList& list)
     rowMin = qMax(rowMin, 0);
     rowMax = qMin(rowMax, rowCount(QModelIndex()) - 1);
 
-    Q_EMIT dataChanged(index(rowMin, 0, QModelIndex()), index(rowMax, 0, QModelIndex()));
+    Q_EMIT dataChanged(index(rowMin, 0, QModelIndex()), index(rowMax, ColumnCount - 1, QModelIndex()));
+}
+
+void PageItemModel::resetRotation(const QModelIndexList& list)
+{
+    if (list.isEmpty())
+    {
+        return;
+    }
+
+    Modifier modifier(this, tr("Reset Rotation"));
+
+    int rowMin = list.front().row();
+    int rowMax = list.front().row();
+
+    for (const QModelIndex& index : list)
+    {
+        if (PageGroupItem* item = getItem(index))
+        {
+            for (PageGroupItem::GroupItem& groupItem : item->groups)
+            {
+                groupItem.pageAdditionalRotation = pdf::PageRotation::None;
+            }
+        }
+
+        rowMin = qMin(rowMin, index.row());
+        rowMax = qMax(rowMax, index.row());
+    }
+
+    rowMin = qMax(rowMin, 0);
+    rowMax = qMin(rowMax, rowCount(QModelIndex()) - 1);
+
+    Q_EMIT dataChanged(index(rowMin, 0, QModelIndex()), index(rowMax, ColumnCount - 1, QModelIndex()));
+}
+
+void PageItemModel::reverseItems(const QModelIndexList& list)
+{
+    reorderItems(list, tr("Reverse Order"), [](std::vector<PageGroupItem>& items) { std::reverse(items.begin(), items.end()); });
+}
+
+void PageItemModel::sortItems(const QModelIndexList& list, SortMode mode, Qt::SortOrder order)
+{
+    QString label;
+    switch (mode)
+    {
+        case SortMode::FileName:
+            label = tr("Sort by File Name");
+            break;
+
+        case SortMode::Source:
+            label = tr("Sort by Source");
+            break;
+
+        case SortMode::PageNumber:
+            label = tr("Sort by Page Number");
+            break;
+
+        case SortMode::Type:
+            label = tr("Sort by Type");
+            break;
+
+        default:
+            label = tr("Sort Items");
+            break;
+    }
+
+    reorderItems(list, label, [this, mode, order](std::vector<PageGroupItem>& items)
+    {
+        QCollator collator;
+        collator.setNumericMode(true);
+        collator.setCaseSensitivity(Qt::CaseInsensitive);
+
+        struct SortKey
+        {
+            QString primary;
+            QString secondary;
+            pdf::PDFInteger pageIndex = -1;
+        };
+
+        auto itemKey = [this, mode](const PageGroupItem& item)
+        {
+            const PageGroupItem::GroupItem* groupItem = item.groups.empty() ? nullptr : &item.groups.front();
+            SortKey key;
+            if (groupItem)
+            {
+                key.pageIndex = groupItem->pageIndex;
+            }
+
+            switch (mode)
+            {
+                case SortMode::FileName:
+                    if (groupItem)
+                    {
+                        key.primary = getSourceFileName(*groupItem);
+                    }
+                    key.secondary = getItemDisplayText(&item);
+                    break;
+
+                case SortMode::Source:
+                    key.primary = getItemSourceText(&item);
+                    key.secondary = getItemDisplayText(&item);
+                    break;
+
+                case SortMode::PageNumber:
+                    key.primary = getItemSourceText(&item);
+                    key.secondary = getItemDisplayText(&item);
+                    break;
+
+                case SortMode::Type:
+                    key.primary = getItemTypeText(&item);
+                    key.secondary = getItemSourceFileName(&item);
+                    break;
+
+                default:
+                    Q_ASSERT(false);
+                    break;
+            }
+
+            return key;
+        };
+
+        auto compareText = [&collator](const QString& left, const QString& right)
+        {
+            return collator.compare(left, right);
+        };
+
+        auto comparePageIndex = [](pdf::PDFInteger left, pdf::PDFInteger right)
+        {
+            if (left < right)
+            {
+                return -1;
+            }
+            if (left > right)
+            {
+                return 1;
+            }
+            return 0;
+        };
+
+        std::stable_sort(items.begin(), items.end(), [&](const PageGroupItem& left, const PageGroupItem& right)
+        {
+            const SortKey leftKey = itemKey(left);
+            const SortKey rightKey = itemKey(right);
+
+            int result = 0;
+            switch (mode)
+            {
+                case SortMode::FileName:
+                case SortMode::Source:
+                    result = compareText(leftKey.primary, rightKey.primary);
+                    if (result == 0)
+                    {
+                        result = comparePageIndex(leftKey.pageIndex, rightKey.pageIndex);
+                    }
+                    if (result == 0)
+                    {
+                        result = compareText(leftKey.secondary, rightKey.secondary);
+                    }
+                    break;
+
+                case SortMode::PageNumber:
+                    result = comparePageIndex(leftKey.pageIndex, rightKey.pageIndex);
+                    if (result == 0)
+                    {
+                        result = compareText(leftKey.primary, rightKey.primary);
+                    }
+                    if (result == 0)
+                    {
+                        result = compareText(leftKey.secondary, rightKey.secondary);
+                    }
+                    break;
+
+                case SortMode::Type:
+                    result = compareText(leftKey.primary, rightKey.primary);
+                    if (result == 0)
+                    {
+                        result = compareText(leftKey.secondary, rightKey.secondary);
+                    }
+                    if (result == 0)
+                    {
+                        result = comparePageIndex(leftKey.pageIndex, rightKey.pageIndex);
+                    }
+                    break;
+
+                default:
+                    Q_ASSERT(false);
+                    break;
+            }
+
+            if (order == Qt::DescendingOrder)
+            {
+                return result > 0;
+            }
+            return result < 0;
+        });
+    });
+}
+
+void PageItemModel::renameItems(const QModelIndexList& list, const QString& name)
+{
+    if (list.isEmpty())
+    {
+        return;
+    }
+
+    Modifier modifier(this, tr("Rename Item"));
+
+    int rowMin = list.front().row();
+    int rowMax = list.front().row();
+
+    for (const QModelIndex& index : list)
+    {
+        if (PageGroupItem* item = getItem(index))
+        {
+            item->customName = name;
+        }
+
+        rowMin = qMin(rowMin, index.row());
+        rowMax = qMax(rowMax, index.row());
+    }
+
+    rowMin = qMax(rowMin, 0);
+    rowMax = qMin(rowMax, rowCount(QModelIndex()) - 1);
+
+    Q_EMIT dataChanged(index(rowMin, 0, QModelIndex()), index(rowMax, ColumnCount - 1, QModelIndex()));
+}
+
+void PageItemModel::setImageDisplayName(int imageIndex, const QString& displayName)
+{
+    auto imageIt = m_images.find(imageIndex);
+    if (imageIt == m_images.end())
+    {
+        return;
+    }
+
+    const QString trimmedDisplayName = displayName.trimmed();
+    if (imageIt->second.displayName == trimmedDisplayName)
+    {
+        return;
+    }
+
+    Modifier modifier(this, tr("Rename Image"));
+    imageIt->second.displayName = trimmedDisplayName;
+
+    int rowMin = rowCount(QModelIndex());
+    int rowMax = -1;
+    for (int row = 0; row < rowCount(QModelIndex()); ++row)
+    {
+        PageGroupItem& item = m_pageGroupItems[row];
+        const bool containsImage = std::any_of(item.groups.cbegin(), item.groups.cend(), [imageIndex](const PageGroupItem::GroupItem& groupItem)
+        {
+            return groupItem.pageType == PT_Image && groupItem.imageIndex == imageIndex;
+        });
+
+        if (containsImage)
+        {
+            updateItemCaptionAndTags(item);
+            rowMin = qMin(rowMin, row);
+            rowMax = qMax(rowMax, row);
+        }
+    }
+
+    if (rowMax >= rowMin)
+    {
+        Q_EMIT dataChanged(index(rowMin, 0, QModelIndex()), index(rowMax, ColumnCount - 1, QModelIndex()));
+    }
+}
+
+void PageItemModel::setWorkspaceData(std::map<int, DocumentItem> documents, std::map<int, ImageItem> images, std::vector<PageGroupItem> pageGroupItems)
+{
+    beginResetModel();
+    m_documents = std::move(documents);
+    m_images = std::move(images);
+    for (PageGroupItem& item : pageGroupItems)
+    {
+        updateItemCaptionAndTags(item);
+    }
+    m_pageGroupItems = std::move(pageGroupItems);
+    m_trashBin.clear();
+    clearUndoRedo();
+    endResetModel();
+}
+
+void PageItemModel::setWorkspaceState(std::map<int, ImageItem> images, std::vector<PageGroupItem> pageGroupItems)
+{
+    beginResetModel();
+    m_images = std::move(images);
+    for (PageGroupItem& item : pageGroupItems)
+    {
+        updateItemCaptionAndTags(item);
+    }
+    m_pageGroupItems = std::move(pageGroupItems);
+    m_trashBin.clear();
+    clearUndoRedo();
+    endResetModel();
+}
+
+void PageItemModel::cropItems(const QModelIndexList& list, const QMarginsF& cropMarginsMM, bool applyToSameSource)
+{
+    if (list.isEmpty())
+    {
+        return;
+    }
+
+    std::set<int> selectedRows;
+    std::set<int> documentSources;
+    std::set<int> imageSources;
+    for (const QModelIndex& index : list)
+    {
+        if (!index.isValid())
+        {
+            continue;
+        }
+
+        selectedRows.insert(index.row());
+        if (const PageGroupItem* item = getItem(index))
+        {
+            for (const PageGroupItem::GroupItem& groupItem : item->groups)
+            {
+                if (groupItem.pageType == PT_DocumentPage && groupItem.documentIndex != -1)
+                {
+                    documentSources.insert(groupItem.documentIndex);
+                }
+                else if (groupItem.pageType == PT_Image && groupItem.imageIndex != -1)
+                {
+                    imageSources.insert(int(groupItem.imageIndex));
+                }
+            }
+        }
+    }
+
+    if (selectedRows.empty())
+    {
+        return;
+    }
+
+    Modifier modifier(this, tr("Crop Pages"));
+    int rowMin = rowCount(QModelIndex());
+    int rowMax = -1;
+
+    for (int row = 0; row < rowCount(QModelIndex()); ++row)
+    {
+        PageGroupItem& item = m_pageGroupItems[row];
+        bool itemChanged = false;
+        const bool isSelectedRow = selectedRows.count(row) != 0;
+
+        for (PageGroupItem::GroupItem& groupItem : item.groups)
+        {
+            bool shouldCrop = isSelectedRow;
+            if (applyToSameSource)
+            {
+                shouldCrop = (groupItem.pageType == PT_DocumentPage && documentSources.count(groupItem.documentIndex) != 0) ||
+                             (groupItem.pageType == PT_Image && imageSources.count(int(groupItem.imageIndex)) != 0);
+            }
+
+            if (!shouldCrop)
+            {
+                continue;
+            }
+
+            const QSizeF pageSize = groupItem.rotatedPageDimensionsMM;
+            QMarginsF normalizedMargins(qMax(0.0, cropMarginsMM.left()),
+                                        qMax(0.0, cropMarginsMM.top()),
+                                        qMax(0.0, cropMarginsMM.right()),
+                                        qMax(0.0, cropMarginsMM.bottom()));
+
+            const double maxHorizontalCrop = qMax(0.0, pageSize.width() - 1.0);
+            if (normalizedMargins.left() + normalizedMargins.right() > maxHorizontalCrop)
+            {
+                const double scale = maxHorizontalCrop / (normalizedMargins.left() + normalizedMargins.right());
+                normalizedMargins.setLeft(normalizedMargins.left() * scale);
+                normalizedMargins.setRight(normalizedMargins.right() * scale);
+            }
+
+            const double maxVerticalCrop = qMax(0.0, pageSize.height() - 1.0);
+            if (normalizedMargins.top() + normalizedMargins.bottom() > maxVerticalCrop)
+            {
+                const double scale = maxVerticalCrop / (normalizedMargins.top() + normalizedMargins.bottom());
+                normalizedMargins.setTop(normalizedMargins.top() * scale);
+                normalizedMargins.setBottom(normalizedMargins.bottom() * scale);
+            }
+
+            if (groupItem.cropMarginsMM != normalizedMargins)
+            {
+                groupItem.cropMarginsMM = normalizedMargins;
+                itemChanged = true;
+            }
+        }
+
+        if (itemChanged)
+        {
+            updateItemCaptionAndTags(item);
+            rowMin = qMin(rowMin, row);
+            rowMax = qMax(rowMax, row);
+        }
+    }
+
+    if (rowMax >= rowMin)
+    {
+        Q_EMIT dataChanged(index(rowMin, 0, QModelIndex()), index(rowMax, ColumnCount - 1, QModelIndex()));
+    }
 }
 
 QString PageItemModel::getItemDisplayText(const PageGroupItem *item) const
 {
+    if (!item->customName.isEmpty())
+    {
+        return item->customName;
+    }
+
     return isUseTitleInDescription() ? item->groupNameWithTitle : item->groupNameWithoutTitle;
+}
+
+QString PageItemModel::getItemTypeText(const PageGroupItem* item) const
+{
+    if (!item || item->groups.empty())
+    {
+        return QString();
+    }
+
+    QStringList types;
+    for (const PageGroupItem::GroupItem& groupItem : item->groups)
+    {
+        const QString type = getTypeText(groupItem);
+        if (!types.contains(type))
+        {
+            types << type;
+        }
+    }
+    return types.join(", ");
+}
+
+QString PageItemModel::getItemSourceText(const PageGroupItem* item) const
+{
+    if (!item || item->groups.empty())
+    {
+        return QString();
+    }
+
+    QStringList sources;
+    for (const PageGroupItem::GroupItem& groupItem : item->groups)
+    {
+        const QString source = getSourceFileName(groupItem);
+        if (!source.isEmpty() && !sources.contains(source))
+        {
+            sources << source;
+        }
+    }
+    return sources.join(", ");
+}
+
+QString PageItemModel::getItemOriginalPageText(const PageGroupItem* item) const
+{
+    if (!item || item->groups.empty())
+    {
+        return QString();
+    }
+
+    QStringList pages;
+    for (const PageGroupItem::GroupItem& groupItem : item->groups)
+    {
+        const QString page = getPageText(groupItem);
+        if (!page.isEmpty())
+        {
+            pages << page;
+        }
+    }
+    return pages.join(", ");
+}
+
+QString PageItemModel::getItemSizeText(const PageGroupItem* item) const
+{
+    if (!item || item->groups.empty())
+    {
+        return QString();
+    }
+
+    QStringList sizes;
+    for (const PageGroupItem::GroupItem& groupItem : item->groups)
+    {
+        const QString size = getSizeText(groupItem);
+        if (!size.isEmpty() && !sizes.contains(size))
+        {
+            sizes << size;
+        }
+    }
+    return sizes.join(", ");
+}
+
+QString PageItemModel::getItemOrientationText(const PageGroupItem* item) const
+{
+    if (!item || item->groups.empty())
+    {
+        return QString();
+    }
+
+    QStringList orientations;
+    for (const PageGroupItem::GroupItem& groupItem : item->groups)
+    {
+        const QString orientation = getOrientationText(groupItem);
+        if (!orientation.isEmpty() && !orientations.contains(orientation))
+        {
+            orientations << orientation;
+        }
+    }
+    return orientations.join(", ");
+}
+
+QString PageItemModel::getItemRotationText(const PageGroupItem* item) const
+{
+    if (!item || item->groups.empty())
+    {
+        return QString();
+    }
+
+    QStringList rotations;
+    for (const PageGroupItem::GroupItem& groupItem : item->groups)
+    {
+        const QString rotation = getRotationText(groupItem);
+        if (!rotations.contains(rotation))
+        {
+            rotations << rotation;
+        }
+    }
+    return rotations.join(", ");
+}
+
+QString PageItemModel::getItemTagsText(const PageGroupItem* item) const
+{
+    if (!item)
+    {
+        return QString();
+    }
+
+    QStringList result;
+    for (const QString& tag : item->tags)
+    {
+        const QStringList parts = tag.split('@', Qt::KeepEmptyParts);
+        result << (parts.size() == 2 ? parts.back() : tag);
+    }
+    return result.join(", ");
+}
+
+QString PageItemModel::getItemTooltipText(const PageGroupItem* item) const
+{
+    if (!item)
+    {
+        return QString();
+    }
+
+    auto tableRow = [](const QString& label, const QString& value)
+    {
+        if (value.isEmpty())
+        {
+            return QString();
+        }
+
+        return QString("<tr><td style=\"padding:2px 10px 2px 0; white-space:nowrap; color:#666666;\">%1</td>"
+                       "<td style=\"padding:2px 0;\"><b>%2</b></td></tr>")
+                .arg(label.toHtmlEscaped(), value.toHtmlEscaped());
+    };
+
+    QStringList texts;
+    texts << "<html><body>";
+    texts << QString("<div style=\"font-size:110%; font-weight:600; margin-bottom:6px;\">%1</div>").arg(getItemDisplayText(item).toHtmlEscaped());
+    texts << "<table cellspacing=\"0\" cellpadding=\"0\">";
+    texts << tableRow(tr("File name"), getItemDisplayText(item));
+    texts << tableRow(tr("Type"), getItemTypeText(item));
+    texts << tableRow(tr("Source"), getItemSourceText(item));
+    texts << tableRow(tr("Original page"), getItemOriginalPageText(item));
+    texts << tableRow(tr("Page count"), QString::number(item->groups.size()));
+    texts << tableRow(tr("Size"), getItemSizeText(item));
+    texts << tableRow(tr("Orientation"), getItemOrientationText(item));
+    texts << tableRow(tr("Rotation"), getItemRotationText(item));
+    texts << tableRow(tr("Tags"), getItemTagsText(item));
+
+    QStringList paths;
+    QStringList formats;
+    for (const PageGroupItem::GroupItem& groupItem : item->groups)
+    {
+        if (groupItem.pageType == PT_Image)
+        {
+            auto it = m_images.find(groupItem.imageIndex);
+            if (it != m_images.cend())
+            {
+                const ImageItem& imageItem = it->second;
+                if (!imageItem.sourcePath.isEmpty() && !paths.contains(imageItem.sourcePath))
+                {
+                    paths << imageItem.sourcePath;
+                }
+                if (!imageItem.format.isEmpty() && !formats.contains(imageItem.format))
+                {
+                    formats << imageItem.format;
+                }
+            }
+        }
+    }
+
+    texts << tableRow(tr("Path"), paths.join(", "));
+    texts << tableRow(tr("Format"), formats.join(", "));
+    texts << "</table>";
+
+    if (item->isGrouped())
+    {
+        texts << QString("<div style=\"margin-top:8px; margin-bottom:3px; font-weight:600;\">%1</div>").arg(tr("Group items").toHtmlEscaped());
+        texts << "<table cellspacing=\"0\" cellpadding=\"0\">";
+        int itemIndex = 1;
+        for (const PageGroupItem::GroupItem& groupItem : item->groups)
+        {
+            texts << QString("<tr><td style=\"padding:1px 8px 1px 0; color:#666666;\">%1.</td><td style=\"padding:1px 0;\">%2</td></tr>")
+                     .arg(itemIndex++)
+                     .arg(getSourceFileName(groupItem).toHtmlEscaped());
+        }
+        texts << "</table>";
+    }
+
+    texts << "</body></html>";
+    return texts.join(QString());
+}
+
+QString PageItemModel::getItemSourceFileName(const PageGroupItem* item) const
+{
+    if (!item || item->groups.empty())
+    {
+        return QString();
+    }
+
+    return getSourceFileName(item->groups.front());
+}
+
+QString PageItemModel::getItemSourceBaseName(const PageGroupItem* item) const
+{
+    if (!item || item->groups.empty())
+    {
+        return QString();
+    }
+
+    return getSourceBaseName(item->groups.front());
+}
+
+QString PageItemModel::getItemSourceExtension(const PageGroupItem* item) const
+{
+    if (!item || item->groups.empty())
+    {
+        return QString();
+    }
+
+    return getSourceExtension(item->groups.front());
+}
+
+QSizeF PageItemModel::getCroppedPageDimensionsMM(const PageGroupItem::GroupItem& groupItem)
+{
+    return QSizeF(qMax(1.0, groupItem.rotatedPageDimensionsMM.width() - groupItem.cropMarginsMM.left() - groupItem.cropMarginsMM.right()),
+                  qMax(1.0, groupItem.rotatedPageDimensionsMM.height() - groupItem.cropMarginsMM.top() - groupItem.cropMarginsMM.bottom()));
+}
+
+QSizeF PageItemModel::getDisplayedPageDimensionsMM(const PageGroupItem::GroupItem& groupItem)
+{
+    return pdf::PDFPage::getRotatedSize(getCroppedPageDimensionsMM(groupItem), groupItem.pageAdditionalRotation);
+}
+
+bool PageItemModel::isCropped(const PageGroupItem::GroupItem& groupItem)
+{
+    return !qFuzzyIsNull(groupItem.cropMarginsMM.left()) ||
+           !qFuzzyIsNull(groupItem.cropMarginsMM.top()) ||
+           !qFuzzyIsNull(groupItem.cropMarginsMM.right()) ||
+           !qFuzzyIsNull(groupItem.cropMarginsMM.bottom());
 }
 
 void PageItemModel::regroupReversed(const QModelIndexList& list)
@@ -602,7 +1410,7 @@ void PageItemModel::regroupReversed(const QModelIndexList& list)
         return;
     }
 
-    Modifier modifier(this);
+    Modifier modifier(this, tr("Regroup Reversed"));
 
     std::vector<PageGroupItem> pageGroupItems = m_pageGroupItems;
     std::vector<PageGroupItem::GroupItem> extractedItems = extractItems(pageGroupItems, list);
@@ -677,7 +1485,7 @@ void PageItemModel::regroupEvenOdd(const QModelIndexList& list)
         return;
     }
 
-    Modifier modifier(this);
+    Modifier modifier(this, tr("Regroup Even/Odd"));
 
     std::vector<PageGroupItem> pageGroupItems = m_pageGroupItems;
     std::vector<PageGroupItem::GroupItem> extractedItems = extractItems(pageGroupItems, list);
@@ -717,7 +1525,7 @@ void PageItemModel::regroupPaired(const QModelIndexList& list)
         return;
     }
 
-    Modifier modifier(this);
+    Modifier modifier(this, tr("Regroup by Page Pairs"));
 
     std::vector<PageGroupItem> pageGroupItems = m_pageGroupItems;
     std::vector<PageGroupItem::GroupItem> extractedItems = extractItems(pageGroupItems, list);
@@ -752,7 +1560,7 @@ void PageItemModel::regroupOutline(const QModelIndexList& list, const std::vecto
         return;
     }
 
-    Modifier modifier(this);
+    Modifier modifier(this, tr("Regroup by Outline"));
 
     std::vector<PageGroupItem> pageGroupItems = m_pageGroupItems;
     std::vector<PageGroupItem::GroupItem> extractedItems = extractItems(pageGroupItems, list);
@@ -797,7 +1605,7 @@ void PageItemModel::regroupAlternatingPages(const QModelIndexList& list, bool re
         return;
     }
 
-    Modifier modifier(this);
+    Modifier modifier(this, reversed ? tr("Regroup by Alternating Pages Reversed") : tr("Regroup by Alternating Pages"));
 
     std::vector<PageGroupItem> pageGroupItems = m_pageGroupItems;
     std::vector<PageGroupItem::GroupItem> extractedItems = extractItems(pageGroupItems, list);
@@ -846,6 +1654,16 @@ void PageItemModel::undo()
     performUndoRedo(m_undoSteps, m_redoSteps);
 }
 
+QString PageItemModel::getUndoActionLabel() const
+{
+    return m_undoSteps.empty() ? QString() : m_undoSteps.back().actionLabel;
+}
+
+QString PageItemModel::getRedoActionLabel() const
+{
+    return m_redoSteps.empty() ? QString() : m_redoSteps.back().actionLabel;
+}
+
 void PageItemModel::performUndoRedo(std::vector<PageItemModel::UndoRedoStep>& load,
                                     std::vector<PageItemModel::UndoRedoStep>& save)
 {
@@ -854,14 +1672,18 @@ void PageItemModel::performUndoRedo(std::vector<PageItemModel::UndoRedoStep>& lo
         return;
     }
 
-    save.emplace_back(getCurrentStep());
     UndoRedoStep step = std::move(load.back());
     load.pop_back();
+    UndoRedoStep currentStep = getCurrentStep();
+    currentStep.actionLabel = step.actionLabel;
+    save.emplace_back(std::move(currentStep));
     updateUndoRedoSteps();
 
     beginResetModel();
     m_pageGroupItems = std::move(step.pageGroupItems);
     m_trashBin = std::move(step.trashBin);
+    m_documents = std::move(step.documents);
+    m_images = std::move(step.images);
     endResetModel();
 }
 
@@ -936,38 +1758,68 @@ void PageItemModel::setShowTitleInDescription(bool newShowTitleInDescription)
     }
 }
 
-void PageItemModel::createDocumentGroup(int index, const QModelIndex& insertIndex)
+void PageItemModel::createDocumentGroup(int index, const QModelIndex& insertIndex, const std::vector<pdf::PDFInteger>& pages)
+{
+    const int insertRow = insertIndex.isValid() ? insertIndex.row() + 1 : rowCount(QModelIndex());
+    createDocumentGroup(index, insertRow, pages);
+}
+
+void PageItemModel::createDocumentGroup(int index, int insertRow, const std::vector<pdf::PDFInteger>& pages)
 {
     const DocumentItem& item = m_documents.at(index);
     const pdf::PDFInteger pageCount = item.document.getCatalog()->getPageCount();
+    std::vector<pdf::PDFInteger> insertedPages = pages;
+    if (insertedPages.empty())
+    {
+        insertedPages.reserve(pageCount);
+        for (pdf::PDFInteger i = 1; i <= pageCount; ++i)
+        {
+            insertedPages.push_back(i);
+        }
+    }
+
+    std::vector<pdf::PDFInteger> validPages;
+    validPages.reserve(insertedPages.size());
+    for (pdf::PDFInteger page : insertedPages)
+    {
+        if (page >= 1 && page <= pageCount && std::find(validPages.cbegin(), validPages.cend(), page) == validPages.cend())
+        {
+            validPages.push_back(page);
+        }
+    }
+    insertedPages = std::move(validPages);
+    if (insertedPages.empty())
+    {
+        return;
+    }
+
     pdf::PDFClosedIntervalSet pageSet;
-    pageSet.addInterval(1, pageCount);
+    for (pdf::PDFInteger page : insertedPages)
+    {
+        pageSet.addInterval(page, page);
+    }
 
     PageGroupItem newItem;
     newItem.groupNameWithTitle = getGroupNameFromDocument(index, true);
     newItem.groupNameWithoutTitle = getGroupNameFromDocument(index, false);
     newItem.pagesCaption = pageSet.toText(true);
 
-    if (pageCount > 1)
+    if (insertedPages.size() > 1)
     {
-        newItem.tags = QStringList() << QString("#00CC00@+%1").arg(pageCount - 1);
+        newItem.tags = QStringList() << QString("#00CC00@+%1").arg(insertedPages.size() - 1);
     }
 
-    newItem.groups.reserve(pageCount);
-    for (pdf::PDFInteger i = 1; i <= pageCount; ++i)
+    newItem.groups.reserve(insertedPages.size());
+    for (pdf::PDFInteger pageIndex : insertedPages)
     {
         PageGroupItem::GroupItem groupItem;
         groupItem.documentIndex = index;
-        groupItem.pageIndex = i;
-        groupItem.rotatedPageDimensionsMM = item.document.getCatalog()->getPage(i - 1)->getRotatedMediaBoxMM().size();
+        groupItem.pageIndex = pageIndex;
+        groupItem.rotatedPageDimensionsMM = item.document.getCatalog()->getPage(pageIndex - 1)->getRotatedMediaBoxMM().size();
         newItem.groups.push_back(qMove(groupItem));
     }
 
-    int insertRow = rowCount(QModelIndex());
-    if (insertIndex.isValid())
-    {
-        insertRow = insertIndex.row() + 1;
-    }
+    insertRow = qBound(0, insertRow, rowCount(QModelIndex()));
 
     beginInsertRows(QModelIndex(), insertRow, insertRow);
     m_pageGroupItems.insert(std::next(m_pageGroupItems.begin(), insertRow), qMove(newItem));
@@ -994,6 +1846,206 @@ QString PageItemModel::getGroupNameFromDocument(int index, bool useTitle) const
 
     QFileInfo fileInfo(item.fileName);
     return fileInfo.fileName();
+}
+
+QString PageItemModel::getImageDisplayName(int imageIndex) const
+{
+    auto it = m_images.find(imageIndex);
+    if (it == m_images.cend())
+    {
+        return tr("Image");
+    }
+
+    if (!it->second.displayName.isEmpty())
+    {
+        return it->second.displayName;
+    }
+
+    if (!it->second.fileName.isEmpty())
+    {
+        return it->second.fileName;
+    }
+
+    return tr("Image");
+}
+
+QString PageItemModel::getSourceFileName(const PageGroupItem::GroupItem& groupItem) const
+{
+    switch (groupItem.pageType)
+    {
+        case PT_DocumentPage:
+        {
+            auto it = m_documents.find(groupItem.documentIndex);
+            if (it != m_documents.cend())
+            {
+                return QFileInfo(it->second.fileName).fileName();
+            }
+            break;
+        }
+
+        case PT_Image:
+            return getImageDisplayName(groupItem.imageIndex);
+
+        case PT_Empty:
+            return tr("Blank Page");
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return QString();
+}
+
+QString PageItemModel::getSourceBaseName(const PageGroupItem::GroupItem& groupItem) const
+{
+    switch (groupItem.pageType)
+    {
+        case PT_DocumentPage:
+        {
+            auto it = m_documents.find(groupItem.documentIndex);
+            if (it != m_documents.cend())
+            {
+                return QFileInfo(it->second.fileName).completeBaseName();
+            }
+            break;
+        }
+
+        case PT_Image:
+        {
+            auto it = m_images.find(groupItem.imageIndex);
+            if (it != m_images.cend())
+            {
+                const QString name = !it->second.fileName.isEmpty() ? it->second.fileName : it->second.displayName;
+                return QFileInfo(name).completeBaseName();
+            }
+            break;
+        }
+
+        case PT_Empty:
+            return tr("blank-page");
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return QString();
+}
+
+QString PageItemModel::getSourceExtension(const PageGroupItem::GroupItem& groupItem) const
+{
+    switch (groupItem.pageType)
+    {
+        case PT_DocumentPage:
+        {
+            auto it = m_documents.find(groupItem.documentIndex);
+            if (it != m_documents.cend())
+            {
+                return QFileInfo(it->second.fileName).suffix();
+            }
+            break;
+        }
+
+        case PT_Image:
+        {
+            auto it = m_images.find(groupItem.imageIndex);
+            if (it != m_images.cend())
+            {
+                if (!it->second.format.isEmpty())
+                {
+                    return it->second.format;
+                }
+                return QFileInfo(it->second.fileName).suffix();
+            }
+            break;
+        }
+
+        case PT_Empty:
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return QString();
+}
+
+QString PageItemModel::getTypeText(const PageGroupItem::GroupItem& groupItem) const
+{
+    switch (groupItem.pageType)
+    {
+        case PT_DocumentPage:
+            return tr("PDF Page");
+        case PT_Image:
+            return tr("Image");
+        case PT_Empty:
+            return tr("Blank Page");
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return QString();
+}
+
+QString PageItemModel::getPageText(const PageGroupItem::GroupItem& groupItem) const
+{
+    if (groupItem.pageIndex > 0)
+    {
+        return QString::number(groupItem.pageIndex);
+    }
+
+    return QString();
+}
+
+QString PageItemModel::getSizeText(const PageGroupItem::GroupItem& groupItem) const
+{
+    const QSizeF croppedPageDimensions = getDisplayedPageDimensionsMM(groupItem);
+    QString text = QString("%1 x %2 mm")
+            .arg(croppedPageDimensions.width(), 0, 'f', 1)
+            .arg(croppedPageDimensions.height(), 0, 'f', 1);
+
+    if (groupItem.pageType == PT_Image)
+    {
+        auto it = m_images.find(groupItem.imageIndex);
+        if (it != m_images.cend() && !it->second.image.isNull())
+        {
+            text += QString(" (%1 x %2 px)").arg(it->second.image.width()).arg(it->second.image.height());
+        }
+    }
+
+    return text;
+}
+
+QString PageItemModel::getOrientationText(const PageGroupItem::GroupItem& groupItem) const
+{
+    const QSizeF pageSize = getDisplayedPageDimensionsMM(groupItem);
+    if (qFuzzyCompare(pageSize.width(), pageSize.height()))
+    {
+        return tr("Square");
+    }
+    return pageSize.width() > pageSize.height() ? tr("Landscape") : tr("Portrait");
+}
+
+QString PageItemModel::getRotationText(const PageGroupItem::GroupItem& groupItem) const
+{
+    switch (groupItem.pageAdditionalRotation)
+    {
+        case pdf::PageRotation::None:
+            return tr("None");
+        case pdf::PageRotation::Rotate90:
+            return tr("90°");
+        case pdf::PageRotation::Rotate180:
+            return tr("180°");
+        case pdf::PageRotation::Rotate270:
+            return tr("270°");
+        default:
+            break;
+    }
+
+    return QString::number(int(groupItem.pageAdditionalRotation));
 }
 
 void PageItemModel::updateItemCaptionAndTags(PageGroupItem& item) const
@@ -1054,7 +2106,14 @@ void PageItemModel::updateItemCaptionAndTags(PageGroupItem& item) const
 
     if (imageCount == pageCount)
     {
-        item.groupNameWithTitle = imageCount == 1 ? tr("Image") : tr("Images");
+        if (imageCount == 1 && !item.groups.empty())
+        {
+            item.groupNameWithTitle = getImageDisplayName(item.groups.front().imageIndex);
+        }
+        else
+        {
+            item.groupNameWithTitle = tr("%1 Images").arg(imageCount);
+        }
         item.groupNameWithoutTitle = item.groupNameWithTitle;
     }
 
@@ -1080,6 +2139,10 @@ void PageItemModel::updateItemCaptionAndTags(PageGroupItem& item) const
     if (hasImages)
     {
         item.tags << tr("#24A5EA@Image");
+    }
+    if (std::any_of(item.groups.cbegin(), item.groups.cend(), [](const PageGroupItem::GroupItem& group) { return PageItemModel::isCropped(group); }))
+    {
+        item.tags << tr("#9C5BD1@Crop");
     }
 }
 
@@ -1124,13 +2187,24 @@ QMimeData* PageItemModel::mimeData(const QModelIndexList& indexes) const
     }
 
     QMimeData* mimeData = new QMimeData;
+    std::vector<int> rows;
+    rows.reserve(indexes.size());
+    for (const QModelIndex& index : indexes)
+    {
+        if (index.isValid())
+        {
+            rows.push_back(index.row());
+        }
+    }
+    std::sort(rows.begin(), rows.end());
+    rows.erase(std::unique(rows.begin(), rows.end()), rows.end());
 
     QByteArray serializedData;
     {
         QDataStream stream(&serializedData, QIODevice::WriteOnly);
-        for (const QModelIndex& index : indexes)
+        for (int row : rows)
         {
-            stream << index.row();
+            stream << row;
         }
     }
 
@@ -1165,6 +2239,8 @@ bool PageItemModel::canDropMimeData(const QMimeData* data, Qt::DropAction action
 
 bool PageItemModel::dropMimeData(const QMimeData* data, Qt::DropAction action, int row, int column, const QModelIndex& parent)
 {
+    Q_UNUSED(column);
+
     if (action == Qt::IgnoreAction)
     {
         return true;
@@ -1175,12 +2251,7 @@ bool PageItemModel::dropMimeData(const QMimeData* data, Qt::DropAction action, i
         return false;
     }
 
-    if (column > 0)
-    {
-        return false;
-    }
-
-    Modifier modifier(this);
+    Modifier modifier(this, tr("Move Items"));
 
     int insertRow = rowCount(QModelIndex());
     if (row > -1)
@@ -1204,6 +2275,7 @@ bool PageItemModel::dropMimeData(const QMimeData* data, Qt::DropAction action, i
     }
 
     std::sort(rows.begin(), rows.end());
+    rows.erase(std::unique(rows.begin(), rows.end()), rows.end());
 
     // Sanity checks on rows
     if (rows.empty())
@@ -1222,11 +2294,6 @@ bool PageItemModel::dropMimeData(const QMimeData* data, Qt::DropAction action, i
     if (action == Qt::MoveAction)
     {
         const int originalInsertRow = insertRow;
-        if (rows.front() < originalInsertRow)
-        {
-            ++insertRow;
-        }
-
         for (int currentRow : rows)
         {
             if (currentRow < originalInsertRow)
@@ -1286,39 +2353,209 @@ Qt::ItemFlags PageItemModel::flags(const QModelIndex& index) const
     return flags;
 }
 
-std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> PageItemModel::getAssembledPages(AssembleMode mode) const
+pdf::PDFDocumentManipulator::AssembledPage PageItemModel::createAssembledPage(const PageGroupItem::GroupItem& item) const
 {
-    std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> result;
+    pdf::PDFDocumentManipulator::AssembledPage assembledPage;
 
-    auto createAssembledPage = [this](const PageGroupItem::GroupItem& item)
+    assembledPage.documentIndex = item.documentIndex;
+    assembledPage.imageIndex = item.imageIndex;
+    assembledPage.pageIndex = item.pageIndex;
+
+    if (assembledPage.pageIndex > 0)
     {
-        pdf::PDFDocumentManipulator::AssembledPage assembledPage;
+        --assembledPage.pageIndex;
+    }
 
-        assembledPage.documentIndex = item.documentIndex;
-        assembledPage.imageIndex = item.imageIndex;
-        assembledPage.pageIndex = item.pageIndex;
-
-        if (assembledPage.pageIndex > 0)
+    pdf::PageRotation originalPageRotation = pdf::PageRotation::None;
+    if (item.pageType == PT_DocumentPage)
+    {
+        auto it = m_documents.find(item.documentIndex);
+        if (it != m_documents.cend())
         {
-            --assembledPage.pageIndex;
+            const pdf::PDFPage* page = it->second.document.getCatalog()->getPage(item.pageIndex - 1);
+            originalPageRotation = page->getPageRotation();
+        }
+    }
+
+    assembledPage.pageRotation = pdf::getPageRotationCombined(originalPageRotation, item.pageAdditionalRotation);
+    assembledPage.pageSize = getCroppedPageDimensionsMM(item);
+    assembledPage.cropMarginsMM = item.cropMarginsMM;
+    assembledPage.sourcePageSize = item.rotatedPageDimensionsMM;
+    assembledPage.sourcePageRotation = originalPageRotation;
+
+    return assembledPage;
+}
+
+std::vector<PageGroupItem::GroupItem> PageItemModel::getSelectedGroupItems(const QModelIndexList& list) const
+{
+    std::vector<int> rows;
+    rows.reserve(list.size());
+    for (const QModelIndex& index : list)
+    {
+        if (index.isValid())
+        {
+            rows.push_back(index.row());
+        }
+    }
+
+    std::sort(rows.begin(), rows.end());
+    rows.erase(std::unique(rows.begin(), rows.end()), rows.end());
+
+    std::vector<PageGroupItem::GroupItem> result;
+    for (int row : rows)
+    {
+        const PageGroupItem* item = getItem(index(row, 0, QModelIndex()));
+        if (!item)
+        {
+            continue;
         }
 
-        pdf::PageRotation originalPageRotation = pdf::PageRotation::None;
-        if (item.pageType == PT_DocumentPage)
+        result.insert(result.end(), item->groups.cbegin(), item->groups.cend());
+    }
+
+    return result;
+}
+
+qint64 PageItemModel::getApproximateSourceByteSize(const PageGroupItem::GroupItem& item) const
+{
+    switch (item.pageType)
+    {
+        case PT_DocumentPage:
         {
             auto it = m_documents.find(item.documentIndex);
             if (it != m_documents.cend())
             {
-                const pdf::PDFPage* page = it->second.document.getCatalog()->getPage(item.pageIndex - 1);
-                originalPageRotation = page->getPageRotation();
+                const pdf::PDFInteger pageCount = qMax<pdf::PDFInteger>(it->second.document.getCatalog()->getPageCount(), 1);
+                return qMax<qint64>(QFileInfo(it->second.fileName).size() / pageCount, 1);
             }
+            break;
         }
 
-        assembledPage.pageRotation = pdf::getPageRotationCombined(originalPageRotation, item.pageAdditionalRotation);
-        assembledPage.pageSize = item.rotatedPageDimensionsMM;
+        case PT_Image:
+        {
+            auto it = m_images.find(item.imageIndex);
+            if (it != m_images.cend())
+            {
+                return qMax<qint64>(it->second.imageData.size(), 1);
+            }
+            break;
+        }
 
-        return assembledPage;
-    };
+        case PT_Empty:
+            return 1024;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return 1;
+}
+
+std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> PageItemModel::getSplitAssembledPagesEveryN(const QModelIndexList& list, int pageCount) const
+{
+    std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> result;
+    const std::vector<PageGroupItem::GroupItem> selectedItems = getSelectedGroupItems(list);
+    if (pageCount < 1 || selectedItems.empty())
+    {
+        return result;
+    }
+
+    for (int i = 0; i < int(selectedItems.size()); ++i)
+    {
+        if (i % pageCount == 0)
+        {
+            result.emplace_back();
+        }
+
+        result.back().emplace_back(createAssembledPage(selectedItems[i]));
+    }
+
+    return result;
+}
+
+std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> PageItemModel::getSplitAssembledPagesAtPagePositions(const QModelIndexList& list, const std::vector<int>& pagePositions) const
+{
+    std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> result;
+    const std::vector<PageGroupItem::GroupItem> selectedItems = getSelectedGroupItems(list);
+    if (selectedItems.empty())
+    {
+        return result;
+    }
+
+    std::vector<int> breakPositions = pagePositions;
+    std::sort(breakPositions.begin(), breakPositions.end());
+    breakPositions.erase(std::unique(breakPositions.begin(), breakPositions.end()), breakPositions.end());
+
+    for (int i = 0; i < int(selectedItems.size()); ++i)
+    {
+        const int pagePosition = i + 1;
+        if (result.empty() || (pagePosition > 1 && std::binary_search(breakPositions.cbegin(), breakPositions.cend(), pagePosition)))
+        {
+            result.emplace_back();
+        }
+
+        result.back().emplace_back(createAssembledPage(selectedItems[i]));
+    }
+
+    return result;
+}
+
+std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> PageItemModel::getSplitAssembledPagesAtDocumentPages(const QModelIndexList& list, const std::vector<pdf::PDFInteger>& pageIndices) const
+{
+    std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> result;
+    std::vector<PageGroupItem::GroupItem> selectedItems = getSelectedGroupItems(list);
+    if (selectedItems.empty())
+    {
+        return result;
+    }
+
+    std::vector<pdf::PDFInteger> breakPageIndices = pageIndices;
+    std::sort(breakPageIndices.begin(), breakPageIndices.end());
+    breakPageIndices.erase(std::unique(breakPageIndices.begin(), breakPageIndices.end()), breakPageIndices.end());
+
+    for (const PageGroupItem::GroupItem& item : selectedItems)
+    {
+        if (result.empty() || (item.pageIndex > 1 && std::binary_search(breakPageIndices.cbegin(), breakPageIndices.cend(), item.pageIndex)))
+        {
+            result.emplace_back();
+        }
+
+        result.back().emplace_back(createAssembledPage(item));
+    }
+
+    return result;
+}
+
+std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> PageItemModel::getSplitAssembledPagesByApproximateSize(const QModelIndexList& list, qint64 maximumSizeBytes) const
+{
+    std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> result;
+    const std::vector<PageGroupItem::GroupItem> selectedItems = getSelectedGroupItems(list);
+    if (maximumSizeBytes < 1 || selectedItems.empty())
+    {
+        return result;
+    }
+
+    qint64 currentSize = 0;
+    for (const PageGroupItem::GroupItem& item : selectedItems)
+    {
+        const qint64 itemSize = getApproximateSourceByteSize(item);
+        if (result.empty() || (!result.back().empty() && currentSize + itemSize > maximumSizeBytes))
+        {
+            result.emplace_back();
+            currentSize = 0;
+        }
+
+        result.back().emplace_back(createAssembledPage(item));
+        currentSize += itemSize;
+    }
+
+    return result;
+}
+
+std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> PageItemModel::getAssembledPages(AssembleMode mode) const
+{
+    std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> result;
 
     switch (mode)
     {
@@ -1382,13 +2619,15 @@ void PageItemModel::clear()
     beginResetModel();
     m_pageGroupItems.clear();
     m_documents.clear();
+    m_images.clear();
     m_trashBin.clear();
     clearUndoRedo();
     endResetModel();
 }
 
-PageItemModel::Modifier::Modifier(PageItemModel* model) :
-    m_model(model)
+PageItemModel::Modifier::Modifier(PageItemModel* model, QString actionLabel) :
+    m_model(model),
+    m_actionLabel(std::move(actionLabel))
 {
     Q_ASSERT(model);
 
@@ -1401,6 +2640,7 @@ PageItemModel::Modifier::~Modifier()
 
     if (m_stateBeforeModification != stateAfterModification)
     {
+        m_stateBeforeModification.actionLabel = m_actionLabel.isEmpty() ? PageItemModel::tr("Change Workspace") : std::move(m_actionLabel);
         m_model->m_undoSteps.emplace_back(std::move(m_stateBeforeModification));
         m_model->m_redoSteps.clear();
         m_model->updateUndoRedoSteps();

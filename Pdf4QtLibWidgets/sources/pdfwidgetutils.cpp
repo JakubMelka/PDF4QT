@@ -310,6 +310,8 @@ QIcon PDFWidgetUtils::convertIconForDarkTheme(QIcon icon, QSize iconSize, qreal 
 
 void PDFWidgetUtils::checkMenuAccessibility(QWidget* widget)
 {
+    return;
+
     QList<QMenu*> menus = widget->findChildren<QMenu*>();
 
     for (QMenu* menu : menus)

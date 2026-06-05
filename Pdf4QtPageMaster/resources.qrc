@@ -41,5 +41,28 @@
         <file>resources/wallet.svg</file>
         <file>resources/regroup-outline.svg</file>
         <file>resources/regroup-reverse.svg</file>
+        <file>resources/page-geometry.svg</file>
+        <file>resources/crop-pages.svg</file>
+        <file>resources/properties.svg</file>
+        <file>resources/rename-group.svg</file>
+        <file>resources/reset-rotation.svg</file>
+        <file>resources/details-view.svg</file>
+        <file>resources/insert-pdf-pages.svg</file>
+        <file>resources/split.svg</file>
+        <file>resources/select-page-range.svg</file>
+        <file>resources/select-visible.svg</file>
+        <file>resources/clear-search.svg</file>
+        <file>resources/sort-file-name.svg</file>
+        <file>resources/sort-source.svg</file>
+        <file>resources/sort-page-number.svg</file>
+        <file>resources/sort-type.svg</file>
+        <file>resources/reverse-order.svg</file>
+        <file>resources/save-workspace.svg</file>
+        <file>resources/open-workspace.svg</file>
+        <file>resources/save-checkpoint.svg</file>
+        <file>resources/load-checkpoint.svg</file>
+        <file>resources/show-document-title.svg</file>
+        <file>resources/prepare-icon-theme.svg</file>
+        <file>resources/clear-recent.svg</file>
     </qresource>
 </RCC>

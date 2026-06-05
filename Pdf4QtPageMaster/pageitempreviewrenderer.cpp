@@ -31,7 +31,9 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QScrollBar>
+#include <QSortFilterProxyModel>
 #include <QtConcurrent/QtConcurrent>
+#include <cmath>
 #include <limits>
 #include <numeric>
 #include <set>
@@ -68,6 +70,26 @@ private:
     const void* m_source;
     std::vector<pdf::PDFFontCache*> m_fontCaches;
 };
+
+QMarginsF mapCropMarginsToRenderedPage(QMarginsF cropMargins, pdf::PageRotation rotation)
+{
+    switch (rotation)
+    {
+        case pdf::PageRotation::None:
+            return cropMargins;
+
+        case pdf::PageRotation::Rotate90:
+            return QMarginsF(cropMargins.bottom(), cropMargins.left(), cropMargins.top(), cropMargins.right());
+
+        case pdf::PageRotation::Rotate180:
+            return QMarginsF(cropMargins.right(), cropMargins.bottom(), cropMargins.left(), cropMargins.top());
+
+        case pdf::PageRotation::Rotate270:
+            return QMarginsF(cropMargins.top(), cropMargins.right(), cropMargins.bottom(), cropMargins.left());
+    }
+
+    return cropMargins;
+}
 
 } // namespace
 
@@ -189,6 +211,8 @@ void PageItemPreviewRenderer::requestPreview(const PageGroupItem* item, const QR
     request.row = row;
     request.pageType = groupItem.pageType;
     request.pageAdditionalRotation = groupItem.pageAdditionalRotation;
+    request.sourcePageSize = groupItem.rotatedPageDimensionsMM;
+    request.cropMarginsMM = groupItem.cropMarginsMM;
     request.logicalSize = pageImageRect.size();
     request.devicePixelRatio = devicePixelRatio;
     request.epoch = m_renderEpoch;
@@ -266,8 +290,18 @@ bool PageItemPreviewRenderer::isRowVisible(int row) const
         return false;
     }
 
+    QModelIndex viewIndex = index;
+    if (const QSortFilterProxyModel* proxyModel = qobject_cast<const QSortFilterProxyModel*>(m_view->model()))
+    {
+        viewIndex = proxyModel->mapFromSource(index);
+        if (!viewIndex.isValid())
+        {
+            return false;
+        }
+    }
+
     const QRect visibleRect = m_view->viewport()->rect();
-    const QRect itemRect = m_view->visualRect(index);
+    const QRect itemRect = m_view->visualRect(viewIndex);
     return itemRect.isValid() && itemRect.intersects(visibleRect);
 }
 
@@ -277,12 +311,16 @@ QString PageItemPreviewRenderer::getPageImageKey(const PageGroupItem* item, cons
     Q_ASSERT(!item->groups.empty());
 
     const PageGroupItem::GroupItem& groupItem = item->groups.front();
-    return QString("%1#%2#%3#%4#%5@%6x%7")
+    return QString("%1#%2#%3#%4#%5#%6#%7#%8#%9@%10x%11")
             .arg(groupItem.documentIndex)
             .arg(groupItem.imageIndex)
             .arg(int(groupItem.pageAdditionalRotation))
             .arg(groupItem.pageIndex)
             .arg(groupItem.pageType)
+            .arg(int(groupItem.cropMarginsMM.left() * 100.0))
+            .arg(int(groupItem.cropMarginsMM.top() * 100.0))
+            .arg(int(groupItem.cropMarginsMM.right() * 100.0))
+            .arg(int(groupItem.cropMarginsMM.bottom() * 100.0))
             .arg(logicalSize.width())
             .arg(logicalSize.height());
 }
@@ -469,10 +507,21 @@ PageItemPreviewRenderer::RenderResult PageItemPreviewRenderer::renderPreviewAsyn
             }
 
             pdf::PDFRasterizer* rasterizer = context->rasterizerPool->acquire();
+            QSize renderPixelSize = pixelSize;
+            const QSizeF renderedSourcePageSize = pdf::PDFPage::getRotatedSize(request.sourcePageSize, request.pageAdditionalRotation);
+            const QMarginsF renderedCropMargins = mapCropMarginsToRenderedPage(request.cropMarginsMM, request.pageAdditionalRotation);
+            const QSizeF croppedPageSize(qMax(1.0, renderedSourcePageSize.width() - renderedCropMargins.left() - renderedCropMargins.right()),
+                                         qMax(1.0, renderedSourcePageSize.height() - renderedCropMargins.top() - renderedCropMargins.bottom()));
+            if (!renderedSourcePageSize.isEmpty() && croppedPageSize.isValid())
+            {
+                renderPixelSize = QSize(qMax(pixelSize.width(), int(std::ceil(pixelSize.width() * renderedSourcePageSize.width() / croppedPageSize.width()))),
+                                        qMax(pixelSize.height(), int(std::ceil(pixelSize.height() * renderedSourcePageSize.height() / croppedPageSize.height()))));
+            }
+
             QImage image = rasterizer->render(request.pageIndex,
                                               page,
                                               &compiledPage,
-                                              pixelSize,
+                                              renderPixelSize,
                                               context->features,
                                               nullptr,
                                               cms.data(),
@@ -481,6 +530,19 @@ PageItemPreviewRenderer::RenderResult PageItemPreviewRenderer::renderPreviewAsyn
 
             if (!image.isNull())
             {
+                if (!renderedSourcePageSize.isEmpty() &&
+                    (request.cropMarginsMM.left() > 0.0 || request.cropMarginsMM.top() > 0.0 || request.cropMarginsMM.right() > 0.0 || request.cropMarginsMM.bottom() > 0.0))
+                {
+                    QRect cropRect(qRound(renderedCropMargins.left() / renderedSourcePageSize.width() * image.width()),
+                                   qRound(renderedCropMargins.top() / renderedSourcePageSize.height() * image.height()),
+                                   qRound(croppedPageSize.width() / renderedSourcePageSize.width() * image.width()),
+                                   qRound(croppedPageSize.height() / renderedSourcePageSize.height() * image.height()));
+                    cropRect = cropRect.intersected(image.rect());
+                    if (cropRect.isValid())
+                    {
+                        image = image.copy(cropRect).scaled(pixelSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+                    }
+                }
                 image.setDevicePixelRatio(request.devicePixelRatio);
                 result.image = std::move(image);
             }
@@ -500,12 +562,25 @@ PageItemPreviewRenderer::RenderResult PageItemPreviewRenderer::renderPreviewAsyn
 
             QPainter painter(&image);
             const QRectF drawRect(QPointF(0.0, 0.0), QSizeF(request.logicalSize));
-            const QRectF mediaBox(QPointF(0.0, 0.0), QSizeF(request.image.size()));
+            QRectF sourceImageRect(QPointF(0.0, 0.0), QSizeF(request.image.size()));
+            if (!request.sourcePageSize.isEmpty())
+            {
+                sourceImageRect.adjust(request.cropMarginsMM.left() / request.sourcePageSize.width() * request.image.width(),
+                                       request.cropMarginsMM.top() / request.sourcePageSize.height() * request.image.height(),
+                                       -request.cropMarginsMM.right() / request.sourcePageSize.width() * request.image.width(),
+                                       -request.cropMarginsMM.bottom() / request.sourcePageSize.height() * request.image.height());
+                sourceImageRect = sourceImageRect.intersected(QRectF(QPointF(0.0, 0.0), QSizeF(request.image.size())));
+            }
+            if (!sourceImageRect.isValid())
+            {
+                sourceImageRect = QRectF(QPointF(0.0, 0.0), QSizeF(request.image.size()));
+            }
+            const QRectF mediaBox(QPointF(0.0, 0.0), sourceImageRect.size());
             const QRectF rotatedMediaBox = pdf::PDFPage::getRotatedBox(mediaBox, request.pageAdditionalRotation);
             const QTransform matrix = pdf::PDFRenderer::createMediaBoxToDevicePointMatrix(rotatedMediaBox, drawRect, request.pageAdditionalRotation);
 
             painter.setWorldTransform(matrix);
-            painter.translate(0, request.image.height());
+            painter.translate(-sourceImageRect.left(), request.image.height() - sourceImageRect.top());
             painter.scale(1.0, -1.0);
             painter.drawImage(0, 0, request.image);
 

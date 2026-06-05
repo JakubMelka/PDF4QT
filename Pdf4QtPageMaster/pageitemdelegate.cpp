@@ -27,6 +27,10 @@
 #include "pdfpainterutils.h"
 
 #include <QPainter>
+#include <QSortFilterProxyModel>
+#include <QStringList>
+
+#include <algorithm>
 
 namespace pdfpagemaster
 {
@@ -43,7 +47,13 @@ PageItemDelegate::~PageItemDelegate() = default;
 
 void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const
 {
-    const PageGroupItem* item = m_model->getItem(index);
+    QModelIndex sourceIndex = index;
+    if (const QSortFilterProxyModel* proxyModel = qobject_cast<const QSortFilterProxyModel*>(index.model()))
+    {
+        sourceIndex = proxyModel->mapToSource(index);
+    }
+
+    const PageGroupItem* item = m_model->getItem(sourceIndex);
 
     if (!item)
     {
@@ -59,10 +69,12 @@ void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& opti
 
     QRect pageBoundingRect = QRect(QPoint(rect.left() + (rect.width() - scaledSize.width()) / 2, rect.top() + verticalSpacing), scaledSize);
 
+    QRect pageImageRect;
+
     // Draw page preview
     if (!item->groups.empty())
     {
-        const QRect pageImageRect = getPageImageRect(item, rect, option.widget);
+        pageImageRect = getPageImageRect(item, rect, option.widget);
 
         painter->fillRect(pageImageRect, Qt::white);
 
@@ -73,7 +85,7 @@ void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& opti
         }
         else
         {
-            m_previewRenderer->requestPreview(item, pageImageRect, index.row(), m_dpiScaleRatio);
+            m_previewRenderer->requestPreview(item, pageImageRect, sourceIndex.row(), m_dpiScaleRatio);
         }
 
         painter->setPen(QPen(Qt::black));
@@ -86,9 +98,11 @@ void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& opti
     textRect.setTop(textOffset);
     textRect.setHeight(option.fontMetrics.lineSpacing());
     painter->setPen(option.palette.color(QPalette::Normal, QPalette::Text));
-    painter->drawText(textRect, Qt::AlignCenter | Qt::TextSingleLine, m_model->getItemDisplayText(item));
+    const QString displayText = option.fontMetrics.elidedText(m_model->getItemDisplayText(item), Qt::ElideMiddle, textRect.width() - horizontalSpacing * 2);
+    painter->drawText(textRect, Qt::AlignCenter | Qt::TextSingleLine, displayText);
     textRect.translate(0, textRect.height());
-    painter->drawText(textRect, Qt::AlignCenter | Qt::TextSingleLine, item->pagesCaption);
+    const QString pageText = option.fontMetrics.elidedText(item->pagesCaption, Qt::ElideRight, textRect.width() - horizontalSpacing * 2);
+    painter->drawText(textRect, Qt::AlignCenter | Qt::TextSingleLine, pageText);
 
     if (option.state.testFlag(QStyle::State_Selected))
     {
@@ -109,6 +123,49 @@ void PageItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& opti
         QColor color = QColor::fromString(splitted.front());
         QRect bubbleRect = pdf::PDFPainterHelper::drawBubble(painter, tagPoint, color, splitted.back(), Qt::AlignLeft | Qt::AlignBottom);
         tagPoint.ry() += bubbleRect.height() + verticalSpacing;
+    }
+
+    if (item->groups.cend() != std::find_if(item->groups.cbegin(), item->groups.cend(), [](const PageGroupItem::GroupItem& groupItem) { return groupItem.pageAdditionalRotation != pdf::PageRotation::None; }))
+    {
+        QStringList rotations;
+        for (const PageGroupItem::GroupItem& groupItem : item->groups)
+        {
+            QString rotationText;
+            switch (groupItem.pageAdditionalRotation)
+            {
+                case pdf::PageRotation::None:
+                    break;
+                case pdf::PageRotation::Rotate90:
+                    rotationText = tr("90°");
+                    break;
+                case pdf::PageRotation::Rotate180:
+                    rotationText = tr("180°");
+                    break;
+                case pdf::PageRotation::Rotate270:
+                    rotationText = tr("270°");
+                    break;
+                default:
+                    rotationText = QString::number(int(groupItem.pageAdditionalRotation));
+                    break;
+            }
+
+            if (!rotationText.isEmpty() && !rotations.contains(rotationText))
+            {
+                rotations << rotationText;
+            }
+        }
+
+        QRect rotationRect = pageImageRect.adjusted(horizontalSpacing, horizontalSpacing, -horizontalSpacing, -horizontalSpacing);
+        const QString rotationText = rotations.join(", ");
+        const int maximumBadgeWidth = qMax(horizontalSpacing * 4, pageImageRect.width() - horizontalSpacing * 2);
+        rotationRect.setSize(QSize(qMin(maximumBadgeWidth, option.fontMetrics.horizontalAdvance(rotationText) + horizontalSpacing * 2), option.fontMetrics.lineSpacing() + verticalSpacing));
+        QColor badgeColor = option.palette.color(QPalette::Active, QPalette::Highlight);
+        badgeColor.setAlphaF(0.85f);
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(badgeColor);
+        painter->drawRoundedRect(rotationRect, 4, 4);
+        painter->setPen(option.palette.color(QPalette::Active, QPalette::HighlightedText));
+        painter->drawText(rotationRect, Qt::AlignCenter, option.fontMetrics.elidedText(rotationText, Qt::ElideRight, rotationRect.width() - horizontalSpacing));
     }
 }
 
@@ -150,7 +207,7 @@ QRect PageItemDelegate::getPageImageRect(const PageGroupItem* item, const QRect&
     }
 
     const PageGroupItem::GroupItem& groupItem = item->groups.front();
-    QSizeF rotatedPageSize = pdf::PDFPage::getRotatedBox(QRectF(QPointF(0, 0), groupItem.rotatedPageDimensionsMM), groupItem.pageAdditionalRotation).size();
+    QSizeF rotatedPageSize = PageItemModel::getDisplayedPageDimensionsMM(groupItem);
     QSize pageImageSize = rotatedPageSize.scaled(pageBoundingRect.size(), Qt::KeepAspectRatio).toSize();
     return QRect(pageBoundingRect.topLeft() + QPoint((pageBoundingRect.width() - pageImageSize.width()) / 2, (pageBoundingRect.height() - pageImageSize.height()) / 2), pageImageSize);
 }
