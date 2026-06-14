@@ -1,4 +1,6 @@
 CURRENT:
+
+V: 1.6.0.0 14.6.2026
  - Issue #389: Adding hyperlink to _internal_ object in PDF
  - Issue #388: Update windows color management systém
  - Issue #385: PDFTextLayoutGenerator::isContentKindSuppressed(ContentKind kind) is missing ContentKind::Form
