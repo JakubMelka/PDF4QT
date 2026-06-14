@@ -74,14 +74,18 @@ public slots:
 private slots:
     void on_selectDirectoryButton_clicked();
     void on_imageOptimizationSettingsButton_clicked();
+    void resetToDefaults();
     void refreshOutputPreview();
 
 private:
+    void applyDefaultSettings();
+    void clearSavedSettings() const;
     void loadSettings();
     void saveSettings() const;
 
     Ui::AssembleOutputSettingsDialog* ui;
     QTableWidget* m_previewTable;
+    QString m_defaultDirectory;
     std::function<std::vector<OutputPreviewItem>()> m_outputPreviewFactory;
     bool m_hasBlockingPreviewItems = false;
     pdf::PDFImageOptimizer::Settings m_imageOptimizationSettings;

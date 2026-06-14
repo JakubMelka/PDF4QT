@@ -25,11 +25,13 @@
 
 #include "pdficontheme.h"
 #include "pdfpagegeometry.h"
+#include "pdfprogress.h"
 
 #include "pageitemmodel.h"
 #include "pageitemdelegate.h"
 
 #include <QMainWindow>
+#include <QFutureWatcher>
 #include <QJsonObject>
 #include <QList>
 #include <QPoint>
@@ -49,10 +51,23 @@ class QLabel;
 class QLineEdit;
 class QMenu;
 class QMimeData;
+class QProgressBar;
 class QTableView;
+
+namespace pdf
+{
+class PDFProgress;
+}
 
 namespace pdfpagemaster
 {
+
+struct ExportResult
+{
+    bool success = false;
+    QString errorMessage;
+    QStringList writtenFiles;
+};
 
 class PageItemPreviewRenderer;
 class WorkspaceFilterProxyModel;
@@ -160,6 +175,10 @@ private slots:
     void onRecentSourceFileTriggered();
     void onRecentWorkspaceFileTriggered();
     void onRecentDirectoryTriggered();
+    void onExportProgressStarted(pdf::ProgressStartupInfo info);
+    void onExportProgressStep(int percentage);
+    void onExportProgressFinished();
+    void onExportFinished();
 
 private:
     void loadSettings();
@@ -208,6 +227,8 @@ private:
     bool dropWorkspaceExternalMimeData(const QMimeData* mimeData, int insertSourceRow);
     bool dropWorkspaceInternalMimeData(const QMimeData* mimeData, int insertSourceRow);
     bool insertDocument(const QString& fileName, int insertRow, const std::vector<pdf::PDFInteger>& pages = {});
+    void setExportInProgress(bool inProgress);
+    void hideExportProgress();
 
     struct Settings
     {
@@ -228,12 +249,19 @@ private:
     QMenu* m_recentMenu;
     QLineEdit* m_searchEdit;
     QLabel* m_searchResultLabel;
+    pdf::PDFProgress* m_exportProgress;
+    QProgressBar* m_exportProgressBar;
+    QLabel* m_exportProgressLabel;
+    QFutureWatcher<ExportResult>* m_exportWatcher;
     QLabel* m_dropFeedbackLabel;
     QFrame* m_dropInsertionMarker;
     QWidget* m_dropFeedbackViewport;
     Settings m_settings;
     QSignalMapper m_mapper;
     Qt::DropAction m_dropAction;
+    bool m_isExporting = false;
+    bool m_wasEnabledBeforeExport = true;
+    bool m_isChangingExportProgressStep = false;
     bool m_hasPageGeometrySettings = false;
     pdf::PDFPageGeometrySettings m_pageGeometrySettings;
 

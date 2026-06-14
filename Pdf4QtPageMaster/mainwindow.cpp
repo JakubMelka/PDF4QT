@@ -38,6 +38,8 @@
 #include "pdfdocumentwriter.h"
 #include "pdfimageoptimizer.h"
 #include "pdfoutline.h"
+#include "pdfprogress.h"
+#include "pdfutils.h"
 
 #include <QFileDialog>
 #include <QMessageBox>
@@ -45,6 +47,7 @@
 #include <QBuffer>
 #include <QComboBox>
 #include <QClipboard>
+#include <QCoreApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
@@ -77,13 +80,16 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSortFilterProxyModel>
 #include <QSpinBox>
+#include <QtConcurrent/QtConcurrent>
 
+#include <map>
 #include <tuple>
 
 namespace pdfpagemaster
@@ -326,6 +332,152 @@ QString createOutputFileName(QString fileNameTemplate,
     fileNameTemplate = sanitizeOutputFileName(fileNameTemplate);
     QDir outputDirectory(directory);
     return outputDirectory.filePath(fileNameTemplate);
+}
+
+struct ExportJob
+{
+    std::map<int, DocumentItem> documents;
+    std::map<int, ImageItem> images;
+    std::vector<std::vector<pdf::PDFDocumentManipulator::AssembledPage>> assembledDocuments;
+    std::vector<QString> outputFileNames;
+    bool overwriteFiles = false;
+    pdf::PDFDocumentManipulator::OutlineMode outlineMode = pdf::PDFDocumentManipulator::OutlineMode::DocumentParts;
+    bool optimizeImages = false;
+    pdf::PDFImageOptimizer::Settings imageOptimizationSettings;
+    bool hasPageGeometrySettings = false;
+    pdf::PDFPageGeometrySettings pageGeometrySettings;
+    pdf::PDFProgress* progress = nullptr;
+};
+
+ExportResult createExportError(QString message)
+{
+    ExportResult result;
+    result.success = false;
+    result.errorMessage = qMove(message);
+    return result;
+}
+
+ExportResult runExportJob(ExportJob job)
+{
+    pdf::PDFDocumentManipulator manipulator;
+    manipulator.setOutlineMode(job.outlineMode);
+
+    for (const auto& documentItem : job.documents)
+    {
+        manipulator.addDocument(documentItem.first, &documentItem.second.document);
+    }
+    for (const auto& imageItem : job.images)
+    {
+        manipulator.addImage(imageItem.first, imageItem.second.image);
+    }
+
+    std::vector<std::pair<QString, pdf::PDFDocument>> assembledDocumentStorage;
+    assembledDocumentStorage.reserve(job.assembledDocuments.size());
+
+    if (job.progress && !job.assembledDocuments.empty())
+    {
+        pdf::ProgressStartupInfo info;
+        info.showDialog = true;
+        info.text = QCoreApplication::translate("pdfpagemaster::MainWindow", "Assembling documents...");
+        job.progress->start(job.assembledDocuments.size(), qMove(info));
+    }
+
+    for (size_t index = 0; index < job.assembledDocuments.size(); ++index)
+    {
+        pdf::PDFOperationResult currentResult = manipulator.assemble(job.assembledDocuments[index]);
+        if (!currentResult)
+        {
+            if (job.progress)
+            {
+                job.progress->finish();
+            }
+            return createExportError(currentResult.getErrorMessage());
+        }
+
+        pdf::PDFDocument assembledDocument = manipulator.takeAssembledDocument();
+        if (job.hasPageGeometrySettings)
+        {
+            const pdf::PDFOperationResult geometryResult = pdf::PDFPageGeometry::apply(&assembledDocument, job.pageGeometrySettings);
+            if (!geometryResult)
+            {
+                if (job.progress)
+                {
+                    job.progress->finish();
+                }
+                return createExportError(geometryResult.getErrorMessage());
+            }
+        }
+
+        assembledDocumentStorage.emplace_back(std::make_pair(job.outputFileNames[index], std::move(assembledDocument)));
+        if (job.progress)
+        {
+            job.progress->step();
+        }
+    }
+
+    if (job.progress && !job.assembledDocuments.empty())
+    {
+        job.progress->finish();
+    }
+
+    if (job.optimizeImages)
+    {
+        pdf::PDFImageOptimizer imageOptimizer;
+        for (auto& assembledDocumentItem : assembledDocumentStorage)
+        {
+            assembledDocumentItem.second = imageOptimizer.optimize(&assembledDocumentItem.second, job.imageOptimizationSettings, {}, job.progress);
+        }
+    }
+
+    ExportResult result;
+    result.success = true;
+    result.writtenFiles.reserve(int(assembledDocumentStorage.size()));
+
+    if (job.progress && !assembledDocumentStorage.empty())
+    {
+        pdf::ProgressStartupInfo info;
+        info.showDialog = true;
+        info.text = QCoreApplication::translate("pdfpagemaster::MainWindow", "Writing documents...");
+        job.progress->start(assembledDocumentStorage.size(), qMove(info));
+    }
+
+    for (const auto& assembledDocumentItem : assembledDocumentStorage)
+    {
+        const QString& fileName = assembledDocumentItem.first;
+        const pdf::PDFDocument* document = &assembledDocumentItem.second;
+        const bool isDocumentFileAlreadyExisting = QFile::exists(fileName);
+        if (!job.overwriteFiles && isDocumentFileAlreadyExisting)
+        {
+            if (job.progress)
+            {
+                job.progress->finish();
+            }
+            return createExportError(QCoreApplication::translate("pdfpagemaster::MainWindow", "Document with filename '%1' already exists.").arg(fileName));
+        }
+
+        pdf::PDFDocumentWriter writer(nullptr);
+        pdf::PDFOperationResult writeResult = writer.write(fileName, document, isDocumentFileAlreadyExisting);
+        if (!writeResult)
+        {
+            if (job.progress)
+            {
+                job.progress->finish();
+            }
+            return createExportError(writeResult.getErrorMessage());
+        }
+        result.writtenFiles << fileName;
+        if (job.progress)
+        {
+            job.progress->step();
+        }
+    }
+
+    if (job.progress && !assembledDocumentStorage.empty())
+    {
+        job.progress->finish();
+    }
+
+    return result;
 }
 
 bool resolveOutlinePageIndex(const pdf::PDFDocument* document, const pdf::PDFOutlineItem* item, pdf::PDFInteger* pageIndex)
@@ -627,6 +779,10 @@ MainWindow::MainWindow(QWidget* parent) :
     m_recentMenu(nullptr),
     m_searchEdit(new QLineEdit(this)),
     m_searchResultLabel(new QLabel(this)),
+    m_exportProgress(new pdf::PDFProgress(this)),
+    m_exportProgressBar(new QProgressBar(this)),
+    m_exportProgressLabel(new QLabel(this)),
+    m_exportWatcher(nullptr),
     m_dropFeedbackLabel(new QLabel(this)),
     m_dropInsertionMarker(new QFrame(this)),
     m_dropFeedbackViewport(nullptr),
@@ -636,6 +792,17 @@ MainWindow::MainWindow(QWidget* parent) :
 
     m_delegate->setPageImageSize(getDefaultPageImageSize());
     m_filterModel->setSourceModel(m_model);
+
+    m_exportProgressLabel->hide();
+    m_exportProgressBar->setRange(0, 100);
+    m_exportProgressBar->setValue(0);
+    m_exportProgressBar->setMaximumWidth(pdf::PDFWidgetUtils::scaleDPI_x(this, 180));
+    m_exportProgressBar->hide();
+    statusBar()->addPermanentWidget(m_exportProgressLabel);
+    statusBar()->addPermanentWidget(m_exportProgressBar);
+    connect(m_exportProgress, &pdf::PDFProgress::progressStarted, this, &MainWindow::onExportProgressStarted, Qt::QueuedConnection);
+    connect(m_exportProgress, &pdf::PDFProgress::progressStep, this, &MainWindow::onExportProgressStep, Qt::QueuedConnection);
+    connect(m_exportProgress, &pdf::PDFProgress::progressFinished, this, &MainWindow::onExportProgressFinished, Qt::QueuedConnection);
 
     ui->documentItemsView->setModel(m_filterModel);
     ui->documentItemsView->setItemDelegate(m_delegate);
@@ -908,6 +1075,12 @@ MainWindow::MainWindow(QWidget* parent) :
 
 MainWindow::~MainWindow()
 {
+    if (m_exportWatcher)
+    {
+        m_exportWatcher->waitForFinished();
+        delete m_exportWatcher;
+        m_exportWatcher = nullptr;
+    }
     saveSettings();
     delete ui;
 }
@@ -1158,6 +1331,69 @@ void MainWindow::updateActions()
             action->setEnabled(canPerformOperation(static_cast<Operation>(actionData.toInt())));
         }
     }
+}
+
+void MainWindow::onExportProgressStarted(pdf::ProgressStartupInfo info)
+{
+    if (!m_isExporting)
+    {
+        return;
+    }
+
+    m_exportProgressLabel->setText(info.text.isEmpty() ? tr("Exporting...") : info.text);
+    m_exportProgressBar->setValue(0);
+    m_exportProgressLabel->show();
+    m_exportProgressBar->show();
+}
+
+void MainWindow::onExportProgressStep(int percentage)
+{
+    if (!m_isExporting)
+    {
+        return;
+    }
+
+    if (m_isChangingExportProgressStep)
+    {
+        return;
+    }
+
+    pdf::PDFTemporaryValueChange guard(&m_isChangingExportProgressStep, true);
+    m_exportProgressBar->setValue(percentage);
+}
+
+void MainWindow::onExportProgressFinished()
+{
+    if (!m_isExporting)
+    {
+        return;
+    }
+
+    m_exportProgressBar->setValue(100);
+    hideExportProgress();
+}
+
+void MainWindow::onExportFinished()
+{
+    if (!m_exportWatcher)
+    {
+        return;
+    }
+
+    const ExportResult result = m_exportWatcher->result();
+    m_exportWatcher->deleteLater();
+    m_exportWatcher = nullptr;
+
+    setExportInProgress(false);
+    hideExportProgress();
+
+    if (!result.success)
+    {
+        QMessageBox::critical(this, tr("Error"), result.errorMessage);
+        return;
+    }
+
+    statusBar()->showMessage(tr("%1 document(s) exported.").arg(result.writtenFiles.size()), 5000);
 }
 
 void MainWindow::onClearRecentTriggered()
@@ -1777,6 +2013,11 @@ void MainWindow::hideWorkspaceDropFeedback()
 
 bool MainWindow::dropWorkspaceExternalMimeData(const QMimeData* mimeData, int insertSourceRow)
 {
+    if (m_isExporting)
+    {
+        return false;
+    }
+
     if (!mimeData)
     {
         return false;
@@ -1836,6 +2077,11 @@ bool MainWindow::dropWorkspaceExternalMimeData(const QMimeData* mimeData, int in
 
 bool MainWindow::dropWorkspaceInternalMimeData(const QMimeData* mimeData, int insertSourceRow)
 {
+    if (m_isExporting)
+    {
+        return false;
+    }
+
     insertSourceRow = qBound(0, insertSourceRow, m_model->rowCount(QModelIndex()));
     return m_model->canDropMimeData(mimeData, Qt::MoveAction, insertSourceRow, 0, QModelIndex()) &&
            m_model->dropMimeData(mimeData, Qt::MoveAction, insertSourceRow, 0, QModelIndex());
@@ -1848,6 +2094,11 @@ bool MainWindow::insertDocument(const QString& fileName, const QModelIndex& inse
 
 bool MainWindow::insertDocument(const QString& fileName, int insertRow, const std::vector<pdf::PDFInteger>& pages)
 {
+    if (m_isExporting)
+    {
+        return false;
+    }
+
     bool isDocumentInserted = true;
 
     QFileInfo fileInfo(fileName);
@@ -1913,8 +2164,43 @@ bool MainWindow::insertDocument(const QString& fileName, const QModelIndex& inse
     return isDocumentInserted;
 }
 
+void MainWindow::setExportInProgress(bool inProgress)
+{
+    if (m_isExporting == inProgress)
+    {
+        updateActions();
+        return;
+    }
+
+    if (inProgress)
+    {
+        m_wasEnabledBeforeExport = isEnabled();
+        m_isExporting = true;
+        setEnabled(false);
+    }
+    else
+    {
+        m_isExporting = false;
+        setEnabled(m_wasEnabledBeforeExport);
+    }
+
+    updateActions();
+}
+
+void MainWindow::hideExportProgress()
+{
+    m_exportProgressLabel->hide();
+    m_exportProgressBar->hide();
+    m_exportProgressBar->setValue(0);
+}
+
 bool MainWindow::canPerformOperation(Operation operation) const
 {
+    if (!isEnabled() || m_isExporting)
+    {
+        return false;
+    }
+
     QModelIndexList selection = getSelectedRows();
     const bool isSelected = !selection.isEmpty();
     const bool isMultiSelected = selection.size() > 1;
@@ -2154,21 +2440,12 @@ void MainWindow::exportAssembledDocuments(std::vector<std::vector<pdf::PDFDocume
         return;
     }
 
-    pdf::PDFDocumentManipulator manipulator;
-
-    for (const auto& documentItem : m_model->getDocuments())
+    if (m_exportWatcher)
     {
-        manipulator.addDocument(documentItem.first, &documentItem.second.document);
-    }
-    for (const auto& imageItem : m_model->getImages())
-    {
-        manipulator.addImage(imageItem.first, imageItem.second.image);
+        QMessageBox::warning(this, tr("Export"), tr("Another export is already running."));
+        return;
     }
 
-    pdf::PDFOperationResult result(true);
-    std::vector<std::pair<QString, pdf::PDFDocument>> assembledDocumentStorage;
-
-    int assembledDocumentIndex = 1;
     const int documentCount = int(m_model->getDocuments().size());
 
     QString directory = dialog.getDirectory();
@@ -2176,18 +2453,13 @@ void MainWindow::exportAssembledDocuments(std::vector<std::vector<pdf::PDFDocume
     {
         m_settings.directory = QDir(directory).absolutePath();
         addRecentDirectory(m_settings.directory);
+        directory = m_settings.directory;
     }
     QString fileNameTemplate = dialog.getFileName();
     const bool isOverwriteEnabled = dialog.isOverwriteFiles();
     pdf::PDFDocumentManipulator::OutlineMode outlineMode = dialog.getOutlineMode();
     const bool isImageOptimizationEnabled = dialog.isImageOptimizationEnabled();
     const pdf::PDFImageOptimizer::Settings imageOptimizationSettings = dialog.getImageOptimizationSettings();
-    manipulator.setOutlineMode(outlineMode);
-
-    if (!directory.endsWith('/'))
-    {
-        directory += "/";
-    }
 
     if (!QDir(directory).exists())
     {
@@ -2196,6 +2468,8 @@ void MainWindow::exportAssembledDocuments(std::vector<std::vector<pdf::PDFDocume
     }
 
     QSet<QString> generatedFileNames;
+    std::vector<QString> outputFileNames;
+    outputFileNames.reserve(assembledDocuments.size());
     int validationOutputIndex = 1;
     for (const std::vector<pdf::PDFDocumentManipulator::AssembledPage>& assembledPages : assembledDocuments)
     {
@@ -2220,74 +2494,35 @@ void MainWindow::exportAssembledDocuments(std::vector<std::vector<pdf::PDFDocume
             return;
         }
 
+        outputFileNames.push_back(validationFileName);
         ++validationOutputIndex;
     }
 
-    for (const std::vector<pdf::PDFDocumentManipulator::AssembledPage>& assembledPages : assembledDocuments)
+    ExportJob job;
+    job.documents = m_model->getDocuments();
+    job.images = m_model->getImages();
+    job.assembledDocuments = std::move(assembledDocuments);
+    job.outputFileNames = std::move(outputFileNames);
+    job.overwriteFiles = isOverwriteEnabled;
+    job.outlineMode = outlineMode;
+    job.optimizeImages = isImageOptimizationEnabled;
+    job.imageOptimizationSettings = imageOptimizationSettings;
+    job.hasPageGeometrySettings = m_hasPageGeometrySettings;
+    job.pageGeometrySettings = m_pageGeometrySettings;
+    job.progress = m_exportProgress;
+
+    setExportInProgress(true);
+    m_exportProgressLabel->setText(tr("Preparing export..."));
+    m_exportProgressLabel->show();
+    m_exportProgressBar->setValue(0);
+    m_exportProgressBar->show();
+
+    m_exportWatcher = new QFutureWatcher<ExportResult>(this);
+    connect(m_exportWatcher, &QFutureWatcher<ExportResult>::finished, this, &MainWindow::onExportFinished);
+    m_exportWatcher->setFuture(QtConcurrent::run([job = std::move(job)]() mutable
     {
-        pdf::PDFOperationResult currentResult = manipulator.assemble(assembledPages);
-        if (!currentResult && result)
-        {
-            result = currentResult;
-            break;
-        }
-
-        pdf::PDFDocumentManipulator::AssembledPage samplePage = assembledPages.front();
-        const int sourceDocumentIndex = samplePage.documentIndex == -1 ? documentCount + samplePage.imageIndex : samplePage.documentIndex;
-        const int sourcePageIndex = qMax(int(samplePage.pageIndex + 1), 1);
-        const QString groupName = assembledDocumentGroupNames[assembledDocumentIndex - 1];
-
-        auto [sourceName, sourceBase, sourceExtension] = sourceInfo(samplePage);
-        QString fileName = createOutputFileName(fileNameTemplate, directory, assembledDocumentIndex, assembledDocumentIndex, sourceDocumentIndex, sourcePageIndex, groupName, sourceName, sourceBase, sourceExtension);
-
-        pdf::PDFDocument assembledDocument = manipulator.takeAssembledDocument();
-        if (m_hasPageGeometrySettings)
-        {
-            const pdf::PDFOperationResult geometryResult = pdf::PDFPageGeometry::apply(&assembledDocument, m_pageGeometrySettings);
-            if (!geometryResult)
-            {
-                QMessageBox::critical(this, tr("Error"), geometryResult.getErrorMessage());
-                return;
-            }
-        }
-
-        if (isImageOptimizationEnabled)
-        {
-            pdf::PDFImageOptimizer imageOptimizer;
-            assembledDocument = imageOptimizer.optimize(&assembledDocument, imageOptimizationSettings);
-        }
-
-        assembledDocumentStorage.emplace_back(std::make_pair(std::move(fileName), std::move(assembledDocument)));
-        ++assembledDocumentIndex;
-    }
-
-    if (!result)
-    {
-        QMessageBox::critical(this, tr("Error"), result.getErrorMessage());
-        return;
-    }
-
-    for (const auto& assembledDocumentItem : assembledDocumentStorage)
-    {
-        QString filename = assembledDocumentItem.first;
-        const pdf::PDFDocument* document = &assembledDocumentItem.second;
-
-        const bool isDocumentFileAlreadyExisting = QFile::exists(filename);
-        if (!isOverwriteEnabled && isDocumentFileAlreadyExisting)
-        {
-            QMessageBox::critical(this, tr("Error"), tr("Document with given filename already exists."));
-            return;
-        }
-
-        pdf::PDFDocumentWriter writer(nullptr);
-        pdf::PDFOperationResult writeResult = writer.write(filename, document, isDocumentFileAlreadyExisting);
-
-        if (!writeResult)
-        {
-            QMessageBox::critical(this, tr("Error"), writeResult.getErrorMessage());
-            return;
-        }
-    }
+        return runExportJob(std::move(job));
+    }));
 }
 
 void MainWindow::splitDocuments()
@@ -3092,6 +3327,11 @@ void MainWindow::loadCheckpoint()
 
 void MainWindow::performOperation(Operation operation)
 {
+    if (!isEnabled() || m_isExporting)
+    {
+        return;
+    }
+
     switch (operation)
     {
         case Operation::Clear:

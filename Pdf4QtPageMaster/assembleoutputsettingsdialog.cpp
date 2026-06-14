@@ -28,11 +28,13 @@
 
 #include <QCheckBox>
 #include <QCoreApplication>
+#include <QDialogButtonBox>
 #include <QFileDialog>
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QSettings>
 #include <QTableWidget>
 #include <QVBoxLayout>
@@ -81,16 +83,16 @@ AssembleOutputSettingsDialog::AssembleOutputSettingsDialog(QString directory, QW
     QDialog(parent),
     ui(new Ui::AssembleOutputSettingsDialog),
     m_previewTable(new QTableWidget(this)),
+    m_defaultDirectory(qMove(directory)),
     m_imageOptimizationSettings(pdf::PDFImageOptimizer::Settings::createDefault())
 {
     ui->setupUi(this);
-    ui->directoryEdit->setText(directory);
-    m_imageOptimizationSettings.enabled = true;
+    ui->directoryEdit->setText(m_defaultDirectory);
 
     ui->outlineModeComboBox->addItem(tr("No Outline"), int(pdf::PDFDocumentManipulator::OutlineMode::NoOutline));
     ui->outlineModeComboBox->addItem(tr("Join Outlines"), int(pdf::PDFDocumentManipulator::OutlineMode::Join));
     ui->outlineModeComboBox->addItem(tr("Document Parts"), int(pdf::PDFDocumentManipulator::OutlineMode::DocumentParts));
-    ui->outlineModeComboBox->setCurrentIndex(ui->outlineModeComboBox->findData(int(pdf::PDFDocumentManipulator::OutlineMode::DocumentParts)));
+    applyDefaultSettings();
 
     ui->infoLabel->setText(tr("<html><body>"
                               "<p><b>File template placeholders</b></p>"
@@ -111,6 +113,7 @@ AssembleOutputSettingsDialog::AssembleOutputSettingsDialog(QString directory, QW
     connect(ui->directoryEdit, &QLineEdit::textChanged, this, &AssembleOutputSettingsDialog::refreshOutputPreview);
     connect(ui->fileTemplateEdit, &QLineEdit::textChanged, this, &AssembleOutputSettingsDialog::refreshOutputPreview);
     connect(ui->overwriteFilesCheckBox, &QCheckBox::toggled, this, &AssembleOutputSettingsDialog::refreshOutputPreview);
+    connect(ui->buttonBox->button(QDialogButtonBox::Reset), &QPushButton::clicked, this, &AssembleOutputSettingsDialog::resetToDefaults);
 
     pdf::PDFWidgetUtils::scaleWidget(this, QSize(720, 420));
     pdf::PDFWidgetUtils::style(this);
@@ -119,6 +122,23 @@ AssembleOutputSettingsDialog::AssembleOutputSettingsDialog(QString directory, QW
 AssembleOutputSettingsDialog::~AssembleOutputSettingsDialog()
 {
     delete ui;
+}
+
+void AssembleOutputSettingsDialog::applyDefaultSettings()
+{
+    ui->directoryEdit->setText(m_defaultDirectory);
+    ui->fileTemplateEdit->setText(QStringLiteral("doc-#.pdf"));
+    ui->overwriteFilesCheckBox->setChecked(false);
+    ui->optimizeImagesCheckBox->setChecked(false);
+    ui->outlineModeComboBox->setCurrentIndex(ui->outlineModeComboBox->findData(int(pdf::PDFDocumentManipulator::OutlineMode::DocumentParts)));
+    m_imageOptimizationSettings = pdf::PDFImageOptimizer::Settings::createDefault();
+    m_imageOptimizationSettings.enabled = true;
+}
+
+void AssembleOutputSettingsDialog::clearSavedSettings() const
+{
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
+    settings.remove("AssembleOutputSettingsDialog");
 }
 
 void AssembleOutputSettingsDialog::loadSettings()
@@ -260,6 +280,13 @@ void AssembleOutputSettingsDialog::accept()
 
     saveSettings();
     QDialog::accept();
+}
+
+void AssembleOutputSettingsDialog::resetToDefaults()
+{
+    clearSavedSettings();
+    applyDefaultSettings();
+    refreshOutputPreview();
 }
 
 void AssembleOutputSettingsDialog::on_selectDirectoryButton_clicked()
