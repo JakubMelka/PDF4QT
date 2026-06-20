@@ -7,4 +7,3 @@ Exec=Pdf4QtPageMaster
 Icon=io.github.JakubMelka.Pdf4qt.Pdf4QtPageMaster
 Terminal=false
 Categories=Office;
-MimeType=application/pdf;
