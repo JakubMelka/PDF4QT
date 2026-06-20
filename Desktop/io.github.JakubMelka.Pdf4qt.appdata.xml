@@ -23,6 +23,74 @@
   <content_rating type="oars-1.1"/>
   <launchable type="desktop-id">io.github.JakubMelka.Pdf4qt.desktop</launchable>
   <releases>
+    <release version="1.6.0.0" date="2026-06-14">
+      <description>
+        <ul>
+          <li>Issue #389: Adding hyperlink to _internal_ object in PDF</li>
+          <li>Issue #388: Update Windows color management system</li>
+          <li>Issue #385: PDFTextLayoutGenerator::isContentKindSuppressed(ContentKind kind) is missing ContentKind::Form</li>
+          <li>Issue #384: In the "Optimize Images" dialog, the info on the final image resolution and final DPI does not update</li>
+          <li>Issue #383: UX improvements for PDF4QT PageMaster tool (v1.5.3.1) (ex. DocPage Organizer)</li>
+          <li>Issue #382: Startup Settings</li>
+          <li>Issue #381: Separated apps for double-click viewer in Linux</li>
+          <li>Issue #380: Ability to run app with custom settings directory - executable parameter with path</li>
+          <li>Issue #379: Advanced Find - Wildcard Mode</li>
+          <li>Issue #378: Advanced Find - Should start searching if Enter key is pressed</li>
+          <li>Issue #376: Deleting a note jumps to Outline</li>
+          <li>Issue #375: Not enough maximum compiled page cache</li>
+          <li>Issue #373: Ctrl/Shift keyboard selection for Outline</li>
+          <li>Issue #372: Option to not color images</li>
+          <li>Issue #370: Extracting pages within a range</li>
+          <li>Issue #369: Keeping redact box on</li>
+          <li>Issue #368: Side-to-side scrolling</li>
+          <li>Issue #357: Bulk delete/add/edit of page labels</li>
+          <li>Issue #356: Compatibility issues - font problems</li>
+          <li>Issue #354: Color blend mode for highlights</li>
+          <li>Issue #352: Icon size of the sidebar</li>
+          <li>Issue #349: Add inherit zoom to bookmark zoom options</li>
+          <li>Issue #338: Editor toolbox higher than editor window</li>
+          <li>Issue #334: Impossible to set French language</li>
+          <li>Issue #326: Checkboxes don't render in PDF4QT</li>
+          <li>Issue #324: Menu text not rendered with correct color</li>
+          <li>Issue #321: Select text in Viewer</li>
+          <li>Issue #291: Support for editing XMP metadata or exporting to PDF/UA format</li>
+          <li>Issue #282: Editor outline view always zooms to around 50%</li>
+          <li>Issue #256: PDF4QT cannot show some specific fonts correctly</li>
+          <li>Issue #253: Undo/redo doesn't work in "edit page content" mode</li>
+          <li>Issue #250: Snapping</li>
+          <li>Issue #242: Full screen</li>
+          <li>Issue #234: Setting font, font size and area of text annotations</li>
+          <li>Issue #230: Garbled characters when opening PDF files with PDF4QT</li>
+          <li>Issue #225: PDF4QT cannot open PDF files with embedded files</li>
+          <li>Issue #224: Option to remove invisible text</li>
+          <li>Issue #194: Change page size</li>
+          <li>Issue #160: Color | Custom (green/black) does not work</li>
+          <li>Issue #136: Smooth scrolling of document with mouse middle wheel - flywheel</li>
+          <li>Issue #92: Add image compression to PDF DocPage Organizer</li>
+          <li>Issue #18: Performance optimization - OutputPreview Renderer</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.5.3.1" date="2026-01-22">
+      <description>
+        <p>Windows installer fix</p>
+      </description>
+    </release>
+    <release version="1.5.3.0" date="2026-01-18">
+      <description>
+        <p>This release was withdrawn.</p>
+        <ul>
+          <li>Issue #341: Embed AppImage update information</li>
+          <li>Issue #339: Traditional Chinese translation file</li>
+          <li>Issue #333: ijg-libjpeg obsoleted in vcpkg</li>
+          <li>Issue #329: How to remove "External links"</li>
+          <li>Issue #269: Nested bookmarks lose children when moving</li>
+          <li>Issue #179: Adding a JPG or PNG signature image crashes PDF4QT</li>
+          <li>Issue #146: Incorrect fonts displayed on Linux</li>
+          <li>Issue #144: Drag and drop text note annotations</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.5.2.0" date="2025-09-20">
       <description>
         <ul>
@@ -87,24 +155,158 @@
           <li>Issue #166: Adding images to PDF</li>
           <li>Issue #164: Taskbar icon not shown on Linux Mint</li>
           <li>Issue #163: Invalid PDF rendering issues</li>
+          <li>Issue #161: Trust certificates like in Acrobat</li>
           <li>Issue #159: Separate AppImage offerings</li>
           <li>Issue #123: Alternative rendering backend (Blend2D)</li>
           <li>Issue #42: Real text editing improvements</li>
+          <li>Issue #26: Add pictures in PDF files</li>
         </ul>
       </description>
     </release>
-    <release version="1.3.7" date="2024-01-10"/>
-    <release version="1.3.6" date="2023-11-24"/>
-    <release version="1.3.5" date="2023-09-08"/>
-    <release version="1.3.4" date="2023-08-03"/>
-    <release version="1.3.3" date="2023-04-22"/>
-    <release version="1.3.2" date="2023-02-01"/>
-    <release version="1.3.1" date="2022-12-28"/>
-    <release version="1.3.0" date="2022-12-25"/>
-    <release version="1.2.1" date="2022-06-30"/>
-    <release version="1.2.0" date="2022-06-05"/>
-    <release version="1.1.0" date="2021-12-19"/>
-    <release version="1.0.0" date="2021-09-19"/>
+    <release version="1.3.7" date="2024-01-10">
+      <description>
+        <ul>
+          <li>Issue #142: Cannot reach the top</li>
+          <li>Issue #141: Save button in toolbar</li>
+          <li>Issue #140: New bookmarks created empty?</li>
+          <li>Issue #139: Changing page layout resets the current page</li>
+          <li>Issue #137: Redaction - Cannot convert '#000000' to color value</li>
+          <li>Issue #134: Add search bar for actions</li>
+          <li>Issue #133: Rectangle selector when choosing the page of the PDF</li>
+          <li>Issue #129: Cannot compile with lcms 2.16</li>
+          <li>Issue #128: Create list of markup annotations</li>
+          <li>Issue #126: Remove &lt;QtCore&gt; include from main headers</li>
+          <li>Issue #119: Improve search bar 2 (the revenge)</li>
+          <li>Issue #118: Adding CMake options for minimal builds</li>
+          <li>Issue #116: Improve search bar (remember searched text, allow scroll and zoom)</li>
+          <li>Issue #115: Redesign of sidebar widget, new icons</li>
+          <li>Issue #113: Color | Custom (green/black) partially works in scanned PDF</li>
+          <li>Issue #112: Smooth scrolling</li>
+          <li>Issue #104: pdf_3d branch and license</li>
+          <li>Issue #102: PDF engine implementation details</li>
+          <li>Issue #99: Icons for dark mode</li>
+          <li>Issue #55: System certificates store not found</li>
+          <li>Issue #54: Bookmarks for pages</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.3.6" date="2023-11-24">
+      <description>
+        <ul>
+          <li>Issue #110: Viewer Lite arbitrary code execution when using Send by Email</li>
+          <li>Issue #109: Text, font and page parts missing</li>
+          <li>Issue #108: Add accessibility options in PDF reader</li>
+          <li>Issue #107: Create document with converted bitonic images</li>
+          <li>Issue #106: Hardware acceleration is not supported warning</li>
+          <li>Issue #103: Bookmark sidebar greyed out if a bookmark is not already present</li>
+          <li>Issue #100: Highlight rectangle</li>
+          <li>Issue #97: DocPage Organizer drag and drop, context menu and responsive layout</li>
+          <li>Issue #94: New directory structure</li>
+          <li>Issue #83: Default font for unrecognized fonts</li>
+          <li>Issue #76: Outline editing</li>
+          <li>Issue #58: PDF document with rotated Type 3 fonts</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.3.5" date="2023-09-08">
+      <description>
+        <ul>
+          <li>Issue #65: Text-to-speech doesn't work on Linux</li>
+          <li>Issue #72: Cannot select text</li>
+          <li>Issue #82: Hot reload function</li>
+          <li>Issue #80: Optimizer is slow on large PDF files</li>
+          <li>Issue #77: Document read error</li>
+          <li>Issue #78: Error decompressing stream</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.3.4" date="2023-08-03">
+      <description>
+        <ul>
+          <li>Issue #75: Redesign of sidebar widget</li>
+          <li>Issue #74: Highlighting text opens the sidebar every time</li>
+          <li>Issue #73: Minor GUI issues</li>
+          <li>Issue #71: Pages are mirrored</li>
+          <li>Issue #69: Dashed line not rendered as expected</li>
+          <li>Issue #68: Add alternative vcpkg file with dependency on Qt</li>
+          <li>Issue #59: Fix character font encoding for Mac Roman and Unicode tables</li>
+          <li>Issue #50: Some types of PDF don't open as expected</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.3.3" date="2023-04-22">
+      <description>
+        <ul>
+          <li>Issue #49: Document read error</li>
+          <li>Issue #46: Program does not launch or freezes on Windows</li>
+          <li>Issue #48: Page not displayed correctly</li>
+          <li>Issue #45: Blank page in DocPage Organizer</li>
+          <li>Issue #43: Save question</li>
+          <li>Issue #40: Sanitization of documents</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.3.2" date="2023-02-01">
+      <description>
+        <ul>
+          <li>Issue #39: Code-signed installation</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.3.1" date="2022-12-28">
+      <description>
+        <ul>
+          <li>Issue #34: Reset option</li>
+          <li>Issue #35: Window state is not remembered for viewers</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.3.0" date="2022-12-25">
+      <description>
+        <ul>
+          <li>Issue #21: Table selection tool</li>
+          <li>Issue #22: Solve compilation warnings</li>
+          <li>Issue #24: Text selection and table selection algorithm improvement</li>
+          <li>Issue #25: Move to Qt 6.4, CMake and vcpkg</li>
+          <li>Issue #28: Add multiple PDF files at once for merging</li>
+          <li>Issue #33: ToUnicode for simple fonts not used</li>
+          <li>Issue #32: New stable release</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.2.1" date="2022-06-30">
+      <description>
+        <ul>
+          <li>Issue #17: Public key security handler</li>
+          <li>Issue #19: Remove dependency on Microsoft Visual Studio Redistributable Packages</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.2.0" date="2022-06-05">
+      <description>
+        <ul>
+          <li>Issue #10: Performance optimization</li>
+          <li>Issue #14: Incorrect text drawing for vertical writing systems</li>
+          <li>Issue #15: MSI installer</li>
+          <li>Static XFA support (read-only, simple XFA only)</li>
+          <li>Electronically and digitally sign documents</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.1.0" date="2021-12-19">
+      <description>
+        <ul>
+          <li>DocDiff application for comparing similar PDF documents</li>
+          <li>Linux support</li>
+          <li>New icon set</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.0.0" date="2021-09-19">
+      <description>
+        <p>Initial beta release for non-production testing</p>
+      </description>
+    </release>
   </releases>
   <screenshots>
     <screenshot type="default"><caption>Edit content of PDF documents</caption><image>https://jakubmelka.github.io/assets/flatpak/profi-editor.png</image></screenshot>

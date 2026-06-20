@@ -2,6 +2,12 @@ name: Create_Release_Draft
 
 on:
   workflow_dispatch:
+    inputs:
+      allow_existing_release:
+        description: 'Allow uploading assets to an existing release'
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -15,6 +21,29 @@ jobs:
         run: |
           sudo apt-get install gh
           sudo apt-get install jq
+
+      - name: Read version
+        id: get_version
+        run: |
+          version=$(grep -oP 'set\(PDF4QT_VERSION \K[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' "CMakeLists.txt")
+          echo "Version: $version"
+          echo "pdf4qt_version=$version" >> $GITHUB_ENV
+
+      - name: Stop if release already exists
+        run: |
+          tag="v${{ env.pdf4qt_version }}"
+          if gh release view "$tag" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            if [ "${{ inputs.allow_existing_release }}" != "true" ]; then
+              echo "::error::Release $tag already exists. Refusing to upload assets because this would modify an existing release."
+              echo "::error::Rerun this workflow with allow_existing_release=true only if updating that release is intentional."
+              exit 1
+            fi
+            echo "Release $tag already exists and allow_existing_release=true, continuing."
+          else
+            echo "Release $tag does not exist, continuing."
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
       
       - name: Get latest run ID for Linux_AppImage
         id: get_linux_run_id
@@ -62,13 +91,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.MY_GITHUB_TOKEN }}
           
-      - name: Read version
-        id: get_version
-        run: |
-          version=$(grep -oP 'set\(PDF4QT_VERSION \K[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' "CMakeLists.txt")
-          echo "Version: $version"
-          echo "pdf4qt_version=$version" >> $GITHUB_ENV
-          
       - name: Rezip zip file
         id: rezip_zip_file
         run: |
@@ -104,5 +126,6 @@ jobs:
           generate_release_notes: true
           token: ${{ secrets.MY_GITHUB_TOKEN }}
           fail_on_unmatched_files: true
+          overwrite_files: false
           files: |
             artifacts/*
