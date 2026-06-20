@@ -129,6 +129,7 @@ private:
     QActionGroup* m_actionGroup;
     PDFPickTool* m_pickTool;
     DestinationType m_destinationType = DestinationType::Fit;
+    bool m_inheritZoom = false;
     LinkHighlightMode m_highlightMode = LinkHighlightMode::Outline;
     PDFInteger m_linkPageIndex = -1;
     QRectF m_linkRectangle;

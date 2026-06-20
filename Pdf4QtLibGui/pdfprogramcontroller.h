@@ -154,6 +154,7 @@ public:
         CreateHyperlinkToThisPDFFitBH,
         CreateHyperlinkToThisPDFFitBV,
         CreateHyperlinkToThisPDFXYZ,
+        CreateHyperlinkToThisPDFXYZInheritZoom,
         CreateInlineText,
         CreateStraightLine,
         CreatePolyline,

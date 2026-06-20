@@ -214,6 +214,7 @@
      <addaction name="actionCreateHyperlinkToThisPDFFitBH"/>
      <addaction name="actionCreateHyperlinkToThisPDFFitBV"/>
      <addaction name="actionCreateHyperlinkToThisPDFXYZ"/>
+     <addaction name="actionCreateHyperlinkToThisPDFXYZInheritZoom"/>
     </widget>
     <addaction name="menuSticky_Note"/>
     <addaction name="actionCreateHyperlink"/>
@@ -936,6 +937,14 @@
    </property>
    <property name="text">
     <string>XYZ</string>
+   </property>
+  </action>
+  <action name="actionCreateHyperlinkToThisPDFXYZInheritZoom">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>XYZ (Inherit Zoom)</string>
    </property>
   </action>
   <action name="actionInlineText">

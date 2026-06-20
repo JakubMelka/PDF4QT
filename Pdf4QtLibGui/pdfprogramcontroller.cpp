@@ -276,7 +276,8 @@ void PDFActionManager::initActions(QSize iconSize, bool initializeStampActions)
     }
 
     if (hasActions({ CreateHyperlinkToThisPDFFit, CreateHyperlinkToThisPDFFitH, CreateHyperlinkToThisPDFFitV, CreateHyperlinkToThisPDFFitR,
-                     CreateHyperlinkToThisPDFFitB, CreateHyperlinkToThisPDFFitBH, CreateHyperlinkToThisPDFFitBV, CreateHyperlinkToThisPDFXYZ }))
+                     CreateHyperlinkToThisPDFFitB, CreateHyperlinkToThisPDFFitBH, CreateHyperlinkToThisPDFFitBV, CreateHyperlinkToThisPDFXYZ,
+                     CreateHyperlinkToThisPDFXYZInheritZoom }))
     {
         m_actionGroups[CreateInDocumentHyperlinkGroup] = new QActionGroup(this);
         m_actionGroups[CreateInDocumentHyperlinkGroup]->setExclusionPolicy(QActionGroup::ExclusionPolicy::ExclusiveOptional);
@@ -288,6 +289,7 @@ void PDFActionManager::initActions(QSize iconSize, bool initializeStampActions)
         m_actionGroups[CreateInDocumentHyperlinkGroup]->addAction(getAction(CreateHyperlinkToThisPDFFitBH));
         m_actionGroups[CreateInDocumentHyperlinkGroup]->addAction(getAction(CreateHyperlinkToThisPDFFitBV));
         m_actionGroups[CreateInDocumentHyperlinkGroup]->addAction(getAction(CreateHyperlinkToThisPDFXYZ));
+        m_actionGroups[CreateInDocumentHyperlinkGroup]->addAction(getAction(CreateHyperlinkToThisPDFXYZInheritZoom));
 
         getAction(CreateHyperlinkToThisPDFFit)->setData(int(pdf::DestinationType::Fit));
         getAction(CreateHyperlinkToThisPDFFitH)->setData(int(pdf::DestinationType::FitH));
@@ -297,6 +299,8 @@ void PDFActionManager::initActions(QSize iconSize, bool initializeStampActions)
         getAction(CreateHyperlinkToThisPDFFitBH)->setData(int(pdf::DestinationType::FitBH));
         getAction(CreateHyperlinkToThisPDFFitBV)->setData(int(pdf::DestinationType::FitBV));
         getAction(CreateHyperlinkToThisPDFXYZ)->setData(int(pdf::DestinationType::XYZ));
+        getAction(CreateHyperlinkToThisPDFXYZInheritZoom)->setData(int(pdf::DestinationType::XYZ));
+        getAction(CreateHyperlinkToThisPDFXYZInheritZoom)->setProperty("inheritZoom", true);
     }
 
     setUserData(RenderOptionAntialiasing, pdf::PDFRenderer::Antialiasing);

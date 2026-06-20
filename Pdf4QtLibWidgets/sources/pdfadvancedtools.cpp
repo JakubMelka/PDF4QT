@@ -46,6 +46,8 @@
 #include <QVBoxLayout>
 #include <QApplication>
 
+#include <limits>
+
 #include "pdfdbgheap.h"
 
 namespace pdf
@@ -228,12 +230,13 @@ void PDFCreateInDocumentHyperlinkTool::setActiveImpl(bool active)
 
 void PDFCreateInDocumentHyperlinkTool::onActionTriggered(QAction* action)
 {
-    setActive(action && action->isChecked());
-
     if (action)
     {
         m_destinationType = static_cast<DestinationType>(action->data().toInt());
+        m_inheritZoom = action->property("inheritZoom").toBool();
     }
+
+    setActive(action && action->isChecked());
 }
 
 void PDFCreateInDocumentHyperlinkTool::onLinkRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
@@ -308,7 +311,7 @@ PDFDestination PDFCreateInDocumentHyperlinkTool::createDestination(PDFInteger pa
     destination.setDestinationType(m_destinationType);
     destination.setPageIndex(pageIndex);
     destination.setPageReference(getDocument()->getCatalog()->getPage(pageIndex)->getPageReference());
-    destination.setZoom(getProxy()->getZoom());
+    destination.setZoom(m_inheritZoom ? std::numeric_limits<PDFReal>::quiet_NaN() : getProxy()->getZoom());
 
     if (!pageRectangle.isEmpty())
     {
