@@ -73,6 +73,7 @@ void PDFPageContentEditorProcessor::performInterceptInstruction(Operator current
         if (currentOperator == Operator::TextBegin && !isTextProcessing())
         {
             m_contentElementText.reset(new PDFEditedPageContentElementText(*getGraphicState(), getGraphicState()->getCurrentTransformationMatrix()));
+            m_contentElementText->setClipPath(getCurrentClipPathInElementSpace(m_contentElementText->getTransform()));
         }
     }
     else
@@ -112,6 +113,10 @@ void PDFPageContentEditorProcessor::performPathPainting(const QPainterPath& path
     else
     {
         m_content.addContentPath(*getGraphicState(), path, stroke, fill);
+        if (PDFEditedPageContentElement* backElement = m_content.getBackElement())
+        {
+            backElement->setClipPath(getCurrentClipPathInElementSpace(backElement->getTransform()));
+        }
     }
 }
 
@@ -149,6 +154,10 @@ bool PDFPageContentEditorProcessor::performOriginalImagePainting(const PDFImage&
 
     PDFObject imageObject = PDFObject::createStream(std::make_shared<PDFStream>(*stream));
     m_content.addContentImage(*getGraphicState(), std::move(imageObject), QImage());
+    if (PDFEditedPageContentElement* backElement = m_content.getBackElement())
+    {
+        backElement->setClipPath(getCurrentClipPathInElementSpace(backElement->getTransform()));
+    }
 
     return false;
 }
@@ -193,14 +202,49 @@ void PDFPageContentEditorProcessor::performClipping(const QPainterPath& path, Qt
 {
     BaseClass::performClipping(path, fillRule);
 
-    if (m_clippingPaths.top().isEmpty())
+    // Clip paths are combined in the page coordinate space. Each clip path
+    // is expressed in the user space active at the time of the clip operator,
+    // so it must be mapped by the current transformation matrix before
+    // it is intersected with the previous clip path.
+    QPainterPath pageClipPath = path;
+    pageClipPath.setFillRule(fillRule);
+    pageClipPath = getGraphicState()->getCurrentTransformationMatrix().map(pageClipPath);
+
+    QPainterPath& currentClipPath = m_clippingPaths.top();
+    if (currentClipPath.isEmpty())
     {
-        m_clippingPaths.top() = path;
+        currentClipPath = pageClipPath;
     }
     else
     {
-        m_clippingPaths.top() = m_clippingPaths.top().intersected(path);
+        currentClipPath = currentClipPath.intersected(pageClipPath);
+
+        if (currentClipPath.isEmpty())
+        {
+            // The intersection has zero area, but an empty path means
+            // "no clipping" in this container. Store a degenerate path
+            // with zero fill area instead, which clips away all content.
+            currentClipPath.moveTo(0, 0);
+            currentClipPath.lineTo(1, 0);
+        }
     }
+}
+
+QPainterPath PDFPageContentEditorProcessor::getCurrentClipPathInElementSpace(const QTransform& elementTransform) const
+{
+    const QPainterPath& clipPath = m_clippingPaths.top();
+    if (clipPath.isEmpty())
+    {
+        return QPainterPath();
+    }
+
+    if (!elementTransform.isInvertible())
+    {
+        // Degenerate transformation matrix - the element is not visible anyway
+        return QPainterPath();
+    }
+
+    return elementTransform.inverted().map(clipPath);
 }
 
 bool PDFPageContentEditorProcessor::isContentKindSuppressed(ContentKind kind) const
@@ -534,6 +578,16 @@ void PDFEditedPageContentElement::setTransform(const QTransform& newTransform)
     m_transform = newTransform;
 }
 
+const QPainterPath& PDFEditedPageContentElement::getClipPath() const
+{
+    return m_clipPath;
+}
+
+void PDFEditedPageContentElement::setClipPath(const QPainterPath& clipPath)
+{
+    m_clipPath = clipPath;
+}
+
 PDFEditedPageContentElementPath::PDFEditedPageContentElementPath(PDFPageContentProcessorState state, QPainterPath path, bool strokePath, bool fillPath, QTransform transform) :
     PDFEditedPageContentElement(std::move(state), transform),
     m_path(std::move(path)),
@@ -550,13 +604,22 @@ PDFEditedPageContentElement::Type PDFEditedPageContentElementPath::getType() con
 
 PDFEditedPageContentElementPath* PDFEditedPageContentElementPath::clone() const
 {
-    return new PDFEditedPageContentElementPath(getState(), getPath(), getStrokePath(), getFillPath(), getTransform());
+    PDFEditedPageContentElementPath* copy = new PDFEditedPageContentElementPath(getState(), getPath(), getStrokePath(), getFillPath(), getTransform());
+    copy->setClipPath(getClipPath());
+    return copy;
 }
 
 QRectF PDFEditedPageContentElementPath::getBoundingBox() const
 {
     QPainterPath mappedPath = getTransform().map(m_path);
-    return mappedPath.boundingRect();
+    QRectF boundingBox = mappedPath.boundingRect();
+
+    if (!m_clipPath.isEmpty())
+    {
+        boundingBox = boundingBox.intersected(getTransform().mapRect(m_clipPath.boundingRect()));
+    }
+
+    return boundingBox;
 }
 
 QPainterPath PDFEditedPageContentElementPath::getPath() const
@@ -604,12 +667,21 @@ PDFEditedPageContentElement::Type PDFEditedPageContentElementImage::getType() co
 
 PDFEditedPageContentElementImage* PDFEditedPageContentElementImage::clone() const
 {
-    return new PDFEditedPageContentElementImage(getState(), getImageObject(), getImage(), getTransform());
+    PDFEditedPageContentElementImage* copy = new PDFEditedPageContentElementImage(getState(), getImageObject(), getImage(), getTransform());
+    copy->setClipPath(getClipPath());
+    return copy;
 }
 
 QRectF PDFEditedPageContentElementImage::getBoundingBox() const
 {
-    return getTransform().mapRect(QRectF(0, 0, 1, 1));
+    QRectF boundingBox = getTransform().mapRect(QRectF(0, 0, 1, 1));
+
+    if (!m_clipPath.isEmpty())
+    {
+        boundingBox = boundingBox.intersected(getTransform().mapRect(m_clipPath.boundingRect()));
+    }
+
+    return boundingBox;
 }
 
 PDFObject PDFEditedPageContentElementImage::getImageObject() const
@@ -658,7 +730,9 @@ PDFEditedPageContentElement::Type PDFEditedPageContentElementText::getType() con
 
 PDFEditedPageContentElementText* PDFEditedPageContentElementText::clone() const
 {
-    return new PDFEditedPageContentElementText(getState(), getItems(), getTextPath(), getTransform(), getItemsAsText());
+    PDFEditedPageContentElementText* copy = new PDFEditedPageContentElementText(getState(), getItems(), getTextPath(), getTransform(), getItemsAsText());
+    copy->setClipPath(getClipPath());
+    return copy;
 }
 
 void PDFEditedPageContentElementText::addItem(Item item)
@@ -678,7 +752,14 @@ void PDFEditedPageContentElementText::setItems(const std::vector<Item>& newItems
 
 QRectF PDFEditedPageContentElementText::getBoundingBox() const
 {
-    return getTransform().mapRect(m_textPath.boundingRect());
+    QRectF boundingBox = getTransform().mapRect(m_textPath.boundingRect());
+
+    if (!m_clipPath.isEmpty())
+    {
+        boundingBox = boundingBox.intersected(getTransform().mapRect(m_clipPath.boundingRect()));
+    }
+
+    return boundingBox;
 }
 
 QPainterPath PDFEditedPageContentElementText::getTextPath() const

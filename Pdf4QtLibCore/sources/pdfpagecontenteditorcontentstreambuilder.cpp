@@ -58,8 +58,20 @@ public:
     virtual void drawPolygon(const QPointF* points, int pointCount, PolygonDrawMode mode) override;
 
 private:
+    /// Applies clip operation with the given path. The path is expressed
+    /// in the painter logical coordinates and is mapped to the page space
+    /// by the current transformation matrix.
+    void applyClip(const QPainterPath& path, Qt::ClipOperation operation);
+
+    /// Returns the active clip path in the page coordinate space,
+    /// or an empty path if clipping is not active.
+    QPainterPath getEffectiveClipPath() const;
+
     PDFPageContentProcessorState m_state;
     PDFPageContentEditorContentStreamBuilder* m_builder = nullptr;
+    QPainterPath m_clipPath; ///< Clip path in the page coordinate space
+    bool m_hasClip = false;
+    bool m_isClipEnabled = true;
     bool m_isFillActive = false;
     bool m_isStrokeActive = false;
 };
@@ -105,17 +117,86 @@ void PDFContentEditorPaintEngine::updateState(const QPaintEngineState& newState)
         m_state.setAlphaFilling(newState.opacity());
         m_state.setAlphaStroking(newState.opacity());
     }
+
+    // Clip handling must be performed after the transform handling above,
+    // because the clip path is mapped to the page space by the current
+    // transformation matrix.
+    if (stateFlags.testFlag(QPaintEngine::DirtyClipEnabled))
+    {
+        m_isClipEnabled = newState.isClipEnabled();
+    }
+
+    if (stateFlags.testFlag(QPaintEngine::DirtyClipRegion))
+    {
+        QPainterPath clipPath;
+        for (const QRect& rect : newState.clipRegion())
+        {
+            clipPath.addRect(rect);
+        }
+        applyClip(clipPath, newState.clipOperation());
+    }
+
+    if (stateFlags.testFlag(QPaintEngine::DirtyClipPath))
+    {
+        applyClip(newState.clipPath(), newState.clipOperation());
+    }
+}
+
+void PDFContentEditorPaintEngine::applyClip(const QPainterPath& path, Qt::ClipOperation operation)
+{
+    switch (operation)
+    {
+    case Qt::NoClip:
+        m_hasClip = false;
+        m_clipPath = QPainterPath();
+        break;
+
+    case Qt::ReplaceClip:
+        m_clipPath = m_state.getCurrentTransformationMatrix().map(path);
+        m_hasClip = true;
+        break;
+
+    case Qt::IntersectClip:
+    {
+        QPainterPath mappedPath = m_state.getCurrentTransformationMatrix().map(path);
+        m_clipPath = m_hasClip ? m_clipPath.intersected(mappedPath) : mappedPath;
+        m_hasClip = true;
+
+        if (m_clipPath.isEmpty())
+        {
+            // The intersection has zero area, but an empty path means
+            // "no clipping". Store a degenerate path with zero fill area
+            // instead, which clips away all content.
+            m_clipPath.moveTo(0, 0);
+            m_clipPath.lineTo(1, 0);
+        }
+        break;
+    }
+
+    default:
+        break;
+    }
+}
+
+QPainterPath PDFContentEditorPaintEngine::getEffectiveClipPath() const
+{
+    if (m_hasClip && m_isClipEnabled)
+    {
+        return m_clipPath;
+    }
+
+    return QPainterPath();
 }
 
 void PDFContentEditorPaintEngine::drawPixmap(const QRectF& r, const QPixmap& pm, const QRectF& sr)
 {
     QPixmap pixmap = pm.copy(sr.toRect());
-    m_builder->writeImage(pixmap.toImage(), m_state.getCurrentTransformationMatrix(), r);
+    m_builder->writeImage(pixmap.toImage(), m_state.getCurrentTransformationMatrix(), r, getEffectiveClipPath());
 }
 
 void PDFContentEditorPaintEngine::drawPath(const QPainterPath& path)
 {
-    m_builder->writeStyledPath(path, m_state, m_isStrokeActive, m_isFillActive);
+    m_builder->writeStyledPath(path, m_state, m_isStrokeActive, m_isFillActive, getEffectiveClipPath());
 }
 
 void PDFContentEditorPaintEngine::drawPolygon(const QPointF* points,
@@ -151,7 +232,7 @@ void PDFContentEditorPaintEngine::drawPolygon(const QPointF* points,
 
     path.setFillRule(fillRule);
 
-    m_builder->writeStyledPath(path, m_state, isStroking, isFilling);
+    m_builder->writeStyledPath(path, m_state, isStroking, isFilling, getEffectiveClipPath());
 }
 
 PDFContentEditorPaintDevice::PDFContentEditorPaintDevice(PDFPageContentEditorContentStreamBuilder* builder, QRectF mediaRect, QRectF mediaRectMM) :
@@ -462,11 +543,25 @@ void PDFPageContentEditorContentStreamBuilder::writeEditedElement(const PDFEdite
     QTextStream stream(&m_outputContent, QDataStream::WriteOnly | QDataStream::Append);
     writeStateDifference(stream, state);
 
-    bool isNeededToWriteCurrentTransformationMatrix = this->isNeededToWriteCurrentTransformationMatrix();
-    if (isNeededToWriteCurrentTransformationMatrix)
+    const QPainterPath& clipPath = element->getClipPath();
+    const bool isNeededToWriteCurrentTransformationMatrix = this->isNeededToWriteCurrentTransformationMatrix();
+    const bool isNeededGraphicStateSave = isNeededToWriteCurrentTransformationMatrix || !clipPath.isEmpty();
+
+    if (isNeededGraphicStateSave)
     {
         stream << "q" << Qt::endl;
-        writeCurrentTransformationMatrix(stream);
+
+        if (isNeededToWriteCurrentTransformationMatrix)
+        {
+            writeCurrentTransformationMatrix(stream);
+        }
+
+        // The element clip path is expressed in the element coordinate
+        // space, so it must be written after the transformation matrix.
+        if (!clipPath.isEmpty())
+        {
+            writeClipPath(stream, clipPath);
+        }
     }
 
     if (const PDFEditedPageContentElementImage* imageElement = element->asImage())
@@ -542,7 +637,7 @@ void PDFPageContentEditorContentStreamBuilder::writeEditedElement(const PDFEdite
         }
     }
 
-    if (isNeededToWriteCurrentTransformationMatrix)
+    if (isNeededGraphicStateSave)
     {
         stream << "Q" << Qt::endl;
     }
@@ -553,10 +648,7 @@ const QByteArray& PDFPageContentEditorContentStreamBuilder::getOutputContent() c
     return m_outputContent;
 }
 
-void PDFPageContentEditorContentStreamBuilder::writePainterPath(QTextStream& stream,
-                                                                const QPainterPath& path,
-                                                                bool isStroking,
-                                                                bool isFilling)
+void PDFPageContentEditorContentStreamBuilder::writePathGeometry(QTextStream& stream, const QPainterPath& path)
 {
     const int elementCount = path.elementCount();
 
@@ -604,6 +696,28 @@ void PDFPageContentEditorContentStreamBuilder::writePainterPath(QTextStream& str
             break;
         }
     }
+}
+
+void PDFPageContentEditorContentStreamBuilder::writeClipPath(QTextStream& stream, const QPainterPath& clipPath)
+{
+    writePathGeometry(stream, clipPath);
+
+    if (clipPath.fillRule() == Qt::WindingFill)
+    {
+        stream << "W n" << Qt::endl;
+    }
+    else
+    {
+        stream << "W* n" << Qt::endl;
+    }
+}
+
+void PDFPageContentEditorContentStreamBuilder::writePainterPath(QTextStream& stream,
+                                                                const QPainterPath& path,
+                                                                bool isStroking,
+                                                                bool isFilling)
+{
+    writePathGeometry(stream, path);
 
     if (isStroking && !isFilling)
     {
@@ -1269,21 +1383,38 @@ void PDFPageContentEditorContentStreamBuilder::writeStyledPath(const QPainterPat
     }
 }
 
-void PDFPageContentEditorContentStreamBuilder::writeStyledPath(const QPainterPath& path, const PDFPageContentProcessorState& state, bool isStroking, bool isFilling)
+void PDFPageContentEditorContentStreamBuilder::writeStyledPath(const QPainterPath& path,
+                                                               const PDFPageContentProcessorState& state,
+                                                               bool isStroking,
+                                                               bool isFilling,
+                                                               const QPainterPath& clipPath)
 {
     QTextStream stream(&m_outputContent, QDataStream::WriteOnly | QDataStream::Append);
     writeStateDifference(stream, state);
 
-    bool isNeededToWriteCurrentTransformationMatrix = this->isNeededToWriteCurrentTransformationMatrix();
-    if (isNeededToWriteCurrentTransformationMatrix)
+    const bool isNeededToWriteCurrentTransformationMatrix = this->isNeededToWriteCurrentTransformationMatrix();
+    const bool isNeededGraphicStateSave = isNeededToWriteCurrentTransformationMatrix || !clipPath.isEmpty();
+
+    if (isNeededGraphicStateSave)
     {
         stream << "q" << Qt::endl;
-        writeCurrentTransformationMatrix(stream);
+
+        // The clip path is expressed in the page coordinate space,
+        // so it must be written before the transformation matrix.
+        if (!clipPath.isEmpty())
+        {
+            writeClipPath(stream, clipPath);
+        }
+
+        if (isNeededToWriteCurrentTransformationMatrix)
+        {
+            writeCurrentTransformationMatrix(stream);
+        }
     }
 
     writePainterPath(stream, path, isStroking, isFilling);
 
-    if (isNeededToWriteCurrentTransformationMatrix)
+    if (isNeededGraphicStateSave)
     {
         stream << "Q" << Qt::endl;
     }
@@ -1320,7 +1451,7 @@ void PDFPageContentEditorContentStreamBuilder::writeImage(const QImage& image,
     stream << "Q" << Qt::endl;
 }
 
-void PDFPageContentEditorContentStreamBuilder::writeImage(const QImage& image, QTransform transform, const QRectF& rectangle)
+void PDFPageContentEditorContentStreamBuilder::writeImage(const QImage& image, QTransform transform, const QRectF& rectangle, const QPainterPath& clipPath)
 {
     QTransform oldTransform = m_currentState.getCurrentTransformationMatrix();
     m_currentState.setCurrentTransformationMatrix(transform);
@@ -1328,6 +1459,14 @@ void PDFPageContentEditorContentStreamBuilder::writeImage(const QImage& image, Q
     QTextStream stream(&m_outputContent, QDataStream::WriteOnly | QDataStream::Append);
 
     stream << "q" << Qt::endl;
+
+    // The clip path is expressed in the page coordinate space,
+    // so it must be written before the transformation matrix.
+    if (!clipPath.isEmpty())
+    {
+        writeClipPath(stream, clipPath);
+    }
+
     if (isNeededToWriteCurrentTransformationMatrix())
     {
         writeCurrentTransformationMatrix(stream);

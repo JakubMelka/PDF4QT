@@ -942,6 +942,7 @@ bool EditorPlugin::updateTextElement(pdf::PDFPageContentElementEdited* element)
             targetTextElement->setTextPath(sourceElementText->getTextPath());
             targetTextElement->setItems(sourceElementText->getItems());
             targetTextElement->setTransform(sourceElementText->getTransform());
+            targetTextElement->setClipPath(sourceElementText->getClipPath());
         }
         else
         {

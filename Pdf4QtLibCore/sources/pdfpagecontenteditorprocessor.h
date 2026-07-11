@@ -70,9 +70,20 @@ public:
     QTransform getTransform() const;
     void setTransform(const QTransform& newTransform);
 
+    /// Returns the clip path of the element. The clip path is expressed
+    /// in the element coordinate space (i.e. it is applied after the element
+    /// transformation), so it follows the element when the element is moved
+    /// or transformed. An empty path means that the element is not clipped.
+    const QPainterPath& getClipPath() const;
+
+    /// Sets the clip path of the element, in the element coordinate space.
+    /// \param clipPath Clip path (an empty path means no clipping)
+    void setClipPath(const QPainterPath& clipPath);
+
 protected:
     PDFPageContentProcessorState m_state;
     QTransform m_transform;
+    QPainterPath m_clipPath;
 };
 
 class PDF4QTLIBCORESHARED_EXPORT PDFEditedPageContentElementPath : public PDFEditedPageContentElement
@@ -197,7 +208,6 @@ public:
 
     void addContentPath(PDFPageContentProcessorState state, QPainterPath path, bool strokePath, bool fillPath);
     void addContentImage(PDFPageContentProcessorState state, PDFObject imageObject, QImage image);
-    void addContentClipping(PDFPageContentProcessorState state, QPainterPath path);
     void addContentElement(std::unique_ptr<PDFEditedPageContentElement> element);
 
     std::size_t getElementCount() const { return m_contentElements.size(); }
@@ -250,8 +260,21 @@ protected:
     virtual void performProcessTextSequence(const TextSequence& textSequence, ProcessOrder order) override;
 
 private:
+    /// Returns the current clip path mapped into the coordinate space
+    /// of an element with the given transformation matrix. If the element
+    /// is not clipped (or the matrix is not invertible, in which case
+    /// the element is degenerate and not visible anyway), an empty path
+    /// is returned.
+    /// \param elementTransform Element transformation matrix
+    QPainterPath getCurrentClipPathInElementSpace(const QTransform& elementTransform) const;
+
     PDFEditedPageContent m_content;
+
+    /// Stack of clip paths. The paths are stored in the page coordinate
+    /// space (each clip path is mapped by the current transformation matrix
+    /// at the time of the clip operation). An empty path means no clipping.
     std::stack<QPainterPath> m_clippingPaths;
+
     std::unique_ptr<PDFEditedPageContentElementText> m_contentElementText;
     QPainterPath m_textPath;
 };

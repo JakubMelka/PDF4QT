@@ -2739,6 +2739,14 @@ void PDFPageContentElementEdited::drawPage(QPainter* painter,
 
     painter->setTransform(m_element->getTransform(), true);
 
+    // The element clip path is expressed in the element coordinate space,
+    // so it is applied after the element transformation.
+    const QPainterPath& elementClipPath = m_element->getClipPath();
+    if (!elementClipPath.isEmpty())
+    {
+        painter->setClipPath(elementClipPath, Qt::IntersectClip);
+    }
+
     if (const PDFEditedPageContentElementImage* imageElement = m_element->asImage())
     {
         QRectF rect(0, 0, 1, 1);

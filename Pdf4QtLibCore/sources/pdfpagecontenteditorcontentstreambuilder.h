@@ -78,13 +78,22 @@ public:
                          bool isStroking,
                          bool isFilling);
 
+    /// Writes styled path with the given graphic state. Optional clip path
+    /// is expressed in the page coordinate space (it is applied before
+    /// the current transformation matrix is written). An empty clip path
+    /// means no clipping.
     void writeStyledPath(const QPainterPath& path,
                          const PDFPageContentProcessorState& state,
                          bool isStroking,
-                         bool isFilling);
+                         bool isFilling,
+                         const QPainterPath& clipPath = QPainterPath());
 
     void writeImage(const QImage& image, const QRectF& rectangle);
-    void writeImage(const QImage& image, QTransform transform, const QRectF& rectangle);
+
+    /// Writes image placed by the painter transform. Optional clip path
+    /// is expressed in the page coordinate space. An empty clip path
+    /// means no clipping.
+    void writeImage(const QImage& image, QTransform transform, const QRectF& rectangle, const QPainterPath& clipPath = QPainterPath());
 
     const PDFPageContentProcessorState& getCurrentState() { return m_currentState; }
 
@@ -98,6 +107,14 @@ private:
                           const QPainterPath& path,
                           bool isStroking,
                           bool isFilling);
+
+    /// Writes the path construction operators (m, l, c, h) for the given path,
+    /// without any painting operator.
+    void writePathGeometry(QTextStream& stream, const QPainterPath& path);
+
+    /// Writes the path as a clip path (path construction operators followed
+    /// by "W n" or "W* n", according to the path fill rule).
+    void writeClipPath(QTextStream& stream, const QPainterPath& clipPath);
 
     void writeText(QTextStream& stream, const QString& text);
     void writeTextCommand(QTextStream& stream, const QXmlStreamReader& reader);
