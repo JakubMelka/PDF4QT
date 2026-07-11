@@ -772,7 +772,10 @@ QString PDFEditedPageContentElementText::createItemsAsText(const PDFPageContentP
             if (flags.testFlag(PDFPageContentProcessorState::StateTextFont) ||
                 flags.testFlag(PDFPageContentProcessorState::StateTextFontSize))
             {
-                text += QString("<tf font=\"%1\" size=\"%2\"/>").arg(newState.getTextFont()->getFontId()).arg(newState.getTextFontSize());
+                if (const PDFFontPointer& font = newState.getTextFont())
+                {
+                    text += QString("<tf font=\"%1\" size=\"%2\"/>").arg(QString::fromLatin1(font->getFontId())).arg(newState.getTextFontSize());
+                }
             }
 
             if (flags.testFlag(PDFPageContentProcessorState::StateTextMatrix))
@@ -782,7 +785,10 @@ QString PDFEditedPageContentElementText::createItemsAsText(const PDFPageContentP
                 qreal x = transform.dx();
                 qreal y = transform.dy();
 
-                if (transform.isTranslating())
+                // Position can be serialized alone only for a pure translation matrix.
+                // QTransform::isTranslating() returns true also for rotated/scaled
+                // matrices, which would discard rotation, scale or mirroring of the text.
+                if (transform.type() <= QTransform::TxTranslate)
                 {
                     text += QString("<tpos x=\"%1\" y=\"%2\"/>").arg(x).arg(y);
                 }

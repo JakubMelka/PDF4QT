@@ -28,6 +28,7 @@
 
 #include <exception>
 #include <QBuffer>
+#include <QPainter>
 #include <QStringBuilder>
 #include <QXmlStreamReader>
 #include <QPaintEngine>
@@ -184,8 +185,9 @@ int PDFContentEditorPaintDevice::metric(PaintDeviceMetric metric) const
     case QPaintDevice::PdmPhysicalDpiY:
         return m_mediaRect.height() * 25.4 / m_mediaRectMM.height();
     case QPaintDevice::PdmDevicePixelRatio:
+        return 1;
     case QPaintDevice::PdmDevicePixelRatioScaled:
-        return 1.0;
+        return int(1.0 * QPaintDevice::devicePixelRatioFScale());
 #if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
     case QPaintDevice::PdmDevicePixelRatioF_EncodedA:
     case QPaintDevice::PdmDevicePixelRatioF_EncodedB:
@@ -287,11 +289,6 @@ void PDFPageContentEditorContentStreamBuilder::writeStateDifference(QTextStream&
         default:
             break;
         }
-    }
-
-    if (stateFlags.testFlag(PDFPageContentProcessorState::StateMitterLimit))
-    {
-        stream << m_currentState.getMitterLimit() << " M" << Qt::endl;
     }
 
     if (stateFlags.testFlag(PDFPageContentProcessorState::StateFlatness))
@@ -655,6 +652,47 @@ void PDFPageContentEditorContentStreamBuilder::writeText(QTextStream& stream, co
     QXmlStreamReader reader(xml);
     m_textFont = m_currentState.getTextFont();
 
+    // Write the initial text state. The text state can be set outside
+    // of the text object (for example, font can be selected before the BT
+    // operator) and then the serialized items contain no corresponding
+    // command. Without an explicit Tf operator, the content stream
+    // would be invalid and the text would not be displayed at all.
+    if (m_textFont)
+    {
+        QByteArray fontKey = selectFont(m_textFont->getFontId());
+        stream << "/" << fontKey << " " << m_currentState.getTextFontSize() << " Tf" << Qt::endl;
+    }
+
+    if (!qFuzzyIsNull(m_currentState.getTextCharacterSpacing()))
+    {
+        stream << m_currentState.getTextCharacterSpacing() << " Tc" << Qt::endl;
+    }
+
+    if (!qFuzzyIsNull(m_currentState.getTextWordSpacing()))
+    {
+        stream << m_currentState.getTextWordSpacing() << " Tw" << Qt::endl;
+    }
+
+    if (!qFuzzyCompare(m_currentState.getTextHorizontalScaling(), 100.0))
+    {
+        stream << m_currentState.getTextHorizontalScaling() << " Tz" << Qt::endl;
+    }
+
+    if (!qFuzzyIsNull(m_currentState.getTextLeading()))
+    {
+        stream << m_currentState.getTextLeading() << " TL" << Qt::endl;
+    }
+
+    if (!qFuzzyIsNull(m_currentState.getTextRise()))
+    {
+        stream << m_currentState.getTextRise() << " Ts" << Qt::endl;
+    }
+
+    if (m_currentState.getTextRenderingMode() != TextRenderingMode::Fill)
+    {
+        stream << int(m_currentState.getTextRenderingMode()) << " Tr" << Qt::endl;
+    }
+
     while (!reader.atEnd() && !reader.hasError())
     {
         reader.readNext();
@@ -948,7 +986,10 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
             }
             else
             {
-                stream << v1 << " " << v2 << " Td" << Qt::endl;
+                // The recorded position is the absolute text matrix translation.
+                // Operator Td is relative to the current text line matrix, so
+                // the absolute position must be set with the Tm operator.
+                stream << "1 0 0 1 " << v1 << " " << v2 << " Tm" << Qt::endl;
             }
         }
         else
@@ -1014,7 +1055,25 @@ void PDFPageContentEditorContentStreamBuilder::writeImage(QTextStream& stream, c
             array.appendItem(PDFObject::createName("FlateDecode"));
 
             QImage codedImage = image;
-            codedImage = codedImage.convertToFormat(QImage::Format_RGB888);
+            if (codedImage.hasAlphaChannel())
+            {
+                // Direct conversion to RGB888 would discard the alpha channel
+                // and transparent pixels would get arbitrary colors. Compose
+                // the image onto a white background instead (the same way
+                // the editor displays such images on the screen).
+                QImage composedImage(codedImage.size(), QImage::Format_RGB888);
+                composedImage.fill(Qt::white);
+
+                QPainter painter(&composedImage);
+                painter.drawImage(QPoint(0, 0), codedImage);
+                painter.end();
+
+                codedImage = std::move(composedImage);
+            }
+            else
+            {
+                codedImage = codedImage.convertToFormat(QImage::Format_RGB888);
+            }
 
             QByteArray decodedStream;
             QBuffer buffer(&decodedStream);
@@ -1265,7 +1324,26 @@ void PDFPageContentEditorContentStreamBuilder::writeImage(const QImage& image, Q
 {
     QTransform oldTransform = m_currentState.getCurrentTransformationMatrix();
     m_currentState.setCurrentTransformationMatrix(transform);
-    writeImage(image, rectangle);
+
+    QTextStream stream(&m_outputContent, QDataStream::WriteOnly | QDataStream::Append);
+
+    stream << "q" << Qt::endl;
+    if (isNeededToWriteCurrentTransformationMatrix())
+    {
+        writeCurrentTransformationMatrix(stream);
+    }
+
+    // This overload is used by the paint engine. The rectangle is expressed
+    // in the painter's logical coordinates, where the y axis points down and
+    // the image should fill the whole rectangle with the first image row at
+    // the rectangle's top edge. The image unit square has the first row at
+    // v = 1, so the y axis must be flipped here.
+    stream << rectangle.width() << " 0 0 " << -rectangle.height() << " " << rectangle.left() << " " << rectangle.bottom() << " cm" << Qt::endl;
+
+    writeImage(stream, image);
+
+    stream << "Q" << Qt::endl;
+
     m_currentState.setCurrentTransformationMatrix(oldTransform);
 }
 

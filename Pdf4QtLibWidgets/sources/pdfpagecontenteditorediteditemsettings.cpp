@@ -103,6 +103,7 @@ void PDFPageContentEditorEditedItemSettings::loadFromElement(PDFPageContentEleme
     {
         ui->tabWidget->addTab(ui->imageTab, tr("Image"));
         m_image = imageElement->getImage();
+        m_imageChanged = false;
         setImage(imageElement->getImage());
     }
 
@@ -246,8 +247,14 @@ void PDFPageContentEditorEditedItemSettings::saveToElement(PDFPageContentElement
 {
     if (PDFEditedPageContentElementImage* imageElement = editedElement->getElement()->asImage())
     {
-        imageElement->setImage(m_image);
-        imageElement->setImageObject(PDFObject());
+        // Replace the image only if the user has selected a new one. Unconditional
+        // replacement would discard the original image object and degrade (or even
+        // lose, if the original image could not be decoded) the image data.
+        if (m_imageChanged)
+        {
+            imageElement->setImage(m_image);
+            imageElement->setImageObject(PDFObject());
+        }
     }
 
     if (PDFEditedPageContentElementText* textElement = editedElement->getElement()->asText())
@@ -262,7 +269,7 @@ void PDFPageContentEditorEditedItemSettings::saveToElement(PDFPageContentElement
     }
 
     PDFTransformationDecomposition decomposedTransformation;
-    decomposedTransformation.rotationAngle = ui->rotationAngleEdit->value();
+    decomposedTransformation.rotationAngle = qDegreesToRadians(ui->rotationAngleEdit->value());
     decomposedTransformation.shearFactor = ui->shearFactorEdit->value();
     decomposedTransformation.scaleX = ui->scaleInXEdit->value();
     decomposedTransformation.scaleY = ui->scaleInYEdit->value();
@@ -369,6 +376,7 @@ void PDFPageContentEditorEditedItemSettings::selectImage()
         {
             setImage(image);
             m_image = std::move(image);
+            m_imageChanged = true;
         }
     }
 }

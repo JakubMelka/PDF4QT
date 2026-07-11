@@ -87,6 +87,7 @@ private:
 
     Ui::PDFPageContentEditorEditedItemSettings* ui;
     QImage m_image;
+    bool m_imageChanged = false;
     QPen m_pen;
     QBrush m_brush;
 };
