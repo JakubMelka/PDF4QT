@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>InsertPageNumbersDialog</class>
+ <widget class="QDialog" name="InsertPageNumbersDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>420</width>
+    <height>420</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Insert Page Numbers</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QGroupBox" name="numberingGroupBox">
+     <property name="title">
+      <string>Numbering</string>
+     </property>
+     <layout class="QGridLayout" name="numberingLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="numberingStyleLabel">
+        <property name="text">
+         <string>Style</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1" colspan="2">
+       <widget class="QComboBox" name="numberingStyleCombo"/>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="formatLabel">
+        <property name="text">
+         <string>Format</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1" colspan="2">
+       <widget class="QComboBox" name="formatCombo">
+        <property name="editable">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="startNumberLabel">
+        <property name="text">
+         <string>Start number</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1" colspan="2">
+       <widget class="QSpinBox" name="startNumberSpinBox">
+        <property name="minimum">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <number>999999</number>
+        </property>
+        <property name="value">
+         <number>1</number>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="previewCaptionLabel">
+        <property name="text">
+         <string>Preview</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1" colspan="2">
+       <widget class="QLabel" name="previewLabel">
+        <property name="frameShape">
+         <enum>QFrame::StyledPanel</enum>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="appearanceGroupBox">
+     <property name="title">
+      <string>Appearance</string>
+     </property>
+     <layout class="QGridLayout" name="appearanceLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="fontLabel">
+        <property name="text">
+         <string>Font</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QFontComboBox" name="fontComboBox"/>
+      </item>
+      <item row="0" column="2">
+       <widget class="QSpinBox" name="fontSizeSpinBox">
+        <property name="minimum">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <number>500</number>
+        </property>
+        <property name="value">
+         <number>12</number>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="colorLabel">
+        <property name="text">
+         <string>Color</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QToolButton" name="selectColorButton">
+        <property name="text">
+         <string>...</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="alignmentLabel">
+        <property name="text">
+         <string>Alignment</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1" colspan="2">
+       <widget class="QComboBox" name="alignmentCombo"/>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>accepted()</signal>
+   <receiver>InsertPageNumbersDialog</receiver>
+   <slot>accept()</slot>
+  </connection>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>rejected()</signal>
+   <receiver>InsertPageNumbersDialog</receiver>
+   <slot>reject()</slot>
+  </connection>
+ </connections>
+</ui>

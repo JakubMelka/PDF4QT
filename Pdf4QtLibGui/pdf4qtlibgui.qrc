@@ -51,6 +51,7 @@
         <file>resources/signature.svg</file>
         <file>resources/plugins.svg</file>
         <file>resources/hyperlink.svg</file>
+        <file>resources/insert-page-numbers.svg</file>
         <file>resources/highlight.svg</file>
         <file>resources/squiggly.svg</file>
         <file>resources/strikeout.svg</file>

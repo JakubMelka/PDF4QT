@@ -1126,6 +1126,11 @@ void PDFProgramController::initializeToolManager()
         pdf::PDFCreateInDocumentHyperlinkTool* createInDocumentHyperlinkTool = new pdf::PDFCreateInDocumentHyperlinkTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, inDocumentHyperlinkGroup, this);
         m_toolManager->addTool(createInDocumentHyperlinkTool);
     }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::InsertPageNumbers))
+    {
+        pdf::PDFCreateInsertPageNumbersTool* createInsertPageNumbersTool = new pdf::PDFCreateInsertPageNumbersTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, action, this);
+        m_toolManager->addTool(createInsertPageNumbersTool);
+    }
     if (QAction* action = m_actionManager->getAction(PDFActionManager::CreateInlineText))
     {
         pdf::PDFCreateFreeTextTool* createFreeTextTool = new pdf::PDFCreateFreeTextTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, action, this);

@@ -228,6 +228,8 @@
     <addaction name="actionCreateFreehandCurve"/>
     <addaction name="menuStamp"/>
     <addaction name="menuTextHighlight"/>
+    <addaction name="separator"/>
+    <addaction name="actionInsertPageNumbers"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
@@ -957,6 +959,18 @@
    </property>
    <property name="text">
     <string>&amp;Inline text</string>
+   </property>
+  </action>
+  <action name="actionInsertPageNumbers">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pdf4qtlibgui.qrc">
+     <normaloff>:/resources/insert-page-numbers.svg</normaloff>:/resources/insert-page-numbers.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Insert Page &amp;Numbers...</string>
    </property>
   </action>
   <action name="actionCreateStraightLine">

@@ -52,6 +52,12 @@ add_library(Pdf4QtLibWidgets SHARED
     sources/pdfselectpagesdialog.h
     sources/pdfselectpagesdialog.cpp
     sources/pdfselectpagesdialog.ui
+    sources/pdfpagerangewidget.h
+    sources/pdfpagerangewidget.cpp
+    sources/pdfpagerangewidget.ui
+    sources/insertpagenumbersdialog.h
+    sources/insertpagenumbersdialog.cpp
+    sources/insertpagenumbersdialog.ui
     sources/pdfpagegeometrydialog.h
     sources/pdfpagegeometrydialog.cpp
     sources/pdfwidgetannotation.h

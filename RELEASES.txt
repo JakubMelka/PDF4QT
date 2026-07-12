@@ -1,6 +1,7 @@
 CURRENT:
  - Issue #395: [idea] white crosshair easier to see in dark mode
  - Issue #299: PDF element display error
+ - Issue #258: feat: Insert page number
  - Issue #231: PDF4Qt Diff does not open files on Linux
  - Issue #169: Option to render text as text when using Qpainter backend
 

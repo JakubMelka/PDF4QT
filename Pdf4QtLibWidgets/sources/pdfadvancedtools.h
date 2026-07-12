@@ -400,6 +400,26 @@ private:
     PDFPickTool* m_pickTool;
 };
 
+/// Tool that stamps a formatted page number into a user-picked rectangle on every
+/// page of a selected page range. Unlike the other tools in this file, the text is
+/// written directly into the page's content stream (not as an annotation).
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFCreateInsertPageNumbersTool : public PDFWidgetTool
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFWidgetTool;
+
+public:
+    explicit PDFCreateInsertPageNumbersTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QAction* action, QObject* parent);
+
+private:
+    void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
+
+    PDFToolManager* m_toolManager;
+    PDFPickTool* m_pickTool;
+};
+
 /// Tool for redaction of text in document. Creates redaction annotation from  text selection.
 class PDF4QTLIBWIDGETSSHARED_EXPORT PDFCreateRedactTextTool : public PDFWidgetTool
 {

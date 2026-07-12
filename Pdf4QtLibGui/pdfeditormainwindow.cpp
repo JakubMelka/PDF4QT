@@ -162,6 +162,7 @@ PDFEditorMainWindow::PDFEditorMainWindow(QWidget* parent) :
     m_actionManager->setAction(PDFActionManager::CreateHyperlinkToThisPDFFitBV, ui->actionCreateHyperlinkToThisPDFFitBV);
     m_actionManager->setAction(PDFActionManager::CreateHyperlinkToThisPDFXYZ, ui->actionCreateHyperlinkToThisPDFXYZ);
     m_actionManager->setAction(PDFActionManager::CreateHyperlinkToThisPDFXYZInheritZoom, ui->actionCreateHyperlinkToThisPDFXYZInheritZoom);
+    m_actionManager->setAction(PDFActionManager::InsertPageNumbers, ui->actionInsertPageNumbers);
     m_actionManager->setAction(PDFActionManager::CreateInlineText, ui->actionInlineText);
     m_actionManager->setAction(PDFActionManager::CreateStraightLine, ui->actionCreateStraightLine);
     m_actionManager->setAction(PDFActionManager::CreatePolyline, ui->actionCreatePolyline);

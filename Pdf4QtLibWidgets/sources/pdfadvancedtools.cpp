@@ -28,6 +28,8 @@
 #include "pdfwidgetformmanager.h"
 #include "pdfwidgetannotation.h"
 #include "pdfwidgetutils.h"
+#include "pdfcatalog.h"
+#include "insertpagenumbersdialog.h"
 
 #include <QActionGroup>
 #include <QCheckBox>
@@ -47,6 +49,8 @@
 #include <QApplication>
 
 #include <limits>
+#include <algorithm>
+#include <cmath>
 
 #include "pdfdbgheap.h"
 
@@ -1574,6 +1578,115 @@ void PDFCreateRedactRectangleTool::onRectanglePicked(PDFInteger pageIndex, QRect
     {
         Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
     }
+}
+
+PDFCreateInsertPageNumbersTool::PDFCreateInsertPageNumbersTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QAction* action, QObject* parent) :
+    BaseClass(proxy, action, parent),
+    m_toolManager(toolManager),
+    m_pickTool(nullptr)
+{
+    m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Rectangles, this);
+    m_pickTool->setSnapToAnnotations(true);
+    m_pickTool->setSelectionRectangleColor(Qt::black);
+    addTool(m_pickTool);
+    connect(m_pickTool, &PDFPickTool::rectanglePicked, this, &PDFCreateInsertPageNumbersTool::onRectanglePicked);
+
+    updateActions();
+}
+
+void PDFCreateInsertPageNumbersTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
+{
+    if (pageRectangle.isEmpty() || !getDocument())
+    {
+        return;
+    }
+
+    const PDFPage* referencePage = getDocument()->getCatalog()->getPage(pageIndex);
+    const QRectF referenceMediaBox = referencePage->getMediaBox();
+
+    // Anchor the picked rectangle to its nearest media box corner, so the same
+    // relative position (and rectangle size) can be reproduced on pages whose
+    // media box differs in size from the reference page.
+    const bool anchorLeft = std::abs(pageRectangle.center().x() - referenceMediaBox.left()) <= std::abs(referenceMediaBox.right() - pageRectangle.center().x());
+    const bool anchorTop = std::abs(pageRectangle.center().y() - referenceMediaBox.top()) <= std::abs(referenceMediaBox.bottom() - pageRectangle.center().y());
+
+    const PDFReal offsetX = anchorLeft ? (pageRectangle.left() - referenceMediaBox.left()) : (referenceMediaBox.right() - pageRectangle.right());
+    const PDFReal offsetY = anchorTop ? (pageRectangle.top() - referenceMediaBox.top()) : (referenceMediaBox.bottom() - pageRectangle.bottom());
+    const PDFReal width = pageRectangle.width();
+    const PDFReal height = pageRectangle.height();
+
+    std::vector<PDFInteger> visiblePages;
+    if (IDrawWidget* drawWidget = getProxy()->getWidget()->getDrawWidget())
+    {
+        visiblePages = drawWidget->getCurrentPages();
+    }
+
+    InsertPageNumbersDialog dialog(getDocument()->getCatalog()->getPageCount(), visiblePages, getProxy()->getWidget());
+    if (dialog.exec() != QDialog::Accepted)
+    {
+        return;
+    }
+
+    std::vector<PDFInteger> selectedPages = dialog.getSelectedPages();
+    std::sort(selectedPages.begin(), selectedPages.end());
+
+    const PDFPageLabel::NumberingStyle numberingStyle = dialog.getNumberingStyle();
+    const QString formatPattern = dialog.getFormatPattern();
+    const int startNumber = dialog.getStartNumber();
+    const QFont font = dialog.getFont();
+    const QColor color = dialog.getColor();
+    const Qt::Alignment alignment = dialog.getAlignment();
+    const QString totalPagesText = QString::number(getDocument()->getCatalog()->getPageCount());
+
+    PDFDocumentModifier modifier(getDocument());
+
+    for (size_t i = 0; i < selectedPages.size(); ++i)
+    {
+        const PDFInteger targetPageIndex = selectedPages[i] - 1;
+        const PDFPage* targetPage = getDocument()->getCatalog()->getPage(targetPageIndex);
+        const QRectF targetMediaBox = targetPage->getMediaBox();
+
+        const PDFReal x = anchorLeft ? (targetMediaBox.left() + offsetX) : (targetMediaBox.right() - offsetX - width);
+        const PDFReal y = anchorTop ? (targetMediaBox.top() + offsetY) : (targetMediaBox.bottom() - offsetY - height);
+
+        QRectF targetRect;
+        targetRect.setLeft(x);
+        targetRect.setTop(y);
+        targetRect.setWidth(width);
+        targetRect.setHeight(height);
+
+        const QString numberText = PDFPageLabel::formatPageNumber(numberingStyle, startNumber + PDFInteger(i));
+        const QString labelText = QString(formatPattern).arg(numberText).arg(totalPagesText);
+
+        PDFPageContentStreamBuilder contentStreamBuilder(modifier.getBuilder(), PDFContentStreamBuilder::CoordinateSystem::PDF, PDFPageContentStreamBuilder::Mode::PlaceAfter);
+        QPainter* painter = contentStreamBuilder.begin(targetPage->getPageReference());
+        if (painter)
+        {
+            painter->setFont(font);
+            painter->setPen(QPen(color));
+
+            // CoordinateSystem::PDF flips the painter's y-axis to match PDF space;
+            // counteract it locally around the text, otherwise glyphs draw mirrored.
+            painter->save();
+            painter->translate(targetRect.center());
+            painter->scale(1.0, -1.0);
+            QRectF localRect(-targetRect.width() * 0.5, -targetRect.height() * 0.5, targetRect.width(), targetRect.height());
+            painter->drawText(localRect, int(alignment), labelText);
+            painter->restore();
+
+            contentStreamBuilder.end(painter);
+            modifier.markPageContentsChanged();
+        }
+    }
+
+    if (modifier.finalize())
+    {
+        Q_EMIT m_toolManager->documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+    }
+
+    // Deactivate the tool after stamping, so an accidental extra rectangle pick
+    // does not stamp the already numbered document a second time.
+    setActive(false);
 }
 
 PDFCreateRedactTextTool::PDFCreateRedactTextTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QAction* action, QObject* parent) :

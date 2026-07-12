@@ -20,17 +20,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef PDFSELECTPAGESDIALOG_H
-#define PDFSELECTPAGESDIALOG_H
+#ifndef INSERTPAGENUMBERSDIALOG_H
+#define INSERTPAGENUMBERSDIALOG_H
 
 #include "pdfwidgetsglobal.h"
 #include "pdfutils.h"
+#include "pdfcatalog.h"
 
 #include <QDialog>
+#include <QColor>
 
 namespace Ui
 {
-class PDFSelectPagesDialog;
+class InsertPageNumbersDialog;
 }
 
 namespace pdf
@@ -38,28 +40,41 @@ namespace pdf
 
 class PDFPageRangeWidget;
 
-class PDF4QTLIBWIDGETSSHARED_EXPORT PDFSelectPagesDialog : public QDialog
+/// Dialog for configuring how page numbers should be stamped into the document:
+/// numbering style (arabic, roman, letters), text format pattern, starting number,
+/// font/color/alignment of the stamped text, and the range of pages to number.
+class PDF4QTLIBWIDGETSSHARED_EXPORT InsertPageNumbersDialog : public QDialog
 {
     Q_OBJECT
 
 public:
-    explicit PDFSelectPagesDialog(QString windowTitle,
-                                  QString groupBoxTitle,
-                                  pdf::PDFInteger pageCount,
-                                  const std::vector<pdf::PDFInteger>& visiblePages,
-                                  QWidget* parent);
+    explicit InsertPageNumbersDialog(pdf::PDFInteger pageCount,
+                                     const std::vector<pdf::PDFInteger>& visiblePages,
+                                     QWidget* parent);
 
-    virtual ~PDFSelectPagesDialog() override;
+    virtual ~InsertPageNumbersDialog() override;
 
     virtual void accept() override;
 
+    pdf::PDFPageLabel::NumberingStyle getNumberingStyle() const;
+    QString getFormatPattern() const;
+    int getStartNumber() const;
+    QFont getFont() const;
+    QColor getColor() const;
+    Qt::Alignment getAlignment() const;
     std::vector<pdf::PDFInteger> getSelectedPages() const;
 
 private:
-    Ui::PDFSelectPagesDialog* ui;
+    void updatePreview();
+    void onSelectColorButtonClicked();
+    void setColor(QColor color);
+
+    Ui::InsertPageNumbersDialog* ui;
     PDFPageRangeWidget* m_pageRangeWidget;
+    pdf::PDFInteger m_pageCount;
+    QColor m_color;
 };
 
 }   // namespace pdf
 
-#endif // PDFSELECTPAGESDIALOG_H
+#endif // INSERTPAGENUMBERSDIALOG_H
