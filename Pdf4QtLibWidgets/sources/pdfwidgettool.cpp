@@ -1240,7 +1240,8 @@ void PDFMagnifierTool::drawPostRendering(QPainter* painter, QRect rect) const
         getProxy()->drawPages(painter, rect, getProxy()->getFeatures());
         painter->restore();
 
-        painter->setPen(Qt::black);
+        painter->setCompositionMode(QPainter::CompositionMode_Difference);
+        painter->setPen(Qt::white);
         painter->setBrush(Qt::NoBrush);
         painter->drawPath(path);
     }
@@ -1389,9 +1390,16 @@ void PDFPickTool::drawPostRendering(QPainter* painter, QRect rect) const
             vbottom.setY(vbottom.y() + markSize);
         }
 
-        painter->setPen(Qt::black);
+        // Jakub Melka: The cross must stay visible regardless of the page background
+        // color (white page, dark page via inverted colors, dark UI theme, etc.).
+        // CompositionMode_Difference draws the inverse of whatever is underneath,
+        // so a white pen is guaranteed to contrast with both light and dark content.
+        painter->save();
+        painter->setCompositionMode(QPainter::CompositionMode_Difference);
+        painter->setPen(Qt::white);
         painter->drawLine(hleft, hright);
         painter->drawLine(vtop, vbottom);
+        painter->restore();
     }
 
     if (m_mode == Mode::Pages && m_pageIndex != -1)
