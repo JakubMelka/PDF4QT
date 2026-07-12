@@ -1806,36 +1806,29 @@ PDFEncodedText PDFFont::encodeText(const QString& text) const
     PDFEncodedText result;
     result.isValid = true;
 
-    const PDFFontCMap* cmap = getCMap();
-    const PDFFontCMap* toUnicode = getToUnicode();
-
-    if (!cmap || !toUnicode)
+    for (qsizetype i = 0, size = text.size(); i < size; ++i)
     {
-        result.errorString = PDFTranslationContext::tr("Invalid font encoding.");
-        return result;
-    }
+        const QChar character = text[i];
+        char32_t codePoint = character.unicode();
+        QString sourceCharacter = character;
 
-    for (const QChar& character : text)
-    {
-        CID cid = toUnicode->getFromUnicode(character);
-        if (cid != CID())
+        if (character.isHighSurrogate() && i + 1 < size && text[i + 1].isLowSurrogate())
         {
-            QByteArray encoded = cmap->encode(cid);
-            if (!encoded.isEmpty())
-            {
-                result.encodedText.append(encoded);
-                result.errorString += "_";
-            }
-            else
-            {
-                result.isValid = false;
-                result.errorString += character;
-            }
+            codePoint = QChar::surrogateToUcs4(character, text[i + 1]);
+            sourceCharacter += text[i + 1];
+            ++i;
+        }
+
+        QByteArray encoded = encodeCharacter(codePoint);
+        if (!encoded.isEmpty())
+        {
+            result.encodedText.append(encoded);
+            result.errorString += "_";
         }
         else
         {
             result.isValid = false;
-            result.errorString += character;
+            result.errorString += sourceCharacter;
         }
     }
 
@@ -2606,43 +2599,38 @@ PDFInteger PDFSimpleFont::getGlyphAdvance(size_t index) const
     return 0;
 }
 
-PDFEncodedText PDFSimpleFont::encodeText(const QString& text) const
+QByteArray PDFSimpleFont::encodeCharacter(char32_t codePoint) const
 {
-    PDFEncodedText result;
-    result.isValid = true;
-
-    const encoding::EncodingTable* encodingTable = getEncoding();
-
-    for (const QChar& character : text)
+    if (codePoint == 0 || codePoint > 0xFFFF)
     {
-        ushort unicode = character.unicode();
-        unsigned char converted = 0;
+        // Simple fonts can produce BMP characters only during decoding
+        return QByteArray();
+    }
 
-        bool isFound = false;
-        for (size_t i = 0; i < encodingTable->size(); ++i)
-        {
-            if (unicode == (*encodingTable)[static_cast<unsigned char>(i)] &&
-                m_glyphIndices[i] != GID())
-            {
-                isFound = true;
-                converted = static_cast<unsigned char>(i);
-                break;
-            }
-        }
+    const QChar character(static_cast<char16_t>(codePoint));
 
-        if (isFound)
+    // We compare against getUnicode(), because the forward pass (fillTextSequence)
+    // emits getUnicode(cid) as the decoded character. First, prefer character codes
+    // having a direct glyph index. Then accept any character code with matching
+    // unicode - during rendering, the glyph is resolved by the same unicode fallback
+    // (FT_Get_Char_Index) as in the forward pass.
+    for (int i = 0; i < 256; ++i)
+    {
+        if (getUnicode(i) == character && m_glyphIndices[i] != GID())
         {
-            result.encodedText.append(static_cast<char>(converted));
-            result.errorString += "_";
-        }
-        else
-        {
-            result.isValid = false;
-            result.errorString += character;
+            return QByteArray(1, static_cast<char>(i));
         }
     }
 
-    return result;
+    for (int i = 0; i < 256; ++i)
+    {
+        if (getUnicode(i) == character)
+        {
+            return QByteArray(1, static_cast<char>(i));
+        }
+    }
+
+    return QByteArray();
 }
 
 void PDFSimpleFont::dumpFontToTreeItem(ITreeFactory* treeFactory) const
@@ -3365,8 +3353,9 @@ QByteArray PDFFontCMap::encode(CID cid) const
 
     for (const auto& entry : m_entries)
     {
-        unsigned int minPossibleValue = entry.from + entry.cid;
-        unsigned int maxPossibleValue = entry.to + entry.cid;
+        // Entry maps codes [from, to] to CIDs [cid, cid + (to - from)]
+        unsigned int minPossibleValue = entry.cid;
+        unsigned int maxPossibleValue = entry.cid + (entry.to - entry.from);
 
         if (cid >= minPossibleValue && cid <= maxPossibleValue)
         {
@@ -3438,6 +3427,31 @@ CID PDFFontCMap::getFromUnicode(QChar character) const
 QChar PDFFontCMap::getUnicodeFromCode(unsigned int code) const
 {
     return m_unicodeEncoded ? QChar(code) : QChar();
+}
+
+void PDFFontCMap::enumerate(const std::function<void(unsigned int, unsigned int, CID)>& callback) const
+{
+    // Clamp enumeration of a single entry, so pathological CMaps with huge
+    // code ranges (e.g. 4-byte ranges) do not lock up the enumeration.
+    constexpr unsigned int maxEnumeratedCodesPerEntry = 65536;
+
+    for (const Entry& entry : m_entries)
+    {
+        const unsigned int rangeSize = entry.to - entry.from;
+        const unsigned int lastCode = (rangeSize < maxEnumeratedCodesPerEntry) ? entry.to : entry.from + maxEnumeratedCodesPerEntry - 1;
+
+        // 64-bit loop counter to avoid overflow when lastCode == UINT_MAX
+        for (quint64 code = entry.from; code <= lastCode; ++code)
+        {
+            const unsigned int codeValue = static_cast<unsigned int>(code);
+            callback(codeValue, entry.byteCount, CID(codeValue - entry.from + entry.cid));
+        }
+    }
+}
+
+bool PDFFontCMap::containsCode(unsigned int code, unsigned int byteCount) const
+{
+    return std::any_of(m_entries.cbegin(), m_entries.cend(), [code, byteCount](const Entry& entry) { return entry.from <= code && entry.to >= code && entry.byteCount == byteCount; });
 }
 
 PDFFontCMap::PDFFontCMap(Entries&& entries, bool vertical, bool unicodeEncoded) :
@@ -3547,6 +3561,93 @@ PDFReal PDFType0Font::getGlyphAdvance(CID cid) const
     return m_defaultAdvance;
 }
 
+QByteArray PDFType0Font::encodeCharacter(char32_t codePoint) const
+{
+    std::call_once(m_encodeMapFlag, &PDFType0Font::buildEncodeMap, this);
+
+    auto it = m_encodeMap.find(codePoint);
+    if (it != m_encodeMap.cend())
+    {
+        return it->second;
+    }
+
+    return QByteArray();
+}
+
+void PDFType0Font::buildEncodeMap() const
+{
+    auto serializeCode = [](unsigned int code, unsigned int byteCount)
+    {
+        QByteArray bytes;
+        bytes.reserve(byteCount);
+        for (int i = static_cast<int>(byteCount) - 1; i >= 0; --i)
+        {
+            bytes.append(static_cast<char>((code >> (8 * i)) & 0xFF));
+        }
+        return bytes;
+    };
+
+    // Pass 1: enumerate the ToUnicode CMap. Character code is accepted, if the encoding
+    // CMap decodes it, or if it has maximal code length - in that case, interpretWithCode
+    // consumes it as a whole code unit even without a matching entry (error path), and
+    // the ToUnicode character is still produced by the forward pass.
+    const unsigned int maxKeyLength = m_cmap.getMaxKeyLength();
+    m_toUnicode.enumerate([&, this](unsigned int code, unsigned int byteCount, CID unicodeValue)
+    {
+        if (unicodeValue == 0)
+        {
+            return;
+        }
+
+        const char32_t codePoint = unicodeValue;
+        if (m_encodeMap.count(codePoint))
+        {
+            return;
+        }
+
+        if (!m_cmap.containsCode(code, byteCount) && byteCount != maxKeyLength)
+        {
+            return;
+        }
+
+        // Overlapping ToUnicode entries: the forward pass uses the first matching
+        // entry, so verify that decoding this code really produces our character.
+        if (m_toUnicode.getToUnicode(code, byteCount) != QChar(static_cast<char16_t>(unicodeValue)))
+        {
+            return;
+        }
+
+        m_encodeMap.emplace(codePoint, serializeCode(code, byteCount));
+    });
+
+    // Pass 2: for unicode encoded predefined CMaps of non-embedded fonts, the forward
+    // pass falls back to interpreting the character code directly as unicode, but only
+    // when the ToUnicode CMap gave no character for the code.
+    if (!m_fontDescriptor.isEmbedded() && m_cmap.isUnicodeEncoded())
+    {
+        m_cmap.enumerate([&, this](unsigned int code, unsigned int byteCount, CID)
+        {
+            if (code == 0 || code > 0xFFFF)
+            {
+                return;
+            }
+
+            const char32_t codePoint = code;
+            if (m_encodeMap.count(codePoint))
+            {
+                return;
+            }
+
+            if (!m_toUnicode.getToUnicode(code, byteCount).isNull())
+            {
+                return;
+            }
+
+            m_encodeMap.emplace(codePoint, serializeCode(code, byteCount));
+        });
+    }
+}
+
 PDFType3Font::PDFType3Font(FontDescriptor fontDescriptor,
                            QByteArray fontId,
                            int firstCharacterIndex,
@@ -3601,6 +3702,35 @@ const QByteArray* PDFType3Font::getContentStream(int characterIndex) const
     }
 
     return nullptr;
+}
+
+QByteArray PDFType3Font::encodeCharacter(char32_t codePoint) const
+{
+    if (codePoint == 0 || codePoint > 0xFFFF)
+    {
+        return QByteArray();
+    }
+
+    const QChar character(static_cast<char16_t>(codePoint));
+
+    // Prefer character codes having a content stream
+    for (const auto& item : m_characterContentStreams)
+    {
+        if (item.first >= 0 && item.first <= 255 && getUnicode(item.first) == character)
+        {
+            return QByteArray(1, static_cast<char>(item.first));
+        }
+    }
+
+    for (int i = 1; i < 256; ++i)
+    {
+        if (getUnicode(i) == character)
+        {
+            return QByteArray(1, static_cast<char>(i));
+        }
+    }
+
+    return QByteArray();
 }
 
 void PDFRealizedType3FontImpl::fillTextSequence(const QByteArray& byteArray, TextSequence& textSequence, PDFRenderErrorReporter* reporter)

@@ -774,6 +774,8 @@ void PDFPageContentEditorContentStreamBuilder::writeText(QTextStream& stream, co
     if (m_textFont)
     {
         QByteArray fontKey = selectFont(m_textFont->getFontId());
+        m_currentTextFontKey = fontKey;
+        m_currentTextFontSize = m_currentState.getTextFontSize();
         stream << "/" << fontKey << " " << m_currentState.getTextFontSize() << " Tf" << Qt::endl;
     }
 
@@ -839,17 +841,7 @@ void PDFPageContentEditorContentStreamBuilder::writeText(QTextStream& stream, co
 
             if (m_textFont)
             {
-                PDFEncodedText encodedText = m_textFont->encodeText(characters);
-
-                if (!encodedText.encodedText.isEmpty())
-                {
-                    writeTextHexString(stream, encodedText.encodedText);
-                }
-
-                if (!encodedText.isValid)
-                {
-                    addError(PDFTranslationContext::tr("Error during converting text to font encoding. Some characters were not converted: '%1'.").arg(encodedText.errorString));
-                }
+                writeTextWithFallback(stream, characters);
             }
             else
             {
@@ -1073,6 +1065,8 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
             else
             {
                 v1 = selectFont(v1);
+                m_currentTextFontKey = v1;
+                m_currentTextFontSize = v2;
                 stream << "/" << v1 << " " << v2 << " Tf" << Qt::endl;
             }
         }
@@ -1147,6 +1141,78 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
     else
     {
         addError(PDFTranslationContext::tr("Invalid command '%1'.").arg(reader.name().toString()));
+    }
+}
+
+void PDFPageContentEditorContentStreamBuilder::writeTextWithFallback(QTextStream& stream, const QString& characters)
+{
+    Q_ASSERT(m_textFont);
+
+    // Split the text into maximal runs of code points encodable by the current
+    // font, and runs of code points which must be written with a fallback font.
+    struct CodePointRun
+    {
+        std::u32string codePoints;
+        bool isEncodable = false;
+    };
+    std::vector<CodePointRun> runs;
+
+    for (qsizetype i = 0, size = characters.size(); i < size; ++i)
+    {
+        const QChar character = characters[i];
+        char32_t codePoint = character.unicode();
+
+        if (character.isHighSurrogate() && i + 1 < size && characters[i + 1].isLowSurrogate())
+        {
+            codePoint = QChar::surrogateToUcs4(character, characters[i + 1]);
+            ++i;
+        }
+
+        const bool isEncodable = !m_textFont->encodeCharacter(codePoint).isEmpty();
+        if (runs.empty() || runs.back().isEncodable != isEncodable)
+        {
+            runs.push_back(CodePointRun{ std::u32string(), isEncodable });
+        }
+        runs.back().codePoints.push_back(codePoint);
+    }
+
+    for (const CodePointRun& run : runs)
+    {
+        if (run.isEncodable)
+        {
+            PDFEncodedText encodedText = m_textFont->encodeText(QString::fromUcs4(run.codePoints.data(), int(run.codePoints.size())));
+
+            if (!encodedText.encodedText.isEmpty())
+            {
+                writeTextHexString(stream, encodedText.encodedText);
+            }
+
+            if (!encodedText.isValid)
+            {
+                // Cannot happen for characters positively checked by encodeCharacter,
+                // this is a safety net only.
+                addError(PDFTranslationContext::tr("Error during converting text to font encoding. Some characters were not converted: '%1'.").arg(encodedText.errorString));
+            }
+        }
+        else
+        {
+            std::vector<PDFEditorFallbackFontManager::Run> fallbackRuns = m_fallbackFontManager.encode(run.codePoints, m_textFont, m_fontDictionary, [this](const QString& error) { addError(error); });
+
+            if (fallbackRuns.empty())
+            {
+                addError(PDFTranslationContext::tr("Error during converting text to font encoding. Some characters were not converted: '%1'.").arg(QString::fromUcs4(run.codePoints.data(), int(run.codePoints.size()))));
+                continue;
+            }
+
+            for (const PDFEditorFallbackFontManager::Run& fallbackRun : fallbackRuns)
+            {
+                stream << "/" << fallbackRun.fontResourceKey << " " << m_currentTextFontSize << " Tf" << Qt::endl;
+                writeTextHexString(stream, fallbackRun.encodedBytes);
+            }
+
+            // Restore the original font
+            stream << "/" << m_currentTextFontKey << " " << m_currentTextFontSize << " Tf" << Qt::endl;
+        }
     }
 }
 

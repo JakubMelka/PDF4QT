@@ -352,6 +352,13 @@ public:
     ///  Replaces all objects by references in the dictionary
     void replaceObjectsByReferences(PDFDictionary& dictionary);
 
+    /// Recursively replaces stream objects nested inside dictionaries or arrays
+    /// by references to newly created document objects. Nested streams are illegal
+    /// in a serialized PDF, this function makes any in-memory object tree
+    /// serializable. Top-level stream object is left intact (only its dictionary
+    /// is processed).
+    PDFObject replaceNestedStreamsByReferences(const PDFObject& object);
+
     /// If object is reference, the dereference attempt is performed
     /// and object is returned. If it is not a reference, then self
     /// is returned. If dereference attempt fails, then null object

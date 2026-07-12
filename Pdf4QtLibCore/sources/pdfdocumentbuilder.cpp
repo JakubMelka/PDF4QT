@@ -1078,8 +1078,64 @@ void PDFDocumentBuilder::replaceObjectsByReferences(PDFDictionary& dictionary)
         if (!object.isReference())
         {
             auto key = dictionary.getKey(i);
-            dictionary.setEntry(key, PDFObject::createReference(addObject(object)));
+            dictionary.setEntry(key, PDFObject::createReference(addObject(replaceNestedStreamsByReferences(object))));
         }
+    }
+}
+
+PDFObject PDFDocumentBuilder::replaceNestedStreamsByReferences(const PDFObject& object)
+{
+    auto processChild = [this](const PDFObject& child) -> PDFObject
+    {
+        if (child.isStream())
+        {
+            return PDFObject::createReference(addObject(replaceNestedStreamsByReferences(child)));
+        }
+
+        if (child.isDictionary() || child.isArray())
+        {
+            return replaceNestedStreamsByReferences(child);
+        }
+
+        return child;
+    };
+
+    switch (object.getType())
+    {
+        case PDFObject::Type::Dictionary:
+        {
+            const PDFDictionary* dictionary = object.getDictionary();
+            std::vector<PDFDictionary::DictionaryEntry> entries;
+            entries.reserve(dictionary->getCount());
+            for (size_t i = 0; i < dictionary->getCount(); ++i)
+            {
+                entries.emplace_back(dictionary->getKey(i), processChild(dictionary->getValue(i)));
+            }
+            return PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(entries)));
+        }
+
+        case PDFObject::Type::Array:
+        {
+            const PDFArray* array = object.getArray();
+            std::vector<PDFObject> items;
+            items.reserve(array->getCount());
+            for (size_t i = 0; i < array->getCount(); ++i)
+            {
+                items.emplace_back(processChild(array->getItem(i)));
+            }
+            return PDFObject::createArray(std::make_shared<PDFArray>(qMove(items)));
+        }
+
+        case PDFObject::Type::Stream:
+        {
+            const PDFStream* stream = object.getStream();
+            PDFObject processedDictionary = replaceNestedStreamsByReferences(PDFObject::createDictionary(std::make_shared<PDFDictionary>(*stream->getDictionary())));
+            Q_ASSERT(processedDictionary.isDictionary());
+            return PDFObject::createStream(std::make_shared<PDFStream>(PDFDictionary(*processedDictionary.getDictionary()), QByteArray(*stream->getContent())));
+        }
+
+        default:
+            return object;
     }
 }
 

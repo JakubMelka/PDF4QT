@@ -24,6 +24,7 @@
 #define PDFPAGECONTENTEDITORCONTENTSTREAMBUILDER_H
 
 #include "pdfpagecontenteditorprocessor.h"
+#include "pdfeditorfallbackfont.h"
 
 #include <QHash>
 #include <QPaintDevice>
@@ -97,6 +98,10 @@ public:
 
     const PDFPageContentProcessorState& getCurrentState() { return m_currentState; }
 
+    /// Writes the path construction operators (m, l, c, h) for the given path,
+    /// without any painting operator.
+    static void writePathGeometry(QTextStream& stream, const QPainterPath& path);
+
 private:
     bool isNeededToWriteCurrentTransformationMatrix() const;
 
@@ -108,16 +113,18 @@ private:
                           bool isStroking,
                           bool isFilling);
 
-    /// Writes the path construction operators (m, l, c, h) for the given path,
-    /// without any painting operator.
-    void writePathGeometry(QTextStream& stream, const QPainterPath& path);
-
     /// Writes the path as a clip path (path construction operators followed
     /// by "W n" or "W* n", according to the path fill rule).
     void writeClipPath(QTextStream& stream, const QPainterPath& clipPath);
 
     void writeText(QTextStream& stream, const QString& text);
     void writeTextCommand(QTextStream& stream, const QXmlStreamReader& reader);
+
+    /// Writes text characters using the current text font. Characters, which
+    /// cannot be encoded into the current font, are written using an on-the-fly
+    /// generated Type 3 fallback font.
+    void writeTextWithFallback(QTextStream& stream, const QString& characters);
+
     void writeTextHexString(QTextStream& stream, const QByteArray& encodedText);
 
     void writeImage(QTextStream& stream, const QImage& image);
@@ -135,6 +142,9 @@ private:
     PDFFontPointer m_textFont;
     QHash<QByteArray, PDFFontPointer> m_fontOverrides;
     QStringList m_errors;
+    PDFEditorFallbackFontManager m_fallbackFontManager;
+    QByteArray m_currentTextFontKey;    ///< Resource key of the last written Tf operator
+    PDFReal m_currentTextFontSize = 0.0;
 };
 
 }   // namespace pdf
