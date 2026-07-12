@@ -35,6 +35,8 @@
 #include <freetype/t1tables.h>
 
 #include <QFile>
+#include <QFont>
+#include <QFontDatabase>
 #include <QMutex>
 #include <QReadWriteLock>
 #include <QPainterPath>
@@ -2775,6 +2777,20 @@ FontType PDFTrueTypeFont::getFontType() const
     return FontType::TrueType;
 }
 
+PDFFontCache::~PDFFontCache()
+{
+    clearTextDrawingApplicationFonts();
+}
+
+void PDFFontCache::clearTextDrawingApplicationFonts()
+{
+    for (int applicationFontId : m_textDrawingApplicationFontIds)
+    {
+        QFontDatabase::removeApplicationFont(applicationFontId);
+    }
+    m_textDrawingApplicationFontIds.clear();
+}
+
 void PDFFontCache::setDocument(const PDFModifiedDocument& document)
 {
     QMutexLocker lock(&m_mutex);
@@ -2788,8 +2804,76 @@ void PDFFontCache::setDocument(const PDFModifiedDocument& document)
         {
             m_fontCache.clear();
             m_realizedFontCache.clear();
+            m_textDrawingFontCache.clear();
+            clearTextDrawingApplicationFonts();
         }
     }
+}
+
+const PDFFontCache::TextDrawingFontInfo* PDFFontCache::getFontForTextDrawing(const PDFFontPointer& font, PDFRenderErrorReporter* reporter) const
+{
+    Q_ASSERT(font);
+
+    QMutexLocker lock(&m_mutex);
+    auto it = m_textDrawingFontCache.find(font);
+    if (it == m_textDrawingFontCache.cend())
+    {
+        TextDrawingFontInfo info;
+
+        if (font->getFontType() != FontType::Type3)
+        {
+            const FontDescriptor* descriptor = font->getFontDescriptor();
+            bool hasExactFont = false;
+
+            // Prefer registering the embedded font program directly, so glyph shapes
+            // match the embedded/subset font exactly.
+            const QByteArray& embeddedTrueTypeOrOpenType = !descriptor->fontFile2.isEmpty() ? descriptor->fontFile2 : descriptor->fontFile3;
+            if (!embeddedTrueTypeOrOpenType.isEmpty())
+            {
+                const int applicationFontId = QFontDatabase::addApplicationFontFromData(embeddedTrueTypeOrOpenType);
+                if (applicationFontId != -1)
+                {
+                    const QStringList families = QFontDatabase::applicationFontFamilies(applicationFontId);
+                    if (!families.isEmpty())
+                    {
+                        info.font = QFont(families.front());
+                        info.isUsable = true;
+                        hasExactFont = true;
+                        m_textDrawingApplicationFontIds.push_back(applicationFontId);
+                    }
+                    else
+                    {
+                        QFontDatabase::removeApplicationFont(applicationFontId);
+                    }
+                }
+            }
+
+            if (!hasExactFont)
+            {
+                // Embedded font program is missing (or is a Type 1 program, which is not
+                // reliably registrable via QFontDatabase on all platforms) - substitute
+                // a system font using the descriptor hints.
+                QFont substituteFont(QString::fromLatin1(descriptor->fontFamily));
+                substituteFont.setWeight(QFont::Weight(qBound(1, int(descriptor->fontWeight), 1000)));
+                substituteFont.setStretch(descriptor->fontStretch);
+                substituteFont.setItalic(descriptor->isItalic());
+                substituteFont.setStyleHint(descriptor->isFixedPitch() ? QFont::Monospace :
+                                             descriptor->isSerif() ? QFont::Serif : QFont::SansSerif);
+                info.font = substituteFont;
+                info.isUsable = true;
+
+                if (reporter)
+                {
+                    reporter->reportRenderErrorOnce(RenderErrorType::Warning,
+                                                     PDFTranslationContext::tr("Font '%1' is not embedded, using substitute font for real text drawing.").arg(QString::fromLatin1(descriptor->fontName)));
+                }
+            }
+        }
+
+        it = m_textDrawingFontCache.insert(std::make_pair(font, info)).first;
+    }
+
+    return &it->second;
 }
 
 PDFFontPointer PDFFontCache::getFont(const PDFObject& fontObject, const QByteArray& fontId) const

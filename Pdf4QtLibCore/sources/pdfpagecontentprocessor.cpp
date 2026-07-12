@@ -3282,7 +3282,19 @@ void PDFPageContentProcessor::drawText(const TextSequence& textSequence)
                         if (!glyphPath.isEmpty())
                         {
                             QPainterPath transformedGlyph = textRenderingMatrix.map(glyphPath);
-                            processPathPainting(transformedGlyph, stroke, fill, true, transformedGlyph.fillRule());
+
+                            bool handledAsRealText = false;
+                            if (fill && !stroke && isHorizontalWritingSystem && !item.character.isNull() &&
+                                !getGraphicState()->getFillColorSpace()->asPatternColorSpace())
+                            {
+                                PDFRealTextDrawInfo realTextDrawInfo{ item.character, m_graphicState.getTextFont(), fontSize, textRenderingMatrix };
+                                handledAsRealText = performTextCharacterDrawing(realTextDrawInfo);
+                            }
+
+                            if (!handledAsRealText)
+                            {
+                                processPathPainting(transformedGlyph, stroke, fill, true, transformedGlyph.fillRule());
+                            }
 
                             if (clipped)
                             {

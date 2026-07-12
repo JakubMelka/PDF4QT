@@ -238,6 +238,23 @@ li.checked::marker { content: &quot;\2612&quot;; }
                 </property>
                </widget>
               </item>
+              <item row="7" column="0">
+               <widget class="QLabel" name="realTextLabel">
+                <property name="text">
+                 <string>Draw text as real text (print/export)</string>
+                </property>
+               </widget>
+              </item>
+              <item row="7" column="1">
+               <widget class="QCheckBox" name="realTextCheckBox">
+                <property name="toolTip">
+                 <string>Uses substitute fonts and may look different from the embedded font. Only affects printing and exporting to devices which preserve text (such as SVG), it has no effect on the on-screen page view.</string>
+                </property>
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+               </widget>
+              </item>
              </layout>
             </item>
             <item>

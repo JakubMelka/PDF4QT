@@ -464,6 +464,25 @@ public:
 
     }
 
+    ~PDFFontCache();
+
+    /// Substitute font usable for "real text" drawing (e.g. QPainter::drawText) of a PDF font
+    struct TextDrawingFontInfo
+    {
+        QFont font;
+        bool isUsable = false;
+    };
+
+    /// Retrieves a substitute font usable for "real text" drawing (e.g. QPainter::drawText)
+    /// of the given PDF font. If font's embedded program can be registered as an application
+    /// font, then this exact font is used (best fidelity); otherwise a system font is
+    /// substituted using descriptor hints (family, weight, stretch, italic, serif/fixed pitch).
+    /// If no usable font could be obtained (e.g. Type 3 font), returned info has isUsable set
+    /// to false and caller must fall back to path-based glyph painting.
+    /// \param font PDF font
+    /// \param reporter Error reporter (used to report inexact font substitution)
+    const TextDrawingFontInfo* getFontForTextDrawing(const PDFFontPointer& font, PDFRenderErrorReporter* reporter) const;
+
     /// Sets the document to the cache. Whole cache is cleared,
     /// if it is needed.
     /// \param document Document to be setted
@@ -498,6 +517,10 @@ public:
     void shrink();
 
 private:
+    /// Unregisters all application fonts registered for text drawing (via
+    /// QFontDatabase::addApplicationFontFromData) and clears the id list.
+    void clearTextDrawingApplicationFonts();
+
     size_t m_fontCacheLimit;
     size_t m_realizedFontCacheLimit;
     mutable QMutex m_mutex;
@@ -505,6 +528,8 @@ private:
     mutable std::map<PDFObjectReference, PDFFontPointer> m_fontCache;
     mutable std::map<std::pair<PDFFontPointer, PDFReal>, PDFRealizedFontPointer> m_realizedFontCache;
     mutable std::set<const void*> m_fontCacheShrinkDisabledObjects;
+    mutable std::map<PDFFontPointer, TextDrawingFontInfo> m_textDrawingFontCache;
+    mutable std::vector<int> m_textDrawingApplicationFontIds;
 };
 
 /// Performs mapping from CID to GID (even identity mapping, if byte array is empty)

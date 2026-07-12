@@ -2,6 +2,7 @@ CURRENT:
  - Issue #395: [idea] white crosshair easier to see in dark mode
  - Issue #299: PDF element display error
  - Issue #231: PDF4Qt Diff does not open files on Linux
+ - Issue #169: Option to render text as text when using Qpainter backend
 
 V: 1.6.0.0 14.6.2026
  - Issue #389: Adding hyperlink to _internal_ object in PDF
