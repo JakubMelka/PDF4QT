@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #398: Enhancing Speech Support: Locale Addons and System Voice Detection
  - Issue #395: [idea] white crosshair easier to see in dark mode
  - Issue #299: PDF element display error
  - Issue #258: feat: Insert page number

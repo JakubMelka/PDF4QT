@@ -11,7 +11,10 @@
         "--socket=wayland",
         "--device=dri",
         "--share=ipc",
-        "--filesystem=host"
+        "--filesystem=host",
+        "--filesystem=xdg-run/speech-dispatcher:ro",
+        "--filesystem=xdg-cache/speech-dispatcher:ro",
+        "--talk-name=org.freedesktop.speech-dispatcher"
     ],
     "cleanup": [
     ],
