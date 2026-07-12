@@ -129,6 +129,8 @@ On Linux, a GCC version >= 8 should work, altough we tested it with GCC 11.
 
         cmake -B build -S . -DPDF4QT_INSTALL_QT_DEPENDENCIES=0 -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake -DCMAKE_INSTALL_PREFIX='/' -DCMAKE_BUILD_TYPE=Release
 
+   (One user reported success with `-DCMAKE_INSTALL_PREFIX=''` instead, as otherwise all there paths were prepended with `/usr` (causing `/usr/usr...`
+
     For a debug build, append `-DCMAKE_BUILD_TYPE=Debug`.
 
     It is recommended to set the VCPKG_OVERLAY_PORTS variable to 'PDF4QT/vcpkg/overlays' to prevent crashes due to the incompatible LIBPNG library on some Linux systems.
