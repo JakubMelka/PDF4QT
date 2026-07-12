@@ -30,6 +30,7 @@
 
 #include <QApplication>
 #include <QCommandLineParser>
+#include <QMessageBox>
 
 int main(int argc, char *argv[])
 {
@@ -90,6 +91,10 @@ int main(int argc, char *argv[])
             leftDocumentIsOK = true;
             mainWindow.setLeftDocument(std::move(documentLeft));
         }
+        else if (reader.getReadingResult() == pdf::PDFDocumentReader::Result::Failed)
+        {
+            QMessageBox::critical(&mainWindow, QCoreApplication::applicationName(), reader.getErrorMessage());
+        }
 
         if (positionalArguments.size() >= 2)
         {
@@ -99,6 +104,10 @@ int main(int argc, char *argv[])
             {
                 rightDocumentIsOk = true;
                 mainWindow.setRightDocument(std::move(documentRight));
+            }
+            else if (reader.getReadingResult() == pdf::PDFDocumentReader::Result::Failed)
+            {
+                QMessageBox::critical(&mainWindow, QCoreApplication::applicationName(), reader.getErrorMessage());
             }
         }
 

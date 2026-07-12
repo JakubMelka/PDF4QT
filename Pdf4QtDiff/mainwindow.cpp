@@ -838,7 +838,7 @@ std::optional<pdf::PDFDocument> MainWindow::openDocument()
         QMessageBox::critical(this, tr("Error"), errorMessage);
     }
 
-    return pdf::PDFDocument();
+    return std::nullopt;
 }
 
 void MainWindow::setRightDocument(pdf::PDFDocument&& newRightDocument)
