@@ -3263,6 +3263,7 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
 
     PDFPainterStateGuard guard(parameters.painter);
     parameters.painter->setCompositionMode(getCompositionMode());
+    parameters.boundingRectangle = getRectangle();
 
     if (parameters.formManager->isEditorDrawEnabled(formField))
     {
@@ -3402,15 +3403,26 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
                         painter->setBrush(Qt::NoBrush);
                         painter->drawRect(rectangle);
 
-                        if (parameters.key.second != "Off")
+                        if (!parameters.key.second.isEmpty() && parameters.key.second != "Off")
                         {
-                            QRectF rectangleMark = rectangle;
-                            rectangleMark.setWidth(rectangle.width() * 0.75);
-                            rectangleMark.setHeight(rectangle.height() * 0.75);
-                            rectangleMark.moveCenter(rectangle.center());
+                            const qreal size = qMin(rectangle.width(), rectangle.height());
+                            const qreal inset = qMin(qMax(size * 0.18, qreal(1.0)), size * 0.35);
+                            const QRectF rectangleMark = rectangle.adjusted(inset, inset, -inset, -inset);
 
-                            painter->drawLine(rectangleMark.topLeft(), rectangleMark.bottomRight());
-                            painter->drawLine(rectangleMark.bottomLeft(), rectangleMark.topRight());
+                            QPen markPen(Qt::black);
+                            markPen.setWidthF(qMax(size * 0.08, qreal(1.0)));
+                            markPen.setCapStyle(Qt::RoundCap);
+                            markPen.setJoinStyle(Qt::RoundJoin);
+                            painter->setPen(markPen);
+                            painter->setBrush(Qt::NoBrush);
+
+                            const qreal bottom = rectangleMark.top();
+                            const qreal top = rectangleMark.bottom();
+                            QPainterPath checkmarkPath;
+                            checkmarkPath.moveTo(rectangleMark.left(), bottom + rectangleMark.height() * 0.45);
+                            checkmarkPath.lineTo(rectangleMark.left() + rectangleMark.width() * 0.35, bottom);
+                            checkmarkPath.lineTo(rectangleMark.right(), top);
+                            painter->drawPath(checkmarkPath);
                         }
                         break;
                     }
@@ -3477,10 +3489,42 @@ std::vector<pdf::PDFAppeareanceStreams::Key> PDFWidgetAnnotation::getDrawKeys(co
                 case PDFFormFieldButton::ButtonType::CheckBox:
                 {
                     result = getAppearanceStreams().getAppearanceKeys();
-                    PDFAppeareanceStreams::Key offKey{ PDFAppeareanceStreams::Appearance::Normal, QByteArray() };
-                    if (std::find(result.cbegin(), result.cend(), offKey) == result.cend())
+
+                    for (PDFAppeareanceStreams::Key& key : result)
                     {
-                        result.push_back(qMove(offKey));
+                        if (key.first == PDFAppeareanceStreams::Appearance::Normal && key.second.isEmpty())
+                        {
+                            key.second = "Off";
+                        }
+                    }
+
+                    auto addKey = [&result](PDFAppeareanceStreams::Key key)
+                    {
+                        if (std::find(result.cbegin(), result.cend(), key) == result.cend())
+                        {
+                            result.push_back(qMove(key));
+                        }
+                    };
+
+                    addKey(PDFAppeareanceStreams::Key{ PDFAppeareanceStreams::Appearance::Normal, "Off" });
+
+                    for (const PDFFormWidget& formWidget : button->getWidgets())
+                    {
+                        if (formWidget.getWidget() == getSelfReference())
+                        {
+                            QByteArray onState = PDFFormFieldButton::getOnAppearanceState(formManager, &formWidget);
+                            if (!onState.isEmpty())
+                            {
+                                addKey(PDFAppeareanceStreams::Key{ PDFAppeareanceStreams::Appearance::Normal, qMove(onState) });
+                            }
+                            break;
+                        }
+                    }
+
+                    const QByteArray& appearanceState = getAppearanceState();
+                    if (!appearanceState.isEmpty() && appearanceState != "Off")
+                    {
+                        addKey(PDFAppeareanceStreams::Key{ PDFAppeareanceStreams::Appearance::Normal, appearanceState });
                     }
                     break;
                 }
