@@ -26,6 +26,7 @@
 
 #include <QtGlobal>
 #include <QtMath>
+#include <QMutex>
 #include "pdfdbgheap.h"
 
 #include <jpeglib.h>
@@ -567,6 +568,74 @@ QString PDFSysUtils::getUserName()
         userName = qgetenv("USERNAME");
     }
     return userName;
+}
+
+struct PDFAuthorSettingsHolder
+{
+    QMutex mutex;
+    PDFAuthorSettings::AuthorNameMode mode = PDFAuthorSettings::AuthorNameMode::Anonymous;
+    QString customAuthorName;
+};
+
+static PDFAuthorSettingsHolder s_authorSettings;
+
+QString PDFAuthorSettings::getAnonymousAuthorName()
+{
+    // Intentionally not translated - author name is stored in the document,
+    // so it should not depend on the current language of the application.
+    return QString("Unknown");
+}
+
+QString PDFAuthorSettings::getAuthorName()
+{
+    QMutexLocker locker(&s_authorSettings.mutex);
+
+    switch (s_authorSettings.mode)
+    {
+        case AuthorNameMode::SystemUserName:
+        {
+            QString userName = PDFSysUtils::getUserName();
+            if (!userName.isEmpty())
+            {
+                return userName;
+            }
+            break;
+        }
+
+        case AuthorNameMode::CustomName:
+        {
+            QString customAuthorName = s_authorSettings.customAuthorName.trimmed();
+            if (!customAuthorName.isEmpty())
+            {
+                return customAuthorName;
+            }
+            break;
+        }
+
+        default:
+            break;
+    }
+
+    return getAnonymousAuthorName();
+}
+
+PDFAuthorSettings::AuthorNameMode PDFAuthorSettings::getAuthorNameMode()
+{
+    QMutexLocker locker(&s_authorSettings.mutex);
+    return s_authorSettings.mode;
+}
+
+QString PDFAuthorSettings::getCustomAuthorName()
+{
+    QMutexLocker locker(&s_authorSettings.mutex);
+    return s_authorSettings.customAuthorName;
+}
+
+void PDFAuthorSettings::setAuthorName(AuthorNameMode mode, const QString& customAuthorName)
+{
+    QMutexLocker locker(&s_authorSettings.mutex);
+    s_authorSettings.mode = mode;
+    s_authorSettings.customAuthorName = customAuthorName;
 }
 
 PDFColorScale::PDFColorScale() :

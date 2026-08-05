@@ -115,6 +115,10 @@ private:
 
     void setSpeechEngine(const QString& engine, const QString& locale);
 
+    /// Updates author settings widgets, so they correspond
+    /// to the currently selected author name mode
+    void updateAuthorSettingsUI();
+
     /// Returns true, if dialog can be closed. If not, then message is displayed
     /// and false is returned.
     bool canCloseDialog();

@@ -437,7 +437,7 @@ void DifferencesDrawInterface::drawAnnotations(const pdf::PDFDocument* document,
 {
     pdf::PDFInteger pageCount = document->getCatalog()->getPageCount();
 
-    QString title = pdf::PDFSysUtils::getUserName();
+    QString title = pdf::PDFAuthorSettings::getAuthorName();
     QString subject = tr("Difference");
 
     for (pdf::PDFInteger pageIndex = 0; pageIndex < pageCount; ++pageIndex)

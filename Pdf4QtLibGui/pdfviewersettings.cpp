@@ -124,6 +124,11 @@ void PDFViewerSettings::readSettings(QSettings& settings, const pdf::PDFCMSSetti
     m_settings.m_autoGenerateBookmarks = settings.value("autoGenerateBookmarks", defaultSettings.m_autoGenerateBookmarks).toBool();
     settings.endGroup();
 
+    settings.beginGroup("Author");
+    m_settings.m_authorNameMode = static_cast<pdf::PDFAuthorSettings::AuthorNameMode>(settings.value("authorNameMode", int(defaultSettings.m_authorNameMode)).toInt());
+    m_settings.m_customAuthorName = settings.value("customAuthorName", defaultSettings.m_customAuthorName).toString();
+    settings.endGroup();
+
     settings.beginGroup("ColorScheme");
     m_settings.m_colorScheme = static_cast<ColorScheme>(settings.value("colorScheme", int(defaultSettings.m_colorScheme)).toInt());
     settings.endGroup();
@@ -207,6 +212,11 @@ void PDFViewerSettings::writeSettings(QSettings& settings)
 
     settings.beginGroup("Bookmarks");
     settings.setValue("autoGenerateBookmarks", m_settings.m_autoGenerateBookmarks);
+    settings.endGroup();
+
+    settings.beginGroup("Author");
+    settings.setValue("authorNameMode", int(m_settings.m_authorNameMode));
+    settings.setValue("customAuthorName", m_settings.m_customAuthorName);
     settings.endGroup();
 
     settings.beginGroup("ColorScheme");
@@ -337,6 +347,7 @@ PDFViewerSettings::Settings::Settings() :
     m_signatureIgnoreCertificateValidityTime(false),
     m_signatureUseSystemStore(true),
     m_autoGenerateBookmarks(true),
+    m_authorNameMode(pdf::PDFAuthorSettings::AuthorNameMode::Anonymous),
     m_colorScheme(AutoScheme),
     m_sidebarButtonIconSize(SidebarButtonIconSizeLarge),
     m_showSidebarOnDocumentOpen(true),

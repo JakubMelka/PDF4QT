@@ -30,6 +30,7 @@
 #include "pdfexecutionpolicy.h"
 #include "pdfform.h"
 #include "pdfapplicationtranslator.h"
+#include "pdfutils.h"
 
 #include <QObject>
 #include <limits>
@@ -129,6 +130,10 @@ public:
 
         // Bookmarks settings
         bool m_autoGenerateBookmarks;
+
+        // Author settings (used for newly created annotations)
+        pdf::PDFAuthorSettings::AuthorNameMode m_authorNameMode;
+        QString m_customAuthorName;
 
         // UI Dark/Light mode settings
         ColorScheme m_colorScheme;

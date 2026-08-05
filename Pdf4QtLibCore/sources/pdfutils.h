@@ -678,6 +678,39 @@ public:
     static QString getUserName();
 };
 
+/// Settings of the author name, which is used, when new user generated content
+/// is created (for example annotations). For privacy reasons, name of the system
+/// user is never used, unless the user explicitly enables it in the application
+/// settings. Settings are application wide.
+class PDF4QTLIBCORESHARED_EXPORT PDFAuthorSettings
+{
+public:
+
+    enum class AuthorNameMode : int
+    {
+        Anonymous       = 0,    ///< Neutral placeholder name is used, no personal information is disclosed
+        SystemUserName  = 1,    ///< Name of the system user is used
+        CustomName      = 2     ///< Name entered by the user is used
+    };
+
+    /// Returns neutral placeholder author name, which doesn't disclose
+    /// any personal information.
+    static QString getAnonymousAuthorName();
+
+    /// Returns author name, which should be used for newly created content.
+    /// Name of the system user is returned only, if user explicitly allows it,
+    /// otherwise anonymous author name is returned.
+    static QString getAuthorName();
+
+    static AuthorNameMode getAuthorNameMode();
+    static QString getCustomAuthorName();
+
+    /// Sets author name settings, which are used by the \p getAuthorName function.
+    /// \param mode Mode of the author name
+    /// \param customAuthorName Author name used in the \p CustomName mode
+    static void setAuthorName(AuthorNameMode mode, const QString& customAuthorName);
+};
+
 /// Set of closed intervals
 class PDF4QTLIBCORESHARED_EXPORT PDFClosedIntervalSet
 {

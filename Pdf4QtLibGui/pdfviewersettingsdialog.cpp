@@ -140,6 +140,11 @@ PDFViewerSettingsDialog::PDFViewerSettingsDialog(const PDFViewerSettings::Settin
     ui->cmsColorAdaptationXYZComboBox->addItem(tr("CAT02 matrix"), int (pdf::PDFCMSSettings::ColorAdaptationXYZ::CAT02));
     ui->cmsColorAdaptationXYZComboBox->addItem(tr("Bradford method"), int (pdf::PDFCMSSettings::ColorAdaptationXYZ::Bradford));
 
+    // Author identity
+    ui->authorNameModeComboBox->addItem(tr("Anonymous (do not disclose the user name)"), static_cast<int>(pdf::PDFAuthorSettings::AuthorNameMode::Anonymous));
+    ui->authorNameModeComboBox->addItem(tr("System user name"), static_cast<int>(pdf::PDFAuthorSettings::AuthorNameMode::SystemUserName));
+    ui->authorNameModeComboBox->addItem(tr("Custom name"), static_cast<int>(pdf::PDFAuthorSettings::AuthorNameMode::CustomName));
+
     // UI Color Schemes
     ui->colorSchemeCombo->addItem(tr("Automatic (or via command line)"), static_cast<int>(PDFViewerSettings::AutoScheme));
     ui->colorSchemeCombo->addItem(tr("Light scheme"), static_cast<int>(PDFViewerSettings::LightScheme));
@@ -331,6 +336,9 @@ void PDFViewerSettingsDialog::loadData()
     // Security
     ui->allowLaunchCheckBox->setChecked(m_settings.m_allowLaunchApplications);
     ui->allowRunURICheckBox->setChecked(m_settings.m_allowLaunchURI);
+    ui->authorNameModeComboBox->setCurrentIndex(ui->authorNameModeComboBox->findData(static_cast<int>(m_settings.m_authorNameMode)));
+    ui->customAuthorNameEdit->setText(m_settings.m_customAuthorName);
+    updateAuthorSettingsUI();
 
     // UI
     ui->maximumRecentFileCountEdit->setValue(m_otherSettings.maximumRecentFileCount);
@@ -513,6 +521,15 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->allowRunURICheckBox)
     {
         m_settings.m_allowLaunchURI = ui->allowRunURICheckBox->isChecked();
+    }
+    else if (sender == ui->authorNameModeComboBox)
+    {
+        m_settings.m_authorNameMode = static_cast<pdf::PDFAuthorSettings::AuthorNameMode>(ui->authorNameModeComboBox->currentData().toInt());
+        updateAuthorSettingsUI();
+    }
+    else if (sender == ui->customAuthorNameEdit)
+    {
+        m_settings.m_customAuthorName = ui->customAuthorNameEdit->text();
     }
     else if (sender == ui->developerModeCheckBox)
     {
@@ -902,6 +919,27 @@ void PDFViewerSettingsDialog::setSpeechEngine(const QString& engine, const QStri
         ui->speechVoiceComboBox->addItem(QString("%1 (%2, %3)").arg(voice.name(), QVoice::genderName(voice.gender()), QVoice::ageName(voice.age())), voice.name());
     }
     ui->speechVoiceComboBox->setUpdatesEnabled(true);
+}
+
+void PDFViewerSettingsDialog::updateAuthorSettingsUI()
+{
+    const bool isCustomName = m_settings.m_authorNameMode == pdf::PDFAuthorSettings::AuthorNameMode::CustomName;
+
+    ui->customAuthorNameLabel->setEnabled(isCustomName);
+    ui->customAuthorNameEdit->setEnabled(isCustomName);
+
+    // Show the author name, which will be really used, so the user can see,
+    // what will be written into the document
+    switch (m_settings.m_authorNameMode)
+    {
+        case pdf::PDFAuthorSettings::AuthorNameMode::SystemUserName:
+            ui->customAuthorNameEdit->setPlaceholderText(pdf::PDFSysUtils::getUserName());
+            break;
+
+        default:
+            ui->customAuthorNameEdit->setPlaceholderText(pdf::PDFAuthorSettings::getAnonymousAuthorName());
+            break;
+    }
 }
 
 bool PDFViewerSettingsDialog::canCloseDialog()

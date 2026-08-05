@@ -108,9 +108,9 @@ void PDFCreateStickyNoteTool::onPointPicked(PDFInteger pageIndex, QPointF pagePo
     {
         PDFDocumentModifier modifier(getDocument());
 
-        QString userName = PDFSysUtils::getUserName();
+        QString author = PDFAuthorSettings::getAuthorName();
         PDFObjectReference page = getDocument()->getCatalog()->getPage(pageIndex)->getPageReference();
-        modifier.getBuilder()->createAnnotationText(page, QRectF(pagePoint, QSizeF(0, 0)), m_icon, userName, QString(), text, false);
+        modifier.getBuilder()->createAnnotationText(page, QRectF(pagePoint, QSizeF(0, 0)), m_icon, author, QString(), text, false);
         modifier.markAnnotationsChanged();
 
         if (modifier.finalize())
@@ -158,7 +158,6 @@ void PDFCreateHyperlinkTool::onRectanglePicked(PDFInteger pageIndex, QRectF page
     {
         PDFDocumentModifier modifier(getDocument());
 
-        QString userName = PDFSysUtils::getUserName();
         PDFObjectReference page = getDocument()->getCatalog()->getPage(pageIndex)->getPageReference();
         modifier.getBuilder()->createAnnotationLink(page, pageRectangle, url, m_highlightMode);
         modifier.markAnnotationsChanged();
@@ -466,9 +465,9 @@ void PDFCreateFreeTextTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageR
 
     PDFDocumentModifier modifier(getDocument());
 
-    QString userName = PDFSysUtils::getUserName();
+    QString author = PDFAuthorSettings::getAuthorName();
     PDFObjectReference page = getDocument()->getCatalog()->getPage(pageIndex)->getPageReference();
-    modifier.getBuilder()->createAnnotationFreeText(page, pageRectangle, userName, QString(), text, m_style, m_autoResizeToContents);
+    modifier.getBuilder()->createAnnotationFreeText(page, pageRectangle, author, QString(), text, m_style, m_autoResizeToContents);
     modifier.markAnnotationsChanged();
 
     if (modifier.finalize())
@@ -553,9 +552,9 @@ void PDFCreateLineTypeTool::finishDefinition()
             {
                 PDFDocumentModifier modifier(getDocument());
 
-                QString userName = PDFSysUtils::getUserName();
+                QString author = PDFAuthorSettings::getAuthorName();
                 PDFObjectReference page = getDocument()->getCatalog()->getPage(m_pickTool->getPageIndex())->getPageReference();
-                modifier.getBuilder()->createAnnotationLine(page, QRectF(), pickedPoints.front(), pickedPoints.back(), m_penWidth, m_fillColor, m_strokeColor, userName, QString(), QString(), AnnotationLineEnding::None, AnnotationLineEnding::None);
+                modifier.getBuilder()->createAnnotationLine(page, QRectF(), pickedPoints.front(), pickedPoints.back(), m_penWidth, m_fillColor, m_strokeColor, author, QString(), QString(), AnnotationLineEnding::None, AnnotationLineEnding::None);
                 modifier.markAnnotationsChanged();
 
                 if (modifier.finalize())
@@ -580,9 +579,9 @@ void PDFCreateLineTypeTool::finishDefinition()
                     polygon << point;
                 }
 
-                QString userName = PDFSysUtils::getUserName();
+                QString author = PDFAuthorSettings::getAuthorName();
                 PDFObjectReference page = getDocument()->getCatalog()->getPage(m_pickTool->getPageIndex())->getPageReference();
-                modifier.getBuilder()->createAnnotationPolyline(page, polygon, m_penWidth, m_fillColor, m_strokeColor, userName, QString(), QString(), AnnotationLineEnding::None, AnnotationLineEnding::None);
+                modifier.getBuilder()->createAnnotationPolyline(page, polygon, m_penWidth, m_fillColor, m_strokeColor, author, QString(), QString(), AnnotationLineEnding::None, AnnotationLineEnding::None);
                 modifier.markAnnotationsChanged();
 
                 if (modifier.finalize())
@@ -611,9 +610,9 @@ void PDFCreateLineTypeTool::finishDefinition()
                     polygon << pickedPoints.front();
                 }
 
-                QString userName = PDFSysUtils::getUserName();
+                QString author = PDFAuthorSettings::getAuthorName();
                 PDFObjectReference page = getDocument()->getCatalog()->getPage(m_pickTool->getPageIndex())->getPageReference();
-                PDFObjectReference annotation = modifier.getBuilder()->createAnnotationPolygon(page, polygon, m_penWidth, m_fillColor, m_strokeColor, userName, QString(), QString());
+                PDFObjectReference annotation = modifier.getBuilder()->createAnnotationPolygon(page, polygon, m_penWidth, m_fillColor, m_strokeColor, author, QString(), QString());
                 modifier.getBuilder()->setAnnotationFillOpacity(annotation, m_fillColor.alphaF());
                 modifier.getBuilder()->updateAnnotationAppearanceStreams(annotation);
                 modifier.markAnnotationsChanged();
@@ -641,9 +640,9 @@ void PDFCreateLineTypeTool::finishDefinition()
                 polygon << m_rectOnPage.bottomLeft();
                 polygon << m_rectOnPage.topLeft();
 
-                QString userName = PDFSysUtils::getUserName();
+                QString author = PDFAuthorSettings::getAuthorName();
                 PDFObjectReference page = getDocument()->getCatalog()->getPage(m_pickTool->getPageIndex())->getPageReference();
-                PDFObjectReference annotation = modifier.getBuilder()->createAnnotationPolygon(page, polygon, m_penWidth, m_fillColor, m_strokeColor, userName, QString(), QString());
+                PDFObjectReference annotation = modifier.getBuilder()->createAnnotationPolygon(page, polygon, m_penWidth, m_fillColor, m_strokeColor, author, QString(), QString());
                 modifier.getBuilder()->setAnnotationFillOpacity(annotation, m_fillColor.alphaF());
                 modifier.getBuilder()->updateAnnotationAppearanceStreams(annotation);
                 modifier.markAnnotationsChanged();
@@ -1002,9 +1001,9 @@ void PDFCreateEllipseTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRe
 
     PDFDocumentModifier modifier(getDocument());
 
-    QString userName = PDFSysUtils::getUserName();
+    QString author = PDFAuthorSettings::getAuthorName();
     PDFObjectReference page = getDocument()->getCatalog()->getPage(pageIndex)->getPageReference();
-    PDFObjectReference annotation = modifier.getBuilder()->createAnnotationCircle(page, pageRectangle, m_penWidth, m_fillColor, m_strokeColor, userName, QString(), QString());
+    PDFObjectReference annotation = modifier.getBuilder()->createAnnotationCircle(page, pageRectangle, m_penWidth, m_fillColor, m_strokeColor, author, QString(), QString());
     modifier.getBuilder()->setAnnotationFillOpacity(annotation, m_fillColor.alphaF());
     modifier.getBuilder()->updateAnnotationAppearanceStreams(annotation);
     modifier.markAnnotationsChanged();
@@ -1106,9 +1105,9 @@ void PDFCreateFreehandCurveTool::mouseReleaseEvent(QWidget* widget, QMouseEvent*
                     polygon << point;
                 }
 
-                QString userName = PDFSysUtils::getUserName();
+                QString author = PDFAuthorSettings::getAuthorName();
                 PDFObjectReference page = getDocument()->getCatalog()->getPage(m_pageIndex)->getPageReference();
-                modifier.getBuilder()->createAnnotationPolyline(page, polygon, m_penWidth, Qt::black, m_strokeColor, userName, QString(), QString(), AnnotationLineEnding::None, AnnotationLineEnding::None);
+                modifier.getBuilder()->createAnnotationPolyline(page, polygon, m_penWidth, Qt::black, m_strokeColor, author, QString(), QString(), AnnotationLineEnding::None, AnnotationLineEnding::None);
                 modifier.markAnnotationsChanged();
 
                 if (modifier.finalize())
@@ -1266,9 +1265,9 @@ void PDFCreateStampTool::onPointPicked(PDFInteger pageIndex, QPointF pagePoint)
 {
     PDFDocumentModifier modifier(getDocument());
 
-    QString userName = PDFSysUtils::getUserName();
+    QString author = PDFAuthorSettings::getAuthorName();
     PDFObjectReference page = getDocument()->getCatalog()->getPage(pageIndex)->getPageReference();
-    modifier.getBuilder()->createAnnotationStamp(page, QRectF(pagePoint, QSizeF(0, 0)), m_stampAnnotation.getStamp(), userName, QString(), QString());
+    modifier.getBuilder()->createAnnotationStamp(page, QRectF(pagePoint, QSizeF(0, 0)), m_stampAnnotation.getStamp(), author, QString(), QString());
     modifier.markAnnotationsChanged();
 
     if (modifier.finalize())

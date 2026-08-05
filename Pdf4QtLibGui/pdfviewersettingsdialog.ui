@@ -921,6 +921,45 @@ li.checked::marker { content: &quot;\2612&quot;; }
            </layout>
           </widget>
          </item>
+         <item>
+          <widget class="QGroupBox" name="authorGroupBox">
+           <property name="title">
+            <string>Author Identity</string>
+           </property>
+           <layout class="QGridLayout" name="authorGridLayout">
+            <item row="0" column="0">
+             <widget class="QLabel" name="authorNameModeLabel">
+              <property name="text">
+               <string>Author of new annotations</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <widget class="QComboBox" name="authorNameModeComboBox"/>
+            </item>
+            <item row="1" column="0">
+             <widget class="QLabel" name="customAuthorNameLabel">
+              <property name="text">
+               <string>Custom author name</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="1">
+             <widget class="QLineEdit" name="customAuthorNameEdit"/>
+            </item>
+            <item row="2" column="0" colspan="2">
+             <widget class="QLabel" name="authorHelpLabel">
+              <property name="text">
+               <string>The author name is stored in the document and is visible to anyone who opens it. To protect your privacy, the name of the system user is used only when you explicitly select it.</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
         </layout>
        </widget>
        <widget class="QWidget" name="uiPage">

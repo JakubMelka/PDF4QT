@@ -1948,6 +1948,7 @@ void PDFProgramController::onViewerSettingsChanged()
     m_annotationManager->setFeatures(m_settings->getFeatures());
     m_annotationManager->setMeshQualitySettings(m_pdfWidget->getDrawWidgetProxy()->getMeshQualitySettings());
     pdf::PDFExecutionPolicy::setStrategy(m_settings->getMultithreadingStrategy());
+    pdf::PDFAuthorSettings::setAuthorName(m_settings->getSettings().m_authorNameMode, m_settings->getSettings().m_customAuthorName);
 
     updateRenderingOptionActions();
 }
