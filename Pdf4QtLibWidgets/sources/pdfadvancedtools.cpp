@@ -47,6 +47,7 @@
 #include <QVector2D>
 #include <QVBoxLayout>
 #include <QApplication>
+#include <QSettings>
 
 #include <limits>
 #include <algorithm>
@@ -1548,15 +1549,68 @@ void PDFCreateHighlightTextTool::updateInitialColor()
 PDFCreateRedactRectangleTool::PDFCreateRedactRectangleTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QAction* action, QObject* parent) :
     BaseClass(proxy, action, parent),
     m_toolManager(toolManager),
-    m_pickTool(nullptr)
+    m_pickTool(nullptr),
+    m_colorDialog(nullptr),
+    m_color(getRedactColor())
 {
     m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Rectangles, this);
     m_pickTool->setSnapToAnnotations(true);
-    m_pickTool->setSelectionRectangleColor(Qt::black);
+    m_pickTool->setSelectionRectangleColor(m_color);
     addTool(m_pickTool);
     connect(m_pickTool, &PDFPickTool::rectanglePicked, this, &PDFCreateRedactRectangleTool::onRectanglePicked);
 
     updateActions();
+}
+
+QColor PDFCreateRedactRectangleTool::getRedactColor()
+{
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
+    settings.beginGroup("RedactTool");
+    const QColor color = settings.value("redactColor", QColor(Qt::black)).value<QColor>();
+    settings.endGroup();
+    return color.isValid() ? color : QColor(Qt::black);
+}
+
+void PDFCreateRedactRectangleTool::setRedactColor(const QColor& color)
+{
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
+    settings.beginGroup("RedactTool");
+    settings.setValue("redactColor", color);
+    settings.endGroup();
+}
+
+void PDFCreateRedactRectangleTool::setActiveImpl(bool active)
+{
+    BaseClass::setActiveImpl(active);
+
+    if (!active)
+    {
+        delete m_colorDialog;
+        m_colorDialog = nullptr;
+    }
+    else
+    {
+        m_color = getRedactColor();
+        m_pickTool->setSelectionRectangleColor(m_color);
+
+        m_colorDialog = new QColorDialog(m_color, getProxy()->getWidget());
+        m_colorDialog->setWindowTitle(tr("Select Color"));
+        m_colorDialog->setOption(QColorDialog::ShowAlphaChannel, false);
+        m_colorDialog->setOption(QColorDialog::NoButtons, true);
+        m_colorDialog->setOption(QColorDialog::DontUseNativeDialog, true);
+        m_colorDialog->setOption(QColorDialog::NoEyeDropperButton, true);
+        m_colorDialog->setWindowFlag(Qt::Tool);
+        m_colorDialog->move(pdf::PDFWidgetUtils::scaleDPI_x(m_colorDialog, 50), pdf::PDFWidgetUtils::scaleDPI_y(m_colorDialog, 50));
+        connect(m_colorDialog, &QColorDialog::currentColorChanged, this, &PDFCreateRedactRectangleTool::onColorChanged);
+        m_colorDialog->show();
+    }
+}
+
+void PDFCreateRedactRectangleTool::onColorChanged(const QColor& color)
+{
+    m_color = color;
+    m_pickTool->setSelectionRectangleColor(m_color);
+    setRedactColor(m_color);
 }
 
 void PDFCreateRedactRectangleTool::onRectanglePicked(PDFInteger pageIndex, QRectF pageRectangle)
@@ -1569,7 +1623,7 @@ void PDFCreateRedactRectangleTool::onRectanglePicked(PDFInteger pageIndex, QRect
     PDFDocumentModifier modifier(getDocument());
 
     PDFObjectReference page = getDocument()->getCatalog()->getPage(pageIndex)->getPageReference();
-    PDFObjectReference annotation = modifier.getBuilder()->createAnnotationRedact(page, pageRectangle, Qt::black);
+    PDFObjectReference annotation = modifier.getBuilder()->createAnnotationRedact(page, pageRectangle, m_color);
     modifier.getBuilder()->updateAnnotationAppearanceStreams(annotation);
     modifier.markAnnotationsChanged();
 
@@ -1691,6 +1745,8 @@ void PDFCreateInsertPageNumbersTool::onRectanglePicked(PDFInteger pageIndex, QRe
 PDFCreateRedactTextTool::PDFCreateRedactTextTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QAction* action, QObject* parent) :
     BaseClass(proxy, action, parent),
     m_toolManager(toolManager),
+    m_colorDialog(nullptr),
+    m_color(PDFCreateRedactRectangleTool::getRedactColor()),
     m_isCursorOverText(false)
 {
     updateActions();
@@ -1752,7 +1808,7 @@ void PDFCreateRedactTextTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* ev
                 // Jakub Melka: handle the selection
                 PDFTextLayoutGetter textLayoutGetter = getProxy()->getTextLayoutCompiler()->getTextLayoutLazy(pageIndex);
                 PDFTextLayout textLayout = textLayoutGetter;
-                setSelection(textLayout.createTextSelection(pageIndex, m_selectionInfo.selectionStartPoint, pagePoint, Qt::black));
+                setSelection(textLayout.createTextSelection(pageIndex, m_selectionInfo.selectionStartPoint, pagePoint, m_color));
 
                 QPolygonF quadrilaterals;
                 PDFTextSelectionPainter textSelectionPainter(&m_textSelection);
@@ -1763,7 +1819,7 @@ void PDFCreateRedactTextTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* ev
                     PDFDocumentModifier modifier(getDocument());
 
                     PDFObjectReference page = getDocument()->getCatalog()->getPage(pageIndex)->getPageReference();
-                    modifier.getBuilder()->createAnnotationRedact(page, quadrilaterals, Qt::black);
+                    modifier.getBuilder()->createAnnotationRedact(page, quadrilaterals, m_color);
                     modifier.markAnnotationsChanged();
 
                     if (modifier.finalize())
@@ -1796,7 +1852,7 @@ void PDFCreateRedactTextTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event
         if (m_selectionInfo.pageIndex == pageIndex)
         {
             // Jakub Melka: handle the selection
-            setSelection(textLayout.createTextSelection(pageIndex, m_selectionInfo.selectionStartPoint, pagePoint, Qt::black));
+            setSelection(textLayout.createTextSelection(pageIndex, m_selectionInfo.selectionStartPoint, pagePoint, m_color));
         }
         else
         {
@@ -1827,7 +1883,31 @@ void PDFCreateRedactTextTool::setActiveImpl(bool active)
     {
         // Just clear the text selection
         setSelection(PDFTextSelection());
+
+        delete m_colorDialog;
+        m_colorDialog = nullptr;
     }
+    else
+    {
+        m_color = PDFCreateRedactRectangleTool::getRedactColor();
+
+        m_colorDialog = new QColorDialog(m_color, getProxy()->getWidget());
+        m_colorDialog->setWindowTitle(tr("Select Color"));
+        m_colorDialog->setOption(QColorDialog::ShowAlphaChannel, false);
+        m_colorDialog->setOption(QColorDialog::NoButtons, true);
+        m_colorDialog->setOption(QColorDialog::DontUseNativeDialog, true);
+        m_colorDialog->setOption(QColorDialog::NoEyeDropperButton, true);
+        m_colorDialog->setWindowFlag(Qt::Tool);
+        m_colorDialog->move(pdf::PDFWidgetUtils::scaleDPI_x(m_colorDialog, 50), pdf::PDFWidgetUtils::scaleDPI_y(m_colorDialog, 50));
+        connect(m_colorDialog, &QColorDialog::currentColorChanged, this, &PDFCreateRedactTextTool::onColorChanged);
+        m_colorDialog->show();
+    }
+}
+
+void PDFCreateRedactTextTool::onColorChanged(const QColor& color)
+{
+    m_color = color;
+    PDFCreateRedactRectangleTool::setRedactColor(m_color);
 }
 
 void PDFCreateRedactTextTool::updateCursor()

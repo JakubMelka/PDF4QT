@@ -121,6 +121,8 @@ void RedactPlugin::onRedactTextSelectionTriggered()
         return;
     }
 
+    const QColor redactColor = pdf::PDFCreateRedactRectangleTool::getRedactColor();
+
     pdf::PDFDocumentModifier modifier(m_document);
 
     for (auto it = selectedText.begin(); it != selectedText.end(); it = selectedText.nextPageRange(it))
@@ -137,7 +139,7 @@ void RedactPlugin::onRedactTextSelectionTriggered()
         if (!path.isEmpty())
         {
             pdf::PDFObjectReference page = m_document->getCatalog()->getPage(pageIndex)->getPageReference();
-            modifier.getBuilder()->createAnnotationRedact(page, quadrilaterals, Qt::black);
+            modifier.getBuilder()->createAnnotationRedact(page, quadrilaterals, redactColor);
             modifier.markAnnotationsChanged();
         }
     }
