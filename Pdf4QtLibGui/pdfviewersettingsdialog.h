@@ -109,6 +109,13 @@ private:
     void loadActionShortcutsTable();
     bool saveActionShortcutsTable();
 
+    /// Returns action's text as shown in the shortcuts table, prefixed by its
+    /// category (if any) so actions that share their text with an unrelated
+    /// action elsewhere (e.g. an outline item's "XYZ" target vs. the "XYZ"
+    /// hyperlink tool) can be told apart. The action's own text (and thus what
+    /// it shows in its own menu/toolbar) is left untouched.
+    static QString getActionShortcutDisplayText(const QAction* action);
+
     void loadPluginsTable();
     void savePluginsTable();
     void updatePluginInformation();

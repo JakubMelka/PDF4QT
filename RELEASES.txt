@@ -1,6 +1,7 @@
 CURRENT:
  - Issue #412: Change default Note author name (and please do not use the system name)
  - Issue #409: [idea] choose color of Redact Rectangle
+ - Issue #408: [idea] Make XYZ shortcut refer to outline item when selected
  - Issue #398: Enhancing Speech Support: Locale Addons and System Voice Detection
  - Issue #395: [idea] white crosshair easier to see in dark mode
  - Issue #299: PDF element display error

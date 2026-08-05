@@ -306,6 +306,10 @@ PDFEditorMainWindow::PDFEditorMainWindow(QWidget* parent) :
     m_sidebarDockWidget->hide();
     connect(m_sidebarWidget, &PDFSidebarWidget::actionTriggered, m_programController, &PDFProgramController::onActionTriggered);
     connect(m_sidebarWidget, &PDFSidebarWidget::documentModified, m_programController, &PDFProgramController::onDocumentModified);
+    for (QAction* action : m_sidebarWidget->getOutlineActions())
+    {
+        m_actionManager->addAdditionalAction(action);
+    }
 
     m_advancedFindWidget = new PDFAdvancedFindWidget(m_programController->getPdfWidget()->getDrawWidgetProxy(), this);
     m_advancedFindDockWidget = new QDockWidget(tr("Advanced find"), this);

@@ -43,6 +43,26 @@
 namespace pdfviewer
 {
 
+namespace
+{
+// Must match the same literal used in PDFSidebarWidget::createOutlineActions,
+// which tags its outline-item actions with this property so their entries in
+// this dialog's shortcuts table can be prefixed by category (e.g. "Outline: XYZ")
+// without changing the action's own text, which is what shows up in its context menu.
+constexpr const char* ACTION_CATEGORY_PROPERTY = "pdf4qtActionCategory";
+}
+
+QString PDFViewerSettingsDialog::getActionShortcutDisplayText(const QAction* action)
+{
+    const QVariant category = action->property(ACTION_CATEGORY_PROPERTY);
+    if (category.isValid())
+    {
+        return tr("%1: %2").arg(category.toString(), action->text());
+    }
+
+    return action->text();
+}
+
 class SettingsDelegate : public QStyledItemDelegate
 {
 public:
@@ -792,7 +812,7 @@ void PDFViewerSettingsDialog::loadActionShortcutsTable()
         QAction* action = m_actions[i];
 
         // Action name and icon
-        QTableWidgetItem* actionItem = new QTableWidgetItem(action->icon(), action->text());
+        QTableWidgetItem* actionItem = new QTableWidgetItem(action->icon(), getActionShortcutDisplayText(action));
         actionItem->setFlags(Qt::ItemIsEnabled);
         ui->shortcutsTableWidget->setItem(i, 0, actionItem);
 
@@ -813,7 +833,7 @@ bool PDFViewerSettingsDialog::saveActionShortcutsTable()
             QKeySequence sequence = QKeySequence::fromString(shortcut, QKeySequence::NativeText);
             if (sequence.toString(QKeySequence::PortableText).isEmpty())
             {
-                QMessageBox::critical(this, tr("Error"), tr("Shortcut '%1' is invalid for action %2.").arg(shortcut, m_actions[i]->text()));
+                QMessageBox::critical(this, tr("Error"), tr("Shortcut '%1' is invalid for action %2.").arg(shortcut, getActionShortcutDisplayText(m_actions[i])));
                 return false;
             }
         }

@@ -28,6 +28,7 @@
 
 #include <QWidget>
 
+class QAction;
 class QPushButton;
 class QToolButton;
 class QWidget;
@@ -107,6 +108,12 @@ public:
     /// Sets current pages (for example, selects the correct thumbnail)
     void setCurrentPages(const std::vector<pdf::PDFInteger>& currentPages);
 
+    /// Returns list of actions operating on the currently selected outline item
+    /// (available only when outline editing is enabled). These are the same
+    /// actions used to build the outline item's context menu, so they can be
+    /// registered with the action manager to make them remappable/persistent.
+    std::vector<QAction*> getOutlineActions() const;
+
 signals:
     void actionTriggered(const pdf::PDFAction* action);
     void documentModified(pdf::PDFModifiedDocument document);
@@ -134,6 +141,24 @@ private:
     void onBookmarsCurrentIndexChanged(const QModelIndex& current, const QModelIndex& previous);
     void onBookmarkClicked(const QModelIndex& index);
     void onNotesItemClicked(const QModelIndex& index);
+
+    // Outline item actions (created once, shared between the context menu and,
+    // once registered with the action manager, keyboard shortcuts)
+    void createOutlineActions();
+    void updateOutlineActions();
+    QModelIndex getCurrentOutlineSourceIndex() const;
+    int countInheritableZoomLinks() const;
+
+    void onOutlineActionFollow();
+    void onOutlineActionInsert();
+    void onOutlineActionDelete();
+    void onOutlineActionRename();
+    void onOutlineActionFontBold();
+    void onOutlineActionFontItalic();
+    void onOutlineActionSetTargetNamedDestination();
+    void onOutlineActionSetTargetByType();
+    void onOutlineActionInheritZoom();
+    void onOutlineActionInheritZoomForAllChapters();
 
     struct PageInfo
     {
@@ -166,6 +191,27 @@ private:
     std::vector<std::pair<pdf::PDFObjectReference, pdf::PDFInteger>> m_markupAnnotations;
     Page m_currentPage = Invalid;
     bool m_bookmarkChangeInProgress = false;
+
+    // Outline item actions (valid only when outline editing is enabled)
+    QAction* m_outlineActionFollow = nullptr;
+    QAction* m_outlineActionDelete = nullptr;
+    QAction* m_outlineActionInsert = nullptr;
+    QAction* m_outlineActionRename = nullptr;
+    QAction* m_outlineActionFontBold = nullptr;
+    QAction* m_outlineActionFontItalic = nullptr;
+    QAction* m_outlineActionSetTargetNamedDestination = nullptr;
+    QAction* m_outlineActionSetTargetFitPage = nullptr;
+    QAction* m_outlineActionSetTargetFitPageHorizontally = nullptr;
+    QAction* m_outlineActionSetTargetFitPageVertically = nullptr;
+    QAction* m_outlineActionSetTargetFitRectangle = nullptr;
+    QAction* m_outlineActionSetTargetFitBoundingBox = nullptr;
+    QAction* m_outlineActionSetTargetFitBoundingBoxHorizontally = nullptr;
+    QAction* m_outlineActionSetTargetFitBoundingBoxVertically = nullptr;
+    QAction* m_outlineActionSetTargetXYZ = nullptr;
+    QAction* m_outlineActionInheritZoom = nullptr;
+    QAction* m_outlineActionInheritZoomForAllChapters = nullptr;
+    std::vector<QAction*> m_outlineSetTargetActions;
+    std::vector<QAction*> m_outlineActions;
 };
 
 }   // namespace pdfviewer

@@ -124,6 +124,10 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
         connect(m_outlineTreeModel, &pdf::PDFOutlineTreeItemModel::rowsInserted, this, &PDFSidebarWidget::onOutlineItemsChanged);
         connect(m_outlineTreeModel, &pdf::PDFOutlineTreeItemModel::rowsRemoved, this, &PDFSidebarWidget::onOutlineItemsChanged);
         connect(m_outlineTreeModel, &pdf::PDFOutlineTreeItemModel::rowsMoved, this, &PDFSidebarWidget::onOutlineItemsChanged);
+
+        createOutlineActions();
+        connect(ui->outlineTreeView->selectionModel(), &QItemSelectionModel::currentChanged, this, &PDFSidebarWidget::updateOutlineActions);
+        updateOutlineActions();
     }
 
     connect(ui->outlineTreeView, &QTreeView::clicked, this, &PDFSidebarWidget::onOutlineItemClicked);
@@ -234,6 +238,7 @@ void PDFSidebarWidget::setDocument(const pdf::PDFModifiedDocument& document, con
 
     // Update outline
     m_outlineTreeModel->setDocument(document);
+    updateOutlineActions();
 
     // Thumbnails
     m_thumbnailsModel->setDocument(document);
@@ -1093,325 +1098,447 @@ void PDFSidebarWidget::onSignatureCustomContextMenuRequested(const QPoint& pos)
     }
 }
 
+namespace
+{
+// Must match the same literal used in PDFViewerSettingsDialog::getActionShortcutDisplayText,
+// which reads this property to prefix these actions' names in the Settings shortcuts table
+// (they otherwise keep their plain text, e.g. "XYZ", in the outline context menu).
+constexpr const char* OUTLINE_ACTION_CATEGORY_PROPERTY = "pdf4qtActionCategory";
+}
+
+void PDFSidebarWidget::createOutlineActions()
+{
+    auto createAction = [this](const QString& objectName, const QString& text, void (PDFSidebarWidget::* slot)())
+    {
+        QAction* action = new QAction(text, this);
+        action->setObjectName(objectName);
+        action->setProperty(OUTLINE_ACTION_CATEGORY_PROPERTY, tr("Outline"));
+        action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+        ui->outlineTreeView->addAction(action);
+        connect(action, &QAction::triggered, this, slot);
+        m_outlineActions.push_back(action);
+        return action;
+    };
+
+    m_outlineActionFollow = createAction("actionOutlineFollow", tr("Follow"), &PDFSidebarWidget::onOutlineActionFollow);
+    m_outlineActionInsert = createAction("actionOutlineInsert", tr("Insert"), &PDFSidebarWidget::onOutlineActionInsert);
+    m_outlineActionDelete = createAction("actionOutlineDelete", tr("Delete"), &PDFSidebarWidget::onOutlineActionDelete);
+    m_outlineActionRename = createAction("actionOutlineRename", tr("Rename"), &PDFSidebarWidget::onOutlineActionRename);
+    m_outlineActionInsert->setEnabled(true);
+
+    m_outlineActionFontBold = createAction("actionOutlineFontBold", tr("Font Bold"), &PDFSidebarWidget::onOutlineActionFontBold);
+    m_outlineActionFontBold->setCheckable(true);
+    m_outlineActionFontItalic = createAction("actionOutlineFontItalic", tr("Font Italic"), &PDFSidebarWidget::onOutlineActionFontItalic);
+    m_outlineActionFontItalic->setCheckable(true);
+
+    auto createSetTargetByTypeAction = [this, &createAction](const QString& objectName, const QString& text, pdf::DestinationType destinationType)
+    {
+        QAction* action = createAction(objectName, text, &PDFSidebarWidget::onOutlineActionSetTargetByType);
+        action->setData(int(destinationType));
+        return action;
+    };
+
+    m_outlineActionSetTargetNamedDestination = createAction("actionOutlineSetTargetNamedDestination", tr("Named Destination"), &PDFSidebarWidget::onOutlineActionSetTargetNamedDestination);
+    m_outlineActionSetTargetFitPage = createSetTargetByTypeAction("actionOutlineSetTargetFitPage", tr("Fit Page"), pdf::DestinationType::Fit);
+    m_outlineActionSetTargetFitPageHorizontally = createSetTargetByTypeAction("actionOutlineSetTargetFitPageHorizontally", tr("Fit Page Horizontally"), pdf::DestinationType::FitH);
+    m_outlineActionSetTargetFitPageVertically = createSetTargetByTypeAction("actionOutlineSetTargetFitPageVertically", tr("Fit Page Vertically"), pdf::DestinationType::FitV);
+    m_outlineActionSetTargetFitRectangle = createSetTargetByTypeAction("actionOutlineSetTargetFitRectangle", tr("Fit Rectangle"), pdf::DestinationType::FitR);
+    m_outlineActionSetTargetFitBoundingBox = createSetTargetByTypeAction("actionOutlineSetTargetFitBoundingBox", tr("Fit Bounding Box"), pdf::DestinationType::FitB);
+    m_outlineActionSetTargetFitBoundingBoxHorizontally = createSetTargetByTypeAction("actionOutlineSetTargetFitBoundingBoxHorizontally", tr("Fit Bounding Box Horizontally"), pdf::DestinationType::FitBH);
+    m_outlineActionSetTargetFitBoundingBoxVertically = createSetTargetByTypeAction("actionOutlineSetTargetFitBoundingBoxVertically", tr("Fit Bounding Box Vertically"), pdf::DestinationType::FitBV);
+    m_outlineActionSetTargetXYZ = createSetTargetByTypeAction("actionOutlineSetTargetXYZ", tr("XYZ"), pdf::DestinationType::XYZ);
+
+    m_outlineSetTargetActions = { m_outlineActionSetTargetNamedDestination,
+                                   m_outlineActionSetTargetFitPage,
+                                   m_outlineActionSetTargetFitPageHorizontally,
+                                   m_outlineActionSetTargetFitPageVertically,
+                                   m_outlineActionSetTargetFitRectangle,
+                                   m_outlineActionSetTargetFitBoundingBox,
+                                   m_outlineActionSetTargetFitBoundingBoxHorizontally,
+                                   m_outlineActionSetTargetFitBoundingBoxVertically,
+                                   m_outlineActionSetTargetXYZ };
+
+    m_outlineActionInheritZoom = createAction("actionOutlineInheritZoom", tr("Inherit Zoom"), &PDFSidebarWidget::onOutlineActionInheritZoom);
+    m_outlineActionInheritZoomForAllChapters = createAction("actionOutlineInheritZoomForAllChapters", tr("Inherit Zoom for All Chapters"), &PDFSidebarWidget::onOutlineActionInheritZoomForAllChapters);
+}
+
+std::vector<QAction*> PDFSidebarWidget::getOutlineActions() const
+{
+    return m_outlineActions;
+}
+
+QModelIndex PDFSidebarWidget::getCurrentOutlineSourceIndex() const
+{
+    return m_outlineSortProxyTreeModel->mapToSource(ui->outlineTreeView->currentIndex());
+}
+
+int PDFSidebarWidget::countInheritableZoomLinks() const
+{
+    int count = 0;
+
+    std::function<void(const QModelIndex&)> visitItems = [this, &count, &visitItems](const QModelIndex& parentIndex)
+    {
+        const int itemCount = m_outlineTreeModel->rowCount(parentIndex);
+        for (int row = 0; row < itemCount; ++row)
+        {
+            const QModelIndex itemIndex = m_outlineTreeModel->index(row, 0, parentIndex);
+            const pdf::PDFAction* action = m_outlineTreeModel->getAction(itemIndex);
+            const pdf::PDFActionGoTo* goToAction = dynamic_cast<const pdf::PDFActionGoTo*>(action);
+
+            if (goToAction)
+            {
+                const pdf::PDFDestination destination = goToAction->getDestination();
+                if (destination.getDestinationType() == pdf::DestinationType::XYZ &&
+                    !std::isnan(destination.getZoom()))
+                {
+                    ++count;
+                }
+            }
+
+            visitItems(itemIndex);
+        }
+    };
+
+    visitItems(QModelIndex());
+    return count;
+}
+
+void PDFSidebarWidget::updateOutlineActions()
+{
+    if (m_outlineActions.empty())
+    {
+        return;
+    }
+
+    const QModelIndex sourceIndex = getCurrentOutlineSourceIndex();
+    const bool isValid = sourceIndex.isValid();
+
+    const pdf::PDFOutlineItem* outlineItem = isValid ? m_outlineTreeModel->getOutlineItem(sourceIndex) : nullptr;
+    const pdf::PDFActionGoTo* currentGoToAction = isValid ? dynamic_cast<const pdf::PDFActionGoTo*>(m_outlineTreeModel->getAction(sourceIndex)) : nullptr;
+    const bool canInheritZoom = currentGoToAction && currentGoToAction->getDestination().getDestinationType() == pdf::DestinationType::XYZ;
+
+    m_outlineActionFollow->setEnabled(isValid);
+    m_outlineActionDelete->setEnabled(isValid);
+    m_outlineActionRename->setEnabled(isValid);
+
+    m_outlineActionFontBold->setEnabled(isValid);
+    m_outlineActionFontBold->setChecked(outlineItem && outlineItem->isFontBold());
+    m_outlineActionFontItalic->setEnabled(isValid);
+    m_outlineActionFontItalic->setChecked(outlineItem && outlineItem->isFontItalics());
+
+    for (QAction* setTargetAction : m_outlineSetTargetActions)
+    {
+        setTargetAction->setEnabled(isValid);
+    }
+
+    m_outlineActionInheritZoom->setEnabled(canInheritZoom);
+    m_outlineActionInheritZoomForAllChapters->setEnabled(countInheritableZoomLinks() > 0);
+}
+
+void PDFSidebarWidget::onOutlineActionFollow()
+{
+    onOutlineItemClicked(ui->outlineTreeView->currentIndex());
+}
+
+void PDFSidebarWidget::onOutlineActionInsert()
+{
+    const QModelIndex proxyIndex = ui->outlineTreeView->currentIndex();
+    QModelIndex insertProxyIndex;
+
+    QAbstractItemModel* model = ui->outlineTreeView->model();
+    if (proxyIndex.isValid())
+    {
+        if (model->insertRow(proxyIndex.row() + 1, proxyIndex.parent()))
+        {
+            insertProxyIndex = proxyIndex.sibling(proxyIndex.row() + 1, 0);
+        }
+    }
+    else
+    {
+        if (model->insertRow(model->rowCount()))
+        {
+            insertProxyIndex = model->index(model->rowCount() - 1, 0);
+        }
+    }
+
+    if (insertProxyIndex.isValid())
+    {
+        std::vector<pdf::PDFInteger> pages = m_proxy->getWidget()->getDrawWidget()->getCurrentPages();
+
+        if (!pages.empty())
+        {
+            QModelIndex sourceInsertIndex = m_outlineSortProxyTreeModel->mapToSource(insertProxyIndex);
+
+            pdf::PDFDestination destination;
+            destination.setDestinationType(pdf::DestinationType::Fit);
+            destination.setPageIndex(pages.front());
+            destination.setPageReference(m_document->getCatalog()->getPage(pages.front())->getPageReference());
+            destination.setZoom(m_proxy->getZoom());
+            m_outlineTreeModel->setDestination(sourceInsertIndex, destination);
+        }
+    }
+}
+
+void PDFSidebarWidget::onOutlineActionDelete()
+{
+    const QModelIndex proxyIndex = ui->outlineTreeView->currentIndex();
+    if (!proxyIndex.isValid())
+    {
+        return;
+    }
+
+    ui->outlineTreeView->model()->removeRow(proxyIndex.row(), proxyIndex.parent());
+}
+
+void PDFSidebarWidget::onOutlineActionRename()
+{
+    const QModelIndex proxyIndex = ui->outlineTreeView->currentIndex();
+    if (!proxyIndex.isValid())
+    {
+        return;
+    }
+
+    ui->outlineTreeView->edit(proxyIndex);
+}
+
+void PDFSidebarWidget::onOutlineActionFontBold()
+{
+    const QModelIndex sourceIndex = getCurrentOutlineSourceIndex();
+    if (!sourceIndex.isValid())
+    {
+        return;
+    }
+
+    const pdf::PDFOutlineItem* outlineItem = m_outlineTreeModel->getOutlineItem(sourceIndex);
+    m_outlineTreeModel->setFontBold(sourceIndex, !(outlineItem && outlineItem->isFontBold()));
+}
+
+void PDFSidebarWidget::onOutlineActionFontItalic()
+{
+    const QModelIndex sourceIndex = getCurrentOutlineSourceIndex();
+    if (!sourceIndex.isValid())
+    {
+        return;
+    }
+
+    const pdf::PDFOutlineItem* outlineItem = m_outlineTreeModel->getOutlineItem(sourceIndex);
+    m_outlineTreeModel->setFontItalics(sourceIndex, !(outlineItem && outlineItem->isFontItalics()));
+}
+
+void PDFSidebarWidget::onOutlineActionSetTargetNamedDestination()
+{
+    const QModelIndex sourceIndex = getCurrentOutlineSourceIndex();
+    if (!sourceIndex.isValid())
+    {
+        return;
+    }
+
+    class SelectNamedDestinationDialog : public QDialog
+    {
+    public:
+        explicit SelectNamedDestinationDialog(const QStringList& items, QWidget* parent)
+            : QDialog(parent)
+        {
+            setWindowTitle(tr("Select Named Destination"));
+            setMinimumWidth(pdf::PDFWidgetUtils::scaleDPI_x(this, 150));
+
+            QVBoxLayout* layout = new QVBoxLayout(this);
+
+            m_comboBox = new QComboBox(this);
+            m_comboBox->addItems(items);
+            m_comboBox->setEditable(false);
+            layout->addWidget(m_comboBox);
+
+            QHBoxLayout* buttonsLayout = new QHBoxLayout();
+            QPushButton* okButton = new QPushButton(tr("OK"), this);
+            QPushButton* cancelButton = new QPushButton(tr("Cancel"), this);
+
+            buttonsLayout->addWidget(okButton);
+            buttonsLayout->addWidget(cancelButton);
+
+            layout->addLayout(buttonsLayout);
+
+            connect(okButton, &QPushButton::clicked, this, &QDialog::accept);
+            connect(cancelButton, &QPushButton::clicked, this, &QDialog::reject);
+        }
+
+        QString selectedText() const
+        {
+            return m_comboBox->currentText();
+        }
+
+    private:
+        QComboBox* m_comboBox;
+    };
+
+    QStringList items;
+    for (const auto& namedDestination : m_document->getCatalog()->getNamedDestinations())
+    {
+        items << QString::fromLatin1(namedDestination.first);
+    }
+
+    SelectNamedDestinationDialog dialog(items, m_proxy->getWidget());
+    if (dialog.exec() == QDialog::Accepted)
+    {
+        m_outlineTreeModel->setDestination(sourceIndex, pdf::PDFDestination::createNamed(dialog.selectedText().toLatin1()));
+    }
+}
+
+void PDFSidebarWidget::onOutlineActionSetTargetByType()
+{
+    QAction* action = qobject_cast<QAction*>(sender());
+    const QModelIndex sourceIndex = getCurrentOutlineSourceIndex();
+    if (!action || !sourceIndex.isValid())
+    {
+        return;
+    }
+
+    const pdf::DestinationType destinationType = static_cast<pdf::DestinationType>(action->data().toInt());
+    pdf::PDFToolManager* toolManager = m_proxy->getWidget()->getToolManager();
+
+    if (destinationType == pdf::DestinationType::FitR || destinationType == pdf::DestinationType::XYZ)
+    {
+        auto pickRectangle = [this, sourceIndex, destinationType](pdf::PDFInteger pageIndex, QRectF rect)
+        {
+            pdf::PDFDestination destination;
+            destination.setDestinationType(destinationType);
+            destination.setPageIndex(pageIndex);
+            destination.setPageReference(m_document->getCatalog()->getPage(pageIndex)->getPageReference());
+            destination.setLeft(rect.left());
+            destination.setRight(rect.right());
+            destination.setTop(rect.bottom());
+            destination.setBottom(rect.top());
+            destination.setZoom(m_proxy->getZoom());
+            m_outlineTreeModel->setDestination(sourceIndex, destination);
+        };
+
+        toolManager->pickRectangle(pickRectangle);
+    }
+    else
+    {
+        auto pickPage = [this, sourceIndex, destinationType](pdf::PDFInteger pageIndex)
+        {
+            pdf::PDFDestination destination;
+            destination.setDestinationType(destinationType);
+            destination.setPageIndex(pageIndex);
+            destination.setPageReference(m_document->getCatalog()->getPage(pageIndex)->getPageReference());
+            destination.setZoom(m_proxy->getZoom());
+            m_outlineTreeModel->setDestination(sourceIndex, destination);
+        };
+
+        toolManager->pickPage(pickPage);
+    }
+}
+
+void PDFSidebarWidget::onOutlineActionInheritZoom()
+{
+    const QModelIndex sourceIndex = getCurrentOutlineSourceIndex();
+    if (!sourceIndex.isValid())
+    {
+        return;
+    }
+
+    const pdf::PDFAction* action = m_outlineTreeModel->getAction(sourceIndex);
+    const pdf::PDFActionGoTo* goToAction = dynamic_cast<const pdf::PDFActionGoTo*>(action);
+    if (!goToAction)
+    {
+        return;
+    }
+
+    pdf::PDFDestination destination = goToAction->getDestination();
+    if (destination.getDestinationType() != pdf::DestinationType::XYZ)
+    {
+        return;
+    }
+
+    destination.setZoom(std::numeric_limits<pdf::PDFReal>::quiet_NaN());
+    m_outlineTreeModel->setDestination(sourceIndex, destination);
+}
+
+void PDFSidebarWidget::onOutlineActionInheritZoomForAllChapters()
+{
+    const int linksToFix = countInheritableZoomLinks();
+    if (linksToFix <= 0)
+    {
+        return;
+    }
+
+    const QMessageBox::StandardButton result = QMessageBox::warning(this,
+                                                                    tr("Inherit Zoom for All Chapters"),
+                                                                    tr("%1 link(s) will be fixed to inherit zoom.\n\nDo you want to perform this action?").arg(linksToFix),
+                                                                    QMessageBox::Yes | QMessageBox::No,
+                                                                    QMessageBox::No);
+    if (result != QMessageBox::Yes)
+    {
+        return;
+    }
+
+    std::function<void(const QModelIndex&)> visitItems = [this, &visitItems](const QModelIndex& parentIndex)
+    {
+        const int itemCount = m_outlineTreeModel->rowCount(parentIndex);
+        for (int row = 0; row < itemCount; ++row)
+        {
+            const QModelIndex itemIndex = m_outlineTreeModel->index(row, 0, parentIndex);
+            const pdf::PDFAction* action = m_outlineTreeModel->getAction(itemIndex);
+            const pdf::PDFActionGoTo* goToAction = dynamic_cast<const pdf::PDFActionGoTo*>(action);
+
+            if (goToAction)
+            {
+                pdf::PDFDestination destination = goToAction->getDestination();
+                if (destination.getDestinationType() == pdf::DestinationType::XYZ &&
+                    !std::isnan(destination.getZoom()))
+                {
+                    destination.setZoom(std::numeric_limits<pdf::PDFReal>::quiet_NaN());
+                    m_outlineTreeModel->setDestination(itemIndex, destination);
+                }
+            }
+
+            visitItems(itemIndex);
+        }
+    };
+
+    visitItems(QModelIndex());
+}
+
 void PDFSidebarWidget::onOutlineTreeViewContextMenuRequested(const QPoint& pos)
 {
+    QModelIndex proxyIndex = ui->outlineTreeView->indexAt(pos);
+    if (proxyIndex.isValid())
+    {
+        ui->outlineTreeView->setCurrentIndex(proxyIndex);
+    }
+    updateOutlineActions();
+
     QMenu contextMenu;
 
-    QModelIndex proxyIndex = ui->outlineTreeView->indexAt(pos);
-
-    auto onFollow = [this, proxyIndex]()
-    {
-        onOutlineItemClicked(proxyIndex);
-    };
-
-    auto onInsert = [this, proxyIndex]()
-    {
-        QModelIndex insertProxyIndex;
-
-        QAbstractItemModel* model = ui->outlineTreeView->model();
-        if (proxyIndex.isValid())
-        {
-            if (model->insertRow(proxyIndex.row() + 1, proxyIndex.parent()))
-            {
-                insertProxyIndex = proxyIndex.sibling(proxyIndex.row() + 1, 0);
-            }
-        }
-        else
-        {
-            if (model->insertRow(model->rowCount()))
-            {
-                insertProxyIndex = model->index(model->rowCount() - 1, 0);
-            }
-        }
-
-        if (insertProxyIndex.isValid())
-        {
-            std::vector<pdf::PDFInteger> pages = m_proxy->getWidget()->getDrawWidget()->getCurrentPages();
-
-            if (!pages.empty())
-            {
-                QModelIndex sourceInsertIndex = m_outlineSortProxyTreeModel->mapToSource(insertProxyIndex);
-
-                pdf::PDFDestination destination;
-                destination.setDestinationType(pdf::DestinationType::Fit);
-                destination.setPageIndex(pages.front());
-                destination.setPageReference(m_document->getCatalog()->getPage(pages.front())->getPageReference());
-                destination.setZoom(m_proxy->getZoom());
-                m_outlineTreeModel->setDestination(sourceInsertIndex, destination);
-            }
-        }
-    };
-
-    auto onDelete = [this, proxyIndex]()
-    {
-        ui->outlineTreeView->model()->removeRow(proxyIndex.row(), proxyIndex.parent());
-    };
-
-    auto onRename = [this, proxyIndex]()
-    {
-        ui->outlineTreeView->edit(proxyIndex);
-    };
-
-    QAction* followAction = contextMenu.addAction(tr("Follow"), onFollow);
-    followAction->setEnabled(proxyIndex.isValid());
+    contextMenu.addAction(m_outlineActionFollow);
     contextMenu.addSeparator();
 
-    QAction* deleteAction = contextMenu.addAction(tr("Delete"), onDelete);
-    QAction* insertAction = contextMenu.addAction(tr("Insert"), this, onInsert);
-    QAction* renameAction = contextMenu.addAction(tr("Rename"), this, onRename);
-
-    deleteAction->setEnabled(proxyIndex.isValid());
-    insertAction->setEnabled(true);
-    renameAction->setEnabled(proxyIndex.isValid());
+    contextMenu.addAction(m_outlineActionDelete);
+    contextMenu.addAction(m_outlineActionInsert);
+    contextMenu.addAction(m_outlineActionRename);
 
     contextMenu.addSeparator();
 
-    QModelIndex sourceIndex = m_outlineSortProxyTreeModel->mapToSource(proxyIndex);
-    const pdf::PDFOutlineItem* outlineItem = m_outlineTreeModel->getOutlineItem(sourceIndex);
-    const bool isFontBold = outlineItem && outlineItem->isFontBold();
-    const bool isFontItalics = outlineItem && outlineItem->isFontItalics();
-
-    auto onFontBold = [this, sourceIndex, isFontBold]()
-    {
-        m_outlineTreeModel->setFontBold(sourceIndex, !isFontBold);
-    };
-
-    auto onFontItalic = [this, sourceIndex, isFontItalics]()
-    {
-        m_outlineTreeModel->setFontItalics(sourceIndex, !isFontItalics);
-    };
-
-    QAction* fontBoldAction = contextMenu.addAction(tr("Font Bold"), onFontBold);
-    QAction* fontItalicAction = contextMenu.addAction(tr("Font Italic"), onFontItalic);
-    fontBoldAction->setCheckable(true);
-    fontItalicAction->setCheckable(true);
-    fontBoldAction->setChecked(isFontBold);
-    fontItalicAction->setChecked(isFontItalics);
-    fontBoldAction->setEnabled(sourceIndex.isValid());
-    fontItalicAction->setEnabled(sourceIndex.isValid());
+    contextMenu.addAction(m_outlineActionFontBold);
+    contextMenu.addAction(m_outlineActionFontItalic);
 
     QMenu* submenu = new QMenu(tr("Set Target"), &contextMenu);
     QAction* targetAction = contextMenu.addMenu(submenu);
-    targetAction->setEnabled(sourceIndex.isValid());
-    const pdf::PDFActionGoTo* currentGoToAction = dynamic_cast<const pdf::PDFActionGoTo*>(m_outlineTreeModel->getAction(sourceIndex));
-    const bool canInheritZoom = currentGoToAction && currentGoToAction->getDestination().getDestinationType() == pdf::DestinationType::XYZ;
+    targetAction->setEnabled(proxyIndex.isValid());
 
-    auto createOnSetTarget = [this, sourceIndex](pdf::DestinationType destinationType)
-    {
-        auto onSetTarget = [this, sourceIndex, destinationType]()
-        {
-            pdf::PDFToolManager* toolManager = m_proxy->getWidget()->getToolManager();
-
-            auto pickRectangle = [this, sourceIndex, destinationType](pdf::PDFInteger pageIndex, QRectF rect)
-            {
-                pdf::PDFDestination destination;
-                destination.setDestinationType(destinationType);
-                destination.setPageIndex(pageIndex);
-                destination.setPageReference(m_document->getCatalog()->getPage(pageIndex)->getPageReference());
-                destination.setLeft(rect.left());
-                destination.setRight(rect.right());
-                destination.setTop(rect.bottom());
-                destination.setBottom(rect.top());
-                destination.setZoom(m_proxy->getZoom());
-                m_outlineTreeModel->setDestination(sourceIndex, destination);
-            };
-
-            toolManager->pickRectangle(pickRectangle);
-        };
-
-        return onSetTarget;
-    };
-
-    auto createOnSetTargetPage = [this, sourceIndex](pdf::DestinationType destinationType)
-    {
-        auto onSetTargetPage = [this, sourceIndex, destinationType]()
-        {
-            pdf::PDFToolManager* toolManager = m_proxy->getWidget()->getToolManager();
-
-            auto pickPage = [this, sourceIndex, destinationType](pdf::PDFInteger pageIndex)
-            {
-                pdf::PDFDestination destination;
-                destination.setDestinationType(destinationType);
-                destination.setPageIndex(pageIndex);
-                destination.setPageReference(m_document->getCatalog()->getPage(pageIndex)->getPageReference());
-                destination.setZoom(m_proxy->getZoom());
-                m_outlineTreeModel->setDestination(sourceIndex, destination);
-            };
-
-            toolManager->pickPage(pickPage);
-        };
-
-        return onSetTargetPage;
-    };
-
-    auto onNamedDestinationTriggered = [this, sourceIndex]()
-    {
-        class SelectNamedDestinationDialog : public QDialog
-        {
-        public:
-            explicit SelectNamedDestinationDialog(const QStringList& items, QWidget* parent)
-                : QDialog(parent)
-            {
-                setWindowTitle(tr("Select Named Destination"));
-                setMinimumWidth(pdf::PDFWidgetUtils::scaleDPI_x(this, 150));
-
-                QVBoxLayout* layout = new QVBoxLayout(this);
-
-                m_comboBox = new QComboBox(this);
-                m_comboBox->addItems(items);
-                m_comboBox->setEditable(false);
-                layout->addWidget(m_comboBox);
-
-                QHBoxLayout* buttonsLayout = new QHBoxLayout();
-                QPushButton* okButton = new QPushButton(tr("OK"), this);
-                QPushButton* cancelButton = new QPushButton(tr("Cancel"), this);
-
-                buttonsLayout->addWidget(okButton);
-                buttonsLayout->addWidget(cancelButton);
-
-                layout->addLayout(buttonsLayout);
-
-                connect(okButton, &QPushButton::clicked, this, &QDialog::accept);
-                connect(cancelButton, &QPushButton::clicked, this, &QDialog::reject);
-            }
-
-            QString selectedText() const
-            {
-                return m_comboBox->currentText();
-            }
-
-        private:
-            QComboBox* m_comboBox;
-        };
-
-        QStringList items;
-        for (const auto& namedDestination : m_document->getCatalog()->getNamedDestinations())
-        {
-            items << QString::fromLatin1(namedDestination.first);
-        }
-
-        SelectNamedDestinationDialog dialog(items, m_proxy->getWidget());
-        if (dialog.exec() == QDialog::Accepted)
-        {
-            m_outlineTreeModel->setDestination(sourceIndex, pdf::PDFDestination::createNamed(dialog.selectedText().toLatin1()));
-        }
-    };
-
-    submenu->addAction(tr("Named Destination"), onNamedDestinationTriggered);
-    submenu->addAction(tr("Fit Page"), createOnSetTargetPage(pdf::DestinationType::Fit));
-    submenu->addAction(tr("Fit Page Horizontally"), createOnSetTargetPage(pdf::DestinationType::FitH));
-    submenu->addAction(tr("Fit Page Vertically"), createOnSetTargetPage(pdf::DestinationType::FitV));
-    submenu->addAction(tr("Fit Rectangle"), createOnSetTarget(pdf::DestinationType::FitR));
-    submenu->addAction(tr("Fit Bounding Box"), createOnSetTargetPage(pdf::DestinationType::FitB));
-    submenu->addAction(tr("Fit Bounding Box Horizontally"), createOnSetTargetPage(pdf::DestinationType::FitBH));
-    submenu->addAction(tr("Fit Bounding Box Vertically"), createOnSetTargetPage(pdf::DestinationType::FitBV));
-    submenu->addAction(tr("XYZ"), createOnSetTarget(pdf::DestinationType::XYZ));
+    submenu->addAction(m_outlineActionSetTargetNamedDestination);
+    submenu->addAction(m_outlineActionSetTargetFitPage);
+    submenu->addAction(m_outlineActionSetTargetFitPageHorizontally);
+    submenu->addAction(m_outlineActionSetTargetFitPageVertically);
+    submenu->addAction(m_outlineActionSetTargetFitRectangle);
+    submenu->addAction(m_outlineActionSetTargetFitBoundingBox);
+    submenu->addAction(m_outlineActionSetTargetFitBoundingBoxHorizontally);
+    submenu->addAction(m_outlineActionSetTargetFitBoundingBoxVertically);
+    submenu->addAction(m_outlineActionSetTargetXYZ);
     submenu->addSeparator();
-
-    auto onInheritZoom = [this, sourceIndex]()
-    {
-        if (!sourceIndex.isValid())
-        {
-            return;
-        }
-
-        const pdf::PDFAction* action = m_outlineTreeModel->getAction(sourceIndex);
-        const pdf::PDFActionGoTo* goToAction = dynamic_cast<const pdf::PDFActionGoTo*>(action);
-        if (!goToAction)
-        {
-            return;
-        }
-
-        pdf::PDFDestination destination = goToAction->getDestination();
-        if (destination.getDestinationType() != pdf::DestinationType::XYZ)
-        {
-            return;
-        }
-
-        destination.setZoom(std::numeric_limits<pdf::PDFReal>::quiet_NaN());
-        m_outlineTreeModel->setDestination(sourceIndex, destination);
-    };
-
-    auto countInheritableZoomLinks = [this]() -> int
-    {
-        int count = 0;
-
-        std::function<void(const QModelIndex&)> visitItems = [this, &count, &visitItems](const QModelIndex& parentIndex)
-        {
-            const int itemCount = m_outlineTreeModel->rowCount(parentIndex);
-            for (int row = 0; row < itemCount; ++row)
-            {
-                const QModelIndex itemIndex = m_outlineTreeModel->index(row, 0, parentIndex);
-                const pdf::PDFAction* action = m_outlineTreeModel->getAction(itemIndex);
-                const pdf::PDFActionGoTo* goToAction = dynamic_cast<const pdf::PDFActionGoTo*>(action);
-
-                if (goToAction)
-                {
-                    const pdf::PDFDestination destination = goToAction->getDestination();
-                    if (destination.getDestinationType() == pdf::DestinationType::XYZ &&
-                        !std::isnan(destination.getZoom()))
-                    {
-                        ++count;
-                    }
-                }
-
-                visitItems(itemIndex);
-            }
-        };
-
-        visitItems(QModelIndex());
-        return count;
-    };
-
-    auto onInheritZoomForAllChapters = [this, countInheritableZoomLinks]()
-    {
-        const int linksToFix = countInheritableZoomLinks();
-        if (linksToFix <= 0)
-        {
-            return;
-        }
-
-        const QMessageBox::StandardButton result = QMessageBox::warning(this,
-                                                                        tr("Inherit Zoom for All Chapters"),
-                                                                        tr("%1 link(s) will be fixed to inherit zoom.\n\nDo you want to perform this action?").arg(linksToFix),
-                                                                        QMessageBox::Yes | QMessageBox::No,
-                                                                        QMessageBox::No);
-        if (result != QMessageBox::Yes)
-        {
-            return;
-        }
-
-        std::function<void(const QModelIndex&)> visitItems = [this, &visitItems](const QModelIndex& parentIndex)
-        {
-            const int itemCount = m_outlineTreeModel->rowCount(parentIndex);
-            for (int row = 0; row < itemCount; ++row)
-            {
-                const QModelIndex itemIndex = m_outlineTreeModel->index(row, 0, parentIndex);
-                const pdf::PDFAction* action = m_outlineTreeModel->getAction(itemIndex);
-                const pdf::PDFActionGoTo* goToAction = dynamic_cast<const pdf::PDFActionGoTo*>(action);
-
-                if (goToAction)
-                {
-                    pdf::PDFDestination destination = goToAction->getDestination();
-                    if (destination.getDestinationType() == pdf::DestinationType::XYZ &&
-                        !std::isnan(destination.getZoom()))
-                    {
-                        destination.setZoom(std::numeric_limits<pdf::PDFReal>::quiet_NaN());
-                        m_outlineTreeModel->setDestination(itemIndex, destination);
-                    }
-                }
-
-                visitItems(itemIndex);
-            }
-        };
-
-        visitItems(QModelIndex());
-    };
-
-    QAction* inheritZoomAction = submenu->addAction(tr("Inherit Zoom"), onInheritZoom);
-    inheritZoomAction->setEnabled(canInheritZoom);
-    QAction* inheritZoomForAllAction = submenu->addAction(tr("Inherit Zoom for All Chapters"), onInheritZoomForAllChapters);
-    inheritZoomForAllAction->setEnabled(countInheritableZoomLinks() > 0);
+    submenu->addAction(m_outlineActionInheritZoom);
+    submenu->addAction(m_outlineActionInheritZoomForAllChapters);
 
     contextMenu.exec(ui->outlineTreeView->mapToGlobal(pos));
 }
