@@ -667,16 +667,38 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
                         else
                         {
                             // We will calculate stream size from the with/height and bit per component
+                            const bool isImageMask = loader.readBooleanFromDictionary(dictionary, "ImageMask", false);
                             const PDFInteger width = loader.readIntegerFromDictionary(dictionary, "Width", 0);
                             const PDFInteger height = loader.readIntegerFromDictionary(dictionary, "Height", 0);
-                            const PDFInteger bpc = loader.readIntegerFromDictionary(dictionary, "BitsPerComponent", 8);
+                            const PDFInteger bpc = isImageMask ? 1 : loader.readIntegerFromDictionary(dictionary, "BitsPerComponent", 8);
 
                             if (width <= 0 || height <= 0 || bpc <= 0)
                             {
                                 throw PDFException(PDFTranslationContext::tr("Expected name in the inline image dictionary stream."));
                             }
 
-                            const PDFInteger stride = (width * bpc + 7) / 8;
+                            // Each sample consists of one value per color component, so the size
+                            // of the image data depends on the color space of the image. Stencil
+                            // masks have a single component.
+                            PDFInteger componentCount = 1;
+                            if (!isImageMask && dictionary->hasKey("ColorSpace"))
+                            {
+                                try
+                                {
+                                    PDFColorSpacePointer colorSpace = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, m_document->getObject(dictionary->get("ColorSpace")));
+                                    if (colorSpace)
+                                    {
+                                        componentCount = qMax<PDFInteger>(1, PDFInteger(colorSpace->getColorComponentCount()));
+                                    }
+                                }
+                                catch (const std::exception&)
+                                {
+                                    // Color space is invalid, we will use a single component
+                                    // and the image itself will report the error later.
+                                }
+                            }
+
+                            const PDFInteger stride = (width * componentCount * bpc + 7) / 8;
                             dataLength = stride * height;
                         }
 

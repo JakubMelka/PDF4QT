@@ -1634,8 +1634,13 @@ public:
     static QColor readColorFromPDFObject(const PDFObjectStorage* storage, PDFObject object, QColor defaultColor = Qt::black);
     static PDFObject createPDFColor(const QColor& color);
 
-private:
+    /// Formats the real number, so it can be written into the content stream.
+    /// Content streams do not allow the exponential notation of numbers
+    /// (see PDF 32000-1, chapter 7.3.3).
+    /// \param value Value to be formatted
     static QByteArray formatPDFReal(PDFReal value);
+
+private:
     static void appendPDFPoint(QByteArray& data, const QPointF& point);
     static QColor getAnnotationDrawColor(const std::vector<PDFReal>& color, PDFReal opacity);
     static QByteArray getBlendModeNameForAppearance(BlendMode blendMode);
