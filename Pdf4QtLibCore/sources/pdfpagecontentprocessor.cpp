@@ -505,6 +505,12 @@ bool PDFPageContentProcessor::isContentKindSuppressed(ContentKind kind) const
     return false;
 }
 
+bool PDFPageContentProcessor::isTilingPatternProcessingAllowed(PDFInteger tileCount) const
+{
+    Q_UNUSED(tileCount);
+    return true;
+}
+
 void PDFPageContentProcessor::setGraphicsState(const PDFPageContentProcessorState& state)
 {
     m_graphicState = state;
@@ -942,7 +948,8 @@ void PDFPageContentProcessor::processPathPainting(const QPainterPath& path, bool
 
     if (stroke)
     {
-        if (const PDFPatternColorSpace* patternColorSpace = getGraphicState()->getFillColorSpace()->asPatternColorSpace())
+        // Jakub Melka: stroking uses the stroking color space, not the filling one
+        if (const PDFPatternColorSpace* patternColorSpace = getGraphicState()->getStrokeColorSpace()->asPatternColorSpace())
         {
             const PDFPattern* pattern = patternColorSpace->getPattern();
             switch (pattern->getType())
@@ -1132,6 +1139,12 @@ void PDFPageContentProcessor::processTillingPatternPainting(const PDFTilingPatte
     // Draw the tiling
     const PDFInteger columns = qMax<PDFInteger>(qCeil(tilingArea.width() / xStep), 1);
     const PDFInteger rows = qMax<PDFInteger>(qCeil(tilingArea.height() / yStep), 1);
+
+    if (!isTilingPatternProcessingAllowed(columns * rows))
+    {
+        reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Tiling pattern is too complex (%1 tiles) and it was not painted.").arg(columns * rows));
+        return;
+    }
 
     QTransform baseTransformationMatrix = m_graphicState.getCurrentTransformationMatrix();
     for (PDFInteger column = 0; column < columns; ++column)

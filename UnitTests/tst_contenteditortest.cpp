@@ -58,9 +58,11 @@ private slots:
     void test_image_orientation_rotated_matrix();
     void test_image_orientation_replaced_image();
     void test_image_orientation_qt_generated_document();
+    void test_image_orientation_tiling_pattern();
     void test_rendered_page_is_unchanged();
     void test_other_resources_are_preserved();
     void test_numbers_are_not_written_in_exponential_notation();
+    void test_complex_tiling_pattern_is_not_processed();
 
 private:
     enum class Variant
@@ -73,7 +75,9 @@ private:
         ImageMask,
         RotatedMatrix,
         IndirectResources,
-        TinyScale
+        TinyScale,
+        TilingPattern,
+        ComplexTilingPattern
     };
 
     /// Description of the image, as it is seen on the page. The color
@@ -136,6 +140,7 @@ pdf::PDFDocument ContentEditorTest::createDocumentWithImage(Variant variant)
 
     QByteArray pageContent;
     pdf::PDFDictionary xObject;
+    pdf::PDFDictionary pattern;
 
     auto createImageObject = [&](bool addSoftMask)
     {
@@ -298,6 +303,65 @@ pdf::PDFDocument ContentEditorTest::createDocumentWithImage(Variant variant)
             break;
         }
 
+        case Variant::TilingPattern:
+        case Variant::ComplexTilingPattern:
+        {
+            // The image is not painted directly - it is painted by a colored
+            // tiling pattern, which fills a rectangle. This is, how the images
+            // are painted for example by cairo/Inkscape generated documents.
+            const bool isComplex = variant == Variant::ComplexTilingPattern;
+
+            pdf::PDFObjectReference imageRef = createImageObject(false);
+
+            pdf::PDFDictionary patternXObject;
+            patternXObject.addEntry(pdf::PDFInplaceOrMemoryString("Im1"), pdf::PDFObject::createReference(imageRef));
+
+            pdf::PDFDictionary patternResources;
+            patternResources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"),
+                                      pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(patternXObject))));
+
+            QByteArray patternContent = "q 80 0 0 40 0 0 cm /Im1 Do Q";
+
+            pdf::PDFArray bbox;
+            bbox.appendItem(pdf::PDFObject::createReal(0.0));
+            bbox.appendItem(pdf::PDFObject::createReal(0.0));
+            bbox.appendItem(pdf::PDFObject::createReal(80.0));
+            bbox.appendItem(pdf::PDFObject::createReal(40.0));
+
+            pdf::PDFArray matrix;
+            matrix.appendItem(pdf::PDFObject::createReal(1.0));
+            matrix.appendItem(pdf::PDFObject::createReal(0.0));
+            matrix.appendItem(pdf::PDFObject::createReal(0.0));
+            matrix.appendItem(pdf::PDFObject::createReal(1.0));
+            matrix.appendItem(pdf::PDFObject::createReal(10.0));
+            matrix.appendItem(pdf::PDFObject::createReal(30.0));
+
+            // The complex variant uses very small steps, so the filled area
+            // is covered by tens of thousands of tiles.
+            const pdf::PDFReal xStep = isComplex ? 1.0 : 80.0;
+            const pdf::PDFReal yStep = isComplex ? 1.0 : 40.0;
+
+            pdf::PDFDictionary patternDictionary;
+            patternDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("Pattern"));
+            patternDictionary.setEntry(pdf::PDFInplaceOrMemoryString("PatternType"), pdf::PDFObject::createInteger(1));
+            patternDictionary.setEntry(pdf::PDFInplaceOrMemoryString("PaintType"), pdf::PDFObject::createInteger(1));
+            patternDictionary.setEntry(pdf::PDFInplaceOrMemoryString("TilingType"), pdf::PDFObject::createInteger(1));
+            patternDictionary.setEntry(pdf::PDFInplaceOrMemoryString("BBox"), pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(std::move(bbox))));
+            patternDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Matrix"), pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(std::move(matrix))));
+            patternDictionary.setEntry(pdf::PDFInplaceOrMemoryString("XStep"), pdf::PDFObject::createReal(xStep));
+            patternDictionary.setEntry(pdf::PDFInplaceOrMemoryString("YStep"), pdf::PDFObject::createReal(yStep));
+            patternDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Resources"),
+                                       pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(patternResources))));
+            patternDictionary.setEntry(pdf::PDFInplaceOrMemoryString(pdf::PDF_STREAM_DICT_LENGTH), pdf::PDFObject::createInteger(patternContent.size()));
+
+            pdf::PDFObjectReference patternRef = builder.addObject(pdf::PDFObject::createStream(
+                std::make_shared<pdf::PDFStream>(std::move(patternDictionary), std::move(patternContent))));
+
+            pattern.addEntry(pdf::PDFInplaceOrMemoryString("P1"), pdf::PDFObject::createReference(patternRef));
+            pageContent = "q /Pattern cs /P1 scn 10 30 80 40 re f Q";
+            break;
+        }
+
         case Variant::InlineImage:
         {
             QByteArray imageData;
@@ -331,6 +395,12 @@ pdf::PDFDocument ContentEditorTest::createDocumentWithImage(Variant variant)
     {
         resources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"),
                            pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(xObject))));
+    }
+
+    if (!pattern.isEmpty())
+    {
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("Pattern"),
+                           pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(pattern))));
     }
 
     if (variant == Variant::IndirectResources)
@@ -644,13 +714,59 @@ void ContentEditorTest::test_image_orientation_qt_generated_document()
     QCOMPARE(modified.lastSamplePoint, original.lastSamplePoint);
 }
 
+void ContentEditorTest::test_image_orientation_tiling_pattern()
+{
+    // Issue #238 - the image, which is painted by a tiling pattern, must not
+    // disappear, when the page content is edited and written back. The content
+    // of the pattern must be decomposed into the edited content elements and
+    // the image must be placed exactly as in the plain variant, which paints
+    // the same image directly.
+    pdf::PDFDocument plainDocument = createDocumentWithImage(Variant::Plain);
+    ImagePlacement plain = getImagePlacement(processPageContent(&plainDocument));
+    QVERIFY(plain.firstSampleColor.isValid());
+
+    pdf::PDFDocument document = createDocumentWithImage(Variant::TilingPattern);
+    pdf::PDFEditedPageContent content = processPageContent(&document);
+    ImagePlacement original = getImagePlacement(content);
+
+    QVERIFY(original.firstSampleColor.isValid());
+    QCOMPARE(original.firstSamplePoint, plain.firstSamplePoint);
+    QCOMPARE(original.lastSamplePoint, plain.lastSamplePoint);
+    QCOMPARE(original.firstSampleColor, plain.firstSampleColor);
+
+    testVariant(Variant::TilingPattern, false);
+}
+
+void ContentEditorTest::test_complex_tiling_pattern_is_not_processed()
+{
+    // A tiling pattern with a huge number of tiles would produce an unusable
+    // amount of the edited content elements, so it is not processed at all.
+    // The processing must not hang and an error must be reported.
+    pdf::PDFDocument document = createDocumentWithImage(Variant::ComplexTilingPattern);
+
+    const pdf::PDFPage* page = document.getCatalog()->getPage(0);
+
+    pdf::PDFCMSGeneric cms;
+    pdf::PDFFontCache fontCache(32, 32);
+    pdf::PDFOptionalContentActivity activity(&document, pdf::OCUsage::View, nullptr);
+    fontCache.setDocument(pdf::PDFModifiedDocument(&document, &activity));
+
+    pdf::PDFPageContentEditorProcessor processor(page, &document, &fontCache, &cms, &activity,
+                                                 QTransform(), pdf::PDFMeshQualitySettings());
+    QList<pdf::PDFRenderError> errors = processor.processContents();
+    pdf::PDFEditedPageContent content = processor.takeEditedPageContent();
+
+    QCOMPARE(content.getElementCount(), size_t(0));
+    QVERIFY(!errors.isEmpty());
+}
+
 void ContentEditorTest::test_rendered_page_is_unchanged()
 {
     // The rewritten page must render exactly the same way as the original one.
     // This detects any mirroring or displacement of the page content, including
     // the content, which is masked by a soft mask.
     const std::array variants = { Variant::Plain, Variant::FlippedMatrix, Variant::FormXObject,
-                                  Variant::SMask, Variant::ImageMask };
+                                  Variant::SMask, Variant::ImageMask, Variant::TilingPattern };
 
     for (Variant variant : variants)
     {

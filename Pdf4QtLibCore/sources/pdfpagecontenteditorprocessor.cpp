@@ -249,17 +249,19 @@ QPainterPath PDFPageContentEditorProcessor::getCurrentClipPathInElementSpace(con
 
 bool PDFPageContentEditorProcessor::isContentKindSuppressed(ContentKind kind) const
 {
-    switch (kind)
-    {
-        case ContentKind::Shading:
-        case ContentKind::Tiling:
-            return true;
+    // Jakub Melka: tiling patterns are not suppressed - their content is
+    // decomposed into the standard edited content elements. Otherwise
+    // everything, which is painted by a tiling pattern (images, paths, text),
+    // would be silently lost, when the page content is written back.
+    return kind == ContentKind::Shading;
+}
 
-        default:
-            break;
-    }
-
-    return false;
+bool PDFPageContentEditorProcessor::isTilingPatternProcessingAllowed(PDFInteger tileCount) const
+{
+    // Each tile is decomposed into the edited content elements, so a pattern
+    // with a huge number of tiles would produce an unusable amount of elements.
+    // Such patterns are not processed at all and an error is reported instead.
+    return tileCount <= MAXIMUM_TILING_PATTERN_TILE_COUNT;
 }
 
 QString PDFEditedPageContent::getOperatorToString(PDFPageContentProcessor::Operator operatorValue)

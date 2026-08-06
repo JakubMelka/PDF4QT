@@ -251,6 +251,7 @@ protected:
     virtual void performInterceptInstruction(Operator currentOperator, ProcessOrder processOrder, const QByteArray& operatorAsText) override;
     virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule) override;
     virtual bool isContentKindSuppressed(ContentKind kind) const override;
+    virtual bool isTilingPatternProcessingAllowed(PDFInteger tileCount) const override;
     virtual bool performOriginalImagePainting(const PDFImage& image, const PDFStream* stream, PDFObjectReference reference) override;
     virtual void performImagePainting(const QImage& image) override;
     virtual void performClipping(const QPainterPath& path, Qt::FillRule fillRule) override;
@@ -260,6 +261,10 @@ protected:
     virtual void performProcessTextSequence(const TextSequence& textSequence, ProcessOrder order) override;
 
 private:
+    /// Maximum number of tiles of a tiling pattern, which is decomposed into
+    /// the edited content elements. Patterns with more tiles are not painted.
+    static constexpr PDFInteger MAXIMUM_TILING_PATTERN_TILE_COUNT = 512;
+
     /// Returns the current clip path mapped into the coordinate space
     /// of an element with the given transformation matrix. If the element
     /// is not clipped (or the matrix is not invertible, in which case

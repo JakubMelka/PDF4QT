@@ -733,6 +733,12 @@ protected:
     /// shading, images, ...)
     virtual bool isContentKindSuppressed(ContentKind kind) const;
 
+    /// Override this function to limit the complexity of the processed tiling
+    /// patterns. If this function returns false, then the tiling pattern is not
+    /// painted at all. Default implementation processes all tiling patterns.
+    /// \param tileCount Number of tiles, which must be painted
+    virtual bool isTilingPatternProcessingAllowed(PDFInteger tileCount) const;
+
     /// Sets current graphic state and updates data
     /// \param state New graphic state
     void setGraphicsState(const PDFPageContentProcessorState& state);
