@@ -31,6 +31,7 @@
 
 #include <QAction>
 #include <QLineEdit>
+#include <QLocale>
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QListWidgetItem>
@@ -437,11 +438,49 @@ void PDFViewerSettingsDialog::loadData()
     ui->sigmoidFunctionSlopeEdit->setValue(m_cmsSettings.sigmoidSlopeFactor);
     ui->bitonalThresholdEdit->setValue(m_cmsSettings.bitonalThreshold);
 
-    // Text-to-speech
-    ui->speechEnginesComboBox->setCurrentIndex(ui->speechEnginesComboBox->findData(m_settings.m_speechEngine));
+    // Text-to-speech. Jakub Melka: engine/locale/voice can be unset (for example, when the
+    // application is started for the first time) - in that case we select the default values,
+    // so the speech works without manual configuration by the user.
+    int speechEngineIndex = ui->speechEnginesComboBox->findData(m_settings.m_speechEngine);
+    if (speechEngineIndex == -1 && ui->speechEnginesComboBox->count() > 0)
+    {
+        speechEngineIndex = 0;
+    }
+    if (speechEngineIndex != -1)
+    {
+        m_settings.m_speechEngine = ui->speechEnginesComboBox->itemData(speechEngineIndex).toString();
+    }
+    ui->speechEnginesComboBox->setCurrentIndex(speechEngineIndex);
     setSpeechEngine(m_settings.m_speechEngine, m_settings.m_speechLocale);
-    ui->speechLocaleComboBox->setCurrentIndex(ui->speechLocaleComboBox->findData(m_settings.m_speechLocale));
-    ui->speechVoiceComboBox->setCurrentIndex(ui->speechVoiceComboBox->findData(m_settings.m_speechVoice));
+
+    int speechLocaleIndex = ui->speechLocaleComboBox->findData(m_settings.m_speechLocale);
+    if (speechLocaleIndex == -1)
+    {
+        speechLocaleIndex = ui->speechLocaleComboBox->findData(QLocale::system().name());
+    }
+    if (speechLocaleIndex == -1 && ui->speechLocaleComboBox->count() > 0)
+    {
+        speechLocaleIndex = 0;
+    }
+    if (speechLocaleIndex != -1)
+    {
+        m_settings.m_speechLocale = ui->speechLocaleComboBox->itemData(speechLocaleIndex).toString();
+
+        // Jakub Melka: voices are filled for the old locale, we must update them
+        setSpeechEngine(m_settings.m_speechEngine, m_settings.m_speechLocale);
+    }
+    ui->speechLocaleComboBox->setCurrentIndex(speechLocaleIndex);
+
+    int speechVoiceIndex = ui->speechVoiceComboBox->findData(m_settings.m_speechVoice);
+    if (speechVoiceIndex == -1 && ui->speechVoiceComboBox->count() > 0)
+    {
+        speechVoiceIndex = 0;
+    }
+    if (speechVoiceIndex != -1)
+    {
+        m_settings.m_speechVoice = ui->speechVoiceComboBox->itemData(speechVoiceIndex).toString();
+    }
+    ui->speechVoiceComboBox->setCurrentIndex(speechVoiceIndex);
     ui->speechRateEdit->setValue(m_settings.m_speechRate);
     ui->speechPitchEdit->setValue(m_settings.m_speechPitch);
     ui->speechVolumeEdit->setValue(m_settings.m_speechVolume);

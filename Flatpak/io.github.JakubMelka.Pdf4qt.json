@@ -9,11 +9,12 @@
     "finish-args": [
         "--socket=fallback-x11",
         "--socket=wayland",
+        "--socket=pulseaudio",
         "--device=dri",
         "--share=ipc",
         "--filesystem=host",
-        "--filesystem=xdg-run/speech-dispatcher:ro",
-        "--filesystem=xdg-cache/speech-dispatcher:ro",
+        "--filesystem=xdg-run/speech-dispatcher",
+        "--filesystem=xdg-cache/speech-dispatcher",
         "--talk-name=org.freedesktop.speech-dispatcher"
     ],
     "cleanup": [

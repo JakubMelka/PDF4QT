@@ -399,9 +399,15 @@ void PDFSidebarWidget::selectPage(Page page)
     {
         // Check, if speech engine is properly set
         QStringList speechEngines = QTextToSpeech::availableEngines();
+        const QString engineErrorMessage = m_textToSpeech ? m_textToSpeech->getEngineErrorMessage() : QString();
+
         if (speechEngines.isEmpty())
         {
             QMessageBox::critical(this, tr("Error"), tr("Speech feature is unavailable. No speech engines detected. If you're using Linux, please install speech libraries like 'flite' or 'speechd'."));
+        }
+        else if (!engineErrorMessage.isEmpty())
+        {
+            QMessageBox::critical(this, tr("Error"), tr("Speech engine failed to initialize. Reported error: %1").arg(engineErrorMessage));
         }
         else
         {

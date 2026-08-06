@@ -3,6 +3,7 @@ CURRENT:
  - Issue #409: [idea] choose color of Redact Rectangle
  - Issue #408: [idea] Make XYZ shortcut refer to outline item when selected
  - Issue #398: Enhancing Speech Support: Locale Addons and System Voice Detection
+ - Issue #397: No Audio Output When Using Text-to-Speech
  - Issue #395: [idea] white crosshair easier to see in dark mode
  - Issue #299: PDF element display error
  - Issue #258: feat: Insert page number

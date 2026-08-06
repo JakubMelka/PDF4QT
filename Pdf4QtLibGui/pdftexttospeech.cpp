@@ -46,6 +46,7 @@ PDFTextToSpeech::PDFTextToSpeech(QObject* parent) :
     m_proxy(nullptr),
     m_state(Invalid),
     m_initialized(false),
+    m_engineListsInitialized(false),
     m_speechLocaleComboBox(nullptr),
     m_speechVoiceComboBox(nullptr),
     m_speechRateEdit(nullptr),
@@ -117,28 +118,40 @@ void PDFTextToSpeech::setSettings(const PDFViewerSettings* viewerSettings)
     delete m_textToSpeech;
     m_textToSpeech = nullptr;
 
+    m_engineListsInitialized = false;
+    m_engineErrorMessage = QString();
+
     const PDFViewerSettings::Settings& settings = viewerSettings->getSettings();
-    if (!settings.m_speechEngine.isEmpty())
+
+    // Jakub Melka: We do not require the engine to be selected in the settings. If it is
+    // not set, or if it is not available anymore, then we use the default engine of the
+    // platform - otherwise the speech would not work at all until the user selects the
+    // engine manually in the settings dialog.
+    const QStringList availableEngines = QTextToSpeech::availableEngines();
+    QString engine = settings.m_speechEngine;
+    if (!engine.isEmpty() && !availableEngines.contains(engine))
     {
-        m_textToSpeech = new QTextToSpeech(settings.m_speechEngine, this);
-        m_textToSpeech->setLocale(QLocale(settings.m_speechLocale));
-        connect(m_textToSpeech, &QTextToSpeech::stateChanged, this, &PDFTextToSpeech::updatePlay);
+        engine = QString();
+    }
+
+    m_requestedLocale = settings.m_speechLocale;
+    m_requestedVoice = settings.m_speechVoice;
+
+    if (!availableEngines.isEmpty())
+    {
+        m_textToSpeech = new QTextToSpeech(engine, this);
+        connect(m_textToSpeech, &QTextToSpeech::stateChanged, this, &PDFTextToSpeech::onEngineStateChanged);
+        connect(m_textToSpeech, &QTextToSpeech::errorOccurred, this, [this](QTextToSpeech::ErrorReason, const QString& errorString) { onEngineError(errorString); });
         m_state = m_document ? Ready : NoDocument;
 
-        QVector<QLocale> locales = m_textToSpeech->availableLocales();
-        m_speechLocaleComboBox->setUpdatesEnabled(false);
-        m_speechLocaleComboBox->clear();
-        for (const QLocale& locale : locales)
-        {
-            m_speechLocaleComboBox->addItem(QString("%1 (%2)").arg(locale.nativeLanguageName(), locale.nativeTerritoryName()), locale.name());
-        }
-        m_speechLocaleComboBox->setUpdatesEnabled(true);
-
-        updateVoices();
+        // Jakub Melka: Engine can be initialized asynchronously - available locales/voices
+        // can be queried only when the engine becomes ready. If it is already ready, then
+        // the lists are filled immediately.
+        onEngineStateChanged();
     }
     else
     {
-        // Set state to invalid, speech engine is not set
+        // Set state to invalid, no speech engine is available
         m_state = Invalid;
 
         m_speechLocaleComboBox->clear();
@@ -147,13 +160,63 @@ void PDFTextToSpeech::setSettings(const PDFViewerSettings* viewerSettings)
 
     if (m_textToSpeech)
     {
-        setLocale(settings.m_speechLocale);
-        setVoice(settings.m_speechVoice);
         setRate(settings.m_speechRate);
         setPitch(settings.m_speechPitch);
         setVolume(settings.m_speechVolume);
     }
 
+    updateUI();
+}
+
+void PDFTextToSpeech::updateEngineLists()
+{
+    Q_ASSERT(m_textToSpeech);
+
+    QVector<QLocale> locales = m_textToSpeech->availableLocales();
+    m_speechLocaleComboBox->setUpdatesEnabled(false);
+    m_speechLocaleComboBox->clear();
+    for (const QLocale& locale : locales)
+    {
+        m_speechLocaleComboBox->addItem(QString("%1 (%2)").arg(locale.nativeLanguageName(), locale.nativeTerritoryName()), locale.name());
+    }
+    m_speechLocaleComboBox->setUpdatesEnabled(true);
+
+    setLocale(m_requestedLocale);
+    setVoice(m_requestedVoice);
+}
+
+void PDFTextToSpeech::onEngineStateChanged()
+{
+    if (!m_textToSpeech)
+    {
+        return;
+    }
+
+    const QTextToSpeech::State state = m_textToSpeech->state();
+
+    if (state == QTextToSpeech::Error)
+    {
+        onEngineError(m_textToSpeech->errorString());
+        return;
+    }
+
+    if (!m_engineListsInitialized && state == QTextToSpeech::Ready)
+    {
+        m_engineListsInitialized = true;
+        m_engineErrorMessage = QString();
+        updateEngineLists();
+        updateUI();
+    }
+
+    updatePlay();
+}
+
+void PDFTextToSpeech::onEngineError(const QString& errorString)
+{
+    // Jakub Melka: Speech engine failed - for example, it was not possible to connect
+    // to the speech daemon. We remember the reason, so it can be displayed to the user.
+    m_engineErrorMessage = !errorString.isEmpty() ? errorString : tr("Unknown error of the speech engine.");
+    m_state = Error;
     updateUI();
 }
 
@@ -318,12 +381,51 @@ void PDFTextToSpeech::stop()
 
 void PDFTextToSpeech::setLocale(const QString& locale)
 {
-    m_speechLocaleComboBox->setCurrentIndex(m_speechLocaleComboBox->findData(locale));
+    // Jakub Melka: If the locale is not set in the settings, or it is not supported
+    // by the engine, then we use the locale of the system, and if even this one is
+    // not supported, then the first supported locale is used. Empty locale would mean
+    // 'C' locale, for which the engine usually has no voice at all.
+    int index = m_speechLocaleComboBox->findData(locale);
+
+    if (index == -1)
+    {
+        index = m_speechLocaleComboBox->findData(QLocale::system().name());
+    }
+
+    if (index == -1 && m_speechLocaleComboBox->count() > 0)
+    {
+        index = 0;
+    }
+
+    m_speechLocaleComboBox->setCurrentIndex(index);
+
+    if (index != -1)
+    {
+        // Jakub Melka: Signal 'currentIndexChanged' is not emitted, if the index
+        // is not changed - so we must update the engine/voices explicitly.
+        onLocaleChanged();
+    }
+    else
+    {
+        updateVoices();
+    }
 }
 
 void PDFTextToSpeech::setVoice(const QString& voice)
 {
-    m_speechVoiceComboBox->setCurrentIndex(m_speechVoiceComboBox->findData(voice));
+    int index = m_speechVoiceComboBox->findData(voice);
+
+    if (index == -1 && m_speechVoiceComboBox->count() > 0)
+    {
+        index = 0;
+    }
+
+    m_speechVoiceComboBox->setCurrentIndex(index);
+
+    if (index != -1)
+    {
+        onVoiceChanged();
+    }
 }
 
 void PDFTextToSpeech::setRate(const double rate)
@@ -393,7 +495,7 @@ void PDFTextToSpeech::onPitchChanged(int pitch)
     {
         pdf::PDFLinearInterpolation<double> interpolation(m_speechPitchEdit->minimum(), m_speechPitchEdit->maximum(), -1.0, 1.0);
         double value = interpolation(pitch);
-        m_textToSpeech->setPitch(pitch);
+        m_textToSpeech->setPitch(value);
         m_speechPitchValueLabel->setText(QString::number(value, 'f', 2));
     }
 }
@@ -510,7 +612,7 @@ void PDFTextToSpeech::updatePlay()
     }
     else if (state == QTextToSpeech::Error)
     {
-        m_state = Error;
+        onEngineError(m_textToSpeech->errorString());
     }
 
     updateUI();

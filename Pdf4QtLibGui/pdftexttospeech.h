@@ -70,6 +70,11 @@ public:
     /// to synthetise text.
     bool isValid() const;
 
+    /// Returns error message of the speech engine, if the engine failed to
+    /// initialize, or an error occured during the synthesis. If no error
+    /// occured, then empty string is returned.
+    const QString& getEngineErrorMessage() const { return m_engineErrorMessage; }
+
     /// Sets active document to text to speech engine
     void setDocument(const pdf::PDFModifiedDocument& document);
 
@@ -117,8 +122,12 @@ private:
     void onPauseClicked();
     void onStopClicked();
 
+    void onEngineStateChanged();
+    void onEngineError(const QString& errorString);
+
     void updatePlay();
     void updateVoices();
+    void updateEngineLists();
     void updateToNextPage(pdf::PDFInteger pageIndex);
 
     QTextToSpeech* m_textToSpeech;
@@ -126,6 +135,10 @@ private:
     pdf::PDFDrawWidgetProxy* m_proxy;
     State m_state;
     bool m_initialized;
+    bool m_engineListsInitialized; ///< Are locales/voices of the engine already queried?
+    QString m_engineErrorMessage; ///< Error message of the speech engine, if error occured
+    QString m_requestedLocale; ///< Locale from the settings, it is applied when engine is ready
+    QString m_requestedVoice; ///< Voice from the settings, it is applied when engine is ready
 
     QComboBox* m_speechLocaleComboBox;
     QComboBox* m_speechVoiceComboBox;
