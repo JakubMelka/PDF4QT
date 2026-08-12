@@ -163,6 +163,7 @@ public:
         CreatePolygon,
         CreateEllipse,
         CreateFreehandCurve,
+        DeleteAnnotation,
         CreateStampApproved,
         CreateStampAsIs,
         CreateStampConfidential,

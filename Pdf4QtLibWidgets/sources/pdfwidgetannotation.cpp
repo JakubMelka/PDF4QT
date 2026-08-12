@@ -187,12 +187,6 @@ void PDFWidgetAnnotationManager::shortcutOverrideEvent(QWidget* widget, QKeyEven
     Q_UNUSED(event);
 }
 
-void PDFWidgetAnnotationManager::keyPressEvent(QWidget* widget, QKeyEvent* event)
-{
-    Q_UNUSED(widget);
-    Q_UNUSED(event);
-}
-
 void PDFWidgetAnnotationManager::keyReleaseEvent(QWidget* widget, QKeyEvent* event)
 {
     Q_UNUSED(widget);
@@ -262,6 +256,56 @@ void PDFWidgetAnnotationManager::mousePressEvent(QWidget* widget, QMouseEvent* e
 
         QPoint menuPosition = pdfWidget->mapToGlobal(event->pos());
         showAnnotationMenu(m_editableAnnotation, m_editableAnnotationPage, menuPosition);
+    }
+}
+
+void PDFWidgetAnnotationManager::keyPressEvent(QWidget* widget, QKeyEvent* event)
+{
+    Q_UNUSED(widget);
+
+    if (event->key() != Qt::Key_Delete || !m_document)
+    {
+        return;
+    }
+
+    PDFWidget* pdfWidget = m_proxy->getWidget();
+    std::vector<PDFInteger> currentPages = pdfWidget->getDrawWidget()->getCurrentPages();
+
+    if (!hasAnyPageAnnotation(currentPages))
+    {
+        // All pages doesn't have annotation
+        return;
+    }
+
+    // Delete the annotation under the mouse cursor, so the user doesn't have to
+    // open the context menu of the annotation just to delete it.
+    for (PDFInteger pageIndex : currentPages)
+    {
+        PageAnnotations& pageAnnotations = getPageAnnotations(pageIndex);
+        for (PageAnnotation& pageAnnotation : pageAnnotations.annotations)
+        {
+            if (!pageAnnotation.isHovered)
+            {
+                continue;
+            }
+
+            if (!PDFAnnotation::isTypeEditable(pageAnnotation.annotation->getType()))
+            {
+                continue;
+            }
+
+            m_editableAnnotation = pageAnnotation.annotation->getSelfReference();
+            m_editableAnnotationPage = pageAnnotation.annotation->getPageReference();
+
+            if (!m_editableAnnotationPage.isValid())
+            {
+                m_editableAnnotationPage = m_document->getCatalog()->getPage(pageIndex)->getPageReference();
+            }
+
+            onDeleteAnnotation();
+            event->accept();
+            return;
+        }
     }
 }
 

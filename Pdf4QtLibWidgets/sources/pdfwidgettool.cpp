@@ -1183,6 +1183,7 @@ void PDFToolManager::onPagePicked(PDFInteger pageIndex)
 
 PDFMagnifierTool::PDFMagnifierTool(PDFDrawWidgetProxy* proxy, QAction* action, QObject* parent) :
     BaseClass(proxy, action, parent),
+    m_isDrawing(false),
     m_magnifierSize(200),
     m_magnifierZoom(2.0)
 {
@@ -1215,36 +1216,44 @@ void PDFMagnifierTool::mouseMoveEvent(QWidget* widget, QMouseEvent* event)
 
 void PDFMagnifierTool::drawPostRendering(QPainter* painter, QRect rect) const
 {
-    if (!m_mousePos.isNull())
+    // Jakub Melka: we are drawing the pages again (into the magnified area), so
+    // this function can be re-entered. Drawing the pages inside the magnifier must
+    // never draw the magnifier again - that would be an infinite recursion.
+    if (!m_mousePos.has_value() || m_isDrawing)
     {
-        QPainterPath path;
-        path.addEllipse(m_mousePos, m_magnifierSize, m_magnifierSize);
-
-        painter->save();
-
-        // Clip the painter path for magnifier
-        painter->setClipPath(path, Qt::IntersectClip);
-        painter->fillRect(rect, getProxy()->getPaperColor());
-
-        painter->scale(m_magnifierZoom, m_magnifierZoom);
-
-        // Jakub Melka: this must be explained. We want to display the origin (mouse position)
-        // at the same position to remain under scaling. If scale == 1, then we translate
-        // by -m_mousePos + m_mousePos = (0, 0). Otherwise we are m_mousePos / scale away
-        // from the original position. Example:
-        //      m_mousePos = (100, 100), scale = 2
-        //      we are translating by -(100, 100) + (50, 50) = -(50, 50),
-        // because origin at (100, 100) is now at position (50, 50) after scale. So, if it has to remain
-        // the same, we must translate by -(50, 50).
-        painter->translate(m_mousePos * (1.0 / m_magnifierZoom - 1.0));
-        getProxy()->drawPages(painter, rect, getProxy()->getFeatures());
-        painter->restore();
-
-        painter->setCompositionMode(QPainter::CompositionMode_Difference);
-        painter->setPen(Qt::white);
-        painter->setBrush(Qt::NoBrush);
-        painter->drawPath(path);
+        return;
     }
+
+    const QPoint mousePos = *m_mousePos;
+    PDFBoolGuard guard(m_isDrawing);
+
+    QPainterPath path;
+    path.addEllipse(mousePos, m_magnifierSize, m_magnifierSize);
+
+    painter->save();
+
+    // Clip the painter path for magnifier
+    painter->setClipPath(path, Qt::IntersectClip);
+    painter->fillRect(rect, getProxy()->getPaperColor());
+
+    painter->scale(m_magnifierZoom, m_magnifierZoom);
+
+    // Jakub Melka: this must be explained. We want to display the origin (mouse position)
+    // at the same position to remain under scaling. If scale == 1, then we translate
+    // by -mousePos + mousePos = (0, 0). Otherwise we are mousePos / scale away
+    // from the original position. Example:
+    //      mousePos = (100, 100), scale = 2
+    //      we are translating by -(100, 100) + (50, 50) = -(50, 50),
+    // because origin at (100, 100) is now at position (50, 50) after scale. So, if it has to remain
+    // the same, we must translate by -(50, 50).
+    painter->translate(mousePos * (1.0 / m_magnifierZoom - 1.0));
+    getProxy()->drawPages(painter, rect, getProxy()->getFeatures());
+    painter->restore();
+
+    painter->setCompositionMode(QPainter::CompositionMode_Difference);
+    painter->setPen(Qt::white);
+    painter->setBrush(Qt::NoBrush);
+    painter->drawPath(path);
 }
 
 void PDFMagnifierTool::setActiveImpl(bool active)
@@ -1253,7 +1262,8 @@ void PDFMagnifierTool::setActiveImpl(bool active)
 
     if (!active)
     {
-        m_mousePos = QPoint();
+        m_mousePos = std::nullopt;
+        m_isDrawing = false;
     }
 }
 

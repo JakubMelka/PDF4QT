@@ -1176,6 +1176,11 @@ void PDFProgramController::initializeToolManager()
         pdf::PDFCreateHighlightTextTool* createHighlightTextTool = new pdf::PDFCreateHighlightTextTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, highlightGroup, this);
         m_toolManager->addTool(createHighlightTextTool);
     }
+    if (QAction* action = m_actionManager->getAction(PDFActionManager::DeleteAnnotation))
+    {
+        pdf::PDFDeleteAnnotationTool* deleteAnnotationTool = new pdf::PDFDeleteAnnotationTool(m_pdfWidget->getDrawWidgetProxy(), m_toolManager, action, this);
+        m_toolManager->addTool(deleteAnnotationTool);
+    }
 }
 
 void PDFProgramController::onActionGoToDocumentStartTriggered()

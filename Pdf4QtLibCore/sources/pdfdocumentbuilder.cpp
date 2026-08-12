@@ -2061,10 +2061,29 @@ void PDFDocumentBuilder::removeAnnotation(PDFObjectReference page, PDFObjectRefe
 {
     PDFDocumentDataLoaderDecorator loader(&m_storage);
 
+    // Jakub Melka: markup annotation can have an associated popup annotation, which
+    // is stored as a separate annotation in the page's annotation array. It must be
+    // removed together with its parent annotation, otherwise an orphaned popup
+    // annotation referencing a non-existent parent would remain in the document.
+    PDFObjectReference popupAnnotation;
+    if (const PDFDictionary* annotationDictionary = m_storage.getDictionaryFromObject(m_storage.getObjectByReference(annotation)))
+    {
+        const PDFObject& popupObject = annotationDictionary->get("Popup");
+        if (popupObject.isReference())
+        {
+            popupAnnotation = popupObject.getReference();
+        }
+    }
+
     if (const PDFDictionary* pageDictionary = m_storage.getDictionaryFromObject(m_storage.getObjectByReference(page)))
     {
         std::vector<PDFObjectReference> annots = loader.readReferenceArrayFromDictionary(pageDictionary, "Annots");
-        annots.erase(std::remove(annots.begin(), annots.end(), annotation), annots.end());
+
+        auto isRemoved = [annotation, popupAnnotation](PDFObjectReference reference)
+        {
+            return reference == annotation || (popupAnnotation.isValid() && reference == popupAnnotation);
+        };
+        annots.erase(std::remove_if(annots.begin(), annots.end(), isRemoved), annots.end());
 
         PDFObjectFactory factory;
         factory.beginDictionary();
@@ -2081,6 +2100,11 @@ void PDFDocumentBuilder::removeAnnotation(PDFObjectReference page, PDFObjectRefe
         factory.endDictionary();
 
         mergeTo(page, factory.takeObject());
+    }
+
+    if (popupAnnotation.isValid())
+    {
+        setObject(popupAnnotation, PDFObject());
     }
 
     setObject(annotation, PDFObject());

@@ -333,7 +333,18 @@ protected:
     virtual void setActiveImpl(bool active) override;
 
 private:
-    QPoint m_mousePos;
+    /// Position of the mouse cursor. Empty value means, that the cursor is not
+    /// over the draw widget, so the magnifier is not drawn at all. Do not use
+    /// a null QPoint as the "no position" marker - QPoint(0, 0) is null, but it
+    /// is a perfectly valid cursor position (the top left corner of the widget).
+    std::optional<QPoint> m_mousePos;
+
+    /// Magnifier draws the pages again, into the magnified area. That means, that
+    /// the drawing of the pages is re-entered while it is running. This flag
+    /// guards against the (unexpected) recursion - drawing the pages inside
+    /// the magnifier must never trigger the magnifier again.
+    mutable bool m_isDrawing;
+
     int m_magnifierSize;
     PDFReal m_magnifierZoom;
 };

@@ -26,9 +26,9 @@
 #include "pdfwidgetsglobal.h"
 #include "pdfwidgettool.h"
 #include "pdfannotation.h"
+#include "pdfannotationstyle.h"
 
 class QActionGroup;
-class QColorDialog;
 
 namespace pdf
 {
@@ -202,14 +202,13 @@ private:
 
     void onPointPicked(PDFInteger pageIndex, QPointF pagePoint);
     void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
+    void onStyleChanged(const pdf::PDFAnnotationStyle& style);
     void finishDefinition();
 
     PDFToolManager* m_toolManager;
     PDFPickTool* m_pickTool;
+    PDFAnnotationStyleManager* m_styleManager;
     Type m_type;
-    PDFReal m_penWidth;
-    QColor m_strokeColor;
-    QColor m_fillColor;
     PDFInteger m_rectPageIndex = 0;
     QRectF m_rectOnPage;
     bool m_orthogonalMode = false;
@@ -234,6 +233,8 @@ public:
                           const PDFColorConvertor& convertor,
                           QList<PDFRenderError>& errors) const override;
 
+    virtual void setActiveImpl(bool active) override;
+
     PDFReal getPenWidth() const;
     void setPenWidth(PDFReal penWidth);
 
@@ -245,12 +246,11 @@ public:
 
 private:
     void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
+    void onStyleChanged(const pdf::PDFAnnotationStyle& style);
 
     PDFToolManager* m_toolManager;
     PDFPickTool* m_pickTool;
-    PDFReal m_penWidth;
-    QColor m_strokeColor;
-    QColor m_fillColor;
+    PDFAnnotationStyleManager* m_styleManager;
 };
 
 class PDF4QTLIBWIDGETSSHARED_EXPORT PDFCreateFreehandCurveTool : public PDFCreateAnnotationTool
@@ -274,6 +274,8 @@ public:
     virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
 
+    virtual void setActiveImpl(bool active) override;
+
     PDFReal getPenWidth() const;
     void setPenWidth(const PDFReal& penWidth);
 
@@ -284,10 +286,9 @@ private:
     void resetTool();
 
     PDFToolManager* m_toolManager;
+    PDFAnnotationStyleManager* m_styleManager;
     PDFInteger m_pageIndex;
     std::vector<QPointF> m_pickedPoints;
-    PDFReal m_penWidth;
-    QColor m_strokeColor;
 };
 
 /// Tool that creates 'stamp' annotations. Multiple types of stamps
@@ -360,10 +361,16 @@ protected:
 
 private:
     void onActionTriggered(QAction* action);
-    void onColorChanged(const QColor& color);
+    void onStyleChanged(const pdf::PDFAnnotationStyle& style);
     void updateCursor();
     void setSelection(pdf::PDFTextSelection&& textSelection);
-    void updateInitialColor();
+
+    /// Returns the identifier of the persisted style for the current annotation
+    /// type, so each kind of the text markup remembers its own color.
+    QString getStyleId() const;
+
+    /// Returns the default color of the current annotation type
+    QColor getDefaultColor() const;
 
     struct SelectionInfo
     {
@@ -373,7 +380,7 @@ private:
 
     PDFToolManager* m_toolManager;
     QActionGroup* m_actionGroup;
-    QColorDialog* m_colorDialog;
+    PDFAnnotationStyleManager* m_styleManager;
     AnnotationType m_type;
     pdf::PDFTextSelection m_textSelection;
     SelectionInfo m_selectionInfo;
@@ -404,11 +411,11 @@ protected:
 
 private:
     void onRectanglePicked(pdf::PDFInteger pageIndex, QRectF pageRectangle);
-    void onColorChanged(const QColor& color);
+    void onStyleChanged(const pdf::PDFAnnotationStyle& style);
 
     PDFToolManager* m_toolManager;
     PDFPickTool* m_pickTool;
-    QColorDialog* m_colorDialog;
+    PDFAnnotationStyleManager* m_styleManager;
     QColor m_color;
 };
 
@@ -430,6 +437,87 @@ private:
 
     PDFToolManager* m_toolManager;
     PDFPickTool* m_pickTool;
+};
+
+/// Tool for a fast deletion of annotations. Without this tool, annotations can be
+/// deleted only one by one, using the context menu of the annotation. Annotation
+/// under the mouse cursor is highlighted and it is deleted by a mouse click. It is
+/// also possible to delete several annotations at once - by dragging a rectangle
+/// over them.
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFDeleteAnnotationTool : public PDFWidgetTool
+{
+    Q_OBJECT
+
+private:
+    using BaseClass = PDFWidgetTool;
+
+public:
+    explicit PDFDeleteAnnotationTool(PDFDrawWidgetProxy* proxy, PDFToolManager* toolManager, QAction* action, QObject* parent);
+
+    virtual void drawPage(QPainter* painter,
+                          PDFInteger pageIndex,
+                          const PDFPrecompiledPage* compiledPage,
+                          PDFTextLayoutGetter& layoutGetter,
+                          const QTransform& pagePointToDevicePointMatrix,
+                          const PDFColorConvertor& convertor,
+                          QList<PDFRenderError>& errors) const override;
+
+    virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
+    virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
+    virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
+
+protected:
+    virtual void updateActions() override;
+    virtual void setActiveImpl(bool active) override;
+
+private:
+    /// Annotation, which can be deleted by this tool
+    struct AnnotationInfo
+    {
+        PDFInteger pageIndex = -1;
+        PDFObjectReference pageReference;
+        PDFObjectReference annotationReference;
+
+        /// Rectangle of the annotation in the page coordinate system
+        QRectF rectangle;
+    };
+
+    /// Returns annotations of the page, which can be deleted by this tool.
+    /// Popup annotations and replies are not returned - they are deleted
+    /// together with their parent annotation.
+    /// \param pageIndex Page index
+    std::vector<AnnotationInfo> getDeletableAnnotations(PDFInteger pageIndex) const;
+
+    /// Returns annotations, which are currently marked for deletion (annotation
+    /// under the mouse cursor, or all annotations inside the dragged rectangle).
+    std::vector<AnnotationInfo> getMarkedAnnotations() const;
+
+    /// Deletes the given annotations from the document
+    void deleteAnnotations(const std::vector<AnnotationInfo>& annotations);
+
+    /// Returns rectangle selected by the user in the page coordinate system.
+    /// If the user is not dragging a rectangle, then invalid rectangle is returned.
+    QRectF getSelectionRectangle() const;
+
+    void resetTool();
+    void updateCursor();
+
+    PDFToolManager* m_toolManager;
+
+    /// Page, on which the user started to drag the selection rectangle, -1 if
+    /// the user is not dragging any rectangle.
+    PDFInteger m_selectionPageIndex;
+
+    /// Start point of the dragged selection rectangle, in page coordinates
+    QPointF m_selectionStartPoint;
+
+    /// Current mouse position in page coordinates
+    QPointF m_currentPagePoint;
+
+    /// Page under the mouse cursor, -1 if the cursor is not over any page
+    PDFInteger m_currentPageIndex;
+
+    bool m_isCursorOverAnnotation;
 };
 
 /// Tool for redaction of text in document. Creates redaction annotation from  text selection.
@@ -460,7 +548,7 @@ protected:
     virtual void setActiveImpl(bool active) override;
 
 private:
-    void onColorChanged(const QColor& color);
+    void onStyleChanged(const pdf::PDFAnnotationStyle& style);
     void updateCursor();
     void setSelection(pdf::PDFTextSelection&& textSelection);
 
@@ -473,7 +561,7 @@ private:
     PDFToolManager* m_toolManager;
     pdf::PDFTextSelection m_textSelection;
     SelectionInfo m_selectionInfo;
-    QColorDialog* m_colorDialog;
+    PDFAnnotationStyleManager* m_styleManager;
     QColor m_color;
     bool m_isCursorOverText;
 };

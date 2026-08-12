@@ -33,6 +33,9 @@
 #include <QFutureWatcher>
 #include <QWaitCondition>
 
+#include <atomic>
+#include <memory>
+
 template <class Key, class T>
 class QCache;
 
@@ -40,6 +43,10 @@ namespace pdf
 {
 class PDFDrawWidgetProxy;
 class PDFAsynchronousPageCompiler;
+
+/// Cancellation flag of a single page compilation task. It is shared between
+/// the compiler and the worker threads, so it must be accessed atomically.
+using PDFPageCompilerCancelFlag = std::shared_ptr<std::atomic_bool>;
 
 class PDFAsynchronousPageCompilerWorkerThread : public QThread
 {
@@ -107,13 +114,28 @@ public:
     /// Return proxy
     PDFDrawWidgetProxy* getProxy() const { return m_proxy; }
 
+    enum class CompileMode
+    {
+        /// Do not compile the page, just look into the cache
+        None,
+
+        /// Compile the page. Compilation is cancelled, when the page is not
+        /// displayed in the draw widget anymore (see \p setActivePages).
+        Viewport,
+
+        /// Compile the page. Compilation is never cancelled by the changes
+        /// of the displayed area. Use this for consumers, which are independent
+        /// on the main draw widget viewport (for example page thumbnails).
+        Persistent
+    };
+
     /// Tries to retrieve precompiled page from the cache. If page is not found,
-    /// then nullptr is returned (no exception is thrown). If \p compile is set to true,
-    /// and page is not found, and compiler is active, then new asynchronous compile
-    /// task is performed.
+    /// then nullptr is returned (no exception is thrown). If \p mode is not
+    /// \p CompileMode::None, and page is not found, and compiler is active, then new
+    /// asynchronous compile task is performed.
     /// \param pageIndex Index of page
-    /// \param compile Compile the page, if it is not found in the cache
-    const PDFPrecompiledPage* getCompiledPage(PDFInteger pageIndex, bool compile);
+    /// \param mode Compilation mode
+    const PDFPrecompiledPage* getCompiledPage(PDFInteger pageIndex, CompileMode mode);
 
     /// Performs smart cache clear. Too old pages are removed from the cache,
     /// but only if these pages are not in active pages. Use this function to
@@ -122,7 +144,18 @@ public:
     /// \param activePages Sorted vector of active pages, which should remain in cache
     void smartClearCache(const int milisecondsLimit, const std::vector<PDFInteger>& activePages);
 
-    /// Is operation being cancelled?
+    /// Sets pages, which are currently interesting for the user (visible pages
+    /// and prefetched pages). Compilation tasks of all other pages are cancelled,
+    /// because their result would be thrown away anyway. Without this, a long
+    /// distance jump / fast scrolling in a large document enqueues compilation
+    /// of every page which was briefly touched by the viewport, and all of them
+    /// are compiled on all cores, even if they are not displayed anymore.
+    /// \param activePages Sorted vector of active pages
+    void setActivePages(const std::vector<PDFInteger>& activePages);
+
+    /// Is operation being cancelled? This is the "global" cancellation, i.e.
+    /// the whole engine is being stopped. Cancellation of a single page
+    /// is handled by \p PDFPageCompilerOperationControl.
     virtual bool isOperationCancelled() const override;
 
 signals:
@@ -131,18 +164,48 @@ signals:
 
 private:
     friend class PDFAsynchronousPageCompilerWorkerThread;
+    friend class PDFPageCompilerOperationControl;
 
     void onPageCompiled();
 
     struct CompileTask
     {
         CompileTask() = default;
-        CompileTask(PDFInteger pageIndex) : pageIndex(pageIndex) { }
+        CompileTask(PDFInteger pageIndex, bool isCancellable) :
+            pageIndex(pageIndex),
+            isCancellable(isCancellable),
+            cancelFlag(std::make_shared<std::atomic_bool>(false))
+        {
+
+        }
+
+        /// Returns true, if this particular task has been cancelled
+        bool isCancelled() const { return cancelFlag && cancelFlag->load(std::memory_order_relaxed); }
+
+        /// Cancels this task
+        void cancel() const { if (cancelFlag) { cancelFlag->store(true, std::memory_order_relaxed); } }
 
         PDFInteger pageIndex = 0;
         bool finished = false;
+
+        /// Can this task be cancelled, when the page leaves the viewport? Tasks
+        /// created for consumers independent on the viewport (thumbnails) can't.
+        bool isCancellable = true;
+
+        PDFPageCompilerCancelFlag cancelFlag;
         PDFPrecompiledPage precompiledPage;
     };
+
+    /// Picks a batch of tasks, which should be compiled now. Tasks are ordered
+    /// by their priority (pages nearest to the viewport are compiled first) and
+    /// the batch size is limited, so cancellation of no longer needed pages can
+    /// take effect between the batches. Mutex must be locked when calling this
+    /// function, tasks in the batch are returned as copies.
+    std::vector<CompileTask> pickTasksForCompilation();
+
+    /// Maximal number of pages compiled in a single batch. Batch is intentionally
+    /// small, so that between two batches we can react to the viewport changes.
+    static constexpr size_t MAXIMAL_TASK_BATCH_SIZE = 8;
 
     State m_state = State::Inactive;
     QMutex m_mutex;
@@ -155,6 +218,33 @@ private:
     /// This task is protected by mutex. Every access to this
     /// variable must be done with locked mutex.
     std::map<PDFInteger, CompileTask> m_tasks;
+
+    /// Currently active (visible / prefetched) pages. Protected by mutex.
+    std::vector<PDFInteger> m_activePages;
+};
+
+/// Operation control of a single page compilation. Compilation of a page is
+/// cancelled either when the whole engine is being stopped, or when this
+/// particular page is not needed anymore.
+class PDFPageCompilerOperationControl : public PDFOperationControl
+{
+public:
+    explicit inline PDFPageCompilerOperationControl(const PDFAsynchronousPageCompiler* compiler, PDFPageCompilerCancelFlag cancelFlag) :
+        m_compiler(compiler),
+        m_cancelFlag(std::move(cancelFlag))
+    {
+
+    }
+
+    virtual bool isOperationCancelled() const override
+    {
+        return (m_cancelFlag && m_cancelFlag->load(std::memory_order_relaxed)) ||
+               (m_compiler && m_compiler->isOperationCancelled());
+    }
+
+private:
+    const PDFAsynchronousPageCompiler* m_compiler;
+    PDFPageCompilerCancelFlag m_cancelFlag;
 };
 
 class PDF4QTLIBWIDGETSSHARED_EXPORT PDFAsynchronousTextLayoutCompiler : public QObject
