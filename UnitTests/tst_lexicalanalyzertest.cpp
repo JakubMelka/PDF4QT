@@ -59,6 +59,7 @@ private slots:
     void test_header_regexp();
     void test_flat_map();
     void test_lzw_filter();
+    void test_flate_filter_truncated();
     void test_sampled_function();
     void test_exponential_function();
     void test_stitching_function();
@@ -323,6 +324,25 @@ void LexicalAnalyzerTest::test_lzw_filter()
     QByteArray valid = "-----A---B";
 
     QCOMPARE(decoded, valid);
+}
+
+void LexicalAnalyzerTest::test_flate_filter_truncated()
+{
+    QByteArray valid = "Sample text, which is compressed by flate method, and then truncated.";
+    QByteArray compressed = pdf::PDFFlateDecodeFilter::compress(valid);
+
+    // Truncate the Adler-32 checksum (last 4 bytes of the zlib stream). Some
+    // producers write streams without the checksum, we must tolerate this.
+    QByteArray truncated = compressed.left(compressed.size() - 4);
+
+    pdf::PDFFlateDecodeFilter filter;
+    auto objectFetcher = [](const pdf::PDFObject& object) -> const pdf::PDFObject& { return object; };
+
+    QByteArray decodedComplete = filter.apply(compressed, objectFetcher, pdf::PDFObject(), nullptr);
+    QCOMPARE(decodedComplete, valid);
+
+    QByteArray decodedTruncated = filter.apply(truncated, objectFetcher, pdf::PDFObject(), nullptr);
+    QCOMPARE(decodedTruncated, valid);
 }
 
 void LexicalAnalyzerTest::test_sampled_function()

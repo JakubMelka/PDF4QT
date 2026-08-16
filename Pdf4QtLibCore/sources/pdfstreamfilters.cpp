@@ -520,6 +520,7 @@ QByteArray PDFFlateDecodeFilter::uncompress(const QByteArray& data)
         errorMessage = QString::fromLatin1(stream.msg);
     }
 
+    const bool isInputExhausted = stream.avail_in == 0;
     inflateEnd(&stream);
 
     switch (error)
@@ -529,7 +530,11 @@ QByteArray PDFFlateDecodeFilter::uncompress(const QByteArray& data)
 
         default:
         {
-            const bool ignoreError = error == Z_DATA_ERROR && errorMessage == "incorrect data check";
+            // Some producers write streams with missing or incorrect Adler-32 checksum,
+            // or truncate the stream. If we decompressed some data and consumed whole
+            // input, then we tolerate this error.
+            const bool isTruncatedStream = error == Z_BUF_ERROR && isInputExhausted && !result.isEmpty();
+            const bool ignoreError = isTruncatedStream || (error == Z_DATA_ERROR && errorMessage == "incorrect data check");
 
             if (!ignoreError)
             {
