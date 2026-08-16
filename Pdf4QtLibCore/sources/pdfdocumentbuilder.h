@@ -1052,19 +1052,23 @@ public:
     /// Redaction annotation. Marks a region on the page to be redacted.
     /// \param page Page to which is annotation added
     /// \param rectangle Area in which is redact displayed
-    /// \param color Color
+    /// \param fillColor Fill color of the redacted area (interior color)
+    /// \param strokeColor Stroke color (color of the redaction marker border)
     PDFObjectReference createAnnotationRedact(PDFObjectReference page,
                                               QRectF rectangle,
-                                              QColor color);
+                                              QColor fillColor,
+                                              QColor strokeColor);
 
 
     /// Redaction annotation. Marks a region on the page to be redacted.
     /// \param page Page to which is annotation added
     /// \param quadrilaterals Area in which is redaction displayed
-    /// \param color Color
+    /// \param fillColor Fill color of the redacted area (interior color)
+    /// \param strokeColor Stroke color (color of the redaction marker border)
     PDFObjectReference createAnnotationRedact(PDFObjectReference page,
                                               QPolygonF quadrilaterals,
-                                              QColor color);
+                                              QColor fillColor,
+                                              QColor strokeColor);
 
 
     /// Square annotation displays rectangle (or square). When opened, they display pop-up window containing 

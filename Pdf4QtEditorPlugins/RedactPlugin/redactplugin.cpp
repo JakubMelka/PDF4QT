@@ -139,7 +139,7 @@ void RedactPlugin::onRedactTextSelectionTriggered()
         if (!path.isEmpty())
         {
             pdf::PDFObjectReference page = m_document->getCatalog()->getPage(pageIndex)->getPageReference();
-            modifier.getBuilder()->createAnnotationRedact(page, quadrilaterals, redactColor);
+            modifier.getBuilder()->createAnnotationRedact(page, quadrilaterals, redactColor, redactColor);
             modifier.markAnnotationsChanged();
         }
     }
@@ -169,7 +169,7 @@ void RedactPlugin::onRedactPageTriggered()
         {
             const pdf::PDFPage* page = m_document->getCatalog()->getPage(pageIndex - 1);
             pdf::PDFObjectReference pageReference = page->getPageReference();
-            pdf::PDFObjectReference annotation = modifier.getBuilder()->createAnnotationRedact(pageReference, page->getMediaBox(), Qt::black);
+            pdf::PDFObjectReference annotation = modifier.getBuilder()->createAnnotationRedact(pageReference, page->getMediaBox(), Qt::black, Qt::black);
             modifier.getBuilder()->updateAnnotationAppearanceStreams(annotation);
         }
 

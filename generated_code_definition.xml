@@ -5984,9 +5984,16 @@ return popupAnnotation;</property>
             <QObject class="codegen::GeneratedParameter">
               <property name="objectName"></property>
               <property name="items"/>
-              <property name="parameterName">color</property>
+              <property name="parameterName">fillColor</property>
               <property name="parameterType">_QColor</property>
-              <property name="parameterDescription">Color</property>
+              <property name="parameterDescription">Fill color of the redacted area (interior color)</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">strokeColor</property>
+              <property name="parameterType">_QColor</property>
+              <property name="parameterDescription">Stroke color (color of the redaction marker border)</property>
             </QObject>
           </property>
           <property name="actionType">Parameters</property>
@@ -6038,9 +6045,16 @@ return popupAnnotation;</property>
                 <QObject class="codegen::GeneratedPDFObject">
                   <property name="objectName"></property>
                   <property name="items"/>
+                  <property name="dictionaryItemName">C</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">strokeColor</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
                   <property name="dictionaryItemName">IC</property>
                   <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">color</property>
+                  <property name="value">fillColor</property>
                 </QObject>
                 <QObject class="codegen::GeneratedPDFObject">
                   <property name="objectName"></property>
@@ -6139,9 +6153,16 @@ return annotationObject;</property>
             <QObject class="codegen::GeneratedParameter">
               <property name="objectName"></property>
               <property name="items"/>
-              <property name="parameterName">color</property>
+              <property name="parameterName">fillColor</property>
               <property name="parameterType">_QColor</property>
-              <property name="parameterDescription">Color</property>
+              <property name="parameterDescription">Fill color of the redacted area (interior color)</property>
+            </QObject>
+            <QObject class="codegen::GeneratedParameter">
+              <property name="objectName"></property>
+              <property name="items"/>
+              <property name="parameterName">strokeColor</property>
+              <property name="parameterType">_QColor</property>
+              <property name="parameterDescription">Stroke color (color of the redaction marker border)</property>
             </QObject>
           </property>
           <property name="actionType">Parameters</property>
@@ -6186,9 +6207,16 @@ return annotationObject;</property>
                 <QObject class="codegen::GeneratedPDFObject">
                   <property name="objectName"></property>
                   <property name="items"/>
+                  <property name="dictionaryItemName">C</property>
+                  <property name="objectType">DictionaryItemSimple</property>
+                  <property name="value">strokeColor</property>
+                </QObject>
+                <QObject class="codegen::GeneratedPDFObject">
+                  <property name="objectName"></property>
+                  <property name="items"/>
                   <property name="dictionaryItemName">IC</property>
                   <property name="objectType">DictionaryItemSimple</property>
-                  <property name="value">color</property>
+                  <property name="value">fillColor</property>
                 </QObject>
                 <QObject class="codegen::GeneratedPDFObject">
                   <property name="objectName"></property>

@@ -1640,7 +1640,9 @@ void PDFCreateRedactRectangleTool::onRectanglePicked(PDFInteger pageIndex, QRect
     PDFDocumentModifier modifier(getDocument());
 
     PDFObjectReference page = getDocument()->getCatalog()->getPage(pageIndex)->getPageReference();
-    PDFObjectReference annotation = modifier.getBuilder()->createAnnotationRedact(page, pageRectangle, m_color);
+    // Jakub Melka: the border color is the same as the fill color, so the redaction
+    // marker is displayed as a solid area without a differently colored border
+    PDFObjectReference annotation = modifier.getBuilder()->createAnnotationRedact(page, pageRectangle, m_color, m_color);
     modifier.getBuilder()->updateAnnotationAppearanceStreams(annotation);
     modifier.markAnnotationsChanged();
 
@@ -1840,7 +1842,9 @@ void PDFCreateRedactTextTool::mouseReleaseEvent(QWidget* widget, QMouseEvent* ev
                     PDFDocumentModifier modifier(getDocument());
 
                     PDFObjectReference page = getDocument()->getCatalog()->getPage(pageIndex)->getPageReference();
-                    modifier.getBuilder()->createAnnotationRedact(page, quadrilaterals, m_color);
+                    // Jakub Melka: the border color is the same as the fill color, so the redaction
+                    // marker is displayed as a solid area without a differently colored border
+                    modifier.getBuilder()->createAnnotationRedact(page, quadrilaterals, m_color, m_color);
                     modifier.markAnnotationsChanged();
 
                     if (modifier.finalize())

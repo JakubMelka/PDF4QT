@@ -4366,7 +4366,8 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationPopup(PDFObjectReference 
 
 PDFObjectReference PDFDocumentBuilder::createAnnotationRedact(PDFObjectReference page,
                                                               QRectF rectangle,
-                                                              QColor color)
+                                                              QColor fillColor,
+                                                              QColor strokeColor)
 {
     PDFObjectFactory objectBuilder;
 
@@ -4386,8 +4387,11 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationRedact(PDFObjectReference
     objectBuilder.beginDictionaryItem("CreationDate");
     objectBuilder << WrapCurrentDateTime();
     objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("C");
+    objectBuilder << strokeColor;
+    objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("IC");
-    objectBuilder << color;
+    objectBuilder << fillColor;
     objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("QuadPoints");
     objectBuilder.beginArray();
@@ -4415,7 +4419,8 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationRedact(PDFObjectReference
 
 PDFObjectReference PDFDocumentBuilder::createAnnotationRedact(PDFObjectReference page,
                                                               QPolygonF quadrilaterals,
-                                                              QColor color)
+                                                              QColor fillColor,
+                                                              QColor strokeColor)
 {
     PDFObjectFactory objectBuilder;
 
@@ -4432,8 +4437,11 @@ PDFObjectReference PDFDocumentBuilder::createAnnotationRedact(PDFObjectReference
     objectBuilder.beginDictionaryItem("CreationDate");
     objectBuilder << WrapCurrentDateTime();
     objectBuilder.endDictionaryItem();
+    objectBuilder.beginDictionaryItem("C");
+    objectBuilder << strokeColor;
+    objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("IC");
-    objectBuilder << color;
+    objectBuilder << fillColor;
     objectBuilder.endDictionaryItem();
     objectBuilder.beginDictionaryItem("QuadPoints");
     objectBuilder << quadrilaterals;
