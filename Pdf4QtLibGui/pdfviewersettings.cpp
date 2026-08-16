@@ -45,6 +45,10 @@ void PDFViewerSettings::readSettings(QSettings& settings, const pdf::PDFCMSSetti
 {
     Settings defaultSettings;
 
+    // Jakub Melka: settings written by an application older than the versioning itself
+    // do not contain the version at all, so they are treated as version 0.
+    const int settingsVersion = settings.value("settingsVersion", 0).toInt();
+
     settings.beginGroup("ViewerSettings");
     m_settings.m_directory = settings.value("defaultDirectory", QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).toString();
     m_settings.m_features = static_cast<pdf::PDFRenderer::Features>(settings.value("rendererFeaturesv2", static_cast<int>(pdf::PDFRenderer::getDefaultFeatures())).toInt());
@@ -136,11 +140,32 @@ void PDFViewerSettings::readSettings(QSettings& settings, const pdf::PDFCMSSetti
     // Language
     m_settings.m_language = pdf::PDFApplicationTranslator::loadSettings(settings);
 
+    upgradeSettings(settingsVersion);
+
     Q_EMIT settingsChanged();
+}
+
+void PDFViewerSettings::upgradeSettings(int settingsVersion)
+{
+    if (settingsVersion >= SETTINGS_VERSION)
+    {
+        // Settings are up to date, nothing to be done
+        return;
+    }
+
+    if (settingsVersion < 1)
+    {
+        // Color adjustment (for example dark mode) was applied to the page content only,
+        // annotations kept their original colors. Turn the adjustment of annotations on,
+        // so upgraded installations behave the same way as the new ones.
+        m_settings.m_features.setFlag(pdf::PDFRenderer::ColorAdjust_Annotations, true);
+    }
 }
 
 void PDFViewerSettings::writeSettings(QSettings& settings)
 {
+    settings.setValue("settingsVersion", SETTINGS_VERSION);
+
     settings.beginGroup("ViewerSettings");
     settings.setValue("defaultDirectory", m_settings.m_directory);
     settings.setValue("rendererFeaturesv2", static_cast<int>(m_settings.m_features));

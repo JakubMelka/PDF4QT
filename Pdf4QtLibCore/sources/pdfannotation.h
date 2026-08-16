@@ -645,12 +645,17 @@ protected:
         static LineGeometryInfo create(QLineF line);
     };
 
-    /// Returns pen from border settings and annotation color
-    QPen getPen() const;
+    /// Returns pen from border settings and annotation color, adjusted by the color
+    /// convertor. The convertor is mandatory, so no annotation can accidentally
+    /// bypass the color adjustment - pass an inactive convertor, if the original
+    /// colors should be used (for example, when an appearance stream is generated).
+    /// \param convertor Color convertor
+    QPen getPen(const PDFColorConvertor& convertor) const;
 
-    /// Returns brush from interior color. If annotation doesn't have
-    /// a brush, then empty brush is returned.
-    QBrush getBrush() const;
+    /// Returns brush from interior color, adjusted by the color convertor. If annotation
+    /// doesn't have a brush, then empty brush is returned. See also getPen.
+    /// \param convertor Color convertor
+    QBrush getBrush(const PDFColorConvertor& convertor) const;
 
     /// Draw line ending at given point, using parameters. Line ending appearance
     /// is constructed given parameters \p lineEndingSize, \p arrowAxisLength
@@ -1640,6 +1645,13 @@ protected:
                                              const PDFPage* page,
                                              const PDFCMS* cms,
                                              QPainter* painter) const;
+
+    /// Returns color convertor, which should be applied to the drawn annotations.
+    /// If color adjustment of annotations is turned off (feature ColorAdjust_Annotations),
+    /// or no color adjustment is active at all, then inactive convertor is returned,
+    /// which behaves as an identity function.
+    /// \param cms Color management system
+    PDFColorConvertor getAnnotationColorConvertor(const PDFCMS* cms) const;
 
     const PDFDocument* m_document;
 

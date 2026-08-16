@@ -400,7 +400,15 @@ public:
     void setDrawSelectionRectangle(bool drawSelectionRectangle);
 
     QColor getSelectionRectangleColor() const;
-    void setSelectionRectangleColor(QColor selectionRectangleColor);
+
+    /// Sets color of the selection rectangle.
+    /// \param selectionRectangleColor Color of the selection rectangle
+    /// \param isAnnotationColor If true, then the color is a color of an annotation, which
+    ///        will be created from the selection - it is then color adjusted only when the
+    ///        color adjustment of annotations is turned on, so the preview and the created
+    ///        annotation have the same color. If false, the color is a color of the page
+    ///        content or just a selection marker, and it is adjusted always.
+    void setSelectionRectangleColor(QColor selectionRectangleColor, bool isAnnotationColor = false);
 
     void makeLastPointOrthogonal();
 
@@ -416,6 +424,10 @@ protected:
 private:
     void buildSnapData();
 
+    /// Returns color adjusted color of the selection rectangle. See setSelectionRectangleColor.
+    /// \param convertor Color convertor of the page content
+    QColor getAdjustedSelectionRectangleColor(const PDFColorConvertor& convertor) const;
+
     Mode m_mode;
     PDFSnapper m_snapper;
     QPoint m_mousePosition;
@@ -423,6 +435,7 @@ private:
     std::vector<QPointF> m_pickedPoints;
     bool m_drawSelectionRectangle;
     QColor m_selectionRectangleColor;
+    bool m_isSelectionRectangleAnnotationColor;
     bool m_hideLargeCross;
     bool m_snapToAnnotations;
 };

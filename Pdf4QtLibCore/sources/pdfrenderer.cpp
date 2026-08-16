@@ -148,6 +148,21 @@ void PDFRenderer::applyFeaturesToColorConvertor(const Features& features, PDFCol
     }
 }
 
+void PDFRenderer::applyFeaturesToAnnotationColorConvertor(const Features& features, PDFColorConvertor& convertor)
+{
+    if (!features.testFlag(ColorAdjust_Annotations))
+    {
+        // Jakub Melka: page content is adjusted always, when some color adjustment mode
+        // is active, but annotations are an overlay above the page and the user may want
+        // to keep their original colors. Deactivate the convertor - the remaining settings
+        // of the convertor are kept, they are not used by an inactive convertor.
+        convertor.setMode(PDFColorConvertor::Mode::Normal);
+        return;
+    }
+
+    applyFeaturesToColorConvertor(features, convertor);
+}
+
 const PDFOperationControl* PDFRenderer::getOperationControl() const
 {
     return m_operationControl;

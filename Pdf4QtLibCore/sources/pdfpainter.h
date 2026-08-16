@@ -135,6 +135,17 @@ public:
                         const PDFMeshQualitySettings& meshQualitySettings);
     virtual ~PDFPainter() override;
 
+    /// Sets the color convertor, which is applied to all colors painted by this painter.
+    /// By default, no color convertor is set, so colors are painted unmodified.
+    ///
+    /// Jakub Melka: the convertor is intentionally set on this class and not on the base
+    /// class PDFPainterBase. The other descendant of the base class, PDFPrecompiledPageGenerator,
+    /// must not convert colors while generating the page - the conversion is performed
+    /// afterwards, on the resulting precompiled page (see PDFPrecompiledPage::convertColors),
+    /// so colors would be converted twice.
+    /// \param colorConvertor Color convertor
+    void setColorConvertor(const PDFColorConvertor& colorConvertor) { m_colorConvertor = colorConvertor; }
+
 protected:
     virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule) override;
     virtual void performClipping(const QPainterPath& path, Qt::FillRule fillRule) override;
@@ -148,6 +159,7 @@ protected:
 
 private:
     QPainter* m_painter;
+    PDFColorConvertor m_colorConvertor;
 };
 
 /// Precompiled page contains precompiled graphic instructions of a PDF page to draw it quickly

@@ -1283,6 +1283,7 @@ PDFPickTool::PDFPickTool(PDFDrawWidgetProxy* proxy, PDFPickTool::Mode mode, QObj
     m_pageIndex(-1),
     m_drawSelectionRectangle(true),
     m_selectionRectangleColor(Qt::blue),
+    m_isSelectionRectangleAnnotationColor(false),
     m_hideLargeCross(false),
     m_snapToAnnotations(false)
 {
@@ -1346,14 +1347,14 @@ void PDFPickTool::drawPage(QPainter* painter,
         QRect selectionRectangle(xMin, yMin, xMax - xMin, yMax - yMin);
         if (selectionRectangle.isValid())
         {
-            painter->fillRect(selectionRectangle, convertor.convert(m_selectionRectangleColor, false, true));
+            painter->fillRect(selectionRectangle, getAdjustedSelectionRectangleColor(convertor));
         }
     }
 
     if (m_mode == Mode::Images && m_snapper.getSnappedImage())
     {
         const PDFSnapper::ViewportSnapImage* snappedImage = m_snapper.getSnappedImage();
-        painter->fillPath(snappedImage->viewportPath, convertor.convert(m_selectionRectangleColor, false, true));
+        painter->fillPath(snappedImage->viewportPath, getAdjustedSelectionRectangleColor(convertor));
     }
 }
 
@@ -1658,9 +1659,25 @@ QColor PDFPickTool::getSelectionRectangleColor() const
     return m_selectionRectangleColor;
 }
 
-void PDFPickTool::setSelectionRectangleColor(QColor selectionRectangleColor)
+void PDFPickTool::setSelectionRectangleColor(QColor selectionRectangleColor, bool isAnnotationColor)
 {
     m_selectionRectangleColor = selectionRectangleColor;
+    m_isSelectionRectangleAnnotationColor = isAnnotationColor;
+}
+
+QColor PDFPickTool::getAdjustedSelectionRectangleColor(const PDFColorConvertor& convertor) const
+{
+    if (!m_isSelectionRectangleAnnotationColor)
+    {
+        return convertor.convert(m_selectionRectangleColor, false, true);
+    }
+
+    // Jakub Melka: the rectangle is a preview of an annotation, so it must be adjusted
+    // exactly the same way as the created annotation will be - both the decision, if it
+    // is adjusted at all, and the conversion of the color itself (see PDFAnnotation::getBrush).
+    PDFColorConvertor annotationConvertor = convertor;
+    PDFRenderer::applyFeaturesToAnnotationColorConvertor(getProxy()->getFeatures(), annotationConvertor);
+    return annotationConvertor.convert(m_selectionRectangleColor, false, false);
 }
 
 void PDFPickTool::makeLastPointOrthogonal()

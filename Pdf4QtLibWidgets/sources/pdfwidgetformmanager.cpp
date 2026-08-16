@@ -364,7 +364,7 @@ void PDFFormFieldSignatureEditor::draw(AnnotationDrawParameters& parameters, boo
     QPainterPath mark;
     if (isValid)
     {
-        parameters.painter->setBrush(Qt::darkGreen);
+        parameters.painter->setBrush(parameters.colorConvertor.convert(QColor(Qt::darkGreen), false, true));
         parameters.painter->setPen(Qt::NoPen);
 
         QPolygonF checkmark;
@@ -379,7 +379,7 @@ void PDFFormFieldSignatureEditor::draw(AnnotationDrawParameters& parameters, boo
     }
     else
     {
-        parameters.painter->setBrush(Qt::darkRed);
+        parameters.painter->setBrush(parameters.colorConvertor.convert(QColor(Qt::darkRed), false, true));
         parameters.painter->setPen(Qt::NoPen);
 
         const double halfThickness = 10.0;

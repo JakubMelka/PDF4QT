@@ -1165,9 +1165,14 @@ bool PDFAnnotation::isExternalLinkAnnotation(const PDFAnnotation* annotation)
     return isURIAction(linkAnnotation->getAction()) || isURIAction(linkAnnotation->getURIAction());
 }
 
-QPen PDFAnnotation::getPen() const
+QPen PDFAnnotation::getPen(const PDFColorConvertor& convertor) const
 {
-    QColor strokeColor = getStrokeColor();
+    // Jakub Melka: annotation graphics is not a text, so it is not converted as a foreground
+    // color - lightness relationship of the original color is preserved instead. Otherwise,
+    // for example a white interior of a square annotation would get the same custom color
+    // as the text below it. Dark colors still become the foreground color, so a black
+    // redaction rectangle is not affected by this.
+    QColor strokeColor = convertor.convert(getStrokeColor(), false, false);
     const PDFAnnotationBorder& border = getBorder();
 
     if (qFuzzyIsNull(border.getWidth()))
@@ -1190,12 +1195,14 @@ QPen PDFAnnotation::getPen() const
     return pen;
 }
 
-QBrush PDFAnnotation::getBrush() const
+QBrush PDFAnnotation::getBrush(const PDFColorConvertor& convertor) const
 {
     QColor color = getFillColor();
     if (color.isValid())
     {
-        return QBrush(color, Qt::SolidPattern);
+        // Jakub Melka: see the comment in getPen - interior color of the annotation
+        // is not a text color, so lightness relationship is preserved instead
+        return QBrush(convertor.convert(color, false, false), Qt::SolidPattern);
     }
 
     return QBrush(Qt::NoBrush);
@@ -1587,8 +1594,7 @@ void PDFAnnotationManager::drawAnnotationDirect(const PageAnnotation& annotation
         parameters.annotation = annotation.annotation.data();
         parameters.formManager = m_formManager;
         parameters.key = std::make_pair(annotation.appearance, annotation.annotation->getAppearanceState());
-        parameters.colorConvertor = cms->getColorConvertor();
-        PDFRenderer::applyFeaturesToColorConvertor(m_features, parameters.colorConvertor);
+        parameters.colorConvertor = getAnnotationColorConvertor(cms);
 
         annotation.annotation->draw(parameters);
 
@@ -1666,6 +1672,7 @@ void PDFAnnotationManager::drawAnnotationUsingAppearanceStream(const PageAnnotat
     {
         PDFPainterStateGuard guard(painter);
         PDFPainter pdfPainter(painter, features, userSpaceToDeviceSpace, page, m_document, m_fontCache, cms, m_optionalActivity, m_meshQualitySettings);
+        pdfPainter.setColorConvertor(getAnnotationColorConvertor(cms));
         pdfPainter.initializeProcessor();
 
         // Jakub Melka: we must check, that we do not display annotation disabled by optional content
@@ -1687,6 +1694,13 @@ void PDFAnnotationManager::drawAnnotationUsingAppearanceStream(const PageAnnotat
         painter->resetTransform();
         drawWidgetAnnotationHighlight(annotationRectangle, annotation.annotation.get(), painter, userSpaceToDeviceSpace);
     }
+}
+
+PDFColorConvertor PDFAnnotationManager::getAnnotationColorConvertor(const PDFCMS* cms) const
+{
+    PDFColorConvertor colorConvertor = cms->getColorConvertor();
+    PDFRenderer::applyFeaturesToAnnotationColorConvertor(m_features, colorConvertor);
+    return colorConvertor;
 }
 
 void PDFAnnotationManager::setDocument(const PDFModifiedDocument& document)
@@ -1848,8 +1862,8 @@ void PDFSimpleGeometryAnnotation::draw(AnnotationDrawParameters& parameters) con
     parameters.boundingRectangle = getRectangle();
 
     QPainter& painter = *parameters.painter;
-    painter.setPen(getPen());
-    painter.setBrush(getBrush());
+    painter.setPen(getPen(parameters.colorConvertor));
+    painter.setBrush(getBrush(parameters.colorConvertor));
     painter.setCompositionMode(getCompositionMode());
 
     switch (getType())
@@ -1957,9 +1971,10 @@ std::vector<PDFAppeareanceStreams::Key> PDFTextAnnotation::getDrawKeys(const PDF
 
 void PDFTextAnnotation::draw(AnnotationDrawParameters& parameters) const
 {
-    QColor strokeColor = QColor::fromRgbF(0.0, 0.0, 0.0, getStrokeOpacity());
+    QColor strokeColor = parameters.colorConvertor.convert(QColor::fromRgbF(0.0, 0.0, 0.0, getStrokeOpacity()), false, true);
     QColor fillColor = (parameters.key.first == PDFAppeareanceStreams::Appearance::Normal) ? QColor::fromRgbF(1.0, 1.0, 0.0, getFillOpacity()) :
                                                                                              QColor::fromRgbF(1.0, 0.0, 0.0, getFillOpacity());
+    fillColor = parameters.colorConvertor.convert(fillColor, false, false);
 
     constexpr const PDFReal rectSize = 32.0;
     constexpr const PDFReal penWidth = 2.0;
@@ -2078,8 +2093,8 @@ void PDFLineAnnotation::draw(AnnotationDrawParameters& parameters) const
 
     QPainter& painter = *parameters.painter;
     painter.setCompositionMode(getCompositionMode());
-    painter.setPen(getPen());
-    painter.setBrush(getBrush());
+    painter.setPen(getPen(parameters.colorConvertor));
+    painter.setBrush(getBrush(parameters.colorConvertor));
 
     QPainterPath boundingPath;
     boundingPath.moveTo(line.p1());
@@ -2147,8 +2162,8 @@ void PDFPolygonalGeometryAnnotation::draw(AnnotationDrawParameters& parameters) 
 
     QPainter& painter = *parameters.painter;
     painter.setCompositionMode(getCompositionMode());
-    painter.setPen(getPen());
-    painter.setBrush(getBrush());
+    painter.setPen(getPen(parameters.colorConvertor));
+    painter.setBrush(getBrush(parameters.colorConvertor));
 
     const PDFReal penWidth = painter.pen().widthF();
     switch (m_type)
@@ -2510,13 +2525,13 @@ void PDFHighlightAnnotation::draw(AnnotationDrawParameters& parameters) const
     painter.setCompositionMode(getCompositionMode());
     parameters.boundingRectangle = m_highlightArea.getPath().boundingRect();
 
-    painter.setPen(getPen());
-    painter.setBrush(getBrush());
+    painter.setPen(getPen(parameters.colorConvertor));
+    painter.setBrush(getBrush(parameters.colorConvertor));
     switch (m_type)
     {
         case AnnotationType::Highlight:
         {
-            painter.fillPath(m_highlightArea.getPath(), QBrush(getStrokeColor(), Qt::SolidPattern));
+            painter.fillPath(m_highlightArea.getPath(), QBrush(parameters.colorConvertor.convert(getStrokeColor(), false, false), Qt::SolidPattern));
             break;
         }
 
@@ -2614,6 +2629,10 @@ void PDFLinkAnnotation::draw(AnnotationDrawParameters& parameters) const
 
     switch (m_highlightMode)
     {
+        // Jakub Melka: white color combined with the difference composition mode is not
+        // a color of the drawn content, it is an inversion operator - it inverts whatever
+        // is painted below. It must not be color adjusted, otherwise the inversion breaks.
+
         case LinkHighlightMode::Invert:
         {
             // Invert all
@@ -2626,7 +2645,7 @@ void PDFLinkAnnotation::draw(AnnotationDrawParameters& parameters) const
         {
             // Invert the border
             painter.setCompositionMode(QPainter::CompositionMode_Difference);
-            QPen pen = getPen();
+            QPen pen = getPen(PDFColorConvertor());
             pen.setColor(Qt::white);
             painter.setPen(pen);
             painter.setBrush(Qt::NoBrush);
@@ -2638,7 +2657,7 @@ void PDFLinkAnnotation::draw(AnnotationDrawParameters& parameters) const
         {
             // Draw border
             painter.setCompositionMode(getCompositionMode());
-            painter.setPen(getPen());
+            painter.setPen(getPen(parameters.colorConvertor));
             painter.setBrush(Qt::NoBrush);
             painter.drawPath(m_activationRegion.getPath());
             break;
@@ -2716,8 +2735,8 @@ void PDFFreeTextAnnotation::draw(AnnotationDrawParameters& parameters) const
     painter.setCompositionMode(getCompositionMode());
     parameters.boundingRectangle = getRectangle();
 
-    painter.setPen(getPen());
-    painter.setBrush(getBrush());
+    painter.setPen(getPen(parameters.colorConvertor));
+    painter.setBrush(getBrush(parameters.colorConvertor));
 
     // Draw callout line
     const PDFAnnotationCalloutLine& calloutLine = getCalloutLine();
@@ -2783,7 +2802,7 @@ void PDFFreeTextAnnotation::draw(AnnotationDrawParameters& parameters) const
     QFont font(defaultAppearance.getFontName());
     font.setPixelSize(defaultAppearance.getFontSize());
     painter.setFont(font);
-    painter.setPen(defaultAppearance.getFontColor());
+    painter.setPen(parameters.colorConvertor.convert(defaultAppearance.getFontColor(), false, true));
 
     Qt::Alignment alignment = Qt::AlignTop;
     switch (getJustification())
@@ -2840,7 +2859,7 @@ void PDFCaretAnnotation::draw(AnnotationDrawParameters& parameters) const
     path.lineTo(caretRect.topLeft());
     path.closeSubpath();
 
-    painter.fillPath(path, QBrush(getStrokeColor(), Qt::SolidPattern));
+    painter.fillPath(path, QBrush(parameters.colorConvertor.convert(getStrokeColor(), false, false), Qt::SolidPattern));
 }
 
 void PDFInkAnnotation::draw(AnnotationDrawParameters& parameters) const
@@ -2848,8 +2867,8 @@ void PDFInkAnnotation::draw(AnnotationDrawParameters& parameters) const
     QPainter& painter = *parameters.painter;
     QPainterPath path = getInkPath();
 
-    painter.setPen(getPen());
-    painter.setBrush(getBrush());
+    painter.setPen(getPen(parameters.colorConvertor));
+    painter.setBrush(getBrush(parameters.colorConvertor));
     painter.setCompositionMode(getCompositionMode());
 
     QPainterPath boundingPath;
@@ -2988,6 +3007,7 @@ void PDFStampAnnotation::draw(AnnotationDrawParameters& parameters) const
     }
 
     color.setAlphaF(getFillOpacity());
+    color = parameters.colorConvertor.convert(color, false, true);
 
     const PDFReal textHeight = 16;
     QFont font("Courier New");
@@ -3119,7 +3139,7 @@ void PDFStampAnnotation::setIntent(const StampIntent& intent)
 
 void PDFAnnotation::drawCharacterSymbol(QString text, PDFReal opacity, AnnotationDrawParameters& parameters) const
 {
-    QColor strokeColor = QColor::fromRgbF(0.0, 0.0, 0.0, opacity);
+    QColor strokeColor = parameters.colorConvertor.convert(QColor::fromRgbF(0.0, 0.0, 0.0, opacity), false, true);
 
     constexpr const PDFReal rectSize = 24.0;
     QPainter& painter = *parameters.painter;
@@ -3311,8 +3331,8 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
 
                             // Draw border
                             QRectF drawRect(0, 0, rectangle.width(), rectangle.height());
-                            painter->setPen(getPen());
-                            painter->setBrush(QBrush(Qt::lightGray));
+                            painter->setPen(getPen(parameters.colorConvertor));
+                            painter->setBrush(QBrush(parameters.colorConvertor.convert(QColor(Qt::lightGray), false, false)));
                             painter->drawRect(drawRect);
                             painter->drawText(drawRect, Qt::AlignCenter, getContents());
                         }
@@ -3326,6 +3346,10 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
                             {
                                 switch (m_highlightMode)
                                 {
+                                    // Jakub Melka: white color combined with the difference
+                                    // composition mode is an inversion operator, not a color
+                                    // of the drawn content - it must not be color adjusted.
+
                                     case HighlightMode::Invert:
                                     {
                                         // Invert all
@@ -3338,7 +3362,7 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
                                     {
                                         // Invert the border
                                         painter->setCompositionMode(QPainter::CompositionMode_Difference);
-                                        QPen pen = getPen();
+                                        QPen pen = getPen(PDFColorConvertor());
                                         pen.setColor(Qt::white);
                                         painter->setPen(pen);
                                         painter->setBrush(Qt::NoBrush);
@@ -3350,7 +3374,7 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
                                     {
                                         // Draw border
                                         painter->setCompositionMode(getCompositionMode());
-                                        painter->setPen(getPen());
+                                        painter->setPen(getPen(parameters.colorConvertor));
                                         painter->setBrush(Qt::NoBrush);
                                         painter->drawRect(rectangle);
                                         break;
@@ -3372,7 +3396,9 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
 
                         rectangle.setWidth(rectangle.height());
 
-                        painter->setPen(Qt::black);
+                        const QColor markColor = parameters.colorConvertor.convert(QColor(Qt::black), false, true);
+
+                        painter->setPen(markColor);
                         painter->setBrush(Qt::NoBrush);
                         painter->drawEllipse(rectangle);
 
@@ -3384,7 +3410,7 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
                             rectangleMark.moveCenter(rectangle.center());
 
                             painter->setPen(Qt::NoPen);
-                            painter->setBrush(QBrush(Qt::black));
+                            painter->setBrush(QBrush(markColor));
 
                             painter->drawEllipse(rectangleMark);
                         }
@@ -3398,7 +3424,7 @@ void PDFWidgetAnnotation::draw(AnnotationDrawParameters& parameters) const
 
                         rectangle.setWidth(rectangle.height());
 
-                        painter->setPen(Qt::black);
+                        painter->setPen(parameters.colorConvertor.convert(QColor(Qt::black), false, true));
                         painter->setBrush(Qt::NoBrush);
                         painter->drawRect(rectangle);
 
@@ -3528,8 +3554,8 @@ void PDFRedactAnnotation::draw(AnnotationDrawParameters& parameters) const
     painter.setCompositionMode(getCompositionMode());
     parameters.boundingRectangle = m_redactionRegion.getPath().boundingRect();
 
-    painter.setPen(getPen());
-    painter.setBrush(getBrush());
+    painter.setPen(getPen(parameters.colorConvertor));
+    painter.setBrush(getBrush(parameters.colorConvertor));
     painter.drawPath(m_redactionRegion.getPath());
 
     const qreal penWidth = painter.pen().widthF();

@@ -833,8 +833,13 @@ void PDFCreateLineTypeTool::drawPage(QPainter* painter,
 
     painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
 
-    QPen pen = convertor.convert(QPen(m_strokeColor));
-    QBrush brush = convertor.convert(QBrush(m_fillColor, Qt::SolidPattern));
+    // Jakub Melka: the preview must be color adjusted exactly the same way as the created
+    // annotation will be, otherwise it would change its color right after it is created
+    PDFColorConvertor annotationConvertor = convertor;
+    PDFRenderer::applyFeaturesToAnnotationColorConvertor(getProxy()->getFeatures(), annotationConvertor);
+
+    QPen pen = annotationConvertor.convert(QPen(m_strokeColor), false, false);
+    QBrush brush = annotationConvertor.convert(QBrush(m_fillColor, Qt::SolidPattern), false, false);
     pen.setWidthF(m_penWidth);
     painter->setPen(qMove(pen));
     painter->setBrush(qMove(brush));
@@ -971,8 +976,12 @@ void PDFCreateEllipseTool::drawPage(QPainter* painter,
 
     painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
 
-    QPen pen = convertor.convert(QPen(m_strokeColor));
-    QBrush brush = convertor.convert(QBrush(m_fillColor, Qt::SolidPattern));
+    // Jakub Melka: see the comment in PDFCreateLineTypeTool::drawPage
+    PDFColorConvertor annotationConvertor = convertor;
+    PDFRenderer::applyFeaturesToAnnotationColorConvertor(getProxy()->getFeatures(), annotationConvertor);
+
+    QPen pen = annotationConvertor.convert(QPen(m_strokeColor), false, false);
+    QBrush brush = annotationConvertor.convert(QBrush(m_fillColor, Qt::SolidPattern), false, false);
     pen.setWidthF(m_penWidth);
     painter->setPen(qMove(pen));
     painter->setBrush(qMove(brush));
@@ -1044,7 +1053,11 @@ void PDFCreateFreehandCurveTool::drawPage(QPainter* painter,
 
     painter->setWorldTransform(QTransform(pagePointToDevicePointMatrix), true);
 
-    QPen pen = convertor.convert(QPen(m_strokeColor));
+    // Jakub Melka: see the comment in PDFCreateLineTypeTool::drawPage
+    PDFColorConvertor annotationConvertor = convertor;
+    PDFRenderer::applyFeaturesToAnnotationColorConvertor(getProxy()->getFeatures(), annotationConvertor);
+
+    QPen pen = annotationConvertor.convert(QPen(m_strokeColor), false, false);
     pen.setWidthF(m_penWidth);
     painter->setPen(qMove(pen));
     painter->setRenderHint(QPainter::Antialiasing);
@@ -1218,7 +1231,7 @@ void PDFCreateStampTool::drawPage(QPainter* painter,
     parameters.annotation = const_cast<PDFStampAnnotation*>(&m_stampAnnotation);
     parameters.key.first = PDFAppeareanceStreams::Appearance::Normal;
     parameters.colorConvertor = convertor;
-    PDFRenderer::applyFeaturesToColorConvertor(getProxy()->getFeatures(), parameters.colorConvertor);
+    PDFRenderer::applyFeaturesToAnnotationColorConvertor(getProxy()->getFeatures(), parameters.colorConvertor);
 
     m_stampAnnotation.draw(parameters);
 }
@@ -1303,10 +1316,14 @@ void PDFCreateHighlightTextTool::drawPage(QPainter* painter,
 {
     Q_UNUSED(compiledPage);
     Q_UNUSED(errors);
-    Q_UNUSED(convertor);
+
+    // Jakub Melka: the selection is a preview of the highlight annotation, which will be
+    // created from it, so it is color adjusted only when annotations are color adjusted
+    PDFColorConvertor annotationConvertor = convertor;
+    PDFRenderer::applyFeaturesToAnnotationColorConvertor(getProxy()->getFeatures(), annotationConvertor);
 
     pdf::PDFTextSelectionPainter textSelectionPainter(&m_textSelection);
-    textSelectionPainter.draw(painter, pageIndex, layoutGetter, pagePointToDevicePointMatrix, convertor);
+    textSelectionPainter.draw(painter, pageIndex, layoutGetter, pagePointToDevicePointMatrix, annotationConvertor);
 }
 
 void PDFCreateHighlightTextTool::mousePressEvent(QWidget* widget, QMouseEvent* event)
@@ -1555,7 +1572,7 @@ PDFCreateRedactRectangleTool::PDFCreateRedactRectangleTool(PDFDrawWidgetProxy* p
 {
     m_pickTool = new PDFPickTool(proxy, PDFPickTool::Mode::Rectangles, this);
     m_pickTool->setSnapToAnnotations(true);
-    m_pickTool->setSelectionRectangleColor(m_color);
+    m_pickTool->setSelectionRectangleColor(m_color, true);
     addTool(m_pickTool);
     connect(m_pickTool, &PDFPickTool::rectanglePicked, this, &PDFCreateRedactRectangleTool::onRectanglePicked);
 
@@ -1591,7 +1608,7 @@ void PDFCreateRedactRectangleTool::setActiveImpl(bool active)
     else
     {
         m_color = getRedactColor();
-        m_pickTool->setSelectionRectangleColor(m_color);
+        m_pickTool->setSelectionRectangleColor(m_color, true);
 
         m_colorDialog = new QColorDialog(m_color, getProxy()->getWidget());
         m_colorDialog->setWindowTitle(tr("Select Color"));
@@ -1609,7 +1626,7 @@ void PDFCreateRedactRectangleTool::setActiveImpl(bool active)
 void PDFCreateRedactRectangleTool::onColorChanged(const QColor& color)
 {
     m_color = color;
-    m_pickTool->setSelectionRectangleColor(m_color);
+    m_pickTool->setSelectionRectangleColor(m_color, true);
     setRedactColor(m_color);
 }
 
@@ -1762,10 +1779,14 @@ void PDFCreateRedactTextTool::drawPage(QPainter* painter,
 {
     Q_UNUSED(compiledPage);
     Q_UNUSED(errors);
-    Q_UNUSED(convertor);
+
+    // Jakub Melka: the selection is a preview of the redaction annotation, which will be
+    // created from it, so it is color adjusted only when annotations are color adjusted
+    PDFColorConvertor annotationConvertor = convertor;
+    PDFRenderer::applyFeaturesToAnnotationColorConvertor(getProxy()->getFeatures(), annotationConvertor);
 
     pdf::PDFTextSelectionPainter textSelectionPainter(&m_textSelection);
-    textSelectionPainter.draw(painter, pageIndex, layoutGetter, pagePointToDevicePointMatrix, convertor);
+    textSelectionPainter.draw(painter, pageIndex, layoutGetter, pagePointToDevicePointMatrix, annotationConvertor);
 }
 
 void PDFCreateRedactTextTool::mousePressEvent(QWidget* widget, QMouseEvent* event)

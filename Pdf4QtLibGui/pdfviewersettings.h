@@ -51,6 +51,13 @@ public:
 
     }
 
+    /// Version of the stored settings. Increase this number, when a new setting is added,
+    /// which must be turned on also for users upgrading from an older version of the
+    /// application (a newly added flag of an already stored bit field would be read as
+    /// turned off), or when the meaning of a stored value changes. Then handle the upgrade
+    /// from the previous versions in the function upgradeSettings.
+    static constexpr int SETTINGS_VERSION = 1;
+
     enum ColorScheme
     {
         AutoScheme,
@@ -194,6 +201,12 @@ signals:
     void settingsChanged();
 
 private:
+    /// Upgrades settings read from an older version of the application to the current
+    /// version. Settings, which did not exist in the version \p settingsVersion, are
+    /// initialized so the application behaves as a new installation would.
+    /// \param settingsVersion Version of the settings, which were read
+    void upgradeSettings(int settingsVersion);
+
     Settings m_settings;
     pdf::PDFCMSSettings m_colorManagementSystemSettings;
 };

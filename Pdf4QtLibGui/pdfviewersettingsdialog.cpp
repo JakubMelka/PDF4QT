@@ -340,6 +340,7 @@ void PDFViewerSettingsDialog::loadData()
     ui->displayTimeCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::DisplayTimes));
     ui->displayAnnotationsCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::DisplayAnnotations));
     ui->realTextCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::RealText));
+    ui->colorAdjustAnnotationsCheckBox->setChecked(m_settings.m_features.testFlag(pdf::PDFRenderer::ColorAdjust_Annotations));
 
     // Shading
     ui->preferredMeshResolutionEdit->setValue(m_settings.m_preferredMeshResolutionRatio);
@@ -552,6 +553,10 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->realTextCheckBox)
     {
         m_settings.m_features.setFlag(pdf::PDFRenderer::RealText, ui->realTextCheckBox->isChecked());
+    }
+    else if (sender == ui->colorAdjustAnnotationsCheckBox)
+    {
+        m_settings.m_features.setFlag(pdf::PDFRenderer::ColorAdjust_Annotations, ui->colorAdjustAnnotationsCheckBox->isChecked());
     }
     else if (sender == ui->clipToCropBoxCheckBox)
     {

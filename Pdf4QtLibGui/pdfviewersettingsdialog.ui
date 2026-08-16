@@ -255,6 +255,23 @@ li.checked::marker { content: &quot;\2612&quot;; }
                 </property>
                </widget>
               </item>
+              <item row="8" column="0">
+               <widget class="QLabel" name="colorAdjustAnnotationsLabel">
+                <property name="text">
+                 <string>Adjust colors of annotations</string>
+                </property>
+               </widget>
+              </item>
+              <item row="8" column="1">
+               <widget class="QCheckBox" name="colorAdjustAnnotationsCheckBox">
+                <property name="toolTip">
+                 <string>Applies the active color adjustment (inverted colors, grayscale, high contrast, bitonal or custom colors) also to annotations, so they match the adjusted page content. It affects the screen only, printing and exporting of the document are not changed.</string>
+                </property>
+                <property name="text">
+                 <string>Enable</string>
+                </property>
+               </widget>
+              </item>
              </layout>
             </item>
             <item>
@@ -270,7 +287,7 @@ li.checked::marker { content: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The rendering settings control how the rendering engine handles page content and the appearance of displayed graphics. &lt;span style=&quot; font-weight:600;&quot;&gt;Antialiasing&lt;/span&gt; smooths out the appearance of painted shapes, such as rectangles, vector graphics, and lines, but doesn't affect text. &lt;span style=&quot; font-weight:600;&quot;&gt;Text antialiasing&lt;/span&gt;, on the other hand, refines the appearance of text characters, leaving other items untouched. Both &lt;span style=&quot; font-weight:600;&quot;&gt;Antialiasing &lt;/span&gt;and &lt;span style=&quot; font-weight:600;&quot;&gt;Text antialiasing &lt;/span&gt;are relevant only for the software renderer. If you're using a hardware rendering engine like OpenGL, these settings won't have an impact because OpenGL renders images using MSAA antialiasing (if enabled). &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Smooth pictures&lt;/span&gt; option enables pictures to be transformed into device space coordinates using a high-quality image transformation method. This generally results in better image quality. When disabled, a default fast transformation is used, potentially reducing image quality if the source DPI and device DPI differ. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Ignore optional content &lt;/span&gt;ignores all optional content settings and renders everything in the content stream. &lt;span style=&quot; font-weight:600;&quot;&gt;Clip to crop box&lt;/span&gt; restricts the rendering area to the page's crop box, which is usually smaller than the whole page. Graphics outside the crop box aren't drawn, which can be useful for removing printer marks and similar elements. &lt;span style=&quot; font-weight:600;&quot;&gt;Display page compile/draw time&lt;/span&gt; can be handy for debugging, showing the time taken to compile a page (stored in the cache) and the time taken to render the compiled page contents onto the output device. &lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Using the &lt;span style=&quot; font-weight:600;&quot;&gt;Display annotations&lt;/span&gt; setting, you can enable or disable the display of annotations. If annotations are disabled, the user will not be able to interact with them. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Using the &lt;span style=&quot; font-weight:600;&quot;&gt;Display annotations&lt;/span&gt; setting, you can enable or disable the display of annotations. If annotations are disabled, the user will not be able to interact with them. &lt;span style=&quot; font-weight:600;&quot;&gt;Adjust colors of annotations&lt;/span&gt; controls whether the active color adjustment, such as inverted colors, is applied to annotations as well, or whether annotations keep their original colors above the adjusted page content. It affects the screen only, printing and exporting of the document are never color adjusted. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
               </property>
              </widget>
             </item>

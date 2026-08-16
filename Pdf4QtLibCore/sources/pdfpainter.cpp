@@ -245,9 +245,14 @@ void PDFPainter::performPathPainting(const QPainterPath& path, bool stroke, bool
     const bool antialiasing = (text && hasFeature(PDFRenderer::TextAntialiasing)) || (!text && hasFeature(PDFRenderer::Antialiasing));
     m_painter->setRenderHint(QPainter::Antialiasing, antialiasing);
 
+    // Jakub Melka: only text is treated as a foreground color, other graphics keep
+    // their lightness relationship (see PDFColorConvertor::mixCustomColors). This is
+    // the same rule which PDFPrecompiledPage::convertColors uses for the page content,
+    // so a content stream is converted the same way, no matter whether it is played
+    // from a precompiled page or painted directly by this painter.
     if (stroke)
     {
-        m_painter->setPen(getCurrentPen());
+        m_painter->setPen(m_colorConvertor.isActive() ? m_colorConvertor.convert(getCurrentPen(), false, text) : getCurrentPen());
     }
     else
     {
@@ -256,7 +261,7 @@ void PDFPainter::performPathPainting(const QPainterPath& path, bool stroke, bool
 
     if (fill)
     {
-        m_painter->setBrush(getCurrentBrush());
+        m_painter->setBrush(m_colorConvertor.isActive() ? m_colorConvertor.convert(getCurrentBrush(), false, text) : getCurrentBrush());
     }
     else
     {
@@ -311,7 +316,13 @@ bool PDFPainter::performTextCharacterDrawing(const PDFRealTextDrawInfo& info)
     m_painter->setWorldTransform(localFlipAndScale * info.textRenderingMatrix * m_painter->worldTransform(), false);
     m_painter->setRenderHint(QPainter::Antialiasing, hasFeature(PDFRenderer::TextAntialiasing));
     m_painter->setFont(font);
-    m_painter->setPen(QPen(getCurrentBrush().color()));
+
+    QColor textColor = getCurrentBrush().color();
+    if (m_colorConvertor.isActive())
+    {
+        textColor = m_colorConvertor.convert(textColor, false, true);
+    }
+    m_painter->setPen(QPen(textColor));
     m_painter->drawText(QPointF(0.0, 0.0), QString(info.character));
 
     m_painter->restore();
@@ -364,6 +375,13 @@ void PDFPainter::performImagePainting(const QImage& image)
         }
     }
 
+    if (m_colorConvertor.isActive())
+    {
+        // Jakub Melka: convert the image after the eventual downscaling above, so we
+        // convert as few pixels as possible.
+        adjustedImage = m_colorConvertor.convert(qMove(adjustedImage));
+    }
+
     QTransform imageTransform(1.0 / adjustedImage.width(), 0, 0, 1.0 / adjustedImage.height(), 0, 0);
     QTransform worldTransform = imageTransform * m_painter->worldTransform();
 
@@ -382,7 +400,18 @@ void PDFPainter::performMeshPainting(const PDFMesh& mesh)
 {
     m_painter->save();
     m_painter->setWorldTransform(QTransform());
-    mesh.paint(m_painter, getEffectiveFillingAlpha());
+
+    if (m_colorConvertor.isActive())
+    {
+        PDFMesh convertedMesh = mesh;
+        convertedMesh.convertColors(m_colorConvertor);
+        convertedMesh.paint(m_painter, getEffectiveFillingAlpha());
+    }
+    else
+    {
+        mesh.paint(m_painter, getEffectiveFillingAlpha());
+    }
+
     m_painter->restore();
 }
 

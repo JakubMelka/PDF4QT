@@ -74,6 +74,8 @@ public:
         ColorAdjust_CustomColors    = 0x8000,   ///< Convert colors to custom color settings
 
         RealText                    = 0x10000,  ///< Draw text using QPainter::drawText instead of vector paths, where possible
+
+        ColorAdjust_Annotations     = 0x20000,  ///< Apply active color adjustment also to annotations, not only to the page content
     };
 
     Q_DECLARE_FLAGS(Features, Feature)
@@ -125,10 +127,19 @@ public:
     /// Applies rendering flags to the color convertor
     static void applyFeaturesToColorConvertor(const Features& features, PDFColorConvertor& convertor);
 
-    /// Returns default renderer features
-    static constexpr Features getDefaultFeatures() { return Features(Antialiasing | TextAntialiasing | ClipToCropBox | DisplayAnnotations); }
+    /// Applies rendering flags to the color convertor, which is used to draw annotations.
+    /// Annotations are adjusted only when the feature ColorAdjust_Annotations is turned on,
+    /// otherwise the convertor is deactivated and annotations keep their original colors.
+    /// \param features Features
+    /// \param convertor Color convertor
+    static void applyFeaturesToAnnotationColorConvertor(const Features& features, PDFColorConvertor& convertor);
 
-    /// Returns color transformation features
+    /// Returns default renderer features
+    static constexpr Features getDefaultFeatures() { return Features(Antialiasing | TextAntialiasing | ClipToCropBox | DisplayAnnotations | ColorAdjust_Annotations); }
+
+    /// Returns color transformation features. These features are mutually exclusive - they
+    /// select the color conversion mode. ColorAdjust_Annotations is deliberately not a part
+    /// of this set, because it is a modifier of the selected mode, not a mode itself.
     static constexpr Features getColorFeatures() { return Features(ColorAdjust_Invert | ColorAdjust_Grayscale | ColorAdjust_HighContrast | ColorAdjust_Bitonal | ColorAdjust_CustomColors); }
 
     const PDFOperationControl* getOperationControl() const;
