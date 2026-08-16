@@ -7,14 +7,31 @@
   </property>
   <layout class="QGridLayout" name="gridLayout">
    <item row="0" column="0">
-    <widget class="QListWidget" name="imageListWidget">
-     <property name="minimumSize">
-      <size>
-       <width>280</width>
-       <height>400</height>
-      </size>
-     </property>
-    </widget>
+    <layout class="QVBoxLayout" name="imageListLayout">
+     <item>
+      <widget class="QListWidget" name="imageListWidget">
+       <property name="minimumSize">
+        <size>
+         <width>280</width>
+         <height>400</height>
+        </size>
+       </property>
+       <property name="selectionMode">
+        <enum>QAbstractItemView::ExtendedSelection</enum>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="selectionHintLabel">
+       <property name="text">
+        <string>Tip: hold Ctrl or Shift while clicking to select multiple images (Ctrl+A selects all). Global Defaults already apply to every image without an override.</string>
+       </property>
+       <property name="wordWrap">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </item>
    <item row="0" column="1">
     <layout class="QVBoxLayout" name="rightLayout">
@@ -321,20 +338,20 @@
      <item>
       <widget class="QGroupBox" name="selectedGroupBox">
        <property name="title">
-        <string>Selected Image</string>
+        <string>Selected Images</string>
        </property>
        <layout class="QVBoxLayout" name="selectedLayout">
         <item>
          <widget class="QCheckBox" name="imageEnabledCheckBox">
           <property name="text">
-           <string>Enable compression for this image</string>
+           <string>Enable compression for selected images</string>
           </property>
          </widget>
         </item>
         <item>
          <widget class="QCheckBox" name="imageOverrideCheckBox">
           <property name="text">
-           <string>Override settings for this image</string>
+           <string>Override settings for selected images</string>
           </property>
          </widget>
         </item>

@@ -33,7 +33,9 @@
 #include <QPushButton>
 
 #include <optional>
+#include <vector>
 
+class QCheckBox;
 class QResizeEvent;
 
 namespace Ui
@@ -89,8 +91,15 @@ private:
     void updateUi();
     /// Refreshes the preview panel for the current selection.
     void updatePreview();
-    /// Refreshes widgets related to the currently selected image.
+    /// Refreshes widgets related to the currently selected images.
     void updateSelectedImageUi();
+    /// Sets a check box to the aggregated state of the selection. A mixed
+    /// selection is shown as partially checked; the tri-state is enabled only
+    /// while the selection is mixed, so the user cannot enter it manually.
+    /// \param checkBox Check box to update.
+    /// \param trueCount Number of selected images having the property set.
+    /// \param totalCount Number of selected images.
+    static void setCheckBoxSelectionState(QCheckBox* checkBox, int trueCount, int totalCount);
     /// Updates labels that explain whether the settings editor currently
     /// modifies global settings or an override for the selected image.
     void updateSettingsEditorContextUi();
@@ -107,17 +116,28 @@ private:
     void loadSettingsToUi(const pdf::PDFImageOptimizer::Settings& settings);
     /// Reads UI widget values into the supplied settings instance.
     void applyUiToSettings(pdf::PDFImageOptimizer::Settings& settings);
-    /// Returns active settings for the current selection (global or override).
+    /// Reads UI widget values into all settings the editor currently targets.
+    /// The editor edits overrides when the current image has one; the values
+    /// are then written to every selected image which also has an override.
+    /// Otherwise the global settings are updated.
+    void applyUiToActiveSettings();
+    /// Returns settings displayed in the editor (override of the current image,
+    /// or the global settings).
     pdf::PDFImageOptimizer::Settings& activeSettings();
     /// Returns an encoded byte estimate, cached per image/settings combination.
     int getEstimatedBytes(ImageEntry& entry,
                           const pdf::PDFImageOptimizer::Settings& settings,
                           const pdf::PDFImageOptimizer::ResolvedPlan& plan);
 
-    /// Returns the selected image entry or null if none is selected.
-    ImageEntry* getSelectedEntry();
-    /// Returns the selected image entry or null if none is selected.
-    const ImageEntry* getSelectedEntry() const;
+    /// Returns the current image entry or null if none is current. The current
+    /// entry drives the preview and decides which settings the editor shows.
+    ImageEntry* getCurrentEntry();
+    /// Returns the current image entry or null if none is current.
+    const ImageEntry* getCurrentEntry() const;
+
+    /// Returns ascending row indices of all selected images. If nothing is
+    /// selected, the current row is returned (if valid).
+    std::vector<int> getSelectedRows() const;
 
 private slots:
     void onOptimizeButtonClicked();
@@ -127,8 +147,11 @@ private slots:
     void onOptimizationFinished();
     void onSettingsChanged();
     void onSelectionChanged();
-    void onOverrideToggled(bool checked);
-    void onImageEnabledToggled(bool checked);
+    /// Applies the override check box state to all selected images. Connected
+    /// to the clicked() signal, so programmatic state updates do not re-enter.
+    void onOverrideClicked();
+    /// Applies the enabled check box state to all selected images.
+    void onImageEnabledClicked();
     void onBitonalThresholdAutoToggled(bool checked);
 
 private:
@@ -139,6 +162,7 @@ private:
     bool m_optimized;
     bool m_updatingUi;
     bool m_previewUiReady;
+    int m_previewRow; ///< Row the preview was last built for; avoids rebuilding it twice per click.
     QPushButton* m_optimizeButton;
     QFuture<pdf::PDFDocument> m_future;
     std::optional<QFutureWatcher<pdf::PDFDocument>> m_futureWatcher;

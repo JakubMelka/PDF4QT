@@ -33,6 +33,7 @@
 #include <QListWidget>
 #include <QtConcurrent/QtConcurrent>
 
+#include <algorithm>
 #include <cmath>
 
 #include "pdfdbgheap.h"
@@ -156,6 +157,7 @@ PDFOptimizeImagesDialog::PDFOptimizeImagesDialog(const pdf::PDFDocument* documen
     m_optimized(false),
     m_updatingUi(false),
     m_previewUiReady(false),
+    m_previewRow(-1),
     m_optimizeButton(nullptr),
     m_settings(pdf::PDFImageOptimizer::Settings::createDefault())
 {
@@ -256,13 +258,22 @@ PDFOptimizeImagesDialog::PDFOptimizeImagesDialog(const pdf::PDFDocument* documen
     setTip(ui->bitonalThresholdSpinBox, tr("<b>Threshold</b><br/>Manual threshold for bitonal conversion (0-255)."));
     setTip(ui->bitonalThresholdAutoCheckBox, tr("<b>Auto threshold</b><br/>Let the optimizer pick an automatic threshold."));
 
-    setTip(ui->imageEnabledCheckBox, tr("<b>Enable compression</b><br/>Exclude this image from optimization when unchecked."));
-    setTip(ui->imageOverrideCheckBox, tr("<b>Override settings</b><br/>Use custom settings for the selected image."));
+    setTip(ui->imageEnabledCheckBox, tr("<b>Enable compression</b><br/>Exclude the selected images from optimization when unchecked."));
+    setTip(ui->imageOverrideCheckBox, tr("<b>Override settings</b><br/>Use custom settings for the selected images."));
+    setTip(ui->imageListWidget, tr("<b>Images</b><br/>Hold Ctrl or Shift while clicking to select multiple images, or press Ctrl+A to select all of them. "
+                                   "The settings editor and the check boxes below then apply to the whole selection."));
     setTip(m_optimizeButton, tr("<b>Optimize</b><br/>Run image optimization with the current settings."));
 
+    // Both signals are needed: Ctrl+click on an already selected item changes
+    // the selection without changing the current row, and Ctrl+arrow moves the
+    // current row without changing the selection.
     connect(ui->imageListWidget, &QListWidget::currentRowChanged, this, &PDFOptimizeImagesDialog::onSelectionChanged);
-    connect(ui->imageOverrideCheckBox, &QCheckBox::toggled, this, &PDFOptimizeImagesDialog::onOverrideToggled);
-    connect(ui->imageEnabledCheckBox, &QCheckBox::toggled, this, &PDFOptimizeImagesDialog::onImageEnabledToggled);
+    connect(ui->imageListWidget, &QListWidget::itemSelectionChanged, this, &PDFOptimizeImagesDialog::onSelectionChanged);
+
+    // Use clicked() instead of toggled() - it is emitted only for user
+    // interaction, so programmatic tri-state updates do not re-enter the slots.
+    connect(ui->imageOverrideCheckBox, &QCheckBox::clicked, this, &PDFOptimizeImagesDialog::onOverrideClicked);
+    connect(ui->imageEnabledCheckBox, &QCheckBox::clicked, this, &PDFOptimizeImagesDialog::onImageEnabledClicked);
     connect(ui->bitonalThresholdAutoCheckBox, &QCheckBox::toggled, this, &PDFOptimizeImagesDialog::onBitonalThresholdAutoToggled);
 
     auto connectValueChanged = [this](QObject* object)
@@ -527,44 +538,81 @@ void PDFOptimizeImagesDialog::updateSelectedImageUi()
 {
     pdf::PDFTemporaryValueChange guard(&m_updatingUi, true);
 
-    ImageEntry* entry = getSelectedEntry();
-    if (!entry)
+    const std::vector<int> selectedRows = getSelectedRows();
+    ImageEntry* entry = getCurrentEntry();
+
+    if (selectedRows.empty() || !entry)
     {
-        ui->imageEnabledCheckBox->setChecked(false);
-        ui->imageOverrideCheckBox->setChecked(false);
+        setCheckBoxSelectionState(ui->imageEnabledCheckBox, 0, 0);
+        setCheckBoxSelectionState(ui->imageOverrideCheckBox, 0, 0);
         ui->settingsScopeLabel->clear();
         ui->imageInfoLabel->clear();
         updateSettingsEditorContextUi();
         return;
     }
 
-    ui->imageEnabledCheckBox->setChecked(entry->enabled);
-    ui->imageOverrideCheckBox->setChecked(entry->overrideEnabled);
+    int enabledCount = 0;
+    int overrideCount = 0;
+    qint64 selectedOriginalBytes = 0;
+    for (const int row : selectedRows)
+    {
+        const ImageEntry& selectedEntry = m_images[static_cast<size_t>(row)];
+        enabledCount += selectedEntry.enabled ? 1 : 0;
+        overrideCount += selectedEntry.overrideEnabled ? 1 : 0;
+        selectedOriginalBytes += selectedEntry.info.originalBytes;
+    }
+
+    const int selectedCount = static_cast<int>(selectedRows.size());
+    setCheckBoxSelectionState(ui->imageEnabledCheckBox, enabledCount, selectedCount);
+    setCheckBoxSelectionState(ui->imageOverrideCheckBox, overrideCount, selectedCount);
 
     if (entry->overrideEnabled)
     {
-        ui->settingsScopeLabel->setText(tr("Edits on the right currently apply only to this image. "
-                                           "The override started as a copy of the global settings."));
+        if (overrideCount > 1)
+        {
+            ui->settingsScopeLabel->setText(tr("Edits on the right apply to the overrides of %1 selected images. "
+                                               "Each override started as a copy of the global settings.").arg(overrideCount));
+        }
+        else
+        {
+            ui->settingsScopeLabel->setText(tr("Edits on the right currently apply only to this image. "
+                                               "The override started as a copy of the global settings."));
+        }
     }
     else
     {
-        ui->settingsScopeLabel->setText(tr("Edits on the right currently change the global settings used by images without an override."));
+        QString scopeText = tr("Edits on the right currently change the global settings used by images without an override.");
+        if (overrideCount > 0)
+        {
+            scopeText += QChar(' ');
+            scopeText += tr("%1 of the selected images use an override and are not affected.").arg(overrideCount);
+        }
+        ui->settingsScopeLabel->setText(scopeText);
     }
 
-    const pdf::PDFImageOptimizer::ImageInfo& info = entry->info;
     QStringList details;
-    details << tr("Reference: %1 %2").arg(info.reference.objectNumber).arg(info.reference.generation);
-    if (info.hasTransparency || info.hasSoftMask)
+    if (selectedCount > 1)
     {
-        details << tr("Transparency: %1").arg(info.hasTransparency ? tr("Yes") : tr("No"));
-        if (info.hasSoftMask)
-        {
-            details << tr("Soft mask: Yes");
-        }
+        details << tr("Selected images: %1").arg(selectedCount);
+        details << tr("Enabled for optimization: %1").arg(enabledCount);
+        details << tr("Original size of selection: %1").arg(formatBytes(selectedOriginalBytes));
     }
-    if (info.bitsPerComponent > 0)
+    else
     {
-        details << tr("BPC: %1").arg(info.bitsPerComponent);
+        const pdf::PDFImageOptimizer::ImageInfo& info = entry->info;
+        details << tr("Reference: %1 %2").arg(info.reference.objectNumber).arg(info.reference.generation);
+        if (info.hasTransparency || info.hasSoftMask)
+        {
+            details << tr("Transparency: %1").arg(info.hasTransparency ? tr("Yes") : tr("No"));
+            if (info.hasSoftMask)
+            {
+                details << tr("Soft mask: Yes");
+            }
+        }
+        if (info.bitsPerComponent > 0)
+        {
+            details << tr("BPC: %1").arg(info.bitsPerComponent);
+        }
     }
     ui->imageInfoLabel->setText(details.join("\n"));
 
@@ -572,16 +620,53 @@ void PDFOptimizeImagesDialog::updateSelectedImageUi()
     loadSettingsToUi(activeSettings());
 }
 
+void PDFOptimizeImagesDialog::setCheckBoxSelectionState(QCheckBox* checkBox, int trueCount, int totalCount)
+{
+    // The partially checked state is allowed only while the selection is mixed.
+    // A single click on it then yields the checked state (Qt cycles unchecked ->
+    // partially checked -> checked), which unifies the whole selection.
+    const bool isMixed = trueCount > 0 && trueCount < totalCount;
+    checkBox->setTristate(isMixed);
+
+    if (isMixed)
+    {
+        checkBox->setCheckState(Qt::PartiallyChecked);
+    }
+    else
+    {
+        checkBox->setCheckState(totalCount > 0 && trueCount == totalCount ? Qt::Checked : Qt::Unchecked);
+    }
+}
+
 void PDFOptimizeImagesDialog::updateSettingsEditorContextUi()
 {
-    ImageEntry* entry = getSelectedEntry();
+    ImageEntry* entry = getCurrentEntry();
     const bool editingOverride = entry && entry->overrideEnabled;
 
-    ui->globalGroupBox->setTitle(editingOverride ? tr("Settings Editor - Selected Image Override")
-                                                 : tr("Settings Editor - Global Defaults"));
-    ui->profilesTabWidget->setToolTip(editingOverride
-                                      ? tr("These settings currently modify only the selected image override.")
-                                      : tr("These settings currently modify the global defaults used by images without an override."));
+    int overrideCount = 0;
+    if (editingOverride)
+    {
+        for (const int row : getSelectedRows())
+        {
+            overrideCount += m_images[static_cast<size_t>(row)].overrideEnabled ? 1 : 0;
+        }
+    }
+
+    if (!editingOverride)
+    {
+        ui->globalGroupBox->setTitle(tr("Settings Editor - Global Defaults"));
+        ui->profilesTabWidget->setToolTip(tr("These settings currently modify the global defaults used by images without an override."));
+    }
+    else if (overrideCount > 1)
+    {
+        ui->globalGroupBox->setTitle(tr("Settings Editor - Selected Image Overrides"));
+        ui->profilesTabWidget->setToolTip(tr("These settings currently modify the overrides of all selected images."));
+    }
+    else
+    {
+        ui->globalGroupBox->setTitle(tr("Settings Editor - Selected Image Override"));
+        ui->profilesTabWidget->setToolTip(tr("These settings currently modify only the selected image override."));
+    }
 }
 
 void PDFOptimizeImagesDialog::loadSettingsToUi(const pdf::PDFImageOptimizer::Settings& settings)
@@ -664,12 +749,34 @@ void PDFOptimizeImagesDialog::applyUiToSettings(pdf::PDFImageOptimizer::Settings
 
 pdf::PDFImageOptimizer::Settings& PDFOptimizeImagesDialog::activeSettings()
 {
-    ImageEntry* entry = getSelectedEntry();
+    ImageEntry* entry = getCurrentEntry();
     if (entry && entry->overrideEnabled)
     {
         return entry->overrideSettings;
     }
     return m_settings;
+}
+
+void PDFOptimizeImagesDialog::applyUiToActiveSettings()
+{
+    const ImageEntry* currentEntry = getCurrentEntry();
+    if (!currentEntry || !currentEntry->overrideEnabled)
+    {
+        applyUiToSettings(m_settings);
+        return;
+    }
+
+    // The editor shows the override of the current image. Write the values into
+    // every selected image which also has an override, so a whole group of
+    // images can be tuned at once.
+    for (const int row : getSelectedRows())
+    {
+        ImageEntry& entry = m_images[static_cast<size_t>(row)];
+        if (entry.overrideEnabled)
+        {
+            applyUiToSettings(entry.overrideSettings);
+        }
+    }
 }
 
 int PDFOptimizeImagesDialog::getEstimatedBytes(ImageEntry& entry,
@@ -687,7 +794,7 @@ int PDFOptimizeImagesDialog::getEstimatedBytes(ImageEntry& entry,
     return entry.estimateCacheBytes;
 }
 
-PDFOptimizeImagesDialog::ImageEntry* PDFOptimizeImagesDialog::getSelectedEntry()
+PDFOptimizeImagesDialog::ImageEntry* PDFOptimizeImagesDialog::getCurrentEntry()
 {
     int row = ui->imageListWidget->currentRow();
     if (row < 0 || row >= static_cast<int>(m_images.size()))
@@ -697,7 +804,7 @@ PDFOptimizeImagesDialog::ImageEntry* PDFOptimizeImagesDialog::getSelectedEntry()
     return &m_images[static_cast<size_t>(row)];
 }
 
-const PDFOptimizeImagesDialog::ImageEntry* PDFOptimizeImagesDialog::getSelectedEntry() const
+const PDFOptimizeImagesDialog::ImageEntry* PDFOptimizeImagesDialog::getCurrentEntry() const
 {
     int row = ui->imageListWidget->currentRow();
     if (row < 0 || row >= static_cast<int>(m_images.size()))
@@ -705,6 +812,35 @@ const PDFOptimizeImagesDialog::ImageEntry* PDFOptimizeImagesDialog::getSelectedE
         return nullptr;
     }
     return &m_images[static_cast<size_t>(row)];
+}
+
+std::vector<int> PDFOptimizeImagesDialog::getSelectedRows() const
+{
+    std::vector<int> rows;
+
+    const QList<QListWidgetItem*> selectedItems = ui->imageListWidget->selectedItems();
+    rows.reserve(selectedItems.size());
+
+    for (QListWidgetItem* item : selectedItems)
+    {
+        const int row = ui->imageListWidget->row(item);
+        if (row >= 0 && row < static_cast<int>(m_images.size()))
+        {
+            rows.push_back(row);
+        }
+    }
+
+    if (rows.empty())
+    {
+        const int currentRow = ui->imageListWidget->currentRow();
+        if (currentRow >= 0 && currentRow < static_cast<int>(m_images.size()))
+        {
+            rows.push_back(currentRow);
+        }
+    }
+
+    std::sort(rows.begin(), rows.end());
+    return rows;
 }
 
 void PDFOptimizeImagesDialog::onOptimizeButtonClicked()
@@ -712,7 +848,7 @@ void PDFOptimizeImagesDialog::onOptimizeButtonClicked()
     Q_ASSERT(!m_optimizationInProgress);
     Q_ASSERT(!m_future.isRunning());
 
-    applyUiToSettings(activeSettings());
+    applyUiToActiveSettings();
 
     m_optimizationInProgress = true;
     m_optimized = false;
@@ -776,7 +912,7 @@ void PDFOptimizeImagesDialog::onSettingsChanged()
         return;
     }
 
-    applyUiToSettings(activeSettings());
+    applyUiToActiveSettings();
     markOptimizationDirty();
     updateImageListItems();
     updateSummaryInfo();
@@ -786,51 +922,61 @@ void PDFOptimizeImagesDialog::onSettingsChanged()
 void PDFOptimizeImagesDialog::onSelectionChanged()
 {
     updateSelectedImageUi();
-    updatePreview();
+
+    // Building a preview resamples and re-encodes the image, so rebuild it only
+    // when the current image really changed. Both selection signals are wired to
+    // this slot and can fire for a single click.
+    const int currentRow = ui->imageListWidget->currentRow();
+    if (currentRow != m_previewRow)
+    {
+        m_previewRow = currentRow;
+        updatePreview();
+    }
 }
 
-void PDFOptimizeImagesDialog::onOverrideToggled(bool checked)
+void PDFOptimizeImagesDialog::onOverrideClicked()
 {
-    if (m_updatingUi)
+    const Qt::CheckState state = ui->imageOverrideCheckBox->checkState();
+    if (state == Qt::PartiallyChecked)
     {
         return;
     }
 
-    ImageEntry* entry = getSelectedEntry();
-    if (!entry)
+    const bool checked = state == Qt::Checked;
+    for (const int row : getSelectedRows())
     {
-        return;
-    }
-
-    entry->overrideEnabled = checked;
-    if (checked)
-    {
-        entry->overrideSettings = m_settings;
+        ImageEntry& entry = m_images[static_cast<size_t>(row)];
+        entry.overrideEnabled = checked;
+        if (checked)
+        {
+            entry.overrideSettings = m_settings;
+        }
     }
 
     markOptimizationDirty();
     updateSelectedImageUi();
-    updateImageListItem(ui->imageListWidget->currentRow());
+    updateImageListItems();
     updateSummaryInfo();
     updatePreview();
 }
 
-void PDFOptimizeImagesDialog::onImageEnabledToggled(bool checked)
+void PDFOptimizeImagesDialog::onImageEnabledClicked()
 {
-    if (m_updatingUi)
+    const Qt::CheckState state = ui->imageEnabledCheckBox->checkState();
+    if (state == Qt::PartiallyChecked)
     {
         return;
     }
 
-    ImageEntry* entry = getSelectedEntry();
-    if (!entry)
+    const bool checked = state == Qt::Checked;
+    for (const int row : getSelectedRows())
     {
-        return;
+        m_images[static_cast<size_t>(row)].enabled = checked;
     }
 
-    entry->enabled = checked;
     markOptimizationDirty();
-    updateImageListItem(ui->imageListWidget->currentRow());
+    updateSelectedImageUi();
+    updateImageListItems();
     updateSummaryInfo();
     updatePreview();
 }
@@ -872,7 +1018,7 @@ void PDFOptimizeImagesDialog::updatePreview()
         label->setPixmap(pix);
     };
 
-    ImageEntry* entry = getSelectedEntry();
+    ImageEntry* entry = getCurrentEntry();
     if (!entry)
     {
         return;
