@@ -119,6 +119,8 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     m_actionManager->setAction(PDFActionManager::Open, ui->actionOpen);
     m_actionManager->setAction(PDFActionManager::Close, ui->actionClose);
     m_actionManager->setAction(PDFActionManager::AutomaticDocumentRefresh, ui->actionAutomaticDocumentRefresh);
+    m_actionManager->setAction(PDFActionManager::Save, ui->actionSave);
+    m_actionManager->setAction(PDFActionManager::SaveAs, ui->actionSave_As);
     m_actionManager->setAction(PDFActionManager::Quit, ui->actionQuit);
     m_actionManager->setAction(PDFActionManager::ZoomIn, ui->actionZoom_In);
     m_actionManager->setAction(PDFActionManager::ZoomOut, ui->actionZoom_Out);
@@ -230,7 +232,7 @@ PDFViewerMainWindow::PDFViewerMainWindow(QWidget* parent) :
     ui->mainToolBar->addSeparator();
 
     // Special tools
-    m_programController->initialize(PDFProgramController::Features(PDFProgramController::TextToSpeech | PDFProgramController::Tools), this, this, m_actionManager, m_progress);
+    m_programController->initialize(PDFProgramController::Features(PDFProgramController::TextToSpeech | PDFProgramController::Tools | PDFProgramController::Forms), this, this, m_actionManager, m_progress);
     setCentralWidget(m_programController->getPdfWidget());
     setFocusProxy(m_programController->getPdfWidget());
 

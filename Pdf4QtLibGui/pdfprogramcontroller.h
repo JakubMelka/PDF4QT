@@ -448,6 +448,7 @@ private:
     void readSettings(Settings settings);
 
     void saveDocument(const QString& fileName);
+    void prepareFormFieldAppearancesForSave();
     void savePageLayoutPerDocument();
 
     PDFActionManager* m_actionManager;
