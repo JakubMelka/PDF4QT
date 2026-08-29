@@ -306,9 +306,18 @@ PDFEditorMainWindow::PDFEditorMainWindow(QWidget* parent) :
     m_sidebarDockWidget->hide();
     connect(m_sidebarWidget, &PDFSidebarWidget::actionTriggered, m_programController, &PDFProgramController::onActionTriggered);
     connect(m_sidebarWidget, &PDFSidebarWidget::documentModified, m_programController, &PDFProgramController::onDocumentModified);
+    connect(m_sidebarWidget, &PDFSidebarWidget::sidebarVisibilityRequested, this, &PDFEditorMainWindow::onSidebarVisibilityRequested);
     for (QAction* action : m_sidebarWidget->getOutlineActions())
     {
         m_actionManager->addAdditionalAction(action);
+    }
+
+    // Outline items are created directly from the document being read, so the action
+    // must be reachable from the menu (and by its shortcut) without opening the sidebar
+    if (QAction* outlineNewItemAction = m_sidebarWidget->getOutlineNewItemAction())
+    {
+        ui->menuInsert->addSeparator();
+        ui->menuInsert->addAction(outlineNewItemAction);
     }
 
     m_advancedFindWidget = new PDFAdvancedFindWidget(m_programController->getPdfWidget()->getDrawWidgetProxy(), this);
@@ -363,6 +372,16 @@ PDFEditorMainWindow::~PDFEditorMainWindow()
     m_actionManager = nullptr;
 
     delete ui;
+}
+
+void PDFEditorMainWindow::onSidebarVisibilityRequested()
+{
+    if (!m_sidebarDockWidget->isVisible())
+    {
+        m_sidebarDockWidget->show();
+    }
+
+    m_sidebarDockWidget->raise();
 }
 
 void PDFEditorMainWindow::onActionQuitTriggered()

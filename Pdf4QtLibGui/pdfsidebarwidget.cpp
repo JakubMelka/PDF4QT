@@ -127,6 +127,8 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
 
         createOutlineActions();
         connect(ui->outlineTreeView->selectionModel(), &QItemSelectionModel::currentChanged, this, &PDFSidebarWidget::updateOutlineActions);
+        connect(ui->outlineTreeView->itemDelegate(), &QAbstractItemDelegate::closeEditor, this, &PDFSidebarWidget::onOutlineItemEditorClosed);
+        connect(m_outlineTreeModel, &pdf::PDFOutlineTreeItemModel::modelAboutToBeReset, this, &PDFSidebarWidget::onOutlineModelAboutToBeReset);
         updateOutlineActions();
     }
 
@@ -1127,10 +1129,31 @@ void PDFSidebarWidget::createOutlineActions()
     };
 
     m_outlineActionFollow = createAction("actionOutlineFollow", tr("Follow"), &PDFSidebarWidget::onOutlineActionFollow);
-    m_outlineActionInsert = createAction("actionOutlineInsert", tr("Insert"), &PDFSidebarWidget::onOutlineActionInsert);
+    // Object name differs from the old one ("actionOutlineInsert"), because
+    // shortcuts are persisted by the object name - the old, shortcut-less
+    // action would restore an empty shortcut from the existing settings
+    m_outlineActionInsert = createAction("actionOutlineNewItem", tr("New Outline Item"), &PDFSidebarWidget::onOutlineActionInsert);
     m_outlineActionDelete = createAction("actionOutlineDelete", tr("Delete"), &PDFSidebarWidget::onOutlineActionDelete);
     m_outlineActionRename = createAction("actionOutlineRename", tr("Rename"), &PDFSidebarWidget::onOutlineActionRename);
-    m_outlineActionInsert->setEnabled(true);
+
+    // New item action is also placed into the main window's menu, so it must be
+    // triggerable while the document is being read, i.e. when the outline tree
+    // doesn't have the focus, or the whole sidebar is even hidden.
+    m_outlineActionInsert->setIcon(QIcon(":/resources/outline.svg"));
+    m_outlineActionInsert->setShortcut(QKeySequence("Ctrl+B"));
+    m_outlineActionInsert->setShortcutContext(Qt::WindowShortcut);
+    m_outlineActionInsert->setToolTip(tr("Create a new outline item pointing to the current page and start editing its title."));
+
+    m_outlineActionMoveUp = createAction("actionOutlineMoveUp", tr("Move Up"), &PDFSidebarWidget::onOutlineActionMoveUp);
+    m_outlineActionMoveUp->setShortcut(QKeySequence("Alt+Up"));
+    m_outlineActionMoveDown = createAction("actionOutlineMoveDown", tr("Move Down"), &PDFSidebarWidget::onOutlineActionMoveDown);
+    m_outlineActionMoveDown->setShortcut(QKeySequence("Alt+Down"));
+    m_outlineActionMoveLeft = createAction("actionOutlineMoveLeft", tr("Move Left"), &PDFSidebarWidget::onOutlineActionMoveLeft);
+    m_outlineActionMoveLeft->setShortcut(QKeySequence("Alt+Left"));
+    m_outlineActionMoveLeft->setToolTip(tr("Move the item one level up in the outline hierarchy."));
+    m_outlineActionMoveRight = createAction("actionOutlineMoveRight", tr("Move Right"), &PDFSidebarWidget::onOutlineActionMoveRight);
+    m_outlineActionMoveRight->setShortcut(QKeySequence("Alt+Right"));
+    m_outlineActionMoveRight->setToolTip(tr("Make the item a child of the preceding item."));
 
     m_outlineActionFontBold = createAction("actionOutlineFontBold", tr("Font Bold"), &PDFSidebarWidget::onOutlineActionFontBold);
     m_outlineActionFontBold->setCheckable(true);
@@ -1227,6 +1250,12 @@ void PDFSidebarWidget::updateOutlineActions()
     m_outlineActionDelete->setEnabled(isValid);
     m_outlineActionRename->setEnabled(isValid);
 
+    m_outlineActionInsert->setEnabled(m_document != nullptr);
+    m_outlineActionMoveUp->setEnabled(isValid && sourceIndex.row() > 0);
+    m_outlineActionMoveDown->setEnabled(isValid && sourceIndex.row() + 1 < m_outlineTreeModel->rowCount(sourceIndex.parent()));
+    m_outlineActionMoveLeft->setEnabled(isValid && sourceIndex.parent().isValid());
+    m_outlineActionMoveRight->setEnabled(isValid && sourceIndex.row() > 0);
+
     m_outlineActionFontBold->setEnabled(isValid);
     m_outlineActionFontBold->setChecked(outlineItem && outlineItem->isFontBold());
     m_outlineActionFontItalic->setEnabled(isValid);
@@ -1248,40 +1277,276 @@ void PDFSidebarWidget::onOutlineActionFollow()
 
 void PDFSidebarWidget::onOutlineActionInsert()
 {
-    const QModelIndex proxyIndex = ui->outlineTreeView->currentIndex();
-    QModelIndex insertProxyIndex;
+    insertOutlineItem();
+}
 
-    QAbstractItemModel* model = ui->outlineTreeView->model();
-    if (proxyIndex.isValid())
+QString PDFSidebarWidget::getSelectedTextAsOutlineItemTitle(const std::vector<pdf::PDFInteger>& pageIndices) const
+{
+    QString text;
+
+    if (pageIndices.empty())
     {
-        if (model->insertRow(proxyIndex.row() + 1, proxyIndex.parent()))
+        return text;
+    }
+
+    if (pdf::PDFWidget* widget = m_proxy->getWidget())
+    {
+        if (pdf::PDFToolManager* toolManager = widget->getToolManager())
         {
-            insertProxyIndex = proxyIndex.sibling(proxyIndex.row() + 1, 0);
+            if (pdf::PDFSelectTextTool* selectTextTool = toolManager->getSelectTextTool())
+            {
+                text = selectTextTool->getSelectedText(pageIndices);
+            }
         }
+    }
+
+    // Title is a single line text - collapse the white space and limit the length,
+    // so a large text selection doesn't produce an unusable outline item
+    text = text.simplified();
+
+    constexpr int MAXIMUM_TITLE_LENGTH = 128;
+    if (text.length() > MAXIMUM_TITLE_LENGTH)
+    {
+        text = text.left(MAXIMUM_TITLE_LENGTH).trimmed() + QChar(0x2026);
+    }
+
+    return text;
+}
+
+void PDFSidebarWidget::insertOutlineItem()
+{
+    if (!m_document || !m_outlineTreeModel->isEditable())
+    {
+        return;
+    }
+
+    // Naming of a previously created item must be finished first, so changes of
+    // the two items are not mixed together. Moving the focus to the tree view
+    // closes the editor (which is handled in onOutlineItemEditorClosed), the
+    // explicit call then handles the case, when the editor can't be closed this
+    // way - for example when the sidebar has been hidden meanwhile.
+    if (m_newOutlineItemIndex.isValid())
+    {
+        ui->outlineTreeView->setFocus();
+        finishOutlineItemCreation(QAbstractItemDelegate::NoHint);
+    }
+
+    // New item's title is edited in place, so the sidebar must be visible.
+    // Sidebar itself is owned by the main window, so we must ask for it.
+    Q_EMIT sidebarVisibilityRequested();
+
+    // Filtered outline would hide the new item and the user couldn't name it
+    clearOutlineFilter();
+
+    QPersistentModelIndex proxyInsertIndex;
+
+    {
+        // Changes of the outline are not propagated to the document while the
+        // item is being created - they are committed at once, when the user
+        // finishes the naming, so an item, which the user doesn't want, doesn't
+        // modify the document and doesn't create undo steps
+        pdf::PDFTemporaryValueChange<bool> guard(&m_isOutlineItemBeingCreated, true);
+
+        // New item is inserted after the current one, at the same level. Sibling
+        // in the source model is used, because the proxy model can be filtered.
+        const QModelIndex currentSourceIndex = getCurrentOutlineSourceIndex();
+        const QModelIndex sourceParent = currentSourceIndex.isValid() ? currentSourceIndex.parent() : QModelIndex();
+        const int row = currentSourceIndex.isValid() ? currentSourceIndex.row() + 1 : m_outlineTreeModel->rowCount(QModelIndex());
+
+        if (!m_outlineTreeModel->insertRow(row, sourceParent))
+        {
+            return;
+        }
+
+        const QModelIndex sourceInsertIndex = m_outlineTreeModel->index(row, 0, sourceParent);
+        if (sourceInsertIndex.isValid())
+        {
+            std::vector<pdf::PDFInteger> pages = m_proxy->getWidget()->getDrawWidget()->getCurrentPages();
+            if (!pages.empty())
+            {
+                pdf::PDFDestination destination;
+                destination.setDestinationType(pdf::DestinationType::Fit);
+                destination.setPageIndex(pages.front());
+                destination.setPageReference(m_document->getCatalog()->getPage(pages.front())->getPageReference());
+                destination.setZoom(m_proxy->getZoom());
+                m_outlineTreeModel->setDestination(sourceInsertIndex, destination);
+            }
+
+            // Text selected on the bookmarked page is usually the heading itself
+            const QString title = getSelectedTextAsOutlineItemTitle(pages);
+            if (!title.isEmpty())
+            {
+                m_outlineTreeModel->setData(sourceInsertIndex, title, Qt::EditRole);
+            }
+
+            proxyInsertIndex = m_outlineSortProxyTreeModel->mapFromSource(sourceInsertIndex);
+        }
+    }
+
+    if (proxyInsertIndex.isValid())
+    {
+        selectPage(Outline);
+
+        // Setting the current index can close an editor of another item, which
+        // can remove that item, so a persistent index is used here
+        ui->outlineTreeView->setCurrentIndex(proxyInsertIndex);
+        ui->outlineTreeView->scrollTo(proxyInsertIndex);
+        ui->outlineTreeView->setFocus();
+        ui->outlineTreeView->edit(proxyInsertIndex);
+
+        // Item is removed again, when its naming is cancelled - track it only,
+        // when the editor has really been opened
+        if (ui->outlineTreeView->isPersistentEditorOpen(proxyInsertIndex))
+        {
+            m_newOutlineItemIndex = proxyInsertIndex;
+        }
+    }
+
+    // Item, which the user can't name, because no editor has been opened,
+    // is committed to the document right away
+    commitOutlineChanges();
+
+    updateOutlineActions();
+}
+
+void PDFSidebarWidget::onOutlineItemEditorClosed(QWidget* editor, QAbstractItemDelegate::EndEditHint hint)
+{
+    Q_UNUSED(editor);
+
+    finishOutlineItemCreation(hint);
+}
+
+void PDFSidebarWidget::finishOutlineItemCreation(QAbstractItemDelegate::EndEditHint hint)
+{
+    const QPersistentModelIndex newItemIndex = m_newOutlineItemIndex;
+    m_newOutlineItemIndex = QPersistentModelIndex();
+
+    if (!newItemIndex.isValid())
+    {
+        // Some other item has been edited, or the created item doesn't exist
+        // anymore, because the document has been reloaded meanwhile
+        commitOutlineChanges();
+        return;
+    }
+
+    // Item has just been created by the user - if the naming has been cancelled,
+    // or no title has been given, then remove the item again, so an accidentally
+    // triggered action leaves no trace in the document
+    const bool isCancelled = hint == QAbstractItemDelegate::RevertModelCache;
+    const bool isTitleEmpty = newItemIndex.data(Qt::DisplayRole).toString().trimmed().isEmpty();
+
+    if (isCancelled || isTitleEmpty)
+    {
+        // Creation of the item has not been propagated to the document at all,
+        // so removing the item restores the original state and nothing needs to
+        // be committed - document is neither modified, nor marked as unsaved
+        {
+            pdf::PDFTemporaryValueChange<bool> guard(&m_isOutlineItemBeingCreated, true);
+            ui->outlineTreeView->model()->removeRow(newItemIndex.row(), newItemIndex.parent());
+        }
+
+        m_isOutlineChangeDeferred = false;
     }
     else
     {
-        if (model->insertRow(model->rowCount()))
-        {
-            insertProxyIndex = model->index(model->rowCount() - 1, 0);
-        }
+        commitOutlineChanges();
     }
 
-    if (insertProxyIndex.isValid())
+    updateOutlineActions();
+}
+
+void PDFSidebarWidget::onOutlineModelAboutToBeReset()
+{
+    // Whole outline is being rebuilt - an item, which is being created, doesn't
+    // exist anymore and its deferred changes can't be committed to the document
+    m_newOutlineItemIndex = QPersistentModelIndex();
+    m_isOutlineChangeDeferred = false;
+}
+
+void PDFSidebarWidget::commitOutlineChanges()
+{
+    if (m_isOutlineChangeDeferred)
     {
-        std::vector<pdf::PDFInteger> pages = m_proxy->getWidget()->getDrawWidget()->getCurrentPages();
+        m_isOutlineChangeDeferred = false;
+        onOutlineItemsChanged();
+    }
+}
 
-        if (!pages.empty())
+void PDFSidebarWidget::clearOutlineFilter()
+{
+    if (!ui->outlineSearchLineEdit->text().isEmpty())
+    {
+        ui->outlineSearchLineEdit->clear();
+    }
+}
+
+void PDFSidebarWidget::moveOutlineItem(const QModelIndex& destinationSourceParent, int destinationRow)
+{
+    const QPersistentModelIndex sourceIndex(getCurrentOutlineSourceIndex());
+    if (!sourceIndex.isValid())
+    {
+        return;
+    }
+
+    // Items are moved in the source model, so a filtered outline would move the
+    // item over its hidden siblings and the user would see no change at all
+    clearOutlineFilter();
+
+    if (m_outlineTreeModel->moveRow(sourceIndex.parent(), sourceIndex.row(), destinationSourceParent, destinationRow))
+    {
+        // Item can be moved into a collapsed parent - scrolling to it expands it
+        const QModelIndex proxyIndex = m_outlineSortProxyTreeModel->mapFromSource(sourceIndex);
+        if (proxyIndex.isValid())
         {
-            QModelIndex sourceInsertIndex = m_outlineSortProxyTreeModel->mapToSource(insertProxyIndex);
-
-            pdf::PDFDestination destination;
-            destination.setDestinationType(pdf::DestinationType::Fit);
-            destination.setPageIndex(pages.front());
-            destination.setPageReference(m_document->getCatalog()->getPage(pages.front())->getPageReference());
-            destination.setZoom(m_proxy->getZoom());
-            m_outlineTreeModel->setDestination(sourceInsertIndex, destination);
+            ui->outlineTreeView->setCurrentIndex(proxyIndex);
+            ui->outlineTreeView->scrollTo(proxyIndex);
         }
+
+        updateOutlineActions();
+    }
+}
+
+void PDFSidebarWidget::onOutlineActionMoveUp()
+{
+    const QModelIndex sourceIndex = getCurrentOutlineSourceIndex();
+    if (sourceIndex.isValid() && sourceIndex.row() > 0)
+    {
+        moveOutlineItem(sourceIndex.parent(), sourceIndex.row() - 1);
+    }
+}
+
+void PDFSidebarWidget::onOutlineActionMoveDown()
+{
+    const QModelIndex sourceIndex = getCurrentOutlineSourceIndex();
+    if (sourceIndex.isValid() && sourceIndex.row() + 1 < m_outlineTreeModel->rowCount(sourceIndex.parent()))
+    {
+        // Destination row is interpreted in the model before the item is removed
+        // from its old place, so the item itself must be skipped
+        moveOutlineItem(sourceIndex.parent(), sourceIndex.row() + 2);
+    }
+}
+
+void PDFSidebarWidget::onOutlineActionMoveLeft()
+{
+    const QModelIndex sourceIndex = getCurrentOutlineSourceIndex();
+    const QModelIndex parentIndex = sourceIndex.parent();
+
+    if (sourceIndex.isValid() && parentIndex.isValid())
+    {
+        // Item becomes the next sibling of its parent
+        moveOutlineItem(parentIndex.parent(), parentIndex.row() + 1);
+    }
+}
+
+void PDFSidebarWidget::onOutlineActionMoveRight()
+{
+    const QModelIndex sourceIndex = getCurrentOutlineSourceIndex();
+
+    if (sourceIndex.isValid() && sourceIndex.row() > 0)
+    {
+        // Item becomes the last child of its preceding sibling
+        const QModelIndex newParentIndex = sourceIndex.sibling(sourceIndex.row() - 1, 0);
+        moveOutlineItem(newParentIndex, m_outlineTreeModel->rowCount(newParentIndex));
     }
 }
 
@@ -1526,6 +1791,13 @@ void PDFSidebarWidget::onOutlineTreeViewContextMenuRequested(const QPoint& pos)
 
     contextMenu.addSeparator();
 
+    contextMenu.addAction(m_outlineActionMoveUp);
+    contextMenu.addAction(m_outlineActionMoveDown);
+    contextMenu.addAction(m_outlineActionMoveLeft);
+    contextMenu.addAction(m_outlineActionMoveRight);
+
+    contextMenu.addSeparator();
+
     contextMenu.addAction(m_outlineActionFontBold);
     contextMenu.addAction(m_outlineActionFontItalic);
 
@@ -1577,6 +1849,15 @@ void PDFSidebarWidget::onNotesTreeViewContextMenuRequested(const QPoint& pos)
 
 void PDFSidebarWidget::onOutlineItemsChanged()
 {
+    if (m_isOutlineItemBeingCreated || m_newOutlineItemIndex.isValid())
+    {
+        // New item is being created and named by the user - changes are
+        // committed to the document at once, when the naming is finished
+        // (see finishOutlineItemCreation)
+        m_isOutlineChangeDeferred = true;
+        return;
+    }
+
     if (m_document)
     {
         pdf::PDFDocumentBuilder builder(m_document);

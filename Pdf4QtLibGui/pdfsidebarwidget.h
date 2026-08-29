@@ -27,6 +27,7 @@
 #include "pdfbookmarkmanager.h"
 
 #include <QWidget>
+#include <QAbstractItemDelegate>
 
 class QAction;
 class QPushButton;
@@ -114,9 +115,20 @@ public:
     /// registered with the action manager to make them remappable/persistent.
     std::vector<QAction*> getOutlineActions() const;
 
+    /// Returns the action creating a new outline item at the current view
+    /// position, or nullptr, when outline editing is disabled. The action is
+    /// intended to be also placed into the main window's menu, so that new
+    /// outline items can be created without leaving the page being read.
+    QAction* getOutlineNewItemAction() const { return m_outlineActionInsert; }
+
 signals:
     void actionTriggered(const pdf::PDFAction* action);
     void documentModified(pdf::PDFModifiedDocument document);
+
+    /// Emitted, when the sidebar must become visible, because the user is about
+    /// to work with it - for example a new outline item has been created and its
+    /// title is being edited in place.
+    void sidebarVisibilityRequested();
 
 private:
     void updateGUI(Page preferredPage);
@@ -153,12 +165,50 @@ private:
     void onOutlineActionInsert();
     void onOutlineActionDelete();
     void onOutlineActionRename();
+    void onOutlineActionMoveUp();
+    void onOutlineActionMoveDown();
+    void onOutlineActionMoveLeft();
+    void onOutlineActionMoveRight();
+    void onOutlineItemEditorClosed(QWidget* editor, QAbstractItemDelegate::EndEditHint hint);
+    void onOutlineModelAboutToBeReset();
     void onOutlineActionFontBold();
     void onOutlineActionFontItalic();
     void onOutlineActionSetTargetNamedDestination();
     void onOutlineActionSetTargetByType();
     void onOutlineActionInheritZoom();
     void onOutlineActionInheritZoomForAllChapters();
+
+    /// Creates a new outline item pointing to the currently viewed page, places
+    /// it after the currently selected item (or at the end of the outline, when
+    /// nothing is selected) and starts editing of its title.
+    void insertOutlineItem();
+
+    /// Moves the currently selected outline item, so it becomes a child
+    /// of \p destinationSourceParent at the given row.
+    void moveOutlineItem(const QModelIndex& destinationSourceParent, int destinationRow);
+
+    /// Returns text selected in the document, adjusted to be used as a title
+    /// of the outline item. Empty string is returned, when nothing is selected.
+    /// \param pageIndices Pages, on which the selected text is accepted. Text
+    ///        selected on other pages is ignored, because the selection
+    ///        survives scrolling to a completely different page.
+    QString getSelectedTextAsOutlineItemTitle(const std::vector<pdf::PDFInteger>& pageIndices) const;
+
+    /// Finishes the creation of an outline item, which is being named by the
+    /// user. Item is either committed to the document, or, when the naming has
+    /// been cancelled or no title has been given, removed again. Does nothing,
+    /// when no item is being created.
+    /// \param hint Hint, with which the item's editor has been closed
+    void finishOutlineItemCreation(QAbstractItemDelegate::EndEditHint hint);
+
+    /// Propagates outline changes, which have been deferred while a new item
+    /// was being created, to the document.
+    void commitOutlineChanges();
+
+    /// Clears the outline search filter, so that all outline items are visible.
+    /// Outline is edited in the source model, so items hidden by the filter
+    /// would be modified without the user seeing it.
+    void clearOutlineFilter();
 
     struct PageInfo
     {
@@ -197,6 +247,10 @@ private:
     QAction* m_outlineActionDelete = nullptr;
     QAction* m_outlineActionInsert = nullptr;
     QAction* m_outlineActionRename = nullptr;
+    QAction* m_outlineActionMoveUp = nullptr;
+    QAction* m_outlineActionMoveDown = nullptr;
+    QAction* m_outlineActionMoveLeft = nullptr;
+    QAction* m_outlineActionMoveRight = nullptr;
     QAction* m_outlineActionFontBold = nullptr;
     QAction* m_outlineActionFontItalic = nullptr;
     QAction* m_outlineActionSetTargetNamedDestination = nullptr;
@@ -212,6 +266,20 @@ private:
     QAction* m_outlineActionInheritZoomForAllChapters = nullptr;
     std::vector<QAction*> m_outlineSetTargetActions;
     std::vector<QAction*> m_outlineActions;
+
+    /// Item, which has just been created and is being named by the user. When
+    /// the user cancels the editing, or leaves the title empty, then the item
+    /// is removed again, so an accidentally triggered action leaves no trace.
+    QPersistentModelIndex m_newOutlineItemIndex;
+
+    /// True, when a new outline item is being inserted into the outline model.
+    /// Together with the index of the created item it marks the period, in
+    /// which the outline changes are not propagated to the document.
+    bool m_isOutlineItemBeingCreated = false;
+
+    /// True, when the outline has been changed, but the change hasn't been
+    /// propagated to the document yet, because a new item is being created.
+    bool m_isOutlineChangeDeferred = false;
 };
 
 }   // namespace pdfviewer

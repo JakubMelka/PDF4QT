@@ -249,7 +249,7 @@ private:
 };
 
 /// Tool for selection of text in document
-class PDFSelectTextTool : public PDFWidgetTool
+class PDF4QTLIBWIDGETSSHARED_EXPORT PDFSelectTextTool : public PDFWidgetTool
 {
     Q_OBJECT
 
@@ -277,6 +277,14 @@ public:
     virtual void mousePressEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void mouseReleaseEvent(QWidget* widget, QMouseEvent* event) override;
     virtual void mouseMoveEvent(QWidget* widget, QMouseEvent* event) override;
+
+    /// Returns text of the current text selection. If nothing is selected,
+    /// or the document doesn't allow the content to be copied, then empty
+    /// string is returned.
+    /// \param pageIndices Pages, from which the selected text is taken. If the
+    ///        list is empty, then text from all pages of the selection
+    ///        is returned.
+    QString getSelectedText(const std::vector<PDFInteger>& pageIndices = std::vector<PDFInteger>()) const;
 
 protected:
     virtual void setActiveImpl(bool active) override;
@@ -613,6 +621,9 @@ public:
 
     /// Returns magnifier tool
     PDFMagnifierTool* getMagnifierTool() const;
+
+    /// Returns text selection tool
+    PDFSelectTextTool* getSelectTextTool() const;
 
     /// Handles shortcut override event
     virtual void shortcutOverrideEvent(QWidget* widget, QKeyEvent* event) override;

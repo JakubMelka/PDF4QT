@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #422: Feature Request: Streamline Outline Creation.
  - Issue #420: [follow-up] also allow changing default border color when redacting rectangles
  - Issue #419: [idea] invert redaction rectangles as well in dark mode
  - Issue #416: [enhancement request] Optimize Images: allow global defaults to be run for multiple/all

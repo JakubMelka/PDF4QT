@@ -43,6 +43,8 @@
 #include <QStyleOptionTitleBar>
 #include <QVector2D>
 
+#include <algorithm>
+
 #include "pdfdbgheap.h"
 
 namespace pdf
@@ -864,32 +866,51 @@ void PDFSelectTextTool::updateCursor()
     }
 }
 
+QString PDFSelectTextTool::getSelectedText(const std::vector<PDFInteger>& pageIndices) const
+{
+    if (m_textSelection.isEmpty() || !getDocument())
+    {
+        return QString();
+    }
+
+    // Jakub Melka: we must obey document permissions
+    if (!getDocument()->getStorage().getSecurityHandler()->isAllowed(PDFSecurityHandler::Permission::CopyContent))
+    {
+        return QString();
+    }
+
+    QStringList result;
+
+    auto it = m_textSelection.begin();
+    auto itEnd = m_textSelection.nextPageRange(it);
+    while (it != m_textSelection.end())
+    {
+        const PDFInteger pageIndex = it->start.pageIndex;
+
+        // Jakub Melka: text can be selected on a page, which the caller is not
+        // interested in - for example the user has scrolled away from the page
+        // with the selected text
+        if (pageIndices.empty() || std::find(pageIndices.cbegin(), pageIndices.cend(), pageIndex) != pageIndices.cend())
+        {
+            PDFTextLayout textLayout = getProxy()->getTextLayoutCompiler()->getTextLayoutLazy(pageIndex);
+            result << textLayout.getTextFromSelection(it, itEnd, pageIndex);
+        }
+
+        it = itEnd;
+        itEnd = m_textSelection.nextPageRange(it);
+    }
+
+    return result.join("\n\n");
+}
+
 void PDFSelectTextTool::onActionCopyText()
 {
     if (isActive())
     {
-        // Jakub Melka: we must obey document permissions
-        if (getDocument()->getStorage().getSecurityHandler()->isAllowed(PDFSecurityHandler::Permission::CopyContent))
+        QString text = getSelectedText();
+        if (!text.isEmpty())
         {
-            QStringList result;
-
-            auto it = m_textSelection.begin();
-            auto itEnd = m_textSelection.nextPageRange(it);
-            while (it != m_textSelection.end())
-            {
-                const PDFInteger pageIndex = it->start.pageIndex;
-                PDFTextLayout textLayout = getProxy()->getTextLayoutCompiler()->getTextLayoutLazy(pageIndex);
-                result << textLayout.getTextFromSelection(it, itEnd, pageIndex);
-
-                it = itEnd;
-                itEnd = m_textSelection.nextPageRange(it);
-            }
-
-            QString text = result.join("\n\n");
-            if (!text.isEmpty())
-            {
-                QApplication::clipboard()->setText(text, QClipboard::Clipboard);
-            }
+            QApplication::clipboard()->setText(text, QClipboard::Clipboard);
         }
     }
 }
@@ -1017,6 +1038,11 @@ PDFFindTextTool* PDFToolManager::getFindTextTool() const
 PDFMagnifierTool* PDFToolManager::getMagnifierTool() const
 {
     return qobject_cast<PDFMagnifierTool*>(m_predefinedTools[MagnifierTool]);
+}
+
+PDFSelectTextTool* PDFToolManager::getSelectTextTool() const
+{
+    return qobject_cast<PDFSelectTextTool*>(m_predefinedTools[SelectTextTool]);
 }
 
 void PDFToolManager::shortcutOverrideEvent(QWidget* widget, QKeyEvent* event)

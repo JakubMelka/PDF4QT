@@ -98,6 +98,7 @@ protected:
     virtual void dropEvent(QDropEvent* event) override;
 
 private:
+    void onSidebarVisibilityRequested();
     void onActionQuitTriggered();
 
     void onPageNumberSpinboxEditingFinished();
