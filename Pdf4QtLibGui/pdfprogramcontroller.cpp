@@ -2552,6 +2552,8 @@ void PDFProgramController::loadPlugins()
     };
     std::sort(m_loadedPlugins.begin(), m_loadedPlugins.end(), comparator);
 
+    bool isPluginToolBarBreakNeeded = true;
+
     for (const auto& plugin : m_loadedPlugins)
     {
         plugin.second->setDataExchangeInterface(this);
@@ -2561,6 +2563,17 @@ void PDFProgramController::loadPlugins()
 
         if (!actions.empty())
         {
+            if (isPluginToolBarBreakNeeded)
+            {
+                // Toolbars of the plugins are placed in their own row, so they do not
+                // push the toolbar of the application out of the window. Qt does not
+                // wrap the toolbars by itself, a new row is created only by a toolbar
+                // break. The user can rearrange the toolbars, the arrangement is then
+                // restored from the window state.
+                m_mainWindow->addToolBarBreak();
+                isPluginToolBarBreakNeeded = false;
+            }
+
             QToolBar* toolBar = m_mainWindow->addToolBar(plugin.first.name);
             toolBar->setObjectName(QString("Plugin_Toolbar_%1").arg(plugin.first.name));
             m_mainWindowInterface->adjustToolbar(toolBar);
