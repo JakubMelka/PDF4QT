@@ -23,8 +23,7 @@
 #ifndef SETTINGSDIALOG_H
 #define SETTINGSDIALOG_H
 
-#include "dimensiontool.h"
-#include "dimensionsplugin.h"
+#include "dimensionsettings.h"
 
 #include <QDialog>
 #include <QFont>
@@ -60,6 +59,21 @@ private:
     Ui::SettingsDialog* ui;
 
     void initComboBox(const DimensionUnits& units, const DimensionUnit& currentUnit, QComboBox* comboBox);
+
+    /// Displays the selected colors on the buttons, which are used to change them.
+    /// The transparency of a color is displayed as well, because a color, which is
+    /// transparent, is not drawn at all.
+    void updateColorButtons();
+
+    /// Lets the user pick a color. Returns an invalid color, if the selection
+    /// was cancelled.
+    /// \param color Currently selected color
+    /// \param title Title of the dialog
+    QColor selectColor(const QColor& color, const QString& title);
+
+    void updateScaleEdit();
+    void updateStorageDescription();
+    void onChangeScaleTriggered();
 
     pdfplugin::DimensionsPluginSettings& m_originalSettings;
     pdfplugin::DimensionsPluginSettings  m_updatedSettings;

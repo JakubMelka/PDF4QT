@@ -62,6 +62,8 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfjavascriptscanner.h
     sources/pdfjbig2decoder.cpp
     sources/pdfjbig2decoder.h
+    sources/pdfmeasure.cpp
+    sources/pdfmeasure.h
     sources/pdfmultimedia.cpp
     sources/pdfmultimedia.h
     sources/pdfobject.cpp

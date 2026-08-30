@@ -23,31 +23,12 @@
 #ifndef DIMENSIONTOOL_H
 #define DIMENSIONTOOL_H
 
+#include "dimensionunits.h"
+
 #include "pdfwidgettool.h"
 
 #include <QAction>
 #include <QPolygonF>
-
-struct DimensionUnit;
-using DimensionUnits = std::vector<DimensionUnit>;
-
-struct DimensionUnit
-{
-    explicit inline DimensionUnit() = default;
-    explicit inline DimensionUnit(pdf::PDFReal scale, QString symbol) :
-        scale(scale),
-        symbol(qMove(symbol))
-    {
-
-    }
-
-    pdf::PDFReal scale = 1.0;
-    QString symbol;
-
-    static DimensionUnits getLengthUnits();
-    static DimensionUnits getAreaUnits();
-    static DimensionUnits getAngleUnits();
-};
 
 class Dimension
 {
@@ -76,6 +57,14 @@ public:
     pdf::PDFReal getMeasuredValue() const { return m_measuredValue; }
     const std::vector<QPointF>& getPolygon() const { return m_polygon; }
 
+    /// Returns the scale, which is prescribed for this dimension by the document
+    /// itself. It is set only for the dimensions measured inside a viewport, which
+    /// defines its own measure - such a dimension must not be affected by the scale
+    /// selected by the user. An invalid scale means, that the scale currently
+    /// selected in the plugin applies.
+    const DimensionScale& getScale() const { return m_scale; }
+    void setScale(DimensionScale scale) { m_scale = qMove(scale); }
+
     /// Returns true, if definition fo given type is complete
     static bool isComplete(Type type, const std::vector<QPointF>& polygon);
 
@@ -84,6 +73,7 @@ private:
     pdf::PDFInteger m_pageIndex = -1;
     pdf::PDFReal m_measuredValue = 0.0;
     std::vector<QPointF> m_polygon;
+    DimensionScale m_scale;
 };
 
 class DimensionTool : public pdf::PDFWidgetTool
@@ -105,6 +95,7 @@ public:
         Area,
         RectangleArea,
         Angle,
+        Calibrate,  ///< Picks a line of a known real length to calibrate the scale
         LastStyle
     };
 
@@ -121,6 +112,12 @@ public:
 
 signals:
     void dimensionCreated(Dimension dimension);
+
+    /// Emitted by the calibration tool, when the user picks a line, which has
+    /// a known real length. The measured length is in points, i.e. the UserUnit
+    /// of the page is already applied to it, exactly as in the measured value
+    /// of a dimension.
+    void calibrationLinePicked(pdf::PDFReal measuredLength);
 
 private:
     void onPointPicked(pdf::PDFInteger pageIndex, QPointF pagePoint);

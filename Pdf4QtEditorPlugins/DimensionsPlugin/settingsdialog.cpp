@@ -23,9 +23,55 @@
 #include "settingsdialog.h"
 #include "ui_settingsdialog.h"
 
+#include "scaledialog.h"
+
 #include "pdfwidgetutils.h"
-#include <QFontDialog>
+
 #include <QColorDialog>
+#include <QComboBox>
+#include <QFontDialog>
+#include <QIcon>
+#include <QLineEdit>
+#include <QPainter>
+#include <QPixmap>
+#include <QPushButton>
+
+namespace
+{
+
+/// Creates the icon, which displays the color. The color is drawn over a checker
+/// board, so the user is able to recognize, how transparent it is.
+/// \param color Displayed color
+/// \param size Size of the icon
+QIcon createColorIcon(const QColor& color, QSize size)
+{
+    QPixmap pixmap(size);
+    pixmap.fill(Qt::transparent);
+
+    QPainter painter(&pixmap);
+
+    const int checkerSize = qMax(size.height() / 3, 2);
+    for (int y = 0; y < size.height(); y += checkerSize)
+    {
+        for (int x = 0; x < size.width(); x += checkerSize)
+        {
+            const bool isLight = ((x / checkerSize) + (y / checkerSize)) % 2 == 0;
+            painter.fillRect(QRect(x, y, checkerSize, checkerSize), isLight ? QColor(255, 255, 255) : QColor(205, 205, 205));
+        }
+    }
+
+    if (color.isValid())
+    {
+        painter.fillRect(pixmap.rect(), color);
+    }
+
+    painter.setPen(QColor(128, 128, 128));
+    painter.drawRect(QRect(QPoint(0, 0), size - QSize(1, 1)));
+
+    return QIcon(pixmap);
+}
+
+}   // namespace
 
 SettingsDialog::SettingsDialog(QWidget* parent, pdfplugin::DimensionsPluginSettings& originalSettings) :
     QDialog(parent),
@@ -43,21 +89,35 @@ SettingsDialog::SettingsDialog(QWidget* parent, pdfplugin::DimensionsPluginSetti
     initComboBox(m_lengthUnits, m_updatedSettings.lengthUnit, ui->lengthsComboBox);
     initComboBox(m_areaUnits, m_updatedSettings.areaUnit, ui->areasComboBox);
     initComboBox(m_angleUnits, m_updatedSettings.angleUnit, ui->anglesComboBox);
-    ui->scaleEdit->setValue(m_updatedSettings.scale);
+
+    ui->storageComboBox->addItem(tr("Temporary measurements"), int(pdfplugin::DimensionsPluginSettings::StorageMode::Temporary));
+    ui->storageComboBox->addItem(tr("Annotations in the document"), int(pdfplugin::DimensionsPluginSettings::StorageMode::Annotations));
+    ui->storageComboBox->setCurrentIndex(ui->storageComboBox->findData(int(m_updatedSettings.storageMode)));
+
+    ui->scalePerDocumentCheckBox->setChecked(m_updatedSettings.isScaleStoredPerDocument);
+    ui->fontComboBox->setCurrentFont(m_updatedSettings.font);
+
+    updateScaleEdit();
+    updateStorageDescription();
+    updateColorButtons();
 
     connect(ui->fontComboBox, &QFontComboBox::currentFontChanged, this, &SettingsDialog::setFont);
+    connect(ui->changeScaleButton, &QPushButton::clicked, this, &SettingsDialog::onChangeScaleTriggered);
+    connect(ui->storageComboBox, &QComboBox::currentIndexChanged, this, &SettingsDialog::updateStorageDescription);
     connect(ui->textColorButton, &QPushButton::clicked, this, [this]() {
-        QColor color = QColorDialog::getColor(m_updatedSettings.textColor, this, tr("Select Text Color"), QColorDialog::ShowAlphaChannel);
+        QColor color = selectColor(m_updatedSettings.textColor, tr("Select Text Color"));
         if (color.isValid())
         {
             setTextColor(color);
+            updateColorButtons();
         }
     });
     connect(ui->backgroundColorButton, &QPushButton::clicked, this, [this]() {
-        QColor color = QColorDialog::getColor(m_updatedSettings.backgroundColor, this, tr("Select Background Color"), QColorDialog::ShowAlphaChannel);
+        QColor color = selectColor(m_updatedSettings.backgroundColor, tr("Select Background Color"));
         if (color.isValid())
         {
             setBackgroundColor(color);
+            updateColorButtons();
         }
     });
     connect(ui->selectFontButton, &QPushButton::clicked, this, [this]() {
@@ -83,18 +143,90 @@ void SettingsDialog::initComboBox(const DimensionUnits& units, const DimensionUn
 {
     for (const DimensionUnit& unit : units)
     {
-        comboBox->addItem(unit.symbol, unit.symbol);
+        comboBox->addItem(unit.symbol, unit.id);
     }
 
-    comboBox->setCurrentIndex(comboBox->findText(currentUnit.symbol));
+    const int index = comboBox->findData(currentUnit.id);
+    comboBox->setCurrentIndex(index != -1 ? index : 0);
+}
+
+void SettingsDialog::updateColorButtons()
+{
+    const QSize iconSize = pdf::PDFWidgetUtils::scaleDPI(this, QSize(32, 16));
+
+    ui->textColorButton->setIconSize(iconSize);
+    ui->textColorButton->setIcon(createColorIcon(m_updatedSettings.textColor, iconSize));
+
+    ui->backgroundColorButton->setIconSize(iconSize);
+    ui->backgroundColorButton->setIcon(createColorIcon(m_updatedSettings.backgroundColor, iconSize));
+}
+
+QColor SettingsDialog::selectColor(const QColor& color, const QString& title)
+{
+    QColor initialColor = color.isValid() ? color : QColor(Qt::black);
+
+    if (initialColor.alpha() == 0)
+    {
+        // A fully transparent color is not drawn at all. If it was offered as it is,
+        // then the alpha channel of the color dialog would silently stay at zero and
+        // the newly picked color would still be invisible.
+        initialColor.setAlpha(255);
+    }
+
+    return QColorDialog::getColor(initialColor, this, title, QColorDialog::ShowAlphaChannel);
+}
+
+void SettingsDialog::updateScaleEdit()
+{
+    ui->scaleEdit->setText(m_updatedSettings.defaultScale.getDisplayName());
+    ui->scaleEdit->setToolTip(m_updatedSettings.defaultScale.getRatioText());
+}
+
+void SettingsDialog::updateStorageDescription()
+{
+    const auto storageMode = pdfplugin::DimensionsPluginSettings::StorageMode(ui->storageComboBox->currentData().toInt());
+
+    if (storageMode == pdfplugin::DimensionsPluginSettings::StorageMode::Annotations)
+    {
+        ui->storageDescriptionLabel->setText(tr("Measurements are added to the document as measurement annotations, "
+                                                "so they are saved with it and can be read by other applications. "
+                                                "The scale, which was used, is stored in the annotation, so changing "
+                                                "the scale later does not affect the measurements created before. "
+                                                "Annotations are drawn by the annotation renderer, which uses its own "
+                                                "font, so the font below applies to the temporary measurements only. "
+                                                "The colors are used for both."));
+    }
+    else
+    {
+        ui->storageDescriptionLabel->setText(tr("Measurements are drawn over the document and are lost when the document "
+                                                "is closed. They always use the current scale and the document itself "
+                                                "is not modified."));
+    }
+}
+
+void SettingsDialog::onChangeScaleTriggered()
+{
+    ScaleDialog dialog(this, m_updatedSettings.defaultScale, ScaleDialog::Mode::Edit);
+
+    if (dialog.exec() == QDialog::Accepted)
+    {
+        DimensionScale scale = dialog.getScale();
+
+        if (scale.isValid())
+        {
+            m_updatedSettings.defaultScale = qMove(scale);
+            updateScaleEdit();
+        }
+    }
 }
 
 void SettingsDialog::accept()
 {
-    m_updatedSettings.lengthUnit = m_lengthUnits[ui->lengthsComboBox->currentIndex()];
-    m_updatedSettings.areaUnit = m_areaUnits[ui->areasComboBox->currentIndex()];
-    m_updatedSettings.angleUnit = m_angleUnits[ui->anglesComboBox->currentIndex()];
-    m_updatedSettings.scale = ui->scaleEdit->value();
+    m_updatedSettings.lengthUnit = DimensionUnit::getLengthUnit(ui->lengthsComboBox->currentData().toByteArray());
+    m_updatedSettings.areaUnit = DimensionUnit::getAreaUnit(ui->areasComboBox->currentData().toByteArray());
+    m_updatedSettings.angleUnit = DimensionUnit::getAngleUnit(ui->anglesComboBox->currentData().toByteArray());
+    m_updatedSettings.storageMode = pdfplugin::DimensionsPluginSettings::StorageMode(ui->storageComboBox->currentData().toInt());
+    m_updatedSettings.isScaleStoredPerDocument = ui->scalePerDocumentCheckBox->isChecked();
 
     m_originalSettings = m_updatedSettings;
     QDialog::accept();

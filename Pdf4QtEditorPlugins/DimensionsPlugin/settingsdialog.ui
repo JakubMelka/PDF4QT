@@ -6,12 +6,12 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>405</width>
-    <height>309</height>
+    <width>460</width>
+    <height>420</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Unit Settings</string>
+   <string>Measurement Settings</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
@@ -50,20 +50,79 @@
       <item row="2" column="1">
        <widget class="QComboBox" name="anglesComboBox"/>
       </item>
-      <item row="3" column="1">
-       <widget class="QDoubleSpinBox" name="scaleEdit">
-        <property name="minimum">
-         <double>1.000000000000000</double>
-        </property>
-        <property name="maximum">
-         <double>1000000.000000000000000</double>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="scaleGroupBox">
+     <property name="title">
+      <string>Scale</string>
+     </property>
+     <layout class="QGridLayout" name="scaleLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="scaleLabel">
+        <property name="text">
+         <string>Default scale</string>
         </property>
        </widget>
       </item>
-      <item row="3" column="0">
-       <widget class="QLabel" name="scaleLabel">
+      <item row="0" column="1">
+       <widget class="QLineEdit" name="scaleEdit">
+        <property name="readOnly">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="2">
+       <widget class="QPushButton" name="changeScaleButton">
         <property name="text">
-         <string>Scale 1:</string>
+         <string>Change...</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0" colspan="3">
+       <widget class="QCheckBox" name="scalePerDocumentCheckBox">
+        <property name="text">
+         <string>Remember the scale for each document separately</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0" colspan="3">
+       <widget class="QLabel" name="scaleDescriptionLabel">
+        <property name="text">
+         <string>The default scale is used for documents, which were not calibrated yet and which do not define their own scale.</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="storageGroupBox">
+     <property name="title">
+      <string>Measurements</string>
+     </property>
+     <layout class="QFormLayout" name="storageLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="storageLabel">
+        <property name="text">
+         <string>Store measurements as</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QComboBox" name="storageComboBox"/>
+      </item>
+      <item row="1" column="0" colspan="2">
+       <widget class="QLabel" name="storageDescriptionLabel">
+        <property name="text">
+         <string/>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
         </property>
        </widget>
       </item>

@@ -11,5 +11,9 @@
         <file>angle.svg</file>
         <file>rectangle-area.svg</file>
         <file>rectangle-perimeter.svg</file>
+        <file>calibrate.svg</file>
+        <file>scale.svg</file>
+        <file>export-measurements.svg</file>
+        <file>convert-to-annotations.svg</file>
     </qresource>
 </RCC>

@@ -82,7 +82,15 @@ Section 12: Issues
    validation data in DSS or embedded in the signature are used
  - 12.8.5 Document timestamp dictionary not implemented
  - 12.8.6 Permissions not implemented
- - 12.9 Measure feature not implemented
+ - 12.9 Measure feature is partially implemented - measure and viewport
+   dictionaries are parsed (see pdfmeasure.h), number formats including
+   the fraction display and the separators are interpreted, and the Dimensions
+   plugin uses them to derive the scale of a drawing. Not implemented:
+   geospatial measure subtype (GEO), slope format (S) and the origin (O) are
+   parsed but not used, the plugin applies a viewport measure only when the
+   coordinate system is isotropic - an anisotropic measure (different X and Y
+   conversion or CYX other than 1) is rejected, because a single scale factor
+   cannot represent it
  - 12.10 Geospatial features not implemented
 
 Section 13: Not implemented

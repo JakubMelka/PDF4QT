@@ -38,6 +38,8 @@ Tests are QtTest executables, one per area, all built into `<build>/usr/bin`:
 | `UnitTestsFontEncoding` | [tst_fontencodingtest.cpp](UnitTests/tst_fontencodingtest.cpp) |
 | `UnitTestsAuthorSettings` | [tst_authorsettingstest.cpp](UnitTests/tst_authorsettingstest.cpp) |
 | `UnitTestsContentEditor` | [tst_contenteditortest.cpp](UnitTests/tst_contenteditortest.cpp) |
+| `UnitTestsMeasure` | [tst_measuretest.cpp](UnitTests/tst_measuretest.cpp) |
+| `UnitTestsDimensions` | [tst_dimensionstest.cpp](UnitTests/tst_dimensionstest.cpp) |
 
 Run all of them with `ctest` from the build dir, a single binary directly (`./UnitTestsFontEncoding`), or a single test function with `./UnitTests <testFunctionName>`. The executables need Qt's `bin` on `PATH`; QtTest stdout is swallowed in some shells here, so capture with `-o result.txt,txt` and read the file. A new test needs its own `add_executable` + `add_test` block in [UnitTests/CMakeLists.txt](UnitTests/CMakeLists.txt). Tests touching `QRawFont` or any GUI type must use `QTEST_MAIN` (QGuiApplication), not `QTEST_APPLESS_MAIN`.
 

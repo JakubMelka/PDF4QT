@@ -23,24 +23,22 @@
 #ifndef DIMENSIONSPLUGIN_H
 #define DIMENSIONSPLUGIN_H
 
-#include "pdfplugin.h"
+#include "dimensionsettings.h"
 #include "dimensiontool.h"
+
+#include "pdfplugin.h"
 
 #include <QObject>
 
+class QMenu;
+
+namespace pdf
+{
+class PDFDocumentBuilder;
+}
+
 namespace pdfplugin
 {
-
-struct DimensionsPluginSettings
-{
-    DimensionUnit lengthUnit;
-    DimensionUnit areaUnit;
-    DimensionUnit angleUnit;
-    double scale = 1.0;
-    QFont font;
-    QColor textColor;
-    QColor backgroundColor;
-};
 
 class DimensionsPlugin : public pdf::PDFPlugin, public pdf::IDocumentDrawInterface
 {
@@ -66,25 +64,113 @@ public:
                           const pdf::PDFColorConvertor& convertor,
                           QList<pdf::PDFRenderError>& errors) const override;
 
-    void setScale(double scale);
-    double getScale() const;
-
 private:
     void onShowDimensionsTriggered();
     void onClearDimensionsTriggered();
+    void onConvertToAnnotationsTriggered();
     void onSettingsTriggered();
+    void onExportTriggered();
+    void onManagePresetsTriggered();
+    void onCustomScaleTriggered();
+    void onScaleMenuAboutToShow();
+    void onCalibrationLinePicked(pdf::PDFReal measuredLength);
     void onDimensionCreated(Dimension dimension);
+
     void updateActions();
     void updateGraphics();
+    void updateScaleAction();
+
+    const DimensionsPluginSettings& getSettings() const { return m_settingsStorage.getSettings(); }
+
+    /// Sets the scale currently in effect, remembers it for the current document,
+    /// if it is requested by the settings, and stores everything to the application
+    /// settings
+    /// \param scale New scale
+    void setScale(const DimensionScale& scale);
+
+    /// Selects the scale for the currently opened document. The scale remembered
+    /// for the document has the highest priority, then the scale defined by the
+    /// measure dictionary of the document, and finally the default scale from
+    /// the settings. The scale of the previously opened document is never reused.
+    void applyDocumentScale();
+
+    /// Returns the scale defined by the measure dictionaries of the document.
+    /// If the document defines more than one different scale, then a single
+    /// scale cannot represent it and an invalid scale is returned - such
+    /// measurements are resolved for each measurement separately,
+    /// see \p getScaleFromViewport.
+    DimensionScale getScaleFromDocument() const;
+
+    /// Returns the scale prescribed by the viewport, in which the point lies,
+    /// or an invalid scale, if the point does not lie in a viewport with
+    /// a usable measure
+    /// \param pageIndex Page index
+    /// \param point Point in the default user space of the page
+    DimensionScale getScaleFromViewport(pdf::PDFInteger pageIndex, const QPointF& point) const;
+
+    /// Returns the scale, which applies to the dimension - either the scale
+    /// prescribed by the document, or the scale currently selected by the user
+    /// \param dimension Dimension
+    const DimensionScale& getEffectiveScale(const Dimension& dimension) const;
+
+    /// Returns true, if the measurements can be stored in the document
+    /// as annotations
+    bool canCreateAnnotations() const;
+
+    /// Stores the measurements in the document as measurement annotations.
+    /// All of them are written in a single modification of the document, so
+    /// the whole operation can be undone at once. Returns true, if at least
+    /// one annotation was created and the document was really modified.
+    /// \param dimensions Dimensions to be stored
+    /// \param notCreated If it is not nullptr, then the dimensions, which were
+    ///        not stored in the document, are returned in it
+    bool createDimensionAnnotations(const std::vector<Dimension>& dimensions, std::vector<Dimension>* notCreated = nullptr);
+
+    /// Creates a single measurement annotation using the builder. The caller is
+    /// responsible for finalizing the modification of the document. Returns true,
+    /// if the annotation was really created.
+    /// \param builder Document builder
+    /// \param dimension Dimension
+    bool createDimensionAnnotation(pdf::PDFDocumentBuilder* builder, const Dimension& dimension);
+
+    /// Creates the measure dictionary, which describes the scale and units used
+    /// for the dimension, so external applications can interpret the created
+    /// annotation
+    /// \param dimension Dimension, for which is the measure created
+    pdf::PDFObject createMeasureDictionary(const Dimension& dimension) const;
+
+    /// Returns the text displayed for the dimension, for example "12.50 m"
+    /// \param dimension Dimension
+    QString getDimensionText(const Dimension& dimension) const;
+
+    /// Returns the localized name of the dimension type
+    /// \param type Dimension type
+    static QString getDimensionTypeName(Dimension::Type type);
+
+    /// Collects the measurements, which are stored in the document
+    /// as measurement annotations
+    std::vector<QStringList> getAnnotationExportRows() const;
 
     std::array<DimensionTool*, DimensionTool::LastStyle> m_dimensionTools;
     std::vector<Dimension> m_dimensions;
 
     QAction* m_showDimensionsAction;
     QAction* m_clearDimensionsAction;
+    QAction* m_convertToAnnotationsAction;
+    QAction* m_exportAction;
+    QAction* m_scaleAction;
     QAction* m_settingsAction;
+    QMenu* m_scaleMenu;
 
-    DimensionsPluginSettings m_settings;
+    DimensionsSettingsStorage m_settingsStorage;
+
+    /// Identification of the currently opened document, under which its scale
+    /// is remembered in the application settings
+    DocumentIdentity m_documentIdentity;
+
+    /// Scale currently in effect. It is not a part of the settings, because it
+    /// belongs to the opened document and must not leak to another one.
+    DimensionScale m_scale;
 };
 
 }   // namespace pdfplugin

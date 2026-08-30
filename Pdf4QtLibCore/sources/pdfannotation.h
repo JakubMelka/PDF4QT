@@ -614,6 +614,14 @@ public:
     /// \param opacity Opacity
     static QColor getDrawColorFromAnnotationColor(const std::vector<PDFReal>& color, PDFReal opacity);
 
+    /// Returns the color, by which is the interior of an annotation filled.
+    /// Returns an invalid color, if the interior color is not defined at all -
+    /// such an annotation is not filled, it must not fall back to the black
+    /// color used for an incorrectly defined color.
+    /// \param color Interior color (can have 1, 3 and 4 components)
+    /// \param opacity Opacity
+    static QColor getFillColorFromAnnotationColor(const std::vector<PDFReal>& color, PDFReal opacity);
+
     /// Returns true, if annotation is editable
     /// \param type Annotation type
     static bool isTypeEditable(AnnotationType type);

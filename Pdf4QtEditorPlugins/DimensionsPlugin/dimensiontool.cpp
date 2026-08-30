@@ -105,7 +105,18 @@ void DimensionTool::onPointPicked(pdf::PDFInteger pageIndex, QPointF pagePoint)
         }
 
         pdf::PDFReal measuredValue = getMeasuredValue(pageIndex, points);
-        Q_EMIT dimensionCreated(Dimension(getDimensionType(), pageIndex, measuredValue, qMove(points)));
+
+        if (m_style == Calibrate)
+        {
+            // Calibration does not create a dimension, the picked length is only
+            // used to derive the scale of the drawing
+            Q_EMIT calibrationLinePicked(measuredValue);
+        }
+        else
+        {
+            Q_EMIT dimensionCreated(Dimension(getDimensionType(), pageIndex, measuredValue, qMove(points)));
+        }
+
         m_pickTool->resetTool();
     }
 
@@ -186,6 +197,7 @@ Dimension::Type DimensionTool::getDimensionType() const
         case DimensionTool::LinearHorizontal:
         case DimensionTool::LinearVertical:
         case DimensionTool::Linear:
+        case DimensionTool::Calibrate:
             return Dimension::Type::Linear;
 
         case DimensionTool::Perimeter:
@@ -279,44 +291,4 @@ bool Dimension::isComplete(Type type, const std::vector<QPointF>& polygon)
     }
 
     return false;
-}
-
-DimensionUnits DimensionUnit::getLengthUnits()
-{
-    DimensionUnits units;
-
-    units.emplace_back(1.0, DimensionTool::tr("pt"));
-    units.emplace_back(pdf::PDF_POINT_TO_INCH, DimensionTool::tr("in"));
-    units.emplace_back(pdf::PDF_POINT_TO_MM, DimensionTool::tr("mm"));
-    units.emplace_back(pdf::PDF_POINT_TO_MM * 0.1, DimensionTool::tr("cm"));
-    units.emplace_back(pdf::PDF_POINT_TO_MM * 0.001, DimensionTool::tr("m"));
-    units.emplace_back(pdf::PDF_POINT_TO_INCH * 12.0, DimensionTool::tr("ft")); // Feet
-    units.emplace_back(pdf::PDF_POINT_TO_INCH * 36.0, DimensionTool::tr("yd")); // Yards
-
-    return units;
-}
-
-DimensionUnits DimensionUnit::getAreaUnits()
-{
-    DimensionUnits units;
-
-    units.emplace_back(1.0, DimensionTool::tr("sq. pt"));
-    units.emplace_back(pdf::PDF_POINT_TO_INCH * pdf::PDF_POINT_TO_INCH, DimensionTool::tr("sq. in"));
-    units.emplace_back(pdf::PDF_POINT_TO_MM * pdf::PDF_POINT_TO_MM, DimensionTool::tr("sq. mm"));
-    units.emplace_back(pdf::PDF_POINT_TO_MM * 0.1 * pdf::PDF_POINT_TO_MM * 0.1, DimensionTool::tr("sq. cm"));
-    units.emplace_back(pdf::PDF_POINT_TO_MM * 0.001 * pdf::PDF_POINT_TO_MM * 0.001, DimensionTool::tr("sq. m"));
-    units.emplace_back(pdf::PDF_POINT_TO_INCH * 12.0 * pdf::PDF_POINT_TO_INCH * 12.0, DimensionTool::tr("sq. ft")); // Square Feet
-    units.emplace_back(pdf::PDF_POINT_TO_INCH * 36.0 * pdf::PDF_POINT_TO_INCH * 36.0, DimensionTool::tr("sq. yd")); // Square Yards
-
-    return units;
-}
-
-DimensionUnits DimensionUnit::getAngleUnits()
-{
-    DimensionUnits units;
-
-    units.emplace_back(1.0, DimensionTool::tr("°"));
-    units.emplace_back(qDegreesToRadians(1.0), DimensionTool::tr("rad"));
-
-    return units;
 }

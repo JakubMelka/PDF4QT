@@ -21,8 +21,14 @@
 # SOFTWARE.
 
 add_library(DimensionsPlugin SHARED
+    dimensionsettings.cpp
     dimensionsplugin.cpp
     dimensiontool.cpp
+    dimensionunits.cpp
+    scaledialog.cpp
+    scaledialog.ui
+    scalepresetsdialog.cpp
+    scalepresetsdialog.ui
     settingsdialog.cpp
     settingsdialog.ui
     icons.qrc

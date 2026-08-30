@@ -1112,6 +1112,19 @@ QColor PDFAnnotation::getDrawColorFromAnnotationColor(const std::vector<PDFReal>
     return black;
 }
 
+QColor PDFAnnotation::getFillColorFromAnnotationColor(const std::vector<PDFReal>& color, PDFReal opacity)
+{
+    if (color.empty())
+    {
+        // The interior color entry is missing, or it is an empty array. The interior
+        // of the annotation is not filled at all in that case, see PDF 2.0, 12.5.6.7,
+        // 12.5.6.8 and 12.5.6.9.
+        return QColor();
+    }
+
+    return getDrawColorFromAnnotationColor(color, opacity);
+}
+
 bool PDFAnnotation::isTypeEditable(AnnotationType type)
 {
     switch (type)
@@ -1907,7 +1920,7 @@ void PDFSimpleGeometryAnnotation::draw(AnnotationDrawParameters& parameters) con
 
 QColor PDFSimpleGeometryAnnotation::getFillColor() const
 {
-    return getDrawColorFromAnnotationColor(getInteriorColor(), getFillOpacity());
+    return getFillColorFromAnnotationColor(getInteriorColor(), getFillOpacity());
 }
 
 bool PDFMarkupAnnotation::isReplyTo() const
@@ -2149,7 +2162,33 @@ void PDFLineAnnotation::draw(AnnotationDrawParameters& parameters) const
 
 QColor PDFLineAnnotation::getFillColor() const
 {
-    return getDrawColorFromAnnotationColor(getInteriorColor(), getFillOpacity());
+    return getFillColorFromAnnotationColor(getInteriorColor(), getFillOpacity());
+}
+
+/// Draws the text of a measurement into the appearance stream of an annotation.
+/// The text is converted to a path, because the appearance stream must not
+/// depend on the fonts available in the viewer.
+/// \param painter Painter
+/// \param text Displayed text
+/// \param position Center of the text
+/// \param boundingPath Path, to which is the text added
+static void drawMeasurementCaption(QPainter& painter, const QString& text, const QPointF& position, QPainterPath& boundingPath)
+{
+    if (text.isEmpty())
+    {
+        return;
+    }
+
+    QFont font = painter.font();
+    font.setPixelSize(12);
+
+    QPainterPath textPath;
+    textPath.addText(0, 0, font, text);
+    textPath = QTransform(1, 0, 0, -1, 0, 0).map(textPath);
+    textPath.translate(position - textPath.controlPointRect().center());
+
+    painter.fillPath(textPath, QBrush(painter.pen().color(), Qt::SolidPattern));
+    boundingPath.addPath(textPath);
 }
 
 void PDFPolygonalGeometryAnnotation::draw(AnnotationDrawParameters& parameters) const
@@ -2252,11 +2291,65 @@ void PDFPolygonalGeometryAnnotation::draw(AnnotationDrawParameters& parameters) 
             Q_ASSERT(false);
             break;
     }
+
+    if (m_intent == Intent::Dimension && !getContents().isEmpty())
+    {
+        // Measurement annotation displays the measured value. Without it, only
+        // the bare geometry would be visible in the viewers.
+        QPainterPath captionPath;
+        QPointF captionPosition;
+
+        if (m_type == AnnotationType::Polyline && m_vertices.size() == 3)
+        {
+            // Angular measurement - the arc between both arms is drawn
+            // and the value is displayed inside of it
+            const QPointF vertex = m_vertices[1];
+            QLineF arm1(vertex, m_vertices.front());
+            QLineF arm2(vertex, m_vertices.back());
+
+            const PDFReal radius = qMin(arm1.length(), arm2.length()) * 0.5;
+            captionPosition = vertex;
+
+            if (radius > 0.0)
+            {
+                const PDFReal startAngle = arm1.angle();
+                const PDFReal spanAngle = arm1.angleTo(arm2);
+
+                QPainterPath arcPath;
+                arcPath.arcMoveTo(QRectF(vertex.x() - radius, vertex.y() - radius, 2.0 * radius, 2.0 * radius), startAngle);
+                arcPath.arcTo(QRectF(vertex.x() - radius, vertex.y() - radius, 2.0 * radius, 2.0 * radius), startAngle, spanAngle);
+
+                painter.strokePath(arcPath, painter.pen());
+                captionPath.addPath(arcPath);
+
+                QLineF bisector = arm1;
+                bisector.setAngle(startAngle + spanAngle * 0.5);
+                bisector.setLength(radius * 0.6);
+                captionPosition = bisector.p2();
+            }
+        }
+        else
+        {
+            QPointF center(0.0, 0.0);
+            for (const QPointF& point : m_vertices)
+            {
+                center += point;
+            }
+            captionPosition = center / qreal(m_vertices.size());
+        }
+
+        drawMeasurementCaption(painter, getContents(), captionPosition, captionPath);
+
+        if (!captionPath.isEmpty())
+        {
+            parameters.boundingRectangle = parameters.boundingRectangle.united(captionPath.boundingRect());
+        }
+    }
 }
 
 QColor PDFPolygonalGeometryAnnotation::getFillColor() const
 {
-    return getDrawColorFromAnnotationColor(getInteriorColor(), getFillOpacity());
+    return getFillColorFromAnnotationColor(getInteriorColor(), getFillOpacity());
 }
 
 PDFAnnotation::LineGeometryInfo PDFAnnotation::LineGeometryInfo::create(QLineF line)
