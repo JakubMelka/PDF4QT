@@ -179,9 +179,12 @@ void MeasureTest::test_number_format_decimal()
     std::vector<pdf::PDFNumberFormat> formats = { pdf::PDFNumberFormat::parse(&storage, createNumberFormat("mm", 1.0)) };
     QCOMPARE(pdf::PDFNumberFormat::format(formats, 1234.5), QString("1,234.50 mm"));
 
-    // Denominator 1 means no decimal places at all
+    // Denominator 1 means no decimal places at all. The value is rounded away
+    // from zero, the same way as the round fraction display does it.
     formats = { pdf::PDFNumberFormat::parse(&storage, createNumberFormat("mm", 1.0, "D", 1)) };
-    QCOMPARE(pdf::PDFNumberFormat::format(formats, 1234.5), QString("1,234 mm"));
+    QCOMPARE(pdf::PDFNumberFormat::format(formats, 1234.4), QString("1,234 mm"));
+    QCOMPARE(pdf::PDFNumberFormat::format(formats, 1234.5), QString("1,235 mm"));
+    QCOMPARE(pdf::PDFNumberFormat::format(formats, -1234.5), QString("-1,235 mm"));
 
     // Custom separators, as they are defined by the RT/RD entries
     const QString thousandSeparator(" ");

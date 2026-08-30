@@ -89,6 +89,13 @@ public:
                          bool isFilling,
                          const QPainterPath& clipPath = QPainterPath());
 
+    /// Writes image, which is placed into the rectangle expressed in the page
+    /// coordinate space. The image keeps its aspect ratio and it is centered
+    /// in the rectangle. Neither the transformation matrix of the previously
+    /// written element, nor the graphic state parameters, which take part in
+    /// painting an image (constant alpha, alpha source flag, blend mode,
+    /// rendering intent and overprint), are applied to the image - all of them
+    /// are reset to the default values.
     void writeImage(const QImage& image, const QRectF& rectangle);
 
     /// Writes image placed by the painter transform. Optional clip path

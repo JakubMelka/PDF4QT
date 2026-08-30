@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #413: Editor: embedded images (signatures) flipped vertically after editing page content
  - Issue #424: Improved measurement functionality.
  - Issue #422: Feature Request: Streamline Outline Creation.
  - Issue #420: [follow-up] also allow changing default border color when redacting rectangles

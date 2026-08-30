@@ -412,17 +412,24 @@ void PDFCreatePCElementImageTool::selectImage()
         }
     }
 
-    QList<QByteArray> mimeTypes = QImageReader::supportedMimeTypes();
-    QStringList mimeTypeFilters;
-    for (const QByteArray& mimeType : mimeTypes)
+    // Both vector and raster images can be inserted, so all image formats
+    // supported by the image reader are offered by default. Filtering by
+    // a single format would hide the images the user wants to insert.
+    QStringList suffixes = { "*.svg", "*.svgz" };
+    for (const QByteArray& format : QImageReader::supportedImageFormats())
     {
-        mimeTypeFilters.append(mimeType);
+        suffixes.append(QString("*.%1").arg(QString::fromLatin1(format).toLower()));
     }
+    suffixes.removeDuplicates();
+    suffixes.sort();
+
+    QStringList nameFilters;
+    nameFilters << tr("Images (%1)").arg(suffixes.join(QChar(' ')));
+    nameFilters << tr("All files (*)");
 
     QFileDialog dialog(getProxy()->getWidget(), tr("Select Image"));
     dialog.setDirectory(m_imageDirectory);
-    dialog.setMimeTypeFilters(mimeTypeFilters);
-    dialog.selectMimeTypeFilter("image/svg+xml");
+    dialog.setNameFilters(nameFilters);
     dialog.setAcceptMode(QFileDialog::AcceptOpen);
     dialog.setFileMode(QFileDialog::ExistingFile);
 

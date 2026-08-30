@@ -50,6 +50,55 @@ QByteArray formatNumber(PDFReal value)
     return PDFDocumentBuilder::formatPDFReal(value);
 }
 
+/// Returns the image samples as a continuous byte array, without the padding
+/// which the image can have at the end of each scanline.
+/// \param image Image
+/// \param bytesPerPixel Number of bytes of a single pixel
+QByteArray getImageSamples(const QImage& image, int bytesPerPixel)
+{
+    QByteArray samples;
+    QBuffer buffer(&samples);
+
+    if (buffer.open(QIODevice::WriteOnly))
+    {
+        const int bytesPerScanLine = qMin(bytesPerPixel * image.width(), int(image.bytesPerLine()));
+
+        for (int scanLineIndex = 0; scanLineIndex < image.height(); ++scanLineIndex)
+        {
+            buffer.write((const char*)image.constScanLine(scanLineIndex), bytesPerScanLine);
+        }
+
+        buffer.close();
+    }
+
+    return samples;
+}
+
+/// Creates the soft mask image stream from the alpha channel of an image.
+/// The mask is a grayscale image, where the sample value is the opacity
+/// of the corresponding pixel (see PDF 32000-1, chapter 11.6.5.3).
+/// \param alphaImage Alpha channel of the image (format \p Format_Alpha8)
+PDFObject createSoftMaskObject(const QImage& alphaImage)
+{
+    Q_ASSERT(alphaImage.format() == QImage::Format_Alpha8);
+
+    PDFArray filter;
+    filter.appendItem(PDFObject::createName("FlateDecode"));
+
+    QByteArray compressedData = PDFFlateDecodeFilter::compress(getImageSamples(alphaImage, 1));
+
+    PDFDictionary softMaskDictionary;
+    softMaskDictionary.setEntry(PDFInplaceOrMemoryString("Subtype"), PDFObject::createName("Image"));
+    softMaskDictionary.setEntry(PDFInplaceOrMemoryString("Width"), PDFObject::createInteger(alphaImage.width()));
+    softMaskDictionary.setEntry(PDFInplaceOrMemoryString("Height"), PDFObject::createInteger(alphaImage.height()));
+    softMaskDictionary.setEntry(PDFInplaceOrMemoryString("ColorSpace"), PDFObject::createName("DeviceGray"));
+    softMaskDictionary.setEntry(PDFInplaceOrMemoryString("BitsPerComponent"), PDFObject::createInteger(8));
+    softMaskDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(compressedData.size()));
+    softMaskDictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(std::make_shared<PDFArray>(qMove(filter))));
+
+    return PDFObject::createStream(std::make_shared<PDFStream>(qMove(softMaskDictionary), qMove(compressedData)));
+}
+
 }   // anonymous namespace
 
 class PDFContentEditorPaintEngine : public QPaintEngine
@@ -1250,42 +1299,16 @@ void PDFPageContentEditorContentStreamBuilder::writeImage(QTextStream& stream, c
             PDFArray array;
             array.appendItem(PDFObject::createName("FlateDecode"));
 
-            QImage codedImage = image;
-            if (codedImage.hasAlphaChannel())
-            {
-                // Direct conversion to RGB888 would discard the alpha channel
-                // and transparent pixels would get arbitrary colors. Compose
-                // the image onto a white background instead (the same way
-                // the editor displays such images on the screen).
-                QImage composedImage(codedImage.size(), QImage::Format_RGB888);
-                composedImage.fill(Qt::white);
+            // The alpha channel cannot be stored in the image samples, it must be
+            // written as a separate soft mask image. Convert to the non-premultiplied
+            // format first - a direct conversion of a premultiplied image to RGB888
+            // would darken the semi-transparent pixels.
+            const bool hasAlphaChannel = image.hasAlphaChannel();
+            QImage codedImage = hasAlphaChannel ? image.convertToFormat(QImage::Format_ARGB32) : image;
+            QImage softMaskImage = hasAlphaChannel ? codedImage.convertToFormat(QImage::Format_Alpha8) : QImage();
+            codedImage = codedImage.convertToFormat(QImage::Format_RGB888);
 
-                QPainter painter(&composedImage);
-                painter.drawImage(QPoint(0, 0), codedImage);
-                painter.end();
-
-                codedImage = std::move(composedImage);
-            }
-            else
-            {
-                codedImage = codedImage.convertToFormat(QImage::Format_RGB888);
-            }
-
-            QByteArray decodedStream;
-            QBuffer buffer(&decodedStream);
-            if (buffer.open(QIODevice::WriteOnly))
-            {
-                int width = codedImage.width();
-                int bytesPerLine = codedImage.bytesPerLine();
-
-                for (int scanLineIndex = 0; scanLineIndex < codedImage.height(); ++scanLineIndex)
-                {
-                    const uchar* scanline = codedImage.constScanLine(scanLineIndex);
-                    buffer.write((const char*)scanline, qMin(3 * width, bytesPerLine));
-                }
-
-                buffer.close();
-            }
+            QByteArray decodedStream = getImageSamples(codedImage, 3);
 
             // Compress the content stream
             QByteArray compressedData = PDFFlateDecodeFilter::compress(decodedStream);
@@ -1298,6 +1321,12 @@ void PDFPageContentEditorContentStreamBuilder::writeImage(QTextStream& stream, c
             imageDictionary.setEntry(PDFInplaceOrMemoryString("BitsPerComponent"), PDFObject::createInteger(8));
             imageDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(compressedData.size()));
             imageDictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(std::make_shared<PDFArray>(qMove(array))));
+
+            if (!softMaskImage.isNull())
+            {
+                imageDictionary.setEntry(PDFInplaceOrMemoryString("SMask"), createSoftMaskObject(softMaskImage));
+            }
+
             PDFObject imageObject = PDFObject::createStream(std::make_shared<PDFStream>(qMove(imageDictionary), qMove(compressedData)));
 
             m_xobjectDictionary.addEntry(PDFInplaceOrMemoryString(currentKey), std::move(imageObject));
@@ -1507,11 +1536,27 @@ void PDFPageContentEditorContentStreamBuilder::writeImage(const QImage& image,
 {
     QTextStream stream(&m_outputContent, QDataStream::WriteOnly | QDataStream::Append);
 
+    // This overload places a newly created image into the page coordinate space,
+    // so the state left by the previously written element must not be applied to
+    // it. The transformation matrix of the last written element would move the
+    // image out of the page (or mirror it), and the graphic state parameters,
+    // which take part in painting an image, would change the way the image is
+    // composed onto the page - the alpha source flag even decides, whether the
+    // soft mask of the image is interpreted as shape, or as opacity (see
+    // PDF 32000-1, chapter 11.6.4.4). All of them are reset to the default
+    // values. The parameters, which cannot affect an image (for example the
+    // line style, or the color), are left as they are.
+    PDFPageContentProcessorState newState = m_currentState;
+    newState.setCurrentTransformationMatrix(QTransform());
+    newState.setAlphaStroking(1.0);
+    newState.setAlphaFilling(1.0);
+    newState.setAlphaIsShape(false);
+    newState.setBlendMode(BlendMode::Normal);
+    newState.setRenderingIntent(RenderingIntent::Perceptual);
+    newState.setOverprintMode(PDFOverprintMode());
+    writeStateDifference(stream, newState);
+
     stream << "q" << Qt::endl;
-    if (isNeededToWriteCurrentTransformationMatrix())
-    {
-        writeCurrentTransformationMatrix(stream);
-    }
 
     QSizeF rectangleSize = QSizeF(image.size()).scaled(rectangle.size(), Qt::KeepAspectRatio);
     QRectF transformedRectangle(QPointF(), rectangleSize);

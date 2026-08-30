@@ -43,6 +43,7 @@
 
 #include <array>
 #include <memory>
+#include <vector>
 
 class ContentEditorTest : public QObject
 {
@@ -63,6 +64,9 @@ private slots:
     void test_other_resources_are_preserved();
     void test_numbers_are_not_written_in_exponential_notation();
     void test_complex_tiling_pattern_is_not_processed();
+    void test_inserted_image_is_placed_into_the_rectangle();
+    void test_inserted_image_does_not_inherit_transparency_state();
+    void test_inserted_image_keeps_the_alpha_channel();
 
 private:
     enum class Variant
@@ -77,7 +81,8 @@ private:
         IndirectResources,
         TinyScale,
         TilingPattern,
-        ComplexTilingPattern
+        ComplexTilingPattern,
+        TransparentState
     };
 
     /// Description of the image, as it is seen on the page. The color
@@ -92,6 +97,10 @@ private:
 
     static QImage createTestImage();
 
+    /// Creates the image, which is inserted into the page by the editor image
+    /// tool. The left half is opaque, the right half is fully transparent.
+    static QImage createInsertedTestImage();
+
     /// Creates a document with a single page, which contains a single image
     static pdf::PDFDocument createDocumentWithImage(Variant variant);
 
@@ -101,13 +110,23 @@ private:
     /// Rewrites the content of the first page - the same way as the editor
     /// plugin does it, when the edited page content is written back
     /// to the document.
+    /// If \p insertedImage is not null, it is written after all edited elements,
+    /// the same way as the editor plugin writes an image inserted by the user.
     static pdf::PDFDocumentPointer rewritePageContent(const pdf::PDFDocument* document,
                                                       const pdf::PDFEditedPageContent& content,
                                                       bool clearImageObjects,
-                                                      QByteArray* outputContent);
+                                                      QByteArray* outputContent,
+                                                      const QImage& insertedImage = QImage(),
+                                                      const QRectF& insertedRectangle = QRectF());
+
+    /// Returns the placement of all image elements of the page content
+    static std::vector<ImagePlacement> getImagePlacements(const pdf::PDFEditedPageContent& content);
 
     /// Returns the placement of the first image element of the page content
     static ImagePlacement getImagePlacement(const pdf::PDFEditedPageContent& content);
+
+    /// Returns the last image element of the page content, or nullptr
+    static const pdf::PDFEditedPageContentElementImage* getLastImageElement(const pdf::PDFEditedPageContent& content);
 
     /// Performs the whole test - the page content is processed, written back
     /// and processed again. The placement of the image must be the same.
@@ -131,6 +150,20 @@ QImage ContentEditorTest::createTestImage()
     return image;
 }
 
+QImage ContentEditorTest::createInsertedTestImage()
+{
+    QImage image(4, 4, QImage::Format_ARGB32);
+    image.fill(Qt::transparent);
+    for (int y = 0; y < 4; ++y)
+    {
+        for (int x = 0; x < 2; ++x)
+        {
+            image.setPixelColor(x, y, Qt::green);
+        }
+    }
+    return image;
+}
+
 pdf::PDFDocument ContentEditorTest::createDocumentWithImage(Variant variant)
 {
     pdf::PDFDocumentBuilder builder;
@@ -141,6 +174,7 @@ pdf::PDFDocument ContentEditorTest::createDocumentWithImage(Variant variant)
     QByteArray pageContent;
     pdf::PDFDictionary xObject;
     pdf::PDFDictionary pattern;
+    pdf::PDFDictionary graphicState;
 
     auto createImageObject = [&](bool addSoftMask)
     {
@@ -226,6 +260,34 @@ pdf::PDFDocument ContentEditorTest::createDocumentWithImage(Variant variant)
             pdf::PDFObjectReference imageRef = createImageObject(false);
             xObject.addEntry(pdf::PDFInplaceOrMemoryString("Im1"), pdf::PDFObject::createReference(imageRef));
             pageContent = "q 80 0 0 40 10 30 cm /Im1 Do Q";
+            break;
+        }
+
+        case Variant::TransparentState:
+        {
+            // The image is painted with a non-default transparency state, which
+            // is a part of the state of the edited element. An element, which is
+            // written after it, must not inherit that state.
+            pdf::PDFObjectReference imageRef = createImageObject(false);
+            xObject.addEntry(pdf::PDFInplaceOrMemoryString("Im1"), pdf::PDFObject::createReference(imageRef));
+
+            pdf::PDFDictionary transparencyDictionary;
+            transparencyDictionary.setEntry(pdf::PDFInplaceOrMemoryString("ca"), pdf::PDFObject::createReal(0.2));
+            transparencyDictionary.setEntry(pdf::PDFInplaceOrMemoryString("CA"), pdf::PDFObject::createReal(0.2));
+            transparencyDictionary.setEntry(pdf::PDFInplaceOrMemoryString("BM"), pdf::PDFObject::createName("Multiply"));
+
+            // The alpha source flag decides, whether the soft mask of an image
+            // is interpreted as shape, or as opacity, so it must not leak into
+            // the inserted image either.
+            transparencyDictionary.setEntry(pdf::PDFInplaceOrMemoryString("AIS"), pdf::PDFObject::createBool(true));
+            transparencyDictionary.setEntry(pdf::PDFInplaceOrMemoryString("OP"), pdf::PDFObject::createBool(true));
+            transparencyDictionary.setEntry(pdf::PDFInplaceOrMemoryString("op"), pdf::PDFObject::createBool(true));
+            transparencyDictionary.setEntry(pdf::PDFInplaceOrMemoryString("OPM"), pdf::PDFObject::createInteger(1));
+
+            graphicState.addEntry(pdf::PDFInplaceOrMemoryString("GS0"),
+                                  pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(transparencyDictionary))));
+
+            pageContent = "q /GS0 gs /AbsoluteColorimetric ri 80 0 0 40 10 30 cm /Im1 Do Q";
             break;
         }
 
@@ -403,6 +465,12 @@ pdf::PDFDocument ContentEditorTest::createDocumentWithImage(Variant variant)
                            pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(pattern))));
     }
 
+    if (!graphicState.isEmpty())
+    {
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("ExtGState"),
+                           pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(graphicState))));
+    }
+
     if (variant == Variant::IndirectResources)
     {
         // Resource category, which is not regenerated by the content stream builder
@@ -448,7 +516,9 @@ pdf::PDFEditedPageContent ContentEditorTest::processPageContent(const pdf::PDFDo
 pdf::PDFDocumentPointer ContentEditorTest::rewritePageContent(const pdf::PDFDocument* document,
                                                               const pdf::PDFEditedPageContent& content,
                                                               bool clearImageObjects,
-                                                              QByteArray* outputContent)
+                                                              QByteArray* outputContent,
+                                                              const QImage& insertedImage,
+                                                              const QRectF& insertedRectangle)
 {
     pdf::PDFDocumentModifier modifier(document);
     pdf::PDFDocumentBuilder* builder = modifier.getBuilder();
@@ -477,6 +547,11 @@ pdf::PDFDocumentPointer ContentEditorTest::rewritePageContent(const pdf::PDFDocu
         }
 
         contentStreamBuilder.writeEditedElement(element);
+    }
+
+    if (!insertedImage.isNull())
+    {
+        contentStreamBuilder.writeImage(insertedImage, insertedRectangle);
     }
 
     if (outputContent)
@@ -543,9 +618,9 @@ pdf::PDFDocumentPointer ContentEditorTest::rewritePageContent(const pdf::PDFDocu
     return modifier.getDocument();
 }
 
-ContentEditorTest::ImagePlacement ContentEditorTest::getImagePlacement(const pdf::PDFEditedPageContent& content)
+std::vector<ContentEditorTest::ImagePlacement> ContentEditorTest::getImagePlacements(const pdf::PDFEditedPageContent& content)
 {
-    ImagePlacement placement;
+    std::vector<ImagePlacement> placements;
 
     const size_t elementCount = content.getElementCount();
     for (size_t i = 0; i < elementCount; ++i)
@@ -564,13 +639,38 @@ ContentEditorTest::ImagePlacement ContentEditorTest::getImagePlacement(const pdf
         // The image occupies the unit square in the element coordinate space
         // and the first sample of the image data is located at the corner (0, 1)
         // of that unit square.
+        ImagePlacement placement;
         placement.firstSamplePoint = transform.map(QPointF(0.0, 1.0));
         placement.lastSamplePoint = transform.map(QPointF(1.0, 0.0));
         placement.firstSampleColor = image.pixelColor(0, 0);
-        break;
+        placements.push_back(placement);
     }
 
-    return placement;
+    return placements;
+}
+
+ContentEditorTest::ImagePlacement ContentEditorTest::getImagePlacement(const pdf::PDFEditedPageContent& content)
+{
+    std::vector<ImagePlacement> placements = getImagePlacements(content);
+    return !placements.empty() ? placements.front() : ImagePlacement();
+}
+
+const pdf::PDFEditedPageContentElementImage* ContentEditorTest::getLastImageElement(const pdf::PDFEditedPageContent& content)
+{
+    const pdf::PDFEditedPageContentElementImage* lastImageElement = nullptr;
+
+    const size_t elementCount = content.getElementCount();
+    for (size_t i = 0; i < elementCount; ++i)
+    {
+        const pdf::PDFEditedPageContentElement* element = const_cast<pdf::PDFEditedPageContent&>(content).getElement(i);
+
+        if (const pdf::PDFEditedPageContentElementImage* imageElement = element->asImage())
+        {
+            lastImageElement = imageElement;
+        }
+    }
+
+    return lastImageElement;
 }
 
 QImage ContentEditorTest::renderPage(const pdf::PDFDocument* document)
@@ -851,6 +951,147 @@ void ContentEditorTest::test_numbers_are_not_written_in_exponential_notation()
     QCOMPARE(modified.firstSampleColor, original.firstSampleColor);
     QCOMPARE(modified.firstSamplePoint, original.firstSamplePoint);
     QCOMPARE(modified.lastSamplePoint, original.lastSamplePoint);
+}
+
+void ContentEditorTest::test_inserted_image_is_placed_into_the_rectangle()
+{
+    // Issue #413 - an image inserted by the editor image tool is written after
+    // all edited elements of the page. It must not be transformed by the
+    // transformation matrix of the last written element, which would move it
+    // out of the page - and mirror it, if that matrix contains a flip. Both
+    // variants place the image of the page by a non-identity matrix, the
+    // flipped one by a matrix with a negative vertical scale.
+    const std::array variants = { Variant::Plain, Variant::FlippedMatrix };
+
+    for (Variant variant : variants)
+    {
+        pdf::PDFDocument document = createDocumentWithImage(variant);
+        pdf::PDFEditedPageContent content = processPageContent(&document);
+
+        QCOMPARE(getImagePlacements(content).size(), size_t(1));
+
+        const QImage insertedImage = createInsertedTestImage();
+        const QRectF insertedRectangle(20, 120, 60, 60);
+
+        QByteArray outputContent;
+        pdf::PDFDocumentPointer modifiedDocument = rewritePageContent(&document, content, false, &outputContent, insertedImage, insertedRectangle);
+        QVERIFY(modifiedDocument);
+
+        std::vector<ImagePlacement> placements = getImagePlacements(processPageContent(modifiedDocument.data()));
+        QCOMPARE(placements.size(), size_t(2));
+
+        // The inserted image is square and the rectangle is square as well, so
+        // the image fills the whole rectangle. The first sample of the image
+        // data is displayed at the upper left corner of the rectangle - if the
+        // image were mirrored, it would be at the lower left corner instead.
+        const ImagePlacement& inserted = placements.back();
+
+        if (inserted.firstSamplePoint != insertedRectangle.bottomLeft() ||
+            inserted.lastSamplePoint != insertedRectangle.topRight())
+        {
+            qDebug() << "Variant" << int(variant) << "content stream:" << outputContent;
+            qDebug() << "Inserted:" << inserted.firstSamplePoint << inserted.lastSamplePoint;
+        }
+
+        QCOMPARE(inserted.firstSamplePoint, insertedRectangle.bottomLeft());
+        QCOMPARE(inserted.lastSamplePoint, insertedRectangle.topRight());
+        QCOMPARE(inserted.firstSampleColor.rgb(), QColor(Qt::green).rgb());
+    }
+}
+
+void ContentEditorTest::test_inserted_image_does_not_inherit_transparency_state()
+{
+    // The inserted image must not inherit the transparency state of the last
+    // written element - a leaked alpha or blend mode changes the way the image
+    // is composed onto the page (and can make it invisible).
+    pdf::PDFDocument document = createDocumentWithImage(Variant::TransparentState);
+    pdf::PDFEditedPageContent content = processPageContent(&document);
+
+    const pdf::PDFEditedPageContentElementImage* originalElement = getLastImageElement(content);
+    QVERIFY(originalElement);
+    QCOMPARE(originalElement->getState().getAlphaFilling(), 0.2);
+    QVERIFY(originalElement->getState().getBlendMode() == pdf::BlendMode::Multiply);
+    QVERIFY(originalElement->getState().getAlphaIsShape());
+    QVERIFY(originalElement->getState().getRenderingIntent() == pdf::RenderingIntent::AbsoluteColorimetric);
+    QVERIFY(originalElement->getState().getOverprintMode().overprintFilling);
+
+    pdf::PDFDocumentPointer modifiedDocument = rewritePageContent(&document, content, false, nullptr,
+                                                                 createInsertedTestImage(), QRectF(20, 120, 60, 60));
+    QVERIFY(modifiedDocument);
+
+    pdf::PDFEditedPageContent modifiedContent = processPageContent(modifiedDocument.data());
+    QCOMPARE(getImagePlacements(modifiedContent).size(), size_t(2));
+
+    const pdf::PDFEditedPageContentElementImage* insertedElement = getLastImageElement(modifiedContent);
+    QVERIFY(insertedElement);
+    QCOMPARE(insertedElement->getState().getAlphaFilling(), 1.0);
+    QCOMPARE(insertedElement->getState().getAlphaStroking(), 1.0);
+    QVERIFY(insertedElement->getState().getBlendMode() == pdf::BlendMode::Normal);
+
+    // The alpha source flag decides, whether the soft mask of the inserted
+    // image is interpreted as shape, or as opacity, and the rendering intent
+    // and the overprint affect the colors of the image.
+    QVERIFY(!insertedElement->getState().getAlphaIsShape());
+    QVERIFY(insertedElement->getState().getRenderingIntent() == pdf::RenderingIntent::Perceptual);
+    QVERIFY(insertedElement->getState().getOverprintMode() == pdf::PDFOverprintMode());
+}
+
+void ContentEditorTest::test_inserted_image_keeps_the_alpha_channel()
+{
+    // The alpha channel of the inserted image must be written as a soft mask.
+    // Composing the image onto a white background would replace the transparent
+    // part by a white rectangle, which covers the content below the image.
+    pdf::PDFDocument document = createDocumentWithImage(Variant::Plain);
+    pdf::PDFEditedPageContent content = processPageContent(&document);
+
+    pdf::PDFDocumentPointer modifiedDocument = rewritePageContent(&document, content, false, nullptr,
+                                                                 createInsertedTestImage(), QRectF(20, 120, 60, 60));
+    QVERIFY(modifiedDocument);
+
+    const pdf::PDFPage* page = modifiedDocument->getCatalog()->getPage(0);
+    const pdf::PDFDictionary* resources = modifiedDocument->getDictionaryFromObject(page->getResources());
+    QVERIFY(resources);
+
+    const pdf::PDFDictionary* xObjects = modifiedDocument->getDictionaryFromObject(resources->get("XObject"));
+    QVERIFY(xObjects);
+
+    // The inserted image is the only image, which has a soft mask
+    const pdf::PDFStream* insertedImageStream = nullptr;
+    for (size_t i = 0; i < xObjects->getCount(); ++i)
+    {
+        const pdf::PDFObject& object = modifiedDocument->getObject(xObjects->getValue(i));
+
+        if (object.isStream() && object.getStream()->getDictionary()->hasKey("SMask"))
+        {
+            QVERIFY(!insertedImageStream);
+            insertedImageStream = object.getStream();
+        }
+    }
+
+    QVERIFY(insertedImageStream);
+
+    const pdf::PDFObject& softMaskObject = modifiedDocument->getObject(insertedImageStream->getDictionary()->get("SMask"));
+    QVERIFY(softMaskObject.isStream());
+
+    const pdf::PDFStream* softMaskStream = softMaskObject.getStream();
+    pdf::PDFDocumentDataLoaderDecorator loader(modifiedDocument.data());
+    QCOMPARE(loader.readIntegerFromDictionary(softMaskStream->getDictionary(), "Width", 0), pdf::PDFInteger(4));
+    QCOMPARE(loader.readIntegerFromDictionary(softMaskStream->getDictionary(), "Height", 0), pdf::PDFInteger(4));
+    QCOMPARE(loader.readNameFromDictionary(softMaskStream->getDictionary(), "ColorSpace"), QByteArray("DeviceGray"));
+
+    // The left half of the image is opaque, the right half is transparent
+    QByteArray expectedSoftMaskData;
+    for (int y = 0; y < 4; ++y)
+    {
+        expectedSoftMaskData.append(QByteArray::fromHex("ffff0000"));
+    }
+
+    QCOMPARE(modifiedDocument->getDecodedStream(softMaskStream), expectedSoftMaskData);
+
+    // The color samples must not be premultiplied by the alpha channel
+    QByteArray imageData = modifiedDocument->getDecodedStream(insertedImageStream);
+    QCOMPARE(imageData.size(), qsizetype(4 * 4 * 3));
+    QCOMPARE(imageData.left(6), QByteArray::fromHex("00ff0000ff00"));
 }
 
 QTEST_MAIN(ContentEditorTest)
