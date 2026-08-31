@@ -27,6 +27,7 @@
 #include "pdfdocumentwriter.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfdrawspacecontroller.h"
+#include "pdfexecutionpolicy.h"
 #include "pdfimage.h"
 #include "pdfexception.h"
 #include "pdfimageconversion.h"
@@ -49,6 +50,9 @@
 #include <QtSvg/QSvgRenderer>
 #include <QMouseEvent>
 #include <QToolTip>
+
+#include <map>
+#include <numeric>
 
 #include "pdfdbgheap.h"
 
@@ -101,6 +105,30 @@ static QImage compositePageImageOntoWhite(const QImage& image)
     return result;
 }
 
+/// Creates an item of the list, whose thumbnail has not been generated yet. The size
+/// of the item is fixed and it does not depend on the thumbnail, so the items do not
+/// jump around in the list as the thumbnails are arriving one by one.
+/// \param listWidget List widget
+/// \param itemSize Size of the item
+/// \param text Text displayed in the item
+/// \param toolTip Tool tip of the item
+static QListWidgetItem* createPendingListItem(QListWidget* listWidget,
+                                              QSize itemSize,
+                                              const QString& text,
+                                              const QString& toolTip)
+{
+    QListWidgetItem* item = new QListWidgetItem(listWidget);
+    item->setSizeHint(itemSize);
+    item->setText(text);
+    item->setToolTip(toolTip);
+
+    Qt::ItemFlags flags = item->flags();
+    flags.setFlag(Qt::ItemIsEditable, true);
+    item->setFlags(flags);
+
+    return item;
+}
+
 PDFCreateBitonalDocumentPreviewWidget::PDFCreateBitonalDocumentPreviewWidget(QWidget* parent) :
     QWidget(parent)
 {
@@ -135,12 +163,24 @@ void PDFCreateBitonalDocumentPreviewWidget::paintEvent(QPaintEvent* event)
     imageRect.setTop(captionRect.bottom());
     imageRect = imageRect.adjusted(16, 16, -32, -32);
 
-    if (imageRect.isValid() && !m_image.isNull())
+    if (!imageRect.isValid())
+    {
+        return;
+    }
+
+    if (!m_image.isNull())
     {
         QRect imageDrawRect = imageRect;
         imageDrawRect.setSize(m_image.size().scaled(imageRect.size(), Qt::KeepAspectRatio));
         imageDrawRect.moveCenter(imageRect.center());
         painter.drawImage(imageDrawRect, m_image);
+    }
+    else if (m_generating)
+    {
+        // Image is being created in the background, so the user is informed
+        // that something is happening instead of seeing an empty area.
+        painter.setPen(Qt::darkGray);
+        painter.drawText(imageRect, tr("Generating..."), QTextOption(Qt::AlignCenter));
     }
 }
 
@@ -157,6 +197,15 @@ void PDFCreateBitonalDocumentPreviewWidget::setImage(QImage image)
 {
     m_image = std::move(image);
     update();
+}
+
+void PDFCreateBitonalDocumentPreviewWidget::setGenerating(bool generating)
+{
+    if (m_generating != generating)
+    {
+        m_generating = generating;
+        update();
+    }
 }
 
 PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDocument* document,
@@ -221,6 +270,12 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     connect(ui->thresholdEditBox, qOverload<int>(&QSpinBox::valueChanged), this, &PDFCreateBitonalDocumentDialog::onConversionSettingsChanged);
     connect(ui->resolutionEditBox, qOverload<int>(&QSpinBox::valueChanged), this, &PDFCreateBitonalDocumentDialog::onConversionSettingsChanged);
 
+    // Results of the background jobs are emitted by the worker threads, so they must
+    // be delivered into the GUI thread using a queued connection. Connections are
+    // created before the first job is started.
+    connect(this, &PDFCreateBitonalDocumentDialog::thumbnailReady, this, &PDFCreateBitonalDocumentDialog::onThumbnailReady, Qt::QueuedConnection);
+    connect(this, &PDFCreateBitonalDocumentDialog::previewReady, this, &PDFCreateBitonalDocumentDialog::onPreviewReady, Qt::QueuedConnection);
+
     pdf::PDFWidgetUtils::scaleWidget(this, QSize(1024, 768));
     updateUi();
     pdf::PDFWidgetUtils::style(this);
@@ -240,7 +295,119 @@ PDFCreateBitonalDocumentDialog::~PDFCreateBitonalDocumentDialog()
     Q_ASSERT(!m_conversionInProgress);
     Q_ASSERT(!m_future.isRunning());
 
+    // Workers use the document and the rasterizer pool, so none of them can be running
+    // when the dialog is being destroyed. Both jobs are cancelled first and joined
+    // afterwards, so they can be finishing their last uninterruptible step in parallel.
+    cancelJob(m_thumbnailJob);
+    cancelJob(m_previewJob);
+    finishJob(m_thumbnailJob);
+    finishJob(m_previewJob);
+
     delete ui;
+}
+
+void PDFCreateBitonalDocumentDialog::done(int r)
+{
+    if (m_conversionInProgress)
+    {
+        // The conversion cannot be interrupted and its worker writes into the dialog,
+        // so the dialog must not be closed while it is running. Buttons are disabled
+        // at that time, but the dialog could still be closed by the escape key.
+        return;
+    }
+
+    // Background jobs are cancelled as soon as the dialog is being closed, so the user
+    // does not wait for a thumbnail or a preview, which nobody is going to see. The
+    // workers are joined in the destructor.
+    cancelJob(m_thumbnailJob);
+    cancelJob(m_previewJob);
+
+    QDialog::done(r);
+}
+
+void PDFCreateBitonalDocumentDialog::startJob(AsyncJob& job, std::function<void(int, const pdf::PDFOperationControl*)> worker)
+{
+    cancelJob(job);
+
+    // Futures of the runs, which have already finished, are not needed anymore
+    std::erase_if(job.futures, [](const QFuture<void>& future) { return future.isFinished(); });
+
+    const int generation = job.generation;
+    auto cancelToken = std::make_shared<PDFOperationCancelToken>();
+
+    job.cancelToken = cancelToken;
+    job.isRunning = true;
+
+    QFuture<void> future = QtConcurrent::run([worker = std::move(worker), generation, cancelToken]()
+    {
+        try
+        {
+            // The run can be cancelled before the thread pool gets to it at all
+            if (!cancelToken->isOperationCancelled())
+            {
+                worker(generation, cancelToken.get());
+            }
+        }
+        catch (const pdf::PDFException&)
+        {
+            // A broken image just stays empty in the list or in the preview
+        }
+        catch (...)
+        {
+            // No exception is allowed to escape into the future. The future is waited
+            // for in the destructor of the dialog, where a rethrown exception would
+            // terminate the application.
+        }
+    });
+
+    job.futures.push_back(future);
+    job.futureWatcher.emplace();
+    connect(&job.futureWatcher.value(), &QFutureWatcher<void>::finished, this, [this, &job, generation]() { onJobFinished(job, generation); });
+    job.futureWatcher->setFuture(future);
+}
+
+void PDFCreateBitonalDocumentDialog::cancelJob(AsyncJob& job)
+{
+    // Generation of the job is increased, so the results, which the cancelled worker
+    // still manages to emit, are recognized as obsolete and dropped by the slots.
+    ++job.generation;
+
+    if (job.cancelToken)
+    {
+        job.cancelToken->cancel();
+        job.cancelToken.reset();
+    }
+
+    // The watcher of a cancelled run is not interesting anymore. Destroying it does
+    // not touch the worker at all, it is just not watched anymore - the worker is
+    // kept alive by its future stored in the job.
+    job.futureWatcher.reset();
+    job.isRunning = false;
+}
+
+void PDFCreateBitonalDocumentDialog::finishJob(AsyncJob& job)
+{
+    cancelJob(job);
+
+    for (QFuture<void>& future : job.futures)
+    {
+        future.waitForFinished();
+    }
+
+    job.futures.clear();
+}
+
+void PDFCreateBitonalDocumentDialog::onJobFinished(AsyncJob& job, int generation)
+{
+    if (generation != job.generation)
+    {
+        // This run has been superseded by a newer one, the job is considered
+        // running until its newest run finishes.
+        return;
+    }
+
+    job.isRunning = false;
+    updateUi();
 }
 
 void PDFCreateBitonalDocumentDialog::onPerformFinished()
@@ -317,26 +484,11 @@ bool PDFCreateBitonalDocumentDialog::createBitonalDocumentFromImages(pdf::PDFDoc
     auto progressGuard = qScopeGuard([this]() { m_progress->finish(); });
 
     bool isConverted = false;
-    pdf::PDFCMSGeneric genericCms;
-    pdf::PDFRenderErrorReporterDummy errorReporter;
 
     for (const ConversionItemInfo& item : itemsToBeConverted)
     {
         const pdf::PDFObjectReference reference = item.imageReference;
-        std::optional<pdf::PDFImage> pdfImage = getImageFromReference(reference);
-
-        QImage image;
-        if (pdfImage)
-        {
-            try
-            {
-                image = pdfImage->getImage(&genericCms, &errorReporter, nullptr);
-            }
-            catch (const pdf::PDFException&)
-            {
-                // Do nothing
-            }
-        }
+        QImage image = getDecodedImage(reference, nullptr);
 
         if (image.isNull())
         {
@@ -434,7 +586,7 @@ bool PDFCreateBitonalDocumentDialog::createBitonalDocumentFromPages(pdf::PDFDocu
         m_progress->step();
     };
 
-    renderPages(pageIndices, pageSizeGetter, pageImageProcessor);
+    renderPages(pageIndices, pageSizeGetter, pageImageProcessor, nullptr);
 
     const bool isWholeDocumentConverted = pageIndices.size() == catalog->getPageCount();
 
@@ -585,7 +737,8 @@ pdf::PDFObject PDFCreateBitonalDocumentDialog::createBitonalImageObject(const QI
 
 void PDFCreateBitonalDocumentDialog::renderPages(const std::vector<pdf::PDFInteger>& pageIndices,
                                                  const std::function<QSize(const pdf::PDFPage*)>& pageSizeGetter,
-                                                 const std::function<void(pdf::PDFInteger, QImage)>& pageImageProcessor) const
+                                                 const std::function<void(pdf::PDFInteger, QImage)>& pageImageProcessor,
+                                                 const pdf::PDFOperationControl* operationControl) const
 {
     const pdf::PDFCatalog* catalog = m_document->getCatalog();
 
@@ -642,17 +795,17 @@ void PDFCreateBitonalDocumentDialog::renderPages(const std::vector<pdf::PDFInteg
         pageImageProcessor(renderedPageImage.pageIndex, std::move(image));
     };
 
-    m_rasterizerPool->render(pageIndices, imageSizeGetter, processImage, nullptr);
+    m_rasterizerPool->render(pageIndices, imageSizeGetter, processImage, nullptr, operationControl);
 }
 
-QImage PDFCreateBitonalDocumentDialog::renderPage(pdf::PDFInteger pageIndex, QSize size) const
+QImage PDFCreateBitonalDocumentDialog::renderPage(pdf::PDFInteger pageIndex, QSize size, const pdf::PDFOperationControl* operationControl) const
 {
     QImage result;
 
     auto pageSizeGetter = [size](const pdf::PDFPage*) { return size; };
     auto pageImageProcessor = [&result](pdf::PDFInteger, QImage image) { result = std::move(image); };
 
-    renderPages({ pageIndex }, pageSizeGetter, pageImageProcessor);
+    renderPages({ pageIndex }, pageSizeGetter, pageImageProcessor, operationControl);
 
     return result;
 }
@@ -817,6 +970,11 @@ PDFCreateBitonalDocumentDialog::ConversionSettings PDFCreateBitonalDocumentDialo
 
 void PDFCreateBitonalDocumentDialog::loadItems()
 {
+    // The list is being rebuilt, so the results of the running jobs do not belong
+    // to anything anymore.
+    cancelJob(m_thumbnailJob);
+    cancelJob(m_previewJob);
+
     QSignalBlocker blocker(ui->imageListWidget);
 
     ui->imageListWidget->clear();
@@ -830,14 +988,20 @@ void PDFCreateBitonalDocumentDialog::loadItems()
     ui->imageListWidget->setIconSize(iconSize);
     const QSize thumbnailSize = iconSize * ui->imageListWidget->devicePixelRatioF();
 
+    // Size of the items is fixed - it must not depend on the thumbnail, which is not
+    // available yet, otherwise the items would be jumping around in the list as the
+    // thumbnails are arriving.
+    const int textHeight = ui->imageListWidget->fontMetrics().lineSpacing();
+    const QSize itemSize(iconSize.width() + 8, iconSize.height() + textHeight + 12);
+
     switch (m_conversionSource)
     {
         case ConversionSource::Images:
-            loadImageItems(thumbnailSize);
+            createImageItems(itemSize);
             break;
 
         case ConversionSource::Pages:
-            loadPageItems(thumbnailSize);
+            createPageItems(itemSize);
             break;
 
         default:
@@ -849,9 +1013,12 @@ void PDFCreateBitonalDocumentDialog::loadItems()
     {
         ui->imageListWidget->setCurrentRow(0);
     }
+
+    startThumbnailGeneration(thumbnailSize);
+    updateUi();
 }
 
-void PDFCreateBitonalDocumentDialog::loadImageItems(QSize thumbnailSize)
+void PDFCreateBitonalDocumentDialog::createImageItems(QSize itemSize)
 {
     for (pdf::PDFObjectReference reference : m_imageReferences)
     {
@@ -862,87 +1029,286 @@ void PDFCreateBitonalDocumentDialog::loadImageItems(QSize thumbnailSize)
             continue;
         }
 
-        std::optional<pdf::PDFImage> pdfImage = getImageFromReference(reference);
-        if (!pdfImage)
-        {
-            continue;
-        }
-
-        pdf::PDFCMSGeneric genericCms;
-        pdf::PDFRenderErrorReporterDummy errorReporter;
-        QImage image;
-
-        try
-        {
-            image = pdfImage->getImage(&genericCms, &errorReporter, nullptr);
-        }
-        catch (const pdf::PDFException&)
-        {
-            // Do nothing
-        }
-
-        if (image.isNull())
-        {
-            continue;
-        }
-
-        QListWidgetItem* item = new QListWidgetItem(ui->imageListWidget);
-        image = image.scaled(thumbnailSize.width(), thumbnailSize.height(), Qt::KeepAspectRatio, Qt::FastTransformation);
-        item->setIcon(QIcon(QPixmap::fromImage(image)));
-        Qt::ItemFlags flags = item->flags();
-        flags.setFlag(Qt::ItemIsEditable, true);
-        item->setFlags(flags);
-
         ConversionItemInfo conversionItemInfo;
         conversionItemInfo.imageReference = reference;
         conversionItemInfo.conversionEnabled = true;
         m_itemsToBeConverted.push_back(conversionItemInfo);
+
+        const int itemIndex = int(m_itemsToBeConverted.size());
+        createPendingListItem(ui->imageListWidget, itemSize, tr("Generating..."), tr("Image %1").arg(itemIndex));
     }
 }
 
-void PDFCreateBitonalDocumentDialog::loadPageItems(QSize thumbnailSize)
+void PDFCreateBitonalDocumentDialog::createPageItems(QSize itemSize)
 {
     const pdf::PDFCatalog* catalog = m_document->getCatalog();
-    const size_t pageCount = catalog->getPageCount();
 
-    std::vector<pdf::PDFInteger> pageIndices;
-    pageIndices.reserve(pageCount);
-
-    for (size_t pageIndex = 0; pageIndex < pageCount; ++pageIndex)
+    for (size_t pageIndex = 0, pageCount = catalog->getPageCount(); pageIndex < pageCount; ++pageIndex)
     {
-        pageIndices.push_back(pdf::PDFInteger(pageIndex));
-    }
-
-    std::vector<QImage> pageImages(pageCount);
-
-    auto pageSizeGetter = [thumbnailSize](const pdf::PDFPage* page) -> QSize
-    {
-        QSizeF size = page->getMediaBox().size();
-        size.scale(thumbnailSize.width(), thumbnailSize.height(), Qt::KeepAspectRatio);
-        return size.toSize().expandedTo(QSize(1, 1));
-    };
-
-    auto pageImageProcessor = [&pageImages](pdf::PDFInteger pageIndex, QImage image)
-    {
-        pageImages[size_t(pageIndex)] = std::move(image);
-    };
-
-    renderPages(pageIndices, pageSizeGetter, pageImageProcessor);
-
-    for (size_t pageIndex = 0; pageIndex < pageCount; ++pageIndex)
-    {
-        QListWidgetItem* item = new QListWidgetItem(ui->imageListWidget);
-        item->setIcon(QIcon(QPixmap::fromImage(pageImages[pageIndex])));
-        item->setToolTip(tr("Page %1").arg(pageIndex + 1));
-        Qt::ItemFlags flags = item->flags();
-        flags.setFlag(Qt::ItemIsEditable, true);
-        item->setFlags(flags);
-
         ConversionItemInfo conversionItemInfo;
         conversionItemInfo.pageIndex = pdf::PDFInteger(pageIndex);
         conversionItemInfo.conversionEnabled = true;
         m_itemsToBeConverted.push_back(conversionItemInfo);
+
+        createPendingListItem(ui->imageListWidget, itemSize, tr("Generating..."), tr("Page %1").arg(pageIndex + 1));
     }
+}
+
+void PDFCreateBitonalDocumentDialog::startThumbnailGeneration(QSize thumbnailSize)
+{
+    if (m_itemsToBeConverted.empty())
+    {
+        return;
+    }
+
+    ThumbnailRequest request;
+    request.conversionSource = m_conversionSource;
+    request.thumbnailSize = thumbnailSize;
+
+    for (const ConversionItemInfo& info : m_itemsToBeConverted)
+    {
+        switch (m_conversionSource)
+        {
+            case ConversionSource::Images:
+                request.imageReferences.push_back(info.imageReference);
+                break;
+
+            case ConversionSource::Pages:
+                request.pageIndices.push_back(info.pageIndex);
+                break;
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+    }
+
+    startJob(m_thumbnailJob, [this, request](int generation, const pdf::PDFOperationControl* operationControl)
+    {
+        generateThumbnails(generation, request, operationControl);
+    });
+}
+
+void PDFCreateBitonalDocumentDialog::generateThumbnails(int generation,
+                                                        const ThumbnailRequest& request,
+                                                        const pdf::PDFOperationControl* operationControl)
+{
+    switch (request.conversionSource)
+    {
+        case ConversionSource::Images:
+        {
+            std::vector<size_t> indices(request.imageReferences.size(), 0);
+            std::iota(indices.begin(), indices.end(), size_t(0));
+
+            auto processImage = [this, generation, operationControl, &request](size_t index)
+            {
+                if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+                {
+                    return;
+                }
+
+                QImage image = getDecodedImage(request.imageReferences[index], operationControl);
+
+                if (!image.isNull())
+                {
+                    image = image.scaled(request.thumbnailSize.width(), request.thumbnailSize.height(), Qt::KeepAspectRatio, Qt::FastTransformation);
+                }
+
+                if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+                {
+                    // Image can be incomplete, because its decoding has been interrupted
+                    return;
+                }
+
+                Q_EMIT thumbnailReady(generation, int(index), image);
+            };
+
+            pdf::PDFExecutionPolicy::execute(pdf::PDFExecutionPolicy::Scope::Page, indices.cbegin(), indices.cend(), processImage);
+            break;
+        }
+
+        case ConversionSource::Pages:
+        {
+            // Pages are rendered in parallel and they can be finished in any order,
+            // so the item, which a rendered page belongs to, is looked up by its index.
+            std::map<pdf::PDFInteger, int> itemIndices;
+            for (size_t index = 0; index < request.pageIndices.size(); ++index)
+            {
+                itemIndices[request.pageIndices[index]] = int(index);
+            }
+
+            const QSize thumbnailSize = request.thumbnailSize;
+            auto pageSizeGetter = [thumbnailSize](const pdf::PDFPage* page) -> QSize
+            {
+                QSizeF size = page->getMediaBox().size();
+                size.scale(thumbnailSize.width(), thumbnailSize.height(), Qt::KeepAspectRatio);
+                return size.toSize().expandedTo(QSize(1, 1));
+            };
+
+            auto pageImageProcessor = [this, generation, operationControl, &itemIndices](pdf::PDFInteger pageIndex, QImage image)
+            {
+                if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+                {
+                    return;
+                }
+
+                auto it = itemIndices.find(pageIndex);
+                if (it != itemIndices.cend())
+                {
+                    Q_EMIT thumbnailReady(generation, it->second, image);
+                }
+            };
+
+            renderPages(request.pageIndices, pageSizeGetter, pageImageProcessor, operationControl);
+            break;
+        }
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+}
+
+void PDFCreateBitonalDocumentDialog::generatePreview(int generation,
+                                                     const PreviewRequest& request,
+                                                     const pdf::PDFOperationControl* operationControl)
+{
+    QImage image;
+
+    switch (request.conversionSource)
+    {
+        case ConversionSource::Images:
+            image = getDecodedImage(request.item.imageReference, operationControl);
+            break;
+
+        case ConversionSource::Pages:
+        {
+            if (!request.cachedPageImage.isNull())
+            {
+                // Page has already been rasterized for the previous preview and only
+                // the conversion settings have changed since then.
+                image = request.cachedPageImage;
+            }
+            else if (request.item.pageIndex >= 0)
+            {
+                const pdf::PDFCatalog* catalog = m_document->getCatalog();
+                const pdf::PDFPage* page = size_t(request.item.pageIndex) < catalog->getPageCount() ? catalog->getPage(size_t(request.item.pageIndex)) : nullptr;
+
+                if (page)
+                {
+                    image = renderPage(request.item.pageIndex, getPageImageSize(page, request.dpiResolution), operationControl);
+                }
+            }
+            break;
+        }
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+    {
+        return;
+    }
+
+    QImage bitonalImage = convertImageToBitonal(image, request.conversionMethod, request.manualThreshold, nullptr);
+
+    if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+    {
+        return;
+    }
+
+    if (bitonalImage.isNull())
+    {
+        // Conversion has failed, so the original image is not displayed either
+        image = QImage();
+    }
+
+    Q_EMIT previewReady(generation, image, bitonalImage);
+}
+
+void PDFCreateBitonalDocumentDialog::onThumbnailReady(int generation, int itemIndex, QImage thumbnail)
+{
+    if (generation != m_thumbnailJob.generation)
+    {
+        // Thumbnail belongs to an obsolete run. The list of the items has been
+        // rebuilt in the meantime, so the index does not mean anything anymore.
+        return;
+    }
+
+    if (itemIndex < 0 || itemIndex >= int(m_itemsToBeConverted.size()) || itemIndex >= ui->imageListWidget->count())
+    {
+        Q_ASSERT(false);
+        return;
+    }
+
+    ConversionItemInfo& info = m_itemsToBeConverted[itemIndex];
+    QListWidgetItem* item = ui->imageListWidget->item(itemIndex);
+
+    if (thumbnail.isNull())
+    {
+        // Image cannot be decoded or the page cannot be rendered, so it cannot
+        // be converted either.
+        info.thumbnailState = ConversionItemInfo::ThumbnailState::Failed;
+        info.conversionEnabled = false;
+        item->setText(tr("Not available"));
+    }
+    else
+    {
+        info.thumbnailState = ConversionItemInfo::ThumbnailState::Ready;
+        item->setIcon(QIcon(QPixmap::fromImage(thumbnail)));
+        item->setText(getItemCaption(itemIndex));
+    }
+}
+
+void PDFCreateBitonalDocumentDialog::onPreviewReady(int generation, QImage originalImage, QImage bitonalImage)
+{
+    if (generation != m_previewJob.generation)
+    {
+        // Preview belongs to an obsolete run, the settings have changed since then
+        return;
+    }
+
+    if (m_conversionSource == ConversionSource::Pages && !originalImage.isNull())
+    {
+        // Rasterized page is cached, so changing the conversion method or the
+        // threshold does not rasterize the same page again.
+        m_cachedPageImage = originalImage;
+        m_cachedPageIndex = m_previewPageIndex;
+        m_cachedPageDpiResolution = m_previewDpiResolution;
+    }
+
+    m_previewImageLeft = std::move(originalImage);
+    m_previewImageRight = std::move(bitonalImage);
+
+    m_leftPreviewWidget->setGenerating(false);
+    m_rightPreviewWidget->setGenerating(false);
+    m_leftPreviewWidget->setImage(m_previewImageLeft);
+    m_rightPreviewWidget->setImage(m_previewImageRight);
+}
+
+QString PDFCreateBitonalDocumentDialog::getItemCaption(int itemIndex) const
+{
+    if (itemIndex < 0 || itemIndex >= int(m_itemsToBeConverted.size()))
+    {
+        return QString();
+    }
+
+    switch (m_conversionSource)
+    {
+        case ConversionSource::Images:
+            return tr("Image %1").arg(itemIndex + 1);
+
+        case ConversionSource::Pages:
+            return tr("Page %1").arg(m_itemsToBeConverted[itemIndex].pageIndex + 1);
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return QString();
 }
 
 void PDFCreateBitonalDocumentDialog::updateUi()
@@ -953,6 +1319,10 @@ void PDFCreateBitonalDocumentDialog::updateUi()
     const bool usesThreshold = conversionMethod == pdf::PDFImageConversion::ConversionMethod::Manual ||
                                conversionMethod == pdf::PDFImageConversion::ConversionMethod::Dither;
     const bool usesResolution = m_conversionSource == ConversionSource::Pages;
+
+    // Conversion cannot be started while the thumbnails are still being generated -
+    // the user does not see, what is going to be converted, yet.
+    const bool isBusy = m_conversionInProgress || m_thumbnailJob.isRunning;
 
     // While the conversion is running, no input can be changed - the worker is using
     // a snapshot of them and a modified input would not match the produced document.
@@ -966,78 +1336,57 @@ void PDFCreateBitonalDocumentDialog::updateUi()
     ui->conversionMethodComboBox->setEnabled(!m_conversionInProgress);
     ui->imageListWidget->setEnabled(!m_conversionInProgress);
 
-    ui->buttonBox->button(QDialogButtonBox::Ok)->setEnabled(m_processed && !m_conversionInProgress);
+    ui->buttonBox->button(QDialogButtonBox::Ok)->setEnabled(m_processed && !isBusy);
     ui->buttonBox->button(QDialogButtonBox::Cancel)->setEnabled(!m_conversionInProgress);
-    m_createBitonalDocumentButton->setEnabled(!m_conversionInProgress);
+    m_createBitonalDocumentButton->setEnabled(!isBusy);
 }
 
 void PDFCreateBitonalDocumentDialog::updatePreview()
 {
-    QModelIndex index = ui->imageListWidget->currentIndex();
+    // Preview of the previously selected item is not interesting anymore
+    cancelJob(m_previewJob);
 
     m_previewImageLeft = QImage();
     m_previewImageRight = QImage();
+    m_leftPreviewWidget->setImage(QImage());
+    m_rightPreviewWidget->setImage(QImage());
 
-    const pdf::PDFImageConversion::ConversionMethod conversionMethod = getSelectedConversionMethod();
-    const int manualThreshold = ui->thresholdEditBox->value();
-    const int dpiResolution = ui->resolutionEditBox->value();
+    const QModelIndex index = ui->imageListWidget->currentIndex();
 
-    if (index.isValid() && index.row() < int(m_itemsToBeConverted.size()))
+    if (!index.isValid() || index.row() < 0 || index.row() >= int(m_itemsToBeConverted.size()))
     {
-        const ConversionItemInfo& info = m_itemsToBeConverted.at(index.row());
-        QImage image;
-
-        switch (m_conversionSource)
-        {
-            case ConversionSource::Images:
-            {
-                if (std::optional<pdf::PDFImage> pdfImage = getImageFromReference(info.imageReference))
-                {
-                    pdf::PDFCMSGeneric cmsGeneric;
-                    pdf::PDFRenderErrorReporterDummy reporter;
-
-                    try
-                    {
-                        image = pdfImage->getImage(&cmsGeneric, &reporter, nullptr);
-                    }
-                    catch (const pdf::PDFException&)
-                    {
-                        // Do nothing
-                    }
-                }
-                break;
-            }
-
-            case ConversionSource::Pages:
-            {
-                if (m_cachedPageIndex != info.pageIndex || m_cachedPageDpiResolution != dpiResolution)
-                {
-                    const pdf::PDFPage* page = m_document->getCatalog()->getPage(size_t(info.pageIndex));
-                    m_cachedPageImage = page ? renderPage(info.pageIndex, getPageImageSize(page, dpiResolution)) : QImage();
-                    m_cachedPageIndex = info.pageIndex;
-                    m_cachedPageDpiResolution = dpiResolution;
-                }
-
-                image = m_cachedPageImage;
-                break;
-            }
-
-            default:
-                Q_ASSERT(false);
-                break;
-        }
-
-        QImage bitonalImage = convertImageToBitonal(image, conversionMethod, manualThreshold, nullptr);
-
-        if (!bitonalImage.isNull())
-        {
-            m_previewImageLeft = std::move(image);
-            m_previewImageRight = std::move(bitonalImage);
-        }
+        m_leftPreviewWidget->setGenerating(false);
+        m_rightPreviewWidget->setGenerating(false);
+        return;
     }
 
-    m_leftPreviewWidget->setImage(m_previewImageLeft);
-    m_rightPreviewWidget->setImage(m_previewImageRight);
+    PreviewRequest request;
+    request.conversionSource = m_conversionSource;
+    request.item = m_itemsToBeConverted.at(index.row());
+    request.conversionMethod = getSelectedConversionMethod();
+    request.manualThreshold = ui->thresholdEditBox->value();
+    request.dpiResolution = ui->resolutionEditBox->value();
+
+    if (request.conversionSource == ConversionSource::Pages &&
+        m_cachedPageIndex == request.item.pageIndex &&
+        m_cachedPageDpiResolution == request.dpiResolution)
+    {
+        request.cachedPageImage = m_cachedPageImage;
+    }
+
+    // Page, which the started job is going to rasterize. It is remembered here, so the
+    // rasterized page returned by the job can be stored into the cache - only one run
+    // of the job is not obsolete, so a single value is enough.
+    m_previewPageIndex = request.item.pageIndex;
+    m_previewDpiResolution = request.dpiResolution;
+
+    m_leftPreviewWidget->setGenerating(true);
+    m_rightPreviewWidget->setGenerating(true);
+
+    startJob(m_previewJob, [this, request](int generation, const pdf::PDFOperationControl* operationControl)
+    {
+        generatePreview(generation, request, operationControl);
+    });
 }
 
 pdf::PDFImageConversion::ConversionMethod PDFCreateBitonalDocumentDialog::getSelectedConversionMethod() const
@@ -1091,6 +1440,28 @@ std::optional<pdf::PDFImage> PDFCreateBitonalDocumentDialog::getImageFromReferen
     return pdfImage;
 }
 
+QImage PDFCreateBitonalDocumentDialog::getDecodedImage(pdf::PDFObjectReference reference, const pdf::PDFOperationControl* operationControl) const
+{
+    std::optional<pdf::PDFImage> pdfImage = getImageFromReference(reference);
+
+    if (!pdfImage)
+    {
+        return QImage();
+    }
+
+    pdf::PDFCMSGeneric genericCms;
+    pdf::PDFRenderErrorReporterDummy errorReporter;
+
+    try
+    {
+        return pdfImage->getImage(&genericCms, &errorReporter, operationControl);
+    }
+    catch (const pdf::PDFException&)
+    {
+        return QImage();
+    }
+}
+
 ImagePreviewDelegate::ImagePreviewDelegate(std::vector<PDFCreateBitonalDocumentDialog::ConversionItemInfo>* conversionItemInfos, QObject *parent) :
     QStyledItemDelegate(parent),
     m_conversionItemInfos(conversionItemInfos)
@@ -1134,6 +1505,13 @@ bool ImagePreviewDelegate::editorEvent(QEvent* event, QAbstractItemModel* model,
             if (markRect.contains(mouseEvent->position()))
             {
                 PDFCreateBitonalDocumentDialog::ConversionItemInfo& info = m_conversionItemInfos->at(index.row());
+
+                if (info.thumbnailState == PDFCreateBitonalDocumentDialog::ConversionItemInfo::ThumbnailState::Failed)
+                {
+                    // Image of this item cannot be decoded, so it cannot be converted either
+                    return true;
+                }
+
                 info.conversionEnabled = !info.conversionEnabled;
                 Q_EMIT conversionEnabledChanged();
                 return true;

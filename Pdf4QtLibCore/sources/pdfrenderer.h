@@ -255,15 +255,19 @@ public:
 
     /// Renders pages asynchronously to images, using given page indices,
     /// function which returns rendered size and process image function,
-    /// which processes rendered images.
+    /// which processes rendered images. Rendering can be interrupted using
+    /// the operation control - pages, which have not been rendered yet, are
+    /// skipped and the process image method is not called for them.
     /// \param pageIndices Page indices for rendered pages
     /// \param imageSizeGetter Getter, which computes image size from page index
     /// \param processImage Method, which processes rendered page images
     /// \param progress Progress indicator
+    /// \param operationControl Operation control (can be nullptr)
     void render(const std::vector<PDFInteger>& pageIndices,
                 const PageImageSizeGetter& imageSizeGetter,
                 const ProcessImageMethod& processImage,
-                PDFProgress* progress);
+                PDFProgress* progress,
+                const PDFOperationControl* operationControl = nullptr);
 
     /// Returns default rasterizer count
     static int getDefaultRasterizerCount();

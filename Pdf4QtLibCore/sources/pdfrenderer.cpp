@@ -30,6 +30,7 @@
 
 #include <QDir>
 #include <QElapsedTimer>
+#include <QScopeGuard>
 #include <QtMath>
 
 #include "pdfdbgheap.h"
@@ -337,7 +338,8 @@ void PDFRasterizerPool::release(pdf::PDFRasterizer* rasterizer)
 void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
                                const PDFRasterizerPool::PageImageSizeGetter& imageSizeGetter,
                                const PDFRasterizerPool::ProcessImageMethod& processImage,
-                               PDFProgress* progress)
+                               PDFProgress* progress,
+                               const PDFOperationControl* operationControl)
 {
     if (pageIndices.empty())
     {
@@ -359,16 +361,28 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
         info.text = PDFTranslationContext::tr("Rendering document into images.");
         progress->start(pageIndices.size(), qMove(info));
     }
-    auto processPage = [this, progress, &imageSizeGetter, &processImage](const PDFInteger pageIndex)
+    auto processPage = [this, progress, operationControl, &imageSizeGetter, &processImage](const PDFInteger pageIndex)
     {
-        const PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
-
-        if (!page)
+        // Progress must be stepped even when the page is skipped, otherwise
+        // the progress would never reach its end.
+        auto progressGuard = qScopeGuard([progress]()
         {
             if (progress)
             {
                 progress->step();
             }
+        });
+
+        if (PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            // Operation has been cancelled, remaining pages are not rendered at all
+            return;
+        }
+
+        const PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
+
+        if (!page)
+        {
             Q_EMIT renderError(pageIndex, PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Page %1 not found.").arg(pageIndex)));
             return;
         }
@@ -383,6 +397,7 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
         PDFPrecompiledPage precompiledPage;
         PDFCMSPointer cms = m_cmsManager->getCurrentCMS();
         PDFRenderer renderer(m_document, m_fontCache, cms.data(), m_optionalContentActivity, m_features, m_meshQualitySettings);
+        renderer.setOperationControl(operationControl);
         renderer.compile(&precompiledPage, pageIndex);
 
         qint64 pageCompileTime = pageTimer.restart();
@@ -408,6 +423,13 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
         qint64 pageRenderTime = pageTimer.elapsed();
         release(rasterizer);
 
+        if (PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            // Image can be incomplete, because the compilation of the page
+            // has been interrupted - it must not be processed.
+            return;
+        }
+
         // Now, process the image
         PDFRenderedPageImage renderedPageImage;
         renderedPageImage.pageIndex = pageIndex;
@@ -417,11 +439,6 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
         renderedPageImage.pageRenderTime = pageRenderTime;
         renderedPageImage.pageTotalTime = totalPageTimer.elapsed();
         processImage(renderedPageImage);
-
-        if (progress)
-        {
-            progress->step();
-        }
     };
     PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, pageIndices.cbegin(), pageIndices.cend(), processPage);
 

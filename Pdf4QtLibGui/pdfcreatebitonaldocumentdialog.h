@@ -28,6 +28,7 @@
 #include "pdfobjectutils.h"
 #include "pdfimage.h"
 #include "pdfimageconversion.h"
+#include "pdfoperationcontrol.h"
 #include "pdfprogress.h"
 
 #include <QDialog>
@@ -36,7 +37,10 @@
 #include <QFutureWatcher>
 #include <QStyledItemDelegate>
 
+#include <atomic>
 #include <functional>
+#include <memory>
+#include <optional>
 #include <vector>
 
 namespace Ui
@@ -56,6 +60,23 @@ class PDFOptionalContentActivity;
 namespace pdfviewer
 {
 
+/// Cancellation token of a background job. It is shared between the GUI thread,
+/// which cancels the job, and the worker thread, which polls it. A cancelled job
+/// is not joined immediately (rasterizing of a page cannot be interrupted in the
+/// middle), so the token must outlive the job it has been created for - that is
+/// why it is always held by a shared pointer.
+class PDFOperationCancelToken : public pdf::PDFOperationControl
+{
+public:
+    virtual bool isOperationCancelled() const override { return m_cancelled.load(std::memory_order_acquire); }
+
+    /// Cancels the operation. It can be called from any thread.
+    void cancel() { m_cancelled.store(true, std::memory_order_release); }
+
+private:
+    std::atomic<bool> m_cancelled = { false };
+};
+
 class PDFCreateBitonalDocumentPreviewWidget : public QWidget
 {
     Q_OBJECT
@@ -69,9 +90,14 @@ public:
     void setCaption(QString caption);
     void setImage(QImage image);
 
+    /// Turns on the indication, that the displayed image is being generated in the
+    /// background. The indication is displayed only until a non-null image is set.
+    void setGenerating(bool generating);
+
 private:
     QString m_caption;
     QImage m_image;
+    bool m_generating = false;
 };
 
 class PDFCreateBitonalDocumentDialog : public QDialog
@@ -101,9 +127,20 @@ public:
 
     struct ConversionItemInfo
     {
+        /// State of the thumbnail of the item. All items are created at once, so the
+        /// user sees the whole list immediately, but their thumbnails are generated
+        /// in the background, one by one.
+        enum class ThumbnailState
+        {
+            Pending,    ///< Thumbnail is being generated
+            Ready,      ///< Thumbnail has been generated
+            Failed      ///< Image of the item cannot be decoded or rendered
+        };
+
         pdf::PDFObjectReference imageReference;  ///< Valid, when images are converted
         pdf::PDFInteger pageIndex = -1;          ///< Valid, when pages are converted
         bool conversionEnabled = true;
+        ThumbnailState thumbnailState = ThumbnailState::Pending;
     };
 
     /// Immutable snapshot of all inputs of the conversion. It is created in the GUI
@@ -118,7 +155,97 @@ public:
         std::vector<ConversionItemInfo> items;
     };
 
+protected:
+    virtual void done(int r) override;
+
+signals:
+    /// Emitted by a worker thread, when a thumbnail of an item is generated. The
+    /// connection is a queued one, so the thumbnail is delivered into the GUI thread.
+    /// \param generation Generation of the thumbnail job, which created the thumbnail
+    /// \param itemIndex Index of the item in the list
+    /// \param thumbnail Thumbnail image (a null image means a failure)
+    void thumbnailReady(int generation, int itemIndex, QImage thumbnail);
+
+    /// Emitted by a worker thread, when the preview images are generated. The
+    /// connection is a queued one, so they are delivered into the GUI thread.
+    /// \param generation Generation of the preview job, which created the images
+    /// \param originalImage Decoded image or rasterized page
+    /// \param bitonalImage Result of the conversion of the original image
+    void previewReady(int generation, QImage originalImage, QImage bitonalImage);
+
 private:
+    /// Background job of the dialog. Only the result of the newest run of the job is
+    /// interesting - when a new run is started, the previous one is cancelled and its
+    /// results are dropped. A cancelled worker is not joined at that moment, because
+    /// it can be in the middle of an operation, which cannot be interrupted, so the
+    /// futures of all unfinished runs are kept and joined before the dialog dies.
+    struct AsyncJob
+    {
+        /// Number of the newest run. Every result is tagged with the generation of the
+        /// run, which produced it, so the results of the superseded runs are recognized
+        /// and thrown away.
+        int generation = 0;
+
+        /// True, when the newest run has not finished yet
+        bool isRunning = false;
+
+        /// Cancellation token of the newest run
+        std::shared_ptr<PDFOperationCancelToken> cancelToken;
+
+        /// Futures of all runs, which have not finished yet
+        std::vector<QFuture<void>> futures;
+
+        /// Watcher of the newest run
+        std::optional<QFutureWatcher<void>> futureWatcher;
+    };
+
+    /// Immutable snapshot of the inputs of the thumbnail generation
+    struct ThumbnailRequest
+    {
+        ConversionSource conversionSource = ConversionSource::Images;
+        QSize thumbnailSize;
+        std::vector<pdf::PDFObjectReference> imageReferences;  ///< Valid, when images are converted
+        std::vector<pdf::PDFInteger> pageIndices;              ///< Valid, when pages are converted
+    };
+
+    /// Immutable snapshot of the inputs of the preview
+    struct PreviewRequest
+    {
+        ConversionSource conversionSource = ConversionSource::Images;
+        ConversionItemInfo item;
+        pdf::PDFImageConversion::ConversionMethod conversionMethod = pdf::PDFImageConversion::ConversionMethod::Automatic;
+        int manualThreshold = 128;
+        int dpiResolution = 300;
+
+        /// Rasterized page, when it has already been rendered for the previous preview.
+        /// It is passed to the worker, so changing the conversion method does not
+        /// rasterize the same page again.
+        QImage cachedPageImage;
+    };
+
+    /// Starts a new run of the job in a worker thread. The previous run is cancelled
+    /// first. The worker function is called with the generation of its run and with
+    /// the cancellation token of the run, which it must poll.
+    /// \param job Job to be started
+    /// \param worker Worker function executed in the worker thread
+    void startJob(AsyncJob& job, std::function<void(int, const pdf::PDFOperationControl*)> worker);
+
+    /// Cancels the currently running instance of the job. The worker is not joined,
+    /// it can still be finishing an operation, which cannot be interrupted. Results
+    /// of the cancelled run are dropped, because the generation of the job is
+    /// increased and they do not match it anymore.
+    /// \param job Job to be cancelled
+    void cancelJob(AsyncJob& job);
+
+    /// Cancels the job and waits until all its workers have finished. It must be
+    /// called before anything, which the workers use, is destroyed.
+    /// \param job Job to be finished
+    void finishJob(AsyncJob& job);
+
+    /// Handles the end of a run of the job. Runs, which have been superseded, are
+    /// ignored - the job is running until its newest run finishes.
+    void onJobFinished(AsyncJob& job, int generation);
+
     /// Creates the bitonal document. This function is executed in the worker thread,
     /// it must not touch the state of the dialog. Returns true, if at least one item
     /// has been converted and the resulting document is valid.
@@ -131,9 +258,34 @@ private:
     void onConversionSourceChanged();
     void onConversionSettingsChanged();
     void onConversionEnabledChanged();
+
+    /// Creates the items of the list. Items are created for all images / pages at
+    /// once, so the user sees the whole list immediately, and their thumbnails are
+    /// then generated in the background.
     void loadItems();
-    void loadImageItems(QSize thumbnailSize);
-    void loadPageItems(QSize thumbnailSize);
+
+    void createImageItems(QSize itemSize);
+    void createPageItems(QSize itemSize);
+
+    /// Starts the generation of the thumbnails of all items in the background
+    /// \param thumbnailSize Maximal size of the generated thumbnails
+    void startThumbnailGeneration(QSize thumbnailSize);
+
+    /// Generates the thumbnails of the items. This function is executed in a worker
+    /// thread, it must not touch the state of the dialog - each thumbnail is delivered
+    /// into the GUI thread using the signal \p thumbnailReady.
+    void generateThumbnails(int generation, const ThumbnailRequest& request, const pdf::PDFOperationControl* operationControl);
+
+    /// Generates the preview images. This function is executed in a worker thread,
+    /// it must not touch the state of the dialog - the images are delivered into the
+    /// GUI thread using the signal \p previewReady.
+    void generatePreview(int generation, const PreviewRequest& request, const pdf::PDFOperationControl* operationControl);
+
+    void onThumbnailReady(int generation, int itemIndex, QImage thumbnail);
+    void onPreviewReady(int generation, QImage originalImage, QImage bitonalImage);
+
+    /// Returns the text displayed below the thumbnail of an item
+    QString getItemCaption(int itemIndex) const;
 
     /// Throws away the document created by the previous run, because it has been
     /// created with different settings than which are displayed now. Without this,
@@ -165,18 +317,23 @@ private:
     /// Rasterizes the given pages and calls the processor for each rendered page
     /// image. Images are composited onto the white background and they are returned
     /// in the coordinate system of the page, i.e. the page rotation is not applied
-    /// to them. The processor can be called from multiple threads simultaneously.
+    /// to them. The processor can be called from multiple threads simultaneously and
+    /// it is not called at all for the pages, which have been skipped because the
+    /// operation has been cancelled.
     /// \param pageIndices Indices of the rendered pages
     /// \param pageSizeGetter Functor returning the size of the rendered page image
     /// \param pageImageProcessor Functor processing the rendered page image
+    /// \param operationControl Operation control (can be nullptr)
     void renderPages(const std::vector<pdf::PDFInteger>& pageIndices,
                      const std::function<QSize(const pdf::PDFPage*)>& pageSizeGetter,
-                     const std::function<void(pdf::PDFInteger, QImage)>& pageImageProcessor) const;
+                     const std::function<void(pdf::PDFInteger, QImage)>& pageImageProcessor,
+                     const pdf::PDFOperationControl* operationControl) const;
 
     /// Rasterizes a single page into an image of a given size. \sa renderPages
     /// \param pageIndex Index of the rendered page
     /// \param size Size of the target image
-    QImage renderPage(pdf::PDFInteger pageIndex, QSize size) const;
+    /// \param operationControl Operation control (can be nullptr)
+    QImage renderPage(pdf::PDFInteger pageIndex, QSize size, const pdf::PDFOperationControl* operationControl) const;
 
     /// Returns size of the rasterized page image for a given resolution
     /// \param page Page
@@ -196,6 +353,13 @@ private:
     bool isStencilMask(pdf::PDFObjectReference reference) const;
 
     std::optional<pdf::PDFImage> getImageFromReference(pdf::PDFObjectReference reference) const;
+
+    /// Decodes an image of the document into a QImage. Returns a null image, when the
+    /// image cannot be decoded. This function can be called from a worker thread - it
+    /// reads the document only, which is immutable and safe for concurrent reading.
+    /// \param reference Reference to the image object
+    /// \param operationControl Operation control (can be nullptr)
+    QImage getDecodedImage(pdf::PDFObjectReference reference, const pdf::PDFOperationControl* operationControl) const;
 
     Ui::PDFCreateBitonalDocumentDialog* ui;
     const pdf::PDFDocument* m_document;
@@ -224,6 +388,18 @@ private:
     /// Conversion source, which the list of items and the preview are showing. It is
     /// used by the GUI thread only, the worker thread gets its own copy in the settings.
     ConversionSource m_conversionSource = ConversionSource::Images;
+
+    /// Job generating the thumbnails of the items in the list
+    AsyncJob m_thumbnailJob;
+
+    /// Job generating the preview of the selected item
+    AsyncJob m_previewJob;
+
+    /// Page and resolution, which the currently running preview job is rendering. Both
+    /// are used by the GUI thread only - they identify the rasterized page returned by
+    /// the job, so it can be stored into the cache.
+    pdf::PDFInteger m_previewPageIndex = -1;
+    int m_previewDpiResolution = 0;
 
     /// Cache of the rasterized page used in the preview, so changing the conversion
     /// settings does not rasterize the same page again and again
