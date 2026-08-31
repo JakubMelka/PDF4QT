@@ -41,6 +41,11 @@ class ImageOptimizerTest : public QObject
 private slots:
     void test_bitonal_conversion_otsu();
     void test_bitonal_conversion_manual();
+    void test_bitonal_conversion_color_space_of_methods();
+    void test_bitonal_conversion_composites_alpha();
+    void test_bitonal_conversion_alpha_mask();
+    void test_bitonal_conversion_alpha_mode_ignore();
+    void test_bitonal_conversion_alpha_adaptive_and_dither();
     void test_image_analysis_classification();
     void test_optimizer_keeps_original_if_larger();
     void test_optimizer_skips_disabled_override();
@@ -53,6 +58,7 @@ private:
     static QImage createTextScanImage(int size);
     static QImage createPhotoImage(int size);
     static QImage createAlphaImage(int size);
+    static QImage createMaskedForegroundImage(int size);
     static QImage extractAlphaMask(const QImage& image);
     static pdf::PDFDocument createDocumentWithImage(const QImage& image,
                                                     bool addSoftMask,
@@ -137,6 +143,32 @@ QImage ImageOptimizerTest::createAlphaImage(int size)
         {
             const int alpha = static_cast<int>((255.0 * x) / qMax(1, size - 1));
             image.setPixel(x, y, qRgba(30, 120, 200, alpha));
+        }
+    }
+
+    return image;
+}
+
+QImage ImageOptimizerTest::createMaskedForegroundImage(int size)
+{
+    // Foreground layer of a two-layer (MRC) scan. Color values of the transparent
+    // pixels are just a leftover of the lossy compression - they are almost black,
+    // but they are never painted. Only the opaque right half is a real content.
+    QImage image(size, size, QImage::Format_ARGB32);
+
+    for (int y = 0; y < size; ++y)
+    {
+        for (int x = 0; x < size; ++x)
+        {
+            if (x < size / 2)
+            {
+                image.setPixel(x, y, qRgba(10, 10, 10, 0));
+            }
+            else
+            {
+                const bool isBlack = y >= size / 2;
+                image.setPixel(x, y, isBlack ? qRgba(0, 0, 0, 255) : qRgba(255, 255, 255, 255));
+            }
         }
     }
 
@@ -267,6 +299,190 @@ void ImageOptimizerTest::test_bitonal_conversion_manual()
     QCOMPARE(result.format(), QImage::Format_Mono);
     QCOMPARE(result.pixelIndex(0, 0), 0u);
     QCOMPARE(result.pixelIndex(1, 0), 1u);
+}
+
+void ImageOptimizerTest::test_bitonal_conversion_color_space_of_methods()
+{
+    // Global thresholding works with the HSL lightness, while adaptive thresholding
+    // and dithering work with the grayscale (luminance) values. For saturated colors
+    // these two representations differ substantially - pure red has the lightness 128
+    // but the luminance 87, pure blue has the lightness 128 but the luminance 39. This
+    // test pins down, which representation each of the methods uses, so the conversion
+    // of opaque color images cannot silently change.
+    QImage image(4, 1, QImage::Format_ARGB32);
+    image.setPixel(0, 0, qRgb(255, 0, 0));
+    image.setPixel(1, 0, qRgb(255, 0, 0));
+    image.setPixel(2, 0, qRgb(0, 0, 255));
+    image.setPixel(3, 0, qRgb(0, 0, 255));
+
+    {
+        // Lightness of both colors is 128, so no pixel is below the threshold
+        pdf::PDFImageConversion conversion;
+        conversion.setImage(image);
+        conversion.setConversionMethod(pdf::PDFImageConversion::ConversionMethod::Manual);
+        conversion.setThreshold(128);
+
+        QVERIFY(conversion.convert());
+
+        QImage result = conversion.getConvertedImage();
+        QCOMPARE(result.format(), QImage::Format_Mono);
+
+        for (int x = 0; x < image.width(); ++x)
+        {
+            QCOMPARE(result.pixelIndex(x, 0), 1);
+        }
+    }
+
+    {
+        // In the grayscale representation the blue pixels are darker than the local
+        // average of the whole image, while the red ones are brighter
+        pdf::PDFImageConversion conversion;
+        conversion.setImage(image);
+        conversion.setConversionMethod(pdf::PDFImageConversion::ConversionMethod::Adaptive);
+
+        QVERIFY(conversion.convert());
+
+        QImage result = conversion.getConvertedImage();
+        QCOMPARE(result.format(), QImage::Format_Mono);
+        QCOMPARE(result.pixelIndex(0, 0), 1);
+        QCOMPARE(result.pixelIndex(1, 0), 1);
+        QCOMPARE(result.pixelIndex(2, 0), 0);
+        QCOMPARE(result.pixelIndex(3, 0), 0);
+    }
+
+    {
+        // The first pixel does not receive any diffused error yet, so its result is
+        // given purely by the threshold - the luminance of the red pixel is below it,
+        // although its lightness would be above it
+        pdf::PDFImageConversion conversion;
+        conversion.setImage(image);
+        conversion.setConversionMethod(pdf::PDFImageConversion::ConversionMethod::Dither);
+        conversion.setThreshold(100);
+
+        QVERIFY(conversion.convert());
+
+        QImage result = conversion.getConvertedImage();
+        QCOMPARE(result.format(), QImage::Format_Mono);
+        QCOMPARE(result.pixelIndex(0, 0), 0);
+    }
+}
+
+void ImageOptimizerTest::test_bitonal_conversion_composites_alpha()
+{
+    constexpr int size = 8;
+    QImage image = createMaskedForegroundImage(size);
+
+    pdf::PDFImageConversion conversion;
+    conversion.setImage(image);
+    conversion.setConversionMethod(pdf::PDFImageConversion::ConversionMethod::Automatic);
+    conversion.setAlphaMode(pdf::PDFImageConversion::AlphaMode::Composite);
+
+    QVERIFY(conversion.convert());
+
+    QImage result = conversion.getConvertedImage();
+    QCOMPARE(result.format(), QImage::Format_Mono);
+    QCOMPARE(result.size(), image.size());
+
+    // Transparent pixels are not painted at all - they must become white, even
+    // though their color values are almost black.
+    for (int y = 0; y < size; ++y)
+    {
+        for (int x = 0; x < size / 2; ++x)
+        {
+            QCOMPARE(result.pixelIndex(x, y), 1);
+        }
+    }
+
+    // Opaque pixels are thresholded normally
+    QCOMPARE(result.pixelIndex(size / 2, 0), 1);
+    QCOMPARE(result.pixelIndex(size - 1, size - 1), 0);
+}
+
+void ImageOptimizerTest::test_bitonal_conversion_alpha_mask()
+{
+    constexpr int size = 8;
+    QImage image = createMaskedForegroundImage(size);
+
+    pdf::PDFImageConversion conversion;
+    conversion.setImage(image);
+    conversion.setConversionMethod(pdf::PDFImageConversion::ConversionMethod::Automatic);
+
+    QVERIFY(conversion.convert());
+    QVERIFY(conversion.hasConvertedAlphaMask());
+
+    QImage mask = conversion.getConvertedAlphaMask();
+    QCOMPARE(mask.format(), QImage::Format_Mono);
+    QCOMPARE(mask.size(), image.size());
+
+    // Set sample of the mask means an opaque pixel
+    QCOMPARE(mask.pixelIndex(0, 0), 0);
+    QCOMPARE(mask.pixelIndex(size / 2 - 1, size - 1), 0);
+    QCOMPARE(mask.pixelIndex(size / 2, 0), 1);
+    QCOMPARE(mask.pixelIndex(size - 1, size - 1), 1);
+
+    // Fully opaque image does not produce any mask
+    QImage opaqueImage(4, 4, QImage::Format_RGB32);
+    opaqueImage.fill(Qt::white);
+
+    conversion.setImage(opaqueImage);
+    QVERIFY(conversion.convert());
+    QVERIFY(!conversion.hasConvertedAlphaMask());
+    QVERIFY(conversion.getConvertedAlphaMask().isNull());
+}
+
+void ImageOptimizerTest::test_bitonal_conversion_alpha_mode_ignore()
+{
+    constexpr int size = 8;
+    QImage image = createMaskedForegroundImage(size);
+
+    pdf::PDFImageConversion conversion;
+    conversion.setImage(image);
+    conversion.setConversionMethod(pdf::PDFImageConversion::ConversionMethod::Manual);
+    conversion.setThreshold(128);
+    conversion.setAlphaMode(pdf::PDFImageConversion::AlphaMode::Ignore);
+
+    QVERIFY(conversion.convert());
+
+    QImage result = conversion.getConvertedImage();
+    QCOMPARE(result.format(), QImage::Format_Mono);
+
+    // Alpha channel is ignored, so the dark color values of the transparent
+    // pixels are thresholded as if they were a real content.
+    QCOMPARE(result.pixelIndex(0, 0), 0);
+    QVERIFY(!conversion.hasConvertedAlphaMask());
+}
+
+void ImageOptimizerTest::test_bitonal_conversion_alpha_adaptive_and_dither()
+{
+    constexpr int size = 8;
+    QImage image = createMaskedForegroundImage(size);
+
+    const pdf::PDFImageConversion::ConversionMethod methods[] =
+    {
+        pdf::PDFImageConversion::ConversionMethod::Adaptive,
+        pdf::PDFImageConversion::ConversionMethod::Dither
+    };
+
+    for (pdf::PDFImageConversion::ConversionMethod method : methods)
+    {
+        pdf::PDFImageConversion conversion;
+        conversion.setImage(image);
+        conversion.setConversionMethod(method);
+
+        QVERIFY(conversion.convert());
+
+        QImage result = conversion.getConvertedImage();
+        QCOMPARE(result.format(), QImage::Format_Mono);
+        QCOMPARE(result.size(), image.size());
+
+        for (int y = 0; y < size; ++y)
+        {
+            for (int x = 0; x < size / 2; ++x)
+            {
+                QCOMPARE(result.pixelIndex(x, y), 1);
+            }
+        }
+    }
 }
 
 void ImageOptimizerTest::test_image_analysis_classification()

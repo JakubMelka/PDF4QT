@@ -1573,7 +1573,7 @@ void PDFProgramController::onActionPageGeometryTriggered()
 void PDFProgramController::onActionCreateBitonalDocumentTriggered()
 {
     auto cms = m_CMSManager->getCurrentCMS();
-    PDFCreateBitonalDocumentDialog dialog(m_pdfDocument.data(), cms.data(), m_progress, m_mainWindow);
+    PDFCreateBitonalDocumentDialog dialog(m_pdfDocument.data(), m_pdfWidget->getDrawWidgetProxy(), cms.data(), m_progress, m_mainWindow);
 
     if (dialog.exec() == QDialog::Accepted)
     {
