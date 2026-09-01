@@ -33,7 +33,6 @@
 
 #include <QDialog>
 #include <QFuture>
-#include <QSvgRenderer>
 #include <QFutureWatcher>
 #include <QStyledItemDelegate>
 
@@ -137,9 +136,34 @@ public:
             Failed      ///< Image of the item cannot be decoded or rendered
         };
 
+        /// Way, in which the item is converted. Scanned documents contain pages and
+        /// images, for which the conversion algorithm is not the right answer - a color
+        /// cover is better left as it is, a blank or a completely dark scan carries no
+        /// information at all and is better replaced by a solid fill.
+        enum class Mode
+        {
+            Algorithm,  ///< Converted using the selected conversion method
+            Original,   ///< Left as it is, the item is not touched at all
+            FillBlack,  ///< Replaced by a black area
+            FillWhite   ///< Replaced by a white area
+        };
+
+        /// Returns true, if the item is going to be replaced in the converted
+        /// document. Items, which are left as they are, are not touched at all.
+        bool isContentReplaced() const { return mode != Mode::Original; }
+
+        /// Returns true, if the item is replaced by a solid fill
+        bool isFilled() const { return mode == Mode::FillBlack || mode == Mode::FillWhite; }
+
+        /// Returns true, if the mode can be used for this item. An item, whose image
+        /// could not be decoded or rendered, cannot be converted by the algorithm, but
+        /// it still can be replaced by a solid fill.
+        /// \param testedMode Mode to be tested
+        bool isModeAvailable(Mode testedMode) const { return testedMode != Mode::Algorithm || thumbnailState != ThumbnailState::Failed; }
+
         pdf::PDFObjectReference imageReference;  ///< Valid, when images are converted
         pdf::PDFInteger pageIndex = -1;          ///< Valid, when pages are converted
-        bool conversionEnabled = true;
+        Mode mode = Mode::Algorithm;
         ThumbnailState thumbnailState = ThumbnailState::Pending;
     };
 
@@ -257,7 +281,18 @@ private:
     void onPerformFinished();
     void onConversionSourceChanged();
     void onConversionSettingsChanged();
-    void onConversionEnabledChanged();
+    void onConversionModeChanged();
+
+    /// Displays the menu, which sets the conversion mode of the selected items. When
+    /// nothing is selected, the menu is applied to all items in the list.
+    /// \param pos Position of the request in the coordinates of the viewport
+    void onItemListContextMenuRequested(const QPoint& pos);
+
+    /// Sets the conversion mode to the selected items, or to all items, when nothing
+    /// is selected. Items, whose thumbnail could not be generated, cannot be converted
+    /// by the algorithm, so the algorithm mode is not applied to them.
+    /// \param mode Mode to be set
+    void setConversionModeToItems(ConversionItemInfo::Mode mode);
 
     /// Creates the items of the list. Items are created for all images / pages at
     /// once, so the user sees the whole list immediately, and their thumbnails are
@@ -313,6 +348,22 @@ private:
     /// Creates an image object (1 bit per component, DeviceGray) from a bitonal image
     /// \param image Bitonal image
     static pdf::PDFObject createBitonalImageObject(const QImage& image);
+
+    /// Creates the bitonal image, which a filled item is replaced by. A single sample
+    /// is enough when the image has no soft mask, because the image is stretched over
+    /// the whole area of the replaced item. When a soft mask is attached, the image
+    /// must have the size of the mask - the soft mask is resampled to the dimensions
+    /// of the image it belongs to, so a single sample would destroy it.
+    /// \param size Size of the image
+    /// \param isBlack True for the black fill, false for the white one
+    static QImage createFillImage(QSize size, bool isBlack);
+
+    /// Creates the image, which shows in the preview, how a filled item is going to
+    /// look in the document. Transparent parts of the source image are not filled -
+    /// they stay transparent and they are displayed as a blank paper.
+    /// \param image Source image
+    /// \param isBlack True for the black fill, false for the white one
+    static QImage createFillPreviewImage(const QImage& image, bool isBlack);
 
     /// Rasterizes the given pages and calls the processor for each rendered page
     /// image. Images are composited onto the white background and they are returned
@@ -427,18 +478,38 @@ public:
                            const QModelIndex& index) override;
 
 signals:
-    /// Emitted, when the user turns the conversion of an item on or off. The result
-    /// of the previous run does not match the new selection anymore.
-    void conversionEnabledChanged();
+    /// Emitted, when the user changes the conversion mode of an item. The result of
+    /// the previous run does not match the new settings anymore.
+    void conversionModeChanged();
 
 private:
+    using Mode = PDFCreateBitonalDocumentDialog::ConversionItemInfo::Mode;
+
     static constexpr QSize s_iconSize = QSize(24, 24);
 
-    QRect getMarkRect(const QStyleOptionViewItem& option) const;
+    /// Modes offered by the marks of an item, in the order in which they are painted
+    static constexpr Mode s_modes[] = { Mode::Algorithm, Mode::Original, Mode::FillBlack, Mode::FillWhite };
+
+    /// Returns the rectangle of a single mark of an item
+    /// \param option Style option of the item
+    /// \param modeIndex Index of the mark in \p s_modes
+    QRect getMarkRect(const QStyleOptionViewItem& option, size_t modeIndex) const;
+
+    /// Returns the rectangle covering all marks of an item
+    QRect getMarksRect(const QStyleOptionViewItem& option) const;
+
+    /// Paints a single mark of an item
+    /// \param painter Painter
+    /// \param rect Rectangle of the mark
+    /// \param mode Mode, which the mark represents
+    /// \param isActive True, when the item is being converted using this mode
+    /// \param isEnabled True, when the mode can be selected by the user
+    void paintMark(QPainter* painter, QRect rect, Mode mode, bool isActive, bool isEnabled) const;
+
+    /// Returns the tool tip of a mark
+    QString getModeToolTip(Mode mode) const;
 
     std::vector<PDFCreateBitonalDocumentDialog::ConversionItemInfo>* m_conversionItemInfos;
-    mutable QSvgRenderer m_yesRenderer;
-    mutable QSvgRenderer m_noRenderer;
 };
 
 }   // namespace pdfviewer

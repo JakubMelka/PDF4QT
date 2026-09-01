@@ -43,14 +43,15 @@
 #include <QElapsedTimer>
 #include <QtConcurrent/QtConcurrent>
 #include <QListWidget>
+#include <QMenu>
 #include <QSignalBlocker>
 #include <QStyledItemDelegate>
 #include <QPainter>
 #include <QScopeGuard>
-#include <QtSvg/QSvgRenderer>
 #include <QMouseEvent>
 #include <QToolTip>
 
+#include <iterator>
 #include <map>
 #include <numeric>
 
@@ -267,6 +268,14 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     connect(ui->conversionSourceComboBox, qOverload<int>(&QComboBox::currentIndexChanged), this, &PDFCreateBitonalDocumentDialog::onConversionSourceChanged);
     connect(ui->conversionMethodComboBox, qOverload<int>(&QComboBox::currentIndexChanged), this, &PDFCreateBitonalDocumentDialog::onConversionSettingsChanged);
     connect(ui->imageListWidget, &QListWidget::currentItemChanged, this, &PDFCreateBitonalDocumentDialog::updatePreview);
+
+    // Conversion mode can be set to many items at once using the context menu, but the
+    // preview still follows the current item, which exists in the extended selection
+    // as well. Clicking a mark is consumed by the delegate, so it does not change
+    // the selection.
+    ui->imageListWidget->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    ui->imageListWidget->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(ui->imageListWidget, &QListWidget::customContextMenuRequested, this, &PDFCreateBitonalDocumentDialog::onItemListContextMenuRequested);
     connect(ui->thresholdEditBox, qOverload<int>(&QSpinBox::valueChanged), this, &PDFCreateBitonalDocumentDialog::onConversionSettingsChanged);
     connect(ui->resolutionEditBox, qOverload<int>(&QSpinBox::valueChanged), this, &PDFCreateBitonalDocumentDialog::onConversionSettingsChanged);
 
@@ -281,7 +290,7 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     pdf::PDFWidgetUtils::style(this);
 
     ImagePreviewDelegate* delegate = new ImagePreviewDelegate(&m_itemsToBeConverted, this);
-    connect(delegate, &ImagePreviewDelegate::conversionEnabledChanged, this, &PDFCreateBitonalDocumentDialog::onConversionEnabledChanged);
+    connect(delegate, &ImagePreviewDelegate::conversionModeChanged, this, &PDFCreateBitonalDocumentDialog::onConversionModeChanged);
     ui->imageListWidget->setItemDelegate(delegate);
 
     setGeometry(parent->geometry());
@@ -467,7 +476,7 @@ bool PDFCreateBitonalDocumentDialog::createBitonalDocument(const ConversionSetti
 bool PDFCreateBitonalDocumentDialog::createBitonalDocumentFromImages(pdf::PDFDocumentBuilder& builder, const ConversionSettings& settings)
 {
     std::vector<ConversionItemInfo> itemsToBeConverted;
-    std::copy_if(settings.items.begin(), settings.items.end(), std::back_inserter(itemsToBeConverted), [](const auto& item) { return item.conversionEnabled; });
+    std::copy_if(settings.items.begin(), settings.items.end(), std::back_inserter(itemsToBeConverted), [](const auto& item) { return item.isContentReplaced(); });
 
     // Do we have something to be converted?
     if (itemsToBeConverted.empty())
@@ -497,7 +506,21 @@ bool PDFCreateBitonalDocumentDialog::createBitonalDocumentFromImages(pdf::PDFDoc
         }
 
         QImage alphaMask;
-        QImage bitonalImage = convertImageToBitonal(image, settings.conversionMethod, settings.manualThreshold, &alphaMask);
+        QImage bitonalImage;
+
+        if (item.isFilled())
+        {
+            // Only the color samples are replaced by the solid fill - the transparency
+            // of the original image is preserved. Filling a masked text layer of a
+            // two-layer scan without its mask would cover the whole page.
+            alphaMask = pdf::PDFImageConversion::createAlphaMask(image);
+            bitonalImage = createFillImage(alphaMask.isNull() ? QSize(1, 1) : alphaMask.size(), item.mode == ConversionItemInfo::Mode::FillBlack);
+        }
+        else
+        {
+            bitonalImage = convertImageToBitonal(image, settings.conversionMethod, settings.manualThreshold, &alphaMask);
+        }
+
         pdf::PDFObject imageObject = createBitonalImageObject(bitonalImage);
 
         if (!imageObject.isNull())
@@ -545,13 +568,24 @@ bool PDFCreateBitonalDocumentDialog::createBitonalDocumentFromImages(pdf::PDFDoc
 
 bool PDFCreateBitonalDocumentDialog::createBitonalDocumentFromPages(pdf::PDFDocumentBuilder& builder, const ConversionSettings& settings)
 {
+    // Pages, whose content is replaced, and the mode of each of them. Only the pages
+    // converted by the algorithm have to be rasterized - a filled page is built from
+    // a single sample, so it costs nothing.
     std::vector<pdf::PDFInteger> pageIndices;
+    std::vector<pdf::PDFInteger> rasterizedPageIndices;
+    std::map<pdf::PDFInteger, ConversionItemInfo::Mode> pageModes;
 
     for (const ConversionItemInfo& item : settings.items)
     {
-        if (item.conversionEnabled && item.pageIndex >= 0)
+        if (item.isContentReplaced() && item.pageIndex >= 0)
         {
             pageIndices.push_back(item.pageIndex);
+            pageModes[item.pageIndex] = item.mode;
+
+            if (item.mode == ConversionItemInfo::Mode::Algorithm)
+            {
+                rasterizedPageIndices.push_back(item.pageIndex);
+            }
         }
     }
 
@@ -564,7 +598,11 @@ bool PDFCreateBitonalDocumentDialog::createBitonalDocumentFromPages(pdf::PDFDocu
     pdf::ProgressStartupInfo info;
     info.showDialog = true;
     info.text = tr("Converting pages...");
-    m_progress->start(pageIndices.size(), std::move(info));
+
+    // Rasterizing is the only expensive part of the conversion, so the progress counts
+    // the rasterized pages. At least one step is needed even when all pages are only
+    // filled, so the progress does not divide by a zero page count.
+    m_progress->start(qMax<size_t>(rasterizedPageIndices.size(), 1), std::move(info));
 
     // The progress must be finished even when an exception escapes from this function
     auto progressGuard = qScopeGuard([this]() { m_progress->finish(); });
@@ -586,13 +624,25 @@ bool PDFCreateBitonalDocumentDialog::createBitonalDocumentFromPages(pdf::PDFDocu
         m_progress->step();
     };
 
-    renderPages(pageIndices, pageSizeGetter, pageImageProcessor, nullptr);
+    renderPages(rasterizedPageIndices, pageSizeGetter, pageImageProcessor, nullptr);
 
     const bool isWholeDocumentConverted = pageIndices.size() == catalog->getPageCount();
 
     for (const pdf::PDFInteger pageIndex : pageIndices)
     {
-        pdf::PDFObject& imageObject = imageObjects[size_t(pageIndex)];
+        const ConversionItemInfo::Mode mode = pageModes.at(pageIndex);
+        pdf::PDFObject imageObject;
+
+        if (mode == ConversionItemInfo::Mode::Algorithm)
+        {
+            imageObject = std::move(imageObjects[size_t(pageIndex)]);
+        }
+        else
+        {
+            // Page is covered by a solid area, which does not need any rasterization
+            imageObject = createBitonalImageObject(createFillImage(QSize(1, 1), mode == ConversionItemInfo::Mode::FillBlack));
+        }
+
         const pdf::PDFPage* page = catalog->getPage(size_t(pageIndex));
 
         if (imageObject.isNull() || !page)
@@ -733,6 +783,41 @@ pdf::PDFObject PDFCreateBitonalDocumentDialog::createBitonalImageObject(const QI
     {
         return pdf::PDFObject();
     }
+}
+
+QImage PDFCreateBitonalDocumentDialog::createFillImage(QSize size, bool isBlack)
+{
+    QImage image(size.expandedTo(QSize(1, 1)), QImage::Format_Mono);
+
+    // The default color table of the format Format_Mono maps the sample value 0
+    // to the black color and the sample value 1 to the white color.
+    image.fill(isBlack ? 0 : 1);
+
+    return image;
+}
+
+QImage PDFCreateBitonalDocumentDialog::createFillPreviewImage(const QImage& image, bool isBlack)
+{
+    if (image.isNull())
+    {
+        return QImage();
+    }
+
+    QImage alphaMask = pdf::PDFImageConversion::createAlphaMask(image);
+
+    if (alphaMask.isNull() || !isBlack)
+    {
+        // The image is fully opaque, so the whole area is filled. The white fill looks
+        // the same in both cases - a transparent area is displayed as a blank white
+        // paper, which is exactly the color of the fill.
+        return createFillImage(image.size(), isBlack);
+    }
+
+    // In the mask, a set sample means an opaque pixel, which the format Format_Mono
+    // displays as white. The filled image is the other way round - the opaque part
+    // becomes black and the transparent part stays a blank white paper.
+    alphaMask.invertPixels();
+    return alphaMask;
 }
 
 void PDFCreateBitonalDocumentDialog::renderPages(const std::vector<pdf::PDFInteger>& pageIndices,
@@ -937,10 +1022,79 @@ void PDFCreateBitonalDocumentDialog::onConversionSettingsChanged()
     updatePreview();
 }
 
-void PDFCreateBitonalDocumentDialog::onConversionEnabledChanged()
+void PDFCreateBitonalDocumentDialog::onConversionModeChanged()
 {
     invalidateResult();
     ui->imageListWidget->viewport()->update();
+
+    // The right pane shows, what the mode does with the current item
+    updatePreview();
+}
+
+void PDFCreateBitonalDocumentDialog::onItemListContextMenuRequested(const QPoint& pos)
+{
+    if (m_itemsToBeConverted.empty() || m_conversionInProgress)
+    {
+        return;
+    }
+
+    const qsizetype selectedCount = ui->imageListWidget->selectionModel()->selectedIndexes().count();
+
+    QMenu menu(ui->imageListWidget);
+    menu.addSection(selectedCount > 0 ? tr("Selected items (%1)").arg(selectedCount) : tr("All items"));
+
+    auto addModeAction = [this, &menu](const QString& text, ConversionItemInfo::Mode mode)
+    {
+        QAction* action = menu.addAction(text);
+        connect(action, &QAction::triggered, this, [this, mode]() { setConversionModeToItems(mode); });
+    };
+
+    addModeAction(tr("Convert using the selected method"), ConversionItemInfo::Mode::Algorithm);
+    addModeAction(tr("Leave unchanged"), ConversionItemInfo::Mode::Original);
+    addModeAction(tr("Fill with black"), ConversionItemInfo::Mode::FillBlack);
+    addModeAction(tr("Fill with white"), ConversionItemInfo::Mode::FillWhite);
+
+    menu.exec(ui->imageListWidget->mapToGlobal(pos));
+}
+
+void PDFCreateBitonalDocumentDialog::setConversionModeToItems(ConversionItemInfo::Mode mode)
+{
+    std::vector<int> rows;
+
+    for (const QModelIndex& index : ui->imageListWidget->selectionModel()->selectedIndexes())
+    {
+        rows.push_back(index.row());
+    }
+
+    if (rows.empty())
+    {
+        // Nothing is selected, so the mode is applied to the whole document
+        rows.resize(m_itemsToBeConverted.size());
+        std::iota(rows.begin(), rows.end(), 0);
+    }
+
+    bool isChanged = false;
+
+    for (const int row : rows)
+    {
+        if (row < 0 || row >= int(m_itemsToBeConverted.size()))
+        {
+            continue;
+        }
+
+        ConversionItemInfo& info = m_itemsToBeConverted[size_t(row)];
+
+        if (info.mode != mode && info.isModeAvailable(mode))
+        {
+            info.mode = mode;
+            isChanged = true;
+        }
+    }
+
+    if (isChanged)
+    {
+        onConversionModeChanged();
+    }
 }
 
 void PDFCreateBitonalDocumentDialog::invalidateResult()
@@ -1031,7 +1185,6 @@ void PDFCreateBitonalDocumentDialog::createImageItems(QSize itemSize)
 
         ConversionItemInfo conversionItemInfo;
         conversionItemInfo.imageReference = reference;
-        conversionItemInfo.conversionEnabled = true;
         m_itemsToBeConverted.push_back(conversionItemInfo);
 
         const int itemIndex = int(m_itemsToBeConverted.size());
@@ -1047,7 +1200,6 @@ void PDFCreateBitonalDocumentDialog::createPageItems(QSize itemSize)
     {
         ConversionItemInfo conversionItemInfo;
         conversionItemInfo.pageIndex = pdf::PDFInteger(pageIndex);
-        conversionItemInfo.conversionEnabled = true;
         m_itemsToBeConverted.push_back(conversionItemInfo);
 
         createPendingListItem(ui->imageListWidget, itemSize, tr("Generating..."), tr("Page %1").arg(pageIndex + 1));
@@ -1212,7 +1364,28 @@ void PDFCreateBitonalDocumentDialog::generatePreview(int generation,
         return;
     }
 
-    QImage bitonalImage = convertImageToBitonal(image, request.conversionMethod, request.manualThreshold, nullptr);
+    QImage bitonalImage;
+
+    switch (request.item.mode)
+    {
+        case ConversionItemInfo::Mode::Algorithm:
+            bitonalImage = convertImageToBitonal(image, request.conversionMethod, request.manualThreshold, nullptr);
+            break;
+
+        case ConversionItemInfo::Mode::Original:
+            // Nothing is going to change, so both panes show the same image
+            bitonalImage = image;
+            break;
+
+        case ConversionItemInfo::Mode::FillBlack:
+        case ConversionItemInfo::Mode::FillWhite:
+            bitonalImage = createFillPreviewImage(image, request.item.mode == ConversionItemInfo::Mode::FillBlack);
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
 
     if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
     {
@@ -1248,10 +1421,16 @@ void PDFCreateBitonalDocumentDialog::onThumbnailReady(int generation, int itemIn
 
     if (thumbnail.isNull())
     {
-        // Image cannot be decoded or the page cannot be rendered, so it cannot
-        // be converted either.
         info.thumbnailState = ConversionItemInfo::ThumbnailState::Failed;
-        info.conversionEnabled = false;
+
+        if (info.mode == ConversionItemInfo::Mode::Algorithm)
+        {
+            // The image cannot be decoded or the page cannot be rendered, so the
+            // algorithm has nothing to work with. Replacing the item by a solid
+            // fill still makes sense, so the other modes stay available.
+            info.mode = ConversionItemInfo::Mode::Original;
+        }
+
         item->setText(tr("Not available"));
     }
     else
@@ -1355,6 +1534,7 @@ void PDFCreateBitonalDocumentDialog::updatePreview()
 
     if (!index.isValid() || index.row() < 0 || index.row() >= int(m_itemsToBeConverted.size()))
     {
+        m_rightPreviewWidget->setCaption(tr("BITONAL"));
         m_leftPreviewWidget->setGenerating(false);
         m_rightPreviewWidget->setGenerating(false);
         return;
@@ -1380,6 +1560,33 @@ void PDFCreateBitonalDocumentDialog::updatePreview()
     m_previewPageIndex = request.item.pageIndex;
     m_previewDpiResolution = request.dpiResolution;
 
+    // The right pane does not always show a converted image, so its caption says,
+    // what the selected mode is going to do with the item.
+    auto getRightCaption = [](ConversionItemInfo::Mode mode) -> QString
+    {
+        switch (mode)
+        {
+            case ConversionItemInfo::Mode::Algorithm:
+                return tr("BITONAL");
+
+            case ConversionItemInfo::Mode::Original:
+                return tr("UNCHANGED");
+
+            case ConversionItemInfo::Mode::FillBlack:
+                return tr("FILLED BLACK");
+
+            case ConversionItemInfo::Mode::FillWhite:
+                return tr("FILLED WHITE");
+
+            default:
+                Q_ASSERT(false);
+                break;
+        }
+
+        return QString();
+    };
+
+    m_rightPreviewWidget->setCaption(getRightCaption(request.item.mode));
     m_leftPreviewWidget->setGenerating(true);
     m_rightPreviewWidget->setGenerating(true);
 
@@ -1466,28 +1673,125 @@ ImagePreviewDelegate::ImagePreviewDelegate(std::vector<PDFCreateBitonalDocumentD
     QStyledItemDelegate(parent),
     m_conversionItemInfos(conversionItemInfos)
 {
-    m_yesRenderer.load(QString(":/resources/result-ok.svg"));
-    m_noRenderer.load(QString(":/resources/result-error.svg"));
+
 }
 
 void ImagePreviewDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const
 {
     QStyledItemDelegate::paint(painter, option, index);
 
-    QRect markRect = getMarkRect(option);
-
-    if (index.isValid() && index.row() < int(m_conversionItemInfos->size()))
+    if (!index.isValid() || index.row() >= int(m_conversionItemInfos->size()))
     {
-        const PDFCreateBitonalDocumentDialog::ConversionItemInfo& info = m_conversionItemInfos->at(index.row());
-        if (info.conversionEnabled)
-        {
-            m_yesRenderer.render(painter, markRect);
-        }
-        else
-        {
-            m_noRenderer.render(painter, markRect);
-        }
+        return;
     }
+
+    const PDFCreateBitonalDocumentDialog::ConversionItemInfo& info = m_conversionItemInfos->at(index.row());
+
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
+
+    // Marks are painted over the thumbnail, so they need a background of their own,
+    // which keeps them readable even over a dark scan.
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(QColor(255, 255, 255, 190));
+    painter->drawRoundedRect(getMarksRect(option).adjusted(-2, -2, 2, 2), 4, 4);
+
+    for (size_t modeIndex = 0; modeIndex < std::size(s_modes); ++modeIndex)
+    {
+        const Mode mode = s_modes[modeIndex];
+        paintMark(painter, getMarkRect(option, modeIndex), mode, info.mode == mode, info.isModeAvailable(mode));
+    }
+
+    painter->restore();
+}
+
+void ImagePreviewDelegate::paintMark(QPainter* painter, QRect rect, Mode mode, bool isActive, bool isEnabled) const
+{
+    painter->save();
+
+    if (isActive)
+    {
+        // The active mode is ringed, so the state of the item is readable at a glance.
+        // A filled highlight is not used - it would fight with the colors of the mark.
+        painter->setPen(QPen(QColor(0, 0, 128), 2.0));
+        painter->setBrush(Qt::NoBrush);
+        painter->drawRoundedRect(QRectF(rect).adjusted(1.0, 1.0, -1.0, -1.0), 3.0, 3.0);
+    }
+    else
+    {
+        painter->setOpacity(isEnabled ? 0.45 : 0.15);
+    }
+
+    const QRect glyphRect = rect.adjusted(3, 3, -3, -3);
+    const QPen outlinePen(QColor(64, 64, 64), 1.0);
+
+    painter->setPen(Qt::NoPen);
+
+    switch (mode)
+    {
+        case Mode::Algorithm:
+            // A circle split into the black and the white half - the conversion turns
+            // the colors of the item into exactly these two.
+            painter->setBrush(Qt::black);
+            painter->drawPie(glyphRect, 90 * 16, 180 * 16);
+            painter->setBrush(Qt::white);
+            painter->drawPie(glyphRect, -90 * 16, 180 * 16);
+            break;
+
+        case Mode::Original:
+            // A circle divided into three colors - the item keeps its colors
+            painter->setBrush(QColor(220, 50, 50));
+            painter->drawPie(glyphRect, 90 * 16, 120 * 16);
+            painter->setBrush(QColor(60, 160, 60));
+            painter->drawPie(glyphRect, 210 * 16, 120 * 16);
+            painter->setBrush(QColor(60, 90, 210));
+            painter->drawPie(glyphRect, 330 * 16, 120 * 16);
+            break;
+
+        case Mode::FillBlack:
+            painter->setBrush(Qt::black);
+            painter->drawEllipse(glyphRect);
+            break;
+
+        case Mode::FillWhite:
+            painter->setBrush(Qt::white);
+            painter->drawEllipse(glyphRect);
+            break;
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    painter->setPen(outlinePen);
+    painter->setBrush(Qt::NoBrush);
+    painter->drawEllipse(glyphRect);
+
+    painter->restore();
+}
+
+QString ImagePreviewDelegate::getModeToolTip(Mode mode) const
+{
+    switch (mode)
+    {
+        case Mode::Algorithm:
+            return tr("Convert this item to the bitonal format using the selected conversion method.");
+
+        case Mode::Original:
+            return tr("Leave this item unchanged.");
+
+        case Mode::FillBlack:
+            return tr("Replace this item with a black area.");
+
+        case Mode::FillWhite:
+            return tr("Replace this item with a white area.");
+
+        default:
+            Q_ASSERT(false);
+            break;
+    }
+
+    return QString();
 }
 
 bool ImagePreviewDelegate::editorEvent(QEvent* event, QAbstractItemModel* model, const QStyleOptionViewItem& option, const QModelIndex& index)
@@ -1500,20 +1804,26 @@ bool ImagePreviewDelegate::editorEvent(QEvent* event, QAbstractItemModel* model,
         QMouseEvent* mouseEvent = dynamic_cast<QMouseEvent*>(event);
         if (mouseEvent && mouseEvent->button() == Qt::LeftButton)
         {
-            // Do we click on yes/no mark?
-            QRectF markRect = getMarkRect(option);
-            if (markRect.contains(mouseEvent->position()))
-            {
-                PDFCreateBitonalDocumentDialog::ConversionItemInfo& info = m_conversionItemInfos->at(index.row());
+            PDFCreateBitonalDocumentDialog::ConversionItemInfo& info = m_conversionItemInfos->at(index.row());
 
-                if (info.thumbnailState == PDFCreateBitonalDocumentDialog::ConversionItemInfo::ThumbnailState::Failed)
+            // Do we click on one of the mode marks?
+            for (size_t modeIndex = 0; modeIndex < std::size(s_modes); ++modeIndex)
+            {
+                if (!QRectF(getMarkRect(option, modeIndex)).contains(mouseEvent->position()))
                 {
-                    // Image of this item cannot be decoded, so it cannot be converted either
-                    return true;
+                    continue;
                 }
 
-                info.conversionEnabled = !info.conversionEnabled;
-                Q_EMIT conversionEnabledChanged();
+                const Mode mode = s_modes[modeIndex];
+
+                if (info.mode != mode && info.isModeAvailable(mode))
+                {
+                    info.mode = mode;
+                    Q_EMIT conversionModeChanged();
+                }
+
+                // The click is consumed even when nothing has changed, so clicking
+                // a mark never modifies the selection of the list.
                 return true;
             }
         }
@@ -1533,24 +1843,32 @@ bool ImagePreviewDelegate::helpEvent(QHelpEvent* event, QAbstractItemView* view,
 
     if (event->type() == QEvent::ToolTip)
     {
-        // Are we hovering over yes/no mark?
-        QRectF markRect = getMarkRect(option);
-        if (markRect.contains(event->pos()))
+        // Are we hovering over one of the mode marks?
+        for (size_t modeIndex = 0; modeIndex < std::size(s_modes); ++modeIndex)
         {
-            event->accept();
-            QToolTip::showText(event->globalPos(), tr("Toggle this icon to switch the conversion of this item to bitonal format on or off."), view);
-            return true;
+            if (getMarkRect(option, modeIndex).contains(event->pos()))
+            {
+                event->accept();
+                QToolTip::showText(event->globalPos(), getModeToolTip(s_modes[modeIndex]), view);
+                return true;
+            }
         }
     }
 
     return false;
 }
 
-QRect ImagePreviewDelegate::getMarkRect(const QStyleOptionViewItem& option) const
+QRect ImagePreviewDelegate::getMarkRect(const QStyleOptionViewItem& option, size_t modeIndex) const
 {
-    QSize markSize = pdf::PDFWidgetUtils::scaleDPI(option.widget, s_iconSize);
-    QRect markRect(option.rect.left(), option.rect.top(), markSize.width(), markSize.height());
-    return markRect;
+    const QSize markSize = pdf::PDFWidgetUtils::scaleDPI(option.widget, s_iconSize);
+    const int spacing = qMax(2, markSize.width() / 8);
+    const int left = option.rect.left() + int(modeIndex) * (markSize.width() + spacing);
+    return QRect(left, option.rect.top(), markSize.width(), markSize.height());
+}
+
+QRect ImagePreviewDelegate::getMarksRect(const QStyleOptionViewItem& option) const
+{
+    return getMarkRect(option, 0).united(getMarkRect(option, std::size(s_modes) - 1));
 }
 
 }   // namespace pdfviewer

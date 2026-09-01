@@ -253,6 +253,56 @@ QImage PDFImageConversion::getConvertedAlphaMask() const
     return m_convertedAlphaMask;
 }
 
+QImage PDFImageConversion::createAlphaMask(const QImage& image)
+{
+    if (image.isNull() || !image.hasAlphaChannel())
+    {
+        return QImage();
+    }
+
+    const QImage source = image.convertToFormat(QImage::Format_ARGB32);
+    if (source.isNull())
+    {
+        return QImage();
+    }
+
+    const int width = source.width();
+    const int height = source.height();
+
+    QImage mask(width, height, QImage::Format_Mono);
+    mask.fill(0);
+
+    bool hasTransparentPixel = false;
+
+    // The mask must be built with exactly the same opacity threshold, which the
+    // conversion uses, otherwise the mask of a converted image and the mask of a
+    // filled image would not agree on the border pixels. \sa prepareSourceImage
+    for (int y = 0; y < height; ++y)
+    {
+        const QRgb* sourceLine = reinterpret_cast<const QRgb*>(source.constScanLine(y));
+
+        for (int x = 0; x < width; ++x)
+        {
+            if (qAlpha(sourceLine[x]) >= OPACITY_THRESHOLD)
+            {
+                setWhiteSample(mask, x, y);
+            }
+            else
+            {
+                hasTransparentPixel = true;
+            }
+        }
+    }
+
+    if (!hasTransparentPixel)
+    {
+        // Image is fully opaque, so it does not need a mask at all
+        return QImage();
+    }
+
+    return mask;
+}
+
 QImage PDFImageConversion::createBitonalImage() const
 {
     QImage image(m_width, m_height, QImage::Format_Mono);

@@ -44,6 +44,7 @@ private slots:
     void test_bitonal_conversion_color_space_of_methods();
     void test_bitonal_conversion_composites_alpha();
     void test_bitonal_conversion_alpha_mask();
+    void test_bitonal_conversion_static_alpha_mask();
     void test_bitonal_conversion_alpha_mode_ignore();
     void test_bitonal_conversion_alpha_adaptive_and_dither();
     void test_image_analysis_classification();
@@ -428,6 +429,40 @@ void ImageOptimizerTest::test_bitonal_conversion_alpha_mask()
     QVERIFY(conversion.convert());
     QVERIFY(!conversion.hasConvertedAlphaMask());
     QVERIFY(conversion.getConvertedAlphaMask().isNull());
+}
+
+void ImageOptimizerTest::test_bitonal_conversion_static_alpha_mask()
+{
+    constexpr int size = 8;
+    QImage image = createMaskedForegroundImage(size);
+
+    // The mask created without the conversion must agree with the one created by it,
+    // otherwise an item replaced by a solid fill would have a different transparency
+    // than the same item converted by the algorithm.
+    pdf::PDFImageConversion conversion;
+    conversion.setImage(image);
+    conversion.setConversionMethod(pdf::PDFImageConversion::ConversionMethod::Automatic);
+    QVERIFY(conversion.convert());
+
+    QImage staticMask = pdf::PDFImageConversion::createAlphaMask(image);
+    QCOMPARE(staticMask.format(), QImage::Format_Mono);
+    QCOMPARE(staticMask.size(), image.size());
+    QCOMPARE(staticMask, conversion.getConvertedAlphaMask());
+
+    // Set sample of the mask means an opaque pixel
+    QCOMPARE(staticMask.pixelIndex(0, 0), 0);
+    QCOMPARE(staticMask.pixelIndex(size / 2, 0), 1);
+
+    // Neither a fully opaque image nor an image without the alpha channel has a mask
+    QImage opaqueImage(size, size, QImage::Format_ARGB32);
+    opaqueImage.fill(Qt::white);
+    QVERIFY(pdf::PDFImageConversion::createAlphaMask(opaqueImage).isNull());
+
+    QImage imageWithoutAlpha(size, size, QImage::Format_RGB32);
+    imageWithoutAlpha.fill(Qt::red);
+    QVERIFY(pdf::PDFImageConversion::createAlphaMask(imageWithoutAlpha).isNull());
+
+    QVERIFY(pdf::PDFImageConversion::createAlphaMask(QImage()).isNull());
 }
 
 void ImageOptimizerTest::test_bitonal_conversion_alpha_mode_ignore()

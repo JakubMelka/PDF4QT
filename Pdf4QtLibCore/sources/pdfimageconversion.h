@@ -126,6 +126,16 @@ public:
     /// \sa getConvertedAlphaMask
     bool hasConvertedAlphaMask() const { return !m_convertedAlphaMask.isNull(); }
 
+    /// Returns the transparency of the image as a bitonal mask, in which a set sample
+    /// means an opaque pixel and a cleared sample means a transparent pixel. A null
+    /// image is returned, when the image is fully opaque, or when it has no alpha
+    /// channel at all. The mask uses the same opacity threshold as the conversion
+    /// itself, so it can be used as a soft mask of an image, which replaces the source
+    /// one without being converted by any of the conversion methods (for example by
+    /// a solid black or white fill). \sa getConvertedAlphaMask
+    /// \param image Source image
+    static QImage createAlphaMask(const QImage& image);
+
 private:
     /// Decomposes the source image (with the transparent pixels composited onto the
     /// white background) into the lightness buffer, the grayscale buffer and the
