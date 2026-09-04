@@ -34,6 +34,7 @@
 #include <QFuture>
 #include <QFutureWatcher>
 #include <QStyledItemDelegate>
+#include <QTimer>
 
 #include <atomic>
 #include <functional>
@@ -280,6 +281,16 @@ private:
     void onThumbnailReady(int generation, int itemIndex, QImage thumbnail);
     void onPreviewReady(int generation, QImage originalImage, QImage bitonalImage);
 
+    /// Marks the items, whose thumbnail has not arrived before the thumbnail job has
+    /// ended, as failed. Without this, an item, on which the worker has failed, would
+    /// stay pending forever, while the conversion would already be enabled.
+    void finishPendingThumbnails();
+
+    /// Takes a snapshot of the settings of the preview and starts the job creating it.
+    /// It is called by the timer, so a series of quick changes (holding the arrow of a
+    /// spin box) starts a single job instead of one job per change.
+    void startPreviewGeneration();
+
     /// Returns the text displayed below the thumbnail of an item
     QString getItemCaption(int itemIndex) const;
 
@@ -334,6 +345,14 @@ private:
 
     /// Job generating the preview of the selected item
     AsyncJob m_previewJob;
+
+    /// Delays the start of the preview job, so quickly repeated changes of the settings
+    /// do not start a job for each of them
+    QTimer m_previewUpdateTimer;
+
+    /// True, when the newest run of the preview job has delivered its images. A worker,
+    /// which ends without a result, must not leave the preview panes generating forever.
+    bool m_isPreviewDelivered = false;
 
     /// Page and resolution, which the currently running preview job is rendering. Both
     /// are used by the GUI thread only - they identify the rasterized page returned by

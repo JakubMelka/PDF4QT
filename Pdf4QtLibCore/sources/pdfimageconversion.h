@@ -24,6 +24,7 @@
 #define PDFIMAGECONVERSION_H
 
 #include "pdfglobal.h"
+#include "pdfoperationcontrol.h"
 
 #include <QImage>
 
@@ -81,6 +82,13 @@ public:
     /// threshold will be applied.
     /// \param threshold The manual threshold value to be set.
     void setThreshold(int threshold);
+
+    /// Sets the operation control, which is polled while the image is being converted,
+    /// so a conversion of a large image can be interrupted. When the operation is
+    /// cancelled, the function convert() returns false and no converted image is
+    /// produced. The control is not owned by this object and it must outlive it.
+    /// \param operationControl Operation control (can be nullptr)
+    void setOperationControl(const PDFOperationControl* operationControl);
 
     /// Sets the mode, in which the alpha channel of the source image is treated.
     /// Images, which do not have an alpha channel, are not affected by this setting.
@@ -148,6 +156,9 @@ private:
     QImage convertAdaptive() const;
     QImage convertDithered(int threshold) const;
 
+    /// Returns true, if the conversion has been cancelled by the operation control
+    bool isCancelled() const { return PDFOperationControl::isOperationCancelled(m_operationControl); }
+
     /// Returns true, if the pixel at a given index is treated as a transparent one
     bool isTransparent(size_t index) const { return !m_opacity.empty() && m_opacity[index] < OPACITY_THRESHOLD; }
 
@@ -166,6 +177,7 @@ private:
     QImage m_image;
     QImage m_convertedImage;
     QImage m_convertedAlphaMask;
+    const PDFOperationControl* m_operationControl = nullptr;
     ConversionMethod m_conversionMethod = ConversionMethod::Automatic;
     AlphaMode m_alphaMode = AlphaMode::Composite;
     int m_automaticThreshold = DEFAULT_THRESHOLD;

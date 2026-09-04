@@ -180,6 +180,12 @@ struct PDFToolOptions
     int bitonalThreshold = 128;
     int bitonalDpiResolution = 0;
 
+    /// Description of the first invalid '--bitonal-*' value. It is empty, when all
+    /// options have been recognized. An unknown value must not silently fall back to
+    /// a default one - the tool overwrites the target file, so the user would get a
+    /// document created by a different algorithm than the one they asked for.
+    QString bitonalInvalidArgument;
+
     /// Returns true, if the user has restricted the conversion to a page range
     bool isPageRangeSet() const { return !pageSelectorFirstPage.isEmpty() || !pageSelectorLastPage.isEmpty() || !pageSelectorSelection.isEmpty(); }
 

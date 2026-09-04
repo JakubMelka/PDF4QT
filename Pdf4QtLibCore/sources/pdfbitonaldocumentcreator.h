@@ -114,8 +114,25 @@ public:
     /// available using the function \p takeBitonalDocument. This function does not
     /// touch anything but the document and the rasterizer pool, so it can be executed
     /// in a worker thread.
+    ///
+    /// The settings do not have to be normalized - an item with an invalid page index
+    /// is ignored and a page requested more than once is converted only once (the mode
+    /// of its last occurrence is used).
+    ///
+    /// The result can be partial - an image, which cannot be decoded, or a page, which
+    /// cannot be rendered, is left in its original form and the conversion continues.
+    /// Use \p getFailedItemCount to find out, whether that has happened.
     /// \param settings Inputs of the conversion
     bool createBitonalDocument(const Settings& settings);
+
+    /// Returns the number of the items, which have been successfully converted by the
+    /// last call of \p createBitonalDocument
+    size_t getConvertedItemCount() const { return m_convertedItemCount; }
+
+    /// Returns the number of the items, which should have been converted by the last
+    /// call of \p createBitonalDocument, but which have failed and are left in their
+    /// original form in the created document
+    size_t getFailedItemCount() const { return m_failedItemCount; }
 
     /// Returns the created document and clears it. \sa createBitonalDocument
     PDFDocument takeBitonalDocument() { return qMove(m_bitonalDocument); }
@@ -171,7 +188,18 @@ public:
     /// into the page image would paint them twice.
     static PDFRenderer::Features getPageRasterizationFeatures();
 
-    /// Returns size of the rasterized page image for a given resolution
+    /// Calls the processor for every image used on a page, including the images used
+    /// inside the form XObjects of the page. Resources are an inheritable attribute of
+    /// the page tree, so the resolved ones are used, and every form is entered only
+    /// once, so a recursive form of a damaged document cannot loop forever.
+    /// \param page Page
+    /// \param imageProcessor Called with the reference and the dictionary of the image
+    void traversePageImages(const PDFPage* page,
+                            const std::function<void(PDFObjectReference, const PDFDictionary*)>& imageProcessor) const;
+
+    /// Returns size of the rasterized page image for a given resolution. The resolution
+    /// is clamped into the range supported by this class - a page rasterized at an
+    /// extreme resolution would need gigabytes of memory.
     /// \param page Page
     /// \param dpiResolution Resolution in dots per inch
     static QSize getPageImageSize(const PDFPage* page, int dpiResolution);
@@ -182,10 +210,13 @@ public:
     /// \param conversionMethod Conversion method
     /// \param threshold Manual threshold
     /// \param alphaMask Transparency of the converted image (can be a null image)
+    /// \param operationControl Operation control (can be nullptr). A cancelled
+    ///        conversion returns a null image.
     static QImage convertImageToBitonal(const QImage& image,
                                         PDFImageConversion::ConversionMethod conversionMethod,
                                         int threshold,
-                                        QImage* alphaMask);
+                                        QImage* alphaMask,
+                                        const PDFOperationControl* operationControl);
 
     /// Creates an image object (1 bit per component, DeviceGray) from a bitonal image
     /// \param image Bitonal image
@@ -232,6 +263,8 @@ private:
     PDFRasterizerPool* m_rasterizerPool;
     PDFProgress* m_progress;
     PDFDocument m_bitonalDocument;
+    size_t m_convertedItemCount = 0;
+    size_t m_failedItemCount = 0;
 };
 
 }   // namespace pdf

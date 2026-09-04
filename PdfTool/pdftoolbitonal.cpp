@@ -55,6 +55,12 @@ QString PDFToolBitonal::getStandardString(PDFToolAbstractApplication::StandardSt
 
 int PDFToolBitonal::execute(const PDFToolOptions& options)
 {
+    if (!options.bitonalInvalidArgument.isEmpty())
+    {
+        PDFConsole::writeError(options.bitonalInvalidArgument, options.outputCodec);
+        return ErrorInvalidArguments;
+    }
+
     if (options.bitonalDocument.isEmpty())
     {
         PDFConsole::writeError(PDFToolTranslationContext::tr("No output document specified."), options.outputCodec);
@@ -169,6 +175,15 @@ int PDFToolBitonal::execute(const PDFToolOptions& options)
     {
         PDFConsole::writeError(PDFToolTranslationContext::tr("Failed to convert the document into the bitonal format."), options.outputCodec);
         return ErrorFailedWriteToFile;
+    }
+
+    if (creator.getFailedItemCount() > 0)
+    {
+        // The document has been created, but a part of it could not be converted and it
+        // is left in the original, colored form. The user has to know about it.
+        PDFConsole::writeError(PDFToolTranslationContext::tr("Warning: %1 of %2 items could not be converted and they are left unchanged.")
+                                   .arg(creator.getFailedItemCount())
+                                   .arg(creator.getFailedItemCount() + creator.getConvertedItemCount()), options.outputCodec);
     }
 
     pdf::PDFDocument bitonalDocument = creator.takeBitonalDocument();

@@ -36,6 +36,11 @@ void PDFImageConversion::setThreshold(int threshold)
     m_manualThreshold = threshold;
 }
 
+void PDFImageConversion::setOperationControl(const PDFOperationControl* operationControl)
+{
+    m_operationControl = operationControl;
+}
+
 void PDFImageConversion::setAlphaMode(AlphaMode alphaMode)
 {
     m_alphaMode = alphaMode;
@@ -82,6 +87,15 @@ void PDFImageConversion::prepareSourceImage()
 
     for (int y = 0; y < m_height; ++y)
     {
+        if (isCancelled())
+        {
+            // Buffers are incomplete, so no conversion can be performed with them
+            m_lightness.clear();
+            m_gray.clear();
+            m_opacity.clear();
+            return;
+        }
+
         const QRgb* sourceLine = reinterpret_cast<const QRgb*>(source.constScanLine(y));
         unsigned char* lightnessLine = m_lightness.data() + size_t(y) * size_t(m_width);
         unsigned char* grayLine = m_gray.data() + size_t(y) * size_t(m_width);
@@ -170,7 +184,7 @@ bool PDFImageConversion::convert()
 
     prepareSourceImage();
 
-    if (m_lightness.empty())
+    if (m_lightness.empty() || isCancelled())
     {
         return false;
     }
@@ -405,6 +419,16 @@ int PDFImageConversion::calculateOtsu1DThreshold() const
         }
     }
 
+    if (maxVarianceValue <= 0.0f)
+    {
+        // The image consists of a single intensity, so the inter-class variance is
+        // zero for every candidate and Otsu's method has no answer. Returning the
+        // first candidate would mean the threshold 0, which turns even a completely
+        // black image into a white one, so the default threshold is used instead -
+        // it maps a dark uniform image to black and a bright one to white.
+        return DEFAULT_THRESHOLD;
+    }
+
     return int(maxVarianceIndex);
 }
 
@@ -419,6 +443,11 @@ QImage PDFImageConversion::convertThresholded(int threshold) const
 
     for (int y = 0; y < m_height; ++y)
     {
+        if (isCancelled())
+        {
+            return QImage();
+        }
+
         const size_t rowIndex = size_t(y) * size_t(m_width);
 
         for (int x = 0; x < m_width; ++x)
@@ -486,6 +515,11 @@ QImage PDFImageConversion::convertAdaptive() const
     // the page is bright and another is darker because of shadows or uneven scanning.
     for (int y = 0; y < height; ++y)
     {
+        if (isCancelled())
+        {
+            return QImage();
+        }
+
         if (y > 0)
         {
             updateColumns(y + radius, 1);
@@ -568,6 +602,11 @@ QImage PDFImageConversion::convertDithered(int threshold) const
 
     for (int y = 0; y < height; ++y)
     {
+        if (isCancelled())
+        {
+            return QImage();
+        }
+
         for (int x = 0; x < width; ++x)
         {
             const size_t index = size_t(y) * size_t(width) + size_t(x);

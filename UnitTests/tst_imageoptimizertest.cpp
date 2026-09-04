@@ -49,6 +49,9 @@ private slots:
     void test_bitonal_conversion_static_alpha_mask();
     void test_bitonal_conversion_alpha_mode_ignore();
     void test_bitonal_conversion_alpha_adaptive_and_dither();
+    void test_bitonal_conversion_constant_images();
+    void test_bitonal_conversion_is_cancellable();
+    void test_bitonal_creator_normalizes_page_items();
     void test_bitonal_creator_converts_image();
     void test_bitonal_creator_fill_respects_transparency();
     void test_bitonal_creator_original_mode_converts_nothing();
@@ -523,6 +526,127 @@ void ImageOptimizerTest::test_bitonal_conversion_alpha_adaptive_and_dither()
             }
         }
     }
+}
+
+void ImageOptimizerTest::test_bitonal_conversion_constant_images()
+{
+    constexpr int size = 8;
+
+    // A constant image has a single intensity, so the inter-class variance of Otsu's
+    // method is zero for every threshold and the method has no answer. It must not
+    // fall back to the threshold zero, which would turn a black page into a white one.
+    auto convertConstantImage = [](QRgb color) -> QImage
+    {
+        QImage image(size, size, QImage::Format_ARGB32);
+        image.fill(color);
+
+        pdf::PDFImageConversion conversion;
+        conversion.setConversionMethod(pdf::PDFImageConversion::ConversionMethod::Automatic);
+        conversion.setImage(image);
+
+        if (!conversion.convert())
+        {
+            return QImage();
+        }
+
+        return conversion.getConvertedImage();
+    };
+
+    const QImage black = convertConstantImage(qRgb(0, 0, 0));
+    QVERIFY(!black.isNull());
+    QCOMPARE(black.pixelIndex(0, 0), 0);
+    QCOMPARE(black.pixelIndex(size - 1, size - 1), 0);
+
+    const QImage white = convertConstantImage(qRgb(255, 255, 255));
+    QVERIFY(!white.isNull());
+    QCOMPARE(white.pixelIndex(0, 0), 1);
+    QCOMPARE(white.pixelIndex(size - 1, size - 1), 1);
+
+    // A uniform dark gray is below the default threshold, a uniform light gray above it
+    const QImage darkGray = convertConstantImage(qRgb(64, 64, 64));
+    QVERIFY(!darkGray.isNull());
+    QCOMPARE(darkGray.pixelIndex(0, 0), 0);
+
+    const QImage lightGray = convertConstantImage(qRgb(200, 200, 200));
+    QVERIFY(!lightGray.isNull());
+    QCOMPARE(lightGray.pixelIndex(0, 0), 1);
+}
+
+void ImageOptimizerTest::test_bitonal_conversion_is_cancellable()
+{
+    /// Operation control, which reports the operation as cancelled from the beginning
+    class CancelledOperationControl : public pdf::PDFOperationControl
+    {
+    public:
+        virtual bool isOperationCancelled() const override { return true; }
+    };
+
+    CancelledOperationControl operationControl;
+
+    pdf::PDFImageConversion conversion;
+    conversion.setConversionMethod(pdf::PDFImageConversion::ConversionMethod::Automatic);
+    conversion.setOperationControl(&operationControl);
+    conversion.setImage(createLineArtImage(16));
+
+    // A cancelled conversion produces nothing, so its caller cannot use a partial result
+    QVERIFY(!conversion.convert());
+    QVERIFY(conversion.getConvertedImage().isNull());
+    QVERIFY(conversion.getConvertedAlphaMask().isNull());
+}
+
+void ImageOptimizerTest::test_bitonal_creator_normalizes_page_items()
+{
+    constexpr int size = 16;
+    pdf::PDFDocument document = createDocumentWithImage(createLineArtImage(size), false, pdf::PDFImage::ImageCompression::Flate);
+    QCOMPARE(document.getCatalog()->getPageCount(), size_t(1));
+
+    pdf::PDFBitonalDocumentCreator creator(&document, nullptr, nullptr);
+
+    pdf::PDFBitonalDocumentCreator::Settings settings;
+    settings.conversionSource = pdf::PDFBitonalDocumentCreator::ConversionSource::Pages;
+
+    // An index of a page, which does not exist, must be dropped before anything is
+    // rendered - it would index the vector of the page images out of its bounds
+    pdf::PDFBitonalDocumentCreator::ItemInfo invalidItem;
+    invalidItem.pageIndex = 42;
+    invalidItem.mode = pdf::PDFBitonalDocumentCreator::ItemMode::FillWhite;
+    settings.items.push_back(invalidItem);
+
+    pdf::PDFBitonalDocumentCreator::ItemInfo negativeItem;
+    negativeItem.pageIndex = -1;
+    negativeItem.mode = pdf::PDFBitonalDocumentCreator::ItemMode::FillWhite;
+    settings.items.push_back(negativeItem);
+
+    // Only the invalid items are present, so there is nothing to be converted
+    QVERIFY(!creator.createBitonalDocument(settings));
+
+    // The same page requested twice must be converted once only - two tasks rendering
+    // it in parallel would write into the same slot at the same time
+    pdf::PDFBitonalDocumentCreator::ItemInfo duplicatedItem;
+    duplicatedItem.pageIndex = 0;
+    duplicatedItem.mode = pdf::PDFBitonalDocumentCreator::ItemMode::FillBlack;
+    settings.items.push_back(duplicatedItem);
+    settings.items.push_back(duplicatedItem);
+
+    QVERIFY(creator.createBitonalDocument(settings));
+    QCOMPARE(creator.getConvertedItemCount(), size_t(1));
+    QCOMPARE(creator.getFailedItemCount(), size_t(0));
+
+    const pdf::PDFDocument bitonalDocument = creator.takeBitonalDocument();
+    QCOMPARE(bitonalDocument.getCatalog()->getPageCount(), size_t(1));
+
+    const pdf::PDFPage* page = bitonalDocument.getCatalog()->getPage(0);
+    QVERIFY(page);
+
+    const pdf::PDFDictionary* resources = bitonalDocument.getDictionaryFromObject(page->getResources());
+    QVERIFY(resources);
+
+    const pdf::PDFDictionary* xObjects = bitonalDocument.getDictionaryFromObject(resources->get("XObject"));
+    QVERIFY(xObjects);
+
+    // The page content has been replaced by the single filled image
+    QCOMPARE(xObjects->getCount(), size_t(1));
+    QVERIFY(xObjects->hasKey("BitonalImage"));
 }
 
 /// Returns the dictionary of the image XObject placed on the first page of the

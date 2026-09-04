@@ -463,18 +463,37 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
     {
         options.bitonalDocument = positionalArguments.size() >= 2 ? positionalArguments[1] : QString();
 
+        // An unrecognized value must be reported, not silently replaced by a default
+        // one. The parsing has no error channel, so the first problem is remembered
+        // and the tool refuses to do anything when it finds it.
+        auto reportInvalidValue = [&options](const QString& option, const QString& value, const QString& validValues)
+        {
+            if (options.bitonalInvalidArgument.isEmpty())
+            {
+                options.bitonalInvalidArgument = PDFToolTranslationContext::tr("Invalid value '%1' of the option '--%2'. Valid values are %3.").arg(value, option, validValues);
+            }
+        };
+
         const QString source = parser->value("bitonal-source");
-        if (source == "pages")
+        if (source == "images")
+        {
+            options.bitonalSource = pdf::PDFBitonalDocumentCreator::ConversionSource::Images;
+        }
+        else if (source == "pages")
         {
             options.bitonalSource = pdf::PDFBitonalDocumentCreator::ConversionSource::Pages;
         }
         else
         {
-            options.bitonalSource = pdf::PDFBitonalDocumentCreator::ConversionSource::Images;
+            reportInvalidValue("bitonal-source", source, "images|pages");
         }
 
         const QString method = parser->value("bitonal-method");
-        if (method == "manual")
+        if (method == "automatic")
+        {
+            options.bitonalMethod = pdf::PDFImageConversion::ConversionMethod::Automatic;
+        }
+        else if (method == "manual")
         {
             options.bitonalMethod = pdf::PDFImageConversion::ConversionMethod::Manual;
         }
@@ -488,11 +507,15 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         }
         else
         {
-            options.bitonalMethod = pdf::PDFImageConversion::ConversionMethod::Automatic;
+            reportInvalidValue("bitonal-method", method, "automatic|manual|adaptive|dither");
         }
 
         const QString fill = parser->value("bitonal-fill");
-        if (fill == "black")
+        if (fill == "none")
+        {
+            options.bitonalItemMode = pdf::PDFBitonalDocumentCreator::ItemMode::Algorithm;
+        }
+        else if (fill == "black")
         {
             options.bitonalItemMode = pdf::PDFBitonalDocumentCreator::ItemMode::FillBlack;
         }
@@ -502,11 +525,26 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         }
         else
         {
-            options.bitonalItemMode = pdf::PDFBitonalDocumentCreator::ItemMode::Algorithm;
+            reportInvalidValue("bitonal-fill", fill, "none|black|white");
         }
 
-        options.bitonalThreshold = parser->value("bitonal-threshold").toInt();
-        options.bitonalDpiResolution = parser->value("bitonal-dpi").toInt();
+        bool isThresholdValid = false;
+        const QString threshold = parser->value("bitonal-threshold");
+        options.bitonalThreshold = threshold.toInt(&isThresholdValid);
+
+        if (!isThresholdValid)
+        {
+            reportInvalidValue("bitonal-threshold", threshold, "whole numbers from 0 to 255");
+        }
+
+        bool isResolutionValid = false;
+        const QString dpiResolution = parser->value("bitonal-dpi");
+        options.bitonalDpiResolution = dpiResolution.toInt(&isResolutionValid);
+
+        if (!isResolutionValid)
+        {
+            reportInvalidValue("bitonal-dpi", dpiResolution, "whole numbers");
+        }
     }
 
     if (optionFlags.testFlag(Redact))

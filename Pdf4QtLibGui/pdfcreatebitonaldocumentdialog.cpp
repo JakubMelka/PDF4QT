@@ -51,6 +51,17 @@
 namespace pdfviewer
 {
 
+/// Delay between a change of the settings and the start of the preview job
+static constexpr int PREVIEW_UPDATE_DELAY_MSECS = 150;
+
+/// Returns the number of the thumbnails scheduled into the execution policy at once.
+/// The interactive preview uses the same thread pool, so the queue must stay short
+/// enough for a preview request to get in between two batches of the thumbnails.
+static size_t getThumbnailBatchSize()
+{
+    return size_t(qMax(1, pdf::PDFExecutionPolicy::getIdealThreadCount(pdf::PDFExecutionPolicy::Scope::Page)));
+}
+
 /// Creates an item of the list, whose thumbnail has not been generated yet. The size
 /// of the item is fixed and it does not depend on the thumbnail, so the items do not
 /// jump around in the list as the thumbnails are arriving one by one.
@@ -204,9 +215,19 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     ui->conversionMethodComboBox->addItem(tr("Dithering (Floyd-Steinberg)"), static_cast<int>(pdf::PDFImageConversion::ConversionMethod::Dither));
 
     // Rasterizing the page is expensive, so the preview is not updated
-    // while the resolution is being typed
+    // while the resolution is being typed. The range is taken from the core, which
+    // clamps the resolution anyway - a page rasterized at an extreme resolution
+    // would need gigabytes of memory.
     ui->resolutionEditBox->setKeyboardTracking(false);
+    ui->resolutionEditBox->setRange(pdf::PDFBitonalDocumentCreator::MINIMUM_DPI_RESOLUTION,
+                                    pdf::PDFBitonalDocumentCreator::MAXIMUM_DPI_RESOLUTION);
     ui->resolutionEditBox->setValue(m_creator->getEstimatedDpiResolution());
+
+    // Creating the preview is expensive, so a series of quick changes of the settings
+    // (holding the arrow of a spin box) starts a single job instead of one per change
+    m_previewUpdateTimer.setSingleShot(true);
+    m_previewUpdateTimer.setInterval(PREVIEW_UPDATE_DELAY_MSECS);
+    connect(&m_previewUpdateTimer, &QTimer::timeout, this, &PDFCreateBitonalDocumentDialog::startPreviewGeneration);
 
     m_createBitonalDocumentButton = ui->buttonBox->addButton(tr("Perform"), QDialogButtonBox::ActionRole);
     connect(m_createBitonalDocumentButton, &QPushButton::clicked, this, &PDFCreateBitonalDocumentDialog::onCreateBitonalDocumentButtonClicked);
@@ -362,7 +383,48 @@ void PDFCreateBitonalDocumentDialog::onJobFinished(AsyncJob& job, int generation
     }
 
     job.isRunning = false;
+
+    if (&job == &m_thumbnailJob)
+    {
+        finishPendingThumbnails();
+    }
+    else if (&job == &m_previewJob && !m_isPreviewDelivered)
+    {
+        // The worker has ended without a result - it has been interrupted, or it has
+        // thrown. The panes must not stay in the generating state forever.
+        m_leftPreviewWidget->setGenerating(false);
+        m_rightPreviewWidget->setGenerating(false);
+    }
+
     updateUi();
+}
+
+void PDFCreateBitonalDocumentDialog::finishPendingThumbnails()
+{
+    // The thumbnail job has ended, so an item, whose thumbnail has not arrived, will
+    // never get one. It must not stay pending, because the conversion is enabled now
+    // and the user has to see, which items cannot be converted.
+    for (int itemIndex = 0; itemIndex < int(m_itemsToBeConverted.size()); ++itemIndex)
+    {
+        ConversionItemInfo& info = m_itemsToBeConverted[size_t(itemIndex)];
+
+        if (info.thumbnailState != ConversionItemInfo::ThumbnailState::Pending)
+        {
+            continue;
+        }
+
+        info.thumbnailState = ConversionItemInfo::ThumbnailState::Failed;
+
+        if (info.mode == ConversionItemInfo::Mode::Algorithm)
+        {
+            info.mode = ConversionItemInfo::Mode::Original;
+        }
+
+        if (QListWidgetItem* item = ui->imageListWidget->item(itemIndex))
+        {
+            item->setText(tr("Not available"));
+        }
+    }
 }
 
 void PDFCreateBitonalDocumentDialog::onPerformFinished()
@@ -671,7 +733,21 @@ void PDFCreateBitonalDocumentDialog::generateThumbnails(int generation,
                 Q_EMIT thumbnailReady(generation, int(index), image);
             };
 
-            pdf::PDFExecutionPolicy::execute(pdf::PDFExecutionPolicy::Scope::Page, indices.cbegin(), indices.cend(), processImage);
+            // Thumbnails are scheduled in small batches. Enqueuing the whole document
+            // at once would push an interactive preview request, which uses the same
+            // pool, behind every single thumbnail of the document.
+            const size_t batchSize = getThumbnailBatchSize();
+
+            for (size_t first = 0; first < indices.size(); first += batchSize)
+            {
+                if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+                {
+                    return;
+                }
+
+                const size_t last = qMin(first + batchSize, indices.size());
+                pdf::PDFExecutionPolicy::execute(pdf::PDFExecutionPolicy::Scope::Page, indices.cbegin() + first, indices.cbegin() + last, processImage);
+            }
             break;
         }
 
@@ -707,7 +783,20 @@ void PDFCreateBitonalDocumentDialog::generateThumbnails(int generation,
                 }
             };
 
-            m_creator->renderPages(request.pageIndices, pageSizeGetter, pageImageProcessor, operationControl);
+            // Pages are rendered in small batches for the same reason as the images
+            const size_t batchSize = getThumbnailBatchSize();
+
+            for (size_t first = 0; first < request.pageIndices.size(); first += batchSize)
+            {
+                if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+                {
+                    return;
+                }
+
+                const size_t last = qMin(first + batchSize, request.pageIndices.size());
+                const std::vector<pdf::PDFInteger> batch(request.pageIndices.cbegin() + first, request.pageIndices.cbegin() + last);
+                m_creator->renderPages(batch, pageSizeGetter, pageImageProcessor, operationControl);
+            }
             break;
         }
 
@@ -761,7 +850,7 @@ void PDFCreateBitonalDocumentDialog::generatePreview(int generation,
     switch (request.item.mode)
     {
         case ConversionItemInfo::Mode::Algorithm:
-            bitonalImage = pdf::PDFBitonalDocumentCreator::convertImageToBitonal(image, request.conversionMethod, request.manualThreshold, nullptr);
+            bitonalImage = pdf::PDFBitonalDocumentCreator::convertImageToBitonal(image, request.conversionMethod, request.manualThreshold, nullptr, operationControl);
             break;
 
         case ConversionItemInfo::Mode::Original:
@@ -852,6 +941,7 @@ void PDFCreateBitonalDocumentDialog::onPreviewReady(int generation, QImage origi
 
     m_previewImageLeft = std::move(originalImage);
     m_previewImageRight = std::move(bitonalImage);
+    m_isPreviewDelivered = true;
 
     m_leftPreviewWidget->setGenerating(false);
     m_rightPreviewWidget->setGenerating(false);
@@ -914,8 +1004,11 @@ void PDFCreateBitonalDocumentDialog::updateUi()
 
 void PDFCreateBitonalDocumentDialog::updatePreview()
 {
-    // Preview of the previously selected item is not interesting anymore
+    // Preview of the previous settings is not interesting anymore. The job is cancelled
+    // immediately, so it stops as soon as it can, but the new one is started by the
+    // timer - a user dragging a spin box would otherwise start a job per each step.
     cancelJob(m_previewJob);
+    m_previewUpdateTimer.stop();
 
     m_previewImageLeft = QImage();
     m_previewImageRight = QImage();
@@ -927,6 +1020,22 @@ void PDFCreateBitonalDocumentDialog::updatePreview()
     if (!index.isValid() || index.row() < 0 || index.row() >= int(m_itemsToBeConverted.size()))
     {
         m_rightPreviewWidget->setCaption(tr("BITONAL"));
+        m_leftPreviewWidget->setGenerating(false);
+        m_rightPreviewWidget->setGenerating(false);
+        return;
+    }
+
+    m_leftPreviewWidget->setGenerating(true);
+    m_rightPreviewWidget->setGenerating(true);
+    m_previewUpdateTimer.start();
+}
+
+void PDFCreateBitonalDocumentDialog::startPreviewGeneration()
+{
+    const QModelIndex index = ui->imageListWidget->currentIndex();
+
+    if (!index.isValid() || index.row() < 0 || index.row() >= int(m_itemsToBeConverted.size()))
+    {
         m_leftPreviewWidget->setGenerating(false);
         m_rightPreviewWidget->setGenerating(false);
         return;
@@ -981,6 +1090,7 @@ void PDFCreateBitonalDocumentDialog::updatePreview()
     m_rightPreviewWidget->setCaption(getRightCaption(request.item.mode));
     m_leftPreviewWidget->setGenerating(true);
     m_rightPreviewWidget->setGenerating(true);
+    m_isPreviewDelivered = false;
 
     startJob(m_previewJob, [this, request](int generation, const pdf::PDFOperationControl* operationControl)
     {
