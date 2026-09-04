@@ -187,6 +187,16 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addPositionalArgument("right", "Right (new) document to be compared.");
     }
 
+    if (optionFlags.testFlag(Bitonal))
+    {
+        parser->addPositionalArgument("bitonaldocument", "Output bitonal document filename.");
+        parser->addOption(QCommandLineOption("bitonal-source", "What is converted. Valid values are images|pages. Use 'pages' for scanned documents, which store a single page as several images.", "source", "images"));
+        parser->addOption(QCommandLineOption("bitonal-method", "Conversion method. Valid values are automatic|manual|adaptive|dither.", "method", "automatic"));
+        parser->addOption(QCommandLineOption("bitonal-threshold", "Threshold used by the manual method and by the dithering (0-255).", "threshold", "128"));
+        parser->addOption(QCommandLineOption("bitonal-dpi", "Resolution, at which the pages are rasterized. Zero means, that it is estimated from the images of the document.", "dpi", "0"));
+        parser->addOption(QCommandLineOption("bitonal-fill", "Replace the converted items by a solid area instead of converting them. Valid values are none|black|white.", "fill", "none"));
+    }
+
     if (optionFlags.testFlag(Redact))
     {
         parser->addPositionalArgument("redacteddocument", "Output redacted document filename.");
@@ -447,6 +457,56 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         options.document = positionalArguments.isEmpty() ? QString() : positionalArguments.front();
         options.password = parser->isSet("pswd") ? parser->value("pswd") : QString();
         options.permissiveReading = !parser->isSet("no-permissive-reading");
+    }
+
+    if (optionFlags.testFlag(Bitonal))
+    {
+        options.bitonalDocument = positionalArguments.size() >= 2 ? positionalArguments[1] : QString();
+
+        const QString source = parser->value("bitonal-source");
+        if (source == "pages")
+        {
+            options.bitonalSource = pdf::PDFBitonalDocumentCreator::ConversionSource::Pages;
+        }
+        else
+        {
+            options.bitonalSource = pdf::PDFBitonalDocumentCreator::ConversionSource::Images;
+        }
+
+        const QString method = parser->value("bitonal-method");
+        if (method == "manual")
+        {
+            options.bitonalMethod = pdf::PDFImageConversion::ConversionMethod::Manual;
+        }
+        else if (method == "adaptive")
+        {
+            options.bitonalMethod = pdf::PDFImageConversion::ConversionMethod::Adaptive;
+        }
+        else if (method == "dither")
+        {
+            options.bitonalMethod = pdf::PDFImageConversion::ConversionMethod::Dither;
+        }
+        else
+        {
+            options.bitonalMethod = pdf::PDFImageConversion::ConversionMethod::Automatic;
+        }
+
+        const QString fill = parser->value("bitonal-fill");
+        if (fill == "black")
+        {
+            options.bitonalItemMode = pdf::PDFBitonalDocumentCreator::ItemMode::FillBlack;
+        }
+        else if (fill == "white")
+        {
+            options.bitonalItemMode = pdf::PDFBitonalDocumentCreator::ItemMode::FillWhite;
+        }
+        else
+        {
+            options.bitonalItemMode = pdf::PDFBitonalDocumentCreator::ItemMode::Algorithm;
+        }
+
+        options.bitonalThreshold = parser->value("bitonal-threshold").toInt();
+        options.bitonalDpiResolution = parser->value("bitonal-dpi").toInt();
     }
 
     if (optionFlags.testFlag(Redact))

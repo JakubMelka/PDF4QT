@@ -25,6 +25,8 @@
 #include "pdfimage.h"
 #include "pdfimageconversion.h"
 #include "pdfimageoptimizer.h"
+#include "pdfbitonaldocumentcreator.h"
+#include "pdfpage.h"
 #include "pdfconstants.h"
 
 #include <QtTest>
@@ -47,6 +49,9 @@ private slots:
     void test_bitonal_conversion_static_alpha_mask();
     void test_bitonal_conversion_alpha_mode_ignore();
     void test_bitonal_conversion_alpha_adaptive_and_dither();
+    void test_bitonal_creator_converts_image();
+    void test_bitonal_creator_fill_respects_transparency();
+    void test_bitonal_creator_original_mode_converts_nothing();
     void test_image_analysis_classification();
     void test_optimizer_keeps_original_if_larger();
     void test_optimizer_skips_disabled_override();
@@ -518,6 +523,150 @@ void ImageOptimizerTest::test_bitonal_conversion_alpha_adaptive_and_dither()
             }
         }
     }
+}
+
+/// Returns the dictionary of the image XObject placed on the first page of the
+/// document. The image is looked up through the page resources, so the test does not
+/// depend on the object numbering of the converted document.
+static const pdf::PDFDictionary* getFirstPageImageDictionary(const pdf::PDFDocument& document)
+{
+    const pdf::PDFPage* page = document.getCatalog()->getPage(0);
+    if (!page)
+    {
+        return nullptr;
+    }
+
+    const pdf::PDFDictionary* resources = document.getDictionaryFromObject(page->getResources());
+    if (!resources)
+    {
+        return nullptr;
+    }
+
+    const pdf::PDFDictionary* xObjects = document.getDictionaryFromObject(resources->get("XObject"));
+    if (!xObjects)
+    {
+        return nullptr;
+    }
+
+    return document.getDictionaryFromObject(xObjects->get("Im1"));
+}
+
+void ImageOptimizerTest::test_bitonal_creator_converts_image()
+{
+    constexpr int size = 32;
+    pdf::PDFDocument document = createDocumentWithImage(createLineArtImage(size), false, pdf::PDFImage::ImageCompression::Flate);
+
+    // The rasterizer pool is needed by the page conversion only
+    pdf::PDFBitonalDocumentCreator creator(&document, nullptr, nullptr);
+
+    const std::vector<pdf::PDFObjectReference> images = creator.getConvertibleImages();
+    QCOMPARE(images.size(), size_t(1));
+
+    pdf::PDFBitonalDocumentCreator::Settings settings;
+    settings.conversionSource = pdf::PDFBitonalDocumentCreator::ConversionSource::Images;
+    settings.conversionMethod = pdf::PDFImageConversion::ConversionMethod::Automatic;
+
+    pdf::PDFBitonalDocumentCreator::ItemInfo item;
+    item.imageReference = images.front();
+    settings.items.push_back(item);
+
+    QVERIFY(creator.createBitonalDocument(settings));
+
+    const pdf::PDFDocument bitonalDocument = creator.takeBitonalDocument();
+    QCOMPARE(bitonalDocument.getCatalog()->getPageCount(), size_t(1));
+
+    const pdf::PDFDictionary* imageDictionary = getFirstPageImageDictionary(bitonalDocument);
+    QVERIFY(imageDictionary);
+
+    // The converted image keeps its resolution and it is bitonal now
+    pdf::PDFDocumentDataLoaderDecorator loader(&bitonalDocument);
+    QCOMPARE(loader.readIntegerFromDictionary(imageDictionary, "BitsPerComponent", 0), 1);
+    QCOMPARE(loader.readIntegerFromDictionary(imageDictionary, "Width", 0), size);
+    QCOMPARE(loader.readIntegerFromDictionary(imageDictionary, "Height", 0), size);
+
+    // A fully opaque image does not need a soft mask
+    QVERIFY(!imageDictionary->hasKey("SMask"));
+}
+
+void ImageOptimizerTest::test_bitonal_creator_fill_respects_transparency()
+{
+    constexpr int size = 32;
+
+    // A transparent image keeps its transparency, so the fill covers only the visible
+    // part of it. The fill image must have the size of the mask - the soft mask is
+    // resampled to the dimensions of the image it belongs to.
+    {
+        pdf::PDFDocument document = createDocumentWithImage(createMaskedForegroundImage(size), true, pdf::PDFImage::ImageCompression::Flate);
+        pdf::PDFBitonalDocumentCreator creator(&document, nullptr, nullptr);
+
+        const std::vector<pdf::PDFObjectReference> images = creator.getConvertibleImages();
+        QCOMPARE(images.size(), size_t(1));
+
+        pdf::PDFBitonalDocumentCreator::Settings settings;
+        settings.conversionSource = pdf::PDFBitonalDocumentCreator::ConversionSource::Images;
+
+        pdf::PDFBitonalDocumentCreator::ItemInfo item;
+        item.imageReference = images.front();
+        item.mode = pdf::PDFBitonalDocumentCreator::ItemMode::FillBlack;
+        settings.items.push_back(item);
+
+        QVERIFY(creator.createBitonalDocument(settings));
+
+        const pdf::PDFDocument bitonalDocument = creator.takeBitonalDocument();
+        const pdf::PDFDictionary* imageDictionary = getFirstPageImageDictionary(bitonalDocument);
+        QVERIFY(imageDictionary);
+
+        pdf::PDFDocumentDataLoaderDecorator loader(&bitonalDocument);
+        QCOMPARE(loader.readIntegerFromDictionary(imageDictionary, "BitsPerComponent", 0), 1);
+        QCOMPARE(loader.readIntegerFromDictionary(imageDictionary, "Width", 0), size);
+        QVERIFY(imageDictionary->hasKey("SMask"));
+    }
+
+    // An opaque image has nothing to be masked, so a single sample stretched over the
+    // whole area of the original image is enough
+    {
+        pdf::PDFDocument document = createDocumentWithImage(createLineArtImage(size), false, pdf::PDFImage::ImageCompression::Flate);
+        pdf::PDFBitonalDocumentCreator creator(&document, nullptr, nullptr);
+
+        pdf::PDFBitonalDocumentCreator::Settings settings;
+        settings.conversionSource = pdf::PDFBitonalDocumentCreator::ConversionSource::Images;
+
+        pdf::PDFBitonalDocumentCreator::ItemInfo item;
+        item.imageReference = creator.getConvertibleImages().front();
+        item.mode = pdf::PDFBitonalDocumentCreator::ItemMode::FillWhite;
+        settings.items.push_back(item);
+
+        QVERIFY(creator.createBitonalDocument(settings));
+
+        const pdf::PDFDocument bitonalDocument = creator.takeBitonalDocument();
+        const pdf::PDFDictionary* imageDictionary = getFirstPageImageDictionary(bitonalDocument);
+        QVERIFY(imageDictionary);
+
+        pdf::PDFDocumentDataLoaderDecorator loader(&bitonalDocument);
+        QCOMPARE(loader.readIntegerFromDictionary(imageDictionary, "BitsPerComponent", 0), 1);
+        QCOMPARE(loader.readIntegerFromDictionary(imageDictionary, "Width", 0), 1);
+        QCOMPARE(loader.readIntegerFromDictionary(imageDictionary, "Height", 0), 1);
+        QVERIFY(!imageDictionary->hasKey("SMask"));
+    }
+}
+
+void ImageOptimizerTest::test_bitonal_creator_original_mode_converts_nothing()
+{
+    constexpr int size = 32;
+    pdf::PDFDocument document = createDocumentWithImage(createLineArtImage(size), false, pdf::PDFImage::ImageCompression::Flate);
+    pdf::PDFBitonalDocumentCreator creator(&document, nullptr, nullptr);
+
+    pdf::PDFBitonalDocumentCreator::Settings settings;
+    settings.conversionSource = pdf::PDFBitonalDocumentCreator::ConversionSource::Images;
+
+    pdf::PDFBitonalDocumentCreator::ItemInfo item;
+    item.imageReference = creator.getConvertibleImages().front();
+    item.mode = pdf::PDFBitonalDocumentCreator::ItemMode::Original;
+    settings.items.push_back(item);
+
+    // Nothing has been converted, so there is no document to be accepted
+    QVERIFY(!creator.createBitonalDocument(settings));
+    QCOMPARE(creator.takeBitonalDocument().getCatalog()->getPageCount(), size_t(0));
 }
 
 void ImageOptimizerTest::test_image_analysis_classification()

@@ -23,10 +23,9 @@
 #ifndef PDFCREATEBITONALDOCUMENTDIALOG_H
 #define PDFCREATEBITONALDOCUMENTDIALOG_H
 
+#include "pdfbitonaldocumentcreator.h"
 #include "pdfcms.h"
 #include "pdfdocument.h"
-#include "pdfobjectutils.h"
-#include "pdfimage.h"
 #include "pdfimageconversion.h"
 #include "pdfoperationcontrol.h"
 #include "pdfprogress.h"
@@ -51,7 +50,6 @@ namespace pdf
 {
 class PDFPage;
 class PDFRasterizerPool;
-class PDFDocumentBuilder;
 class PDFDrawWidgetProxy;
 class PDFOptionalContentActivity;
 }
@@ -99,6 +97,10 @@ private:
     bool m_generating = false;
 };
 
+/// Dialog creating a bitonal version of the document. The conversion itself is
+/// performed by \p pdf::PDFBitonalDocumentCreator - this dialog is responsible for
+/// the settings, for the list of the converted items and for the preview, all of
+/// which are generated in the background, so the dialog stays responsive.
 class PDFCreateBitonalDocumentDialog : public QDialog
 {
     Q_OBJECT
@@ -113,22 +115,17 @@ public:
 
     pdf::PDFDocument takeBitonaldDocument() { return qMove(m_bitonalDocument); }
 
-    /// Source of the bitonal conversion. Documents produced by scanners often
-    /// store a single scanned page as several images (for example a background
-    /// image and a text layer masked by a stencil mask). Converting such images
-    /// one by one cannot produce a reasonable bitonal page, so the whole page
-    /// composition can be converted instead.
-    enum class ConversionSource
-    {
-        Images, ///< Each image of the document is converted separately
-        Pages   ///< Whole pages are rasterized and converted as a single image
-    };
+    using ConversionSource = pdf::PDFBitonalDocumentCreator::ConversionSource;
+    using ConversionSettings = pdf::PDFBitonalDocumentCreator::Settings;
 
-    struct ConversionItemInfo
+    /// Item of the list, i.e. an image or a page. Besides the information needed by
+    /// the conversion it carries the state of the thumbnail, which is generated in
+    /// the background - all items are created at once, so the user sees the whole
+    /// list immediately, but their thumbnails arrive one by one.
+    struct ConversionItemInfo : public pdf::PDFBitonalDocumentCreator::ItemInfo
     {
-        /// State of the thumbnail of the item. All items are created at once, so the
-        /// user sees the whole list immediately, but their thumbnails are generated
-        /// in the background, one by one.
+        using Mode = pdf::PDFBitonalDocumentCreator::ItemMode;
+
         enum class ThumbnailState
         {
             Pending,    ///< Thumbnail is being generated
@@ -136,47 +133,13 @@ public:
             Failed      ///< Image of the item cannot be decoded or rendered
         };
 
-        /// Way, in which the item is converted. Scanned documents contain pages and
-        /// images, for which the conversion algorithm is not the right answer - a color
-        /// cover is better left as it is, a blank or a completely dark scan carries no
-        /// information at all and is better replaced by a solid fill.
-        enum class Mode
-        {
-            Algorithm,  ///< Converted using the selected conversion method
-            Original,   ///< Left as it is, the item is not touched at all
-            FillBlack,  ///< Replaced by a black area
-            FillWhite   ///< Replaced by a white area
-        };
-
-        /// Returns true, if the item is going to be replaced in the converted
-        /// document. Items, which are left as they are, are not touched at all.
-        bool isContentReplaced() const { return mode != Mode::Original; }
-
-        /// Returns true, if the item is replaced by a solid fill
-        bool isFilled() const { return mode == Mode::FillBlack || mode == Mode::FillWhite; }
-
         /// Returns true, if the mode can be used for this item. An item, whose image
         /// could not be decoded or rendered, cannot be converted by the algorithm, but
         /// it still can be replaced by a solid fill.
         /// \param testedMode Mode to be tested
         bool isModeAvailable(Mode testedMode) const { return testedMode != Mode::Algorithm || thumbnailState != ThumbnailState::Failed; }
 
-        pdf::PDFObjectReference imageReference;  ///< Valid, when images are converted
-        pdf::PDFInteger pageIndex = -1;          ///< Valid, when pages are converted
-        Mode mode = Mode::Algorithm;
         ThumbnailState thumbnailState = ThumbnailState::Pending;
-    };
-
-    /// Immutable snapshot of all inputs of the conversion. It is created in the GUI
-    /// thread and a copy of it is owned by the worker thread, so the worker never
-    /// reads a setting, which the user can change in the meantime.
-    struct ConversionSettings
-    {
-        ConversionSource conversionSource = ConversionSource::Images;
-        pdf::PDFImageConversion::ConversionMethod conversionMethod = pdf::PDFImageConversion::ConversionMethod::Automatic;
-        int manualThreshold = 128;
-        int dpiResolution = 300;
-        std::vector<ConversionItemInfo> items;
     };
 
 protected:
@@ -239,7 +202,7 @@ private:
         ConversionItemInfo item;
         pdf::PDFImageConversion::ConversionMethod conversionMethod = pdf::PDFImageConversion::ConversionMethod::Automatic;
         int manualThreshold = 128;
-        int dpiResolution = 300;
+        int dpiResolution = pdf::PDFBitonalDocumentCreator::DEFAULT_DPI_RESOLUTION;
 
         /// Rasterized page, when it has already been rendered for the previous preview.
         /// It is passed to the worker, so changing the conversion method does not
@@ -275,8 +238,6 @@ private:
     /// has been converted and the resulting document is valid.
     bool createBitonalDocument(const ConversionSettings& settings);
 
-    bool createBitonalDocumentFromImages(pdf::PDFDocumentBuilder& builder, const ConversionSettings& settings);
-    bool createBitonalDocumentFromPages(pdf::PDFDocumentBuilder& builder, const ConversionSettings& settings);
     void onCreateBitonalDocumentButtonClicked();
     void onPerformFinished();
     void onConversionSourceChanged();
@@ -335,83 +296,6 @@ private:
     /// Creates a snapshot of the current settings of the dialog
     ConversionSettings getConversionSettings() const;
 
-    /// Converts the image to the bitonal one. Returns a null image, if the conversion fails.
-    /// \param image Image to be converted
-    /// \param conversionMethod Conversion method
-    /// \param threshold Manual threshold
-    /// \param alphaMask Transparency of the converted image (can be a null image)
-    static QImage convertImageToBitonal(const QImage& image,
-                                        pdf::PDFImageConversion::ConversionMethod conversionMethod,
-                                        int threshold,
-                                        QImage* alphaMask);
-
-    /// Creates an image object (1 bit per component, DeviceGray) from a bitonal image
-    /// \param image Bitonal image
-    static pdf::PDFObject createBitonalImageObject(const QImage& image);
-
-    /// Creates the bitonal image, which a filled item is replaced by. A single sample
-    /// is enough when the image has no soft mask, because the image is stretched over
-    /// the whole area of the replaced item. When a soft mask is attached, the image
-    /// must have the size of the mask - the soft mask is resampled to the dimensions
-    /// of the image it belongs to, so a single sample would destroy it.
-    /// \param size Size of the image
-    /// \param isBlack True for the black fill, false for the white one
-    static QImage createFillImage(QSize size, bool isBlack);
-
-    /// Creates the image, which shows in the preview, how a filled item is going to
-    /// look in the document. Transparent parts of the source image are not filled -
-    /// they stay transparent and they are displayed as a blank paper.
-    /// \param image Source image
-    /// \param isBlack True for the black fill, false for the white one
-    static QImage createFillPreviewImage(const QImage& image, bool isBlack);
-
-    /// Rasterizes the given pages and calls the processor for each rendered page
-    /// image. Images are composited onto the white background and they are returned
-    /// in the coordinate system of the page, i.e. the page rotation is not applied
-    /// to them. The processor can be called from multiple threads simultaneously and
-    /// it is not called at all for the pages, which have been skipped because the
-    /// operation has been cancelled.
-    /// \param pageIndices Indices of the rendered pages
-    /// \param pageSizeGetter Functor returning the size of the rendered page image
-    /// \param pageImageProcessor Functor processing the rendered page image
-    /// \param operationControl Operation control (can be nullptr)
-    void renderPages(const std::vector<pdf::PDFInteger>& pageIndices,
-                     const std::function<QSize(const pdf::PDFPage*)>& pageSizeGetter,
-                     const std::function<void(pdf::PDFInteger, QImage)>& pageImageProcessor,
-                     const pdf::PDFOperationControl* operationControl) const;
-
-    /// Rasterizes a single page into an image of a given size. \sa renderPages
-    /// \param pageIndex Index of the rendered page
-    /// \param size Size of the target image
-    /// \param operationControl Operation control (can be nullptr)
-    QImage renderPage(pdf::PDFInteger pageIndex, QSize size, const pdf::PDFOperationControl* operationControl) const;
-
-    /// Returns size of the rasterized page image for a given resolution
-    /// \param page Page
-    /// \param dpiResolution Resolution in dots per inch
-    static QSize getPageImageSize(const pdf::PDFPage* page, int dpiResolution);
-
-    /// Estimates the resolution of the document, so the rasterized pages do not lose
-    /// the details of the scanned images. Resolution is estimated from the size of the
-    /// images used on the pages. Because it is not known, which part of the page an
-    /// image actually covers, the estimate is only used to raise the resolution above
-    /// the default one - the returned value is never lower than the default resolution.
-    int getEstimatedDpiResolution() const;
-
-    /// Returns true, if the image is a stencil mask. Stencil masks are already
-    /// bitonal and they are painted using the current fill color, so it does not
-    /// make sense to convert them.
-    bool isStencilMask(pdf::PDFObjectReference reference) const;
-
-    std::optional<pdf::PDFImage> getImageFromReference(pdf::PDFObjectReference reference) const;
-
-    /// Decodes an image of the document into a QImage. Returns a null image, when the
-    /// image cannot be decoded. This function can be called from a worker thread - it
-    /// reads the document only, which is immutable and safe for concurrent reading.
-    /// \param reference Reference to the image object
-    /// \param operationControl Operation control (can be nullptr)
-    QImage getDecodedImage(pdf::PDFObjectReference reference, const pdf::PDFOperationControl* operationControl) const;
-
     Ui::PDFCreateBitonalDocumentDialog* ui;
     const pdf::PDFDocument* m_document;
     pdf::PDFDrawWidgetProxy* m_proxy;
@@ -422,7 +306,6 @@ private:
     QFuture<bool> m_future;
     std::optional<QFutureWatcher<bool>> m_futureWatcher;
     pdf::PDFDocument m_bitonalDocument;
-    pdf::PDFObjectClassifier m_classifier;
     std::vector<pdf::PDFObjectReference> m_imageReferences;
     std::vector<ConversionItemInfo> m_itemsToBeConverted;
 
@@ -435,6 +318,12 @@ private:
     pdf::PDFProgress* m_progress;
     pdf::PDFOptionalContentActivity* m_optionalContentActivity;
     pdf::PDFRasterizerPool* m_rasterizerPool;
+
+    /// Performs all work with the document. It is used both by the GUI thread and by
+    /// the worker threads - only the function creating the bitonal document modifies
+    /// its state and it never runs together with anything else, because the conversion
+    /// disables the whole dialog.
+    std::optional<pdf::PDFBitonalDocumentCreator> m_creator;
 
     /// Conversion source, which the list of items and the preview are showing. It is
     /// used by the GUI thread only, the worker thread gets its own copy in the settings.

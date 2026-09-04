@@ -24,23 +24,14 @@
 #include "ui_pdfcreatebitonaldocumentdialog.h"
 
 #include "pdfwidgetutils.h"
-#include "pdfdocumentwriter.h"
-#include "pdfdocumentbuilder.h"
 #include "pdfdrawspacecontroller.h"
-#include "pdfexecutionpolicy.h"
-#include "pdfimage.h"
 #include "pdfexception.h"
-#include "pdfimageconversion.h"
-#include "pdfoptimizer.h"
+#include "pdfexecutionpolicy.h"
 #include "pdfoptionalcontent.h"
 #include "pdfpage.h"
 #include "pdfrenderer.h"
-#include "pdfstreamfilters.h"
-#include "pdfutils.h"
 
-#include <QCheckBox>
 #include <QPushButton>
-#include <QElapsedTimer>
 #include <QtConcurrent/QtConcurrent>
 #include <QListWidget>
 #include <QMenu>
@@ -59,52 +50,6 @@
 
 namespace pdfviewer
 {
-
-/// Entries of the original image dictionary, which are still valid for the converted
-/// bitonal image. Entries describing the image samples (size, color space, filters)
-/// and the transparency (soft masks) are always replaced by the converted ones.
-static constexpr const char* PRESERVED_IMAGE_DICTIONARY_KEYS[] =
-{
-    "Intent",
-    "Interpolate",
-    "OC",
-    "Metadata",
-    "StructParent",
-    "AF",
-    "Measure",
-    "PtData"
-};
-
-/// Returns the renderer features used to rasterize the pages. Annotations are
-/// deliberately not rendered - they are kept as live annotation objects in the
-/// converted document, so they would be painted twice.
-static pdf::PDFRenderer::Features getPageRasterizationFeatures()
-{
-    return pdf::PDFRenderer::Features(pdf::PDFRenderer::Antialiasing |
-                                      pdf::PDFRenderer::TextAntialiasing |
-                                      pdf::PDFRenderer::SmoothImages |
-                                      pdf::PDFRenderer::ClipToCropBox);
-}
-
-/// Composites the rasterized page onto the white background. Areas of the page,
-/// which are not painted at all, are transparent in the rasterized image, but
-/// they represent a blank paper, so they must become white.
-static QImage compositePageImageOntoWhite(const QImage& image)
-{
-    if (image.isNull())
-    {
-        return image;
-    }
-
-    QImage result(image.size(), QImage::Format_RGB32);
-    result.fill(Qt::white);
-
-    QPainter painter(&result);
-    painter.drawImage(0, 0, image);
-    painter.end();
-
-    return result;
-}
 
 /// Creates an item of the list, whose thumbnail has not been generated yet. The size
 /// of the item is fixed and it does not depend on the thumbnail, so the items do not
@@ -236,19 +181,19 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     ui->mainGridLayout->addWidget(m_leftPreviewWidget, 1, 1);
     ui->mainGridLayout->addWidget(m_rightPreviewWidget, 1, 2);
 
-    m_classifier.classify(document);
-    m_imageReferences = m_classifier.getObjectsByType(pdf::PDFObjectClassifier::Image);
-
     m_optionalContentActivity = new pdf::PDFOptionalContentActivity(document, pdf::OCUsage::Export, this);
     m_rasterizerPool = new pdf::PDFRasterizerPool(m_document,
                                                   m_proxy->getFontCache(),
                                                   m_proxy->getCMSManager(),
                                                   m_optionalContentActivity,
-                                                  getPageRasterizationFeatures(),
+                                                  pdf::PDFBitonalDocumentCreator::getPageRasterizationFeatures(),
                                                   m_proxy->getMeshQualitySettings(),
                                                   pdf::PDFRasterizerPool::getDefaultRasterizerCount(),
                                                   m_proxy->getRendererEngine(),
                                                   this);
+
+    m_creator.emplace(m_document, m_rasterizerPool, m_progress);
+    m_imageReferences = m_creator->getConvertibleImages();
 
     ui->conversionSourceComboBox->addItem(tr("Images"), static_cast<int>(ConversionSource::Images));
     ui->conversionSourceComboBox->addItem(tr("Whole pages"), static_cast<int>(ConversionSource::Pages));
@@ -261,13 +206,15 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     // Rasterizing the page is expensive, so the preview is not updated
     // while the resolution is being typed
     ui->resolutionEditBox->setKeyboardTracking(false);
-    ui->resolutionEditBox->setValue(getEstimatedDpiResolution());
+    ui->resolutionEditBox->setValue(m_creator->getEstimatedDpiResolution());
 
     m_createBitonalDocumentButton = ui->buttonBox->addButton(tr("Perform"), QDialogButtonBox::ActionRole);
     connect(m_createBitonalDocumentButton, &QPushButton::clicked, this, &PDFCreateBitonalDocumentDialog::onCreateBitonalDocumentButtonClicked);
     connect(ui->conversionSourceComboBox, qOverload<int>(&QComboBox::currentIndexChanged), this, &PDFCreateBitonalDocumentDialog::onConversionSourceChanged);
     connect(ui->conversionMethodComboBox, qOverload<int>(&QComboBox::currentIndexChanged), this, &PDFCreateBitonalDocumentDialog::onConversionSettingsChanged);
     connect(ui->imageListWidget, &QListWidget::currentItemChanged, this, &PDFCreateBitonalDocumentDialog::updatePreview);
+    connect(ui->thresholdEditBox, qOverload<int>(&QSpinBox::valueChanged), this, &PDFCreateBitonalDocumentDialog::onConversionSettingsChanged);
+    connect(ui->resolutionEditBox, qOverload<int>(&QSpinBox::valueChanged), this, &PDFCreateBitonalDocumentDialog::onConversionSettingsChanged);
 
     // Conversion mode can be set to many items at once using the context menu, but the
     // preview still follows the current item, which exists in the extended selection
@@ -276,8 +223,6 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     ui->imageListWidget->setSelectionMode(QAbstractItemView::ExtendedSelection);
     ui->imageListWidget->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(ui->imageListWidget, &QListWidget::customContextMenuRequested, this, &PDFCreateBitonalDocumentDialog::onItemListContextMenuRequested);
-    connect(ui->thresholdEditBox, qOverload<int>(&QSpinBox::valueChanged), this, &PDFCreateBitonalDocumentDialog::onConversionSettingsChanged);
-    connect(ui->resolutionEditBox, qOverload<int>(&QSpinBox::valueChanged), this, &PDFCreateBitonalDocumentDialog::onConversionSettingsChanged);
 
     // Results of the background jobs are emitted by the worker threads, so they must
     // be delivered into the GUI thread using a queued connection. Connections are
@@ -304,9 +249,10 @@ PDFCreateBitonalDocumentDialog::~PDFCreateBitonalDocumentDialog()
     Q_ASSERT(!m_conversionInProgress);
     Q_ASSERT(!m_future.isRunning());
 
-    // Workers use the document and the rasterizer pool, so none of them can be running
-    // when the dialog is being destroyed. Both jobs are cancelled first and joined
-    // afterwards, so they can be finishing their last uninterruptible step in parallel.
+    // Workers use the document creator and the rasterizer pool, so none of them can be
+    // running when the dialog is being destroyed. Both jobs are cancelled first and
+    // joined afterwards, so they can be finishing their last uninterruptible step in
+    // parallel.
     cancelJob(m_thumbnailJob);
     cancelJob(m_previewJob);
     finishJob(m_thumbnailJob);
@@ -428,561 +374,14 @@ void PDFCreateBitonalDocumentDialog::onPerformFinished()
 
 bool PDFCreateBitonalDocumentDialog::createBitonalDocument(const ConversionSettings& settings)
 {
-    try
-    {
-        pdf::PDFDocumentBuilder builder(m_document);
-        bool isConverted = false;
-
-        switch (settings.conversionSource)
-        {
-            case ConversionSource::Images:
-                isConverted = createBitonalDocumentFromImages(builder, settings);
-                break;
-
-            case ConversionSource::Pages:
-                isConverted = createBitonalDocumentFromPages(builder, settings);
-                break;
-
-            default:
-                Q_ASSERT(false);
-                break;
-        }
-
-        if (!isConverted)
-        {
-            // Nothing has been converted
-            return false;
-        }
-
-        pdf::PDFDocument builtDocument = builder.build();
-
-        // Images and content streams, which have been replaced, are not referenced
-        // by the document anymore. They must be removed, otherwise the converted
-        // document would be even larger than the original one.
-        pdf::PDFOptimizer optimizer(pdf::PDFOptimizer::RemoveUnusedObjects, nullptr);
-        optimizer.setDocument(&builtDocument);
-        optimizer.optimize();
-
-        m_bitonalDocument = pdf::PDFDocument(optimizer.takeStorage(), builtDocument.getInfo()->version, QByteArray());
-        return true;
-    }
-    catch (const pdf::PDFException&)
+    if (!m_creator->createBitonalDocument(settings))
     {
         m_bitonalDocument = pdf::PDFDocument();
         return false;
     }
-}
 
-bool PDFCreateBitonalDocumentDialog::createBitonalDocumentFromImages(pdf::PDFDocumentBuilder& builder, const ConversionSettings& settings)
-{
-    std::vector<ConversionItemInfo> itemsToBeConverted;
-    std::copy_if(settings.items.begin(), settings.items.end(), std::back_inserter(itemsToBeConverted), [](const auto& item) { return item.isContentReplaced(); });
-
-    // Do we have something to be converted?
-    if (itemsToBeConverted.empty())
-    {
-        return false;
-    }
-
-    pdf::ProgressStartupInfo info;
-    info.showDialog = true;
-    info.text = tr("Converting images...");
-    m_progress->start(itemsToBeConverted.size(), std::move(info));
-
-    // The progress must be finished even when an exception escapes from this function
-    auto progressGuard = qScopeGuard([this]() { m_progress->finish(); });
-
-    bool isConverted = false;
-
-    for (const ConversionItemInfo& item : itemsToBeConverted)
-    {
-        const pdf::PDFObjectReference reference = item.imageReference;
-        QImage image = getDecodedImage(reference, nullptr);
-
-        if (image.isNull())
-        {
-            m_progress->step();
-            continue;
-        }
-
-        QImage alphaMask;
-        QImage bitonalImage;
-
-        if (item.isFilled())
-        {
-            // Only the color samples are replaced by the solid fill - the transparency
-            // of the original image is preserved. Filling a masked text layer of a
-            // two-layer scan without its mask would cover the whole page.
-            alphaMask = pdf::PDFImageConversion::createAlphaMask(image);
-            bitonalImage = createFillImage(alphaMask.isNull() ? QSize(1, 1) : alphaMask.size(), item.mode == ConversionItemInfo::Mode::FillBlack);
-        }
-        else
-        {
-            bitonalImage = convertImageToBitonal(image, settings.conversionMethod, settings.manualThreshold, &alphaMask);
-        }
-
-        pdf::PDFObject imageObject = createBitonalImageObject(bitonalImage);
-
-        if (!imageObject.isNull())
-        {
-            pdf::PDFDictionary dictionary = *imageObject.getStream()->getDictionary();
-            QByteArray content = *imageObject.getStream()->getContent();
-
-            // Transfer the entries of the original image, which are not related
-            // to the image samples, into the converted image.
-            if (const pdf::PDFDictionary* originalDictionary = m_document->getDictionaryFromObject(m_document->getObjectByReference(reference)))
-            {
-                for (const char* key : PRESERVED_IMAGE_DICTIONARY_KEYS)
-                {
-                    if (originalDictionary->hasKey(key))
-                    {
-                        dictionary.setEntry(pdf::PDFInplaceOrMemoryString(key), pdf::PDFObject(originalDictionary->get(key)));
-                    }
-                }
-            }
-
-            // The original image can be transparent - it can have a soft mask, a stencil
-            // mask, a color key mask, or an alpha channel stored directly in the image
-            // data. All these variants are decoded into the alpha channel of the decoded
-            // image, so a single soft mask created from that alpha channel replaces them.
-            if (!alphaMask.isNull())
-            {
-                pdf::PDFObject softMaskObject = createBitonalImageObject(alphaMask);
-
-                if (!softMaskObject.isNull())
-                {
-                    pdf::PDFObjectReference softMaskReference = builder.addObject(std::move(softMaskObject));
-                    dictionary.setEntry(pdf::PDFInplaceOrMemoryString("SMask"), pdf::PDFObject::createReference(softMaskReference));
-                }
-            }
-
-            builder.setObject(reference, pdf::PDFObject::createStream(std::make_shared<pdf::PDFStream>(std::move(dictionary), std::move(content))));
-            isConverted = true;
-        }
-
-        m_progress->step();
-    }
-
-    return isConverted;
-}
-
-bool PDFCreateBitonalDocumentDialog::createBitonalDocumentFromPages(pdf::PDFDocumentBuilder& builder, const ConversionSettings& settings)
-{
-    // Pages, whose content is replaced, and the mode of each of them. Only the pages
-    // converted by the algorithm have to be rasterized - a filled page is built from
-    // a single sample, so it costs nothing.
-    std::vector<pdf::PDFInteger> pageIndices;
-    std::vector<pdf::PDFInteger> rasterizedPageIndices;
-    std::map<pdf::PDFInteger, ConversionItemInfo::Mode> pageModes;
-
-    for (const ConversionItemInfo& item : settings.items)
-    {
-        if (item.isContentReplaced() && item.pageIndex >= 0)
-        {
-            pageIndices.push_back(item.pageIndex);
-            pageModes[item.pageIndex] = item.mode;
-
-            if (item.mode == ConversionItemInfo::Mode::Algorithm)
-            {
-                rasterizedPageIndices.push_back(item.pageIndex);
-            }
-        }
-    }
-
-    // Do we have something to be converted?
-    if (pageIndices.empty())
-    {
-        return false;
-    }
-
-    pdf::ProgressStartupInfo info;
-    info.showDialog = true;
-    info.text = tr("Converting pages...");
-
-    // Rasterizing is the only expensive part of the conversion, so the progress counts
-    // the rasterized pages. At least one step is needed even when all pages are only
-    // filled, so the progress does not divide by a zero page count.
-    m_progress->start(qMax<size_t>(rasterizedPageIndices.size(), 1), std::move(info));
-
-    // The progress must be finished even when an exception escapes from this function
-    auto progressGuard = qScopeGuard([this]() { m_progress->finish(); });
-
-    bool isConverted = false;
-    const pdf::PDFCatalog* catalog = m_document->getCatalog();
-    const int dpiResolution = settings.dpiResolution;
-
-    // Pages are rasterized and converted in parallel, but the converted images are
-    // stored as encoded image streams only - the rasterized images are large and we
-    // do not want to keep all of them in the memory at once.
-    std::vector<pdf::PDFObject> imageObjects(catalog->getPageCount());
-
-    auto pageSizeGetter = [dpiResolution](const pdf::PDFPage* page) { return getPageImageSize(page, dpiResolution); };
-    auto pageImageProcessor = [this, &imageObjects, &settings](pdf::PDFInteger pageIndex, QImage image)
-    {
-        QImage bitonalImage = convertImageToBitonal(image, settings.conversionMethod, settings.manualThreshold, nullptr);
-        imageObjects[size_t(pageIndex)] = createBitonalImageObject(bitonalImage);
-        m_progress->step();
-    };
-
-    renderPages(rasterizedPageIndices, pageSizeGetter, pageImageProcessor, nullptr);
-
-    const bool isWholeDocumentConverted = pageIndices.size() == catalog->getPageCount();
-
-    for (const pdf::PDFInteger pageIndex : pageIndices)
-    {
-        const ConversionItemInfo::Mode mode = pageModes.at(pageIndex);
-        pdf::PDFObject imageObject;
-
-        if (mode == ConversionItemInfo::Mode::Algorithm)
-        {
-            imageObject = std::move(imageObjects[size_t(pageIndex)]);
-        }
-        else
-        {
-            // Page is covered by a solid area, which does not need any rasterization
-            imageObject = createBitonalImageObject(createFillImage(QSize(1, 1), mode == ConversionItemInfo::Mode::FillBlack));
-        }
-
-        const pdf::PDFPage* page = catalog->getPage(size_t(pageIndex));
-
-        if (imageObject.isNull() || !page)
-        {
-            continue;
-        }
-
-        const QRectF mediaBox = page->getMediaBox();
-        if (mediaBox.isEmpty())
-        {
-            continue;
-        }
-
-        const pdf::PDFObjectReference imageReference = builder.addObject(std::move(imageObject));
-
-        // Image is placed onto the whole media box of the page. The media box is
-        // expressed in the coordinate system of the page, in which the y axis points
-        // upwards, so the lower left corner of the box is (left(), top()).
-        QByteArray contentStream = QString("q %1 0 0 %2 %3 %4 cm /BitonalImage Do Q")
-                                       .arg(mediaBox.width(), 0, 'f', 6)
-                                       .arg(mediaBox.height(), 0, 'f', 6)
-                                       .arg(mediaBox.left(), 0, 'f', 6)
-                                       .arg(mediaBox.top(), 0, 'f', 6).toLatin1();
-        QByteArray compressedContentStream = pdf::PDFFlateDecodeFilter::compress(contentStream);
-
-        pdf::PDFDictionary contentStreamDictionary;
-        contentStreamDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Filter"), pdf::PDFObject::createName("FlateDecode"));
-        contentStreamDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Length"), pdf::PDFObject::createInteger(compressedContentStream.size()));
-
-        const pdf::PDFObjectReference contentStreamReference = builder.addObject(pdf::PDFObject::createStream(std::make_shared<pdf::PDFStream>(std::move(contentStreamDictionary), std::move(compressedContentStream))));
-
-        pdf::PDFDictionary xobjectDictionary;
-        xobjectDictionary.setEntry(pdf::PDFInplaceOrMemoryString("BitonalImage"), pdf::PDFObject::createReference(imageReference));
-
-        pdf::PDFArray procSetArray;
-        procSetArray.appendItem(pdf::PDFObject::createName("PDF"));
-        procSetArray.appendItem(pdf::PDFObject::createName("ImageB"));
-
-        pdf::PDFDictionary resourcesDictionary;
-        resourcesDictionary.setEntry(pdf::PDFInplaceOrMemoryString("XObject"), pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(xobjectDictionary))));
-        resourcesDictionary.setEntry(pdf::PDFInplaceOrMemoryString("ProcSet"), pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(std::move(procSetArray))));
-
-        const pdf::PDFObjectReference pageReference = page->getPageReference();
-        const pdf::PDFDictionary* originalPageDictionary = m_document->getDictionaryFromObject(m_document->getObjectByReference(pageReference));
-
-        if (!originalPageDictionary)
-        {
-            continue;
-        }
-
-        // Everything except the page content is preserved - the page keeps its size,
-        // rotation, annotations and other properties.
-        pdf::PDFDictionary pageDictionary = *originalPageDictionary;
-        pageDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Contents"), pdf::PDFObject::createReference(contentStreamReference));
-        pageDictionary.setEntry(pdf::PDFInplaceOrMemoryString("Resources"), pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(resourcesDictionary))));
-
-        // The marked content of the page is gone, so the page must not be a part
-        // of the structure tree anymore.
-        pageDictionary.removeEntry("StructParents");
-
-        // The embedded thumbnail shows the original, colored content of the page.
-        // Keeping it would both display a wrong preview in the viewer and prevent
-        // the removal of the unused objects it references.
-        pageDictionary.removeEntry("Thumb");
-
-        builder.setObject(pageReference, pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(pageDictionary))));
-        isConverted = true;
-    }
-
-    if (isConverted && isWholeDocumentConverted)
-    {
-        // No page is tagged anymore, so the whole structure tree can be removed
-        const pdf::PDFObjectReference catalogReference = builder.getCatalogReference();
-
-        if (const pdf::PDFDictionary* originalCatalogDictionary = m_document->getDictionaryFromObject(m_document->getObjectByReference(catalogReference)))
-        {
-            pdf::PDFDictionary catalogDictionary = *originalCatalogDictionary;
-            catalogDictionary.removeEntry("StructTreeRoot");
-            catalogDictionary.removeEntry("MarkInfo");
-            builder.setObject(catalogReference, pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(catalogDictionary))));
-        }
-    }
-
-    return isConverted;
-}
-
-QImage PDFCreateBitonalDocumentDialog::convertImageToBitonal(const QImage& image,
-                                                             pdf::PDFImageConversion::ConversionMethod conversionMethod,
-                                                             int threshold,
-                                                             QImage* alphaMask)
-{
-    if (image.isNull())
-    {
-        return QImage();
-    }
-
-    pdf::PDFImageConversion imageConversion;
-    imageConversion.setConversionMethod(conversionMethod);
-    imageConversion.setThreshold(threshold);
-    imageConversion.setAlphaMode(pdf::PDFImageConversion::AlphaMode::Composite);
-    imageConversion.setImage(image);
-
-    if (!imageConversion.convert())
-    {
-        return QImage();
-    }
-
-    if (alphaMask)
-    {
-        *alphaMask = imageConversion.getConvertedAlphaMask();
-    }
-
-    return imageConversion.getConvertedImage();
-}
-
-pdf::PDFObject PDFCreateBitonalDocumentDialog::createBitonalImageObject(const QImage& image)
-{
-    if (image.isNull())
-    {
-        return pdf::PDFObject();
-    }
-
-    try
-    {
-        pdf::PDFImage::ImageEncodeOptions options;
-        options.compression = pdf::PDFImage::ImageCompression::Flate;
-        options.colorMode = pdf::PDFImage::ImageColorMode::Monochrome;
-        options.enablePngPredictor = true;
-
-        pdf::PDFStream stream = pdf::PDFImage::createStreamFromImage(image, options, nullptr);
-
-        pdf::PDFDictionary dictionary = *stream.getDictionary();
-        QByteArray content = *stream.getContent();
-
-        return pdf::PDFObject::createStream(std::make_shared<pdf::PDFStream>(std::move(dictionary), std::move(content)));
-    }
-    catch (const pdf::PDFException&)
-    {
-        return pdf::PDFObject();
-    }
-}
-
-QImage PDFCreateBitonalDocumentDialog::createFillImage(QSize size, bool isBlack)
-{
-    QImage image(size.expandedTo(QSize(1, 1)), QImage::Format_Mono);
-
-    // The default color table of the format Format_Mono maps the sample value 0
-    // to the black color and the sample value 1 to the white color.
-    image.fill(isBlack ? 0 : 1);
-
-    return image;
-}
-
-QImage PDFCreateBitonalDocumentDialog::createFillPreviewImage(const QImage& image, bool isBlack)
-{
-    if (image.isNull())
-    {
-        return QImage();
-    }
-
-    QImage alphaMask = pdf::PDFImageConversion::createAlphaMask(image);
-
-    if (alphaMask.isNull() || !isBlack)
-    {
-        // The image is fully opaque, so the whole area is filled. The white fill looks
-        // the same in both cases - a transparent area is displayed as a blank white
-        // paper, which is exactly the color of the fill.
-        return createFillImage(image.size(), isBlack);
-    }
-
-    // In the mask, a set sample means an opaque pixel, which the format Format_Mono
-    // displays as white. The filled image is the other way round - the opaque part
-    // becomes black and the transparent part stays a blank white paper.
-    alphaMask.invertPixels();
-    return alphaMask;
-}
-
-void PDFCreateBitonalDocumentDialog::renderPages(const std::vector<pdf::PDFInteger>& pageIndices,
-                                                 const std::function<QSize(const pdf::PDFPage*)>& pageSizeGetter,
-                                                 const std::function<void(pdf::PDFInteger, QImage)>& pageImageProcessor,
-                                                 const pdf::PDFOperationControl* operationControl) const
-{
-    const pdf::PDFCatalog* catalog = m_document->getCatalog();
-
-    // Rasterizer always renders the page as it is displayed, i.e. with the page
-    // rotation applied. We want the image in the coordinate system of the page,
-    // so a rotated page is rendered into a transposed image, which is then rotated
-    // back. Rotating by a multiple of 90 degrees is a lossless operation.
-    auto imageSizeGetter = [&pageSizeGetter](const pdf::PDFPage* page) -> QSize
-    {
-        const QSize size = pageSizeGetter(page);
-        const pdf::PageRotation rotation = page->getPageRotation();
-
-        if (rotation == pdf::PageRotation::Rotate90 || rotation == pdf::PageRotation::Rotate270)
-        {
-            return size.transposed();
-        }
-
-        return size;
-    };
-
-    auto processImage = [catalog, &pageImageProcessor](pdf::PDFRenderedPageImage& renderedPageImage)
-    {
-        QImage image = compositePageImageOntoWhite(renderedPageImage.pageImage);
-        const pdf::PDFPage* page = catalog->getPage(size_t(renderedPageImage.pageIndex));
-
-        if (!image.isNull() && page)
-        {
-            QTransform transform;
-
-            switch (page->getPageRotation())
-            {
-                case pdf::PageRotation::Rotate90:
-                    transform.rotate(-90);
-                    break;
-
-                case pdf::PageRotation::Rotate180:
-                    transform.rotate(180);
-                    break;
-
-                case pdf::PageRotation::Rotate270:
-                    transform.rotate(90);
-                    break;
-
-                default:
-                    break;
-            }
-
-            if (!transform.isIdentity())
-            {
-                image = image.transformed(transform);
-            }
-        }
-
-        pageImageProcessor(renderedPageImage.pageIndex, std::move(image));
-    };
-
-    m_rasterizerPool->render(pageIndices, imageSizeGetter, processImage, nullptr, operationControl);
-}
-
-QImage PDFCreateBitonalDocumentDialog::renderPage(pdf::PDFInteger pageIndex, QSize size, const pdf::PDFOperationControl* operationControl) const
-{
-    QImage result;
-
-    auto pageSizeGetter = [size](const pdf::PDFPage*) { return size; };
-    auto pageImageProcessor = [&result](pdf::PDFInteger, QImage image) { result = std::move(image); };
-
-    renderPages({ pageIndex }, pageSizeGetter, pageImageProcessor, operationControl);
-
-    return result;
-}
-
-QSize PDFCreateBitonalDocumentDialog::getPageImageSize(const pdf::PDFPage* page, int dpiResolution)
-{
-    Q_ASSERT(page);
-
-    const QSizeF size = page->getMediaBox().size() * pdf::PDF_POINT_TO_INCH * dpiResolution;
-    return size.toSize().expandedTo(QSize(1, 1));
-}
-
-int PDFCreateBitonalDocumentDialog::getEstimatedDpiResolution() const
-{
-    constexpr int DEFAULT_DPI_RESOLUTION = 300;
-    constexpr int MAXIMUM_DPI_RESOLUTION = 600;
-
-    pdf::PDFDocumentDataLoaderDecorator loader(m_document);
-    int dpiResolution = 0;
-
-    // Scanned documents store the page as an image covering the whole page. We estimate
-    // the resolution from the size of these images, so the rasterized page keeps the
-    // details of the original scan. We do not know, which part of the page the image
-    // actually covers (that would require an analysis of the content stream), so the
-    // estimate is only used to raise the resolution above the default one - a small
-    // logo must never lower it.
-    const pdf::PDFCatalog* catalog = m_document->getCatalog();
-    for (size_t pageIndex = 0, pageCount = catalog->getPageCount(); pageIndex < pageCount; ++pageIndex)
-    {
-        const pdf::PDFPage* page = catalog->getPage(pageIndex);
-
-        if (!page)
-        {
-            continue;
-        }
-
-        const QRectF mediaBox = page->getMediaBox();
-        if (mediaBox.width() < 1.0 || mediaBox.height() < 1.0)
-        {
-            continue;
-        }
-
-        // Resources are an inheritable attribute of the page, so they can be stored
-        // in a parent node of the page tree. PDFPage resolves the inheritance for us.
-        const pdf::PDFDictionary* resourcesDictionary = m_document->getDictionaryFromObject(page->getResources());
-        if (!resourcesDictionary)
-        {
-            continue;
-        }
-
-        const pdf::PDFDictionary* xobjectDictionary = m_document->getDictionaryFromObject(resourcesDictionary->get("XObject"));
-        if (!xobjectDictionary)
-        {
-            continue;
-        }
-
-        for (size_t index = 0, count = xobjectDictionary->getCount(); index < count; ++index)
-        {
-            const pdf::PDFDictionary* imageDictionary = m_document->getDictionaryFromObject(xobjectDictionary->getValue(index));
-
-            if (!imageDictionary || loader.readNameFromDictionary(imageDictionary, "Subtype") != "Image")
-            {
-                continue;
-            }
-
-            const pdf::PDFInteger width = loader.readIntegerFromDictionary(imageDictionary, "Width", 0);
-            const pdf::PDFInteger height = loader.readIntegerFromDictionary(imageDictionary, "Height", 0);
-
-            if (width > 0)
-            {
-                dpiResolution = qMax(dpiResolution, qRound(width / (mediaBox.width() * pdf::PDF_POINT_TO_INCH)));
-            }
-
-            if (height > 0)
-            {
-                dpiResolution = qMax(dpiResolution, qRound(height / (mediaBox.height() * pdf::PDF_POINT_TO_INCH)));
-            }
-        }
-    }
-
-    return qBound(DEFAULT_DPI_RESOLUTION, dpiResolution, MAXIMUM_DPI_RESOLUTION);
-}
-
-bool PDFCreateBitonalDocumentDialog::isStencilMask(pdf::PDFObjectReference reference) const
-{
-    if (const pdf::PDFDictionary* dictionary = m_document->getDictionaryFromObject(m_document->getObjectByReference(reference)))
-    {
-        pdf::PDFDocumentDataLoaderDecorator loader(m_document);
-        return loader.readBooleanFromDictionary(dictionary, "ImageMask", false);
-    }
-
-    return false;
+    m_bitonalDocument = m_creator->takeBitonalDocument();
+    return true;
 }
 
 void PDFCreateBitonalDocumentDialog::onCreateBitonalDocumentButtonClicked()
@@ -1118,7 +517,11 @@ PDFCreateBitonalDocumentDialog::ConversionSettings PDFCreateBitonalDocumentDialo
     settings.conversionMethod = getSelectedConversionMethod();
     settings.manualThreshold = ui->thresholdEditBox->value();
     settings.dpiResolution = ui->resolutionEditBox->value();
-    settings.items = m_itemsToBeConverted;
+
+    // Only the part of the item, which the conversion needs, is copied - the state
+    // of the thumbnail is a matter of the list, not of the conversion.
+    settings.items.assign(m_itemsToBeConverted.cbegin(), m_itemsToBeConverted.cend());
+
     return settings;
 }
 
@@ -1176,13 +579,6 @@ void PDFCreateBitonalDocumentDialog::createImageItems(QSize itemSize)
 {
     for (pdf::PDFObjectReference reference : m_imageReferences)
     {
-        if (isStencilMask(reference))
-        {
-            // Stencil masks are bitonal images painted using the current fill
-            // color - there is nothing to be converted.
-            continue;
-        }
-
         ConversionItemInfo conversionItemInfo;
         conversionItemInfo.imageReference = reference;
         m_itemsToBeConverted.push_back(conversionItemInfo);
@@ -1259,7 +655,7 @@ void PDFCreateBitonalDocumentDialog::generateThumbnails(int generation,
                     return;
                 }
 
-                QImage image = getDecodedImage(request.imageReferences[index], operationControl);
+                QImage image = m_creator->getDecodedImage(request.imageReferences[index], operationControl);
 
                 if (!image.isNull())
                 {
@@ -1311,7 +707,7 @@ void PDFCreateBitonalDocumentDialog::generateThumbnails(int generation,
                 }
             };
 
-            renderPages(request.pageIndices, pageSizeGetter, pageImageProcessor, operationControl);
+            m_creator->renderPages(request.pageIndices, pageSizeGetter, pageImageProcessor, operationControl);
             break;
         }
 
@@ -1330,7 +726,7 @@ void PDFCreateBitonalDocumentDialog::generatePreview(int generation,
     switch (request.conversionSource)
     {
         case ConversionSource::Images:
-            image = getDecodedImage(request.item.imageReference, operationControl);
+            image = m_creator->getDecodedImage(request.item.imageReference, operationControl);
             break;
 
         case ConversionSource::Pages:
@@ -1348,7 +744,8 @@ void PDFCreateBitonalDocumentDialog::generatePreview(int generation,
 
                 if (page)
                 {
-                    image = renderPage(request.item.pageIndex, getPageImageSize(page, request.dpiResolution), operationControl);
+                    const QSize size = pdf::PDFBitonalDocumentCreator::getPageImageSize(page, request.dpiResolution);
+                    image = m_creator->renderPage(request.item.pageIndex, size, operationControl);
                 }
             }
             break;
@@ -1359,17 +756,12 @@ void PDFCreateBitonalDocumentDialog::generatePreview(int generation,
             break;
     }
 
-    if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
-    {
-        return;
-    }
-
     QImage bitonalImage;
 
     switch (request.item.mode)
     {
         case ConversionItemInfo::Mode::Algorithm:
-            bitonalImage = convertImageToBitonal(image, request.conversionMethod, request.manualThreshold, nullptr);
+            bitonalImage = pdf::PDFBitonalDocumentCreator::convertImageToBitonal(image, request.conversionMethod, request.manualThreshold, nullptr);
             break;
 
         case ConversionItemInfo::Mode::Original:
@@ -1379,7 +771,7 @@ void PDFCreateBitonalDocumentDialog::generatePreview(int generation,
 
         case ConversionItemInfo::Mode::FillBlack:
         case ConversionItemInfo::Mode::FillWhite:
-            bitonalImage = createFillPreviewImage(image, request.item.mode == ConversionItemInfo::Mode::FillBlack);
+            bitonalImage = pdf::PDFBitonalDocumentCreator::createFillPreviewImage(image, request.item.isFilledByBlack());
             break;
 
         default:
@@ -1606,69 +998,6 @@ PDFCreateBitonalDocumentDialog::ConversionSource PDFCreateBitonalDocumentDialog:
     return static_cast<ConversionSource>(ui->conversionSourceComboBox->currentData().toInt());
 }
 
-std::optional<pdf::PDFImage> PDFCreateBitonalDocumentDialog::getImageFromReference(pdf::PDFObjectReference reference) const
-{
-    std::optional<pdf::PDFImage> pdfImage;
-    pdf::PDFObject imageObject = m_document->getObjectByReference(reference);
-    pdf::PDFRenderErrorReporterDummy errorReporter;
-
-    if (!imageObject.isStream())
-    {
-        // Image is not stream
-        return pdfImage;
-    }
-
-    const pdf::PDFStream* stream = imageObject.getStream();
-    try
-    {
-        pdf::PDFColorSpacePointer colorSpace;
-        const pdf::PDFDictionary* streamDictionary = stream->getDictionary();
-        if (streamDictionary->hasKey("ColorSpace"))
-        {
-            const pdf::PDFObject& colorSpaceObject = m_document->getObject(streamDictionary->get("ColorSpace"));
-            if (colorSpaceObject.isName() || colorSpaceObject.isArray())
-            {
-                pdf::PDFDictionary dummyDictionary;
-                colorSpace = pdf::PDFAbstractColorSpace::createColorSpace(&dummyDictionary, m_document, colorSpaceObject);
-            }
-        }
-        pdfImage.emplace(pdf::PDFImage::createImage(m_document,
-                                                    stream,
-                                                    colorSpace,
-                                                    false,
-                                                    pdf::RenderingIntent::Perceptual,
-                                                    &errorReporter));
-    }
-    catch (pdf::PDFException)
-    {
-        // Do nothing
-    }
-
-    return pdfImage;
-}
-
-QImage PDFCreateBitonalDocumentDialog::getDecodedImage(pdf::PDFObjectReference reference, const pdf::PDFOperationControl* operationControl) const
-{
-    std::optional<pdf::PDFImage> pdfImage = getImageFromReference(reference);
-
-    if (!pdfImage)
-    {
-        return QImage();
-    }
-
-    pdf::PDFCMSGeneric genericCms;
-    pdf::PDFRenderErrorReporterDummy errorReporter;
-
-    try
-    {
-        return pdfImage->getImage(&genericCms, &errorReporter, operationControl);
-    }
-    catch (const pdf::PDFException&)
-    {
-        return QImage();
-    }
-}
-
 ImagePreviewDelegate::ImagePreviewDelegate(std::vector<PDFCreateBitonalDocumentDialog::ConversionItemInfo>* conversionItemInfos, QObject *parent) :
     QStyledItemDelegate(parent),
     m_conversionItemInfos(conversionItemInfos)
@@ -1797,7 +1126,6 @@ QString ImagePreviewDelegate::getModeToolTip(Mode mode) const
 bool ImagePreviewDelegate::editorEvent(QEvent* event, QAbstractItemModel* model, const QStyleOptionViewItem& option, const QModelIndex& index)
 {
     Q_UNUSED(model);
-    Q_UNUSED(index);
 
     if (event->type() == QEvent::MouseButtonPress && index.isValid() && index.row() < int(m_conversionItemInfos->size()))
     {
