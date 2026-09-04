@@ -294,10 +294,14 @@ private:
     /// Returns the text displayed below the thumbnail of an item
     QString getItemCaption(int itemIndex) const;
 
-    /// Throws away the document created by the previous run, because it has been
-    /// created with different settings than which are displayed now. Without this,
-    /// the user could accept a document, which does not match the dialog.
-    void invalidateResult();
+    /// Returns the resolution, at which a page is rasterized for the preview. The
+    /// preview pane is small, so rasterizing the page at the full output resolution
+    /// would spend hundreds of megabytes on the details, which cannot be displayed
+    /// at all. The result of the thresholding depends on the resolution, so a reduced
+    /// preview is announced in the caption of the pane.
+    /// \param pageIndex Index of the previewed page
+    /// \param dpiResolution Resolution selected for the converted document
+    int getPreviewDpiResolution(pdf::PDFInteger pageIndex, int dpiResolution) const;
 
     void updateUi();
     void updatePreview();
@@ -313,7 +317,6 @@ private:
     const pdf::PDFCMS* m_cms;
     QPushButton* m_createBitonalDocumentButton;
     bool m_conversionInProgress;
-    bool m_processed;
     QFuture<bool> m_future;
     std::optional<QFutureWatcher<bool>> m_futureWatcher;
     pdf::PDFDocument m_bitonalDocument;

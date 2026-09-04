@@ -31,6 +31,7 @@
 #include "pdfpage.h"
 #include "pdfrenderer.h"
 
+#include <QMessageBox>
 #include <QPushButton>
 #include <QtConcurrent/QtConcurrent>
 #include <QListWidget>
@@ -53,6 +54,11 @@ namespace pdfviewer
 
 /// Delay between a change of the settings and the start of the preview job
 static constexpr int PREVIEW_UPDATE_DELAY_MSECS = 150;
+
+/// Ratio between the size of the page rasterized for the preview and the size of the
+/// preview pane. A value greater than one keeps the preview sharp when the image is
+/// scaled down by a smooth transformation.
+static constexpr qreal PREVIEW_QUALITY_FACTOR = 2.0;
 
 /// Returns the number of the thumbnails scheduled into the execution policy at once.
 /// The interactive preview uses the same thread pool, so the queue must stay short
@@ -177,7 +183,6 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     m_cms(cms),
     m_createBitonalDocumentButton(nullptr),
     m_conversionInProgress(false),
-    m_processed(false),
     m_leftPreviewWidget(new PDFCreateBitonalDocumentPreviewWidget(this)),
     m_rightPreviewWidget(new PDFCreateBitonalDocumentPreviewWidget(this)),
     m_progress(progress),
@@ -229,7 +234,10 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     m_previewUpdateTimer.setInterval(PREVIEW_UPDATE_DELAY_MSECS);
     connect(&m_previewUpdateTimer, &QTimer::timeout, this, &PDFCreateBitonalDocumentDialog::startPreviewGeneration);
 
-    m_createBitonalDocumentButton = ui->buttonBox->addButton(tr("Perform"), QDialogButtonBox::ActionRole);
+    // The conversion itself is the accepting action of the dialog - a successfully
+    // converted document is the result, so there is no separate confirmation button.
+    m_createBitonalDocumentButton = ui->buttonBox->addButton(tr("Perform"), QDialogButtonBox::AcceptRole);
+    m_createBitonalDocumentButton->setDefault(true);
     connect(m_createBitonalDocumentButton, &QPushButton::clicked, this, &PDFCreateBitonalDocumentDialog::onCreateBitonalDocumentButtonClicked);
     connect(ui->conversionSourceComboBox, qOverload<int>(&QComboBox::currentIndexChanged), this, &PDFCreateBitonalDocumentDialog::onConversionSourceChanged);
     connect(ui->conversionMethodComboBox, qOverload<int>(&QComboBox::currentIndexChanged), this, &PDFCreateBitonalDocumentDialog::onConversionSettingsChanged);
@@ -429,9 +437,23 @@ void PDFCreateBitonalDocumentDialog::finishPendingThumbnails()
 
 void PDFCreateBitonalDocumentDialog::onPerformFinished()
 {
-    m_processed = m_future.result();
+    const bool isConverted = m_future.result();
+
+    // The flag must be cleared before the dialog is closed - closing is refused while
+    // the conversion is running, because its worker writes into the dialog.
     m_conversionInProgress = false;
-    updateUi();
+
+    if (!isConverted)
+    {
+        m_bitonalDocument = pdf::PDFDocument();
+        updateUi();
+        QMessageBox::warning(this, tr("Create Bitonal Document"), tr("The bitonal document has not been created. No item of the document could be converted."));
+        return;
+    }
+
+    // The converted document is the result of the dialog, so there is nothing else
+    // to be confirmed here - the caller takes the document and the dialog is closed.
+    accept();
 }
 
 bool PDFCreateBitonalDocumentDialog::createBitonalDocument(const ConversionSettings& settings)
@@ -456,7 +478,6 @@ void PDFCreateBitonalDocumentDialog::onCreateBitonalDocumentButtonClicked()
     // dialog, because the user could change it while the conversion is running.
     ConversionSettings settings = getConversionSettings();
 
-    m_processed = false;
     m_bitonalDocument = pdf::PDFDocument();
     m_conversionInProgress = true;
     m_future = QtConcurrent::run([this, settings = std::move(settings)]() { return createBitonalDocument(settings); });
@@ -470,7 +491,6 @@ void PDFCreateBitonalDocumentDialog::onConversionSourceChanged()
 {
     m_conversionSource = getSelectedConversionSource();
 
-    invalidateResult();
     loadItems();
     updateUi();
     updatePreview();
@@ -478,14 +498,12 @@ void PDFCreateBitonalDocumentDialog::onConversionSourceChanged()
 
 void PDFCreateBitonalDocumentDialog::onConversionSettingsChanged()
 {
-    invalidateResult();
     updateUi();
     updatePreview();
 }
 
 void PDFCreateBitonalDocumentDialog::onConversionModeChanged()
 {
-    invalidateResult();
     ui->imageListWidget->viewport()->update();
 
     // The right pane shows, what the mode does with the current item
@@ -556,20 +574,6 @@ void PDFCreateBitonalDocumentDialog::setConversionModeToItems(ConversionItemInfo
     {
         onConversionModeChanged();
     }
-}
-
-void PDFCreateBitonalDocumentDialog::invalidateResult()
-{
-    if (!m_processed)
-    {
-        // Nothing has been created yet, or the conversion is just running.
-        // In both cases there is no result, which could become obsolete.
-        return;
-    }
-
-    m_processed = false;
-    m_bitonalDocument = pdf::PDFDocument();
-    updateUi();
 }
 
 PDFCreateBitonalDocumentDialog::ConversionSettings PDFCreateBitonalDocumentDialog::getConversionSettings() const
@@ -972,6 +976,44 @@ QString PDFCreateBitonalDocumentDialog::getItemCaption(int itemIndex) const
     return QString();
 }
 
+int PDFCreateBitonalDocumentDialog::getPreviewDpiResolution(pdf::PDFInteger pageIndex, int dpiResolution) const
+{
+    if (m_conversionSource != ConversionSource::Pages || pageIndex < 0)
+    {
+        // Images are converted as they are decoded, no resolution is involved
+        return dpiResolution;
+    }
+
+    const pdf::PDFCatalog* catalog = m_document->getCatalog();
+    const pdf::PDFPage* page = size_t(pageIndex) < catalog->getPageCount() ? catalog->getPage(size_t(pageIndex)) : nullptr;
+
+    if (!page)
+    {
+        return dpiResolution;
+    }
+
+    const QSize outputSize = pdf::PDFBitonalDocumentCreator::getPageImageSize(page, dpiResolution);
+    const QSize paneSize = m_rightPreviewWidget->size() * m_rightPreviewWidget->devicePixelRatioF() * PREVIEW_QUALITY_FACTOR;
+
+    if (outputSize.isEmpty() || paneSize.isEmpty())
+    {
+        // The panes have no size yet, so there is nothing to derive the resolution from
+        return dpiResolution;
+    }
+
+    if (outputSize.width() <= paneSize.width() && outputSize.height() <= paneSize.height())
+    {
+        // The page at the output resolution is small enough to be displayed as it is,
+        // so the preview shows exactly, what the conversion is going to produce
+        return dpiResolution;
+    }
+
+    const double scale = qMin(double(paneSize.width()) / double(outputSize.width()),
+                              double(paneSize.height()) / double(outputSize.height()));
+
+    return qBound(pdf::PDFBitonalDocumentCreator::MINIMUM_DPI_RESOLUTION, qRound(dpiResolution * scale), dpiResolution);
+}
+
 void PDFCreateBitonalDocumentDialog::updateUi()
 {
     m_conversionSource = getSelectedConversionSource();
@@ -997,7 +1039,6 @@ void PDFCreateBitonalDocumentDialog::updateUi()
     ui->conversionMethodComboBox->setEnabled(!m_conversionInProgress);
     ui->imageListWidget->setEnabled(!m_conversionInProgress);
 
-    ui->buttonBox->button(QDialogButtonBox::Ok)->setEnabled(m_processed && !isBusy);
     ui->buttonBox->button(QDialogButtonBox::Cancel)->setEnabled(!m_conversionInProgress);
     m_createBitonalDocumentButton->setEnabled(!isBusy);
 }
@@ -1041,12 +1082,17 @@ void PDFCreateBitonalDocumentDialog::startPreviewGeneration()
         return;
     }
 
+    const int outputDpiResolution = ui->resolutionEditBox->value();
+
     PreviewRequest request;
     request.conversionSource = m_conversionSource;
     request.item = m_itemsToBeConverted.at(index.row());
     request.conversionMethod = getSelectedConversionMethod();
     request.manualThreshold = ui->thresholdEditBox->value();
-    request.dpiResolution = ui->resolutionEditBox->value();
+
+    // Only the resolution needed by the panes is rasterized. The cache of the page is
+    // keyed by this resolution as well, so a resized dialog rasterizes the page again.
+    request.dpiResolution = getPreviewDpiResolution(request.item.pageIndex, outputDpiResolution);
 
     if (request.conversionSource == ConversionSource::Pages &&
         m_cachedPageIndex == request.item.pageIndex &&
@@ -1087,7 +1133,16 @@ void PDFCreateBitonalDocumentDialog::startPreviewGeneration()
         return QString();
     };
 
-    m_rightPreviewWidget->setCaption(getRightCaption(request.item.mode));
+    QString rightCaption = getRightCaption(request.item.mode);
+
+    if (request.dpiResolution < outputDpiResolution)
+    {
+        // The page is rasterized at a lower resolution than the converted document, so
+        // the thresholding can differ in the details. The user has to know about it.
+        rightCaption = tr("%1 - PREVIEW AT %2 DPI").arg(rightCaption).arg(request.dpiResolution);
+    }
+
+    m_rightPreviewWidget->setCaption(rightCaption);
     m_leftPreviewWidget->setGenerating(true);
     m_rightPreviewWidget->setGenerating(true);
     m_isPreviewDelivered = false;

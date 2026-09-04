@@ -48,6 +48,20 @@ set_target_properties(UnitTestsImageOptimizer PROPERTIES
 )
 add_test(UnitTestsImageOptimizer  "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsImageOptimizer")
 
+add_executable(UnitTestsBitonalDocument
+	tst_bitonaldocumenttest.cpp
+)
+
+target_link_libraries(UnitTestsBitonalDocument PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+
+set_target_properties(UnitTestsBitonalDocument PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_LIB_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsBitonalDocument  "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsBitonalDocument")
+
 add_executable(UnitTestsFontEncoding
 	tst_fontencodingtest.cpp
 )
