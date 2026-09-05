@@ -365,10 +365,22 @@ public:
     explicit PDFTextLayout();
 
     /// Adds character to the layout
-    void addCharacter(const PDFTextCharacterInfo& info);
+        void addCharacter(const PDFTextCharacterInfo& info);
 
-    /// Performs text layout algorithm
-    void perform();
+        /// Returns the number of characters currently in the layout.
+        size_t getCharacterCount() const { return m_characters.size(); }
+
+        /// Replaces \p count characters starting at \p index with the characters
+        /// of \p replacement. Each replacement character reuses the geometry
+        /// (position, advance, bounding box, angle) of an original glyph slot,
+        /// distributed linearly across the span so that both ligature expansion
+        /// (one glyph maps to several logical characters) and mark dedup (several
+        /// glyphs map to one logical character) keep the docstrum line detection
+        /// and per-character bounding boxes aligned with the drawn glyphs.
+        void replaceCharacters(size_t index, size_t count, const QString& replacement);
+
+        /// Performs text layout algorithm
+        void perform();
 
     /// Optimizes layout memory allocation to contain less space
     void optimize();

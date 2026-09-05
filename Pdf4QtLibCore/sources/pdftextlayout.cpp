@@ -292,6 +292,72 @@ void PDFTextLayout::addCharacter(const PDFTextCharacterInfo& info)
     m_angles.insert(character.angle);
 }
 
+void PDFTextLayout::replaceCharacters(size_t index, size_t count, const QString& replacement)
+{
+    Q_ASSERT(index + count <= m_characters.size());
+
+    if (count == 0)
+    {
+        return;
+    }
+
+    // Per PDF spec 14.9.4, an empty /ActualText means the sequence has no text
+    // content: remove the glyph range from the extraction entirely.
+    if (replacement.isEmpty())
+    {
+        m_characters.erase(m_characters.cbegin() + ptrdiff_t(index),
+                           m_characters.cbegin() + ptrdiff_t(index + count));
+        return;
+    }
+
+    const size_t replacementSize = size_t(replacement.size());
+
+    // Sanity limit: a crafted file could declare a huge /ActualText over a
+    // single glyph and inflate the layout. Cap the replacement length to a
+    // generous multiple of the glyph count.
+    const size_t maxReplacementSize = count * 10;
+    if (replacementSize > maxReplacementSize)
+    {
+        // Truncate to the sanity limit; the visible glyphs still map cleanly.
+        return replaceCharacters(index, count, replacement.left(int(maxReplacementSize)));
+    }
+
+    // Fast path: same number of characters, overwrite in place.
+    if (count == replacementSize)
+    {
+        for (size_t j = 0; j < count; ++j)
+        {
+            m_characters[index + j].character = replacement.at(int(j));
+        }
+        return;
+    }
+
+    // Rebuild path: distribute M replacement characters linearly over the
+    // span extent [slot[0].x, slot[N-1].x + advance]. This handles both
+    // ligature expansion (M > N) and mark dedup (M < N) without collapsing
+    // overflow characters to a single point.
+    TextCharacters newCharacters;
+    newCharacters.reserve(m_characters.size() - count + replacementSize);
+    newCharacters.insert(newCharacters.end(), m_characters.cbegin(), m_characters.cbegin() + ptrdiff_t(index));
+
+    const PDFReal spanLeft = m_characters[index].position.x();
+    const PDFReal spanRight = m_characters[index + count - 1].position.x() + m_characters[index + count - 1].advance;
+
+    for (size_t j = 0; j < replacementSize; ++j)
+    {
+        const double t = (replacementSize == 1) ? 0.0 : double(j) / double(replacementSize - 1);
+        const PDFReal x = spanLeft + (spanRight - spanLeft) * t;
+        const size_t sourceSlot = std::min(static_cast<size_t>(std::round(t * (count - 1))), count - 1);
+        TextCharacter character = m_characters[index + sourceSlot];
+        character.character = replacement.at(int(j));
+        character.position.setX(x);
+        newCharacters.push_back(qMove(character));
+    }
+
+    newCharacters.insert(newCharacters.end(), m_characters.cbegin() + ptrdiff_t(index + count), m_characters.cend());
+    m_characters = std::move(newCharacters);
+}
+
 void PDFTextLayout::perform()
 {
     for (PDFReal angle : m_angles)

@@ -21,6 +21,8 @@
 // SOFTWARE.
 
 #include "pdftextlayoutgenerator.h"
+#include "pdfdocument.h"
+#include "pdfencoding.h"
 #include "pdfdbgheap.h"
 
 namespace pdf
@@ -74,6 +76,82 @@ void PDFTextLayoutGenerator::performOutputCharacter(const PDFTextCharacterInfo& 
     if (!isContentSuppressed() && !info.character.isSpace())
     {
         m_textLayout.addCharacter(info);
+    }
+}
+
+void PDFTextLayoutGenerator::performMarkedContentBegin(const QByteArray& tag, const PDFObject& properties)
+{
+    Q_UNUSED(tag);
+
+    ActualTextSpan span;
+    span.startIndex = m_textLayout.getCharacterCount();
+
+    // The properties operand of BDC is the marked-content property dictionary.
+    // It can be an inline dictionary (e.g., /Span << /ActualText <FEFF...> >> BDC)
+    // or a name to be looked up in the page's /Properties resource dictionary.
+    const PDFDictionary* dictionary = getDocument()->getDictionaryFromObject(properties);
+    if (!dictionary && properties.isName())
+    {
+        if (const PDFDictionary* pageProperties = getPropertiesDictionary())
+        {
+            const PDFObject& resolved = pageProperties->get(properties.getString());
+            dictionary = getDocument()->getDictionaryFromObject(resolved);
+        }
+    }
+
+    if (dictionary && dictionary->hasKey("ActualText"))
+        {
+            const PDFObject& actualTextObject = getDocument()->getObject(dictionary->get("ActualText"));
+            if (actualTextObject.isString())
+            {
+                span.actualText = PDFEncoding::convertTextString(actualTextObject.getString());
+                span.hasActualText = true;
+            }
+        }
+
+    m_actualTextSpans.push_back(std::move(span));
+}
+
+void PDFTextLayoutGenerator::performMarkedContentEnd()
+{
+    if (m_actualTextSpans.empty())
+    {
+        return;
+    }
+
+    ActualTextSpan span = std::move(m_actualTextSpans.back());
+    m_actualTextSpans.pop_back();
+
+    // Per PDF spec 14.9.4, an empty /ActualText means the sequence has no
+        // text content: remove those characters from the extracted output.
+        // But only if /ActualText was actually present (hasActualText).
+        if (span.hasActualText && span.actualText.isEmpty())
+        {
+            const size_t glyphCount = m_textLayout.getCharacterCount() - span.startIndex;
+            if (glyphCount > 0)
+            {
+                m_textLayout.replaceCharacters(span.startIndex, glyphCount, QString());
+            }
+            return;
+        }
+
+        // If /ActualText was not present, this is a no-op.
+        if (!span.hasActualText)
+        {
+            return;
+        }
+
+    // The producing writer is assumed to emit /ActualText in visual order,
+    // matching the glyph order of the layout. Replace the layout range with
+    // the /ActualText payload: this repairs ligatures the ToUnicode CMap
+    // degraded to one UTF-16 unit and deduplicates mark glyphs that share
+    // their base's cluster. PDFTextLayout::replaceCharacters reuses each
+    // original glyph slot's geometry, so docstrum line detection and the
+    // per-character bounding boxes stay aligned.
+    const size_t glyphCount = m_textLayout.getCharacterCount() - span.startIndex;
+    if (glyphCount > 0)
+    {
+        m_textLayout.replaceCharacters(span.startIndex, glyphCount, span.actualText);
     }
 }
 

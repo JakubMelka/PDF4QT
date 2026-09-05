@@ -51,10 +51,26 @@ protected:
     virtual bool isContentSuppressedByOC(PDFObjectReference ocgOrOcmd) override;
     virtual bool isContentKindSuppressed(ContentKind kind) const override;
     virtual void performOutputCharacter(const PDFTextCharacterInfo& info) override;
+    virtual void performMarkedContentBegin(const QByteArray& tag, const PDFObject& properties) override;
+    virtual void performMarkedContentEnd() override;
 
 private:
+    /// Mirrors the marked-content nesting: every BDC pushes a span, every EMC
+    /// pops one. When the span carries an /ActualText property, its text is
+    /// the authoritative logical text of the glyphs in the span and repairs
+    /// degraded ToUnicode mappings (ligatures collapsed to one UTF-16 unit,
+    /// or mark glyphs duplicated on their base's cluster).
+    struct ActualTextSpan
+        {
+            size_t startIndex = 0; ///< Layout character index at BDC time
+            QString actualText;    ///< Decoded /ActualText (empty = no property)
+            bool hasActualText = false; ///< Whether /ActualText was present
+        };
+
     PDFRenderer::Features m_features;
     PDFTextLayout m_textLayout;
+    std::vector<ActualTextSpan> m_actualTextSpans;
+
 };
 
 }   // namespace pdf
