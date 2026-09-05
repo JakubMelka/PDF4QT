@@ -2339,8 +2339,8 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
     const uint8_t HDEFPIXEL = (flags >> 7) & 0x01;
     const uint32_t HGW = m_reader.readUnsignedInt();
     const uint32_t HGH = m_reader.readUnsignedInt();
-    const uint32_t HGX = m_reader.readSignedInt();
-    const uint32_t HGY = m_reader.readSignedInt();
+    const int32_t HGX = m_reader.readSignedInt();
+    const int32_t HGY = m_reader.readSignedInt();
     const uint16_t HRX = m_reader.readUnsignedWord();
     const uint16_t HRY = m_reader.readUnsignedWord();
     const int HBW = field.width;
@@ -2394,6 +2394,26 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
     /* 6.6 step 1) */
     PDFJBIG2Bitmap HTREG(HBW, HBH, HDEFPIXEL ? 0xFF : 0x00);
 
+    // Position of the upper left pixel of the pattern of a cell of the grid, see the
+    // formula of 6.6.5.1 and 6.6.5.2. The grid is placed by a signed offset and its steps
+    // are arbitrary, so the position is computed in 64 bits - it can lie far outside of
+    // the region. The specification divides by the arithmetic shift, which rounds towards
+    // the negative infinity, and not by the integer division of C++, which rounds towards
+    // zero - the results differ for a grid placed at a negative offset, which is the usual
+    // case of a rotated grid.
+    auto getCellPosition = [HGX, HGY, HRX, HRY](int MG, int NG)
+    {
+        const int64_t x = (int64_t(HGX) + int64_t(MG) * int64_t(HRY) + int64_t(NG) * int64_t(HRX)) >> 8;
+        const int64_t y = (int64_t(HGY) + int64_t(MG) * int64_t(HRX) - int64_t(NG) * int64_t(HRY)) >> 8;
+        return std::make_pair(x, y);
+    };
+
+    // Returns true, if a pattern drawn at the position does not touch the region at all
+    auto isCellOutside = [HPW, HPH, HBW, HBH](int64_t x, int64_t y)
+    {
+        return (x + HPW <= 0) || (x >= HBW) || (y + HPH <= 0) || (y >= HBH);
+    };
+
     /* 6.6 step 2) compute HSKIP bitmap */
     PDFJBIG2Bitmap HSKIP;
     if (HENABLESKIP)
@@ -2406,11 +2426,10 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
             for (int NG = 0; NG < static_cast<int>(HGW); ++NG)
             {
                 /* 6.6.5.1 1) a) i) */
-                const int x = (static_cast<int>(HGX) + MG * static_cast<int>(HRY) + NG * static_cast<int>(HRX)) / 256;
-                const int y = (static_cast<int>(HGY) + MG * static_cast<int>(HRX) - NG * static_cast<int>(HRY)) / 256;
+                const auto [x, y] = getCellPosition(MG, NG);
 
                 /* 6.6.5.1 1) a) ii) */
-                if ((x + static_cast<int>(HPW) <= 0) || (x >= HBW) || (y + static_cast<int>(HPH) <= 0) || (y >= HBH))
+                if (isCellOutside(x, y))
                 {
                     HSKIP.setPixel(NG, MG, 0xFF);
                 }
@@ -2419,13 +2438,9 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
     }
 
     /* 6.6 step 3) */
+    // A dictionary of a single pattern gives zero bit planes - no plane is then decoded
+    // and every cell of the grid uses that single pattern
     const uint8_t HBPP = log2ceil(HNUMPATS);
-    Q_ASSERT(HBPP > 0);
-
-    if (HBPP > 8)
-    {
-        throw PDFException(PDFTranslationContext::tr("JBIG2 halftoning with more than 8 grayscale bit planes not supported (current bitplanes: %1).").arg(HBPP));
-    }
 
     /* 6.6 step 4) */
 
@@ -2470,7 +2485,11 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
     parameters.arithmeticDecoderState = &genericState;
     parameters.data = qMove(mmrData);
 
-    PDFJBIG2Bitmap GI(HGW, HGH, 0x00);
+    // The gray-scale image is not a bitmap - a halftone of a large pattern needs more than
+    // the eight bits of a pixel of a bitmap for its value. A pattern dictionary of a screen
+    // of 20 by 20 pixels, for example, defines 401 patterns, which needs nine bit planes.
+    std::vector<uint32_t> GI(size_t(HGW) * size_t(HGH), 0);
+
     for (int J = HBPP - 1; J >= 0; --J)
     {
         PDFJBIG2Bitmap PLANE = readBitmap(parameters);
@@ -2507,9 +2526,9 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
             for (int y = 0; y < static_cast<int>(HGH); ++y)
             {
                 // Old bit is in the first position of grayscale image
-                const uint8_t oldPixel = GI.getPixel(x, y);
-                const uint8_t bit = (oldPixel ^ PLANE.getPixel(x, y)) & 0x01;
-                GI.setPixel(x, y, (oldPixel << 1) | bit);
+                const uint32_t oldValue = GI[size_t(y) * size_t(HGW) + size_t(x)];
+                const uint32_t bit = (oldValue ^ PLANE.getPixel(x, y)) & 0x01;
+                GI[size_t(y) * size_t(HGW) + size_t(x)] = (oldValue << 1) | bit;
             }
         }
     }
@@ -2520,17 +2539,24 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
         for (int NG = 0; NG < static_cast<int>(HGW); ++NG)
         {
             /* 6.6.5.2 1) a) i) */
-            const int x = (static_cast<int>(HGX) + MG * static_cast<int>(HRY) + NG * static_cast<int>(HRX)) / 256;
-            const int y = (static_cast<int>(HGY) + MG * static_cast<int>(HRX) - NG * static_cast<int>(HRY)) / 256;
+            const auto [x, y] = getCellPosition(MG, NG);
 
-            /* 6.6.5.1 1) a) ii) */
-            const uint8_t index = GI.getPixel(NG, MG);
-            if (Q_UNLIKELY(index >= HNUMPATS))
+            if (isCellOutside(x, y))
             {
-                throw PDFException(PDFTranslationContext::tr("JBIG2 halftoning pattern index %1 out of bounds [0, %2]").arg(index).arg(HNUMPATS));
+                // The pattern of the cell does not touch the region. Such a cell is not
+                // decoded at all, when the skipping is enabled, so its value is undefined
+                // and must not be used to select a pattern.
+                continue;
             }
 
-            HTREG.paint(*HPATS[index], x, y, HCOMBOOPValue, false, 0x00);
+            /* 6.6.5.2 1) a) ii) */
+            const uint32_t index = GI[size_t(MG) * size_t(HGW) + size_t(NG)];
+            if (Q_UNLIKELY(index >= HNUMPATS))
+            {
+                throw PDFException(PDFTranslationContext::tr("JBIG2 halftoning pattern index %1 out of bounds [0, %2]").arg(index).arg(HNUMPATS - 1));
+            }
+
+            HTREG.paint(*HPATS[index], int(x), int(y), HCOMBOOPValue, false, 0x00);
         }
     }
 
