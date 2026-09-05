@@ -190,7 +190,8 @@ target_link_libraries(Pdf4QtLibCore PRIVATE Freetype::Freetype)
 target_link_libraries(Pdf4QtLibCore PRIVATE openjp2)
 target_link_libraries(Pdf4QtLibCore PRIVATE JPEG::JPEG)
 
-if(LINUX_GCC)
+if(UNIX AND NOT APPLE)
+    find_package(TBB REQUIRED)
     target_link_libraries(Pdf4QtLibCore PUBLIC TBB::tbb)
 endif()
 
