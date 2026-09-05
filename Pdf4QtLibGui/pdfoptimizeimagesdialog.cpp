@@ -194,6 +194,11 @@ PDFOptimizeImagesDialog::PDFOptimizeImagesDialog(const pdf::PDFDocument* documen
             addItem(combo, QObject::tr("JPEG2000"), pdf::PDFImageOptimizer::CompressionAlgorithm::JPEG2000);
         }
         addItem(combo, QObject::tr("RunLength"), pdf::PDFImageOptimizer::CompressionAlgorithm::RunLength);
+        if (bitonal)
+        {
+            addItem(combo, QObject::tr("CCITT Group 4"), pdf::PDFImageOptimizer::CompressionAlgorithm::CCITTGroup4);
+            addItem(combo, QObject::tr("JBIG2"), pdf::PDFImageOptimizer::CompressionAlgorithm::JBIG2);
+        }
     };
 
     addAlgItems(ui->colorAlgComboBox, false);
@@ -235,7 +240,7 @@ PDFOptimizeImagesDialog::PDFOptimizeImagesDialog(const pdf::PDFDocument* documen
 
     setTip(ui->colorAlgComboBox, tr("<b>Algorithm</b><br/>Compression for color images (Auto picks based on content)."));
     setTip(ui->grayAlgComboBox, tr("<b>Algorithm</b><br/>Compression for grayscale images (Auto picks based on content)."));
-    setTip(ui->bitonalAlgComboBox, tr("<b>Algorithm</b><br/>Compression for bitonal images (Auto picks Flate when needed)."));
+    setTip(ui->bitonalAlgComboBox, tr("<b>Algorithm</b><br/>Compression for bitonal images (Auto picks JBIG2, which is lossless and usually the smallest)."));
 
     setTip(ui->colorDpiSpinBox, tr("<b>Target DPI</b><br/>Downsample color images to this DPI (0 keeps original)."));
     setTip(ui->grayDpiSpinBox, tr("<b>Target DPI</b><br/>Downsample grayscale images to this DPI (0 keeps original)."));

@@ -30,8 +30,11 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfannotation.h
     sources/pdfblendfunction.cpp
     sources/pdfblendfunction.h
+    sources/pdfccittfaxcodes.h
     sources/pdfccittfaxdecoder.cpp
     sources/pdfccittfaxdecoder.h
+    sources/pdfccittfaxencoder.cpp
+    sources/pdfccittfaxencoder.h
     sources/pdfcertificatemanager.cpp
     sources/pdfcertificatemanager.h
     sources/pdfcms.cpp
@@ -62,6 +65,8 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfjavascriptscanner.h
     sources/pdfjbig2decoder.cpp
     sources/pdfjbig2decoder.h
+    sources/pdfjbig2encoder.cpp
+    sources/pdfjbig2encoder.h
     sources/pdfmeasure.cpp
     sources/pdfmeasure.h
     sources/pdfmultimedia.cpp

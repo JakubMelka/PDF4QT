@@ -61,6 +61,10 @@ private slots:
     void test_optimizer_preserve_keeps_bitonal_encoding();
     void test_optimizer_preserves_smask();
     void test_optimizer_reduces_size_for_photo();
+    void test_image_stream_bitonal_filters_roundtrip();
+    void test_image_stream_bitonal_filters_convert_color_images();
+    void test_optimizer_bitonal_algorithms();
+    void test_bitonal_creator_uses_jbig2();
 
 private:
     static QImage createLineArtImage(int size);
@@ -995,6 +999,264 @@ void ImageOptimizerTest::test_optimizer_reduces_size_for_photo()
 
     const pdf::PDFObject& imageObject = optimized.getObjectByReference(infos[0].reference);
     QVERIFY(imageObject.isStream());
+}
+
+/// Returns true, if the pixel of the decoded image is black
+static bool isBlackPixel(const QImage& image, int x, int y)
+{
+    return qGray(image.pixel(x, y)) < 128;
+}
+
+/// Reports the errors of the encoder into a list
+class ErrorCollector : public pdf::PDFRenderErrorReporter
+{
+public:
+    virtual void reportRenderError(pdf::RenderErrorType type, QString message) override
+    {
+        Q_UNUSED(type);
+        messages << message;
+    }
+
+    virtual void reportRenderErrorOnce(pdf::RenderErrorType type, QString message) override
+    {
+        reportRenderError(type, message);
+    }
+
+    QStringList messages;
+};
+
+void ImageOptimizerTest::test_image_stream_bitonal_filters_roundtrip()
+{
+    // A monochrome image written by the fax and JBIG2 filters is decoded back exactly,
+    // because both codings are lossless. The width is not a multiple of eight, so the
+    // padding of the rows is exercised as well.
+    QImage bitonal(93, 41, QImage::Format_Mono);
+    bitonal.fill(1);
+
+    for (int y = 0; y < bitonal.height(); ++y)
+    {
+        for (int x = 0; x < bitonal.width(); ++x)
+        {
+            if ((x * 7 + y * 3) % 11 < 4 || (x / 8 + y / 8) % 3 == 0)
+            {
+                bitonal.setPixel(x, y, 0);
+            }
+        }
+    }
+
+    for (const pdf::PDFImage::ImageCompression compression : { pdf::PDFImage::ImageCompression::CCITTGroup4, pdf::PDFImage::ImageCompression::JBIG2 })
+    {
+        const bool isCCITT = compression == pdf::PDFImage::ImageCompression::CCITTGroup4;
+
+        pdf::PDFImage::ImageEncodeOptions options;
+        options.compression = compression;
+        options.colorMode = pdf::PDFImage::ImageColorMode::Preserve;
+
+        ErrorCollector errorCollector;
+        pdf::PDFStream stream = pdf::PDFImage::createStreamFromImage(bitonal, options, &errorCollector);
+        QCOMPARE(errorCollector.messages, QStringList());
+
+        const pdf::PDFDictionary* dictionary = stream.getDictionary();
+        QVERIFY(dictionary);
+        QVERIFY(dictionary->get("Filter").isName());
+        QCOMPARE(QString::fromLatin1(dictionary->get("Filter").getString()), QString(isCCITT ? "CCITTFaxDecode" : "JBIG2Decode"));
+        QCOMPARE(dictionary->get("BitsPerComponent").getInteger(), pdf::PDFInteger(1));
+        QCOMPARE(QString::fromLatin1(dictionary->get("ColorSpace").getString()), QString("DeviceGray"));
+        QCOMPARE(dictionary->get("Width").getInteger(), pdf::PDFInteger(93));
+        QCOMPARE(dictionary->get("Height").getInteger(), pdf::PDFInteger(41));
+        QCOMPARE(dictionary->get("Length").getInteger(), pdf::PDFInteger(stream.getContent()->size()));
+
+        if (isCCITT)
+        {
+            // The parameters of the fax filter - pure two dimensional coding and the size
+            const pdf::PDFDictionary* decodeParms = dictionary->get("DecodeParms").getDictionary();
+            QVERIFY(decodeParms);
+            QCOMPARE(decodeParms->get("K").getInteger(), pdf::PDFInteger(-1));
+            QCOMPARE(decodeParms->get("Columns").getInteger(), pdf::PDFInteger(93));
+            QCOMPARE(decodeParms->get("Rows").getInteger(), pdf::PDFInteger(41));
+            QVERIFY(!decodeParms->hasKey("BlackIs1"));
+        }
+        else
+        {
+            // No global segments are used by the JBIG2 stream
+            QVERIFY(!dictionary->hasKey("DecodeParms"));
+        }
+
+        pdf::PDFDocument document = createDocumentWithImage(bitonal, false, compression);
+        std::vector<pdf::PDFImageOptimizer::ImageInfo> infos = pdf::PDFImageOptimizer::collectImageInfos(&document);
+        QCOMPARE(infos.size(), 1u);
+        QCOMPARE(infos[0].bitsPerComponent, 1);
+        QCOMPARE(infos[0].image.size(), bitonal.size());
+
+        for (int y = 0; y < bitonal.height(); ++y)
+        {
+            for (int x = 0; x < bitonal.width(); ++x)
+            {
+                const bool isSourceBlack = bitonal.pixelIndex(x, y) == 0;
+                if (isBlackPixel(infos[0].image, x, y) != isSourceBlack)
+                {
+                    QFAIL(qPrintable(QString("Pixel [%1, %2] of the %3 image differs.").arg(x).arg(y).arg(isCCITT ? "CCITT" : "JBIG2")));
+                }
+            }
+        }
+    }
+}
+
+void ImageOptimizerTest::test_image_stream_bitonal_filters_convert_color_images()
+{
+    // The fax and JBIG2 filters encode only bitonal images, so a color image is
+    // converted to monochrome and the conversion is reported
+    const QImage image = createTextScanImage(64);
+
+    for (const pdf::PDFImage::ImageCompression compression : { pdf::PDFImage::ImageCompression::CCITTGroup4, pdf::PDFImage::ImageCompression::JBIG2 })
+    {
+        for (const pdf::PDFImage::ImageColorMode colorMode : { pdf::PDFImage::ImageColorMode::Preserve, pdf::PDFImage::ImageColorMode::Color, pdf::PDFImage::ImageColorMode::Grayscale })
+        {
+            pdf::PDFImage::ImageEncodeOptions options;
+            options.compression = compression;
+            options.colorMode = colorMode;
+
+            ErrorCollector errorCollector;
+            pdf::PDFStream stream = pdf::PDFImage::createStreamFromImage(image, options, &errorCollector);
+            QCOMPARE(errorCollector.messages.size(), 1);
+            QVERIFY(errorCollector.messages.front().contains("monochrome"));
+
+            const pdf::PDFDictionary* dictionary = stream.getDictionary();
+            QVERIFY(dictionary);
+            QCOMPARE(dictionary->get("BitsPerComponent").getInteger(), pdf::PDFInteger(1));
+            QCOMPARE(QString::fromLatin1(dictionary->get("ColorSpace").getString()), QString("DeviceGray"));
+        }
+    }
+}
+
+void ImageOptimizerTest::test_optimizer_bitonal_algorithms()
+{
+    const QImage textScan = createTextScanImage(128);
+    pdf::PDFDocument document = createDocumentWithImage(textScan, false, pdf::PDFImage::ImageCompression::Flate);
+
+    std::vector<pdf::PDFImageOptimizer::ImageInfo> infos = pdf::PDFImageOptimizer::collectImageInfos(&document);
+    QCOMPARE(infos.size(), 1u);
+
+    for (const pdf::PDFImageOptimizer::CompressionAlgorithm algorithm : { pdf::PDFImageOptimizer::CompressionAlgorithm::CCITTGroup4, pdf::PDFImageOptimizer::CompressionAlgorithm::JBIG2 })
+    {
+        const bool isCCITT = algorithm == pdf::PDFImageOptimizer::CompressionAlgorithm::CCITTGroup4;
+
+        pdf::PDFImageOptimizer::Settings settings = pdf::PDFImageOptimizer::Settings::createDefault();
+        settings.enabled = true;
+        settings.autoMode = false;
+        settings.colorMode = pdf::PDFImageOptimizer::ColorMode::Bitonal;
+        settings.goal = pdf::PDFImageOptimizer::OptimizationGoal::PreferQuality;
+        settings.keepOriginalIfLarger = false;
+        settings.preserveTransparency = true;
+        settings.bitonalProfile.algorithm = algorithm;
+        settings.bitonalProfile.targetDpi = 0;
+
+        // The algorithms are supported, so the plan keeps them
+        const pdf::PDFImageOptimizer::ResolvedPlan plan = pdf::PDFImageOptimizer::resolvePlan(infos[0], settings);
+        QCOMPARE(plan.algorithm, algorithm);
+        QCOMPARE(plan.resolvedColorMode, pdf::PDFImageOptimizer::ColorMode::Bitonal);
+        QVERIFY(!plan.hadUnsupportedCompression);
+        QCOMPARE(plan.encodeOptions.compression, isCCITT ? pdf::PDFImage::ImageCompression::CCITTGroup4 : pdf::PDFImage::ImageCompression::JBIG2);
+        QVERIFY(pdf::PDFImageOptimizer::estimateEncodedBytes(infos[0], plan) > 0);
+
+        pdf::PDFImageOptimizer optimizer;
+        std::vector<pdf::PDFImageOptimizer::ImageResult> results;
+        pdf::PDFDocument optimized = optimizer.optimize(&document, settings, {}, nullptr, nullptr, &results);
+
+        QCOMPARE(results.size(), 1u);
+        QVERIFY(!results[0].keptOriginal);
+        QVERIFY(results[0].newBytes > 0);
+
+        const pdf::PDFObject& imageObject = optimized.getObjectByReference(infos[0].reference);
+        QVERIFY(imageObject.isStream());
+
+        const pdf::PDFDictionary* dictionary = imageObject.getStream()->getDictionary();
+        QVERIFY(dictionary);
+        QCOMPARE(QString::fromLatin1(optimized.getObject(dictionary->get("Filter")).getString()), QString(isCCITT ? "CCITTFaxDecode" : "JBIG2Decode"));
+        QCOMPARE(optimized.getObject(dictionary->get("BitsPerComponent")).getInteger(), pdf::PDFInteger(1));
+
+        // The optimized image decodes to the bitonal version of the source - the
+        // pure white and pure black pixels of the source keep their colours
+        std::vector<pdf::PDFImageOptimizer::ImageInfo> optimizedInfos = pdf::PDFImageOptimizer::collectImageInfos(&optimized);
+        QCOMPARE(optimizedInfos.size(), 1u);
+        QCOMPARE(optimizedInfos[0].image.size(), textScan.size());
+
+        for (int y = 0; y < textScan.height(); ++y)
+        {
+            for (int x = 0; x < textScan.width(); ++x)
+            {
+                const QRgb pixel = textScan.pixel(x, y);
+                if (pixel == qRgb(255, 255, 255) || pixel == qRgb(0, 0, 0))
+                {
+                    QCOMPARE(isBlackPixel(optimizedInfos[0].image, x, y), pixel == qRgb(0, 0, 0));
+                }
+            }
+        }
+    }
+
+    // The automatic mode selects JBIG2 for the bitonal images
+    pdf::PDFImageOptimizer::Settings settings = pdf::PDFImageOptimizer::Settings::createDefault();
+    settings.enabled = true;
+    settings.autoMode = true;
+    settings.colorMode = pdf::PDFImageOptimizer::ColorMode::Bitonal;
+    settings.bitonalProfile.algorithm = pdf::PDFImageOptimizer::CompressionAlgorithm::Auto;
+
+    pdf::PDFImageOptimizer::ResolvedPlan autoPlan = pdf::PDFImageOptimizer::resolvePlan(infos[0], settings);
+    QCOMPARE(autoPlan.algorithm, pdf::PDFImageOptimizer::CompressionAlgorithm::JBIG2);
+    QVERIFY(!autoPlan.hadUnsupportedCompression);
+
+    settings.autoMode = false;
+    autoPlan = pdf::PDFImageOptimizer::resolvePlan(infos[0], settings);
+    QCOMPARE(autoPlan.algorithm, pdf::PDFImageOptimizer::CompressionAlgorithm::JBIG2);
+}
+
+void ImageOptimizerTest::test_bitonal_creator_uses_jbig2()
+{
+    constexpr int size = 48;
+    const QImage source = createLineArtImage(size);
+    pdf::PDFDocument document = createDocumentWithImage(source, false, pdf::PDFImage::ImageCompression::Flate);
+
+    pdf::PDFBitonalDocumentCreator creator(&document, nullptr, nullptr);
+    const std::vector<pdf::PDFObjectReference> images = creator.getConvertibleImages();
+    QCOMPARE(images.size(), size_t(1));
+
+    pdf::PDFBitonalDocumentCreator::Settings settings;
+    settings.conversionSource = pdf::PDFBitonalDocumentCreator::ConversionSource::Images;
+    settings.conversionMethod = pdf::PDFImageConversion::ConversionMethod::Automatic;
+
+    pdf::PDFBitonalDocumentCreator::ItemInfo item;
+    item.imageReference = images.front();
+    settings.items.push_back(item);
+
+    QVERIFY(creator.createBitonalDocument(settings));
+    const pdf::PDFDocument bitonalDocument = creator.takeBitonalDocument();
+
+    // The converted image is coded by JBIG2
+    const pdf::PDFDictionary* imageDictionary = getFirstPageImageDictionary(bitonalDocument);
+    QVERIFY(imageDictionary);
+    QCOMPARE(QString::fromLatin1(bitonalDocument.getObject(imageDictionary->get("Filter")).getString()), QString("JBIG2Decode"));
+
+    // The image decodes to the bitonal conversion of the source
+    pdf::PDFBitonalDocumentCreator decodingCreator(&bitonalDocument, nullptr, nullptr);
+    const std::vector<pdf::PDFObjectReference> convertedImages = decodingCreator.getConvertibleImages();
+    QCOMPARE(convertedImages.size(), size_t(1));
+
+    const QImage decoded = decodingCreator.getDecodedImage(convertedImages.front(), nullptr);
+    const QImage expected = pdf::PDFBitonalDocumentCreator::convertImageToBitonal(source, pdf::PDFImageConversion::ConversionMethod::Automatic, 128, nullptr, nullptr);
+    QVERIFY(!decoded.isNull());
+    QVERIFY(!expected.isNull());
+    QCOMPARE(decoded.size(), expected.size());
+
+    for (int y = 0; y < size; ++y)
+    {
+        for (int x = 0; x < size; ++x)
+        {
+            if (isBlackPixel(decoded, x, y) != isBlackPixel(expected, x, y))
+            {
+                QFAIL(qPrintable(QString("Pixel [%1, %2] differs.").arg(x).arg(y)));
+            }
+        }
+    }
 }
 
 QTEST_APPLESS_MAIN(ImageOptimizerTest)

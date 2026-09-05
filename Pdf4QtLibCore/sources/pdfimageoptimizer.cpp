@@ -46,12 +46,12 @@ constexpr int GRAYSCALE_TOLERANCE = 3;
 
 constexpr bool supportsJbig2Encoder()
 {
-    return false;
+    return true;
 }
 
 constexpr bool supportsCcittEncoder()
 {
-    return false;
+    return true;
 }
 
 QString readNameFromColorSpace(const PDFDocument* document, const PDFObject& object)
@@ -233,7 +233,9 @@ PDFImage::ImageCompression toImageCompression(PDFImageOptimizer::CompressionAlgo
         case PDFImageOptimizer::CompressionAlgorithm::RunLength:
             return PDFImage::ImageCompression::RunLength;
         case PDFImageOptimizer::CompressionAlgorithm::CCITTGroup4:
+            return PDFImage::ImageCompression::CCITTGroup4;
         case PDFImageOptimizer::CompressionAlgorithm::JBIG2:
+            return PDFImage::ImageCompression::JBIG2;
         case PDFImageOptimizer::CompressionAlgorithm::Auto:
             break;
     }
@@ -373,7 +375,9 @@ PDFImageOptimizer::CompressionAlgorithm chooseAutoAlgorithm(const PDFImageOptimi
 {
     if (colorMode == PDFImageOptimizer::ColorMode::Bitonal)
     {
-        return PDFImageOptimizer::CompressionAlgorithm::Flate;
+        // A generic region coded by JBIG2 is lossless and it is much smaller than the
+        // Flate compression of a scanned page
+        return PDFImageOptimizer::CompressionAlgorithm::JBIG2;
     }
 
     if (analysis.kind == PDFImageOptimizer::ImageAnalysis::Kind::Photo)
@@ -708,7 +712,7 @@ PDFImageOptimizer::ResolvedPlan PDFImageOptimizer::resolvePlan(const ImageInfo& 
         }
         else
         {
-            algorithm = (resolvedMode == ColorMode::Bitonal) ? CompressionAlgorithm::Flate : CompressionAlgorithm::JPEG;
+            algorithm = (resolvedMode == ColorMode::Bitonal) ? CompressionAlgorithm::JBIG2 : CompressionAlgorithm::JPEG;
         }
     }
 

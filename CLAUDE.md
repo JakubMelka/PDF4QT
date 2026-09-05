@@ -38,11 +38,15 @@ Tests are QtTest executables, one per area, all built into `<build>/usr/bin`:
 | `UnitTestsBitonalDocument` | [tst_bitonaldocumenttest.cpp](UnitTests/tst_bitonaldocumenttest.cpp) |
 | `UnitTestsJBIG2` | [tst_jbig2test.cpp](UnitTests/tst_jbig2test.cpp) |
 | `UnitTestsJBIG2Files` | [tst_jbig2filestest.cpp](UnitTests/tst_jbig2filestest.cpp) — decodes every file of the `jbig2test/` directory (not in the repository, skipped when missing; override with `PDF4QT_JBIG2_TEST_DIRECTORY`) and compares it with the `<name>.bmp` reference |
+| `UnitTestsCCITTFax` | [tst_ccittfaxtest.cpp](UnitTests/tst_ccittfaxtest.cpp) — CCITT fax encoder/decoder: hand-coded T.4/T.6 vectors, the MMR region of T.88 Annex H, random round trips over every filter parameter |
+| `UnitTestsJBIG2Encoder` | [tst_jbig2encodertest.cpp](UnitTests/tst_jbig2encodertest.cpp) — JBIG2 encoder: MQ coder test sequence of T.88 H.2, byte-identical re-encoding of the Annex H generic regions, random round trips over all templates/TPGDON/MMR |
 | `UnitTestsFontEncoding` | [tst_fontencodingtest.cpp](UnitTests/tst_fontencodingtest.cpp) |
 | `UnitTestsAuthorSettings` | [tst_authorsettingstest.cpp](UnitTests/tst_authorsettingstest.cpp) |
 | `UnitTestsContentEditor` | [tst_contenteditortest.cpp](UnitTests/tst_contenteditortest.cpp) |
 | `UnitTestsMeasure` | [tst_measuretest.cpp](UnitTests/tst_measuretest.cpp) |
 | `UnitTestsDimensions` | [tst_dimensionstest.cpp](UnitTests/tst_dimensionstest.cpp) |
+
+Coverage of the codecs is measured with clang: configure a second tree with `-DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DPDF4QT_ENABLE_COVERAGE=ON -DPDF4QT_BUILD_ONLY_CORE_LIBRARY=ON` (clang-cl, llvm-profdata and llvm-cov ship with Visual Studio under `VC/Tools/Llvm/x64/bin`; pass the existing `vcpkg_installed` prefix paths instead of the vcpkg toolchain), run the tests with `LLVM_PROFILE_FILE=<dir>/%p-%m.profraw`, then `llvm-profdata merge -sparse *.profraw -o coverage.profdata` and `llvm-cov report <test.exe> -object usr/bin/Pdf4QtLibCore.dll -instr-profile coverage.profdata <sources>`.
 
 Run all of them with `ctest` from the build dir, a single binary directly (`./UnitTestsFontEncoding`), or a single test function with `./UnitTests <testFunctionName>`. The executables need Qt's `bin` on `PATH`; QtTest stdout is swallowed in some shells here, so capture with `-o result.txt,txt` and read the file. A new test needs its own `add_executable` + `add_test` block in [UnitTests/CMakeLists.txt](UnitTests/CMakeLists.txt). Tests touching `QRawFont` or any GUI type must use `QTEST_MAIN` (QGuiApplication), not `QTEST_APPLESS_MAIN`.
 

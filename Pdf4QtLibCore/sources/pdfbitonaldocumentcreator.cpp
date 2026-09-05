@@ -570,10 +570,11 @@ PDFObject PDFBitonalDocumentCreator::createBitonalImageObject(const QImage& imag
 
     try
     {
+        // The image is coded as a single JBIG2 generic region - it is lossless and
+        // it is several times smaller than the Flate compression of a scanned page
         PDFImage::ImageEncodeOptions options;
-        options.compression = PDFImage::ImageCompression::Flate;
+        options.compression = PDFImage::ImageCompression::JBIG2;
         options.colorMode = PDFImage::ImageColorMode::Monochrome;
-        options.enablePngPredictor = true;
 
         PDFStream stream = PDFImage::createStreamFromImage(image, options, nullptr);
 

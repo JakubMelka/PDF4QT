@@ -461,7 +461,8 @@ public:
         m_pageDefaultPixelValue(0),
         m_pageDefaultCompositionOperator(PDFJBIG2BitOperation::Invalid),
         m_pageDefaultCompositionOperatorOverriden(false),
-        m_pageSizeUndefined(false)
+        m_pageSizeUndefined(false),
+        m_isDecodingFile(false)
     {
 
     }
@@ -570,6 +571,10 @@ private:
     PDFJBIG2BitOperation m_pageDefaultCompositionOperator;
     bool m_pageDefaultCompositionOperatorOverriden;
     bool m_pageSizeUndefined;
+
+    /// True, if a JBIG2 file is decoded instead of an embedded stream of PDF. The
+    /// end of page and the end of file segments are a normal part of a file.
+    bool m_isDecodingFile;
     PDFJBIG2Bitmap m_pageBitmap;
 };
 

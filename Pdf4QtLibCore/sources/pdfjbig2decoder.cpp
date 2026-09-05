@@ -1157,6 +1157,7 @@ PDFImageData PDFJBIG2Decoder::decode(PDFImageData::MaskingType maskingType)
 PDFImageData PDFJBIG2Decoder::decodeFileStream()
 {
     m_reader = PDFBitReader(&m_data, 8);
+    m_isDecodingFile = true;
 
     constexpr const char* JBIG2_FILE_HEADER = "\x97\x4A\x42\x32\x0D\x0A\x1A\x0A";
     if (!m_data.startsWith(JBIG2_FILE_HEADER))
@@ -2627,7 +2628,9 @@ void PDFJBIG2Decoder::processGenericRegion(const PDFJBIG2SegmentHeader& header)
             endSequence[1] = (unsigned char)(0xAC);
         }
 
-        int endPosition = stream->indexOf(endSequence);
+        // The end sequence is searched from the start of the coded data - the segments before
+        // this one and the header of the region can contain the same bytes
+        int endPosition = stream->indexOf(endSequence, segmentDataStartPosition);
         if (endPosition == -1)
         {
             throw PDFException(PDFTranslationContext::tr("JBIG2 - end of data byte sequence not found for generic region."));
@@ -2682,6 +2685,7 @@ void PDFJBIG2Decoder::processGenericRegion(const PDFJBIG2SegmentHeader& header)
 
 void PDFJBIG2Decoder::processGenericRefinementRegion(const PDFJBIG2SegmentHeader& header)
 {
+    const int segmentStartPosition = m_reader.getPosition();
     PDFJBIG2RegionSegmentInformationField field = readRegionSegmentInformationField();
     const uint8_t flags = m_reader.readUnsignedByte();
 
@@ -2766,6 +2770,13 @@ void PDFJBIG2Decoder::processGenericRefinementRegion(const PDFJBIG2SegmentHeader
     }
 
     decoder.finalize();
+
+    // The arithmetic decoder reads the bytes on demand, so it can stop before the end of
+    // the segment data - the rest of the data belongs to this segment and it is skipped
+    if (header.isSegmentDataLengthDefined())
+    {
+        m_reader.seek(int64_t(segmentStartPosition) + int64_t(header.getSegmentDataLength()));
+    }
 }
 
 void PDFJBIG2Decoder::processPageInformation(const PDFJBIG2SegmentHeader&)
@@ -2827,7 +2838,10 @@ void PDFJBIG2Decoder::processEndOfPage(const PDFJBIG2SegmentHeader& header)
     }
 
     // We will write a warning, because end-of-page segments should not be in PDF according to specification
-    m_errorReporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("JBIG2 end-of-page segment detected and ignored."));
+    if (!m_isDecodingFile)
+    {
+        m_errorReporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("JBIG2 end-of-page segment detected and ignored."));
+    }
 }
 
 void PDFJBIG2Decoder::processEndOfStripe(const PDFJBIG2SegmentHeader& header)
@@ -2844,7 +2858,10 @@ void PDFJBIG2Decoder::processEndOfFile(const PDFJBIG2SegmentHeader& header)
     }
 
     // We will write a warning, because end-of-file segments should not be in PDF according to specification
-    m_errorReporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("JBIG2 end-of-file segment detected and ignored."));
+    if (!m_isDecodingFile)
+    {
+        m_errorReporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("JBIG2 end-of-file segment detected and ignored."));
+    }
 }
 
 void PDFJBIG2Decoder::processProfiles(const PDFJBIG2SegmentHeader& header)
@@ -2915,7 +2932,8 @@ void PDFJBIG2Decoder::processExtension(const PDFJBIG2SegmentHeader& header)
 {
     // We will read the extension header, and check "Necessary bit"
     const uint32_t extensionHeader = m_reader.readUnsignedInt();
-    if (extensionHeader & 0x8000000)
+    // The necessary bit is the bit 31 of the extension type, see 7.4.14
+    if (extensionHeader & 0x80000000)
     {
         const uint32_t extensionCode = extensionHeader & 0x3FFFFFFF;
         throw PDFException(PDFTranslationContext::tr("JBIG2 unknown extension %1 necessary for decoding the image.").arg(extensionCode));

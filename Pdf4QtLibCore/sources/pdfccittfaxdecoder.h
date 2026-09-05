@@ -91,7 +91,7 @@ enum CCITT_2D_Code_Mode
     Invalid
 };
 
-class PDFCCITTFaxDecoder
+class PDF4QTLIBCORESHARED_EXPORT PDFCCITTFaxDecoder
 {
 public:
     explicit PDFCCITTFaxDecoder(const QByteArray* stream, const PDFCCITTFaxDecoderParameters& parameters);

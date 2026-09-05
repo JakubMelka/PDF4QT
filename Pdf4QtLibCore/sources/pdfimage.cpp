@@ -27,6 +27,8 @@
 #include "pdfutils.h"
 #include "pdfjbig2decoder.h"
 #include "pdfccittfaxdecoder.h"
+#include "pdfccittfaxencoder.h"
+#include "pdfjbig2encoder.h"
 #include "pdfstreamfilters.h"
 #include "pdfimageconversion.h"
 
@@ -173,7 +175,25 @@ static PreparedImageData prepareImageData(const QImage& source,
 
     const bool supportsBinaryMonochrome =
         options.compression == PDFImage::ImageCompression::Flate ||
-        options.compression == PDFImage::ImageCompression::RunLength;
+        options.compression == PDFImage::ImageCompression::RunLength ||
+        options.compression == PDFImage::ImageCompression::CCITTGroup4 ||
+        options.compression == PDFImage::ImageCompression::JBIG2;
+
+    // The fax and JBIG2 filters encode only bitonal images, so the image is converted
+    // to monochrome, whatever the requested color mode is
+    const bool isMonochromeOnly =
+        options.compression == PDFImage::ImageCompression::CCITTGroup4 ||
+        options.compression == PDFImage::ImageCompression::JBIG2;
+
+    if (isMonochromeOnly && resolvedMode != PDFImage::ImageColorMode::Monochrome)
+    {
+        if (reporter)
+        {
+            reporter->reportRenderErrorOnce(RenderErrorType::Warning,
+                PDFTranslationContext::tr("Selected compression supports only 1-bit monochrome images; the image is converted to monochrome."));
+        }
+        resolvedMode = PDFImage::ImageColorMode::Monochrome;
+    }
 
     PreparedImageData prepared;
     prepared.width = working.width();
@@ -314,6 +334,22 @@ static QByteArray createPngPredictorBuffer(const PreparedImageData& data, bool e
     }
 
     return result;
+}
+
+/// Returns the view of the prepared monochrome samples for the bitonal encoders. The
+/// samples are DeviceGray with the decode array [0 1], so the black pixel is 0.
+static PDFBitonalBitmapView createBitonalBitmapView(const PreparedImageData& data)
+{
+    Q_ASSERT(data.colorMode == PDFImage::ImageColorMode::Monochrome);
+    Q_ASSERT(data.bitsPerComponent == 1);
+
+    PDFBitonalBitmapView view;
+    view.data = reinterpret_cast<const uint8_t*>(data.pixels.constData());
+    view.width = data.width;
+    view.height = data.height;
+    view.stride = data.stride;
+    view.isOneBlack = false;
+    return view;
 }
 
 static QByteArray encodeRunLength(const QByteArray& input)
@@ -1466,6 +1502,22 @@ PDFStream PDFImage::createStreamFromImage(const QImage& image,
         case ImageCompression::JPEG2000:
             encodedData = encodeJPEG2000(prepared, options.jpeg2000Rate, reporter);
             break;
+
+        case ImageCompression::CCITTGroup4:
+        {
+            PDFCCITTFaxEncoderParameters parameters;
+            parameters.K = -1;
+            PDFCCITTFaxEncoder encoder(createBitonalBitmapView(prepared), parameters);
+            encodedData = encoder.encode();
+            break;
+        }
+
+        case ImageCompression::JBIG2:
+        {
+            PDFJBIG2Encoder encoder(createBitonalBitmapView(prepared), PDFJBIG2EncoderParameters());
+            encodedData = encoder.encodeEmbeddedStream();
+            break;
+        }
     }
 
     if (encodedData.isEmpty())
@@ -1498,6 +1550,14 @@ PDFStream PDFImage::createStreamFromImage(const QImage& image,
         case ImageCompression::JPEG2000:
             filterName = "JPXDecode";
             break;
+
+        case ImageCompression::CCITTGroup4:
+            filterName = "CCITTFaxDecode";
+            break;
+
+        case ImageCompression::JBIG2:
+            filterName = "JBIG2Decode";
+            break;
     }
 
     dictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_FILTER), PDFObject::createName(filterName));
@@ -1515,6 +1575,20 @@ PDFStream PDFImage::createStreamFromImage(const QImage& image,
 
         dictionary.addEntry(PDFInplaceOrMemoryString("Decode"),
                             PDFObject::createArray(std::make_shared<PDFArray>(std::move(decodeArray))));
+    }
+
+    if (options.compression == ImageCompression::CCITTGroup4)
+    {
+        // The default values of the other parameters of the filter match the encoder -
+        // the black pixel is 0, the data are terminated by the end-of-block code, there
+        // are no end-of-line codes and the rows are not byte aligned
+        PDFDictionary decodeParams;
+        decodeParams.addEntry(PDFInplaceOrMemoryString("K"), PDFObject::createInteger(-1));
+        decodeParams.addEntry(PDFInplaceOrMemoryString("Columns"), PDFObject::createInteger(prepared.width));
+        decodeParams.addEntry(PDFInplaceOrMemoryString("Rows"), PDFObject::createInteger(prepared.height));
+
+        dictionary.addEntry(PDFInplaceOrMemoryString(PDF_STREAM_DICT_DECODE_PARMS),
+                            PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(decodeParams))));
     }
 
     if (options.compression == ImageCompression::Flate && options.enablePngPredictor)

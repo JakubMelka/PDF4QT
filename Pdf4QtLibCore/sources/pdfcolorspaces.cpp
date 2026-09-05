@@ -38,6 +38,13 @@
 namespace pdf
 {
 
+// Buffers of a single row of the image samples, reused by the threads converting the rows
+// of an image. They live at the namespace scope, because clang refuses a thread local
+// variable inside a function of an exported class.
+static thread_local std::vector<float> s_rowInputColors;
+static thread_local std::vector<unsigned char> s_rowOutputColors;
+static thread_local std::vector<unsigned char> s_rowAlphaValues;
+
 namespace
 {
 
@@ -307,7 +314,7 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
                         const double coefficient = 1.0 / max;
                         unsigned char* outputLine = image.scanLine(i);
 
-                        thread_local std::vector<float> inputColors;
+                        std::vector<float>& inputColors = s_rowInputColors;
                         inputColors.resize(imageWidth * componentCount);
                         auto itInputColor = inputColors.begin();
 
@@ -401,8 +408,8 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
                         const double coefficient = 1.0 / max;
                         unsigned char* outputLine = image.scanLine(i);
 
-                        thread_local std::vector<float> inputColors;
-                        thread_local std::vector<unsigned char> outputColors;
+                        std::vector<float>& inputColors = s_rowInputColors;
+                        std::vector<unsigned char>& outputColors = s_rowOutputColors;
                         inputColors.resize(imageWidth * componentCount);
                         outputColors.resize(imageWidth * 3);
 
@@ -516,9 +523,9 @@ QImage PDFAbstractColorSpace::getImage(const PDFImageData& imageData,
                         const double coefficient = 1.0 / max;
                         unsigned char* outputLine = image.scanLine(i);
 
-                        thread_local std::vector<float> inputColors;
-                        thread_local std::vector<unsigned char> outputColors;
-                        thread_local std::vector<unsigned char> alphaValues;
+                        std::vector<float>& inputColors = s_rowInputColors;
+                        std::vector<unsigned char>& outputColors = s_rowOutputColors;
+                        std::vector<unsigned char>& alphaValues = s_rowAlphaValues;
                         inputColors.resize(imageWidth * componentCount);
                         outputColors.resize(imageWidth * 3);
                         alphaValues.resize(imageWidth);
