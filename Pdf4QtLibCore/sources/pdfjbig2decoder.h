@@ -339,8 +339,26 @@ public:
     virtual const PDFJBIG2Bitmap* asBitmap() const override { return this; }
     virtual PDFJBIG2Bitmap* asBitmap() override { return this; }
 
+    /// Maximum number of pixels of a single bitmap. A bitmap is decoded into one byte
+    /// per pixel, so this is also the maximum amount of memory a single bitmap can
+    /// occupy. Both dimensions alone can be as large as \p MAX_BITMAP_SIZE, so without
+    /// this limit their product overflows the int and the allocated buffer would be
+    /// much smaller than the bitmap.
+    static constexpr int MAX_PIXEL_COUNT = 1024 * 1024 * 1024;
+
+    /// Checks the size of a bitmap. Throws an exception, if any dimension is negative,
+    /// or if the bitmap would have more pixels than \p MAX_PIXEL_COUNT. Dimensions are
+    /// accepted as 64-bit values, so a caller can pass a computed size, which has not
+    /// been proven to fit into an int yet.
+    /// \param width Width of the bitmap
+    /// \param height Height of the bitmap
+    static void checkSize(int64_t width, int64_t height);
+
     inline int getWidth() const { return m_width; }
     inline int getHeight() const { return m_height; }
+
+    /// Returns the number of the pixels of the bitmap. The size is validated when the
+    /// bitmap is created or expanded, so the product cannot overflow.
     inline int getPixelCount() const { return m_width * m_height; }
     inline uint8_t getPixel(int x, int y) const { return m_data[y * m_width + x]; }
     inline void setPixel(int x, int y, uint8_t value) { m_data[y * m_width + x] = value; }
@@ -469,6 +487,11 @@ public:
 private:
     static constexpr const uint32_t MAX_BITMAP_SIZE = 65536;
 
+    /// Maximum number of the symbols of a single symbol dictionary. The number of the
+    /// symbols is read from the segment header before anything is decoded, so without
+    /// a limit a four byte field can request an allocation of billions of bitmaps.
+    static constexpr const uint32_t MAX_SYMBOL_COUNT = 1 << 20;
+
     /// Processes current data stream (reads all data from the stream, interprets
     /// them as segments and processes the segments).
     void processStream();
@@ -518,6 +541,13 @@ private:
     /// are wrong, or invalid segments appears, then exception is thrown.
     /// \param header Header, from which referred segments are read
     PDFJBIG2ReferencedSegments getReferencedSegments(const PDFJBIG2SegmentHeader& header) const;
+
+    /// Returns the number of the data bytes of a segment, which follow the already
+    /// read part of its header. Throws an exception, if the segment declares less
+    /// data than its header has already consumed.
+    /// \param header Segment header
+    /// \param segmentHeaderBytes Number of the header bytes read so far
+    int getSegmentDataBytes(const PDFJBIG2SegmentHeader& header, int segmentHeaderBytes) const;
 
     static void checkBitmapSize(const uint32_t size);
     static void checkRegionSegmentInformationField(const PDFJBIG2RegionSegmentInformationField& field);

@@ -28,6 +28,16 @@
 namespace pdf
 {
 
+/// Returns the value divided by two, rounded towards the negative infinity, which is
+/// the floor function used by the specification. The integer division of C++ rounds
+/// towards zero instead, so the results differ for negative odd values. The right
+/// shift of a signed value is defined as an arithmetic one since C++20.
+/// \param value Divided value
+static constexpr int32_t floorDivideByTwo(int32_t value)
+{
+    return value >> 1;
+}
+
 class PDFJBIG2HuffmanCodeTable : public PDFJBIG2Segment
 {
 public:
@@ -1339,7 +1349,7 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
     parameters.SDHUFF = symbolDictionaryFlags & 0x0001;
     parameters.SDREFAGG = symbolDictionaryFlags & 0x0002;
     parameters.SDHUFFDH = (symbolDictionaryFlags >> 2) & 0x0003;
-    parameters.SDHUFFDH = (symbolDictionaryFlags >> 4) & 0x0003;
+    parameters.SDHUFFDW = (symbolDictionaryFlags >> 4) & 0x0003;
     parameters.SDHUFFBMSIZE = (symbolDictionaryFlags >> 6) & 0x0001;
     parameters.SDHUFFAGGINST = (symbolDictionaryFlags >> 7) & 0x0001;
     parameters.isArithmeticCodingStateUsed = (symbolDictionaryFlags >> 8) & 0x0001;
@@ -1352,6 +1362,14 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
     parameters.SDNUMNEWSYMS = m_reader.readUnsignedInt();
 
     /* sanity checks */
+
+    // Both counts are used to allocate arrays of the symbols before anything is
+    // decoded, so they must be limited - otherwise a four byte field of a malformed
+    // document requests an allocation of billions of bitmaps.
+    if (parameters.SDNUMEXSYMS > MAX_SYMBOL_COUNT || parameters.SDNUMNEWSYMS > MAX_SYMBOL_COUNT)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 maximum symbol count exceeded (%1 / %2 > %3).").arg(parameters.SDNUMEXSYMS).arg(parameters.SDNUMNEWSYMS).arg(MAX_SYMBOL_COUNT));
+    }
 
     if ((symbolDictionaryFlags >> 13) != 0)
     {
@@ -1368,7 +1386,7 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
 
     if (!parameters.SDHUFF)
     {
-        if (parameters.SDHUFFDH != 0 || parameters.SDHUFFDH != 0 || parameters.SDHUFFBMSIZE != 0 || parameters.SDHUFFAGGINST != 0)
+        if (parameters.SDHUFFDH != 0 || parameters.SDHUFFDW != 0 || parameters.SDHUFFBMSIZE != 0 || parameters.SDHUFFAGGINST != 0)
         {
             throw PDFException(PDFTranslationContext::tr("JBIG2 invalid flags for symbol dictionary segment."));
         }
@@ -2193,7 +2211,7 @@ void PDFJBIG2Decoder::processPatternDictionary(const PDFJBIG2SegmentHeader& head
         const int segmentHeaderBytes = segmentDataStartPosition - segmentStartPosition;
         if (header.isSegmentDataLengthDefined())
         {
-            int segmentDataBytes = header.getSegmentDataLength() - segmentHeaderBytes;
+            const int segmentDataBytes = getSegmentDataBytes(header, segmentHeaderBytes);
             mmrData = m_reader.readSubstream(segmentDataBytes);
         }
         else
@@ -2202,10 +2220,26 @@ void PDFJBIG2Decoder::processPatternDictionary(const PDFJBIG2SegmentHeader& head
         }
     }
 
+    if (HDPW == 0 || HDPH == 0)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid pattern size (%1 x %2) in the pattern dictionary.").arg(HDPW).arg(HDPH));
+    }
+
+    // All patterns are decoded as a single collective bitmap, whose width is a product
+    // of two values read from the data. The product is computed in 64 bits - in 32 bits
+    // it can wrap to a small value, which passes the check of the decoded bitmap below,
+    // and the loop extracting the patterns then runs billions of times.
+    const int64_t collectiveBitmapWidth = (int64_t(GRAYMAX) + 1) * int64_t(HDPW);
+
+    if (collectiveBitmapWidth > MAX_BITMAP_SIZE)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 maximum bitmap size exceeded (%1 > %2).").arg(collectiveBitmapWidth).arg(MAX_BITMAP_SIZE));
+    }
+
     int8_t gbat0_x = -static_cast<int8_t>(HDPW);
     PDFJBIG2BitmapDecodingParameters parameters;
     parameters.MMR = HDMMR;
-    parameters.GBW = (GRAYMAX + 1) * HDPW;
+    parameters.GBW = int(collectiveBitmapWidth);
     parameters.GBH = HDPH;
     parameters.GBTEMPLATE = HDTEMPLATE;
     parameters.TPGDON = false;
@@ -2360,7 +2394,7 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
         const int segmentHeaderBytes = segmentDataStartPosition - segmentStartPosition;
         if (header.isSegmentDataLengthDefined())
         {
-            int segmentDataBytes = header.getSegmentDataLength() - segmentHeaderBytes;
+            const int segmentDataBytes = getSegmentDataBytes(header, segmentHeaderBytes);
             mmrData = m_reader.readSubstream(segmentDataBytes);
         }
         else
@@ -2503,7 +2537,7 @@ void PDFJBIG2Decoder::processGenericRegion(const PDFJBIG2SegmentHeader& header)
     int segmentDataBytes = 0;
     if (header.isSegmentDataLengthDefined())
     {
-        segmentDataBytes = header.getSegmentDataLength() - segmentHeaderBytes;
+        segmentDataBytes = getSegmentDataBytes(header, segmentHeaderBytes);
     }
     else
     {
@@ -2704,6 +2738,7 @@ void PDFJBIG2Decoder::processPageInformation(const PDFJBIG2SegmentHeader&)
 
     checkBitmapSize(correctedWidth);
     checkBitmapSize(correctedHeight);
+    PDFJBIG2Bitmap::checkSize(correctedWidth, correctedHeight);
 
     m_pageBitmap = PDFJBIG2Bitmap(correctedWidth, correctedHeight, m_pageDefaultPixelValue);
 }
@@ -3373,16 +3408,27 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readTextBitmap(PDFJBIG2TextRegionDecodingParamet
                 const int WOI = IBO->getWidth();
                 const int HOI = IBO->getHeight();
 
+                // The deltas are decoded from the data, so the size of the refined
+                // bitmap is arbitrary and it must be validated before the bitmap is
+                // created. The sum is computed in 64 bits, because it can overflow.
+                const int64_t GRW = int64_t(WOI) + int64_t(RDW);
+                const int64_t GRH = int64_t(HOI) + int64_t(RDH);
+
+                if (GRW <= 0 || GRH <= 0 || GRW > MAX_BITMAP_SIZE || GRH > MAX_BITMAP_SIZE)
+                {
+                    throw PDFException(PDFTranslationContext::tr("JBIG2 invalid size (%1 x %2) of a refined symbol instance bitmap.").arg(GRW).arg(GRH));
+                }
+
                 // Apply the refinement procedure acc. to Table 12
                 PDFJBIG2BitmapRefinementDecodingParameters refinementParameters;
                 refinementParameters.decoder = parameters.arithmeticDecoder;
                 refinementParameters.arithmeticDecoderState = parameters.refinementDecoderState;
-                refinementParameters.GRW = WOI + RDW;
-                refinementParameters.GRH = HOI + RDH;
+                refinementParameters.GRW = uint32_t(GRW);
+                refinementParameters.GRH = uint32_t(GRH);
                 refinementParameters.GRTEMPLATE = parameters.SBRTEMPLATE;
                 refinementParameters.GRREFERENCE = IBO;
-                refinementParameters.GRREFERENCEX = (RDW / 2) + RDX;
-                refinementParameters.GRREFERENCEY = (RDH / 2) + RDY;
+                refinementParameters.GRREFERENCEX = floorDivideByTwo(RDW) + RDX;
+                refinementParameters.GRREFERENCEY = floorDivideByTwo(RDH) + RDY;
                 refinementParameters.TPGRON = false;
                 refinementParameters.GRAT = parameters.SBRAT;
                 IB = readRefinementBitmap(refinementParameters);
@@ -3601,6 +3647,24 @@ PDFJBIG2ReferencedSegments PDFJBIG2Decoder::getReferencedSegments(const PDFJBIG2
     return segments;
 }
 
+int PDFJBIG2Decoder::getSegmentDataBytes(const PDFJBIG2SegmentHeader& header, int segmentHeaderBytes) const
+{
+    Q_ASSERT(header.isSegmentDataLengthDefined());
+
+    // The length of the segment is unsigned and the length of the already read header
+    // is subtracted from it. In the unsigned arithmetic the subtraction wraps around
+    // for a segment, which declares less data than its own header occupies, so the
+    // difference is computed in 64 bits and validated.
+    const int64_t segmentDataBytes = int64_t(header.getSegmentDataLength()) - int64_t(segmentHeaderBytes);
+
+    if (segmentDataBytes < 0 || segmentDataBytes > m_reader.getStream()->size())
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid data length %1 of the segment %2.").arg(header.getSegmentDataLength()).arg(header.getSegmentNumber()));
+    }
+
+    return int(segmentDataBytes);
+}
+
 void PDFJBIG2Decoder::checkBitmapSize(const uint32_t size)
 {
     if (size > MAX_BITMAP_SIZE)
@@ -3620,6 +3684,10 @@ void PDFJBIG2Decoder::checkRegionSegmentInformationField(const PDFJBIG2RegionSeg
     {
         throw PDFException(PDFTranslationContext::tr("JBIG2 invalid bitmap size (%1 x %2).").arg(field.width).arg(field.height));
     }
+
+    // Both dimensions are in the allowed range, but their product still can be too
+    // large - a region of 65536 x 65536 pixels passes the checks above
+    PDFJBIG2Bitmap::checkSize(field.width, field.height);
 
     if (field.operation == PDFJBIG2BitOperation::Invalid)
     {
@@ -3647,17 +3715,36 @@ PDFJBIG2Bitmap::PDFJBIG2Bitmap() :
 }
 
 PDFJBIG2Bitmap::PDFJBIG2Bitmap(int width, int height) :
-    m_width(width),
-    m_height(height)
+    PDFJBIG2Bitmap(width, height, 0)
 {
-    m_data.resize(width * height, 0);
+
 }
 
 PDFJBIG2Bitmap::PDFJBIG2Bitmap(int width, int height, uint8_t fill) :
     m_width(width),
     m_height(height)
 {
-    m_data.resize(width * height, fill);
+    checkSize(width, height);
+    m_data.resize(size_t(width) * size_t(height), fill);
+}
+
+void PDFJBIG2Bitmap::checkSize(int64_t width, int64_t height)
+{
+    if (width < 0 || height < 0)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid bitmap size (%1 x %2).").arg(width).arg(height));
+    }
+
+    // The product must be computed in 64 bits. Both dimensions are limited separately,
+    // but their product can still overflow the int - the buffer allocated for such a
+    // bitmap would be much smaller than the bitmap itself and every write into it
+    // would land outside of the allocated memory.
+    const int64_t pixelCount = width * height;
+
+    if (pixelCount > MAX_PIXEL_COUNT)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 maximum bitmap pixel count exceeded (%1 > %2).").arg(pixelCount).arg(MAX_PIXEL_COUNT));
+    }
 }
 
 PDFJBIG2Bitmap::~PDFJBIG2Bitmap()
@@ -3688,9 +3775,11 @@ void PDFJBIG2Bitmap::paint(const PDFJBIG2Bitmap& bitmap, int offsetX, int offset
     }
 
     // Expand, if it is allowed and target bitmap has too low height
-    if (expandY && offsetY + bitmap.getHeight() > m_height)
+    const int64_t requiredHeight = int64_t(offsetY) + int64_t(bitmap.getHeight());
+    if (expandY && requiredHeight > int64_t(m_height))
     {
-        m_height = offsetY + bitmap.getHeight();
+        checkSize(m_width, requiredHeight);
+        m_height = int(requiredHeight);
         m_data.resize(getPixelCount(), expandPixel);
     }
 

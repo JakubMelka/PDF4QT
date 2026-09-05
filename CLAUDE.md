@@ -36,6 +36,7 @@ Tests are QtTest executables, one per area, all built into `<build>/usr/bin`:
 | `UnitTests` | [tst_lexicalanalyzertest.cpp](UnitTests/tst_lexicalanalyzertest.cpp) |
 | `UnitTestsImageOptimizer` | [tst_imageoptimizertest.cpp](UnitTests/tst_imageoptimizertest.cpp) |
 | `UnitTestsBitonalDocument` | [tst_bitonaldocumenttest.cpp](UnitTests/tst_bitonaldocumenttest.cpp) |
+| `UnitTestsJBIG2` | [tst_jbig2test.cpp](UnitTests/tst_jbig2test.cpp) |
 | `UnitTestsFontEncoding` | [tst_fontencodingtest.cpp](UnitTests/tst_fontencodingtest.cpp) |
 | `UnitTestsAuthorSettings` | [tst_authorsettingstest.cpp](UnitTests/tst_authorsettingstest.cpp) |
 | `UnitTestsContentEditor` | [tst_contenteditortest.cpp](UnitTests/tst_contenteditortest.cpp) |
