@@ -166,6 +166,20 @@ public:
     const TextItems& getText(const PDFStructureItem* item) const;
 
 private:
+    struct GenerateTextLayoutParameters
+    {
+        PDFStructureTreeTextExtractor* extractor;
+        const std::map<PDFObjectReference, const PDFStructureItem*>* mapping;
+        QMutex* mutex;
+        PDFFontCache* fontCache;
+        PDFCMSGeneric* cms;
+        PDFMeshQualitySettings* mqs;
+        PDFOptionalContentActivity* oca;
+        PDFInteger pageIndex;
+    };
+
+    static void generateTextStructurePageImpl(const GenerateTextLayoutParameters& parameters);
+
     QList<PDFRenderError> m_errors;
     const PDFDocument* m_document;
     const PDFStructureTree* m_tree;
@@ -426,6 +440,28 @@ PDFStructureTreeTextExtractor::PDFStructureTreeTextExtractor(const PDFDocument* 
 
 }
 
+void PDFStructureTreeTextExtractor::generateTextStructurePageImpl(const GenerateTextLayoutParameters& parameters)
+{
+    PDFStructureTreeTextExtractor* extractor = parameters.extractor;
+    const PDFCatalog* catalog = extractor->m_document->getCatalog();
+    if (!catalog->getPage(parameters.pageIndex))
+    {
+        // Invalid page index
+        return;
+    }
+
+    const PDFPage* page = catalog->getPage(parameters.pageIndex);
+    Q_ASSERT(page);
+
+    PDFStructureTreeTextContentProcessor processor(PDFRenderer::IgnoreOptionalContent, page, extractor->m_document, parameters.fontCache, parameters.cms, parameters.oca, QTransform(), *parameters.mqs, extractor->m_tree, parameters.mapping, extractor->m_options);
+    QList<PDFRenderError> errors = processor.processContents();
+
+    QMutexLocker lock(parameters.mutex);
+    extractor->m_textSequences[parameters.pageIndex] = qMove(processor.takeSequence());
+    extractor->m_unmatchedText << qMove(processor.takeUnmatchedTexts());
+    extractor->m_errors.append(qMove(errors));
+}
+
 void PDFStructureTreeTextExtractor::perform(const std::vector<PDFInteger>& pageIndices)
 {
     std::map<PDFObjectReference, const PDFStructureItem*> mapping;
@@ -442,28 +478,13 @@ void PDFStructureTreeTextExtractor::perform(const std::vector<PDFInteger>& pageI
     fontCache.setDocument(md);
     fontCache.setCacheShrinkEnabled(nullptr, false);
 
-    auto generateTextLayout = [&, this](PDFInteger pageIndex)
+    std::vector<GenerateTextLayoutParameters> parameters;
+    parameters.reserve(pageIndices.size());
+    for (PDFInteger pageIndex : pageIndices)
     {
-        const PDFCatalog* catalog = m_document->getCatalog();
-        if (!catalog->getPage(pageIndex))
-        {
-            // Invalid page index
-            return;
-        }
-
-        const PDFPage* page = catalog->getPage(pageIndex);
-        Q_ASSERT(page);
-
-        PDFStructureTreeTextContentProcessor processor(PDFRenderer::IgnoreOptionalContent, page, m_document, &fontCache, &cms, &oca, QTransform(), mqs, m_tree, &mapping, m_options);
-        QList<PDFRenderError> errors = processor.processContents();
-
-        QMutexLocker lock(&mutex);
-        m_textSequences[pageIndex] = qMove(processor.takeSequence());
-        m_unmatchedText << qMove(processor.takeUnmatchedTexts());
-        m_errors.append(qMove(errors));
-    };
-
-    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, pageIndices.begin(), pageIndices.end(), generateTextLayout);
+        parameters.push_back(GenerateTextLayoutParameters{ this, &mapping, &mutex, &fontCache, &cms, &mqs, &oca, pageIndex });
+    }
+    PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, parameters.begin(), parameters.end(), &PDFStructureTreeTextExtractor::generateTextStructurePageImpl);
 
     fontCache.setCacheShrinkEnabled(nullptr, true);
 
@@ -647,6 +668,51 @@ void PDFStructureTreeTextFlowCollector::visitStructureObjectReference(const PDFS
     acceptChildren(structureObjectReference);
 }
 
+struct GenerateTextLayoutParameters
+{
+    std::map<PDFInteger, PDFDocumentTextFlow::Items>* items;
+    QMutex* mutex;
+    PDFFontCache* fontCache;
+    PDFCMSGeneric* cms;
+    PDFMeshQualitySettings* mqs;
+    PDFOptionalContentActivity* oca;
+    const PDFDocument* document;
+    const PDFCatalog* catalog;
+    QList<PDFRenderError>* errors;
+    PDFInteger pageIndex;
+};
+
+static void generateTextLayoutPageImpl(const GenerateTextLayoutParameters& parameters)
+{
+    const PDFInteger pageIndex = parameters.pageIndex;
+    const PDFCatalog* catalog = parameters.catalog;
+    if (!catalog->getPage(pageIndex))
+    {
+        // Invalid page index
+        return;
+    }
+
+    const PDFPage* page = catalog->getPage(pageIndex);
+    Q_ASSERT(page);
+
+    PDFTextLayoutGenerator generator(PDFRenderer::IgnoreOptionalContent, page, parameters.document, parameters.fontCache, parameters.cms, parameters.oca, QTransform(), *parameters.mqs);
+    QList<PDFRenderError> pageErrors = generator.processContents();
+    PDFTextLayout textLayout = generator.createTextLayout();
+    PDFTextFlows textFlows = PDFTextFlow::createTextFlows(textLayout, PDFTextFlow::FlowFlags(PDFTextFlow::SeparateBlocks) | PDFTextFlow::RemoveSoftHyphen, pageIndex);
+
+    PDFDocumentTextFlow::Items flowItems;
+    flowItems.emplace_back(PDFDocumentTextFlow::Item{ QRectF(), pageIndex, PDFTranslationContext::tr("Page %1").arg(pageIndex + 1), PDFDocumentTextFlow::PageStart, {} });
+    for (const PDFTextFlow& textFlow : textFlows)
+    {
+        flowItems.emplace_back(PDFDocumentTextFlow::Item{ textFlow.getBoundingBox(), pageIndex, textFlow.getText(), PDFDocumentTextFlow::Text, textFlow.getBoundingBoxes() });
+    }
+    flowItems.emplace_back(PDFDocumentTextFlow::Item{ QRectF(), pageIndex, QString(), PDFDocumentTextFlow::PageEnd, {} });
+
+    QMutexLocker lock(parameters.mutex);
+    (*parameters.items)[pageIndex] = qMove(flowItems);
+    parameters.errors->append(qMove(pageErrors));
+}
+
 PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* document, const std::vector<PDFInteger>& pageIndices, Algorithm algorithm)
 {
     PDFDocumentTextFlow result;
@@ -690,36 +756,13 @@ PDFDocumentTextFlow PDFDocumentTextFlowFactory::create(const PDFDocument* docume
             fontCache.setDocument(md);
             fontCache.setCacheShrinkEnabled(nullptr, false);
 
-            auto generateTextLayout = [this, &items, &mutex, &fontCache, &cms, &mqs, &oca, document, catalog](PDFInteger pageIndex)
+            std::vector<GenerateTextLayoutParameters> parameters;
+            parameters.reserve(pageIndices.size());
+            for (PDFInteger pageIndex : pageIndices)
             {
-                if (!catalog->getPage(pageIndex))
-                {
-                    // Invalid page index
-                    return;
-                }
-
-                const PDFPage* page = catalog->getPage(pageIndex);
-                Q_ASSERT(page);
-
-                PDFTextLayoutGenerator generator(PDFRenderer::IgnoreOptionalContent, page, document, &fontCache, &cms, &oca, QTransform(), mqs);
-                QList<PDFRenderError> errors = generator.processContents();
-                PDFTextLayout textLayout = generator.createTextLayout();
-                PDFTextFlows textFlows = PDFTextFlow::createTextFlows(textLayout, PDFTextFlow::FlowFlags(PDFTextFlow::SeparateBlocks) | PDFTextFlow::RemoveSoftHyphen, pageIndex);
-
-                PDFDocumentTextFlow::Items flowItems;
-                flowItems.emplace_back(PDFDocumentTextFlow::Item{ QRectF(), pageIndex, PDFTranslationContext::tr("Page %1").arg(pageIndex + 1), PDFDocumentTextFlow::PageStart, {} });
-                for (const PDFTextFlow& textFlow : textFlows)
-                {
-                    flowItems.emplace_back(PDFDocumentTextFlow::Item{ textFlow.getBoundingBox(), pageIndex, textFlow.getText(), PDFDocumentTextFlow::Text, textFlow.getBoundingBoxes() });
-                }
-                flowItems.emplace_back(PDFDocumentTextFlow::Item{ QRectF(), pageIndex, QString(), PDFDocumentTextFlow::PageEnd, {} });
-
-                QMutexLocker lock(&mutex);
-                items[pageIndex] = qMove(flowItems);
-                m_errors.append(qMove(errors));
-            };
-
-            PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, pageIndices.begin(), pageIndices.end(), generateTextLayout);
+                parameters.push_back(GenerateTextLayoutParameters{ &items, &mutex, &fontCache, &cms, &mqs, &oca, document, catalog, &m_errors, pageIndex });
+            }
+            PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, parameters.begin(), parameters.end(), &generateTextLayoutPageImpl);
 
             fontCache.setCacheShrinkEnabled(nullptr, true);
 
