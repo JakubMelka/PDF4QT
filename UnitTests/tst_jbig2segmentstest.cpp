@@ -29,6 +29,7 @@
 
 #include <optional>
 #include <stdexcept>
+#include <tuple>
 
 /// Tests of the JBIG2 decoder for the segments, which the encoder of the library does
 /// not produce - symbol dictionaries, text regions, pattern dictionaries and halftone
@@ -3464,6 +3465,48 @@ void JBIG2SegmentsTest::test_halftone_region_errors()
         appendSegment(stream, 1, PatternDictionary, { }, dictionary);
         appendSegment(stream, 2, ImmediateHalftoneRegion, { 1 }, header);
         QVERIFY(decodeExpectingError(stream).contains("bit plane"));
+    }
+
+    {
+        // An empty grid coded by MMR - a row of no columns consumes no data, so the MMR
+        // decoder must reject it instead of decoding the data forever. The grid size
+        // follows the flags byte of the header, and the data are a byte of ones, which
+        // is no fill and no end of block.
+        HalftoneOptions options = base;
+        options.HMMR = true;
+        QByteArray region = encodeHalftoneRegion({ { 0, 1, 2 } }, options).left(38);
+        for (int i = 18; i < 26; ++i)
+        {
+            region[i] = 0;
+        }
+        region.append(toChar(0xFF));
+
+        QByteArray stream = createPageStream(12, 12);
+        appendSegment(stream, 1, PatternDictionary, { }, dictionary);
+        appendSegment(stream, 2, ImmediateHalftoneRegion, { 1 }, region);
+        const QString message = decodeExpectingError(stream);
+        QVERIFY2(message.contains("number of columns"), qPrintable(message));
+    }
+
+    // The gray-scale image of the grid is allocated before the planes are decoded, so
+    // the grid is limited like a bitmap - by each dimension and by the number of cells
+    for (const auto& [HGW, HGH, expectedMessage] : { std::make_tuple(65537u, 1u, "maximum bitmap size"), std::make_tuple(1u, 65537u, "maximum bitmap size"), std::make_tuple(65536u, 65536u, "pixel count") })
+    {
+        QByteArray region = encodeHalftoneRegion({ { 0, 1, 2 } }, base);
+        region[18] = toChar(HGW >> 24);
+        region[19] = toChar(HGW >> 16);
+        region[20] = toChar(HGW >> 8);
+        region[21] = toChar(HGW);
+        region[22] = toChar(HGH >> 24);
+        region[23] = toChar(HGH >> 16);
+        region[24] = toChar(HGH >> 8);
+        region[25] = toChar(HGH);
+
+        QByteArray stream = createPageStream(12, 12);
+        appendSegment(stream, 1, PatternDictionary, { }, dictionary);
+        appendSegment(stream, 2, ImmediateHalftoneRegion, { 1 }, region);
+        const QString message = decodeExpectingError(stream);
+        QVERIFY2(message.contains(expectedMessage), qPrintable(message));
     }
 
     {

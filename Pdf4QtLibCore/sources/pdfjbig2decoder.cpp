@@ -2278,6 +2278,12 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
     const int HBW = field.width;
     const int HBH = field.height;
 
+    // The gray-scale image of the grid is allocated before the bit planes are decoded,
+    // so the size of the grid is validated like the size of a bitmap
+    checkBitmapSize(HGW);
+    checkBitmapSize(HGH);
+    PDFJBIG2Bitmap::checkSize(HGW, HGH);
+
     PDFJBIG2BitOperation HCOMBOOPValue = PDFJBIG2BitOperation::Invalid;
     switch (HCOMBOOP)
     {

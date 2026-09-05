@@ -25,6 +25,8 @@
 #include "pdfexception.h"
 #include "pdfdbgheap.h"
 
+#include <limits>
+
 namespace pdf
 {
 
@@ -37,6 +39,14 @@ PDFCCITTFaxDecoder::PDFCCITTFaxDecoder(const QByteArray* stream, const PDFCCITTF
 
 PDFImageData PDFCCITTFaxDecoder::decode()
 {
+    // A row of no columns consumes no data - the decoding of such a row would never end,
+    // when the data do not end. The lines below hold two more entries than the number of
+    // the columns, so the number must also fit into an int with them.
+    if (m_parameters.columns < 1 || m_parameters.columns > std::numeric_limits<int>::max() - 2)
+    {
+        throw PDFException(PDFTranslationContext::tr("Invalid number of columns (%1) of the CCITT image.").arg(m_parameters.columns));
+    }
+
     PDFBitWriter writer(1);
     std::vector<int> codingLine;
     std::vector<int> referenceLine;

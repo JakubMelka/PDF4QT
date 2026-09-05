@@ -26,6 +26,7 @@
 
 #include <QtTest>
 
+#include <limits>
 #include <random>
 
 /// Tests of the CCITT fax encoder and decoder. The encoder is verified against the code
@@ -974,6 +975,19 @@ void CCITTFaxTest::test_decoder_rejects_malformed_streams()
     narrow.columns = 2;
     narrow.rows = 2;
     QVERIFY(decodeExpectingError(fromBits("000010" "010" "1" "011" "0001"), narrow).contains("b2 index"));
+
+    // A row of no columns consumes no data, so its decoding would never end - the number
+    // of the columns must be positive, and it must fit into an int together with the two
+    // terminating entries of a line. The end of the data is not reached, the end of block
+    // is expected and the data are no fill.
+    for (const pdf::PDFInteger columns : { pdf::PDFInteger(0), pdf::PDFInteger(-1), pdf::PDFInteger(std::numeric_limits<int>::max()) })
+    {
+        pdf::PDFCCITTFaxDecoderParameters noColumns = group4;
+        noColumns.columns = columns;
+        noColumns.rows = 0;
+        noColumns.hasEndOfBlock = true;
+        QVERIFY(decodeExpectingError(fromBits("11111111"), noColumns).contains("number of columns"));
+    }
 
     // A pass mode against a white reference row moves a0 to the end of the row, because
     // both changing elements b1 and b2 are the end of the row - the row stays white
