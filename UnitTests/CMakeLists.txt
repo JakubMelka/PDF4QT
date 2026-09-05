@@ -76,6 +76,25 @@ set_target_properties(UnitTestsJBIG2 PROPERTIES
 )
 add_test(UnitTestsJBIG2  "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsJBIG2")
 
+add_executable(UnitTestsJBIG2Files
+	tst_jbig2filestest.cpp
+)
+
+target_link_libraries(UnitTestsJBIG2Files PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+
+# The directory with the JBIG2 test files is not a part of the repository, because the files
+# are covered by a copyright of their authors. The test is skipped, when the directory does
+# not exist, and the environment variable PDF4QT_JBIG2_TEST_DIRECTORY overrides the location.
+target_compile_definitions(UnitTestsJBIG2Files PRIVATE PDF4QT_JBIG2_TEST_DIRECTORY="${CMAKE_SOURCE_DIR}/jbig2test")
+
+set_target_properties(UnitTestsJBIG2Files PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_LIB_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsJBIG2Files  "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsJBIG2Files")
+
 add_executable(UnitTestsFontEncoding
 	tst_fontencodingtest.cpp
 )

@@ -1343,6 +1343,45 @@ void PDFJBIG2Decoder::processStream()
 
 void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& header)
 {
+    // Only a dictionary using refinement/aggregate coding can be affected by the two
+    // forms of the coding of a single symbol instance aggregation, so the flags are read
+    // in advance - a dictionary, which does not use it, must not be decoded twice.
+    constexpr uint16_t SDREFAGG_FLAG = 0x0002;
+    const bool isRefinementAggregateUsed = (uint16_t(m_reader.look(16)) & SDREFAGG_FLAG) != 0;
+
+    if (!isRefinementAggregateUsed)
+    {
+        processSymbolDictionaryImpl(header, false);
+        return;
+    }
+
+    const int segmentDataStartPosition = m_reader.getPosition();
+
+    try
+    {
+        processSymbolDictionaryImpl(header, false);
+        return;
+    }
+    catch (const PDFException&)
+    {
+        // The symbol dictionary has not been decoded by the procedure of the specification.
+        // The Power JBIG-2 encoder of the University of British Columbia, which produced the
+        // test streams of the format, codes a symbol aggregated from a single symbol instance
+        // by the whole text region decoding procedure, and not by the shortened form of
+        // 6.5.8.2.2, which decodes only the values, that the text region does not know in
+        // advance. The two forms are not distinguishable in the data, so the dictionary is
+        // decoded again by the other one - the segment is read from the beginning, and
+        // nothing has been stored yet, because the decoded symbols are stored as the last
+        // step of the decoding.
+        m_reader.seek(segmentDataStartPosition);
+    }
+
+    processSymbolDictionaryImpl(header, true);
+    m_errorReporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("JBIG2 symbol dictionary uses the text region decoding procedure for a single symbol instance aggregation."));
+}
+
+void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& header, bool isSingleInstanceAggregateTextRegion)
+{
     /* 7.4.2.2 step 1) */
     PDFJBIG2SymbolDictionaryDecodingParameters parameters;
     const uint16_t symbolDictionaryFlags = m_reader.readUnsignedWord();
@@ -1603,7 +1642,14 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
                     /* 6.5.8.2 Refinement/aggregate-coded symbol bitmap */
                     int32_t REFAGGNINST = checkInteger(parameters.SDHUFF ? parameters.SDHUFFAGGINST_Decoder.readSignedInteger() : arithmeticDecoder.getSignedInteger(&arithmeticDecoderStates.states[PDFJBIG2ArithmeticDecoderStates::IAAI]));
 
-                    if (REFAGGNINST == 1)
+                    // 6.5.8.2 defines the decoding only for a value equal to one and for
+                    // a value greater than one, so anything else is invalid
+                    if (REFAGGNINST < 1)
+                    {
+                        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid number of symbol instances in the aggregation (%1).").arg(REFAGGNINST));
+                    }
+
+                    if (REFAGGNINST == 1 && !isSingleInstanceAggregateTextRegion)
                     {
                         uint32_t ID = 0;
                         int32_t RDXI = 0;
@@ -1670,7 +1716,7 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
                         textParameters.SBDSOFFSET = 0;
                         textParameters.SBW = SYMWIDTH;
                         textParameters.SBH = HCHEIGHT;
-                        textParameters.SBNUMINSTANCES = 1;
+                        textParameters.SBNUMINSTANCES = uint32_t(REFAGGNINST);
                         textParameters.LOG2SBSTRIPS = 0;
                         textParameters.SBSTRIPS = 1;
                         textParameters.SBSYMS = parameters.SDINSYMS;
@@ -2144,8 +2190,12 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
     {
         // Arithmetic decoder
         decoder.initialize();
-        parameters.arithmeticDecoder = &decoder;
     }
+
+    // The refinement of a symbol instance is always coded arithmetically, even in a huffman
+    // coded text region - there it is a separate block of the data, which the decoder of the
+    // refinement initializes for itself. So the decoder is needed in both cases.
+    parameters.arithmeticDecoder = &decoder;
 
     PDFJBIG2ArithmeticDecoderStates arithmeticDecoderStates;
     arithmeticDecoderStates.resetArithmeticStatesInteger(parameters.SBSYMCODELEN);
@@ -3329,7 +3379,7 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readTextBitmap(PDFJBIG2TextRegionDecodingParamet
         int32_t CURS = 0;
 
         bool firstSymbolInstance = true;
-        while (NINSTANCES < parameters.SBNUMINSTANCES)
+        while (true)
         {
             if (firstSymbolInstance)
             {
@@ -3353,6 +3403,16 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readTextBitmap(PDFJBIG2TextRegionDecodingParamet
                     // End of strip, proceed to the next strip
                     break;
                 }
+            }
+
+            // A strip is always terminated by the out-of-band value, so the counter of the
+            // instances is checked here and not in the condition of the loop. Leaving the
+            // loop without reading that value would stop in the middle of the strip, which
+            // desynchronizes everything read after the text region - the text region of a
+            // symbol dictionary is followed by the rest of the dictionary.
+            if (NINSTANCES >= parameters.SBNUMINSTANCES)
+            {
+                throw PDFException(PDFTranslationContext::tr("JBIG2 text region has more symbol instances, than defined in its header (%1).").arg(parameters.SBNUMINSTANCES));
             }
 
             /* 6.4.5. step 3) iii), using decoding procedure 6.4.9 */

@@ -497,6 +497,14 @@ private:
     void processStream();
 
     void processSymbolDictionary(const PDFJBIG2SegmentHeader& header);
+
+    /// Processes a symbol dictionary segment. A symbol of an aggregation of a single
+    /// symbol instance is coded in two different ways - see \p processSymbolDictionary,
+    /// which selects between them.
+    /// \param header Header of the segment
+    /// \param isSingleInstanceAggregateTextRegion Decode a symbol, which is an aggregation
+    ///        of a single symbol instance, by the text region decoding procedure
+    void processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& header, bool isSingleInstanceAggregateTextRegion);
     void processTextRegion(const PDFJBIG2SegmentHeader& header);
     void processPatternDictionary(const PDFJBIG2SegmentHeader& header);
     void processHalftoneRegion(const PDFJBIG2SegmentHeader& header);

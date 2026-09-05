@@ -37,6 +37,7 @@ Tests are QtTest executables, one per area, all built into `<build>/usr/bin`:
 | `UnitTestsImageOptimizer` | [tst_imageoptimizertest.cpp](UnitTests/tst_imageoptimizertest.cpp) |
 | `UnitTestsBitonalDocument` | [tst_bitonaldocumenttest.cpp](UnitTests/tst_bitonaldocumenttest.cpp) |
 | `UnitTestsJBIG2` | [tst_jbig2test.cpp](UnitTests/tst_jbig2test.cpp) |
+| `UnitTestsJBIG2Files` | [tst_jbig2filestest.cpp](UnitTests/tst_jbig2filestest.cpp) — decodes every file of the `jbig2test/` directory (not in the repository, skipped when missing; override with `PDF4QT_JBIG2_TEST_DIRECTORY`) and compares it with the `<name>.bmp` reference |
 | `UnitTestsFontEncoding` | [tst_fontencodingtest.cpp](UnitTests/tst_fontencodingtest.cpp) |
 | `UnitTestsAuthorSettings` | [tst_authorsettingstest.cpp](UnitTests/tst_authorsettingstest.cpp) |
 | `UnitTestsContentEditor` | [tst_contenteditortest.cpp](UnitTests/tst_contenteditortest.cpp) |
