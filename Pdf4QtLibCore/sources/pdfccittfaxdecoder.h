@@ -87,8 +87,7 @@ enum CCITT_2D_Code_Mode
     Vertical_0,
     Vertical_1R,
     Vertical_2R,
-    Vertical_3R,
-    Invalid
+    Vertical_3R
 };
 
 class PDF4QTLIBCORESHARED_EXPORT PDFCCITTFaxDecoder

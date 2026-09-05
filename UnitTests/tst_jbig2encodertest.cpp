@@ -513,6 +513,21 @@ void JBIG2EncoderTest::test_nominal_at_positions()
         QCOMPARE(int(positions[0].y), -1);
     }
 
+    // The context sizes of the figures 4 to 7
+    QCOMPARE(int(pdf::PDFJBIG2EncoderParameters::getContextBitCount(0)), 16);
+    QCOMPARE(int(pdf::PDFJBIG2EncoderParameters::getContextBitCount(1)), 13);
+    QCOMPARE(int(pdf::PDFJBIG2EncoderParameters::getContextBitCount(2)), 10);
+    QCOMPARE(int(pdf::PDFJBIG2EncoderParameters::getContextBitCount(3)), 10);
+
+    // An invalid template has no adaptive template pixels
+    const pdf::PDFJBIG2ATPositions invalid = pdf::PDFJBIG2EncoderParameters::getNominalATPositions(4);
+    for (const pdf::PDFJBIG2ATPosition& position : invalid)
+    {
+        QCOMPARE(int(position.x), 0);
+        QCOMPARE(int(position.y), 0);
+    }
+    QCOMPARE(pdf::PDFJBIG2EncoderParameters::getATPositionCount(4), 1);
+
     // The default parameters use the nominal positions of the template 0
     const pdf::PDFJBIG2EncoderParameters parameters;
     QCOMPARE(parameters.GBTEMPLATE, uint8_t(0));
@@ -901,6 +916,21 @@ void JBIG2EncoderTest::test_encoder_rejects_invalid_input()
     parameters.GBTEMPLATE = 4;
     QVERIFY_THROWS_EXCEPTION(pdf::PDFException, pdf::PDFJBIG2Encoder(bitmap.view(), parameters).encodeGenericRegion());
     parameters.GBTEMPLATE = 0;
+
+    // The skip bitmap must have the size of the image
+    {
+        pdf::PDFJBIG2ArithmeticDecoderState state;
+        state.reset(16);
+        pdf::PDFJBIG2ArithmeticEncoder encoder;
+
+        const pdf::PDFJBIG2Bitmap narrower(bitmap.width - 1, bitmap.height, 0x00);
+        QVERIFY_THROWS_EXCEPTION(pdf::PDFException, pdf::PDFJBIG2Encoder::encodeGenericBitmap(bitmap.view(), parameters, encoder, state, &narrower));
+        const pdf::PDFJBIG2Bitmap higher(bitmap.width, bitmap.height + 1, 0x00);
+        QVERIFY_THROWS_EXCEPTION(pdf::PDFException, pdf::PDFJBIG2Encoder::encodeGenericBitmap(bitmap.view(), parameters, encoder, state, &higher));
+
+        const pdf::PDFJBIG2Bitmap skip(bitmap.width, bitmap.height, 0x00);
+        pdf::PDFJBIG2Encoder::encodeGenericBitmap(bitmap.view(), parameters, encoder, state, &skip);
+    }
 
     // An adaptive template pixel must lie above the current row, or to the left of the
     // coded pixel in the current row

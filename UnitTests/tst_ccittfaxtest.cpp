@@ -965,6 +965,35 @@ void CCITTFaxTest::test_decoder_rejects_malformed_streams()
     // by the four zero bits of the padding, which are not a black code word yet
     QVERIFY(decodeExpectingError(fromBits("0111"), group3).contains("Not enough data"));
 
+    // The reference row #. of two columns has a changing element at every column, so
+    // the changing elements fill the reference line up to its two terminating entries.
+    // VR1 against the first changing element moves b1 behind the last changing element,
+    // and its colour lands it on the last entry of the line - the pass mode then needs
+    // b2 behind the line.
+    pdf::PDFCCITTFaxDecoderParameters narrow = group4;
+    narrow.columns = 2;
+    narrow.rows = 2;
+    QVERIFY(decodeExpectingError(fromBits("000010" "010" "1" "011" "0001"), narrow).contains("b2 index"));
+
+    // A pass mode against a white reference row moves a0 to the end of the row, because
+    // both changing elements b1 and b2 are the end of the row - the row stays white
+    pdf::PDFCCITTFaxDecoderParameters passAtEnd = group4;
+    passAtEnd.rows = 2;
+    QCOMPARE(drawBitmap(decode(fromBits("1" "0001"), passAtEnd)), QStringList({ "........", "........" }));
+
+    // A required end of line is searched up to the end of the data - the data of two
+    // rows end without the return to control, so the search behind the last row finds
+    // nothing, with and without the byte alignment
+    for (const bool hasEncodedByteAlign : { false, true })
+    {
+        pdf::PDFCCITTFaxDecoderParameters endOfLine = group3;
+        endOfLine.rows = 0;
+        endOfLine.hasEndOfLine = true;
+        endOfLine.hasEndOfBlock = true;
+        endOfLine.hasEncodedByteAlign = hasEncodedByteAlign;
+        QCOMPARE(drawBitmap(decode(fromBits("000000000001" "10011" "000000000001" "10011"), endOfLine)), QStringList({ "........", "........" }));
+    }
+
     // A vertical mode can place a1 to the left of a0 - the decoder tolerates it and
     // moves a0 back. The reference row is ....##..#......., the coded row passes the
     // first black run (a0 = 6), then VL3 against b1 = 8 gives a1 = 5, and the rest is

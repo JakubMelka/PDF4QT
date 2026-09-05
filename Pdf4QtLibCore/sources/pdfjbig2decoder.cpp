@@ -45,7 +45,6 @@ public:
     virtual ~PDFJBIG2HuffmanCodeTable();
 
     virtual const PDFJBIG2HuffmanCodeTable* asHuffmanCodeTable() const override { return this; }
-    virtual PDFJBIG2HuffmanCodeTable* asHuffmanCodeTable() override { return this; }
 
     const std::vector<PDFJBIG2HuffmanTableEntry>& getEntries() const { return m_entries; }
 
@@ -73,7 +72,6 @@ public:
     }
 
     virtual const PDFJBIG2SymbolDictionary* asSymbolDictionary() const override { return this; }
-    virtual PDFJBIG2SymbolDictionary* asSymbolDictionary() override { return this; }
 
     const std::vector<PDFJBIG2Bitmap>& getBitmaps() const { return m_bitmaps; }
     const PDFJBIG2ArithmeticDecoderState& getGenericState() const { return m_genericState; }
@@ -96,7 +94,6 @@ public:
     }
 
     virtual const PDFJBIG2PatternDictionary* asPatternDictionary() const override { return this; }
-    virtual PDFJBIG2PatternDictionary* asPatternDictionary() override { return this; }
 
     const std::vector<PDFJBIG2Bitmap>& getBitmaps() const { return m_bitmaps; }
 
@@ -179,26 +176,11 @@ void PDFJBIG2ArithmeticDecoderStates::resetArithmeticStatesGenericRefinement(con
 
 void PDFJBIG2ArithmeticDecoderStates::resetArithmeticStatesGeneric(PDFJBIG2ArithmeticDecoderState* newState, const uint8_t templateMode, const PDFJBIG2ArithmeticDecoderState* state)
 {
-    uint8_t bits = 0;
-    switch (templateMode)
-    {
-        case 0:
-            bits = 16;
-            break;
-
-        case 1:
-            bits = 13;
-            break;
-
-        case 2:
-        case 3:
-            bits = 10;
-            break;
-
-        default:
-            Q_ASSERT(false);
-            break;
-    }
+    // Number of the bits of the context of each template, see figures 4 to 7 of the
+    // specification. The template is a two bit field, so every value is a template.
+    constexpr std::array<uint8_t, 4> contextBits = { 16, 13, 10, 10 };
+    Q_ASSERT(templateMode < contextBits.size());
+    const uint8_t bits = contextBits[templateMode];
 
     if (!state)
     {
@@ -212,21 +194,11 @@ void PDFJBIG2ArithmeticDecoderStates::resetArithmeticStatesGeneric(PDFJBIG2Arith
 
 void PDFJBIG2ArithmeticDecoderStates::resetArithmeticStatesGenericRefinement(PDFJBIG2ArithmeticDecoderState* newState, const uint8_t templateMode, const PDFJBIG2ArithmeticDecoderState* state)
 {
-    uint8_t bits = 0;
-    switch (templateMode)
-    {
-        case 0:
-            bits = 13;
-            break;
-
-        case 1:
-            bits = 10;
-            break;
-
-        default:
-            Q_ASSERT(false);
-            break;
-    }
+    // Number of the bits of the context of each refinement template, see figures 12
+    // and 13 of the specification. The template is a single bit field.
+    constexpr std::array<uint8_t, 2> contextBits = { 13, 10 };
+    Q_ASSERT(templateMode < contextBits.size());
+    const uint8_t bits = contextBits[templateMode];
 
     if (!state)
     {
@@ -1015,14 +987,10 @@ PDFJBIG2SegmentHeader PDFJBIG2SegmentHeader::read(PDFBitReader* reader)
     if (referredSegmentsCount == 7)
     {
         // This signalizes, that we have more than 4 referred segments. We will read 32-bit value,
-        // where bits 0-28 will be number of referred segments, and bits 29-31 should be all set to 1.
+        // where bits 0-28 will be number of referred segments, and bits 29-31 are all set to 1 -
+        // they are the three bits of the count 7 read above.
         retentionField = (retentionField << 24) | reader->read(24);
         referredSegmentsCount = retentionField & 0x1FFFFFFF;
-
-        if ((retentionField & 0xE0000000) != 0xE0000000)
-        {
-            throw PDFException(PDFTranslationContext::tr("JBIG2 invalid header - bad referred segments."));
-        }
 
         // According the specification, retention header is 4 + ceil( (R + 1) / 8) bytes long. We have already 4 bytes read,
         // so only ceil( (R + 1) / 8 ) bytes we must skip. So, we will add 7 "bits", so we have (R + 1 + 7) / 8 bytes
@@ -1213,9 +1181,8 @@ PDFImageData PDFJBIG2Decoder::decodeFileStream()
         std::vector<SegmentInfo> segmentInfos;
         while (true)
         {
-            SegmentInfo segmentInfo;
             const int headerStartPosition = m_reader.getPosition();
-            segmentInfo.header = PDFJBIG2SegmentHeader::read(&m_reader);
+            SegmentInfo segmentInfo{ PDFJBIG2SegmentHeader::read(&m_reader), QByteArray(), QByteArray() };
             const int headerEndPosition = m_reader.getPosition();
             segmentInfo.headerData = m_data.mid(headerStartPosition, headerEndPosition - headerStartPosition);
             segmentInfos.push_back(qMove(segmentInfo));
@@ -1261,6 +1228,12 @@ void PDFJBIG2Decoder::processStream()
         // Read the segment header, then process the segment data
         PDFJBIG2SegmentHeader segmentHeader = PDFJBIG2SegmentHeader::read(&m_reader);
         const int64_t segmentDataStartPosition = m_reader.getPosition();
+
+        // The unknown data length is allowed for the immediate generic region only, see 7.2.7
+        if (!segmentHeader.isSegmentDataLengthDefined() && (segmentHeader.getSegmentType() != JBIG2SegmentType::GenericRegion || !segmentHeader.isImmediate()))
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 unknown data length of the segment %1 - it is allowed for an immediate generic region only.").arg(segmentHeader.getSegmentNumber()));
+        }
 
         switch (segmentHeader.getSegmentType())
         {
@@ -1315,9 +1288,6 @@ void PDFJBIG2Decoder::processStream()
             case JBIG2SegmentType::Extension:
                 processExtension(segmentHeader);
                 break;
-
-            default:
-                throw PDFException(PDFTranslationContext::tr("JBIG2 invalid segment type %1.").arg(static_cast<uint32_t>(segmentHeader.getSegmentType())));
         }
 
         // Make sure, that all data are processed by segment header. Positive offset means,
@@ -1357,13 +1327,14 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
     }
 
     const int segmentDataStartPosition = m_reader.getPosition();
+    QString errorMessage;
 
     try
     {
         processSymbolDictionaryImpl(header, false);
         return;
     }
-    catch (const PDFException&)
+    catch (const PDFException& exception)
     {
         // The symbol dictionary has not been decoded by the procedure of the specification.
         // The Power JBIG-2 encoder of the University of British Columbia, which produced the
@@ -1374,10 +1345,21 @@ void PDFJBIG2Decoder::processSymbolDictionary(const PDFJBIG2SegmentHeader& heade
         // decoded again by the other one - the segment is read from the beginning, and
         // nothing has been stored yet, because the decoded symbols are stored as the last
         // step of the decoding.
+        errorMessage = exception.getMessage();
         m_reader.seek(segmentDataStartPosition);
     }
 
-    processSymbolDictionaryImpl(header, true);
+    try
+    {
+        processSymbolDictionaryImpl(header, true);
+    }
+    catch (const PDFException&)
+    {
+        // Neither form decodes the dictionary - the error of the form of the specification
+        // is reported, the other form is just a fallback
+        throw PDFException(errorMessage);
+    }
+
     m_errorReporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("JBIG2 symbol dictionary uses the text region decoding procedure for a single symbol instance aggregation."));
 }
 
@@ -1426,7 +1408,8 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
 
     if (!parameters.SDHUFF)
     {
-        if (parameters.SDHUFFDH != 0 || parameters.SDHUFFDW != 0 || parameters.SDHUFFBMSIZE != 0 || parameters.SDHUFFAGGINST != 0)
+        // SDHUFFAGGINST has been checked above
+        if (parameters.SDHUFFDH != 0 || parameters.SDHUFFDW != 0 || parameters.SDHUFFBMSIZE != 0)
         {
             throw PDFException(PDFTranslationContext::tr("JBIG2 invalid flags for symbol dictionary segment."));
         }
@@ -1492,32 +1475,23 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
                 throw PDFException(PDFTranslationContext::tr("JBIG2 invalid user huffman code table."));
         }
 
-        switch (parameters.SDHUFFBMSIZE)
+        // Both selections are single bit fields
+        if (parameters.SDHUFFBMSIZE == 0)
         {
-            case 0:
-                parameters.SDHUFFBMSIZE_Decoder = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
-                break;
-
-            case 1:
-                parameters.SDHUFFBMSIZE_Decoder = references.getUserTable(&m_reader);
-                break;
-
-            default:
-                throw PDFException(PDFTranslationContext::tr("JBIG2 invalid user huffman code table."));
+            parameters.SDHUFFBMSIZE_Decoder = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
+        }
+        else
+        {
+            parameters.SDHUFFBMSIZE_Decoder = references.getUserTable(&m_reader);
         }
 
-        switch (parameters.SDHUFFAGGINST)
+        if (parameters.SDHUFFAGGINST == 0)
         {
-            case 0:
-                parameters.SDHUFFAGGINST_Decoder = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
-                break;
-
-            case 1:
-                parameters.SDHUFFAGGINST_Decoder = references.getUserTable(&m_reader);
-                break;
-
-            default:
-                throw PDFException(PDFTranslationContext::tr("JBIG2 invalid user huffman code table."));
+            parameters.SDHUFFAGGINST_Decoder = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
+        }
+        else
+        {
+            parameters.SDHUFFAGGINST_Decoder = references.getUserTable(&m_reader);
         }
 
         parameters.EXRUNLENGTH_Decoder = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
@@ -1867,29 +1841,8 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
 
 void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
 {
-    auto getSBCOMBOOP = [](const uint8_t value)
-    {
-        switch (value)
-        {
-            case 0:
-                return PDFJBIG2BitOperation::Or;
-
-            case 1:
-                return PDFJBIG2BitOperation::And;
-
-            case 2:
-                return PDFJBIG2BitOperation::Xor;
-
-            case 3:
-                return PDFJBIG2BitOperation::NotXor;
-
-            default:
-                break;
-        }
-
-        Q_ASSERT(false);
-        return PDFJBIG2BitOperation::Invalid;
-    };
+    // Combination operators of the two bit field SBCOMBOP, see 7.4.3.1.1
+    constexpr std::array<PDFJBIG2BitOperation, 4> combinationOperators = { PDFJBIG2BitOperation::Or, PDFJBIG2BitOperation::And, PDFJBIG2BitOperation::Xor, PDFJBIG2BitOperation::NotXor };
 
     PDFJBIG2RegionSegmentInformationField regionSegmentInfo = readRegionSegmentInformationField();
     const uint16_t flags = m_reader.readUnsignedWord();
@@ -1899,8 +1852,7 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
     const uint8_t SBSTRIPS = 1 << LOG2SBSTRIPS;
     const uint8_t REFCORNER = (flags >> 4) & 0x03;
     const bool TRANSPOSED = (flags >> 6) & 0x01;
-    const uint8_t SBCOMBOOP_value = (flags >> 7) & 0x03;
-    const PDFJBIG2BitOperation SBCOMBOOP = getSBCOMBOOP(SBCOMBOOP_value);
+    const PDFJBIG2BitOperation SBCOMBOOP = combinationOperators[(flags >> 7) & 0x03];
     const uint8_t SBDEFPIXEL = ((flags >> 9) & 0x01) ? 0xFF : 0x00;
     const int32_t SBDSOFFSET = (flags >> 10) & 0x1F;
     const uint8_t SBRTEMPLATE = (flags >> 15) & 0x01;
@@ -1942,12 +1894,9 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
         const uint8_t SBHUFFRDH = readHuffmanTableSelection();
         const uint8_t SBHUFFRDX = readHuffmanTableSelection();
         const uint8_t SBHUFFRDY = readHuffmanTableSelection();
+        // The reserved bit 15 is read as the upper bit of the selection SBHUFFRSIZE, so
+        // it is refused as an invalid selection
         const uint8_t SBHUFFRSIZE = readHuffmanTableSelection();
-
-        if (huffmanFlags)
-        {
-            throw PDFException(PDFTranslationContext::tr("JBIG2 - invalid huffman table flags in text region segment."));
-        }
 
         // Create huffman tables
         switch (SBHUFFFS)
@@ -1968,48 +1917,39 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
                 throw PDFException(PDFTranslationContext::tr("JBIG2 invalid user huffman code table."));
         }
 
-        switch (SBHUFFDS)
+        // Every value of the two bit selections of SBHUFFDS and SBHUFFDT is valid
+        if (SBHUFFDS == 0)
         {
-            case 0:
-                parameters.SBHUFFDS = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_H), std::end(PDFJBIG2StandardHuffmanTable_H));
-                break;
-
-            case 1:
-                parameters.SBHUFFDS = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_I), std::end(PDFJBIG2StandardHuffmanTable_I));
-                break;
-
-            case 2:
-                parameters.SBHUFFDS = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_J), std::end(PDFJBIG2StandardHuffmanTable_J));
-                break;
-
-            case 3:
-                parameters.SBHUFFDS = references.getUserTable(&m_reader);
-                break;
-
-            default:
-                throw PDFException(PDFTranslationContext::tr("JBIG2 invalid user huffman code table."));
+            parameters.SBHUFFDS = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_H), std::end(PDFJBIG2StandardHuffmanTable_H));
+        }
+        else if (SBHUFFDS == 1)
+        {
+            parameters.SBHUFFDS = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_I), std::end(PDFJBIG2StandardHuffmanTable_I));
+        }
+        else if (SBHUFFDS == 2)
+        {
+            parameters.SBHUFFDS = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_J), std::end(PDFJBIG2StandardHuffmanTable_J));
+        }
+        else
+        {
+            parameters.SBHUFFDS = references.getUserTable(&m_reader);
         }
 
-        switch (SBHUFFDT)
+        if (SBHUFFDT == 0)
         {
-            case 0:
-                parameters.SBHUFFDT = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_K), std::end(PDFJBIG2StandardHuffmanTable_K));
-                break;
-
-            case 1:
-                parameters.SBHUFFDT = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_L), std::end(PDFJBIG2StandardHuffmanTable_L));
-                break;
-
-            case 2:
-                parameters.SBHUFFDT = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_M), std::end(PDFJBIG2StandardHuffmanTable_M));
-                break;
-
-            case 3:
-                parameters.SBHUFFDT = references.getUserTable(&m_reader);
-                break;
-
-            default:
-                throw PDFException(PDFTranslationContext::tr("JBIG2 invalid user huffman code table."));
+            parameters.SBHUFFDT = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_K), std::end(PDFJBIG2StandardHuffmanTable_K));
+        }
+        else if (SBHUFFDT == 1)
+        {
+            parameters.SBHUFFDT = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_L), std::end(PDFJBIG2StandardHuffmanTable_L));
+        }
+        else if (SBHUFFDT == 2)
+        {
+            parameters.SBHUFFDT = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_M), std::end(PDFJBIG2StandardHuffmanTable_M));
+        }
+        else
+        {
+            parameters.SBHUFFDT = references.getUserTable(&m_reader);
         }
 
         switch (SBHUFFRDW)
@@ -2142,6 +2082,8 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
                 case 33:
                 case 34:
                 {
+                    // The run codes of the table 29 - the run code 32 repeats the previous
+                    // length, the run codes 33 and 34 repeat the length zero
                     uint32_t length = 0;
                     uint32_t range = 0;
 
@@ -2152,25 +2094,21 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
                             throw PDFException(PDFTranslationContext::tr("JBIG2 invalid symbol length code table for text region segment."));
                         }
                         length = symCodeTable[i - 1].prefixBitLength;
+                        range = m_reader.read(2) + 3;
+                    }
+                    else if (code == 33)
+                    {
+                        range = m_reader.read(3) + 3;
+                    }
+                    else
+                    {
+                        range = m_reader.read(7) + 11;
                     }
 
-                    switch (code)
+                    // The run is written into the table, so it must fit into it
+                    if (range > parameters.SBNUMSYMS - i)
                     {
-                        case 32:
-                            range = m_reader.read(2) + 3;
-                            break;
-
-                        case 33:
-                            range = m_reader.read(3) + 3;
-                            break;
-
-                        case 34:
-                            range = m_reader.read(7) + 11;
-                            break;
-
-                        default:
-                            Q_ASSERT(false);
-                            break;
+                        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid symbol length code table for text region segment."));
                     }
 
                     for (uint32_t j = 0; j < range; ++j)
@@ -2209,21 +2147,18 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
 
     parameters.reader = &m_reader;
 
+    // The bitmap has the size of the region, which has been validated with the
+    // region segment information field
     PDFJBIG2Bitmap bitmap = readTextBitmap(parameters);
-    if (bitmap.isValid())
+    Q_ASSERT(bitmap.isValid());
+
+    if (header.isImmediate())
     {
-        if (header.isImmediate())
-        {
-            m_pageBitmap.paint(bitmap, regionSegmentInfo.offsetX, regionSegmentInfo.offsetY, regionSegmentInfo.operation, m_pageSizeUndefined, m_pageDefaultPixelValue);
-        }
-        else
-        {
-            m_segments[header.getSegmentNumber()] = std::make_unique<PDFJBIG2Bitmap>(qMove(bitmap));
-        }
+        m_pageBitmap.paint(bitmap, regionSegmentInfo.offsetX, regionSegmentInfo.offsetY, regionSegmentInfo.operation, m_pageSizeUndefined, m_pageDefaultPixelValue);
     }
     else
     {
-        throw PDFException(PDFTranslationContext::tr("JBIG2 - invalid bitmap for generic region."));
+        m_segments[header.getSegmentNumber()] = std::make_unique<PDFJBIG2Bitmap>(qMove(bitmap));
     }
 
     if (!parameters.SBHUFF)
@@ -2260,15 +2195,8 @@ void PDFJBIG2Decoder::processPatternDictionary(const PDFJBIG2SegmentHeader& head
         // Determine segment data length
         const int segmentDataStartPosition = m_reader.getPosition();
         const int segmentHeaderBytes = segmentDataStartPosition - segmentStartPosition;
-        if (header.isSegmentDataLengthDefined())
-        {
-            const int segmentDataBytes = getSegmentDataBytes(header, segmentHeaderBytes);
-            mmrData = m_reader.readSubstream(segmentDataBytes);
-        }
-        else
-        {
-            throw PDFException(PDFTranslationContext::tr("JBIG2 unknown data length for pattern dictionary."));
-        }
+        const int segmentDataBytes = getSegmentDataBytes(header, segmentHeaderBytes);
+        mmrData = m_reader.readSubstream(segmentDataBytes);
     }
 
     if (HDPW == 0 || HDPH == 0)
@@ -2310,7 +2238,10 @@ void PDFJBIG2Decoder::processPatternDictionary(const PDFJBIG2SegmentHeader& head
         arithmeticDecoder.finalize();
     }
 
-    if (collectiveBitmap.getWidth() != parameters.GBW || collectiveBitmap.getHeight() != parameters.GBH)
+    // A decoded bitmap always has the requested width, but the MMR decoder decodes
+    // less rows, when the data end before the last row
+    Q_ASSERT(collectiveBitmap.getWidth() == parameters.GBW);
+    if (collectiveBitmap.getHeight() != parameters.GBH)
     {
         throw PDFException(PDFTranslationContext::tr("JBIG2 invalid pattern dictionary collective bitmap."));
     }
@@ -2380,13 +2311,10 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
         throw PDFException(PDFTranslationContext::tr("JBIG2 invalid referenced pattern dictionaries for halftone segment."));
     }
 
+    // A pattern dictionary defines GRAYMAX + 1 patterns, so it is never empty
     std::vector<const PDFJBIG2Bitmap*> HPATS = references.getPatternBitmaps();
     const uint32_t HNUMPATS = static_cast<uint32_t>(HPATS.size());
-
-    if (!HNUMPATS)
-    {
-        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid patterns for halftone segment."));
-    }
+    Q_ASSERT(HNUMPATS > 0);
 
     const PDFJBIG2Bitmap* firstBitmap = HPATS.front();
     const int HPW = firstBitmap->getWidth();
@@ -2458,15 +2386,8 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
         // Determine segment data length
         const int segmentDataStartPosition = m_reader.getPosition();
         const int segmentHeaderBytes = segmentDataStartPosition - segmentStartPosition;
-        if (header.isSegmentDataLengthDefined())
-        {
-            const int segmentDataBytes = getSegmentDataBytes(header, segmentHeaderBytes);
-            mmrData = m_reader.readSubstream(segmentDataBytes);
-        }
-        else
-        {
-            throw PDFException(PDFTranslationContext::tr("JBIG2 unknown data length for halftone dictionary."));
-        }
+        const int segmentDataBytes = getSegmentDataBytes(header, segmentHeaderBytes);
+        mmrData = m_reader.readSubstream(segmentDataBytes);
     }
 
     /*  Annex C5 decoding procedure */
@@ -2517,7 +2438,10 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
             }
         }
 
-        if (uint32_t(PLANE.getWidth()) != HGW || uint32_t(PLANE.getHeight()) != HGH)
+        // A decoded bitmap always has the requested width, but the MMR decoder decodes
+        // less rows, when the data end before the last row
+        Q_ASSERT(uint32_t(PLANE.getWidth()) == HGW);
+        if (uint32_t(PLANE.getHeight()) != HGH)
         {
             throw PDFException(PDFTranslationContext::tr("JBIG2 invalid halftone grayscale bit plane image."));
         }
@@ -2561,20 +2485,17 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
         }
     }
 
-    if (HTREG.isValid())
+    // The bitmap has the size of the region, which has been validated with the
+    // region segment information field
+    Q_ASSERT(HTREG.isValid());
+
+    if (header.isImmediate())
     {
-        if (header.isImmediate())
-        {
-            m_pageBitmap.paint(HTREG, field.offsetX, field.offsetY, field.operation, m_pageSizeUndefined, m_pageDefaultPixelValue);
-        }
-        else
-        {
-            m_segments[header.getSegmentNumber()] = std::make_unique<PDFJBIG2Bitmap>(qMove(HTREG));
-        }
+        m_pageBitmap.paint(HTREG, field.offsetX, field.offsetY, field.operation, m_pageSizeUndefined, m_pageDefaultPixelValue);
     }
     else
     {
-        throw PDFException(PDFTranslationContext::tr("JBIG2 - invalid bitmap for halftone region."));
+        m_segments[header.getSegmentNumber()] = std::make_unique<PDFJBIG2Bitmap>(qMove(HTREG));
     }
 
     if (!HMMR)
@@ -2677,7 +2598,9 @@ void PDFJBIG2Decoder::processGenericRegion(const PDFJBIG2SegmentHeader& header)
     // Now skip the data
     m_reader.skipBytes(segmentDataBytes);
 
-    if (header.isImmediate() && !header.isSegmentDataLengthDefined())
+    // The unknown data length is allowed for an immediate region only, and its data are
+    // followed by the row count, see 7.2.7
+    if (!header.isSegmentDataLengthDefined())
     {
         m_reader.skipBytes(4);
     }
@@ -2721,7 +2644,7 @@ void PDFJBIG2Decoder::processGenericRefinementRegion(const PDFJBIG2SegmentHeader
 
         case 1:
         {
-            GRREFERENCE = getBitmap(referredSegments.front(), true);
+            GRREFERENCE = takeBitmap(referredSegments.front());
             break;
         }
 
@@ -2752,31 +2675,25 @@ void PDFJBIG2Decoder::processGenericRefinementRegion(const PDFJBIG2SegmentHeader
     decoder.initialize();
     parameters.decoder = &decoder;
 
+    // The bitmap has the size of the region, which has been validated with the
+    // region segment information field
     PDFJBIG2Bitmap refinementBitmap = readRefinementBitmap(parameters);
-    if (refinementBitmap.isValid())
+    Q_ASSERT(refinementBitmap.isValid());
+
+    if (header.isImmediate())
     {
-        if (header.isImmediate())
-        {
-            m_pageBitmap.paint(refinementBitmap, field.offsetX, field.offsetY, field.operation, m_pageSizeUndefined, m_pageDefaultPixelValue);
-        }
-        else
-        {
-            m_segments[header.getSegmentNumber()] = std::make_unique<PDFJBIG2Bitmap>(qMove(refinementBitmap));
-        }
+        m_pageBitmap.paint(refinementBitmap, field.offsetX, field.offsetY, field.operation, m_pageSizeUndefined, m_pageDefaultPixelValue);
     }
     else
     {
-        throw PDFException(PDFTranslationContext::tr("JBIG2 - invalid bitmap for generic refinement region."));
+        m_segments[header.getSegmentNumber()] = std::make_unique<PDFJBIG2Bitmap>(qMove(refinementBitmap));
     }
 
     decoder.finalize();
 
     // The arithmetic decoder reads the bytes on demand, so it can stop before the end of
     // the segment data - the rest of the data belongs to this segment and it is skipped
-    if (header.isSegmentDataLengthDefined())
-    {
-        m_reader.seek(int64_t(segmentStartPosition) + int64_t(header.getSegmentDataLength()));
-    }
+    m_reader.seek(int64_t(segmentStartPosition) + int64_t(header.getSegmentDataLength()));
 }
 
 void PDFJBIG2Decoder::processPageInformation(const PDFJBIG2SegmentHeader&)
@@ -2795,29 +2712,9 @@ void PDFJBIG2Decoder::processPageInformation(const PDFJBIG2SegmentHeader&)
     m_pageDefaultPixelValue = (flags & 0x04) ? 0xFF : 0x00;
     m_pageDefaultCompositionOperatorOverriden = (flags & 0x40);
 
-    const uint8_t defaultOperator = (flags >> 3) & 0b11;
-    switch (defaultOperator)
-    {
-        case 0:
-            m_pageDefaultCompositionOperator = PDFJBIG2BitOperation::Or;
-            break;
-
-        case 1:
-            m_pageDefaultCompositionOperator = PDFJBIG2BitOperation::And;
-            break;
-
-        case 2:
-            m_pageDefaultCompositionOperator = PDFJBIG2BitOperation::Xor;
-            break;
-
-        case 3:
-            m_pageDefaultCompositionOperator = PDFJBIG2BitOperation::NotXor;
-            break;
-
-        default:
-            Q_ASSERT(false);
-            break;
-    }
+    // Combination operators of the two bit field, see 7.4.8.5
+    constexpr std::array<PDFJBIG2BitOperation, 4> combinationOperators = { PDFJBIG2BitOperation::Or, PDFJBIG2BitOperation::And, PDFJBIG2BitOperation::Xor, PDFJBIG2BitOperation::NotXor };
+    m_pageDefaultCompositionOperator = combinationOperators[(flags >> 3) & 0b11];
 
     const uint32_t correctedWidth = width;
     const uint32_t correctedHeight = (height != 0xFFFFFFFF) ? height : 0;
@@ -2939,20 +2836,11 @@ void PDFJBIG2Decoder::processExtension(const PDFJBIG2SegmentHeader& header)
         throw PDFException(PDFTranslationContext::tr("JBIG2 unknown extension %1 necessary for decoding the image.").arg(extensionCode));
     }
 
-    if (header.isSegmentDataLengthDefined())
-    {
-        m_reader.skipBytes(header.getSegmentDataLength() - 4);
-    }
-    else
-    {
-        throw PDFException(PDFTranslationContext::tr("JBIG2 segment with unknown extension has not defined length."));
-    }
+    m_reader.skipBytes(header.getSegmentDataLength() - 4);
 }
 
-PDFJBIG2Bitmap PDFJBIG2Decoder::getBitmap(const uint32_t segmentIndex, bool remove)
+PDFJBIG2Bitmap PDFJBIG2Decoder::takeBitmap(const uint32_t segmentIndex)
 {
-    PDFJBIG2Bitmap result;
-
     auto it = m_segments.find(segmentIndex);
     if (it != m_segments.cend())
     {
@@ -2963,16 +2851,8 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::getBitmap(const uint32_t segmentIndex, bool remo
             throw PDFException(PDFTranslationContext::tr("JBIG2 segment %1 is not a bitmap.").arg(segmentIndex));
         }
 
-        if (remove)
-        {
-            result = qMove(*bitmap);
-            m_segments.erase(it);
-        }
-        else
-        {
-            result = *bitmap;
-        }
-
+        PDFJBIG2Bitmap result = qMove(*bitmap);
+        m_segments.erase(it);
         return result;
     }
 
@@ -3021,96 +2901,85 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& par
         uint16_t LTPContext = 0;
         if (parameters.TPGDON)
         {
-            switch (parameters.GBTEMPLATE)
+            if (parameters.GBTEMPLATE == 0)
             {
-                case 0:
-                {
-                    //  Figure 8. Reused context for coding the SLTP value
-                    //
-                    //          ┌───┬───┬───┬───┬───┐
-                    //          │ 1 │ 0 │ 0 │ 1 │ 1 │
-                    //      ┌───┼───┼───┼───┼───┼───┼───┐
-                    //      │ 0 │ 1 │ 1 │ 0 │ 0 │ 1 │ 0 │
-                    //  ┌───┼───┼───┼───┼───┼───┴───┴───┘
-                    //  │ 0 │ 1 │ 0 │ 1 │ X │
-                    //  └───┴───┴───┴───┴───┘
-                    //
-                    // Bottom row from right to left: 1010
-                    // Middle row from right to left: 0100110
-                    // Top row from right to left: 11001
-                    //  => 0b1010 0100110 11001
-                    // WRONG! because first bits are lowest, we must flip the context (reverse it by bits)
-                    //LTPContext = 0b1010010011011001; // 16-bit context, hexadecimal value is 0xA4D9
-                    LTPContext = 0b1001101100100101; // 16-bit context, hexadecimal value is 0x9B25
-                    break;
-                }
+                //  Figure 8. Reused context for coding the SLTP value
+                //
+                //          ┌───┬───┬───┬───┬───┐
+                //          │ 1 │ 0 │ 0 │ 1 │ 1 │
+                //      ┌───┼───┼───┼───┼───┼───┼───┐
+                //      │ 0 │ 1 │ 1 │ 0 │ 0 │ 1 │ 0 │
+                //  ┌───┼───┼───┼───┼───┼───┴───┴───┘
+                //  │ 0 │ 1 │ 0 │ 1 │ X │
+                //  └───┴───┴───┴───┴───┘
+                //
+                // Bottom row from right to left: 1010
+                // Middle row from right to left: 0100110
+                // Top row from right to left: 11001
+                //  => 0b1010 0100110 11001
+                // WRONG! because first bits are lowest, we must flip the context (reverse it by bits)
+                //LTPContext = 0b1010010011011001; // 16-bit context, hexadecimal value is 0xA4D9
+                LTPContext = 0b1001101100100101; // 16-bit context, hexadecimal value is 0x9B25
+            }
 
-                case 1:
-                {
-                    //  Figure 9. Reused context for coding the SLTP value
-                    //
-                    //          ┌───┬───┬───┬───┐
-                    //          │ 0 │ 0 │ 1 │ 1 │
-                    //      ┌───┼───┼───┼───┼───┼───┐
-                    //      │ 1 │ 1 │ 0 │ 0 │ 1 │ 0 │
-                    //  ┌───┼───┼───┼───┼───┴───┴───┘
-                    //  │ 1 │ 0 │ 1 │ x │
-                    //  └───┴───┴───┴───┘
-                    //
-                    // Bottom row from right to left: 101
-                    // Middle row from right to left: 010011
-                    // Top row from right to left: 1100
-                    //  => 0b101 010011 1100
-                    // WRONG! because first bits are lowest, we must flip the context (reverse it by bits)
-                    //LTPContext = 0b1010100111100; // 13-bit context, hexadecimal value is 0x153C
-                    LTPContext = 0b0011110010101; // 13-bit context, hexadecimal value is 0x0795
-                    break;
-                }
+            else if (parameters.GBTEMPLATE == 1)
+            {
+                //  Figure 9. Reused context for coding the SLTP value
+                //
+                //          ┌───┬───┬───┬───┐
+                //          │ 0 │ 0 │ 1 │ 1 │
+                //      ┌───┼───┼───┼───┼───┼───┐
+                //      │ 1 │ 1 │ 0 │ 0 │ 1 │ 0 │
+                //  ┌───┼───┼───┼───┼───┴───┴───┘
+                //  │ 1 │ 0 │ 1 │ x │
+                //  └───┴───┴───┴───┘
+                //
+                // Bottom row from right to left: 101
+                // Middle row from right to left: 010011
+                // Top row from right to left: 1100
+                //  => 0b101 010011 1100
+                // WRONG! because first bits are lowest, we must flip the context (reverse it by bits)
+                //LTPContext = 0b1010100111100; // 13-bit context, hexadecimal value is 0x153C
+                LTPContext = 0b0011110010101; // 13-bit context, hexadecimal value is 0x0795
+            }
 
-                case 2:
-                {
-                    //  Figure 10. Reused context for coding the SLTP value
-                    //
-                    //          ┌───┬───┬───┐
-                    //          │ 0 │ 0 │ 1 │
-                    //      ┌───┼───┼───┼───┼───┐
-                    //      │ 1 │ 1 │ 0 │ 0 │ 1 │
-                    //      ├───┼───┼───┼───┴───┘
-                    //      │ 0 │ 1 │ x │
-                    //      └───┴───┴───┘
-                    //
-                    // Bottom row from right to left: 10
-                    // Middle row from right to left: 10011
-                    // Top row from right to left: 100
-                    //  => 0b10 10011 100
-                    // WRONG! because first bits are lowest, we must flip the context (reverse it by bits)
-                    //LTPContext = 0b1010011100; // 10-bit context, hexadecimal value is 0x029C
-                    LTPContext = 0b0011100101; // 10-bit context, hexadecimal value is 0x00E5
-                    break;
-                }
+            else if (parameters.GBTEMPLATE == 2)
+            {
+                //  Figure 10. Reused context for coding the SLTP value
+                //
+                //          ┌───┬───┬───┐
+                //          │ 0 │ 0 │ 1 │
+                //      ┌───┼───┼───┼───┼───┐
+                //      │ 1 │ 1 │ 0 │ 0 │ 1 │
+                //      ├───┼───┼───┼───┴───┘
+                //      │ 0 │ 1 │ x │
+                //      └───┴───┴───┘
+                //
+                // Bottom row from right to left: 10
+                // Middle row from right to left: 10011
+                // Top row from right to left: 100
+                //  => 0b10 10011 100
+                // WRONG! because first bits are lowest, we must flip the context (reverse it by bits)
+                //LTPContext = 0b1010011100; // 10-bit context, hexadecimal value is 0x029C
+                LTPContext = 0b0011100101; // 10-bit context, hexadecimal value is 0x00E5
+            }
 
-                case 3:
-                {
-                    //  Figure 11. Reused context for coding the SLTP value
-                    //
-                    //          ┌───┬───┬───┬───┬───┬───┐
-                    //          │ 0 │ 1 │ 1 │ 0 │ 0 │ 1 │
-                    //      ┌───┼───┼───┼───┼───┼───┴───┘
-                    //      │ 0 │ 1 │ 0 │ 1 │ x │
-                    //      └───┴───┴───┴───┴───┘
-                    //
-                    // Bottom row from right to left: 1010
-                    // Top row from right to left: 100110
-                    //  => 0b1010100110
-                    // WRONG! because first bits are lowest, we must flip the context (reverse it by bits)
-                    //LTPContext = 0b1010100110; // 10-bit context, hexadecimal value is 0x02A6
-                    LTPContext = 0b0110010101; // 10-bit context, hexadecimal value is 0x0195
-                    break;
-                }
-
-                default:
-                    Q_ASSERT(false);
-                    break;
+            else
+            {
+                //  Figure 11. Reused context for coding the SLTP value
+                //
+                //          ┌───┬───┬───┬───┬───┬───┐
+                //          │ 0 │ 1 │ 1 │ 0 │ 0 │ 1 │
+                //      ┌───┼───┼───┼───┼───┼───┴───┘
+                //      │ 0 │ 1 │ 0 │ 1 │ x │
+                //      └───┴───┴───┴───┴───┘
+                //
+                // Bottom row from right to left: 1010
+                // Top row from right to left: 100110
+                //  => 0b1010100110
+                // WRONG! because first bits are lowest, we must flip the context (reverse it by bits)
+                //LTPContext = 0b1010100110; // 10-bit context, hexadecimal value is 0x02A6
+                LTPContext = 0b0110010101; // 10-bit context, hexadecimal value is 0x0195
             }
         }
 
@@ -3154,124 +3023,111 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& par
                 };
 
                 // Create pixel context based on used template
-                switch (parameters.GBTEMPLATE)
+                if (parameters.GBTEMPLATE == 0)
                 {
-                    case 0:
-                    {
-                        //  Figure 8. Reused context for coding the SLTP value
-                        //
-                        //          ┌───┬───┬───┬───┬───┐
-                        //          │A15│ 14│ 13│ 12│A11│
-                        //      ┌───┼───┼───┼───┼───┼───┼───┐
-                        //      │A10│ 9 │ 8 │ 7 │ 6 │ 5 │A4 │
-                        //  ┌───┼───┼───┼───┼───┼───┴───┴───┘
-                        //  │ 3 │ 2 │ 1 │ 0 │ X │
-                        //  └───┴───┴───┴───┴───┘
+                    //  Figure 8. Reused context for coding the SLTP value
+                    //
+                    //          ┌───┬───┬───┬───┬───┐
+                    //          │A15│ 14│ 13│ 12│A11│
+                    //      ┌───┼───┼───┼───┼───┼───┼───┐
+                    //      │A10│ 9 │ 8 │ 7 │ 6 │ 5 │A4 │
+                    //  ┌───┼───┼───┼───┼───┼───┴───┴───┘
+                    //  │ 3 │ 2 │ 1 │ 0 │ X │
+                    //  └───┴───┴───┴───┴───┘
 
-                        // 16-bit context
-                        createContextBit(x - 1, y);
-                        createContextBit(x - 2, y);
-                        createContextBit(x - 3, y);
-                        createContextBit(x - 4, y);
-                        createContextBit(x + parameters.GBAT[0].x, y + parameters.GBAT[0].y);
-                        createContextBit(x + 2, y - 1);
-                        createContextBit(x + 1, y - 1);
-                        createContextBit(x + 0, y - 1);
-                        createContextBit(x - 1, y - 1);
-                        createContextBit(x - 2, y - 1);
-                        createContextBit(x + parameters.GBAT[1].x, y + parameters.GBAT[1].y);
-                        createContextBit(x + parameters.GBAT[2].x, y + parameters.GBAT[2].y);
-                        createContextBit(x + 1, y - 2);
-                        createContextBit(x + 0, y - 2);
-                        createContextBit(x - 1, y - 2);
-                        createContextBit(x + parameters.GBAT[3].x, y + parameters.GBAT[3].y);
-                        break;
-                    }
+                    // 16-bit context
+                    createContextBit(x - 1, y);
+                    createContextBit(x - 2, y);
+                    createContextBit(x - 3, y);
+                    createContextBit(x - 4, y);
+                    createContextBit(x + parameters.GBAT[0].x, y + parameters.GBAT[0].y);
+                    createContextBit(x + 2, y - 1);
+                    createContextBit(x + 1, y - 1);
+                    createContextBit(x + 0, y - 1);
+                    createContextBit(x - 1, y - 1);
+                    createContextBit(x - 2, y - 1);
+                    createContextBit(x + parameters.GBAT[1].x, y + parameters.GBAT[1].y);
+                    createContextBit(x + parameters.GBAT[2].x, y + parameters.GBAT[2].y);
+                    createContextBit(x + 1, y - 2);
+                    createContextBit(x + 0, y - 2);
+                    createContextBit(x - 1, y - 2);
+                    createContextBit(x + parameters.GBAT[3].x, y + parameters.GBAT[3].y);
+                }
 
-                    case 1:
-                    {
-                        //  Figure 9. Reused context for coding the SLTP value
-                        //
-                        //          ┌───┬───┬───┬───┐
-                        //          │ 12│ 11│ 10│ 9 │
-                        //      ┌───┼───┼───┼───┼───┼───┐
-                        //      │ 8 │ 7 │ 6 │ 5 │ 4 │A3 │
-                        //  ┌───┼───┼───┼───┼───┴───┴───┘
-                        //  │ 2 │ 1 │ 0 │ x │
-                        //  └───┴───┴───┴───┘
+                else if (parameters.GBTEMPLATE == 1)
+                {
+                    //  Figure 9. Reused context for coding the SLTP value
+                    //
+                    //          ┌───┬───┬───┬───┐
+                    //          │ 12│ 11│ 10│ 9 │
+                    //      ┌───┼───┼───┼───┼───┼───┐
+                    //      │ 8 │ 7 │ 6 │ 5 │ 4 │A3 │
+                    //  ┌───┼───┼───┼───┼───┴───┴───┘
+                    //  │ 2 │ 1 │ 0 │ x │
+                    //  └───┴───┴───┴───┘
 
-                        // 13-bit context
-                        createContextBit(x - 1, y);
-                        createContextBit(x - 2, y);
-                        createContextBit(x - 3, y);
-                        createContextBit(x + parameters.GBAT[0].x, y + parameters.GBAT[0].y);
-                        createContextBit(x + 2, y - 1);
-                        createContextBit(x + 1, y - 1);
-                        createContextBit(x + 0, y - 1);
-                        createContextBit(x - 1, y - 1);
-                        createContextBit(x - 2, y - 1);
-                        createContextBit(x + 2, y - 2);
-                        createContextBit(x + 1, y - 2);
-                        createContextBit(x + 0, y - 2);
-                        createContextBit(x - 1, y - 2);
-                        break;
-                    }
+                    // 13-bit context
+                    createContextBit(x - 1, y);
+                    createContextBit(x - 2, y);
+                    createContextBit(x - 3, y);
+                    createContextBit(x + parameters.GBAT[0].x, y + parameters.GBAT[0].y);
+                    createContextBit(x + 2, y - 1);
+                    createContextBit(x + 1, y - 1);
+                    createContextBit(x + 0, y - 1);
+                    createContextBit(x - 1, y - 1);
+                    createContextBit(x - 2, y - 1);
+                    createContextBit(x + 2, y - 2);
+                    createContextBit(x + 1, y - 2);
+                    createContextBit(x + 0, y - 2);
+                    createContextBit(x - 1, y - 2);
+                }
 
-                    case 2:
-                    {
-                        //  Figure 10. Reused context for coding the SLTP value
-                        //
-                        //          ┌───┬───┬───┐
-                        //          │ 9 │ 8 │ 7 │
-                        //      ┌───┼───┼───┼───┼───┐
-                        //      │ 6 │ 5 │ 4 │ 3 │A2 │
-                        //      ├───┼───┼───┼───┴───┘
-                        //      │ 1 │ 0 │ x │
-                        //      └───┴───┴───┘
+                else if (parameters.GBTEMPLATE == 2)
+                {
+                    //  Figure 10. Reused context for coding the SLTP value
+                    //
+                    //          ┌───┬───┬───┐
+                    //          │ 9 │ 8 │ 7 │
+                    //      ┌───┼───┼───┼───┼───┐
+                    //      │ 6 │ 5 │ 4 │ 3 │A2 │
+                    //      ├───┼───┼───┼───┴───┘
+                    //      │ 1 │ 0 │ x │
+                    //      └───┴───┴───┘
 
-                        // 10-bit context
-                        createContextBit(x - 1, y);
-                        createContextBit(x - 2, y);
-                        createContextBit(x + parameters.GBAT[0].x, y + parameters.GBAT[0].y);
-                        createContextBit(x + 1, y - 1);
-                        createContextBit(x + 0, y - 1);
-                        createContextBit(x - 1, y - 1);
-                        createContextBit(x - 2, y - 1);
-                        createContextBit(x + 1, y - 2);
-                        createContextBit(x + 0, y - 2);
-                        createContextBit(x - 1, y - 2);
-                        break;
-                    }
+                    // 10-bit context
+                    createContextBit(x - 1, y);
+                    createContextBit(x - 2, y);
+                    createContextBit(x + parameters.GBAT[0].x, y + parameters.GBAT[0].y);
+                    createContextBit(x + 1, y - 1);
+                    createContextBit(x + 0, y - 1);
+                    createContextBit(x - 1, y - 1);
+                    createContextBit(x - 2, y - 1);
+                    createContextBit(x + 1, y - 2);
+                    createContextBit(x + 0, y - 2);
+                    createContextBit(x - 1, y - 2);
+                }
 
-                    case 3:
-                    {
-                        //  Figure 11. Reused context for coding the SLTP value
-                        //
-                        //          ┌───┬───┬───┬───┬───┬───┐
-                        //          │ 9 │ 8 │ 7 │ 6 │ 5 │A4 │
-                        //      ┌───┼───┼───┼───┼───┼───┴───┘
-                        //      │ 3 │ 2 │ 1 │ 0 │ x │
-                        //      └───┴───┴───┴───┴───┘
+                else
+                {
+                    //  Figure 11. Reused context for coding the SLTP value
+                    //
+                    //          ┌───┬───┬───┬───┬───┬───┐
+                    //          │ 9 │ 8 │ 7 │ 6 │ 5 │A4 │
+                    //      ┌───┼───┼───┼───┼───┼───┴───┘
+                    //      │ 3 │ 2 │ 1 │ 0 │ x │
+                    //      └───┴───┴───┴───┴───┘
 
-                        // 10-bit context
-                        createContextBit(x - 1, y);
-                        createContextBit(x - 2, y);
-                        createContextBit(x - 3, y);
-                        createContextBit(x - 4, y);
-                        createContextBit(x + parameters.GBAT[0].x, y + parameters.GBAT[0].y);
-                        createContextBit(x + 1, y - 1);
-                        createContextBit(x + 0, y - 1);
-                        createContextBit(x - 1, y - 1);
-                        createContextBit(x - 2, y - 1);
-                        createContextBit(x - 3, y - 1);
-                        break;
-                    }
-
-                    default:
-                    {
-                        Q_ASSERT(false);
-                        break;
-                    }
+                    // 10-bit context
+                    createContextBit(x - 1, y);
+                    createContextBit(x - 2, y);
+                    createContextBit(x - 3, y);
+                    createContextBit(x - 4, y);
+                    createContextBit(x + parameters.GBAT[0].x, y + parameters.GBAT[0].y);
+                    createContextBit(x + 1, y - 1);
+                    createContextBit(x + 0, y - 1);
+                    createContextBit(x - 1, y - 1);
+                    createContextBit(x - 2, y - 1);
+                    createContextBit(x - 3, y - 1);
                 }
 
                 bitmap.setPixel(x, y, (decoder.readBit(pixelContext, parameters.arithmeticDecoderState)) ? 0xFF : 0x00);
@@ -3563,58 +3419,21 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readTextBitmap(PDFJBIG2TextRegionDecodingParamet
             /* 6.4.5. step 3) c) vii) */
             const int32_t SI = CURS;
 
-            /* 6.4.5. step 3) c) viii) + ix) */
+            /* 6.4.5. step 3) c) viii) + ix) - the reference corner is the corner of the symbol
+               placed at (S, T). The bit 0 of REFCORNER is set for the top corners and the bit 1
+               for the right corners, see 7.4.3.1.1. */
+            const bool isTopCorner = (parameters.REFCORNER & 0x01) != 0;
+            const bool isRightCorner = (parameters.REFCORNER & 0x02) != 0;
+            const int32_t cornerOffsetX = isRightCorner ? (WI - 1) : 0;
+            const int32_t cornerOffsetY = isTopCorner ? 0 : (HI - 1);
+
             if (parameters.TRANSPOSED == 0)
             {
-                // Standard
-                switch (parameters.REFCORNER)
-                {
-                    case PDFJBIG2TextRegionDecodingParameters::TOPLEFT:
-                        SBREG.paint(IB, SI, TI, parameters.SBCOMBOP, false, 0x00);
-                        break;
-
-                    case PDFJBIG2TextRegionDecodingParameters::TOPRIGHT:
-                        SBREG.paint(IB, SI - WI + 1, TI, parameters.SBCOMBOP, false, 0x00);
-                        break;
-
-                    case PDFJBIG2TextRegionDecodingParameters::BOTTOMLEFT:
-                        SBREG.paint(IB, SI, TI - HI + 1, parameters.SBCOMBOP, false, 0x00);
-                        break;
-
-                    case PDFJBIG2TextRegionDecodingParameters::BOTTOMRIGHT:
-                        SBREG.paint(IB, SI - WI + 1, TI - HI + 1, parameters.SBCOMBOP, false, 0x00);
-                        break;
-
-                    default:
-                        Q_ASSERT(false);
-                        break;
-                }
+                SBREG.paint(IB, SI - cornerOffsetX, TI - cornerOffsetY, parameters.SBCOMBOP, false, 0x00);
             }
             else
             {
-                // Transposed
-                switch (parameters.REFCORNER)
-                {
-                    case PDFJBIG2TextRegionDecodingParameters::TOPLEFT:
-                        SBREG.paint(IB, TI, SI, parameters.SBCOMBOP, false, 0x00);
-                        break;
-
-                    case PDFJBIG2TextRegionDecodingParameters::TOPRIGHT:
-                        SBREG.paint(IB, TI - WI + 1, SI, parameters.SBCOMBOP, false, 0x00);
-                        break;
-
-                    case PDFJBIG2TextRegionDecodingParameters::BOTTOMLEFT:
-                        SBREG.paint(IB, TI, SI - HI + 1, parameters.SBCOMBOP, false, 0x00);
-                        break;
-
-                    case PDFJBIG2TextRegionDecodingParameters::BOTTOMRIGHT:
-                        SBREG.paint(IB, TI - WI + 1, SI - HI + 1, parameters.SBCOMBOP, false, 0x00);
-                        break;
-
-                    default:
-                        Q_ASSERT(false);
-                        break;
-                }
+                SBREG.paint(IB, TI - cornerOffsetX, SI - cornerOffsetY, parameters.SBCOMBOP, false, 0x00);
             }
 
             /* 6.4.5. step 3) c) x) */
@@ -3701,14 +3520,7 @@ PDFJBIG2ATPositions PDFJBIG2Decoder::readATTemplatePixelPositions(int count)
 
 void PDFJBIG2Decoder::skipSegment(const PDFJBIG2SegmentHeader& header)
 {
-    if (header.isSegmentDataLengthDefined())
-    {
-        m_reader.skipBytes(header.getSegmentDataLength());
-    }
-    else
-    {
-        throw PDFException(PDFTranslationContext::tr("JBIG2 segment with unknown data length can't be skipped."));
-    }
+    m_reader.skipBytes(header.getSegmentDataLength());
 }
 
 PDFJBIG2ReferencedSegments PDFJBIG2Decoder::getReferencedSegments(const PDFJBIG2SegmentHeader& header) const
@@ -3718,7 +3530,7 @@ PDFJBIG2ReferencedSegments PDFJBIG2Decoder::getReferencedSegments(const PDFJBIG2
     for (const uint32_t referredSegmentId : header.getReferredSegments())
     {
         auto it = m_segments.find(referredSegmentId);
-        if (it != m_segments.cend() && it->second)
+        if (it != m_segments.cend())
         {
             const PDFJBIG2Segment* referredSegment = it->second.get();
             if (const PDFJBIG2Bitmap* bitmap = referredSegment->asBitmap())
@@ -3733,13 +3545,13 @@ PDFJBIG2ReferencedSegments PDFJBIG2Decoder::getReferencedSegments(const PDFJBIG2
             {
                 segments.symbolDictionaries.push_back(symbolDictionary);
             }
-            else if (const PDFJBIG2PatternDictionary* patternDictionary = referredSegment->asPatternDictionary())
-            {
-                segments.patternDictionaries.push_back(patternDictionary);
-            }
             else
             {
-                Q_ASSERT(false);
+                // A stored segment is a bitmap, a code table, a symbol dictionary or
+                // a pattern dictionary - nothing else is stored
+                const PDFJBIG2PatternDictionary* patternDictionary = referredSegment->asPatternDictionary();
+                Q_ASSERT(patternDictionary);
+                segments.patternDictionaries.push_back(patternDictionary);
             }
         }
         else
@@ -3793,10 +3605,8 @@ void PDFJBIG2Decoder::checkRegionSegmentInformationField(const PDFJBIG2RegionSeg
     // large - a region of 65536 x 65536 pixels passes the checks above
     PDFJBIG2Bitmap::checkSize(field.width, field.height);
 
-    if (field.operation == PDFJBIG2BitOperation::Invalid)
-    {
-        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid bit operation."));
-    }
+    // The operation has been validated, when the flags of the field were read
+    Q_ASSERT(field.operation != PDFJBIG2BitOperation::Invalid);
 }
 
 int32_t PDFJBIG2Decoder::checkInteger(std::optional<int32_t> value)
@@ -3814,12 +3624,6 @@ int32_t PDFJBIG2Decoder::checkInteger(std::optional<int32_t> value)
 PDFJBIG2Bitmap::PDFJBIG2Bitmap() :
     m_width(0),
     m_height(0)
-{
-
-}
-
-PDFJBIG2Bitmap::PDFJBIG2Bitmap(int width, int height) :
-    PDFJBIG2Bitmap(width, height, 0)
 {
 
 }
@@ -3893,22 +3697,19 @@ void PDFJBIG2Bitmap::paint(const PDFJBIG2Bitmap& bitmap, int offsetX, int offset
         return;
     }
 
-    const int targetStartX = offsetX;
+    // The painted area is the intersection of the painted bitmap and this bitmap,
+    // so the source pixel of a target pixel always exists
+    const int targetStartX = qMax(offsetX, 0);
     const int targetEndX = qMin(offsetX + bitmap.getWidth(), m_width);
-    const int targetStartY = offsetY;
+    const int targetStartY = qMax(offsetY, 0);
     const int targetEndY = qMin(offsetY + bitmap.getHeight(), m_height);
 
     for (int targetY = targetStartY; targetY < targetEndY; ++targetY)
     {
         for (int targetX = targetStartX; targetX < targetEndX; ++targetX)
         {
-            const int sourceX = targetX - targetStartX;
-            const int sourceY = targetY - targetStartY;
-
-            if (targetX < 0 || targetX >= m_width || targetY < 0 || targetY >= m_height)
-            {
-                continue;
-            }
+            const int sourceX = targetX - offsetX;
+            const int sourceY = targetY - offsetY;
 
             switch (operation)
             {
@@ -4007,11 +3808,6 @@ std::vector<PDFJBIG2HuffmanTableEntry> PDFJBIG2HuffmanCodeTable::buildPrefixes(c
     return result;
 }
 
-uint32_t PDFJBIG2ArithmeticDecoderState::getQe(size_t context) const
-{
-    return JBIG2_ARITHMETIC_DECODER_QE_VALUES[getQeRowIndex(context)].Qe;
-}
-
 PDFJBIG2Segment::~PDFJBIG2Segment()
 {
 
@@ -4039,19 +3835,6 @@ PDFJBIG2HuffmanDecoder::PDFJBIG2HuffmanDecoder(PDFBitReader* reader, std::vector
     }
 }
 
-PDFJBIG2HuffmanDecoder::PDFJBIG2HuffmanDecoder(PDFJBIG2HuffmanDecoder&& other) :
-    m_reader(other.m_reader),
-    m_begin(other.m_begin),
-    m_end(other.m_end),
-    m_entries(qMove(other.m_entries))
-{
-    if (!m_entries.empty())
-    {
-        m_begin = m_entries.data();
-        m_end = m_entries.data() + m_entries.size();
-    }
-}
-
 PDFJBIG2HuffmanDecoder& PDFJBIG2HuffmanDecoder::operator=(PDFJBIG2HuffmanDecoder&& other)
 {
     m_reader = other.m_reader;
@@ -4066,24 +3849,6 @@ PDFJBIG2HuffmanDecoder& PDFJBIG2HuffmanDecoder::operator=(PDFJBIG2HuffmanDecoder
     }
 
     return *this;
-}
-
-bool PDFJBIG2HuffmanDecoder::isOutOfBandSupported() const
-{
-    if (!isValid())
-    {
-        return false;
-    }
-
-    for (auto it = m_begin; it != m_end; ++it)
-    {
-        if (it->isOutOfBand())
-        {
-            return true;
-        }
-    }
-
-    return false;
 }
 
 std::optional<int32_t> PDFJBIG2HuffmanDecoder::readSignedInteger()

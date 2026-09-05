@@ -62,6 +62,13 @@ PDFImageData PDFCCITTFaxDecoder::decode()
     skipFillAndEOL();
     updateIsUsing2DEncoding();
 
+    // Jakub Melka: Both lines have two more entries than the number of the columns. The
+    // changing elements of a line are strictly increasing positions less than the number
+    // of the columns, so at most the first columns entries are changing elements and the
+    // entries after them hold the number of the columns. The index b1 is moved by two
+    // entries (the colour of b1 must not change), so it stops at the first or at the
+    // second of these entries - it never leaves the line, and only the index b2, which
+    // is the entry after b1, can.
     while (!m_reader.isAtEnd())
     {
         int a0_index = 0;
@@ -89,12 +96,9 @@ PDFImageData PDFCCITTFaxDecoder::decode()
 
                             if (referenceLine[b2_index] < m_parameters.columns)
                             {
+                                // b2 is a changing element, so it is followed by at least two entries
                                 b1_index += 2;
-
-                                if (b1_index >= referenceLine.size())
-                                {
-                                    throw PDFException(PDFTranslationContext::tr("Invalid pass encoding data in CCITT stream."));
-                                }
+                                Q_ASSERT(b1_index < referenceLine.size());
                             }
                         }
                         else
@@ -119,11 +123,7 @@ PDFImageData PDFCCITTFaxDecoder::decode()
                             // We do not want to change the color (b1 should have opposite color of a0,
                             // should be first changing element of reference line right of a0).
                             b1_index += 2;
-
-                            if (b1_index >= referenceLine.size())
-                            {
-                                throw PDFException(PDFTranslationContext::tr("Invalid horizontal encoding data in CCITT stream."));
-                            }
+                            Q_ASSERT(b1_index < referenceLine.size());
                         }
 
                         break;
@@ -156,34 +156,26 @@ PDFImageData PDFCCITTFaxDecoder::decode()
                             // which is of opposite color, than a0. So we decrease index by 1. But what to do,
                             // if we have b1 index equal to zero? In this case, we add -1 + 2 = 1 index, so we do it in
                             // same way, as positive/zero shift.
+                            // The index can be the last entry of the line only after a vertical mode
+                            // ending at the last column, and then a0 is not less than the number of
+                            // the columns - so the index stays in the line.
                             b1_index += (isNegativeOffset && b1_index > 0) ? -1 : 1;
+                            Q_ASSERT(b1_index < referenceLine.size());
 
-                            // Why we have this check, if same check is in while cycle? Because if we are adding
-                            // to the b1_index, we can go outside of reference line range.
-                            if (b1_index >= referenceLine.size())
-                            {
-                                throw PDFException(PDFTranslationContext::tr("Invalid vertical encoding data in CCITT stream."));
-                            }
-
-                            while (referenceLine[b1_index] <= codingLine[a0_index] && referenceLine[b1_index] < m_parameters.columns)
+                            // a0 is less than the number of the columns, so an entry not greater
+                            // than a0 is a changing element - the entries after the changing
+                            // elements stop the cycle
+                            while (referenceLine[b1_index] <= codingLine[a0_index])
                             {
                                 // We do not want to change the color (b1 should have opposite color of a0,
                                 // should be first changing element of reference line right of a0).
                                 b1_index += 2;
-
-                                if (b1_index >= referenceLine.size())
-                                {
-                                    throw PDFException(PDFTranslationContext::tr("Invalid vertical encoding data in CCITT stream."));
-                                }
+                                Q_ASSERT(b1_index < referenceLine.size());
                             }
                         }
 
                         break;
                     }
-
-                    default:
-                        Q_ASSERT(false);
-                        break;
                 }
             }
         }

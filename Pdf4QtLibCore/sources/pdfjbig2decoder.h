@@ -116,10 +116,6 @@ public:
         return m_state[context] >> 1;
     }
 
-    /// Returns Qe value for row index, according to document ISO/IEC 14492:2001,
-    /// annex E, table E.1 (Qe values and probability estimation process).
-    inline uint32_t getQe(size_t context) const;
-
     /// Returns current bit value of MPS (most probable symbol)
     inline uint8_t getMPS(size_t context) const
     {
@@ -206,7 +202,6 @@ private:
 
 enum class JBIG2SegmentType : uint32_t
 {
-    Invalid,
     SymbolDictionary,           ///< See chapter 7.4.2  in specification
     TextRegion,                 ///< See chapter 7.4.3  in specification
     PatternDictionary,          ///< See chapter 7.4.4  in specification
@@ -225,8 +220,6 @@ enum class JBIG2SegmentType : uint32_t
 class PDFJBIG2SegmentHeader
 {
 public:
-    explicit inline PDFJBIG2SegmentHeader() = default;
-
     /// Returns segment type
     inline JBIG2SegmentType getSegmentType() const { return m_segmentType; }
 
@@ -250,14 +243,17 @@ public:
     inline const std::vector<uint32_t>& getReferredSegments() const { return m_referredSegments; }
 
     /// Reads the segment header from the data stream. If error occurs, then
-    /// exception is thrown.
+    /// exception is thrown. A header is created only by this function, so
+    /// every header has a valid segment type.
     static PDFJBIG2SegmentHeader read(PDFBitReader* reader);
 
 private:
+    explicit inline PDFJBIG2SegmentHeader() = default;
+
     uint32_t m_segmentNumber = 0;
     uint32_t m_pageAssociation = 0;
     uint32_t m_segmentDataLength = 0;
-    JBIG2SegmentType m_segmentType = JBIG2SegmentType::Invalid;
+    JBIG2SegmentType m_segmentType = JBIG2SegmentType::SymbolDictionary;
     bool m_immediate = false;
     bool m_lossless = false;
     std::vector<uint32_t> m_referredSegments;
@@ -273,13 +269,8 @@ public:
     virtual PDFJBIG2Bitmap* asBitmap() { return nullptr; }
 
     virtual const PDFJBIG2HuffmanCodeTable* asHuffmanCodeTable() const { return nullptr; }
-    virtual PDFJBIG2HuffmanCodeTable* asHuffmanCodeTable() { return nullptr; }
-
     virtual const PDFJBIG2SymbolDictionary* asSymbolDictionary() const { return nullptr; }
-    virtual PDFJBIG2SymbolDictionary* asSymbolDictionary() { return nullptr; }
-
     virtual const PDFJBIG2PatternDictionary* asPatternDictionary() const { return nullptr; }
-    virtual PDFJBIG2PatternDictionary* asPatternDictionary() { return nullptr; }
 };
 
 /// Huffman decoder - can decode integers / out of band values from huffman table.
@@ -304,16 +295,13 @@ public:
     explicit PDFJBIG2HuffmanDecoder(PDFBitReader* reader, std::vector<PDFJBIG2HuffmanTableEntry>&& table);
 
     PDFJBIG2HuffmanDecoder(const PDFJBIG2HuffmanDecoder&) = delete;
-    PDFJBIG2HuffmanDecoder(PDFJBIG2HuffmanDecoder&& other);
+    PDFJBIG2HuffmanDecoder(PDFJBIG2HuffmanDecoder&& other) = delete;
 
     PDFJBIG2HuffmanDecoder& operator=(const PDFJBIG2HuffmanDecoder&) = delete;
     PDFJBIG2HuffmanDecoder& operator=(PDFJBIG2HuffmanDecoder&& other);
 
     /// Returns true, if huffman table is valid (and usable)
     bool isValid() const { return m_begin != m_end; }
-
-    /// Returns true, if huffman table has out-of-band value
-    bool isOutOfBandSupported() const;
 
     /// Tries to read signed integer using the table and current reader.
     /// \returns Integer, or out-of-band value, using the std::optional semantics
@@ -332,7 +320,6 @@ class PDF4QTLIBCORESHARED_EXPORT PDFJBIG2Bitmap : public PDFJBIG2Segment
 {
 public:
     explicit PDFJBIG2Bitmap();
-    explicit PDFJBIG2Bitmap(int width, int height);
     explicit PDFJBIG2Bitmap(int width, int height, uint8_t fill);
     virtual ~PDFJBIG2Bitmap() override;
 
@@ -519,11 +506,12 @@ private:
     void processCodeTables(const PDFJBIG2SegmentHeader& header);
     void processExtension(const PDFJBIG2SegmentHeader& header);
 
-    /// Returns bitmap for given segment index. If bitmap is not found, or segment
-    /// is of different type, then exception is thrown.
+    /// Takes the bitmap of an intermediate region stored under the segment index - the
+    /// bitmap is removed from the stored segments, because it is consumed by the region
+    /// referring to it. If the segment is not found, or it is of a different type, then
+    /// an exception is thrown.
     /// \param segmentIndex Segment index with bitmap
-    /// \param remove Remove the segment?
-    PDFJBIG2Bitmap getBitmap(const uint32_t segmentIndex, bool remove);
+    PDFJBIG2Bitmap takeBitmap(const uint32_t segmentIndex);
 
     /// Reads bitmap using decoding parameters
     /// \param parameters Decoding parameters

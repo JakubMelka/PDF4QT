@@ -115,6 +115,11 @@ struct PDF4QTLIBCORESHARED_EXPORT PDFJBIG2EncoderParameters
     /// Returns the number of the adaptive template pixels used by a template
     /// \param GBTEMPLATE Template, 0-3
     static int getATPositionCount(uint8_t GBTEMPLATE);
+
+    /// Returns the number of the bits of the context of a template, see figures 4 to 7
+    /// of the specification - the state of the arithmetic coder has this size
+    /// \param GBTEMPLATE Template, 0-3
+    static uint8_t getContextBitCount(uint8_t GBTEMPLATE);
 };
 
 /// Encoder of bitonal images into the JBIG2 format, described in ISO/IEC 14492:2001
@@ -149,6 +154,28 @@ public:
     /// Throws \p PDFException, if the image or the parameters are invalid.
     QByteArray encodeGenericRegion();
 
+    /// Encodes a bitmap by the arithmetic generic region decoding procedure into an
+    /// arithmetic encoder, see 6.2.5.7 of the specification. The encoder and the state
+    /// of the contexts belong to the caller, so several bitmaps can be coded by a single
+    /// arithmetic coder - the symbols of a symbol dictionary and the bit planes of the
+    /// gray-scale image of a halftone region are coded this way. The state must be reset
+    /// to the context bit count of the template before the first bitmap is coded, see
+    /// \p PDFJBIG2EncoderParameters::getContextBitCount, and the encoder is finished by
+    /// the caller. The MMR flag of the parameters is ignored. Throws \p PDFException, if
+    /// the image or the parameters are invalid.
+    /// \param bitmap Encoded image
+    /// \param parameters Parameters of the encoding
+    /// \param encoder Arithmetic encoder
+    /// \param state State of the contexts of the arithmetic coder
+    /// \param skip Pixels, which are not coded, see the step 3 c) of 6.2.5.7 - the halftone
+    ///        region decoding procedure skips the cells of the grid lying outside of the
+    ///        region. The skipped pixels are treated as zero. Can be \p nullptr.
+    static void encodeGenericBitmap(const PDFBitonalBitmapView& bitmap,
+                                    const PDFJBIG2EncoderParameters& parameters,
+                                    PDFJBIG2ArithmeticEncoder& encoder,
+                                    PDFJBIG2ArithmeticDecoderState& state,
+                                    const PDFJBIG2Bitmap* skip = nullptr);
+
 private:
     /// Segment types used by the encoder, see 7.3 of the specification
     enum SegmentType : uint8_t
@@ -161,6 +188,11 @@ private:
 
     /// Checks the image and the parameters, throws \p PDFException, if they are invalid
     void validate() const;
+
+    /// Checks an image and parameters, throws \p PDFException, if they are invalid
+    /// \param bitmap Checked image
+    /// \param parameters Checked parameters
+    static void validate(const PDFBitonalBitmapView& bitmap, const PDFJBIG2EncoderParameters& parameters);
 
     /// Encodes the bitmap by the arithmetic coding, see 6.2.5.7 of the specification
     QByteArray encodeGenericRegionArithmetic() const;

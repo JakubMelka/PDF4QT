@@ -1491,6 +1491,20 @@ void JBIG2Test::test_bitmap_api_validation()
     QVERIFY(!invalid.isValid());
     bitmap.paint(invalid, 0, 0, pdf::PDFJBIG2BitOperation::Or, false, 0x00);
     QCOMPARE(bitmap.getPixelCount(), 12);
+
+    // The paint operation must be valid, and a bitmap painted outside of the bitmap
+    // is clipped - also to the left and to the top
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, bitmap.paint(subbitmap, 0, 0, pdf::PDFJBIG2BitOperation::Invalid, false, 0x00));
+    pdf::PDFJBIG2Bitmap black(2, 2, 0xFF);
+    bitmap.fillZero();
+    bitmap.paint(black, -1, -1, pdf::PDFJBIG2BitOperation::Or, false, 0x00);
+    bitmap.paint(black, 3, 2, pdf::PDFJBIG2BitOperation::Or, false, 0x00);
+    QCOMPARE(int(bitmap.getPixel(0, 0)), 0xFF);
+    QCOMPARE(int(bitmap.getPixel(1, 0)), 0x00);
+    QCOMPARE(int(bitmap.getPixel(0, 1)), 0x00);
+    QCOMPARE(int(bitmap.getPixel(3, 2)), 0xFF);
+    QCOMPARE(int(bitmap.getPixel(2, 2)), 0x00);
+    QCOMPARE(int(bitmap.getPixel(3, 1)), 0x00);
 }
 
 void JBIG2Test::test_referred_segments_are_resolved()

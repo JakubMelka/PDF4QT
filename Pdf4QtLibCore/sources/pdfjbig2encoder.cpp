@@ -292,6 +292,12 @@ int PDFJBIG2EncoderParameters::getATPositionCount(uint8_t GBTEMPLATE)
     return (GBTEMPLATE == 0) ? 4 : 1;
 }
 
+uint8_t PDFJBIG2EncoderParameters::getContextBitCount(uint8_t GBTEMPLATE)
+{
+    // Figures 4 to 7 of the specification - 16, 13, 10 and 10 pixels
+    return (GBTEMPLATE == 0) ? 16 : ((GBTEMPLATE == 1) ? 13 : 10);
+}
+
 PDFJBIG2Encoder::PDFJBIG2Encoder(const PDFBitonalBitmapView& bitmap, const PDFJBIG2EncoderParameters& parameters) :
     m_bitmap(bitmap),
     m_parameters(parameters)
@@ -335,30 +341,35 @@ QByteArray PDFJBIG2Encoder::encodeGenericRegion()
 
 void PDFJBIG2Encoder::validate() const
 {
-    if (!m_bitmap.isValid())
+    validate(m_bitmap, m_parameters);
+}
+
+void PDFJBIG2Encoder::validate(const PDFBitonalBitmapView& bitmap, const PDFJBIG2EncoderParameters& parameters)
+{
+    if (!bitmap.isValid())
     {
         throw PDFException(PDFTranslationContext::tr("Invalid bitonal image for the JBIG2 encoding."));
     }
 
     // The decoder allocates a byte per pixel, so the same limit is used here
-    PDFJBIG2Bitmap::checkSize(m_bitmap.width, m_bitmap.height);
+    PDFJBIG2Bitmap::checkSize(bitmap.width, bitmap.height);
 
-    if (m_parameters.MMR)
+    if (parameters.MMR)
     {
         return;
     }
 
-    if (m_parameters.GBTEMPLATE > 3)
+    if (parameters.GBTEMPLATE > 3)
     {
-        throw PDFException(PDFTranslationContext::tr("Invalid JBIG2 generic region template %1.").arg(m_parameters.GBTEMPLATE));
+        throw PDFException(PDFTranslationContext::tr("Invalid JBIG2 generic region template %1.").arg(parameters.GBTEMPLATE));
     }
 
     // An adaptive template pixel must refer to a pixel, which is decoded before the
     // current one, see figure 7 of the specification
-    const int atCount = PDFJBIG2EncoderParameters::getATPositionCount(m_parameters.GBTEMPLATE);
+    const int atCount = PDFJBIG2EncoderParameters::getATPositionCount(parameters.GBTEMPLATE);
     for (int i = 0; i < atCount; ++i)
     {
-        const PDFJBIG2ATPosition& position = m_parameters.GBAT[i];
+        const PDFJBIG2ATPosition& position = parameters.GBAT[i];
         if (position.y > 0 || (position.y == 0 && position.x >= 0))
         {
             throw PDFException(PDFTranslationContext::tr("Invalid JBIG2 adaptive template pixel position A%1 = (%2, %3).").arg(i + 1).arg(position.x).arg(position.y));
@@ -368,18 +379,44 @@ void PDFJBIG2Encoder::validate() const
 
 QByteArray PDFJBIG2Encoder::encodeGenericRegionArithmetic() const
 {
-    const int width = m_bitmap.width;
-    const int height = m_bitmap.height;
+    PDFJBIG2ArithmeticDecoderState state;
+    state.reset(PDFJBIG2EncoderParameters::getContextBitCount(m_parameters.GBTEMPLATE));
+
+    PDFJBIG2ArithmeticEncoder encoder;
+    encodeGenericBitmap(m_bitmap, m_parameters, encoder, state);
+    return encoder.finish();
+}
+
+void PDFJBIG2Encoder::encodeGenericBitmap(const PDFBitonalBitmapView& bitmap,
+                                          const PDFJBIG2EncoderParameters& parameters,
+                                          PDFJBIG2ArithmeticEncoder& encoder,
+                                          PDFJBIG2ArithmeticDecoderState& state,
+                                          const PDFJBIG2Bitmap* skip)
+{
+    PDFJBIG2EncoderParameters arithmeticParameters = parameters;
+    arithmeticParameters.MMR = false;
+    validate(bitmap, arithmeticParameters);
+
+    const int width = bitmap.width;
+    const int height = bitmap.height;
+
+    if (skip && (skip->getWidth() != width || skip->getHeight() != height))
+    {
+        throw PDFException(PDFTranslationContext::tr("Invalid size (%1 x %2) of the JBIG2 skip bitmap, the image size is %3 x %4.").arg(skip->getWidth()).arg(skip->getHeight()).arg(width).arg(height));
+    }
 
     // The bitmap is unpacked into a byte per pixel, where 1 is a black pixel, as
     // the decoder does. The typical prediction then compares the rows directly.
+    // A skipped pixel is zero, because the decoder does not decode it and sets it
+    // to zero - the contexts of its neighbours must see the same value.
     std::vector<uint8_t> pixels(size_t(width) * size_t(height), 0);
     for (int y = 0; y < height; ++y)
     {
         uint8_t* row = pixels.data() + size_t(y) * size_t(width);
         for (int x = 0; x < width; ++x)
         {
-            row[x] = m_bitmap.isPixelBlack(x, y) ? 1 : 0;
+            const bool isSkipped = skip && skip->getPixel(x, y);
+            row[x] = (!isSkipped && bitmap.isPixelBlack(x, y)) ? 1 : 0;
         }
     }
 
@@ -404,52 +441,39 @@ QByteArray PDFJBIG2Encoder::encodeGenericRegionArithmetic() const
     };
 
     std::vector<TemplatePixel> templatePixels;
-    const PDFJBIG2ATPositions& AT = m_parameters.GBAT;
+    const PDFJBIG2ATPositions& AT = parameters.GBAT;
     uint16_t LTPContext = 0;
-    uint8_t contextBits = 0;
 
-    switch (m_parameters.GBTEMPLATE)
+    if (parameters.GBTEMPLATE == 0)
     {
-        case 0:
-            templatePixels = { { -1, 0 }, { -2, 0 }, { -3, 0 }, { -4, 0 }, { AT[0].x, AT[0].y },
-                               { 2, -1 }, { 1, -1 }, { 0, -1 }, { -1, -1 }, { -2, -1 }, { AT[1].x, AT[1].y },
-                               { AT[2].x, AT[2].y }, { 1, -2 }, { 0, -2 }, { -1, -2 }, { AT[3].x, AT[3].y } };
-            LTPContext = 0x9B25;
-            contextBits = 16;
-            break;
+        templatePixels = { { -1, 0 }, { -2, 0 }, { -3, 0 }, { -4, 0 }, { AT[0].x, AT[0].y },
+                           { 2, -1 }, { 1, -1 }, { 0, -1 }, { -1, -1 }, { -2, -1 }, { AT[1].x, AT[1].y },
+                           { AT[2].x, AT[2].y }, { 1, -2 }, { 0, -2 }, { -1, -2 }, { AT[3].x, AT[3].y } };
+        LTPContext = 0x9B25;
 
-        case 1:
-            templatePixels = { { -1, 0 }, { -2, 0 }, { -3, 0 }, { AT[0].x, AT[0].y },
-                               { 2, -1 }, { 1, -1 }, { 0, -1 }, { -1, -1 }, { -2, -1 },
-                               { 2, -2 }, { 1, -2 }, { 0, -2 }, { -1, -2 } };
-            LTPContext = 0x0795;
-            contextBits = 13;
-            break;
-
-        case 2:
-            templatePixels = { { -1, 0 }, { -2, 0 }, { AT[0].x, AT[0].y },
-                               { 1, -1 }, { 0, -1 }, { -1, -1 }, { -2, -1 },
-                               { 1, -2 }, { 0, -2 }, { -1, -2 } };
-            LTPContext = 0x00E5;
-            contextBits = 10;
-            break;
-
-        case 3:
-            templatePixels = { { -1, 0 }, { -2, 0 }, { -3, 0 }, { -4, 0 }, { AT[0].x, AT[0].y },
-                               { 1, -1 }, { 0, -1 }, { -1, -1 }, { -2, -1 }, { -3, -1 } };
-            LTPContext = 0x0195;
-            contextBits = 10;
-            break;
-
-        default:
-            Q_ASSERT(false);
-            break;
     }
+    else if (parameters.GBTEMPLATE == 1)
+    {
+        templatePixels = { { -1, 0 }, { -2, 0 }, { -3, 0 }, { AT[0].x, AT[0].y },
+                           { 2, -1 }, { 1, -1 }, { 0, -1 }, { -1, -1 }, { -2, -1 },
+                           { 2, -2 }, { 1, -2 }, { 0, -2 }, { -1, -2 } };
+        LTPContext = 0x0795;
 
-    PDFJBIG2ArithmeticDecoderState state;
-    state.reset(contextBits);
+    }
+    else if (parameters.GBTEMPLATE == 2)
+    {
+        templatePixels = { { -1, 0 }, { -2, 0 }, { AT[0].x, AT[0].y },
+                           { 1, -1 }, { 0, -1 }, { -1, -1 }, { -2, -1 },
+                           { 1, -2 }, { 0, -2 }, { -1, -2 } };
+        LTPContext = 0x00E5;
 
-    PDFJBIG2ArithmeticEncoder encoder;
+    }
+    else
+    {
+        templatePixels = { { -1, 0 }, { -2, 0 }, { -3, 0 }, { -4, 0 }, { AT[0].x, AT[0].y },
+                           { 1, -1 }, { 0, -1 }, { -1, -1 }, { -2, -1 }, { -3, -1 } };
+        LTPContext = 0x0195;
+    }
 
     // Typical prediction, see 6.2.5.7 of the specification. The decoder toggles LTP
     // by the decoded SLTP bit, so the bit is the change of the state - a row is typical,
@@ -461,7 +485,7 @@ QByteArray PDFJBIG2Encoder::encodeGenericRegionArithmetic() const
     {
         const uint8_t* row = pixels.data() + size_t(y) * size_t(width);
 
-        if (m_parameters.TPGDON)
+        if (parameters.TPGDON)
         {
             bool isTypical = false;
             if (y > 0)
@@ -485,6 +509,11 @@ QByteArray PDFJBIG2Encoder::encodeGenericRegionArithmetic() const
 
         for (int x = 0; x < width; ++x)
         {
+            if (skip && skip->getPixel(x, y))
+            {
+                continue;
+            }
+
             uint32_t context = 0;
             for (size_t i = 0; i < templatePixels.size(); ++i)
             {
@@ -495,8 +524,6 @@ QByteArray PDFJBIG2Encoder::encodeGenericRegionArithmetic() const
             encoder.encodeBit(context, &state, row[x]);
         }
     }
-
-    return encoder.finish();
 }
 
 QByteArray PDFJBIG2Encoder::encodeGenericRegionMMR() const

@@ -40,6 +40,7 @@ Tests are QtTest executables, one per area, all built into `<build>/usr/bin`:
 | `UnitTestsJBIG2Files` | [tst_jbig2filestest.cpp](UnitTests/tst_jbig2filestest.cpp) — decodes every file of the `jbig2test/` directory (not in the repository, skipped when missing; override with `PDF4QT_JBIG2_TEST_DIRECTORY`) and compares it with the `<name>.bmp` reference |
 | `UnitTestsCCITTFax` | [tst_ccittfaxtest.cpp](UnitTests/tst_ccittfaxtest.cpp) — CCITT fax encoder/decoder: hand-coded T.4/T.6 vectors, the MMR region of T.88 Annex H, random round trips over every filter parameter |
 | `UnitTestsJBIG2Encoder` | [tst_jbig2encodertest.cpp](UnitTests/tst_jbig2encodertest.cpp) — JBIG2 encoder: MQ coder test sequence of T.88 H.2, byte-identical re-encoding of the Annex H generic regions, random round trips over all templates/TPGDON/MMR |
+| `UnitTestsJBIG2Segments` | [tst_jbig2segmentstest.cpp](UnitTests/tst_jbig2segmentstest.cpp) — symbol dictionaries, text regions, pattern dictionaries, halftone regions (arithmetic and Huffman) and file organisations, built by test-side encoders (Annex A integer coding, Huffman tables B.1–B.15, refinement coding) |
 | `UnitTestsFontEncoding` | [tst_fontencodingtest.cpp](UnitTests/tst_fontencodingtest.cpp) |
 | `UnitTestsAuthorSettings` | [tst_authorsettingstest.cpp](UnitTests/tst_authorsettingstest.cpp) |
 | `UnitTestsContentEditor` | [tst_contenteditortest.cpp](UnitTests/tst_contenteditortest.cpp) |
