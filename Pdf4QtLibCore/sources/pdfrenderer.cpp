@@ -33,6 +33,8 @@
 #include <QScopeGuard>
 #include <QtMath>
 
+#include <algorithm>
+
 #include "pdfdbgheap.h"
 
 namespace pdf
@@ -313,9 +315,35 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
     return image;
 }
 
-PDFRasterizer* PDFRasterizerPool::acquire()
+bool PDFRenderedPageImage::hasSevereError() const
 {
-    m_semaphore.acquire();
+    return std::any_of(errors.cbegin(), errors.cend(), [](const PDFRenderError& error)
+    {
+        return error.type == RenderErrorType::Error || error.type == RenderErrorType::NotImplemented;
+    });
+}
+
+PDFRasterizer* PDFRasterizerPool::acquire(const PDFOperationControl* operationControl)
+{
+    if (operationControl)
+    {
+        // The waiting is interruptible - a cancelled task must not occupy a rasterizer,
+        // which a newer task is waiting for, so the cancellation is polled while the
+        // semaphore is being waited for.
+        constexpr int POLL_INTERVAL_MS = 20;
+
+        while (!m_semaphore.tryAcquire(1, POLL_INTERVAL_MS))
+        {
+            if (operationControl->isOperationCancelled())
+            {
+                return nullptr;
+            }
+        }
+    }
+    else
+    {
+        m_semaphore.acquire();
+    }
 
     QMutexLocker guard(&m_mutex);
     Q_ASSERT(!m_rasterizers.empty());
@@ -402,6 +430,13 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
 
         qint64 pageCompileTime = pageTimer.restart();
 
+        if (PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            // The compilation has been interrupted, so the page is incomplete and there
+            // is no point in rasterizing it - that is the most expensive part.
+            return;
+        }
+
         for (const PDFRenderError& error : precompiledPage.getErrors())
         {
             Q_EMIT renderError(pageIndex, error);
@@ -417,16 +452,22 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
 
         // Render page to image
         pageTimer.restart();
-        PDFRasterizer* rasterizer = acquire();
+        PDFRasterizer* rasterizer = acquire(operationControl);
         qint64 pageWaitTime = pageTimer.restart();
+
+        if (!rasterizer)
+        {
+            // The operation has been cancelled while a free rasterizer was being waited for
+            return;
+        }
+
         QImage image = rasterizer->render(pageIndex, page, &precompiledPage, imageSizeGetter(page), m_features, &annotationManager, cms.data(), PageRotation::None);
         qint64 pageRenderTime = pageTimer.elapsed();
         release(rasterizer);
 
         if (PDFOperationControl::isOperationCancelled(operationControl))
         {
-            // Image can be incomplete, because the compilation of the page
-            // has been interrupted - it must not be processed.
+            // Nobody is interested in the image anymore - it must not be processed.
             return;
         }
 
@@ -434,6 +475,7 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
         PDFRenderedPageImage renderedPageImage;
         renderedPageImage.pageIndex = pageIndex;
         renderedPageImage.pageImage = qMove(image);
+        renderedPageImage.errors = precompiledPage.getErrors();
         renderedPageImage.pageCompileTime = pageCompileTime;
         renderedPageImage.pageWaitTime = pageWaitTime;
         renderedPageImage.pageRenderTime = pageRenderTime;

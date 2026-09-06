@@ -26,6 +26,7 @@
 #include "pdfdbgheap.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <cstdlib>
 
 namespace pdf
@@ -40,7 +41,9 @@ static constexpr int CCITT_EOL_BIT_LENGTH = 12;
 
 bool PDFBitonalBitmapView::isValid() const
 {
-    return data && width > 0 && height > 0 && stride >= (width + 7) / 8;
+    // The number of the bytes of a row is computed in 64 bits - the width can be
+    // close to the largest int, so the sum with the padding would overflow
+    return data && width > 0 && height > 0 && stride > 0 && int64_t(stride) >= (int64_t(width) + 7) / 8;
 }
 
 void PDFBitonalBitmapView::getChangingElements(int y, std::vector<int>& changingElements) const
@@ -53,7 +56,7 @@ void PDFBitonalBitmapView::getChangingElements(int y, std::vector<int>& changing
 
     while (x < width)
     {
-        if ((x & 0x07) == 0 && x + 8 <= width)
+        if ((x & 0x07) == 0 && x <= width - 8)
         {
             // A whole byte of the pixels of the current colour is skipped at once
             const uint8_t byteOfCurrentColour = (isBlack == isOneBlack) ? 0xFF : 0x00;
@@ -94,7 +97,13 @@ QByteArray PDFCCITTFaxEncoder::encode()
     }
 
     m_output.clear();
-    m_output.reserve(m_bitmap.stride * m_bitmap.height / 4 + 16);
+
+    // The reserved size is only an estimate, so it is computed without an overflow and
+    // it is bounded - a huge image must not fail on the reservation of a buffer, which
+    // it does not need
+    constexpr int64_t MAXIMUM_RESERVED_BYTES = 16 * 1024 * 1024;
+    const int64_t estimatedBytes = int64_t(m_bitmap.stride) * int64_t(m_bitmap.height) / 4 + 16;
+    m_output.reserve(qsizetype(qMin(estimatedBytes, MAXIMUM_RESERVED_BYTES)));
     m_bitBuffer = 0;
     m_bitsInBuffer = 0;
 

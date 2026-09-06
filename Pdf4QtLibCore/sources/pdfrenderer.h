@@ -206,6 +206,18 @@ struct PDFRenderedPageImage
     qint64 pageTotalTime = 0;
     PDFInteger pageIndex;
     QImage pageImage;
+
+    /// Errors reported while the page has been compiled. The renderer does not
+    /// stop at an error - the content, which cannot be processed, is skipped and
+    /// the rest of the page is rendered - so the image can be incomplete even
+    /// when it is not null. \sa hasSevereError
+    QList<PDFRenderError> errors;
+
+    /// Returns true, if the errors indicate, that a part of the content of the page
+    /// is missing in the image - an error, or a feature, which is not implemented.
+    /// Warnings and unsupported features, which are rendered approximately, do not
+    /// count.
+    bool hasSevereError() const;
 };
 
 /// Pool of page image renderers. It can use predefined number of renderers to
@@ -245,8 +257,11 @@ public:
                                RendererEngine rendererEngine,
                                QObject* parent);
 
-    /// Acquire rasterizer. This function is thread safe.
-    PDFRasterizer* acquire();
+    /// Acquire rasterizer. This function is thread safe. The function blocks
+    /// until a rasterizer is free, unless the operation is cancelled meanwhile -
+    /// then nullptr is returned and nothing has to be released.
+    /// \param operationControl Operation control (can be nullptr)
+    PDFRasterizer* acquire(const PDFOperationControl* operationControl = nullptr);
 
     /// Return back (release) rasterizer into rasterizer pool
     /// This function is thread safe.
@@ -257,7 +272,11 @@ public:
     /// function which returns rendered size and process image function,
     /// which processes rendered images. Rendering can be interrupted using
     /// the operation control - pages, which have not been rendered yet, are
-    /// skipped and the process image method is not called for them.
+    /// skipped and the process image method is not called for them. The
+    /// cancellation is checked before and after the compilation of the page,
+    /// while a free rasterizer is being waited for, and after the rasterization.
+    /// Errors of the compilation are passed to the process image method, so it
+    /// can find out, whether the image is complete.
     /// \param pageIndices Page indices for rendered pages
     /// \param imageSizeGetter Getter, which computes image size from page index
     /// \param processImage Method, which processes rendered page images

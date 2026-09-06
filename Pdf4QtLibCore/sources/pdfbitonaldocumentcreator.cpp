@@ -24,6 +24,8 @@
 #include "pdfcms.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfexception.h"
+#include "pdfnametreeloader.h"
+#include "pdfnumbertreeloader.h"
 #include "pdfoptimizer.h"
 #include "pdfpage.h"
 #include "pdfprogress.h"
@@ -67,6 +69,13 @@ static QImage compositePageImageOntoWhite(const QImage& image)
     }
 
     QImage result(image.size(), QImage::Format_RGB32);
+
+    if (result.isNull())
+    {
+        // The image cannot be allocated
+        return QImage();
+    }
+
     result.fill(Qt::white);
 
     QPainter painter(&result);
@@ -147,8 +156,39 @@ bool PDFBitonalDocumentCreator::createBitonalDocument(const Settings& settings)
 
 bool PDFBitonalDocumentCreator::createBitonalDocumentFromImages(PDFDocumentBuilder& builder, const Settings& settings)
 {
+    // The settings are a public API, so they can contain the same image more than
+    // once. The mode of the last occurrence wins - including the mode, which leaves
+    // the image untouched, so a later item can cancel an earlier request. Only after
+    // the duplicates are resolved, the untouched images are left out.
+    std::map<PDFObjectReference, ItemMode> imageModes;
+    std::vector<PDFObjectReference> imageOrder;
+
+    for (const ItemInfo& item : settings.items)
+    {
+        if (!item.imageReference.isValid())
+        {
+            continue;
+        }
+
+        if (imageModes.insert_or_assign(item.imageReference, item.mode).second)
+        {
+            imageOrder.push_back(item.imageReference);
+        }
+    }
+
     std::vector<ItemInfo> itemsToBeConverted;
-    std::copy_if(settings.items.begin(), settings.items.end(), std::back_inserter(itemsToBeConverted), [](const auto& item) { return item.isContentReplaced(); });
+
+    for (const PDFObjectReference reference : imageOrder)
+    {
+        ItemInfo item;
+        item.imageReference = reference;
+        item.mode = imageModes.at(reference);
+
+        if (item.isContentReplaced())
+        {
+            itemsToBeConverted.push_back(item);
+        }
+    }
 
     // Do we have something to be converted?
     if (itemsToBeConverted.empty())
@@ -184,7 +224,18 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromImages(PDFDocumentBuild
             // Only the color samples are replaced by the solid fill - the transparency
             // of the original image is preserved. Filling a masked text layer of a
             // two-layer scan without its mask would cover the whole page.
-            alphaMask = PDFImageConversion::createAlphaMask(image);
+            std::optional<QImage> mask = PDFImageConversion::createAlphaMask(image);
+
+            if (!mask)
+            {
+                // The mask cannot be created, so the transparency would be lost - the
+                // image is left as it is
+                ++m_failedItemCount;
+                stepProgress();
+                continue;
+            }
+
+            alphaMask = std::move(*mask);
             bitonalImage = createFillImage(alphaMask.isNull() ? QSize(1, 1) : alphaMask.size(), item.isFilledByBlack());
         }
         else
@@ -252,16 +303,21 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromPages(PDFDocumentBuilde
     // is rasterized - a duplicated page in the algorithm mode would be rendered by two
     // tasks writing into the same slot at the same time, which is a data race, and an
     // index out of the range would access the vector of the images outside its bounds.
-    // When a page is requested more than once, the mode of its last occurrence wins.
+    // When a page is requested more than once, the mode of its last occurrence wins -
+    // including the mode, which leaves the page untouched, so a later item can cancel
+    // an earlier request. Only after the duplicates are resolved, the untouched pages
+    // are left out.
     std::map<PDFInteger, ItemMode> pageModes;
 
     for (const ItemInfo& item : settings.items)
     {
-        if (item.isContentReplaced() && item.pageIndex >= 0 && size_t(item.pageIndex) < pageCount)
+        if (item.pageIndex >= 0 && size_t(item.pageIndex) < pageCount)
         {
             pageModes[item.pageIndex] = item.mode;
         }
     }
+
+    std::erase_if(pageModes, [](const auto& entry) { return entry.second == ItemMode::Original; });
 
     // Do we have something to be converted?
     if (pageModes.empty())
@@ -320,7 +376,7 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromPages(PDFDocumentBuilde
     // Pages, whose content has really been replaced. A page, which could not be
     // rendered, keeps its original content, so it also keeps its marked content and
     // it must be counted as not converted.
-    size_t convertedPageCount = 0;
+    std::set<PDFObjectReference> convertedPages;
 
     for (const PDFInteger pageIndex : pageIndices)
     {
@@ -408,26 +464,671 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromPages(PDFDocumentBuilde
 
         builder.setObject(pageReference, PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(pageDictionary))));
         isConverted = true;
-        ++convertedPageCount;
+        convertedPages.insert(pageReference);
         ++m_convertedItemCount;
     }
 
-    if (convertedPageCount == pageCount)
+    if (convertedPages.size() == pageCount)
     {
         // Every page of the document has really got a new content stream, so no page
         // is tagged anymore and the whole structure tree can be removed
-        const PDFObjectReference catalogReference = builder.getCatalogReference();
-
-        if (const PDFDictionary* originalCatalogDictionary = m_document->getDictionaryFromObject(m_document->getObjectByReference(catalogReference)))
-        {
-            PDFDictionary catalogDictionary = *originalCatalogDictionary;
-            catalogDictionary.removeEntry("StructTreeRoot");
-            catalogDictionary.removeEntry("MarkInfo");
-            builder.setObject(catalogReference, PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(catalogDictionary))));
-        }
+        removeStructureTree(builder);
+    }
+    else if (!convertedPages.empty())
+    {
+        // The other pages keep their marked content, so the structure tree must
+        // survive, but it must not refer to the content, which is gone
+        pruneStructureTree(builder, convertedPages);
     }
 
     return isConverted;
+}
+
+void PDFBitonalDocumentCreator::removeStructureTree(PDFDocumentBuilder& builder) const
+{
+    const PDFObjectReference catalogReference = builder.getCatalogReference();
+
+    if (const PDFDictionary* originalCatalogDictionary = m_document->getDictionaryFromObject(m_document->getObjectByReference(catalogReference)))
+    {
+        if (!originalCatalogDictionary->hasKey("StructTreeRoot") && !originalCatalogDictionary->hasKey("MarkInfo"))
+        {
+            return;
+        }
+
+        PDFDictionary catalogDictionary = *originalCatalogDictionary;
+        catalogDictionary.removeEntry("StructTreeRoot");
+        catalogDictionary.removeEntry("MarkInfo");
+        builder.setObject(catalogReference, PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(catalogDictionary))));
+    }
+}
+
+/// Removes the references to the content of the converted pages from the structure
+/// tree of a document. The content of a converted page is a single image, so the
+/// marked content sequences of the page do not exist anymore and the structure
+/// elements must not refer to them - a viewer would look up the marked content
+/// identifiers in a content stream, which does not contain them, and an extraction
+/// of the text would use the actual text of an element, whose content is gone.
+///
+/// The pruning walks the tree from its root. A marked content reference (an integer
+/// identifier or a MCR dictionary) lying on a converted page is removed, an object
+/// reference lying on a converted page is removed unless it refers to an annotation
+/// of the page (annotations are kept alive by the conversion), and an element, which
+/// has lost all its kids, is removed as well. The parent tree loses the entries of
+/// the converted pages and the entries pointing to the removed elements, the ID tree
+/// loses the removed elements and the Ref entries of the kept elements do not point
+/// to the removed elements anymore.
+class PDFStructureTreePruner
+{
+public:
+    explicit PDFStructureTreePruner(const PDFDocument* document,
+                                    PDFDocumentBuilder* builder,
+                                    const std::set<PDFObjectReference>& convertedPages) :
+        m_document(document),
+        m_builder(builder),
+        m_convertedPages(convertedPages),
+        m_loader(document)
+    {
+
+    }
+
+    /// Prunes the tree. Returns false, if no element remains in the tree, so the
+    /// tree should be removed altogether.
+    bool prune();
+
+private:
+    /// Result of the pruning of an element dictionary
+    struct ElementResult
+    {
+        bool isKept = true;
+        bool isChanged = false;
+        PDFDictionary dictionary;
+    };
+
+    /// Result of the pruning of the kids of an element
+    struct KidsResult
+    {
+        bool isChanged = false;
+        PDFObject kids;
+    };
+
+    KidsResult pruneKids(const PDFObject& kids, PDFObjectReference page);
+    std::optional<PDFObject> pruneKid(const PDFObject& kid, PDFObjectReference page);
+    ElementResult pruneElementDictionary(const PDFDictionary* dictionary, PDFObjectReference inheritedPage);
+    bool pruneElement(PDFObjectReference reference, PDFObjectReference inheritedPage);
+    PDFObject rebuildParentTree(const PDFObject& parentTree, const std::set<PDFInteger>& removedKeys);
+    PDFObject rebuildIdTree(const PDFObject& idTree);
+    void pruneElementReferences();
+
+    bool isPageConverted(PDFObjectReference page) const { return m_convertedPages.count(page) > 0; }
+    bool isElementRemoved(const PDFObject& object) const { return object.isReference() && m_removedElements.count(object.getReference()) > 0; }
+    bool isAnnotationOfPage(PDFObjectReference page, PDFObjectReference object) const;
+
+    /// Returns the effective page of a structure item - its own page, or the page
+    /// inherited from its parent element, when it has none
+    PDFObjectReference getEffectivePage(const PDFDictionary* dictionary, PDFObjectReference inheritedPage) const;
+
+    /// Writes the object into the builder, either as the indirect object or as
+    /// a direct entry of the parent dictionary
+    static void setObject(PDFDocumentBuilder* builder, const PDFObject& original, PDFDictionary& parentDictionary, const char* key, PDFObject object);
+
+    const PDFDocument* m_document;
+    PDFDocumentBuilder* m_builder;
+    const std::set<PDFObjectReference>& m_convertedPages;
+    PDFDocumentDataLoaderDecorator m_loader;
+
+    /// Elements, which have already been visited, and whether they have been kept
+    std::map<PDFObjectReference, bool> m_visitedElements;
+
+    /// Elements, which have been removed from the tree
+    std::set<PDFObjectReference> m_removedElements;
+
+    /// Kept elements, which refer to other elements by the Ref entry
+    std::vector<PDFObjectReference> m_elementsWithReferences;
+};
+
+bool PDFStructureTreePruner::prune()
+{
+    const PDFObjectReference catalogReference = m_builder->getCatalogReference();
+    const PDFDictionary* catalogDictionary = m_document->getDictionaryFromObject(m_document->getObjectByReference(catalogReference));
+
+    if (!catalogDictionary)
+    {
+        return true;
+    }
+
+    const PDFObject rootObject = catalogDictionary->get("StructTreeRoot");
+    const PDFDictionary* rootDictionary = m_document->getDictionaryFromObject(rootObject);
+
+    if (!rootDictionary)
+    {
+        return true;
+    }
+
+    // The keys of the parent tree, which belong to the converted pages, are gone
+    // together with the marked content of the pages
+    std::set<PDFInteger> removedParentTreeKeys;
+
+    for (const PDFObjectReference pageReference : m_convertedPages)
+    {
+        if (const PDFDictionary* pageDictionary = m_document->getDictionaryFromObject(m_document->getObjectByReference(pageReference)))
+        {
+            const PDFObject structParents = m_document->getObject(pageDictionary->get("StructParents"));
+
+            if (structParents.isInt())
+            {
+                removedParentTreeKeys.insert(structParents.getInteger());
+            }
+        }
+    }
+
+    const PDFObject originalKids = rootDictionary->get("K");
+    KidsResult kids = pruneKids(originalKids, PDFObjectReference());
+
+    if (kids.isChanged && kids.kids.isNull())
+    {
+        // Every element of the tree has been removed
+        return false;
+    }
+
+    pruneElementReferences();
+
+    PDFDictionary newRootDictionary = *rootDictionary;
+    bool isRootChanged = false;
+
+    if (kids.isChanged)
+    {
+        newRootDictionary.setEntry(PDFInplaceOrMemoryString("K"), std::move(kids.kids));
+        isRootChanged = true;
+    }
+
+    if (rootDictionary->hasKey("ParentTree"))
+    {
+        const PDFObject originalParentTree = rootDictionary->get("ParentTree");
+        PDFObject parentTree = rebuildParentTree(originalParentTree, removedParentTreeKeys);
+
+        if (!parentTree.isNull())
+        {
+            setObject(m_builder, originalParentTree, newRootDictionary, "ParentTree", std::move(parentTree));
+            isRootChanged = true;
+        }
+    }
+
+    if (rootDictionary->hasKey("IDTree"))
+    {
+        const PDFObject originalIdTree = rootDictionary->get("IDTree");
+        PDFObject idTree = rebuildIdTree(originalIdTree);
+
+        if (!idTree.isNull())
+        {
+            setObject(m_builder, originalIdTree, newRootDictionary, "IDTree", std::move(idTree));
+            isRootChanged = true;
+        }
+    }
+
+    if (isRootChanged)
+    {
+        if (rootObject.isReference())
+        {
+            m_builder->setObject(rootObject.getReference(), PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(newRootDictionary))));
+        }
+        else
+        {
+            PDFDictionary newCatalogDictionary = *catalogDictionary;
+            newCatalogDictionary.setEntry(PDFInplaceOrMemoryString("StructTreeRoot"), PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(newRootDictionary))));
+            m_builder->setObject(catalogReference, PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(newCatalogDictionary))));
+        }
+    }
+
+    return true;
+}
+
+PDFStructureTreePruner::KidsResult PDFStructureTreePruner::pruneKids(const PDFObject& kids, PDFObjectReference page)
+{
+    KidsResult result;
+    result.kids = kids;
+
+    const PDFObject dereferencedKids = m_document->getObject(kids);
+
+    if (dereferencedKids.isArray())
+    {
+        PDFArray newKids;
+        const PDFArray* kidsArray = dereferencedKids.getArray();
+
+        for (size_t i = 0, count = kidsArray->getCount(); i < count; ++i)
+        {
+            const PDFObject& kid = kidsArray->getItem(i);
+            std::optional<PDFObject> newKid = pruneKid(kid, page);
+
+            if (!newKid)
+            {
+                result.isChanged = true;
+                continue;
+            }
+
+            if (!(*newKid == kid))
+            {
+                result.isChanged = true;
+            }
+
+            newKids.appendItem(std::move(*newKid));
+        }
+
+        if (result.isChanged)
+        {
+            result.kids = newKids.getCount() > 0 ? PDFObject::createArray(std::make_shared<PDFArray>(std::move(newKids))) : PDFObject();
+        }
+    }
+    else if (!kids.isNull())
+    {
+        std::optional<PDFObject> newKid = pruneKid(kids, page);
+
+        if (!newKid)
+        {
+            result.isChanged = true;
+            result.kids = PDFObject();
+        }
+        else if (!(*newKid == kids))
+        {
+            result.isChanged = true;
+            result.kids = std::move(*newKid);
+        }
+    }
+
+    return result;
+}
+
+std::optional<PDFObject> PDFStructureTreePruner::pruneKid(const PDFObject& kid, PDFObjectReference page)
+{
+    if (kid.isInt())
+    {
+        // A marked content identifier of the page of the element
+        if (isPageConverted(page))
+        {
+            return std::nullopt;
+        }
+
+        return kid;
+    }
+
+    if (kid.isArray())
+    {
+        // A nested array of kids is not standard, but it is handled the same way
+        KidsResult result = pruneKids(kid, page);
+
+        if (result.isChanged && result.kids.isNull())
+        {
+            return std::nullopt;
+        }
+
+        return result.kids;
+    }
+
+    const PDFDictionary* dictionary = m_document->getDictionaryFromObject(kid);
+
+    if (!dictionary)
+    {
+        // Something, which is not understood, is left as it is
+        return kid;
+    }
+
+    const QByteArray type = m_loader.readNameFromDictionary(dictionary, "Type");
+
+    if (type == "MCR")
+    {
+        // A marked content sequence of the page of the reference
+        if (isPageConverted(getEffectivePage(dictionary, page)))
+        {
+            return std::nullopt;
+        }
+
+        return kid;
+    }
+
+    if (type == "OBJR")
+    {
+        // An object of the page - the annotations of the converted page are kept
+        // alive by the conversion, everything else of the page is gone
+        const PDFObjectReference objectPage = getEffectivePage(dictionary, page);
+
+        if (isPageConverted(objectPage) && !isAnnotationOfPage(objectPage, m_loader.readReferenceFromDictionary(dictionary, "Obj")))
+        {
+            return std::nullopt;
+        }
+
+        return kid;
+    }
+
+    // A structure element
+    if (kid.isReference())
+    {
+        if (!pruneElement(kid.getReference(), page))
+        {
+            return std::nullopt;
+        }
+
+        return kid;
+    }
+
+    ElementResult result = pruneElementDictionary(dictionary, page);
+
+    if (!result.isKept)
+    {
+        return std::nullopt;
+    }
+
+    if (result.isChanged)
+    {
+        return PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(result.dictionary)));
+    }
+
+    return kid;
+}
+
+PDFStructureTreePruner::ElementResult PDFStructureTreePruner::pruneElementDictionary(const PDFDictionary* dictionary, PDFObjectReference inheritedPage)
+{
+    ElementResult result;
+
+    const PDFObjectReference page = getEffectivePage(dictionary, inheritedPage);
+    const PDFObject originalKids = dictionary->get("K");
+    KidsResult kids = pruneKids(originalKids, page);
+
+    if (!kids.isChanged)
+    {
+        return result;
+    }
+
+    if (kids.kids.isNull())
+    {
+        // The element has lost all its content
+        result.isKept = false;
+        return result;
+    }
+
+    result.isChanged = true;
+    result.dictionary = *dictionary;
+    result.dictionary.setEntry(PDFInplaceOrMemoryString("K"), std::move(kids.kids));
+    return result;
+}
+
+bool PDFStructureTreePruner::pruneElement(PDFObjectReference reference, PDFObjectReference inheritedPage)
+{
+    auto it = m_visitedElements.find(reference);
+
+    if (it != m_visitedElements.cend())
+    {
+        // The element has already been processed, or it is being processed - a damaged
+        // document can contain a cycle, so an element being processed is kept
+        return it->second;
+    }
+
+    m_visitedElements[reference] = true;
+
+    const PDFDictionary* dictionary = m_document->getDictionaryFromObject(m_document->getObjectByReference(reference));
+
+    if (!dictionary)
+    {
+        return true;
+    }
+
+    ElementResult result = pruneElementDictionary(dictionary, inheritedPage);
+
+    if (!result.isKept)
+    {
+        m_visitedElements[reference] = false;
+        m_removedElements.insert(reference);
+        return false;
+    }
+
+    if (result.isChanged)
+    {
+        m_builder->setObject(reference, PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(result.dictionary))));
+    }
+
+    if (dictionary->hasKey("Ref"))
+    {
+        m_elementsWithReferences.push_back(reference);
+    }
+
+    return true;
+}
+
+PDFObject PDFStructureTreePruner::rebuildParentTree(const PDFObject& parentTree, const std::set<PDFInteger>& removedKeys)
+{
+    struct Entry
+    {
+        PDFInteger key = 0;
+        PDFObject value;
+
+        bool operator<(const Entry& other) const { return key < other.key; }
+
+        static Entry parse(PDFInteger key, const PDFObjectStorage*, const PDFObject& object)
+        {
+            return Entry{ key, object };
+        }
+    };
+
+    std::vector<Entry> entries = PDFNumberTreeLoader<Entry>::parse(&m_document->getStorage(), parentTree);
+    bool isChanged = false;
+
+    PDFArray numbers;
+
+    for (Entry& entry : entries)
+    {
+        if (removedKeys.count(entry.key) > 0)
+        {
+            // The marked content of the page is gone
+            isChanged = true;
+            continue;
+        }
+
+        if (isElementRemoved(entry.value))
+        {
+            // The element, which the object belongs to, is gone
+            isChanged = true;
+            continue;
+        }
+
+        const PDFObject dereferencedValue = m_document->getObject(entry.value);
+
+        if (dereferencedValue.isArray())
+        {
+            // The array maps the marked content identifiers of a page to the elements.
+            // The page is not converted, so its elements are kept - unless the document
+            // is inconsistent. A removed element is replaced by null, so the identifiers
+            // of the other elements keep their positions.
+            const PDFArray* array = dereferencedValue.getArray();
+            PDFArray newArray;
+            bool isArrayChanged = false;
+
+            for (size_t i = 0, count = array->getCount(); i < count; ++i)
+            {
+                const PDFObject& item = array->getItem(i);
+
+                if (isElementRemoved(item))
+                {
+                    newArray.appendItem(PDFObject());
+                    isArrayChanged = true;
+                }
+                else
+                {
+                    newArray.appendItem(item);
+                }
+            }
+
+            if (isArrayChanged)
+            {
+                PDFObject newArrayObject = PDFObject::createArray(std::make_shared<PDFArray>(std::move(newArray)));
+
+                if (entry.value.isReference())
+                {
+                    m_builder->setObject(entry.value.getReference(), std::move(newArrayObject));
+                }
+                else
+                {
+                    entry.value = std::move(newArrayObject);
+                    isChanged = true;
+                }
+            }
+        }
+
+        numbers.appendItem(PDFObject::createInteger(entry.key));
+        numbers.appendItem(entry.value);
+    }
+
+    if (!isChanged)
+    {
+        return PDFObject();
+    }
+
+    // The tree is rebuilt as a single node - that is a valid number tree of any size
+    PDFDictionary dictionary;
+    dictionary.setEntry(PDFInplaceOrMemoryString("Nums"), PDFObject::createArray(std::make_shared<PDFArray>(std::move(numbers))));
+    return PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(dictionary)));
+}
+
+PDFObject PDFStructureTreePruner::rebuildIdTree(const PDFObject& idTree)
+{
+    const std::map<QByteArray, PDFObject> entries = PDFNameTreeLoader<PDFObject>::parse(&m_document->getStorage(), idTree, [](const PDFObjectStorage*, const PDFObject& object) { return object; });
+    bool isChanged = false;
+
+    PDFArray names;
+
+    for (const auto& [name, value] : entries)
+    {
+        if (isElementRemoved(value))
+        {
+            isChanged = true;
+            continue;
+        }
+
+        names.appendItem(PDFObject::createString(name));
+        names.appendItem(value);
+    }
+
+    if (!isChanged)
+    {
+        return PDFObject();
+    }
+
+    // The tree is rebuilt as a single node with the keys in the byte order, in which
+    // the map keeps them
+    PDFDictionary dictionary;
+    dictionary.setEntry(PDFInplaceOrMemoryString("Names"), PDFObject::createArray(std::make_shared<PDFArray>(std::move(names))));
+    return PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(dictionary)));
+}
+
+void PDFStructureTreePruner::pruneElementReferences()
+{
+    for (const PDFObjectReference reference : m_elementsWithReferences)
+    {
+        // The element can already be rewritten by the pruning of its kids, so the
+        // current dictionary is taken from the builder
+        const PDFObject elementObject = m_builder->getObjectByReference(reference);
+        const PDFDictionary* dictionary = elementObject.isDictionary() ? elementObject.getDictionary() : nullptr;
+
+        if (!dictionary)
+        {
+            continue;
+        }
+
+        const PDFObject references = m_document->getObject(dictionary->get("Ref"));
+
+        if (!references.isArray())
+        {
+            continue;
+        }
+
+        PDFArray newReferences;
+        bool isChanged = false;
+
+        for (size_t i = 0, count = references.getArray()->getCount(); i < count; ++i)
+        {
+            const PDFObject& item = references.getArray()->getItem(i);
+
+            if (isElementRemoved(item))
+            {
+                isChanged = true;
+                continue;
+            }
+
+            newReferences.appendItem(item);
+        }
+
+        if (!isChanged)
+        {
+            continue;
+        }
+
+        PDFDictionary newDictionary = *dictionary;
+
+        if (newReferences.getCount() > 0)
+        {
+            newDictionary.setEntry(PDFInplaceOrMemoryString("Ref"), PDFObject::createArray(std::make_shared<PDFArray>(std::move(newReferences))));
+        }
+        else
+        {
+            newDictionary.removeEntry("Ref");
+        }
+
+        m_builder->setObject(reference, PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(newDictionary))));
+    }
+}
+
+bool PDFStructureTreePruner::isAnnotationOfPage(PDFObjectReference page, PDFObjectReference object) const
+{
+    if (!object.isValid())
+    {
+        return false;
+    }
+
+    const PDFCatalog* catalog = m_document->getCatalog();
+    const size_t pageIndex = catalog->getPageIndexFromPageReference(page);
+
+    if (pageIndex >= catalog->getPageCount())
+    {
+        return false;
+    }
+
+    const PDFPage* pageObject = catalog->getPage(pageIndex);
+
+    if (!pageObject)
+    {
+        return false;
+    }
+
+    const std::vector<PDFObjectReference>& annotations = pageObject->getAnnotations();
+    return std::find(annotations.cbegin(), annotations.cend(), object) != annotations.cend();
+}
+
+PDFObjectReference PDFStructureTreePruner::getEffectivePage(const PDFDictionary* dictionary, PDFObjectReference inheritedPage) const
+{
+    const PDFObjectReference page = m_loader.readReferenceFromDictionary(dictionary, "Pg");
+    return page.isValid() ? page : inheritedPage;
+}
+
+void PDFStructureTreePruner::setObject(PDFDocumentBuilder* builder, const PDFObject& original, PDFDictionary& parentDictionary, const char* key, PDFObject object)
+{
+    if (original.isReference())
+    {
+        // The original object is indirect, so it is replaced in place and the parent
+        // dictionary keeps referring to it
+        builder->setObject(original.getReference(), std::move(object));
+    }
+    else
+    {
+        parentDictionary.setEntry(PDFInplaceOrMemoryString(key), std::move(object));
+    }
+}
+
+void PDFBitonalDocumentCreator::pruneStructureTree(PDFDocumentBuilder& builder, const std::set<PDFObjectReference>& convertedPages) const
+{
+    PDFStructureTreePruner pruner(m_document, &builder, convertedPages);
+
+    if (!pruner.prune())
+    {
+        // Nothing has remained in the tree
+        removeStructureTree(builder);
+    }
 }
 
 void PDFBitonalDocumentCreator::traversePageImages(const PDFPage* page,
@@ -607,7 +1308,15 @@ QImage PDFBitonalDocumentCreator::createFillPreviewImage(const QImage& image, bo
         return QImage();
     }
 
-    QImage alphaMask = PDFImageConversion::createAlphaMask(image);
+    std::optional<QImage> mask = PDFImageConversion::createAlphaMask(image);
+
+    if (!mask)
+    {
+        // The mask cannot be created, so the preview cannot be created either
+        return QImage();
+    }
+
+    QImage alphaMask = std::move(*mask);
 
     if (alphaMask.isNull() || !isBlack)
     {
@@ -657,7 +1366,21 @@ void PDFBitonalDocumentCreator::renderPages(const std::vector<PDFInteger>& pageI
 
     auto processImage = [catalog, &pageImageProcessor](PDFRenderedPageImage& renderedPageImage)
     {
-        QImage image = compositePageImageOntoWhite(renderedPageImage.pageImage);
+        QImage image;
+
+        if (!renderedPageImage.hasSevereError())
+        {
+            image = compositePageImageOntoWhite(renderedPageImage.pageImage);
+        }
+        else
+        {
+            // The renderer has skipped a part of the content of the page - for example
+            // an image, whose stream is damaged - and it has rendered the rest. Such an
+            // image must not replace the page, so the page is reported as failed by
+            // a null image.
+            image = QImage();
+        }
+
         const PDFPage* page = catalog->getPage(size_t(renderedPageImage.pageIndex));
 
         if (!image.isNull() && page)

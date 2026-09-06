@@ -159,6 +159,17 @@ void PDFImageConversion::prepareSourceImage()
     // of the source image (for example as a soft mask of the converted image).
     m_convertedAlphaMask = createBitonalImage();
 
+    if (m_convertedAlphaMask.isNull())
+    {
+        // The mask cannot be allocated. The transparency of the image would be lost
+        // silently, so the conversion fails instead - the buffers are cleared, which
+        // the conversion recognizes as a failure.
+        m_lightness.clear();
+        m_gray.clear();
+        m_opacity.clear();
+        return;
+    }
+
     for (int y = 0; y < m_height; ++y)
     {
         const size_t rowIndex = size_t(y) * size_t(m_width);
@@ -267,7 +278,7 @@ QImage PDFImageConversion::getConvertedAlphaMask() const
     return m_convertedAlphaMask;
 }
 
-QImage PDFImageConversion::createAlphaMask(const QImage& image)
+std::optional<QImage> PDFImageConversion::createAlphaMask(const QImage& image)
 {
     if (image.isNull() || !image.hasAlphaChannel())
     {
@@ -277,14 +288,19 @@ QImage PDFImageConversion::createAlphaMask(const QImage& image)
     const QImage source = image.convertToFormat(QImage::Format_ARGB32);
     if (source.isNull())
     {
-        return QImage();
+        // The conversion of the format has failed - the memory has run out
+        return std::nullopt;
     }
 
     const int width = source.width();
     const int height = source.height();
 
-    QImage mask(width, height, QImage::Format_Mono);
-    mask.fill(0);
+    QImage mask = createBitonalImage(QSize(width, height));
+
+    if (mask.isNull())
+    {
+        return std::nullopt;
+    }
 
     bool hasTransparentPixel = false;
 
@@ -319,7 +335,20 @@ QImage PDFImageConversion::createAlphaMask(const QImage& image)
 
 QImage PDFImageConversion::createBitonalImage() const
 {
-    QImage image(m_width, m_height, QImage::Format_Mono);
+    return createBitonalImage(QSize(m_width, m_height));
+}
+
+QImage PDFImageConversion::createBitonalImage(QSize size)
+{
+    QImage image(size, QImage::Format_Mono);
+
+    if (image.isNull())
+    {
+        // The image cannot be allocated - filling a null image is harmless, but
+        // the caller must be able to recognize the failure
+        return QImage();
+    }
+
     image.fill(0);
     return image;
 }
@@ -441,6 +470,11 @@ QImage PDFImageConversion::convertThresholded(int threshold) const
 
     QImage bitonal = createBitonalImage();
 
+    if (bitonal.isNull())
+    {
+        return QImage();
+    }
+
     for (int y = 0; y < m_height; ++y)
     {
         if (isCancelled())
@@ -480,6 +514,11 @@ QImage PDFImageConversion::convertAdaptive() const
     const int radius = ADAPTIVE_WINDOW_RADIUS;
 
     QImage bitonal = createBitonalImage();
+
+    if (bitonal.isNull())
+    {
+        return QImage();
+    }
 
     // For every column we keep the sum of the lightness values of the pixels lying
     // in the vertical part of the local window. Moving to the next row means adding
@@ -599,6 +638,11 @@ QImage PDFImageConversion::convertDithered(int threshold) const
     std::vector<float> buffer(m_gray.begin(), m_gray.end());
 
     QImage bitonal = createBitonalImage();
+
+    if (bitonal.isNull())
+    {
+        return QImage();
+    }
 
     for (int y = 0; y < height; ++y)
     {

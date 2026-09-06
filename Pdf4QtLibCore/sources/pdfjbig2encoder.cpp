@@ -310,8 +310,8 @@ QByteArray PDFJBIG2Encoder::encodeEmbeddedStream()
     validate();
 
     QByteArray stream;
-    appendSegment(stream, 0, PageInformation, createPageInformationData());
-    appendSegment(stream, 1, ImmediateGenericRegion, createGenericRegionData());
+    appendSegment(stream, 0, PageInformation, PAGE_NUMBER, createPageInformationData());
+    appendSegment(stream, 1, ImmediateGenericRegion, PAGE_NUMBER, createGenericRegionData());
     return stream;
 }
 
@@ -326,10 +326,13 @@ QByteArray PDFJBIG2Encoder::encodeFile()
     stream.append(char(0x01));
     appendUInt32(stream, 1);
 
-    appendSegment(stream, 0, PageInformation, createPageInformationData());
-    appendSegment(stream, 1, ImmediateGenericRegion, createGenericRegionData());
-    appendSegment(stream, 2, EndOfPage, QByteArray());
-    appendSegment(stream, 3, EndOfFile, QByteArray());
+    appendSegment(stream, 0, PageInformation, PAGE_NUMBER, createPageInformationData());
+    appendSegment(stream, 1, ImmediateGenericRegion, PAGE_NUMBER, createGenericRegionData());
+    appendSegment(stream, 2, EndOfPage, PAGE_NUMBER, QByteArray());
+
+    // The end of file segment is not associated with any page, see 7.3.2 of the
+    // specification - the end of page segment must be the last segment of the page
+    appendSegment(stream, 3, EndOfFile, 0, QByteArray());
     return stream;
 }
 
@@ -349,6 +352,13 @@ void PDFJBIG2Encoder::validate(const PDFBitonalBitmapView& bitmap, const PDFJBIG
     if (!bitmap.isValid())
     {
         throw PDFException(PDFTranslationContext::tr("Invalid bitonal image for the JBIG2 encoding."));
+    }
+
+    // The decoder refuses a bitmap, whose width or height exceeds its limit, so an
+    // image exceeding it must not be encoded at all - the stream could not be read back
+    if (uint32_t(bitmap.width) > PDFJBIG2Decoder::MAX_BITMAP_SIZE || uint32_t(bitmap.height) > PDFJBIG2Decoder::MAX_BITMAP_SIZE)
+    {
+        throw PDFException(PDFTranslationContext::tr("Image of the size %1 x %2 is too large for the JBIG2 encoding, the maximum size is %3 x %3.").arg(bitmap.width).arg(bitmap.height).arg(PDFJBIG2Decoder::MAX_BITMAP_SIZE));
     }
 
     // The decoder allocates a byte per pixel, so the same limit is used here
@@ -375,6 +385,25 @@ void PDFJBIG2Encoder::validate(const PDFBitonalBitmapView& bitmap, const PDFJBIG
             throw PDFException(PDFTranslationContext::tr("Invalid JBIG2 adaptive template pixel position A%1 = (%2, %3).").arg(i + 1).arg(position.x).arg(position.y));
         }
     }
+}
+
+bool PDFJBIG2Encoder::isSizeSupported(int width, int height)
+{
+    if (width < 1 || height < 1 || uint32_t(width) > PDFJBIG2Decoder::MAX_BITMAP_SIZE || uint32_t(height) > PDFJBIG2Decoder::MAX_BITMAP_SIZE)
+    {
+        return false;
+    }
+
+    try
+    {
+        PDFJBIG2Bitmap::checkSize(width, height);
+    }
+    catch (const PDFException&)
+    {
+        return false;
+    }
+
+    return true;
 }
 
 QByteArray PDFJBIG2Encoder::encodeGenericRegionArithmetic() const
@@ -606,7 +635,7 @@ QByteArray PDFJBIG2Encoder::createGenericRegionData()
     return data;
 }
 
-void PDFJBIG2Encoder::appendSegment(QByteArray& stream, uint32_t segmentNumber, SegmentType type, const QByteArray& data)
+void PDFJBIG2Encoder::appendSegment(QByteArray& stream, uint32_t segmentNumber, SegmentType type, uint8_t pageAssociation, const QByteArray& data)
 {
     // Segment header, see 7.2 of the specification
     appendUInt32(stream, segmentNumber);
@@ -618,8 +647,9 @@ void PDFJBIG2Encoder::appendSegment(QByteArray& stream, uint32_t segmentNumber, 
     // Referred-to segments - none, so the count and the retain bits are all zero
     stream.append(char(0x00));
 
-    // Page association
-    stream.append(char(0x01));
+    // Page association, see 7.2.6 - zero for a segment, which is not associated
+    // with any page
+    stream.append(char(pageAssociation));
 
     // Segment data length
     appendUInt32(stream, uint32_t(data.size()));

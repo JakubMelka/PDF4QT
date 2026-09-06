@@ -26,8 +26,10 @@
 
 #include <QtTest>
 
+#include <initializer_list>
 #include <limits>
 #include <random>
+#include <tuple>
 
 /// Tests of the CCITT fax encoder and decoder. The encoder is verified against the code
 /// words of ITU-T T.4 and T.6 by hand coded streams, against the MMR coded region of the
@@ -454,6 +456,31 @@ void CCITTFaxTest::test_changing_elements()
     invalid.height = 0;
     QVERIFY(!invalid.isValid());
     QVERIFY(wide.view().isValid());
+
+    // The stride must hold a whole row. The check must not overflow for a width close
+    // to the largest int - the data are never touched by the check, so a single byte
+    // is enough for the test.
+    const uint8_t singleByte = 0;
+    pdf::PDFBitonalBitmapView huge;
+    huge.data = &singleByte;
+    huge.height = 1;
+
+    for (const auto& [width, stride, isValid] : std::initializer_list<std::tuple<int, int, bool>>{
+             { 8, 1, true },
+             { 9, 1, false },
+             { 9, 2, true },
+             { 8, 0, false },
+             { 8, -1, false },
+             { std::numeric_limits<int>::max(), 0, false },
+             { std::numeric_limits<int>::max() - 6, 0, false },
+             { std::numeric_limits<int>::max(), (std::numeric_limits<int>::max() / 8), false },
+             { std::numeric_limits<int>::max(), (std::numeric_limits<int>::max() / 8) + 1, true },
+             { std::numeric_limits<int>::max() - 6, (std::numeric_limits<int>::max() / 8) + 1, true } })
+    {
+        huge.width = width;
+        huge.stride = stride;
+        QVERIFY2(huge.isValid() == isValid, qPrintable(QString("width = %1, stride = %2").arg(width).arg(stride)));
+    }
 }
 
 void CCITTFaxTest::test_hand_coded_group4_rows()

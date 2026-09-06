@@ -33,6 +33,7 @@
 
 #include <functional>
 #include <optional>
+#include <set>
 #include <vector>
 
 namespace pdf
@@ -116,12 +117,21 @@ public:
     /// in a worker thread.
     ///
     /// The settings do not have to be normalized - an item with an invalid page index
-    /// is ignored and a page requested more than once is converted only once (the mode
-    /// of its last occurrence is used).
+    /// or image reference is ignored and an item requested more than once is converted
+    /// only once (the mode of its last occurrence is used, even when that mode leaves
+    /// the item untouched).
     ///
     /// The result can be partial - an image, which cannot be decoded, or a page, which
-    /// cannot be rendered, is left in its original form and the conversion continues.
-    /// Use \p getFailedItemCount to find out, whether that has happened.
+    /// cannot be rendered completely, is left in its original form and the conversion
+    /// continues. Use \p getFailedItemCount to find out, whether that has happened.
+    /// A page is converted only when its rendering has reported no error, because an
+    /// image of a page, whose content has been partially skipped, would replace the
+    /// original content irreversibly.
+    ///
+    /// When only some pages of a tagged document are converted, the structure tree
+    /// is pruned - the references to the marked content of the converted pages are
+    /// removed from it, the elements, which have lost all their content, are removed
+    /// as well, and the parent tree and the ID tree are updated accordingly.
     /// \param settings Inputs of the conversion
     bool createBitonalDocument(const Settings& settings);
 
@@ -166,7 +176,9 @@ public:
     /// in the coordinate system of the page, i.e. the page rotation is not applied
     /// to them. The processor can be called from multiple threads simultaneously and
     /// it is not called at all for the pages, which have been skipped because the
-    /// operation has been cancelled.
+    /// operation has been cancelled. A page, whose rendering has reported an error,
+    /// is passed to the processor as a null image - the renderer skips the content
+    /// it cannot process, so the image would not show the whole page.
     /// \param pageIndices Indices of the rendered pages
     /// \param pageSizeGetter Functor returning the size of the rendered page image
     /// \param pageImageProcessor Functor processing the rendered page image
@@ -245,6 +257,16 @@ public:
 private:
     bool createBitonalDocumentFromImages(PDFDocumentBuilder& builder, const Settings& settings);
     bool createBitonalDocumentFromPages(PDFDocumentBuilder& builder, const Settings& settings);
+
+    /// Removes the structure tree of the document altogether
+    void removeStructureTree(PDFDocumentBuilder& builder) const;
+
+    /// Removes the references to the content of the converted pages from the structure
+    /// tree, see \p createBitonalDocument. The whole tree is removed, when no element
+    /// remains in it.
+    /// \param builder Builder of the converted document
+    /// \param convertedPages Pages, whose content has been replaced
+    void pruneStructureTree(PDFDocumentBuilder& builder, const std::set<PDFObjectReference>& convertedPages) const;
 
     /// Starts the progress, when it is available
     /// \param stepCount Number of steps

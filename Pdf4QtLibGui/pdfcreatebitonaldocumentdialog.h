@@ -135,10 +135,21 @@ public:
         };
 
         /// Returns true, if the mode can be used for this item. An item, whose image
-        /// could not be decoded or rendered, cannot be converted by the algorithm, but
-        /// it still can be replaced by a solid fill.
+        /// could not be decoded or rendered, cannot be converted by the algorithm. A
+        /// page can still be replaced by a solid fill, because the fill of a page needs
+        /// no rasterization. An image cannot - its transparency, which the fill has to
+        /// preserve, is a part of the image, which cannot be decoded - so the converter
+        /// would skip it and the request of the user would be silently ignored.
         /// \param testedMode Mode to be tested
-        bool isModeAvailable(Mode testedMode) const { return testedMode != Mode::Algorithm || thumbnailState != ThumbnailState::Failed; }
+        bool isModeAvailable(Mode testedMode) const
+        {
+            if (thumbnailState != ThumbnailState::Failed || testedMode == Mode::Original)
+            {
+                return true;
+            }
+
+            return testedMode != Mode::Algorithm && pageIndex >= 0;
+        }
 
         ThumbnailState thumbnailState = ThumbnailState::Pending;
     };
@@ -234,10 +245,19 @@ private:
     /// ignored - the job is running until its newest run finishes.
     void onJobFinished(AsyncJob& job, int generation);
 
+    /// Result of the conversion. The counts belong to the same run as the flag, so
+    /// the dialog can tell a complete success from a partial one.
+    struct ConversionResult
+    {
+        bool isConverted = false;       ///< True, if at least one item has been converted
+        size_t convertedItemCount = 0;  ///< Number of the converted items
+        size_t failedItemCount = 0;     ///< Number of the items, which are left unchanged, because their conversion has failed
+    };
+
     /// Creates the bitonal document. This function is executed in the worker thread,
-    /// it must not touch the state of the dialog. Returns true, if at least one item
-    /// has been converted and the resulting document is valid.
-    bool createBitonalDocument(const ConversionSettings& settings);
+    /// it must not touch the state of the dialog. The result is converted, if at least
+    /// one item has been converted and the resulting document is valid.
+    ConversionResult createBitonalDocument(const ConversionSettings& settings);
 
     void onCreateBitonalDocumentButtonClicked();
     void onPerformFinished();
@@ -317,8 +337,8 @@ private:
     const pdf::PDFCMS* m_cms;
     QPushButton* m_createBitonalDocumentButton;
     bool m_conversionInProgress;
-    QFuture<bool> m_future;
-    std::optional<QFutureWatcher<bool>> m_futureWatcher;
+    QFuture<ConversionResult> m_future;
+    std::optional<QFutureWatcher<ConversionResult>> m_futureWatcher;
     pdf::PDFDocument m_bitonalDocument;
     std::vector<pdf::PDFObjectReference> m_imageReferences;
     std::vector<ConversionItemInfo> m_itemsToBeConverted;

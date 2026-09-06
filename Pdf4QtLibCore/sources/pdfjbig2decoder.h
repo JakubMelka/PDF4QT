@@ -472,8 +472,12 @@ public:
     /// If number of pages is invalid, then exception is thrown.
     PDFImageData decodeFileStream();
 
-private:
+    /// Maximum width and height of a single bitmap, which the decoder accepts. The
+    /// limit is public, so an encoder can refuse an image, which the decoder would
+    /// not be able to read back.
     static constexpr const uint32_t MAX_BITMAP_SIZE = 65536;
+
+private:
 
     /// Maximum number of the symbols of a single symbol dictionary. The number of the
     /// symbols is read from the segment header before anything is decoded, so without

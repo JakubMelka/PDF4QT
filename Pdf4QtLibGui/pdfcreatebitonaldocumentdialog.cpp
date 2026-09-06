@@ -423,7 +423,7 @@ void PDFCreateBitonalDocumentDialog::finishPendingThumbnails()
 
         info.thumbnailState = ConversionItemInfo::ThumbnailState::Failed;
 
-        if (info.mode == ConversionItemInfo::Mode::Algorithm)
+        if (!info.isModeAvailable(info.mode))
         {
             info.mode = ConversionItemInfo::Mode::Original;
         }
@@ -437,13 +437,13 @@ void PDFCreateBitonalDocumentDialog::finishPendingThumbnails()
 
 void PDFCreateBitonalDocumentDialog::onPerformFinished()
 {
-    const bool isConverted = m_future.result();
+    const ConversionResult result = m_future.result();
 
     // The flag must be cleared before the dialog is closed - closing is refused while
     // the conversion is running, because its worker writes into the dialog.
     m_conversionInProgress = false;
 
-    if (!isConverted)
+    if (!result.isConverted)
     {
         m_bitonalDocument = pdf::PDFDocument();
         updateUi();
@@ -451,21 +451,45 @@ void PDFCreateBitonalDocumentDialog::onPerformFinished()
         return;
     }
 
+    if (result.failedItemCount > 0)
+    {
+        // The document has been created, but a part of it is left in the original form.
+        // A successful thumbnail does not rule this out - the final conversion runs at
+        // a different resolution and it can fail because of its demands. The user has
+        // asked for the conversion of these items, so the partial result is accepted
+        // only when the user agrees with it.
+        const QString message = tr("%1 of %2 items could not be converted and they are left unchanged. Do you want to use the partially converted document?")
+                                    .arg(result.failedItemCount)
+                                    .arg(result.failedItemCount + result.convertedItemCount);
+
+        if (QMessageBox::question(this, tr("Create Bitonal Document"), message, QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes)
+        {
+            m_bitonalDocument = pdf::PDFDocument();
+            updateUi();
+            return;
+        }
+    }
+
     // The converted document is the result of the dialog, so there is nothing else
     // to be confirmed here - the caller takes the document and the dialog is closed.
     accept();
 }
 
-bool PDFCreateBitonalDocumentDialog::createBitonalDocument(const ConversionSettings& settings)
+PDFCreateBitonalDocumentDialog::ConversionResult PDFCreateBitonalDocumentDialog::createBitonalDocument(const ConversionSettings& settings)
 {
-    if (!m_creator->createBitonalDocument(settings))
+    ConversionResult result;
+    result.isConverted = m_creator->createBitonalDocument(settings);
+    result.convertedItemCount = m_creator->getConvertedItemCount();
+    result.failedItemCount = m_creator->getFailedItemCount();
+
+    if (!result.isConverted)
     {
         m_bitonalDocument = pdf::PDFDocument();
-        return false;
+        return result;
     }
 
     m_bitonalDocument = m_creator->takeBitonalDocument();
-    return true;
+    return result;
 }
 
 void PDFCreateBitonalDocumentDialog::onCreateBitonalDocumentButtonClicked()
@@ -482,7 +506,7 @@ void PDFCreateBitonalDocumentDialog::onCreateBitonalDocumentButtonClicked()
     m_conversionInProgress = true;
     m_future = QtConcurrent::run([this, settings = std::move(settings)]() { return createBitonalDocument(settings); });
     m_futureWatcher.emplace();
-    connect(&m_futureWatcher.value(), &QFutureWatcher<bool>::finished, this, &PDFCreateBitonalDocumentDialog::onPerformFinished);
+    connect(&m_futureWatcher.value(), &QFutureWatcher<ConversionResult>::finished, this, &PDFCreateBitonalDocumentDialog::onPerformFinished);
     m_futureWatcher->setFuture(m_future);
     updateUi();
 }
@@ -908,11 +932,11 @@ void PDFCreateBitonalDocumentDialog::onThumbnailReady(int generation, int itemIn
     {
         info.thumbnailState = ConversionItemInfo::ThumbnailState::Failed;
 
-        if (info.mode == ConversionItemInfo::Mode::Algorithm)
+        if (!info.isModeAvailable(info.mode))
         {
             // The image cannot be decoded or the page cannot be rendered, so the
-            // algorithm has nothing to work with. Replacing the item by a solid
-            // fill still makes sense, so the other modes stay available.
+            // algorithm has nothing to work with. A page can still be replaced by a
+            // solid fill, an image cannot - see isModeAvailable.
             info.mode = ConversionItemInfo::Mode::Original;
         }
 

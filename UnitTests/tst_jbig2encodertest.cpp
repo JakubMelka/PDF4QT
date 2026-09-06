@@ -27,6 +27,7 @@
 #include <QtTest>
 
 #include <random>
+#include <utility>
 
 /// Tests of the JBIG2 encoder. The arithmetic coder is verified against the test sequence
 /// of the annex H.2 of the specification, the generic region coding against the example
@@ -825,9 +826,17 @@ void JBIG2EncoderTest::test_file_stream_roundtrip()
         // The file header of the annex D.4 - the identifier, the sequential organisation
         // with a known number of the pages, and a single page. The segments of the
         // embedded stream follow, terminated by the end of page and the end of file.
+        // The end of page is associated with the page 1 and it is the last segment
+        // of the page (7.4.9), the end of file is associated with no page (7.3.2).
         QVERIFY(file.startsWith(QByteArray("\x97\x4A\x42\x32\x0D\x0A\x1A\x0A\x01\x00\x00\x00\x01", 13)));
         QCOMPARE(file.mid(13, embedded.size()), embedded);
-        QCOMPARE(file.mid(13 + embedded.size()), QByteArray("\x00\x00\x00\x02\x31\x00\x01\x00\x00\x00\x00" "\x00\x00\x00\x03\x33\x00\x01\x00\x00\x00\x00", 22));
+        QCOMPARE(file.mid(13 + embedded.size()), QByteArray("\x00\x00\x00\x02\x31\x00\x01\x00\x00\x00\x00" "\x00\x00\x00\x03\x33\x00\x00\x00\x00\x00\x00", 22));
+
+        // The page association of every segment of the page is 1 - the header of the
+        // segment is the segment number, the flags, the referred-to segments byte and
+        // the page association (7.2)
+        QCOMPARE(uint8_t(embedded[6]), uint8_t(0x01));
+        QCOMPARE(uint8_t(embedded[4]), uint8_t(0x30));
 
         ErrorCollector errorCollector;
         pdf::PDFJBIG2Decoder decoder(file, QByteArray(), &errorCollector);
@@ -911,6 +920,42 @@ void JBIG2EncoderTest::test_encoder_rejects_invalid_input()
     hugeView.height = 40000;
     hugeView.stride = 5000;
     QVERIFY_THROWS_EXCEPTION(pdf::PDFException, pdf::PDFJBIG2Encoder(hugeView, parameters).encodeGenericRegion());
+    QVERIFY(!pdf::PDFJBIG2Encoder::isSizeSupported(40000, 40000));
+
+    // A dimension exceeding the limit of the decoder is refused as well, even when the
+    // pixel count is tiny - the decoder would not read the stream back
+    for (const auto& [width, height] : { std::pair<int, int>(65537, 1), std::pair<int, int>(1, 65537) })
+    {
+        pdf::PDFBitonalBitmapView longView = bitmap.view();
+        longView.width = width;
+        longView.height = height;
+        longView.stride = 8200;
+        QVERIFY(!pdf::PDFJBIG2Encoder::isSizeSupported(width, height));
+        QVERIFY_THROWS_EXCEPTION(pdf::PDFException, pdf::PDFJBIG2Encoder(longView, parameters).encodeEmbeddedStream());
+        QVERIFY_THROWS_EXCEPTION(pdf::PDFException, pdf::PDFJBIG2Encoder(longView, parameters).encodeFile());
+        QVERIFY_THROWS_EXCEPTION(pdf::PDFException, pdf::PDFJBIG2Encoder(longView, parameters).encodeGenericRegion());
+    }
+
+    QVERIFY(!pdf::PDFJBIG2Encoder::isSizeSupported(0, 1));
+    QVERIFY(!pdf::PDFJBIG2Encoder::isSizeSupported(1, 0));
+    QVERIFY(pdf::PDFJBIG2Encoder::isSizeSupported(1, 1));
+    QVERIFY(pdf::PDFJBIG2Encoder::isSizeSupported(65536, 1));
+    QVERIFY(pdf::PDFJBIG2Encoder::isSizeSupported(1, 65536));
+
+    // The largest dimension, which the decoder accepts, survives the round trip
+    for (const auto& [width, height] : { std::pair<int, int>(65536, 1), std::pair<int, int>(1, 65536) })
+    {
+        const Bitmap longBitmap = createTestBitmap("noise50", width, height, 3);
+
+        for (const bool MMR : { false, true })
+        {
+            pdf::PDFJBIG2EncoderParameters longParameters;
+            longParameters.MMR = MMR;
+
+            const QByteArray stream = pdf::PDFJBIG2Encoder(longBitmap.view(), longParameters).encodeEmbeddedStream();
+            QVERIFY2(decodeEmbeddedStream(stream, nullptr) == longBitmap, qPrintable(QString("%1 x %2, MMR = %3").arg(width).arg(height).arg(MMR)));
+        }
+    }
 
     // Invalid template
     parameters.GBTEMPLATE = 4;

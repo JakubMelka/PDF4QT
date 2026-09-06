@@ -34,7 +34,9 @@
 #include <QImage>
 
 #include <memory>
+#include <optional>
 #include <random>
+#include <tuple>
 
 class ImageOptimizerTest : public QObject
 {
@@ -51,10 +53,13 @@ private slots:
     void test_bitonal_conversion_alpha_adaptive_and_dither();
     void test_bitonal_conversion_constant_images();
     void test_bitonal_conversion_is_cancellable();
+    void test_bitonal_conversion_allocation_failure();
     void test_bitonal_creator_normalizes_page_items();
+    void test_bitonal_creator_normalizes_image_items();
     void test_bitonal_creator_converts_image();
     void test_bitonal_creator_fill_respects_transparency();
     void test_bitonal_creator_original_mode_converts_nothing();
+    void test_bitonal_creator_skips_undecodable_image();
     void test_image_analysis_classification();
     void test_optimizer_keeps_original_if_larger();
     void test_optimizer_skips_disabled_override();
@@ -65,6 +70,7 @@ private slots:
     void test_image_stream_bitonal_filters_convert_color_images();
     void test_optimizer_bitonal_algorithms();
     void test_bitonal_creator_uses_jbig2();
+    void test_image_stream_jbig2_falls_back_for_large_images();
 
 private:
     static QImage createLineArtImage(int size);
@@ -76,6 +82,10 @@ private:
     static pdf::PDFDocument createDocumentWithImage(const QImage& image,
                                                     bool addSoftMask,
                                                     pdf::PDFImage::ImageCompression compression);
+
+    /// Replaces the data of the image by a garbage, which its filter cannot decode.
+    /// The dictionary of the image (its size, color space and filter) stays valid.
+    static pdf::PDFDocument damageImageData(const pdf::PDFDocument& document, pdf::PDFObjectReference imageReference);
 };
 
 QImage ImageOptimizerTest::createLineArtImage(int size)
@@ -205,6 +215,20 @@ QImage ImageOptimizerTest::extractAlphaMask(const QImage& image)
     }
 
     return mask;
+}
+
+pdf::PDFDocument ImageOptimizerTest::damageImageData(const pdf::PDFDocument& document, pdf::PDFObjectReference imageReference)
+{
+    const pdf::PDFObject& imageObject = document.getObjectByReference(imageReference);
+    Q_ASSERT(imageObject.isStream());
+
+    pdf::PDFDictionary dictionary = *imageObject.getStream()->getDictionary();
+    QByteArray garbage("this is not a compressed image stream at all");
+    dictionary.setEntry(pdf::PDFInplaceOrMemoryString(pdf::PDF_STREAM_DICT_LENGTH), pdf::PDFObject::createInteger(garbage.size()));
+
+    pdf::PDFDocumentBuilder builder(&document);
+    builder.setObject(imageReference, pdf::PDFObject::createStream(std::make_shared<pdf::PDFStream>(std::move(dictionary), std::move(garbage))));
+    return builder.build();
 }
 
 pdf::PDFDocument ImageOptimizerTest::createDocumentWithImage(const QImage& image,
@@ -456,7 +480,9 @@ void ImageOptimizerTest::test_bitonal_conversion_static_alpha_mask()
     conversion.setConversionMethod(pdf::PDFImageConversion::ConversionMethod::Automatic);
     QVERIFY(conversion.convert());
 
-    QImage staticMask = pdf::PDFImageConversion::createAlphaMask(image);
+    std::optional<QImage> maskResult = pdf::PDFImageConversion::createAlphaMask(image);
+    QVERIFY(maskResult.has_value());
+    const QImage staticMask = *maskResult;
     QCOMPARE(staticMask.format(), QImage::Format_Mono);
     QCOMPARE(staticMask.size(), image.size());
     QCOMPARE(staticMask, conversion.getConvertedAlphaMask());
@@ -465,16 +491,47 @@ void ImageOptimizerTest::test_bitonal_conversion_static_alpha_mask()
     QCOMPARE(staticMask.pixelIndex(0, 0), 0);
     QCOMPARE(staticMask.pixelIndex(size / 2, 0), 1);
 
-    // Neither a fully opaque image nor an image without the alpha channel has a mask
+    // Neither a fully opaque image nor an image without the alpha channel has a mask.
+    // That is a legitimate result, not a failure - the optional holds a null image.
     QImage opaqueImage(size, size, QImage::Format_ARGB32);
     opaqueImage.fill(Qt::white);
-    QVERIFY(pdf::PDFImageConversion::createAlphaMask(opaqueImage).isNull());
+    maskResult = pdf::PDFImageConversion::createAlphaMask(opaqueImage);
+    QVERIFY(maskResult.has_value());
+    QVERIFY(maskResult->isNull());
 
     QImage imageWithoutAlpha(size, size, QImage::Format_RGB32);
     imageWithoutAlpha.fill(Qt::red);
-    QVERIFY(pdf::PDFImageConversion::createAlphaMask(imageWithoutAlpha).isNull());
+    maskResult = pdf::PDFImageConversion::createAlphaMask(imageWithoutAlpha);
+    QVERIFY(maskResult.has_value());
+    QVERIFY(maskResult->isNull());
 
-    QVERIFY(pdf::PDFImageConversion::createAlphaMask(QImage()).isNull());
+    maskResult = pdf::PDFImageConversion::createAlphaMask(QImage());
+    QVERIFY(maskResult.has_value());
+    QVERIFY(maskResult->isNull());
+}
+
+void ImageOptimizerTest::test_bitonal_conversion_allocation_failure()
+{
+    // The bitonal images are written by direct access to their scan lines, so an image,
+    // which could not be allocated, must be recognized before anything is written into
+    // it. An image of a billion by a billion pixels cannot be allocated, and Qt refuses
+    // it without touching the memory.
+    QVERIFY(pdf::PDFImageConversion::createBitonalImage(QSize(1 << 30, 1 << 30)).isNull());
+    QVERIFY(pdf::PDFImageConversion::createBitonalImage(QSize(0, 0)).isNull());
+
+    // A regular image is allocated and it is black
+    const QImage image = pdf::PDFImageConversion::createBitonalImage(QSize(11, 3));
+    QVERIFY(!image.isNull());
+    QCOMPARE(image.format(), QImage::Format_Mono);
+    QCOMPARE(image.size(), QSize(11, 3));
+
+    for (int y = 0; y < image.height(); ++y)
+    {
+        for (int x = 0; x < image.width(); ++x)
+        {
+            QCOMPARE(image.pixelIndex(x, y), 0);
+        }
+    }
 }
 
 void ImageOptimizerTest::test_bitonal_conversion_alpha_mode_ignore()
@@ -598,6 +655,9 @@ void ImageOptimizerTest::test_bitonal_conversion_is_cancellable()
     QVERIFY(conversion.getConvertedAlphaMask().isNull());
 }
 
+static const pdf::PDFDictionary* getPageBitonalImageOfDocument(const pdf::PDFDocument& document);
+static const pdf::PDFDictionary* getFirstPageImageDictionary(const pdf::PDFDocument& document);
+
 void ImageOptimizerTest::test_bitonal_creator_normalizes_page_items()
 {
     constexpr int size = 16;
@@ -651,11 +711,98 @@ void ImageOptimizerTest::test_bitonal_creator_normalizes_page_items()
     // The page content has been replaced by the single filled image
     QCOMPARE(xObjects->getCount(), size_t(1));
     QVERIFY(xObjects->hasKey("BitonalImage"));
+
+    // The mode of the last occurrence wins even when it leaves the page untouched -
+    // a later item cancels the earlier request
+    pdf::PDFBitonalDocumentCreator::ItemInfo originalItem;
+    originalItem.pageIndex = 0;
+    originalItem.mode = pdf::PDFBitonalDocumentCreator::ItemMode::Original;
+    settings.items.push_back(originalItem);
+
+    QVERIFY(!creator.createBitonalDocument(settings));
+    QCOMPARE(creator.getConvertedItemCount(), size_t(0));
+    QCOMPARE(creator.getFailedItemCount(), size_t(0));
+
+    // ... and the other way round, the fill following the untouched page fills it
+    settings.items.push_back(duplicatedItem);
+    QVERIFY(creator.createBitonalDocument(settings));
+    QCOMPARE(creator.getConvertedItemCount(), size_t(1));
+    QCOMPARE(creator.getFailedItemCount(), size_t(0));
+    QVERIFY(getPageBitonalImageOfDocument(creator.takeBitonalDocument()));
+}
+
+void ImageOptimizerTest::test_bitonal_creator_normalizes_image_items()
+{
+    constexpr int size = 16;
+    pdf::PDFDocument document = createDocumentWithImage(createLineArtImage(size), false, pdf::PDFImage::ImageCompression::Flate);
+    pdf::PDFBitonalDocumentCreator creator(&document, nullptr, nullptr);
+
+    const pdf::PDFObjectReference imageReference = creator.getConvertibleImages().front();
+
+    pdf::PDFBitonalDocumentCreator::Settings settings;
+    settings.conversionSource = pdf::PDFBitonalDocumentCreator::ConversionSource::Images;
+
+    // An item without an image is ignored
+    settings.items.push_back(pdf::PDFBitonalDocumentCreator::ItemInfo());
+    QVERIFY(!creator.createBitonalDocument(settings));
+
+    // The same image requested twice is converted once, the mode of the last occurrence
+    // wins - a later untouched item cancels the earlier fill
+    pdf::PDFBitonalDocumentCreator::ItemInfo fillItem;
+    fillItem.imageReference = imageReference;
+    fillItem.mode = pdf::PDFBitonalDocumentCreator::ItemMode::FillBlack;
+
+    pdf::PDFBitonalDocumentCreator::ItemInfo originalItem;
+    originalItem.imageReference = imageReference;
+    originalItem.mode = pdf::PDFBitonalDocumentCreator::ItemMode::Original;
+
+    settings.items.push_back(fillItem);
+    settings.items.push_back(originalItem);
+    QVERIFY(!creator.createBitonalDocument(settings));
+    QCOMPARE(creator.getConvertedItemCount(), size_t(0));
+
+    settings.items.push_back(fillItem);
+    settings.items.push_back(fillItem);
+    QVERIFY(creator.createBitonalDocument(settings));
+    QCOMPARE(creator.getConvertedItemCount(), size_t(1));
+    QCOMPARE(creator.getFailedItemCount(), size_t(0));
+
+    const pdf::PDFDocument bitonalDocument = creator.takeBitonalDocument();
+    const pdf::PDFDictionary* imageDictionary = getFirstPageImageDictionary(bitonalDocument);
+    QVERIFY(imageDictionary);
+
+    pdf::PDFDocumentDataLoaderDecorator loader(&bitonalDocument);
+    QCOMPARE(loader.readIntegerFromDictionary(imageDictionary, "BitsPerComponent", 0), 1);
 }
 
 /// Returns the dictionary of the image XObject placed on the first page of the
 /// document. The image is looked up through the page resources, so the test does not
 /// depend on the object numbering of the converted document.
+/// Returns the dictionary of the image, which the page conversion has placed onto
+/// the first page of the document
+static const pdf::PDFDictionary* getPageBitonalImageOfDocument(const pdf::PDFDocument& document)
+{
+    const pdf::PDFPage* page = document.getCatalog()->getPage(0);
+    if (!page)
+    {
+        return nullptr;
+    }
+
+    const pdf::PDFDictionary* resources = document.getDictionaryFromObject(page->getResources());
+    if (!resources)
+    {
+        return nullptr;
+    }
+
+    const pdf::PDFDictionary* xObjects = document.getDictionaryFromObject(resources->get("XObject"));
+    if (!xObjects)
+    {
+        return nullptr;
+    }
+
+    return document.getDictionaryFromObject(xObjects->get("BitonalImage"));
+}
+
 static const pdf::PDFDictionary* getFirstPageImageDictionary(const pdf::PDFDocument& document)
 {
     const pdf::PDFPage* page = document.getCatalog()->getPage(0);
@@ -795,6 +942,43 @@ void ImageOptimizerTest::test_bitonal_creator_original_mode_converts_nothing()
     // Nothing has been converted, so there is no document to be accepted
     QVERIFY(!creator.createBitonalDocument(settings));
     QCOMPARE(creator.takeBitonalDocument().getCatalog()->getPageCount(), size_t(0));
+}
+
+void ImageOptimizerTest::test_bitonal_creator_skips_undecodable_image()
+{
+    constexpr int size = 32;
+    const pdf::PDFDocument validDocument = createDocumentWithImage(createMaskedForegroundImage(size), true, pdf::PDFImage::ImageCompression::Flate);
+    pdf::PDFBitonalDocumentCreator validCreator(&validDocument, nullptr, nullptr);
+    const std::vector<pdf::PDFObjectReference> images = validCreator.getConvertibleImages();
+    QCOMPARE(images.size(), size_t(1));
+
+    const pdf::PDFDocument document = damageImageData(validDocument, images.front());
+    pdf::PDFBitonalDocumentCreator creator(&document, nullptr, nullptr);
+
+    // The image is still listed - its dictionary is valid - but it cannot be decoded
+    QCOMPARE(creator.getConvertibleImages(), images);
+    QVERIFY(creator.getDecodedImage(images.front(), nullptr).isNull());
+
+    // Neither the algorithm nor the fills can replace the image - the fill has to keep
+    // the transparency of the image, which is a part of the image, which cannot be
+    // decoded. The image is left as it is and it is counted as failed, so a user
+    // interface must not offer these modes for it.
+    for (const pdf::PDFBitonalDocumentCreator::ItemMode mode : { pdf::PDFBitonalDocumentCreator::ItemMode::Algorithm,
+                                                                 pdf::PDFBitonalDocumentCreator::ItemMode::FillBlack,
+                                                                 pdf::PDFBitonalDocumentCreator::ItemMode::FillWhite })
+    {
+        pdf::PDFBitonalDocumentCreator::Settings settings;
+        settings.conversionSource = pdf::PDFBitonalDocumentCreator::ConversionSource::Images;
+
+        pdf::PDFBitonalDocumentCreator::ItemInfo item;
+        item.imageReference = images.front();
+        item.mode = mode;
+        settings.items.push_back(item);
+
+        QVERIFY(!creator.createBitonalDocument(settings));
+        QCOMPARE(creator.getConvertedItemCount(), size_t(0));
+        QCOMPARE(creator.getFailedItemCount(), size_t(1));
+    }
 }
 
 void ImageOptimizerTest::test_image_analysis_classification()
@@ -1256,6 +1440,88 @@ void ImageOptimizerTest::test_bitonal_creator_uses_jbig2()
                 QFAIL(qPrintable(QString("Pixel [%1, %2] differs.").arg(x).arg(y)));
             }
         }
+    }
+}
+
+void ImageOptimizerTest::test_image_stream_jbig2_falls_back_for_large_images()
+{
+    // The JBIG2 decoder accepts a bitmap of at most 65536 pixels in either dimension.
+    // A larger image requested to be coded by JBIG2 is coded by the fax coding instead,
+    // so the stream can be read back - a JBIG2 stream, which the decoder refuses, would
+    // be worthless. The largest accepted size stays coded by JBIG2.
+    for (const auto& [width, height, isJBIG2] : { std::tuple<int, int, bool>(65536, 1, true),
+                                                   std::tuple<int, int, bool>(65537, 1, false),
+                                                   std::tuple<int, int, bool>(1, 65537, false) })
+    {
+        QImage bitonal(width, height, QImage::Format_Mono);
+        bitonal.fill(1);
+
+        for (int y = 0; y < height; ++y)
+        {
+            for (int x = 0; x < width; ++x)
+            {
+                if ((x * 7 + y * 3) % 11 < 4)
+                {
+                    bitonal.setPixel(x, y, 0);
+                }
+            }
+        }
+
+        pdf::PDFImage::ImageEncodeOptions options;
+        options.compression = pdf::PDFImage::ImageCompression::JBIG2;
+        options.colorMode = pdf::PDFImage::ImageColorMode::Preserve;
+
+        ErrorCollector errorCollector;
+        pdf::PDFStream stream = pdf::PDFImage::createStreamFromImage(bitonal, options, &errorCollector);
+        QCOMPARE(errorCollector.messages.size(), isJBIG2 ? 0 : 1);
+
+        const pdf::PDFDictionary* dictionary = stream.getDictionary();
+        QVERIFY(dictionary);
+        QCOMPARE(QString::fromLatin1(dictionary->get("Filter").getString()), QString(isJBIG2 ? "JBIG2Decode" : "CCITTFaxDecode"));
+        QCOMPARE(dictionary->get("Width").getInteger(), pdf::PDFInteger(width));
+        QCOMPARE(dictionary->get("Height").getInteger(), pdf::PDFInteger(height));
+        QCOMPARE(dictionary->hasKey("DecodeParms"), !isJBIG2);
+
+        // The image is read back exactly
+        pdf::PDFDocument document = createDocumentWithImage(bitonal, false, pdf::PDFImage::ImageCompression::JBIG2);
+        std::vector<pdf::PDFImageOptimizer::ImageInfo> infos = pdf::PDFImageOptimizer::collectImageInfos(&document);
+        QCOMPARE(infos.size(), 1u);
+        QCOMPARE(infos[0].image.size(), bitonal.size());
+
+        for (int y = 0; y < height; ++y)
+        {
+            for (int x = 0; x < width; ++x)
+            {
+                if (isBlackPixel(infos[0].image, x, y) != (bitonal.pixelIndex(x, y) == 0))
+                {
+                    QFAIL(qPrintable(QString("Pixel [%1, %2] of the image %3 x %4 differs.").arg(x).arg(y).arg(width).arg(height)));
+                }
+            }
+        }
+
+        // The optimizer selects JBIG2 for the bitonal images, so a long narrow image
+        // going through it must be readable as well
+        pdf::PDFImageOptimizer::Settings settings = pdf::PDFImageOptimizer::Settings::createDefault();
+        settings.enabled = true;
+        settings.autoMode = false;
+        settings.colorMode = pdf::PDFImageOptimizer::ColorMode::Bitonal;
+        settings.goal = pdf::PDFImageOptimizer::OptimizationGoal::PreferQuality;
+        settings.keepOriginalIfLarger = false;
+        settings.bitonalProfile.algorithm = pdf::PDFImageOptimizer::CompressionAlgorithm::JBIG2;
+        settings.bitonalProfile.targetDpi = 0;
+
+        pdf::PDFImageOptimizer optimizer;
+        std::vector<pdf::PDFImageOptimizer::ImageResult> results;
+        pdf::PDFDocument optimized = optimizer.optimize(&document, settings, {}, nullptr, nullptr, &results);
+        QCOMPARE(results.size(), 1u);
+
+        const pdf::PDFObject& imageObject = optimized.getObjectByReference(infos[0].reference);
+        QVERIFY(imageObject.isStream());
+        QCOMPARE(QString::fromLatin1(optimized.getObject(imageObject.getStream()->getDictionary()->get("Filter")).getString()), QString(isJBIG2 ? "JBIG2Decode" : "CCITTFaxDecode"));
+
+        std::vector<pdf::PDFImageOptimizer::ImageInfo> optimizedInfos = pdf::PDFImageOptimizer::collectImageInfos(&optimized);
+        QCOMPARE(optimizedInfos.size(), 1u);
+        QCOMPARE(optimizedInfos[0].image.size(), bitonal.size());
     }
 }
 

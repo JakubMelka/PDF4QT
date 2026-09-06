@@ -1473,9 +1473,21 @@ PDFStream PDFImage::createStreamFromImage(const QImage& image,
 
     PreparedImageData prepared = prepareImageData(image, options, reporter);
 
+    // The JBIG2 decoder limits the width and the height of a bitmap. An image exceeding
+    // the limit is coded by the fax coding instead - it is lossless as well and it has
+    // no such limit - because a stream, which cannot be read back, is worthless.
+    ImageCompression compression = options.compression;
+
+    if (compression == ImageCompression::JBIG2 && !PDFJBIG2Encoder::isSizeSupported(prepared.width, prepared.height))
+    {
+        reporter->reportRenderErrorOnce(RenderErrorType::Warning,
+            PDFTranslationContext::tr("Image of the size %1 x %2 is too large for the JBIG2 coding; the CCITT fax coding is used instead.").arg(prepared.width).arg(prepared.height));
+        compression = ImageCompression::CCITTGroup4;
+    }
+
     QByteArray encodedData;
 
-    switch (options.compression)
+    switch (compression)
     {
         case ImageCompression::Flate:
         {
@@ -1533,7 +1545,7 @@ PDFStream PDFImage::createStreamFromImage(const QImage& image,
     dictionary.addEntry(PDFInplaceOrMemoryString("BitsPerComponent"), PDFObject::createInteger(prepared.bitsPerComponent));
 
     const char* filterName = nullptr;
-    switch (options.compression)
+    switch (compression)
     {
         case ImageCompression::Flate:
             filterName = "FlateDecode";
@@ -1577,7 +1589,7 @@ PDFStream PDFImage::createStreamFromImage(const QImage& image,
                             PDFObject::createArray(std::make_shared<PDFArray>(std::move(decodeArray))));
     }
 
-    if (options.compression == ImageCompression::CCITTGroup4)
+    if (compression == ImageCompression::CCITTGroup4)
     {
         // The default values of the other parameters of the filter match the encoder -
         // the black pixel is 0, the data are terminated by the end-of-block code, there
@@ -1591,7 +1603,7 @@ PDFStream PDFImage::createStreamFromImage(const QImage& image,
                             PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(decodeParams))));
     }
 
-    if (options.compression == ImageCompression::Flate && options.enablePngPredictor)
+    if (compression == ImageCompression::Flate && options.enablePngPredictor)
     {
         PDFDictionary decodeParams;
         decodeParams.addEntry(PDFInplaceOrMemoryString("Predictor"), PDFObject::createInteger(15));

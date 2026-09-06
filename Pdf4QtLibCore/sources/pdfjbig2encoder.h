@@ -176,6 +176,14 @@ public:
                                     PDFJBIG2ArithmeticDecoderState& state,
                                     const PDFJBIG2Bitmap* skip = nullptr);
 
+    /// Returns true, if an image of the given size can be encoded, i.e. it has both
+    /// dimensions positive and no larger than the decoder accepts, and its pixel count
+    /// does not exceed the limit of the decoder. An image, which does not pass, is
+    /// refused by the encoder - \p encodeEmbeddedStream throws for it.
+    /// \param width Width of the image
+    /// \param height Height of the image
+    static bool isSizeSupported(int width, int height);
+
 private:
     /// Segment types used by the encoder, see 7.3 of the specification
     enum SegmentType : uint8_t
@@ -206,13 +214,18 @@ private:
     /// Creates the data part of the generic region segment, see 7.4.6
     QByteArray createGenericRegionData();
 
+    /// Number of the single page of the encoded stream, see 7.2.6 of the specification
+    static constexpr uint8_t PAGE_NUMBER = 1;
+
     /// Appends a segment - its header (see 7.2) and its data. The segment refers to
-    /// no other segments and it is associated with the page 1.
+    /// no other segments.
     /// \param stream Stream, into which the segment is appended
     /// \param segmentNumber Number of the segment
     /// \param type Type of the segment
+    /// \param pageAssociation Page, with which the segment is associated, or zero
+    ///        for a segment, which is not associated with any page (the end of file)
     /// \param data Data part of the segment
-    static void appendSegment(QByteArray& stream, uint32_t segmentNumber, SegmentType type, const QByteArray& data);
+    static void appendSegment(QByteArray& stream, uint32_t segmentNumber, SegmentType type, uint8_t pageAssociation, const QByteArray& data);
 
     /// Appends a 32-bit unsigned integer, the most significant byte first
     static void appendUInt32(QByteArray& stream, uint32_t value);

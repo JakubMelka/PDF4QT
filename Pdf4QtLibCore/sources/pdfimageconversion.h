@@ -28,6 +28,7 @@
 
 #include <QImage>
 
+#include <optional>
 #include <vector>
 
 namespace pdf
@@ -140,9 +141,19 @@ public:
     /// channel at all. The mask uses the same opacity threshold as the conversion
     /// itself, so it can be used as a soft mask of an image, which replaces the source
     /// one without being converted by any of the conversion methods (for example by
-    /// a solid black or white fill). \sa getConvertedAlphaMask
+    /// a solid black or white fill). An empty optional is returned, when the mask
+    /// cannot be created (it cannot be allocated) - that is a failure, which must
+    /// not be confused with the legitimate result "no mask is needed".
+    /// \sa getConvertedAlphaMask
     /// \param image Source image
-    static QImage createAlphaMask(const QImage& image);
+    static std::optional<QImage> createAlphaMask(const QImage& image);
+
+    /// Creates a bitonal image of the given size, whose samples are all black.
+    /// Returns a null image, if the image cannot be allocated - the callers must
+    /// not write into the image without checking it, because a null image has no
+    /// scan lines.
+    /// \param size Size of the image
+    static QImage createBitonalImage(QSize size);
 
 private:
     /// Decomposes the source image (with the transparent pixels composited onto the
