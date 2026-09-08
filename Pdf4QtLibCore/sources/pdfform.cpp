@@ -514,6 +514,12 @@ QByteArray PDFFormFieldButton::getOnAppearanceState(const PDFFormManager* formMa
         }
     }
 
+    const PDFFormFieldButton* button = dynamic_cast<const PDFFormFieldButton*>(widget->getParent());
+    if (button && button->getButtonType() == PDFFormFieldButton::ButtonType::CheckBox)
+    {
+        return "Yes";
+    }
+
     return QByteArray();
 }
 
@@ -550,6 +556,7 @@ bool PDFFormFieldButton::setValue(const SetValueParameters& parameters)
     QByteArray state = parameters.value.getString();
     parameters.modifier->markFormFieldChanged();
     builder->setFormFieldValue(getSelfReference(), parameters.value);
+    m_value = parameters.value;
 
     // Change widget appearance states
     const bool isRadio = getFlags().testFlag(Radio);
@@ -577,6 +584,7 @@ bool PDFFormFieldButton::setValue(const SetValueParameters& parameters)
             QByteArray offState = PDFFormFieldButton::getOffAppearanceState(parameters.formManager, &formWidget);
             builder->setAnnotationAppearanceState(formWidget.getWidget(), offState);
         }
+        builder->updateAnnotationAppearanceStreams(formWidget.getWidget());
         parameters.modifier->markAnnotationsChanged();
     }
 
