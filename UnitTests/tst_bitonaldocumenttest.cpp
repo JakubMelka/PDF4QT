@@ -34,7 +34,9 @@
 #include <QElapsedTimer>
 #include <QImage>
 
+#include <array>
 #include <atomic>
+#include <limits>
 #include <memory>
 #include <thread>
 #include <vector>
@@ -139,6 +141,7 @@ private slots:
     void test_page_conversion_keeps_structure_tree_when_page_fails();
     void test_page_conversion_removes_structure_tree_when_complete();
     void test_page_conversion_needs_rasterizer_pool();
+    void test_page_conversion_compression();
 
 private:
     /// Resolution used by the tests. It is deliberately low - the tests verify, which
@@ -186,6 +189,10 @@ private:
 
     /// Returns the dictionary of the catalog of the document
     static const pdf::PDFDictionary* getCatalogDictionary(const pdf::PDFDocument& document);
+
+    /// Returns the stream of the bitonal image of the page, or nullptr, when the page
+    /// has no such image
+    static const pdf::PDFStream* getPageBitonalImageStream(const pdf::PDFDocument& document, size_t pageIndex);
 
     /// Creates the settings converting the given pages using the algorithm
     /// \param pageCount Number of the converted pages, starting from the first one
@@ -438,6 +445,33 @@ const pdf::PDFDictionary* BitonalDocumentTest::getPageBitonalImage(const pdf::PD
     }
 
     return document.getDictionaryFromObject(xObjects->get("BitonalImage"));
+}
+
+const pdf::PDFStream* BitonalDocumentTest::getPageBitonalImageStream(const pdf::PDFDocument& document, size_t pageIndex)
+{
+    const pdf::PDFPage* page = document.getCatalog()->getPage(pageIndex);
+
+    if (!page)
+    {
+        return nullptr;
+    }
+
+    const pdf::PDFDictionary* resources = document.getDictionaryFromObject(page->getResources());
+
+    if (!resources)
+    {
+        return nullptr;
+    }
+
+    const pdf::PDFDictionary* xObjects = document.getDictionaryFromObject(resources->get("XObject"));
+
+    if (!xObjects)
+    {
+        return nullptr;
+    }
+
+    const pdf::PDFObject& image = document.getObject(xObjects->get("BitonalImage"));
+    return image.isStream() ? image.getStream() : nullptr;
 }
 
 const pdf::PDFDictionary* BitonalDocumentTest::getPageDictionary(const pdf::PDFDocument& document, size_t pageIndex)
@@ -990,6 +1024,75 @@ void BitonalDocumentTest::test_page_conversion_needs_rasterizer_pool()
     settings.items.front().mode = pdf::PDFBitonalDocumentCreator::ItemMode::FillWhite;
     QVERIFY(creator.createBitonalDocument(settings));
     QCOMPARE(creator.getConvertedItemCount(), size_t(1));
+}
+
+void BitonalDocumentTest::test_page_conversion_compression()
+{
+    using Compression = pdf::PDFBitonalDocumentCreator::Compression;
+
+    struct CompressionCase
+    {
+        Compression compression;
+        const char* filter;
+    };
+
+    const std::array<CompressionCase, 4> compressionCases = { {
+        { Compression::Flate, "FlateDecode" },
+        { Compression::RunLength, "RunLengthDecode" },
+        { Compression::CCITTGroup4, "CCITTFaxDecode" },
+        { Compression::JBIG2, "JBIG2Decode" }
+    } };
+
+    int smallestSize = (std::numeric_limits<int>::max)();
+
+    for (const CompressionCase& compressionCase : compressionCases)
+    {
+        pdf::PDFDocument document = createDocument({ QSizeF(200, 100) }, false);
+        RenderingContext context(&document);
+        pdf::PDFBitonalDocumentCreator creator(&document, context.getRasterizerPool(), nullptr);
+
+        pdf::PDFBitonalDocumentCreator::Settings settings = createPageSettings(1);
+        settings.compression = compressionCase.compression;
+
+        QVERIFY(creator.createBitonalDocument(settings));
+        QCOMPARE(creator.getConvertedItemCount(), size_t(1));
+
+        pdf::PDFDocument bitonalDocument = creator.takeBitonalDocument();
+        const pdf::PDFStream* stream = getPageBitonalImageStream(bitonalDocument, 0);
+        QVERIFY(stream);
+
+        // The selected algorithm is really the one, which has coded the image
+        pdf::PDFDocumentDataLoaderDecorator loader(&bitonalDocument);
+        QCOMPARE(loader.readNameFromDictionary(stream->getDictionary(), "Filter"), QByteArray(compressionCase.filter));
+
+        smallestSize = qMin(smallestSize, int(stream->getContent()->size()));
+
+        // The image can be read back - the converted page shows the content of the
+        // original one, its left half is black and its right one is white
+        RenderingContext bitonalContext(&bitonalDocument);
+        pdf::PDFBitonalDocumentCreator bitonalCreator(&bitonalDocument, bitonalContext.getRasterizerPool(), nullptr);
+
+        const QImage renderedPage = bitonalCreator.renderPage(0, QSize(200, 100), nullptr);
+        QVERIFY(!renderedPage.isNull());
+        QVERIFY(qGray(renderedPage.pixel(50, 50)) < 64);
+        QVERIFY(qGray(renderedPage.pixel(150, 50)) > 192);
+    }
+
+    // The automatic compression codes the image by every algorithm and keeps the
+    // smallest result, so it can never be larger than the best of them
+    pdf::PDFDocument document = createDocument({ QSizeF(200, 100) }, false);
+    RenderingContext context(&document);
+    pdf::PDFBitonalDocumentCreator creator(&document, context.getRasterizerPool(), nullptr);
+
+    pdf::PDFBitonalDocumentCreator::Settings settings = createPageSettings(1);
+    settings.compression = Compression::Auto;
+
+    QVERIFY(creator.createBitonalDocument(settings));
+
+    pdf::PDFDocument bitonalDocument = creator.takeBitonalDocument();
+    const pdf::PDFStream* stream = getPageBitonalImageStream(bitonalDocument, 0);
+    QVERIFY(stream);
+    QCOMPARE(int(stream->getContent()->size()), smallestSize);
 }
 
 QTEST_MAIN(BitonalDocumentTest)

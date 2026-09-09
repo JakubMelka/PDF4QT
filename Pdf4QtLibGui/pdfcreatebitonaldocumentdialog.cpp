@@ -219,6 +219,12 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     ui->conversionMethodComboBox->addItem(tr("Adaptive thresholding"), static_cast<int>(pdf::PDFImageConversion::ConversionMethod::Adaptive));
     ui->conversionMethodComboBox->addItem(tr("Dithering (Floyd-Steinberg)"), static_cast<int>(pdf::PDFImageConversion::ConversionMethod::Dither));
 
+    ui->compressionComboBox->addItem(tr("Automatic (smallest result)"), static_cast<int>(Compression::Auto));
+    ui->compressionComboBox->addItem(tr("Flate"), static_cast<int>(Compression::Flate));
+    ui->compressionComboBox->addItem(tr("RunLength"), static_cast<int>(Compression::RunLength));
+    ui->compressionComboBox->addItem(tr("CCITT Group 4"), static_cast<int>(Compression::CCITTGroup4));
+    ui->compressionComboBox->addItem(tr("JBIG2"), static_cast<int>(Compression::JBIG2));
+
     // Rasterizing the page is expensive, so the preview is not updated
     // while the resolution is being typed. The range is taken from the core, which
     // clamps the resolution anyway - a page rasterized at an extreme resolution
@@ -607,6 +613,7 @@ PDFCreateBitonalDocumentDialog::ConversionSettings PDFCreateBitonalDocumentDialo
     settings.conversionMethod = getSelectedConversionMethod();
     settings.manualThreshold = ui->thresholdEditBox->value();
     settings.dpiResolution = ui->resolutionEditBox->value();
+    settings.compression = getSelectedCompression();
 
     // Only the part of the item, which the conversion needs, is copied - the state
     // of the thumbnail is a matter of the list, not of the conversion.
@@ -1061,6 +1068,8 @@ void PDFCreateBitonalDocumentDialog::updateUi()
     ui->conversionSourceComboBox->setEnabled(!m_conversionInProgress);
     ui->conversionMethodLabel->setEnabled(!m_conversionInProgress);
     ui->conversionMethodComboBox->setEnabled(!m_conversionInProgress);
+    ui->compressionLabel->setEnabled(!m_conversionInProgress);
+    ui->compressionComboBox->setEnabled(!m_conversionInProgress);
     ui->imageListWidget->setEnabled(!m_conversionInProgress);
 
     ui->buttonBox->button(QDialogButtonBox::Cancel)->setEnabled(!m_conversionInProgress);
@@ -1185,6 +1194,11 @@ pdf::PDFImageConversion::ConversionMethod PDFCreateBitonalDocumentDialog::getSel
 PDFCreateBitonalDocumentDialog::ConversionSource PDFCreateBitonalDocumentDialog::getSelectedConversionSource() const
 {
     return static_cast<ConversionSource>(ui->conversionSourceComboBox->currentData().toInt());
+}
+
+PDFCreateBitonalDocumentDialog::Compression PDFCreateBitonalDocumentDialog::getSelectedCompression() const
+{
+    return static_cast<Compression>(ui->compressionComboBox->currentData().toInt());
 }
 
 ImagePreviewDelegate::ImagePreviewDelegate(std::vector<PDFCreateBitonalDocumentDialog::ConversionItemInfo>* conversionItemInfos, QObject *parent) :

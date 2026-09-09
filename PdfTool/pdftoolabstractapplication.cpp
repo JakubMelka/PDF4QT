@@ -195,6 +195,7 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addOption(QCommandLineOption("bitonal-threshold", "Threshold used by the manual method and by the dithering (0-255).", "threshold", "128"));
         parser->addOption(QCommandLineOption("bitonal-dpi", "Resolution, at which the pages are rasterized. Zero means, that it is estimated from the images of the document.", "dpi", "0"));
         parser->addOption(QCommandLineOption("bitonal-fill", "Replace the converted items by a solid area instead of converting them. Valid values are none|black|white.", "fill", "none"));
+        parser->addOption(QCommandLineOption("bitonal-compression", "Compression of the created images. Valid values are auto|flate|runlength|ccittg4|jbig2. 'auto' compresses every image by all the algorithms and keeps the smallest result.", "compression", "auto"));
     }
 
     if (optionFlags.testFlag(Redact))
@@ -526,6 +527,32 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         else
         {
             reportInvalidValue("bitonal-fill", fill, "none|black|white");
+        }
+
+        const QString compression = parser->value("bitonal-compression");
+        if (compression == "auto")
+        {
+            options.bitonalCompression = pdf::PDFBitonalDocumentCreator::Compression::Auto;
+        }
+        else if (compression == "flate")
+        {
+            options.bitonalCompression = pdf::PDFBitonalDocumentCreator::Compression::Flate;
+        }
+        else if (compression == "runlength")
+        {
+            options.bitonalCompression = pdf::PDFBitonalDocumentCreator::Compression::RunLength;
+        }
+        else if (compression == "ccittg4")
+        {
+            options.bitonalCompression = pdf::PDFBitonalDocumentCreator::Compression::CCITTGroup4;
+        }
+        else if (compression == "jbig2")
+        {
+            options.bitonalCompression = pdf::PDFBitonalDocumentCreator::Compression::JBIG2;
+        }
+        else
+        {
+            reportInvalidValue("bitonal-compression", compression, "auto|flate|runlength|ccittg4|jbig2");
         }
 
         bool isThresholdValid = false;

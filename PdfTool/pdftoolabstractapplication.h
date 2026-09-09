@@ -177,6 +177,7 @@ struct PDFToolOptions
     pdf::PDFBitonalDocumentCreator::ConversionSource bitonalSource = pdf::PDFBitonalDocumentCreator::ConversionSource::Images;
     pdf::PDFImageConversion::ConversionMethod bitonalMethod = pdf::PDFImageConversion::ConversionMethod::Automatic;
     pdf::PDFBitonalDocumentCreator::ItemMode bitonalItemMode = pdf::PDFBitonalDocumentCreator::ItemMode::Algorithm;
+    pdf::PDFBitonalDocumentCreator::Compression bitonalCompression = pdf::PDFBitonalDocumentCreator::Compression::Auto;
     int bitonalThreshold = 128;
     int bitonalDpiResolution = 0;
 

@@ -118,6 +118,7 @@ public:
 
     using ConversionSource = pdf::PDFBitonalDocumentCreator::ConversionSource;
     using ConversionSettings = pdf::PDFBitonalDocumentCreator::Settings;
+    using Compression = pdf::PDFBitonalDocumentCreator::Compression;
 
     /// Item of the list, i.e. an image or a page. Besides the information needed by
     /// the conversion it carries the state of the thumbnail, which is generated in
@@ -327,6 +328,7 @@ private:
     void updatePreview();
     pdf::PDFImageConversion::ConversionMethod getSelectedConversionMethod() const;
     ConversionSource getSelectedConversionSource() const;
+    Compression getSelectedCompression() const;
 
     /// Creates a snapshot of the current settings of the dialog
     ConversionSettings getConversionSettings() const;

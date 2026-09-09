@@ -81,6 +81,18 @@ public:
         FillWhite   ///< Replaced by a white area
     };
 
+    /// Compression of the images of the created document. Only the algorithms, which
+    /// suit a bitonal image, are offered - a lossy one would destroy the result of the
+    /// conversion and it compresses a two-color image poorly anyway.
+    enum class Compression
+    {
+        Auto,           ///< Compress by every algorithm below and keep the smallest result
+        Flate,          ///< FlateDecode with the PNG predictor
+        RunLength,      ///< RunLengthDecode
+        CCITTGroup4,    ///< CCITTFaxDecode, pure two dimensional coding (K = -1)
+        JBIG2           ///< JBIG2Decode, a single generic region
+    };
+
     struct ItemInfo
     {
         PDFObjectReference imageReference;  ///< Valid, when images are converted
@@ -107,6 +119,7 @@ public:
         PDFImageConversion::ConversionMethod conversionMethod = PDFImageConversion::ConversionMethod::Automatic;
         int manualThreshold = 128;
         int dpiResolution = DEFAULT_DPI_RESOLUTION;
+        Compression compression = Compression::Auto;
         std::vector<ItemInfo> items;
     };
 
@@ -230,9 +243,17 @@ public:
                                         QImage* alphaMask,
                                         const PDFOperationControl* operationControl);
 
-    /// Creates an image object (1 bit per component, DeviceGray) from a bitonal image
+    /// Creates an image object (1 bit per component, DeviceGray) from a bitonal image.
+    /// Returns a null object, when the image cannot be encoded.
+    ///
+    /// The automatic compression encodes the image by every algorithm and keeps the
+    /// smallest result, so it costs several times more than a fixed one. Algorithms,
+    /// which refuse the image, are skipped - the Flate coding accepts every image, so
+    /// at least one candidate always remains.
     /// \param image Bitonal image
-    static PDFObject createBitonalImageObject(const QImage& image);
+    /// \param compression Compression of the image data
+    static PDFObject createBitonalImageObject(const QImage& image,
+                                              Compression compression = Compression::Auto);
 
     /// Creates the bitonal image, which a filled item is replaced by. A single sample
     /// is enough when the image has no soft mask, because the image is stretched over

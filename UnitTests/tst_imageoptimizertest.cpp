@@ -1408,6 +1408,11 @@ void ImageOptimizerTest::test_bitonal_creator_uses_jbig2()
     settings.conversionSource = pdf::PDFBitonalDocumentCreator::ConversionSource::Images;
     settings.conversionMethod = pdf::PDFImageConversion::ConversionMethod::Automatic;
 
+    // The default compression selects the smallest result of all the algorithms, which
+    // is not the JBIG2 coding for every image, so this test asks for it explicitly - it
+    // verifies, that an image, which the creator has coded by JBIG2, can be read back.
+    settings.compression = pdf::PDFBitonalDocumentCreator::Compression::JBIG2;
+
     pdf::PDFBitonalDocumentCreator::ItemInfo item;
     item.imageReference = images.front();
     settings.items.push_back(item);

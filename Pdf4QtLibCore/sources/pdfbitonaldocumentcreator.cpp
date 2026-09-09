@@ -35,8 +35,10 @@
 #include <QPainter>
 #include <QScopeGuard>
 
+#include <array>
 #include <map>
 #include <set>
+#include <utility>
 
 #include "pdfdbgheap.h"
 
@@ -243,7 +245,7 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromImages(PDFDocumentBuild
             bitonalImage = convertImageToBitonal(image, settings.conversionMethod, settings.manualThreshold, &alphaMask, nullptr);
         }
 
-        PDFObject imageObject = createBitonalImageObject(bitonalImage);
+        PDFObject imageObject = createBitonalImageObject(bitonalImage, settings.compression);
 
         if (!imageObject.isNull())
         {
@@ -269,7 +271,7 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromImages(PDFDocumentBuild
             // image, so a single soft mask created from that alpha channel replaces them.
             if (!alphaMask.isNull())
             {
-                PDFObject softMaskObject = createBitonalImageObject(alphaMask);
+                PDFObject softMaskObject = createBitonalImageObject(alphaMask, settings.compression);
 
                 if (!softMaskObject.isNull())
                 {
@@ -367,7 +369,7 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromPages(PDFDocumentBuilde
     auto pageImageProcessor = [this, &imageObjects, &settings](PDFInteger pageIndex, QImage image)
     {
         QImage bitonalImage = convertImageToBitonal(image, settings.conversionMethod, settings.manualThreshold, nullptr, nullptr);
-        imageObjects[size_t(pageIndex)] = createBitonalImageObject(bitonalImage);
+        imageObjects[size_t(pageIndex)] = createBitonalImageObject(bitonalImage, settings.compression);
         stepProgress();
     };
 
@@ -390,7 +392,7 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromPages(PDFDocumentBuilde
         else
         {
             // Page is covered by a solid area, which does not need any rasterization
-            imageObject = createBitonalImageObject(createFillImage(QSize(1, 1), mode == ItemMode::FillBlack));
+            imageObject = createBitonalImageObject(createFillImage(QSize(1, 1), mode == ItemMode::FillBlack), settings.compression);
         }
 
         const PDFPage* page = catalog->getPage(size_t(pageIndex));
@@ -1262,32 +1264,76 @@ QImage PDFBitonalDocumentCreator::convertImageToBitonal(const QImage& image,
     return imageConversion.getConvertedImage();
 }
 
-PDFObject PDFBitonalDocumentCreator::createBitonalImageObject(const QImage& image)
+PDFObject PDFBitonalDocumentCreator::createBitonalImageObject(const QImage& image, Compression compression)
 {
     if (image.isNull())
     {
         return PDFObject();
     }
 
-    try
+    auto encode = [&image](PDFImage::ImageCompression imageCompression) -> PDFObject
     {
-        // The image is coded as a single JBIG2 generic region - it is lossless and
-        // it is several times smaller than the Flate compression of a scanned page
-        PDFImage::ImageEncodeOptions options;
-        options.compression = PDFImage::ImageCompression::JBIG2;
-        options.colorMode = PDFImage::ImageColorMode::Monochrome;
+        try
+        {
+            PDFImage::ImageEncodeOptions options;
+            options.compression = imageCompression;
+            options.colorMode = PDFImage::ImageColorMode::Monochrome;
 
-        PDFStream stream = PDFImage::createStreamFromImage(image, options, nullptr);
+            PDFStream stream = PDFImage::createStreamFromImage(image, options, nullptr);
 
-        PDFDictionary dictionary = *stream.getDictionary();
-        QByteArray content = *stream.getContent();
+            PDFDictionary dictionary = *stream.getDictionary();
+            QByteArray content = *stream.getContent();
 
-        return PDFObject::createStream(std::make_shared<PDFStream>(std::move(dictionary), std::move(content)));
-    }
-    catch (const PDFException&)
+            return PDFObject::createStream(std::make_shared<PDFStream>(std::move(dictionary), std::move(content)));
+        }
+        catch (const PDFException&)
+        {
+            // An encoder can refuse the image - the bitonal codings have their own
+            // limits of the image size, for example. Such an algorithm is skipped.
+            return PDFObject();
+        }
+    };
+
+    // The candidates are ordered from the most widely supported coding to the least
+    // one, so a tie is decided in favour of the coding, which every reader can read.
+    // The Flate coding leads the list also because it accepts every image, so the
+    // automatic mode always produces a result.
+    constexpr std::array<std::pair<Compression, PDFImage::ImageCompression>, 4> codings = {
+        std::pair{ Compression::Flate, PDFImage::ImageCompression::Flate },
+        std::pair{ Compression::RunLength, PDFImage::ImageCompression::RunLength },
+        std::pair{ Compression::CCITTGroup4, PDFImage::ImageCompression::CCITTGroup4 },
+        std::pair{ Compression::JBIG2, PDFImage::ImageCompression::JBIG2 }
+    };
+
+    PDFObject result;
+    int resultSize = 0;
+
+    for (const auto& [coding, imageCompression] : codings)
     {
-        return PDFObject();
+        if (compression != Compression::Auto && compression != coding)
+        {
+            continue;
+        }
+
+        PDFObject candidate = encode(imageCompression);
+
+        if (candidate.isNull())
+        {
+            continue;
+        }
+
+        // The images differ by their data, the dictionaries are nearly the same - only
+        // the filter and its parameters differ - so the size of the data decides.
+        const int candidateSize = candidate.getStream()->getContent()->size();
+
+        if (result.isNull() || candidateSize < resultSize)
+        {
+            result = std::move(candidate);
+            resultSize = candidateSize;
+        }
     }
+
+    return result;
 }
 
 QImage PDFBitonalDocumentCreator::createFillImage(QSize size, bool isBlack)

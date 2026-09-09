@@ -129,6 +129,7 @@ int PDFToolBitonal::execute(const PDFToolOptions& options)
     settings.conversionMethod = options.bitonalMethod;
     settings.manualThreshold = options.bitonalThreshold;
     settings.dpiResolution = options.bitonalDpiResolution != 0 ? options.bitonalDpiResolution : creator.getEstimatedDpiResolution();
+    settings.compression = options.bitonalCompression;
 
     if (isPageSource)
     {
