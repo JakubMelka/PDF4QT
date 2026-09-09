@@ -901,9 +901,12 @@ void JBIG2Test::test_generic_region_with_unknown_data_length()
     // the page information segment, which precedes the region.
     const QStringList image = { "#..#..#.....", ".#..#..#....", "..#..#..#...", "...#..#..#..", "....#..#..#." };
 
-    for (const bool MMR : { false, true })
+    // The specification requires no end-of-block of the MMR encoding before the two zero
+    // bytes, but an encoder may write one, so both of the forms must be decoded
+    for (const std::pair<bool, bool> coding : { std::make_pair(false, false), std::make_pair(true, false), std::make_pair(true, true) })
     {
-        QByteArray stream = createEncodedStream(image, MMR, MMR);
+        const bool MMR = coding.first;
+        QByteArray stream = createEncodedStream(image, MMR, coding.second);
         QVERIFY(!MMR || !stream.mid(GenericFlagsOffset + 1).contains(QByteArray("\x00\x00", 2)));
 
         writeUInt32(stream, RegionDataLengthOffset, 0xFFFFFFFF);
@@ -1007,6 +1010,14 @@ void JBIG2Test::test_intermediate_and_lossless_generic_regions()
     QByteArray lossless = createEncodedStream(image);
     lossless[RegionHeaderOffset + 4] = char(ImmediateLosslessGenericRegion);
     QCOMPARE(drawImage(decode(lossless)), image);
+
+    // The page flag announcing auxiliary buffers is only a hint for the decoder, so a
+    // page which leaves it at zero is decoded and the flag is reported
+    QByteArray withoutFlag = intermediate;
+    withoutFlag[PageFlagsOffset] = char(uint8_t(withoutFlag[PageFlagsOffset]) & ~0x20);
+    ErrorCollector errorCollector;
+    QCOMPARE(drawImage(decode(withoutFlag, &errorCollector)), white);
+    QCOMPARE(errorCollector.messages, QStringList({ "JBIG2 intermediate region on a page which does not announce auxiliary buffers; the page flag is ignored." }));
 }
 
 void JBIG2Test::test_auxiliary_segments_are_skipped()
@@ -1238,6 +1249,14 @@ void JBIG2Test::test_refinement_region_segments()
         QByteArray lossless = refinement;
         lossless[stream.size() + 4] = char(43);
         QCOMPARE(drawImage(decode(lossless)), expected);
+
+        // The page flag announcing refinements is only a hint for the decoder, so a page
+        // which leaves it at zero is decoded and the flag is reported
+        QByteArray withoutFlag = refinement;
+        withoutFlag[PageFlagsOffset] = char(uint8_t(withoutFlag[PageFlagsOffset]) & ~0x02);
+        ErrorCollector withoutFlagErrors;
+        QCOMPARE(drawImage(decode(withoutFlag, &withoutFlagErrors)), expected);
+        QCOMPARE(withoutFlagErrors.messages, QStringList({ "JBIG2 refinement region on a page which does not announce refinements; the page flag is ignored." }));
     }
 
     // The templates 0 and 1 without the typical prediction decode every pixel - the
@@ -1591,7 +1610,7 @@ void JBIG2Test::test_actual_region_rows_and_final_stripe()
     for (bool mmr : { false, true })
     {
         const QStringList rows = { "#..#", ".##." };
-        QByteArray stream = createEncodedStream(rows, mmr, mmr);
+        QByteArray stream = createEncodedStream(rows, mmr);
         // Declared height is an upper bound; the trailer supplies the actual rows.
         writeUInt32(stream, RegionInformationOffset + 4, 8);
         writeUInt32(stream, RegionDataLengthOffset, 0xFFFFFFFF);
@@ -1649,10 +1668,14 @@ void JBIG2Test::test_segment_isolation_and_page_validation()
     reserved[PageFlagsOffset] = static_cast<char>(uint8_t(0x80));
     QVERIFY(decodeExpectingError(reserved).contains("page information"));
 
+    // The page flags only announce what the page contains, so a file which contradicts
+    // them is still decoded - the operator of the region is used and the flag reported
     QByteArray wrongOperator = stream;
     wrongOperator[PageFlagsOffset] = char(0);
-    wrongOperator[RegionOperatorOffset] = char(2);
-    QVERIFY(decodeExpectingError(wrongOperator).contains("combination operator"));
+    wrongOperator[RegionOperatorOffset] = char(2); // XOR onto the white page is OR
+    ErrorCollector errorCollector;
+    QCOMPARE(drawImage(decode(wrongOperator, &errorCollector)), QStringList({ "#..#", ".##." }));
+    QCOMPARE(errorCollector.messages, QStringList({ "JBIG2 region combination operator contradicts the page flags; the operator of the region is used." }));
 }
 
 QTEST_APPLESS_MAIN(JBIG2Test)

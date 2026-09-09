@@ -4069,8 +4069,10 @@ void JBIG2SegmentsTest::test_export_count_and_retention()
 
 void JBIG2SegmentsTest::test_resource_budgets()
 {
-    // Rejected before allocating a large page or the four-byte-per-cell gray grid.
-    QVERIFY(decodeExpectingError(createPageStream(65536, 16384)).contains("memory limit"));
+    // A single bitmap is bounded by its pixel count, well below the cumulative budget.
+    QVERIFY(decodeExpectingError(createPageStream(65536, 16385)).contains("pixel count exceeded"));
+
+    // Rejected before allocating the four-byte-per-cell gray grid.
     QByteArray grid = createPageStream(1, 1);
     appendSegment(grid, 1, PatternDictionary, { }, encodePatternDictionary({ { "." }, { "#" } }, true, 0));
     QByteArray region;
@@ -4092,7 +4094,10 @@ void JBIG2SegmentsTest::test_resource_budgets()
     appendUInt16(empty, 1);
     appendUInt32(empty, 0);
     appendUInt32(empty, 0);
-    for (uint32_t number = 1; number <= 3000; ++number)
+    // Every dictionary charges at least the two 64 kB generic coding contexts twice, so
+    // this many of them exhaust the cumulative budget whatever its configured value is.
+    const uint32_t dictionaries = uint32_t(pdf::PDFJBIG2Decoder::MAX_DECODED_BYTES / (4 * 65536)) + 1;
+    for (uint32_t number = 1; number <= dictionaries; ++number)
     {
         const int start = int(repeated.size());
         appendSegment(repeated, number, SymbolDictionary, { }, empty);

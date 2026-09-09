@@ -1472,10 +1472,18 @@ void PDFJBIG2Decoder::validateSegment(const PDFJBIG2SegmentHeader& header)
     {
         throw PDFException(PDFTranslationContext::tr("JBIG2 invalid segment page association."));
     }
-    if (region && ((!header.isImmediate() && !m_pageMayUseAuxiliary) ||
-                   (type == JBIG2SegmentType::GenericRefinementRegion && !m_pageMayRefine)))
+    // The two page flags only promise what the page will contain, so that a decoder can
+    // reserve its buffers in advance - they are not needed to decode the segment. Files
+    // which leave them at zero are still decodable, so they are reported and ignored.
+    if (region && !header.isImmediate() && !m_pageMayUseAuxiliary && !m_auxiliaryBufferWarningReported)
     {
-        throw PDFException(PDFTranslationContext::tr("JBIG2 region contradicts page refinement or auxiliary-buffer flags."));
+        m_auxiliaryBufferWarningReported = true;
+        m_errorReporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("JBIG2 intermediate region on a page which does not announce auxiliary buffers; the page flag is ignored."));
+    }
+    if (type == JBIG2SegmentType::GenericRefinementRegion && !m_pageMayRefine && !m_refinementFlagWarningReported)
+    {
+        m_refinementFlagWarningReported = true;
+        m_errorReporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("JBIG2 refinement region on a page which does not announce refinements; the page flag is ignored."));
     }
 
     size_t tables = 0;
@@ -1612,6 +1620,16 @@ void PDFJBIG2Decoder::paintPage(const PDFJBIG2Bitmap& bitmap, const PDFJBIG2Regi
     }
     consumeWork(bitmap.getPixelCount());
     m_pageBitmap.paint(bitmap, field.offsetX, field.offsetY, field.operation, m_pageSizeUndefined, m_pageDefaultPixelValue);
+}
+
+void PDFJBIG2Decoder::checkRegionCompositionOperator(const PDFJBIG2RegionSegmentInformationField& field)
+{
+    if (!m_pageDefaultCompositionOperatorOverriden && field.operation != m_pageDefaultCompositionOperator &&
+        !m_compositionOperatorWarningReported)
+    {
+        m_compositionOperatorWarningReported = true;
+        m_errorReporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("JBIG2 region combination operator contradicts the page flags; the operator of the region is used."));
+    }
 }
 
 void PDFJBIG2Decoder::finishPage()
@@ -1879,6 +1897,31 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
         arithmeticDecoder.initialize();
     }
 
+    // The standard huffman tables of the refinement/aggregate path (6.5.8.2) are the same
+    // for every symbol, so they are built once here instead of for each decoded symbol.
+    // Only SBSYMCODES depends on the number of the already decoded symbols and stays in
+    // the loop, as do all the plain value fields of the text region parameters.
+    PDFJBIG2HuffmanDecoder refinementDecoderO;
+    PDFJBIG2HuffmanDecoder refinementDecoderA;
+    PDFJBIG2TextRegionDecodingParameters aggregateTextParameters;
+    if (parameters.SDREFAGG)
+    {
+        if (parameters.SDHUFF)
+        {
+            refinementDecoderO = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
+            refinementDecoderA = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
+        }
+
+        aggregateTextParameters.SBHUFFFS = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_F), std::end(PDFJBIG2StandardHuffmanTable_F));
+        aggregateTextParameters.SBHUFFDS = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_H), std::end(PDFJBIG2StandardHuffmanTable_H));
+        aggregateTextParameters.SBHUFFDT = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_K), std::end(PDFJBIG2StandardHuffmanTable_K));
+        aggregateTextParameters.SBHUFFRDW = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
+        aggregateTextParameters.SBHUFFRDH = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
+        aggregateTextParameters.SBHUFFRDX = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
+        aggregateTextParameters.SBHUFFRDY = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
+        aggregateTextParameters.SBHUFFRSIZE = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
+    }
+
     /* 6.5.5 - algorithm for decoding symbol dictionary */
 
     /* 6.5.5 step 1) - create output bitmaps */
@@ -1978,13 +2021,10 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
 
                         if (parameters.SDHUFF)
                         {
-                            PDFJBIG2HuffmanDecoder huffmanDecoderO(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
-                            PDFJBIG2HuffmanDecoder huffmanDecoderA(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
-
                             ID = m_reader.read(SBSYMCODELENGTH);
-                            RDXI = checkInteger(huffmanDecoderO.readSignedInteger());
-                            RDYI = checkInteger(huffmanDecoderO.readSignedInteger());
-                            const int32_t BMSIZE = checkInteger(huffmanDecoderA.readSignedInteger());
+                            RDXI = checkInteger(refinementDecoderO.readSignedInteger());
+                            RDYI = checkInteger(refinementDecoderO.readSignedInteger());
+                            const int32_t BMSIZE = checkInteger(refinementDecoderA.readSignedInteger());
                             refinementData = readRefinementData(&m_reader, BMSIZE);
                             refinementDecoder.initialize();
                         }
@@ -2021,8 +2061,10 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
                     }
                     else
                     {
-                        // Use table 17 to decode text region bitmap
-                        PDFJBIG2TextRegionDecodingParameters textParameters;
+                        // Use table 17 to decode text region bitmap. The huffman tables of
+                        // aggregateTextParameters have been built before the symbol loop
+                        PDFJBIG2TextRegionDecodingParameters& textParameters = aggregateTextParameters;
+                        textParameters.SBSYMS.clear();
                         textParameters.SBHUFF = parameters.SDHUFF;
                         textParameters.SBREFINE = true;
                         textParameters.SBDEFPIXEL = 0;
@@ -2050,14 +2092,6 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
                         textParameters.SBRAT = parameters.SDRAT;
                         textParameters.arithmeticDecoder = &arithmeticDecoder;
                         textParameters.reader = &m_reader;
-                        textParameters.SBHUFFFS = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_F), std::end(PDFJBIG2StandardHuffmanTable_F));
-                        textParameters.SBHUFFDS = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_H), std::end(PDFJBIG2StandardHuffmanTable_H));
-                        textParameters.SBHUFFDT = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_K), std::end(PDFJBIG2StandardHuffmanTable_K));
-                        textParameters.SBHUFFRDW = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
-                        textParameters.SBHUFFRDH = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
-                        textParameters.SBHUFFRDX = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
-                        textParameters.SBHUFFRDY = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
-                        textParameters.SBHUFFRSIZE = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
                         textParameters.initializeFrom(&arithmeticDecoderStates);
 
                         std::vector<PDFJBIG2HuffmanTableEntry> symbols(textParameters.SBNUMSYMS, PDFJBIG2HuffmanTableEntry());
@@ -2211,10 +2245,7 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
     constexpr std::array<PDFJBIG2BitOperation, 4> combinationOperators = { PDFJBIG2BitOperation::Or, PDFJBIG2BitOperation::And, PDFJBIG2BitOperation::Xor, PDFJBIG2BitOperation::NotXor };
 
     PDFJBIG2RegionSegmentInformationField regionSegmentInfo = readRegionSegmentInformationField();
-    if (!m_pageDefaultCompositionOperatorOverriden && regionSegmentInfo.operation != m_pageDefaultCompositionOperator)
-    {
-        throw PDFException(PDFTranslationContext::tr("JBIG2 region combination operator contradicts page flags."));
-    }
+    checkRegionCompositionOperator(regionSegmentInfo);
     const uint16_t flags = m_reader.readUnsignedWord();
     const bool SBHUFF = flags & 0x0001;
     const bool SBREFINE = flags & 0x0002;
@@ -2646,10 +2677,7 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
 {
     const int segmentStartPosition = m_reader.getPosition();
     PDFJBIG2RegionSegmentInformationField field = readRegionSegmentInformationField();
-    if (!m_pageDefaultCompositionOperatorOverriden && field.operation != m_pageDefaultCompositionOperator)
-    {
-        throw PDFException(PDFTranslationContext::tr("JBIG2 region combination operator contradicts page flags."));
-    }
+    checkRegionCompositionOperator(field);
     const uint8_t flags = m_reader.readUnsignedByte();
     const bool HMMR = flags & 0x01;
     const uint8_t HTEMPLATE = (flags >> 1) & 0x03;
@@ -2900,15 +2928,11 @@ void PDFJBIG2Decoder::processGenericRegion(const PDFJBIG2SegmentHeader& header)
 {
     const int segmentStartPosition = m_reader.getPosition();
     PDFJBIG2RegionSegmentInformationField field = readRegionSegmentInformationField();
-    if (!m_pageDefaultCompositionOperatorOverriden && field.operation != m_pageDefaultCompositionOperator)
-    {
-        throw PDFException(PDFTranslationContext::tr("JBIG2 region combination operator contradicts page flags."));
-    }
+    checkRegionCompositionOperator(field);
     const uint8_t flags = m_reader.readUnsignedByte();
 
     PDFJBIG2BitmapDecodingParameters parameters;
     parameters.MMR = flags & 0b0001;
-    parameters.requireMMREndOfBlock = parameters.MMR && !header.isSegmentDataLengthDefined();
     parameters.TPGDON = flags & 0b1000;
     parameters.GBTEMPLATE = (flags >> 1) & 0b0011;
 

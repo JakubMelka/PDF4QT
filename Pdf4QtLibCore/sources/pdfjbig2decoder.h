@@ -515,8 +515,18 @@ public:
     /// Conservative cumulative limits shared by page and global segments, including
     /// temporary buffers and retries. Exceeding them raises PDFException.
     /// Per-operation input, cumulative allocation and decoding-work limits.
-    static constexpr uint64_t MAX_DECODED_BYTES = 512ULL * 1024 * 1024;
-    static constexpr uint64_t MAX_DECODE_WORK = 1ULL << 30;
+    ///
+    /// A bitmap of the decoder needs a byte per pixel, and a page is charged roughly
+    /// twice its pixel count - once for the page buffer and once for the region which
+    /// is composited onto it - plus an eighth of it for the packed output. The budget
+    /// of two gigabytes therefore admits a page of about one gigapixel - an A4 page
+    /// scanned at 2400 DPI - which matches MAX_PIXEL_COUNT: a document of a single
+    /// region is bounded by the size of its bitmap, and the cumulative budget stops
+    /// documents which allocate over and over. The work budget is scaled with it: a
+    /// pixel of a page costs about four units of work (allocation, arithmetic
+    /// decision, painting and packing), so both budgets end at about the same size.
+    static constexpr uint64_t MAX_DECODED_BYTES = 2048ULL * 1024 * 1024;
+    static constexpr uint64_t MAX_DECODE_WORK = 1ULL << 32;
     static constexpr uint64_t MAX_INPUT_BYTES = 128ULL * 1024 * 1024;
 
 private:
@@ -605,6 +615,11 @@ private:
     uint64_t m_workRemaining = MAX_DECODE_WORK;
     void consumeWork(uint64_t count);
     void paintPage(const PDFJBIG2Bitmap& bitmap, const PDFJBIG2RegionSegmentInformationField& field);
+
+    /// Reports a warning, if the external combination operator of a region contradicts
+    /// the page flags, see 7.4.8.5. The operator of the region is used regardless - the
+    /// flag is a promise of the encoder about the page, and not a part of the coded data.
+    void checkRegionCompositionOperator(const PDFJBIG2RegionSegmentInformationField& field);
     void finishPage();
     void validateSegment(const PDFJBIG2SegmentHeader& header);
     void releaseSegments(const PDFJBIG2SegmentHeader& header);
@@ -613,6 +628,9 @@ private:
     std::set<uint32_t> m_deferredDiscards;
     std::set<uint32_t> m_nonRetainedSegments;
     bool m_retentionWarningReported = false;
+    bool m_auxiliaryBufferWarningReported = false;
+    bool m_refinementFlagWarningReported = false;
+    bool m_compositionOperatorWarningReported = false;
     std::map<uint32_t, uint32_t> m_segmentPages;
     std::map<uint32_t, PDFJBIG2RegionSegmentInformationField> m_regionInformation;
     PDFJBIG2RegionSegmentInformationField m_currentRegionInformation;
