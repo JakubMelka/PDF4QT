@@ -76,17 +76,25 @@ PDFBitReader::PDFBitReader(const QByteArray* stream, Value bitsPerComponent) :
     m_stream(stream),
     m_position(0),
     m_bitsPerComponent(bitsPerComponent),
-    m_maximalValue((static_cast<Value>(1) << m_bitsPerComponent) - static_cast<Value>(1)),
+    m_maximalValue(0),
     m_buffer(0),
     m_bitsInBuffer(0)
 {
-    // We need reserve, so we allow number of length of component as 1-56 bits.
-    Q_ASSERT(bitsPerComponent > 0);
-    Q_ASSERT(bitsPerComponent < 56);
+    if (bitsPerComponent == 0 || bitsPerComponent > 56 ||
+        (stream && stream->size() > (std::numeric_limits<int>::max)()))
+    {
+        throw PDFException(PDFTranslationContext::tr("Invalid bit reader size or component length."));
+    }
+    m_maximalValue = (Value(1) << bitsPerComponent) - 1;
 }
 
 PDFBitReader::Value PDFBitReader::read(PDFBitReader::Value bits)
 {
+    if (bits > 56 || !m_stream)
+    {
+        throw PDFException(PDFTranslationContext::tr("Invalid bit count %1.").arg(bits));
+    }
+
     while (m_bitsInBuffer < bits)
     {
         if (m_position < m_stream->size())
@@ -109,6 +117,10 @@ PDFBitReader::Value PDFBitReader::read(PDFBitReader::Value bits)
 
 PDFBitReader::Value PDFBitReader::look(Value bits) const
 {
+    if (bits > 56 || !m_stream)
+    {
+        throw PDFException(PDFTranslationContext::tr("Invalid bit count %1.").arg(bits));
+    }
     PDFBitReader temp(*this);
 
     Value result = 0;
@@ -129,7 +141,7 @@ PDFBitReader::Value PDFBitReader::look(Value bits) const
 
 void PDFBitReader::seek(qint64 position)
 {
-    if (position <= m_stream->size())
+    if (m_stream && position >= 0 && position <= m_stream->size() && position <= (std::numeric_limits<int>::max)())
     {
         m_position = position;
         m_buffer = 0;
@@ -143,10 +155,18 @@ void PDFBitReader::seek(qint64 position)
 
 void PDFBitReader::skipBytes(Value bytes)
 {
+    if (!m_stream || bytes > (uint64_t(m_stream->size() - m_position) * 8 + m_bitsInBuffer) / 8)
+    {
+        throw PDFException(PDFTranslationContext::tr("Can't skip %1 bytes.").arg(bytes));
+    }
     // Jakub Melka: if we are lucky, then we just seek to the new position
     if (m_bitsInBuffer == 0)
     {
-        seek(m_position + bytes);
+        if (bytes > uint64_t(m_stream->size() - m_position))
+        {
+            throw PDFException(PDFTranslationContext::tr("Can't skip %1 bytes.").arg(bytes));
+        }
+        seek(int64_t(m_position) + int64_t(bytes));
     }
     else
     {
@@ -173,7 +193,7 @@ void PDFBitReader::alignToBytes()
 
 bool PDFBitReader::isAtEnd() const
 {
-    return (m_position >= m_stream->size()) && m_bitsInBuffer == 0;
+    return !m_stream || ((m_position >= m_stream->size()) && m_bitsInBuffer == 0);
 }
 
 int32_t PDFBitReader::readSignedInt()
@@ -190,6 +210,11 @@ int8_t PDFBitReader::readSignedByte()
 
 QByteArray PDFBitReader::readSubstream(int length)
 {
+    if (!m_stream || length < -1 || (length >= 0 && length > m_stream->size() - m_position))
+    {
+        throw PDFException(PDFTranslationContext::tr("Invalid substream length %1.").arg(length));
+    }
+
     if (m_bitsInBuffer)
     {
         throw PDFException(PDFTranslationContext::tr("Can't get substream - remaining %1 bits in buffer.").arg(m_bitsInBuffer));

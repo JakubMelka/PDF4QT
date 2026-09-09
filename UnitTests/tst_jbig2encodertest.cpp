@@ -38,6 +38,7 @@ class JBIG2EncoderTest : public QObject
     Q_OBJECT
 
 private slots:
+    void test_arithmetic_api_rejects_invalid_state();
     void test_arithmetic_encoder_matches_annex_h_test_sequence();
     void test_arithmetic_encoder_roundtrip_data();
     void test_arithmetic_encoder_roundtrip();
@@ -573,7 +574,9 @@ void JBIG2EncoderTest::test_annex_h_generic_region_is_reencoded_identically()
 
     ErrorCollector errorCollector;
     const Bitmap mmrPage = decodeEmbeddedStream(pageInformation + toByteArray(MMR_REGION, sizeof(MMR_REGION)), &errorCollector);
-    const Bitmap arithmeticPage = decodeEmbeddedStream(pageInformation + toByteArray(ARITHMETIC_REGION, sizeof(ARITHMETIC_REGION)), &errorCollector);
+    QByteArray secondPageInformation = pageInformation;
+    secondPageInformation[6] = char(2); // Annex H segment 11 belongs to page 2.
+    const Bitmap arithmeticPage = decodeEmbeddedStream(secondPageInformation + toByteArray(ARITHMETIC_REGION, sizeof(ARITHMETIC_REGION)), &errorCollector);
     QCOMPARE(errorCollector.messages, QStringList());
 
     QCOMPARE(mmrPage.width, 64);
@@ -1003,6 +1006,34 @@ void JBIG2EncoderTest::test_encoder_rejects_invalid_input()
     parameters.GBTEMPLATE = 4;
     parameters.GBAT[0] = { 1, 1 };
     QVERIFY(!pdf::PDFJBIG2Encoder(bitmap.view(), parameters).encodeGenericRegion().isEmpty());
+}
+
+
+void JBIG2EncoderTest::test_arithmetic_api_rejects_invalid_state()
+{
+    pdf::PDFJBIG2ArithmeticDecoderState state;
+    state.reset(9);
+    pdf::PDFJBIG2ArithmeticEncoder encoder;
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, encoder.encodeBit(512, &state, 0));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, encoder.encodeBit(0, nullptr, 0));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, encoder.encodeBit(0, &state, 2));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, state.setQeRowIndexAndMPS(0, 47, 0));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, state.setQeRowIndexAndMPS(0, 0, 2));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, state.reset(32));
+    pdf::PDFJBIG2ArithmeticDecoderState incompatible;
+    incompatible.reset(10);
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, state.reset(9, incompatible));
+    encoder.encodeBit(0, &state, 1);
+    QVERIFY(!encoder.finish().isEmpty());
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, encoder.finish());
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, encoder.encodeBit(0, &state, 0));
+
+    Bitmap bitmap(1, 1);
+    pdf::PDFJBIG2EncoderParameters parameters;
+    pdf::PDFJBIG2ArithmeticEncoder another;
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, pdf::PDFJBIG2Encoder::encodeGenericBitmap(bitmap.view(), parameters, another, state));
+    parameters.GBAT[0] = { -129, -1 };
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, pdf::PDFJBIG2Encoder(bitmap.view(), parameters).encodeGenericRegion());
 }
 
 QTEST_APPLESS_MAIN(JBIG2EncoderTest)

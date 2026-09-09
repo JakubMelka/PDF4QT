@@ -43,6 +43,13 @@ class JBIG2SegmentsTest : public QObject
     Q_OBJECT
 
 private slots:
+    void test_integer_range_boundaries();
+    void test_huffman_prefix_and_range_boundaries();
+    void test_refinement_block_lengths();
+    void test_export_count_and_retention();
+    void test_resource_budgets();
+    void test_wide_pattern_adaptive_offset();
+
     void test_arithmetic_symbol_dictionary_and_text_region();
     void test_arithmetic_coding_context_reuse();
     void test_refinement_aggregate_symbol_dictionaries();
@@ -68,7 +75,7 @@ private:
     static int imageHeight(const Image& image) { return int(image.size()); }
 
     /// Returns true, if the pixel is black. Pixels outside of the image are white.
-    static bool isBlack(const Image& image, int x, int y);
+    static bool isBlack(const Image& image, int64_t x, int64_t y);
 
     /// Creates a white (or black) image
     static Image createImage(int width, int height, bool black = false);
@@ -207,8 +214,8 @@ private:
                                  pdf::PDFJBIG2ArithmeticDecoderState& state,
                                  const Image& target,
                                  const Image& reference,
-                                 int referenceX,
-                                 int referenceY,
+                                 int64_t referenceX,
+                                 int64_t referenceY,
                                  uint8_t GRTEMPLATE,
                                  const pdf::PDFJBIG2ATPositions& at,
                                  bool TPGRON = false);
@@ -351,6 +358,7 @@ private:
         uint8_t SBHUFFRDX = 0;
         uint8_t SBHUFFRDY = 0;
         uint8_t SBHUFFRSIZE = 0;
+        std::optional<int32_t> refinementSizeOverride;
 
         /// User tables in the order of the selections FS, DS, DT, RDW, RDH, RDX, RDY, RSIZE
         std::vector<HuffmanTable> userTables;
@@ -456,7 +464,7 @@ private:
     static void appendSegmentWithLength(QByteArray& stream, uint32_t segmentNumber, SegmentType type, const std::vector<uint32_t>& referredSegments, const QByteArray& data, uint32_t dataLength, bool longPageAssociation = false);
 
     /// Returns a stream starting with a page information segment (segment 0) of the size
-    static QByteArray createPageStream(uint32_t width, uint32_t height, uint8_t flags = 0x00);
+    static QByteArray createPageStream(uint32_t width, uint32_t height, uint8_t flags = 0x62);
 
     /// Returns the data of a page information segment
     static QByteArray createPageInformationData(uint32_t width, uint32_t height, uint8_t flags);
@@ -500,7 +508,7 @@ private:
 // ---------------------------------------------------------------------------------------
 // Images and bitmaps
 
-bool JBIG2SegmentsTest::isBlack(const Image& image, int x, int y)
+bool JBIG2SegmentsTest::isBlack(const Image& image, int64_t x, int64_t y)
 {
     if (y < 0 || y >= image.size())
     {
@@ -1034,20 +1042,20 @@ void JBIG2SegmentsTest::encodeRefinement(pdf::PDFJBIG2ArithmeticEncoder& encoder
                                          pdf::PDFJBIG2ArithmeticDecoderState& state,
                                          const Image& target,
                                          const Image& reference,
-                                         int referenceX,
-                                         int referenceY,
+                                         int64_t referenceX,
+                                         int64_t referenceY,
                                          uint8_t GRTEMPLATE,
                                          const pdf::PDFJBIG2ATPositions& at,
                                          bool TPGRON)
 {
     auto t = [&target](int x, int y) -> uint32_t { return isBlack(target, x, y) ? 1 : 0; };
-    auto r = [&reference](int x, int y) -> uint32_t { return isBlack(reference, x, y) ? 1 : 0; };
+    auto r = [&reference](int64_t x, int64_t y) -> uint32_t { return isBlack(reference, x, y) ? 1 : 0; };
 
     // A pixel, whose neighbourhood of 3 x 3 pixels in the reference has a single value
     auto isUniform = [&](int x, int y)
     {
-        const int rx = x - referenceX;
-        const int ry = y - referenceY;
+        const int64_t rx = int64_t(x) - referenceX;
+        const int64_t ry = int64_t(y) - referenceY;
         const uint32_t value = r(rx, ry);
 
         for (int dy = -1; dy <= 1; ++dy)
@@ -1100,8 +1108,8 @@ void JBIG2SegmentsTest::encodeRefinement(pdf::PDFJBIG2ArithmeticEncoder& encoder
                 ++shift;
             };
 
-            const int rx = x - referenceX;
-            const int ry = y - referenceY;
+            const int64_t rx = int64_t(x) - referenceX;
+            const int64_t ry = int64_t(y) - referenceY;
 
             if (GRTEMPLATE == 0)
             {
@@ -1669,7 +1677,7 @@ QByteArray JBIG2SegmentsTest::encodeTextRegion(const std::vector<TextInstance>& 
                         encodeInteger(encoder, contexts.IARDH, instance.RDH);
                         encodeInteger(encoder, contexts.IARDX, instance.RDX);
                         encodeInteger(encoder, contexts.IARDY, instance.RDY);
-                        encodeRefinement(encoder, contexts.refinement, instance.refined, symbols[instance.id], (instance.RDW >> 1) + instance.RDX, (instance.RDH >> 1) + instance.RDY, options.SBRTEMPLATE, options.SBRAT);
+                        encodeRefinement(encoder, contexts.refinement, instance.refined, symbols[instance.id], int64_t(instance.RDW >> 1) + instance.RDX, int64_t(instance.RDH >> 1) + instance.RDY, options.SBRTEMPLATE, options.SBRAT);
                     }
                 }
 
@@ -1871,10 +1879,10 @@ QByteArray JBIG2SegmentsTest::encodeTextRegion(const std::vector<TextInstance>& 
                     writeHuffman(writer, tableRDY, instance.RDY);
 
                     pdf::PDFJBIG2ArithmeticEncoder encoder;
-                    encodeRefinement(encoder, refinementContexts, instance.refined, symbols[instance.id], (instance.RDW >> 1) + instance.RDX, (instance.RDH >> 1) + instance.RDY, options.SBRTEMPLATE, options.SBRAT);
+                    encodeRefinement(encoder, refinementContexts, instance.refined, symbols[instance.id], int64_t(instance.RDW >> 1) + instance.RDX, int64_t(instance.RDH >> 1) + instance.RDY, options.SBRTEMPLATE, options.SBRAT);
                     const QByteArray refinementData = encoder.finish();
 
-                    writeHuffman(writer, tableRSIZE, int32_t(refinementData.size()));
+                    writeHuffman(writer, tableRSIZE, options.refinementSizeOverride.value_or(int32_t(refinementData.size())));
                     writer.append(refinementData);
                 }
             }
@@ -2109,7 +2117,7 @@ void JBIG2SegmentsTest::appendSegmentWithLength(QByteArray& stream, uint32_t seg
 
     if (referredSegments.size() <= 4)
     {
-        stream.append(char(referredSegments.size() << 5));
+        stream.append(char((referredSegments.size() << 5) | ((1u << (referredSegments.size() + 1)) - 1)));
     }
     else
     {
@@ -2117,7 +2125,11 @@ void JBIG2SegmentsTest::appendSegmentWithLength(QByteArray& stream, uint32_t seg
         // followed by the retain bits
         const uint32_t count = uint32_t(referredSegments.size());
         appendUInt32(stream, 0xE0000000 | count);
-        stream.append(QByteArray(int((count + 8) / 8), char(0)));
+        for (uint32_t i = 0; i < (count + 8) / 8; ++i)
+        {
+            const uint32_t bits = qMin(8u, count + 1 - i * 8);
+            stream.append(char((1u << bits) - 1));
+        }
     }
 
     // 7.2.5 - the size of the referred segment numbers is given by the segment number
@@ -2139,11 +2151,11 @@ void JBIG2SegmentsTest::appendSegmentWithLength(QByteArray& stream, uint32_t seg
 
     if (longPageAssociation)
     {
-        appendUInt32(stream, 1);
+        appendUInt32(stream, type == EndOfFile ? 0 : 1);
     }
     else
     {
-        stream.append(char(0x01));
+        stream.append(char(type == EndOfFile ? 0 : 1));
     }
 
     appendUInt32(stream, dataLength);
@@ -2442,11 +2454,10 @@ void JBIG2SegmentsTest::test_arithmetic_coding_context_reuse()
     // The contexts can not be used without a referred dictionary
     QByteArray withoutReference = createPageStream(18, 6);
     appendSegment(withoutReference, 1, SymbolDictionary, { }, secondDictionary);
-    QVERIFY(decodeExpectingError(withoutReference).contains("previous symbol dictionary"));
+    QVERIFY(decodeExpectingError(withoutReference).contains("arithmetic coding context"));
 
-    // A refinement dictionary using the contexts of the first dictionary refines its
-    // symbols with the initial refinement contexts, because the first dictionary has
-    // not used any. The huffman variant checks the referred dictionary separately.
+    // Reusing non-refinement contexts for a refinement dictionary is forbidden.
+    // SDHUFF and SDREFAGG must match the retained dictionary (7.4.2.2).
     for (const bool huffman : { false, true })
     {
         SymbolDictionaryOptions refinementOptions;
@@ -2472,11 +2483,11 @@ void JBIG2SegmentsTest::test_arithmetic_coding_context_reuse()
         {
             compose(refinedExpected, symbols[instance.id], instance.x, instance.y, pdf::PDFJBIG2BitOperation::Or);
         }
-        QCOMPARE(decodePage(refinementStream), refinedExpected);
+        QVERIFY(decodeExpectingError(refinementStream).contains("incompatible"));
 
         QByteArray refinementWithoutReference = createPageStream(18, 6);
         appendSegment(refinementWithoutReference, 1, SymbolDictionary, { }, encodeRefinementSymbolDictionary({ }, { }, refinementOptions, refinementContexts));
-        QVERIFY(decodeExpectingError(refinementWithoutReference).contains("previous symbol dictionary"));
+        QVERIFY(decodeExpectingError(refinementWithoutReference).contains("arithmetic coding context"));
     }
 }
 
@@ -3239,6 +3250,22 @@ void JBIG2SegmentsTest::test_text_region_errors()
         QVERIFY2(decodeExpectingError(stream).contains("refined symbol instance"), qPrintable(QString("RDW %1, RDH %2").arg(testCase.RDW).arg(testCase.RDH)));
     }
 
+    for (int32_t delta : { std::numeric_limits<int32_t>::min(), std::numeric_limits<int32_t>::max() })
+    {
+        TextRegionOptions refine = options;
+        refine.refine = true;
+        const Image target = { "######", "......", "#.#.#.", "......", "######", "......", "#....#" };
+        // Width and height grow by two, so floor(delta-size/2) + INT_MAX
+        // exceeds int32_t; INT_MIN also overflows x-referenceX in old code.
+        const std::vector<TextInstance> instances = { { 0, 0, 2, true, target, 2, 2, delta, delta } };
+        QByteArray stream = createPageStream(18, 6);
+        appendSegment(stream, 1, SymbolDictionary, { }, dictionary);
+        appendSegment(stream, 2, ImmediateTextRegion, { 1 }, encodeTextRegion(instances, symbols, refine));
+        Image expected = createImage(18, 6);
+        compose(expected, target, 0, 0, pdf::PDFJBIG2BitOperation::Or);
+        QCOMPARE(decodePage(stream), expected);
+    }
+
     // A valid arithmetic refinement of both templates, for comparison
     const Image grownA = { "..##.", ".#..#", ".####", "##..#", ".#..#" };
     for (const uint8_t SBRTEMPLATE : { uint8_t(0), uint8_t(1) })
@@ -3345,7 +3372,10 @@ void JBIG2SegmentsTest::test_pattern_dictionary_and_halftone_region()
                 QByteArray stream = createPageStream(8, 12);
                 appendSegment(stream, 1, PatternDictionary, { }, encodePatternDictionary(patterns, false, 0));
                 appendSegment(stream, 2, ImmediateHalftoneRegion, { 1 }, encodeHalftoneRegion(values, options));
-                QVERIFY2(decodePage(stream) == composeHalftoneRegion(values, patterns, options), qPrintable(QString("HENABLESKIP %1, MMR %2, behind %3").arg(HENABLESKIP).arg(MMR).arg(isGridBehind)));
+                if (MMR && HENABLESKIP)
+                    QVERIFY(decodeExpectingError(stream).contains("MMR halftone flags"));
+                else
+    QVERIFY2(decodePage(stream) == composeHalftoneRegion(values, patterns, options), qPrintable(QString("HENABLESKIP %1, MMR %2, behind %3").arg(HENABLESKIP).arg(MMR).arg(isGridBehind)));
             }
         }
     }
@@ -3416,7 +3446,7 @@ void JBIG2SegmentsTest::test_halftone_region_errors()
     {
         QByteArray stream = createPageStream(12, 12);
         appendSegment(stream, 1, ImmediateHalftoneRegion, { }, encodeHalftoneRegion(values, base));
-        QVERIFY(decodeExpectingError(stream).contains("pattern dictionaries"));
+        QVERIFY(decodeExpectingError(stream).contains("referred segment count"));
     }
 
     for (const uint8_t HCOMBOP : { uint8_t(5), uint8_t(6), uint8_t(7) })
@@ -3464,7 +3494,7 @@ void JBIG2SegmentsTest::test_halftone_region_errors()
         QByteArray stream = createPageStream(12, 12);
         appendSegment(stream, 1, PatternDictionary, { }, dictionary);
         appendSegment(stream, 2, ImmediateHalftoneRegion, { 1 }, header);
-        QVERIFY(decodeExpectingError(stream).contains("bit plane"));
+        QVERIFY(decodeExpectingError(stream).contains("truncated MMR bitmap"));
     }
 
     {
@@ -3485,7 +3515,7 @@ void JBIG2SegmentsTest::test_halftone_region_errors()
         appendSegment(stream, 1, PatternDictionary, { }, dictionary);
         appendSegment(stream, 2, ImmediateHalftoneRegion, { 1 }, region);
         const QString message = decodeExpectingError(stream);
-        QVERIFY2(message.contains("number of columns"), qPrintable(message));
+        QVERIFY2(message.contains("grid dimensions"), qPrintable(message));
     }
 
     // The gray-scale image of the grid is allocated before the planes are decoded, so
@@ -3515,7 +3545,7 @@ void JBIG2SegmentsTest::test_halftone_region_errors()
 
         QByteArray stream = createPageStream(12, 12);
         appendSegment(stream, 1, PatternDictionary, { }, emptyDictionary);
-        QVERIFY(decodeExpectingError(stream).contains("collective bitmap"));
+        QVERIFY(decodeExpectingError(stream).contains("truncated MMR bitmap"));
     }
 
     {
@@ -3584,11 +3614,12 @@ void JBIG2SegmentsTest::test_file_organisations()
 
     QByteArray unknownPageCount = sequential;
     unknownPageCount[8] = char(0x03);
-    QVERIFY(decodeFileExpectingError(unknownPageCount).contains("unknown number of pages"));
+    unknownPageCount.remove(9, 4);
+    QCOMPARE(decodeFile(unknownPageCount), image);
 
     QByteArray twoPages = sequential;
     twoPages[12] = char(0x02);
-    QVERIFY(decodeFileExpectingError(twoPages).contains("number of pages (2)"));
+    QVERIFY(decodeFileExpectingError(twoPages).contains("expected one page (2)"));
 
     // The random-access organisation needs the lengths of all segments
     QByteArray unknownLength = randomAccess;
@@ -3632,7 +3663,7 @@ void JBIG2SegmentsTest::test_segment_header_and_data_length_errors()
     QByteArray shorter;
     appendSegmentWithLength(shorter, 0, PageInformation, { }, createPageInformationData(6, 4, 0x00), 18);
     shorter.append(region);
-    QVERIFY(decodeExpectingError(shorter).contains("past segment end"));
+    QVERIFY(decodeExpectingError(shorter).contains("Not enough data"));
 
     QByteArray extension = createPageStream(6, 4);
     appendSegmentWithLength(extension, 1, Extension, { }, QByteArray("\x20\x00\x00\x00", 4) + QByteArray("k\0v\0", 4), 0xFFFFFFFF);
@@ -3767,6 +3798,7 @@ void JBIG2SegmentsTest::test_refinement_region_typical_prediction()
     pdf::PDFJBIG2Encoder encoder(bitmap.view(), pdf::PDFJBIG2EncoderParameters());
     QByteArray intermediate = encoder.encodeEmbeddedStream().mid(30);
     intermediate[4] = char(36);
+    intermediate[5] = char(1); // The refinement refers to this intermediate bitmap.
 
     for (const uint8_t GRTEMPLATE : { uint8_t(0), uint8_t(1) })
     {
@@ -3823,7 +3855,7 @@ void JBIG2SegmentsTest::test_huffman_table_segment_errors()
     QByteArray notBitmap = createPageStream(6, 4);
     appendSegment(notBitmap, 1, Tables, { }, table.segmentData());
     appendSegment(notBitmap, 2, ImmediateRefinementRegion, { 1 }, refinement);
-    QVERIFY(decodeExpectingError(notBitmap).contains("is not a bitmap"));
+    QVERIFY(decodeExpectingError(notBitmap).contains("referred segment type"));
 
     // A table, whose every prefix length is zero, has no code, so nothing can be decoded
     // by it - the huffman dictionary selects it for the height class delta height
@@ -3844,7 +3876,281 @@ void JBIG2SegmentsTest::test_huffman_table_segment_errors()
     QByteArray emptyTable = createPageStream(6, 4);
     appendSegment(emptyTable, 1, Tables, { }, empty.segmentData());
     appendSegment(emptyTable, 2, SymbolDictionary, { 1 }, dictionary);
-    QVERIFY(decodeExpectingError(emptyTable).contains("can't read integer"));
+    QVERIFY(decodeExpectingError(emptyTable).contains("invalid huffman prefix"));
+}
+
+
+void JBIG2SegmentsTest::test_integer_range_boundaries()
+{
+    for (int32_t value : { std::numeric_limits<int32_t>::min(), -4436, 0, 4436, std::numeric_limits<int32_t>::max() })
+    {
+        pdf::PDFJBIG2ArithmeticDecoderState state;
+        state.reset(9);
+        pdf::PDFJBIG2ArithmeticEncoder encoder;
+        encodeInteger(encoder, state, value);
+        const QByteArray data = encoder.finish();
+        state.reset(9);
+        pdf::PDFBitReader reader(&data, 8);
+        pdf::PDFJBIG2ArithmeticDecoder decoder(&reader);
+        decoder.initialize();
+        const auto result = decoder.getSignedInteger(&state);
+        QVERIFY(result.has_value());
+        QCOMPARE(*result, value);
+    }
+
+    // Encode the raw 32-bit magnitude branch, including values that used to wrap
+    // to negative values, zero or OOB after adding 4436.
+    for (uint32_t sign : { 0u, 1u })
+    {
+        for (uint32_t raw : { 0x80000000u, 0xFFFFFFFFu, uint32_t(0u - 4436u) })
+        {
+            pdf::PDFJBIG2ArithmeticDecoderState state;
+            state.reset(9);
+            pdf::PDFJBIG2ArithmeticEncoder encoder;
+            uint32_t prev = 1;
+            auto bit = [&](uint32_t value)
+            {
+                encoder.encodeBit(prev, &state, value);
+                prev = prev < 256 ? ((prev << 1) | value) : ((((prev << 1) | value) & 511) | 256);
+            };
+            bit(sign);
+            for (int i = 0; i < 5; ++i) bit(1);
+            for (int i = 31; i >= 0; --i) bit((raw >> i) & 1);
+            const QByteArray data = encoder.finish();
+            state.reset(9);
+            pdf::PDFBitReader reader(&data, 8);
+            pdf::PDFJBIG2ArithmeticDecoder decoder(&reader);
+            decoder.initialize();
+            QVERIFY_THROWS_EXCEPTION(pdf::PDFException, decoder.getSignedInteger(&state));
+        }
+    }
+}
+
+void JBIG2SegmentsTest::test_huffman_prefix_and_range_boundaries()
+{
+    const std::vector<Image> symbols = { { "#" } };
+    for (int length : { 17, 32 })
+    {
+        CustomTable table;
+        table.HTPS = 6;
+        table.HTRS = 1;
+        table.lines = { { 1, 0 }, { length, 0 } };
+        table.upperPrefixLength = length;
+        SymbolDictionaryOptions options;
+        options.huffman = true;
+        options.SDHUFFDH = 3;
+        options.userTables = { table.table() };
+        ArithmeticContexts contexts;
+        QByteArray stream = createPageStream(1, 1);
+        appendSegment(stream, 1, Tables, { }, table.segmentData());
+        appendSegment(stream, 2, SymbolDictionary, { 1 }, encodeSymbolDictionary(symbols, options, contexts));
+        TextRegionOptions text;
+        text.width = text.height = 1;
+        appendSegment(stream, 3, ImmediateTextRegion, { 2 }, encodeTextRegion({ { 0, 0, 0 } }, symbols, text));
+        QCOMPARE(decodePage(stream), symbols.front());
+    }
+
+    CustomTable oversubscribed;
+    oversubscribed.lines = { { 1, 0 }, { 1, 0 }, { 2, 0 } };
+    QByteArray invalid = createPageStream(1, 1);
+    appendSegment(invalid, 1, Tables, { }, oversubscribed.segmentData());
+    QVERIFY(decodeExpectingError(invalid).contains("overflow of prefix bit values"));
+
+    for (uint8_t length : { uint8_t(33), uint8_t(64), uint8_t(255) })
+    {
+        for (bool range : { false, true })
+        {
+            QByteArray table(1, char(0x7E)); // Eight-bit length fields.
+            appendUInt32(table, 0);
+            appendUInt32(table, 1);
+            table.append(char(range ? 1 : length));
+            table.append(char(range ? length : 0));
+            table.append(QByteArray(2, char(0)));
+            QByteArray stream = createPageStream(1, 1);
+            appendSegment(stream, 1, Tables, { }, table);
+            QVERIFY(decodeExpectingError(stream).contains("code length"));
+        }
+    }
+
+    // A valid 32-bit range may span the signed domain. Decoding an integer
+    // outside that domain must fail instead of wrapping during the addition.
+    QByteArray table(1, char(0x7E));
+    appendUInt32(table, 0);
+    appendUInt32(table, 1);
+    table.append(QByteArray("\x01\x20\x00\x00", 4));
+    QByteArray stream = createPageStream(1, 1);
+    appendSegment(stream, 1, Tables, { }, table);
+    QByteArray dictionary;
+    appendUInt16(dictionary, 0x000D); // Huffman, user DH table.
+    appendUInt32(dictionary, 1);
+    appendUInt32(dictionary, 1);
+    BitWriter writer;
+    writer.writeBit(0);
+    writer.writeBits(0xFFFFFFFF, 32);
+    dictionary.append(writer.data());
+    appendSegment(stream, 2, SymbolDictionary, { 1 }, dictionary);
+    QVERIFY(decodeExpectingError(stream).contains("integer value out of range"));
+}
+
+void JBIG2SegmentsTest::test_refinement_block_lengths()
+{
+    const std::vector<Image> symbols = { { "#" } };
+    ArithmeticContexts contexts;
+    contexts.reset(0, 0, 0);
+    const QByteArray dictionary = encodeSymbolDictionary(symbols, SymbolDictionaryOptions(), contexts);
+    CustomTable sizes;
+    sizes.lines = { { 1, 4 } };
+    sizes.lowerPrefixLength = sizes.upperPrefixLength = 2;
+    TextRegionOptions options;
+    options.width = options.height = 1;
+    options.huffman = options.refine = true;
+    options.SBHUFFRSIZE = 1;
+    options.userTables = { sizes.table() };
+    const std::vector<TextInstance> instances = { { 0, 0, 0, true, { "." }, 0, 0, 0, 0 } };
+    for (int32_t size : { std::numeric_limits<int32_t>::min(), -1, 0, 1, std::numeric_limits<int32_t>::max() })
+    {
+        options.refinementSizeOverride = size;
+        QByteArray stream = createPageStream(1, 1);
+        appendSegment(stream, 1, SymbolDictionary, { }, dictionary);
+        appendSegment(stream, 2, Tables, { }, sizes.segmentData());
+        appendSegment(stream, 3, ImmediateTextRegion, { 1, 2 }, encodeTextRegion(instances, symbols, options));
+        QVERIFY2(decodeExpectingError(stream).contains("refinement data length"), qPrintable(QString::number(size)));
+    }
+    options.refinementSizeOverride.reset();
+    QByteArray valid = createPageStream(1, 1);
+    appendSegment(valid, 1, SymbolDictionary, { }, dictionary);
+    appendSegment(valid, 2, Tables, { }, sizes.segmentData());
+    appendSegment(valid, 3, ImmediateTextRegion, { 1, 2 }, encodeTextRegion(instances, symbols, options));
+    QCOMPARE(decodePage(valid), Image({ "." }));
+}
+
+void JBIG2SegmentsTest::test_export_count_and_retention()
+{
+    const std::vector<Image> symbols = { { "#" } };
+    for (bool huffman : { false, true })
+    {
+        for (uint32_t count : { 0u, 2u })
+        {
+            ArithmeticContexts contexts;
+            contexts.reset(0, 0, 0);
+            SymbolDictionaryOptions options;
+            options.huffman = huffman;
+            options.exportedCountOverride = count;
+            QByteArray stream = createPageStream(1, 1);
+            appendSegment(stream, 1, SymbolDictionary, { }, encodeSymbolDictionary(symbols, options, contexts));
+            QVERIFY(decodeExpectingError(stream).contains("exported symbol count"));
+        }
+    }
+
+    ArithmeticContexts contexts;
+    contexts.reset(0, 0, 0);
+    QByteArray stream = createPageStream(1, 1);
+    appendSegment(stream, 1, SymbolDictionary, { }, encodeSymbolDictionary(symbols, SymbolDictionaryOptions(), contexts));
+    const int textOffset = int(stream.size());
+    TextRegionOptions text;
+    text.width = text.height = 1;
+    const QByteArray data = encodeTextRegion({ { 0, 0, 0 } }, symbols, text);
+    appendSegment(stream, 2, ImmediateTextRegion, { 1 }, data);
+    stream[textOffset + 5] = char(0x20); // Discard dictionary after its first use.
+    QCOMPARE(decodePage(stream), symbols.front());
+    appendSegment(stream, 3, ImmediateTextRegion, { 1 }, data);
+    const QStringList warning = { "JBIG2 reuses a non-retained segment; kept under the decoding memory limit for compatibility." };
+    QCOMPARE(decodePage(stream, warning), symbols.front());
+
+    QByteArray unretained = stream;
+    unretained[30 + 5] = char(0); // Dictionary itself must be retained for any use.
+    QCOMPARE(decodePage(unretained, warning), symbols.front());
+
+    // Deferred release keeps the referenced dictionary alive until end of page.
+    QByteArray deferred = stream;
+    deferred[textOffset + 4] = char(uint8_t(deferred[textOffset + 4]) | 0x80);
+    QCOMPARE(decodePage(deferred), symbols.front());
+}
+
+void JBIG2SegmentsTest::test_resource_budgets()
+{
+    // Rejected before allocating a large page or the four-byte-per-cell gray grid.
+    QVERIFY(decodeExpectingError(createPageStream(65536, 16384)).contains("memory limit"));
+    QByteArray grid = createPageStream(1, 1);
+    appendSegment(grid, 1, PatternDictionary, { }, encodePatternDictionary({ { "." }, { "#" } }, true, 0));
+    QByteArray region;
+    appendRegionInformation(region, 1, 1, 0, 0, 0);
+    region.append(char(1)); // MMR, no skip.
+    appendUInt32(region, 65536);
+    appendUInt32(region, 8192);
+    appendUInt32(region, 0);
+    appendUInt32(region, 0);
+    appendUInt16(region, 256);
+    appendUInt16(region, 0);
+    appendSegment(grid, 2, ImmediateHalftoneRegion, { 1 }, region);
+    QVERIFY(decodeExpectingError(grid).contains("memory limit"));
+
+    // A small stream of empty dictionaries still consumes initialization work.
+    // The aggregate budget survives release of each temporary dictionary.
+    QByteArray repeated = createPageStream(1, 1);
+    QByteArray empty;
+    appendUInt16(empty, 1);
+    appendUInt32(empty, 0);
+    appendUInt32(empty, 0);
+    for (uint32_t number = 1; number <= 3000; ++number)
+    {
+        const int start = int(repeated.size());
+        appendSegment(repeated, number, SymbolDictionary, { }, empty);
+        repeated[start + 5] = char(0);
+    }
+    QVERIFY(decodeExpectingError(repeated).contains("memory limit"));
+
+    // Arithmetic decisions cannot continue after the shared work allowance ends.
+    const QByteArray data("\xFF\xAC", 2);
+    pdf::PDFBitReader reader(&data, 8);
+    uint64_t work = 1;
+    pdf::PDFJBIG2ArithmeticDecoder decoder(&reader, &work);
+    pdf::PDFJBIG2ArithmeticDecoderState state(1);
+    decoder.initialize();
+    decoder.readBit(0, &state);
+    QCOMPARE(work, uint64_t(0));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, decoder.readBit(0, &state));
+}
+
+void JBIG2SegmentsTest::test_wide_pattern_adaptive_offset()
+{
+    for (int width : { 128, 129, 255 })
+    {
+        QString collective(width * 2, QChar('.'));
+        for (int x = 0; x < collective.size(); ++x)
+            if ((x * 17 + x / 7) % 11 < 5) collective[x] = QChar('#');
+        pdf::PDFJBIG2ArithmeticDecoderState state;
+        state.reset(16);
+        pdf::PDFJBIG2ArithmeticEncoder encoder;
+        // One row, template 0: only the four left pixels and the adaptive pixel
+        // at x-HDPW can be black; every preceding-row context bit is zero.
+        for (int x = 0; x < collective.size(); ++x)
+        {
+            uint32_t context = 0;
+            for (int left = 1; left <= 4; ++left)
+                if (x >= left && collective[x - left] == '#') context |= 1u << (left - 1);
+            if (x >= width && collective[x - width] == '#') context |= 1u << 4;
+            encoder.encodeBit(context, &state, collective[x] == '#' ? 1 : 0);
+        }
+        QByteArray dictionary;
+        dictionary.append(char(0));
+        dictionary.append(char(width));
+        dictionary.append(char(1));
+        appendUInt32(dictionary, 1);
+        dictionary.append(encoder.finish());
+        HalftoneOptions options;
+        options.width = width * 2;
+        options.height = 1;
+        options.patternWidth = width;
+        options.patternHeight = 1;
+        options.patternCount = 2;
+        options.HRX = uint16_t(width * 256);
+        options.HMMR = true;
+        QByteArray stream = createPageStream(width * 2, 1);
+        appendSegment(stream, 1, PatternDictionary, { }, dictionary);
+        appendSegment(stream, 2, ImmediateHalftoneRegion, { 1 }, encodeHalftoneRegion({ { 0, 1 } }, options));
+        QCOMPARE(decodePage(stream), Image({ collective }));
+    }
 }
 
 QTEST_APPLESS_MAIN(JBIG2SegmentsTest)

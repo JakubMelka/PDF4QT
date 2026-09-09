@@ -23,6 +23,7 @@
 #include "pdfexception.h"
 #include "pdfjbig2decoder.h"
 #include "pdfjbig2encoder.h"
+#include "pdfccittfaxencoder.h"
 
 #include <QtTest>
 
@@ -35,6 +36,11 @@ class JBIG2Test : public QObject
     Q_OBJECT
 
 private slots:
+    void test_reader_boundaries();
+    void test_extreme_bitmap_coordinates();
+    void test_actual_region_rows_and_final_stripe();
+    void test_segment_isolation_and_page_validation();
+
     void test_page_information_size_is_decoded();
     void test_page_information_rejects_pixel_count_overflow();
     void test_generic_region_rejects_pixel_count_overflow();
@@ -96,7 +102,7 @@ private:
     /// region segment covering the page
     /// \param rows Rows of the image
     /// \param MMR Use the MMR coding instead of the arithmetic one
-    static QByteArray createEncodedStream(const QStringList& rows, bool MMR = false);
+    static QByteArray createEncodedStream(const QStringList& rows, bool MMR = false, bool endOfBlock = false);
 
     /// Returns the image with the black and white pixels swapped
     static QStringList invertImage(const QStringList& rows);
@@ -200,8 +206,8 @@ void JBIG2Test::appendSegmentHeader(QByteArray& data, uint32_t segmentNumber, ui
     // that the page association is a single byte
     data.append(char(segmentType));
 
-    // Referred-to segment count (the upper three bits) and the retention flags
-    data.append(char(0x00));
+    // Retain the segment for subsequent references.
+    data.append(char(0x01));
 
     // Page association
     data.append(char(0x01));
@@ -217,7 +223,7 @@ QByteArray JBIG2Test::createPageInformationData(uint32_t width, uint32_t height)
     appendUInt32(data, height);
     appendUInt32(data, 0);      // X resolution, unused by the decoder
     appendUInt32(data, 0);      // Y resolution, unused by the decoder
-    data.append(char(0x00));    // Page segment flags
+    data.append(char(0x62));    // Refinements, auxiliary buffers and region operators permitted
     data.append(char(0x00));    // Page striping information
     data.append(char(0x00));
 
@@ -293,7 +299,7 @@ QStringList JBIG2Test::drawImage(const pdf::PDFImageData& imageData)
     return rows;
 }
 
-QByteArray JBIG2Test::createEncodedStream(const QStringList& rows, bool MMR)
+QByteArray JBIG2Test::createEncodedStream(const QStringList& rows, bool MMR, bool endOfBlock)
 {
     const int width = rows.front().size();
     const int height = rows.size();
@@ -322,7 +328,22 @@ QByteArray JBIG2Test::createEncodedStream(const QStringList& rows, bool MMR)
     parameters.MMR = MMR;
 
     pdf::PDFJBIG2Encoder encoder(view, parameters);
-    return encoder.encodeEmbeddedStream();
+    QByteArray stream = encoder.encodeEmbeddedStream();
+    if (MMR && endOfBlock)
+    {
+        pdf::PDFCCITTFaxEncoderParameters ccitt;
+        ccitt.K = -1;
+        ccitt.hasEndOfBlock = true;
+        ccitt.hasEndOfLine = false;
+        ccitt.hasEncodedByteAlign = false;
+        const QByteArray data = pdf::PDFCCITTFaxEncoder(view, ccitt).encode();
+        stream.truncate(GenericFlagsOffset + 1);
+        stream.append(data);
+        writeUInt32(stream, RegionDataLengthOffset, uint32_t(stream.size() - RegionInformationOffset));
+    }
+    stream[PageFlagsOffset] = char(0x63); // Fixtures can add intermediate and refinement regions.
+    stream[RegionHeaderOffset + 5] = char(1); // Keep the region if changed to intermediate.
+    return stream;
 }
 
 QStringList JBIG2Test::invertImage(const QStringList& rows)
@@ -380,8 +401,8 @@ void JBIG2Test::appendSegmentHeaderWithReferences(QByteArray& data, uint32_t seg
     appendUInt32(data, segmentNumber);
     data.append(char(segmentType));
 
-    // Referred-to segment count in the upper three bits, the retain bits are zero
-    data.append(char(referredSegments.size() << 5));
+    // Referred-to segment count in the upper three bits; retain all references
+    data.append(char((referredSegments.size() << 5) | ((1u << (referredSegments.size() + 1)) - 1)));
 
     // Referred segment numbers are a single byte, because the segment number is at most 256
     for (const uint8_t referredSegment : referredSegments)
@@ -489,7 +510,7 @@ void JBIG2Test::test_segment_rejects_data_length_below_its_header()
     appendSegmentHeader(stream, 1, ImmediateGenericRegion, 5);
     stream.append(regionData);
 
-    QVERIFY(decodeExpectingError(stream).contains("invalid data length"));
+    QVERIFY(decodeExpectingError(stream).contains("data"));
 }
 
 void JBIG2Test::test_symbol_dictionary_rejects_symbol_count()
@@ -882,7 +903,7 @@ void JBIG2Test::test_generic_region_with_unknown_data_length()
 
     for (const bool MMR : { false, true })
     {
-        QByteArray stream = createEncodedStream(image, MMR);
+        QByteArray stream = createEncodedStream(image, MMR, MMR);
         QVERIFY(!MMR || !stream.mid(GenericFlagsOffset + 1).contains(QByteArray("\x00\x00", 2)));
 
         writeUInt32(stream, RegionDataLengthOffset, 0xFFFFFFFF);
@@ -916,7 +937,7 @@ void JBIG2Test::test_long_form_referred_segments()
     // A segment referring to more than four segments uses the long form of the
     // referred-to segments field, see 7.2.4 - a four byte count with the top three
     // bits set, followed by the retain bits and by the referred segment numbers. A
-    // generic region does not use the referred segments, so it is decoded as usual.
+    // generic region cannot refer to other segments, so this case must be rejected.
     const QStringList image = { "##..", "..##", "#..#" };
     const QByteArray stream = createEncodedStream(image);
 
@@ -926,9 +947,7 @@ void JBIG2Test::test_long_form_referred_segments()
     longForm.append(QByteArray(5, char(0x00)));             // Referred segment numbers, one byte each
     longForm.append(stream.mid(RegionHeaderOffset + 6));
 
-    ErrorCollector errorCollector;
-    QCOMPARE(drawImage(decode(longForm, &errorCollector)), image);
-    QCOMPARE(errorCollector.messages, QStringList());
+    QVERIFY(decodeExpectingError(longForm).contains("referred segment"));
 
     // The counts 5 and 6 of the short form are reserved
     for (const uint8_t count : { uint8_t(5), uint8_t(6) })
@@ -1096,7 +1115,7 @@ void JBIG2Test::test_malformed_generic_region_segments_are_refused()
     // The data length beyond the end of the stream
     QByteArray longData = stream;
     writeUInt32(longData, RegionDataLengthOffset, 0x7FFFFFF0);
-    QVERIFY(decodeExpectingError(longData).contains("invalid data length"));
+    QVERIFY(decodeExpectingError(longData).contains("data"));
 
     // An unknown segment type
     QByteArray unknownType = stream;
@@ -1196,6 +1215,9 @@ void JBIG2Test::test_refinement_region_segments()
     QByteArray stream = createEncodedStream(page).left(RegionHeaderOffset);
     stream.append(intermediateRegion);
     stream[RegionHeaderOffset + 4] = char(IntermediateGenericRegion);
+    writeUInt32(stream, RegionYOffset - 4, 1);
+    writeUInt32(stream, RegionYOffset, 1);
+    stream[RegionOperatorOffset] = char(3);
 
     {
         QByteArray refinement = stream;
@@ -1223,6 +1245,7 @@ void JBIG2Test::test_refinement_region_segments()
     for (const uint8_t GRTEMPLATE : { uint8_t(0), uint8_t(1) })
     {
         QByteArray refinement = stream;
+        refinement[RegionOperatorOffset] = char(0);
         const QByteArray data = createRefinementData(6, 3, 1, 1, 0, GRTEMPLATE, false, createTypicalRefinementData(30, GRTEMPLATE));
         appendSegmentHeaderWithReferences(refinement, 2, 42, { 1 }, uint32_t(data.size()));
         refinement.append(data);
@@ -1267,7 +1290,7 @@ void JBIG2Test::test_refinement_region_segments()
         const QByteArray data = createRefinementData(size.first, size.second, 1, 1, 0, 0, true, createTypicalRefinementData(3, 0));
         appendSegmentHeaderWithReferences(mismatch, 2, 42, { 1 }, uint32_t(data.size()));
         mismatch.append(data);
-        QVERIFY(decodeExpectingError(mismatch).contains("invalid referred bitmap size"));
+        QVERIFY(decodeExpectingError(mismatch).contains("metadata mismatch"));
     }
 
     // The referred segment must exist and there must be at most one
@@ -1286,7 +1309,7 @@ void JBIG2Test::test_refinement_region_segments()
         QByteArray two = stream;
         appendSegmentHeaderWithReferences(two, 2, 42, { 1, 1 }, uint32_t(data.size()));
         two.append(data);
-        QVERIFY(decodeExpectingError(two).contains("invalid referred segments"));
+        QVERIFY(decodeExpectingError(two).contains("duplicate segment reference"));
     }
 
     // Reserved flags of the refinement region
@@ -1320,12 +1343,12 @@ void JBIG2Test::test_symbol_dictionary_flag_validation()
 
         if (!SDHUFF)
         {
-            data.append((SDTEMPLATE == 0) ? 8 : 2, char(0x00));
+            data.append((SDTEMPLATE == 0) ? 8 : 2, static_cast<char>(uint8_t(0xFF)));
         }
 
         if (SDREFAGG && SDRTEMPLATE == 0)
         {
-            data.append(4, char(0x00));
+            data.append(4, static_cast<char>(uint8_t(0xFF)));
         }
 
         appendUInt32(data, numberOfExportedSymbols);
@@ -1452,6 +1475,8 @@ void JBIG2Test::test_region_outside_page_is_clipped()
     writeUInt32(inner, RegionYOffset - RegionHeaderOffset - 4, 5);
     writeUInt32(inner, RegionYOffset - RegionHeaderOffset, 1);
     striped.append(inner);
+    appendSegmentHeader(striped, 3, EndOfStripe, 4);
+    appendUInt32(striped, 2);
 
     QCOMPARE(drawImage(decode(striped)), QStringList({ "####....", "#..#.##.", "####...." }));
 }
@@ -1517,16 +1542,117 @@ void JBIG2Test::test_referred_segments_are_resolved()
     QByteArray missing = createEncodedStream({ "#.#." }).left(RegionHeaderOffset);
     appendSegmentHeaderWithReferences(missing, 1, SymbolDictionary, { 7 }, uint32_t(dictionaryData.size()));
     missing.append(dictionaryData);
-    QVERIFY(decodeExpectingError(missing).contains("invalid referred segment 7"));
+    QVERIFY(decodeExpectingError(missing).contains("reference must precede"));
 
     QByteArray bitmapReference = createEncodedStream({ "#.#." });
     bitmapReference[RegionHeaderOffset + 4] = char(IntermediateGenericRegion);
     appendSegmentHeaderWithReferences(bitmapReference, 2, SymbolDictionary, { 1 }, uint32_t(dictionaryData.size()));
     bitmapReference.append(dictionaryData);
 
-    // The dictionary itself is not decodable from the random data, but the reference
-    // to the bitmap is resolved without an error
-    QVERIFY(!decodeExpectingError(bitmapReference).contains("invalid referred segment"));
+    // A symbol dictionary cannot import a region bitmap.
+    QVERIFY(decodeExpectingError(bitmapReference).contains("referred segment type"));
+}
+
+
+void JBIG2Test::test_reader_boundaries()
+{
+    const QByteArray bytes("\xAA\x55", 2);
+    pdf::PDFBitReader reader(&bytes, 8);
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, reader.seek(-1));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, reader.seek(std::numeric_limits<qint64>::max()));
+    QCOMPARE(reader.read(1), uint64_t(1));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, reader.skipBytes(std::numeric_limits<uint64_t>::max()));
+    QCOMPARE(reader.read(7), uint64_t(0x2A));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, reader.read(64));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, reader.look(64));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, reader.readSubstream(-2));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, reader.readSubstream(2));
+    QCOMPARE(reader.readSubstream(1), QByteArray("\x55", 1));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, reader.read(1));
+}
+
+void JBIG2Test::test_extreme_bitmap_coordinates()
+{
+    pdf::PDFJBIG2Bitmap page(2, 2, 0);
+    pdf::PDFJBIG2Bitmap black(1, 1, 0xFF);
+    for (int64_t offset : { std::numeric_limits<int64_t>::min(), std::numeric_limits<int64_t>::max() })
+    {
+        QCOMPARE(page.getPixelSafe(offset, offset), uint8_t(0));
+        page.paint(black, offset, offset, pdf::PDFJBIG2BitOperation::Or, false, 0);
+        QCOMPARE(page.getSubbitmap(offset, offset, 1, 1).getPixel(0, 0), uint8_t(0));
+    }
+    QCOMPARE(page.getPixel(0, 0), uint8_t(0));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, page.paint(black, 0, std::numeric_limits<int64_t>::max(), pdf::PDFJBIG2BitOperation::Or, true, 0));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, pdf::PDFJBIG2Bitmap::checkSize(std::numeric_limits<int64_t>::max(), 2));
+}
+
+void JBIG2Test::test_actual_region_rows_and_final_stripe()
+{
+    for (bool mmr : { false, true })
+    {
+        const QStringList rows = { "#..#", ".##." };
+        QByteArray stream = createEncodedStream(rows, mmr, mmr);
+        // Declared height is an upper bound; the trailer supplies the actual rows.
+        writeUInt32(stream, RegionInformationOffset + 4, 8);
+        writeUInt32(stream, RegionDataLengthOffset, 0xFFFFFFFF);
+        if (mmr)
+            stream.append(QByteArray("\x00\x00", 2));
+        appendUInt32(stream, 2);
+        QCOMPARE(drawImage(decode(stream)), rows);
+
+        QByteArray tooMany = stream;
+        writeUInt32(tooMany, int(tooMany.size()) - 4, 9);
+        QVERIFY(decodeExpectingError(tooMany).contains("actual generic region row count"));
+        QVERIFY(!decodeExpectingError(stream.left(stream.size() - 1)).isEmpty());
+    }
+
+    for (bool blackDefault : { false, true })
+    {
+        QByteArray stream = createEncodedStream({ "#..#" });
+        writeUInt32(stream, 15, 0xFFFFFFFF);
+        stream[28] = static_cast<char>(uint8_t(0x80));
+        stream[29] = char(4);
+        if (blackDefault)
+            stream[PageFlagsOffset] = char(uint8_t(stream[PageFlagsOffset]) | 4);
+        QVERIFY(decodeExpectingError(stream).contains("final end-of-stripe"));
+        appendSegmentHeader(stream, 2, EndOfStripe, 4);
+        appendUInt32(stream, 3);
+        const QString fill = blackDefault ? "####" : "....";
+        QCOMPARE(drawImage(decode(stream)), QStringList({ blackDefault ? "####" : "#..#", fill, fill, fill }));
+        QByteArray backwards = stream;
+        appendSegmentHeader(backwards, 3, EndOfStripe, 4);
+        appendUInt32(backwards, 2);
+        QVERIFY(decodeExpectingError(backwards).contains("stripe end row"));
+    }
+}
+
+void JBIG2Test::test_segment_isolation_and_page_validation()
+{
+    QByteArray stream = createEncodedStream({ "#..#", ".##." });
+    QByteArray shorter = stream;
+    writeUInt32(shorter, 7, 18); // The missing page byte must not come from the next segment.
+    QVERIFY(decodeExpectingError(shorter).contains("Not enough data"));
+
+    QByteArray invalidAt = stream;
+    invalidAt[GenericFlagsOffset + 1] = char(0);
+    invalidAt[GenericFlagsOffset + 2] = char(0);
+    QVERIFY(decodeExpectingError(invalidAt).contains("non-causal"));
+
+    QByteArray wrongPage = stream;
+    wrongPage[RegionHeaderOffset + 6] = char(2);
+    QVERIFY(decodeExpectingError(wrongPage).contains("page association"));
+
+    QByteArray duplicate = stream + stream.mid(RegionHeaderOffset);
+    QVERIFY(decodeExpectingError(duplicate).contains("duplicate segment"));
+
+    QByteArray reserved = stream;
+    reserved[PageFlagsOffset] = static_cast<char>(uint8_t(0x80));
+    QVERIFY(decodeExpectingError(reserved).contains("page information"));
+
+    QByteArray wrongOperator = stream;
+    wrongOperator[PageFlagsOffset] = char(0);
+    wrongOperator[RegionOperatorOffset] = char(2);
+    QVERIFY(decodeExpectingError(wrongOperator).contains("combination operator"));
 }
 
 QTEST_APPLESS_MAIN(JBIG2Test)

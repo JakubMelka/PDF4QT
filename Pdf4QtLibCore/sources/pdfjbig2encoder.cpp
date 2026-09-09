@@ -103,13 +103,18 @@ PDFJBIG2ArithmeticEncoder::PDFJBIG2ArithmeticEncoder()
 
 void PDFJBIG2ArithmeticEncoder::encodeBit(size_t context, PDFJBIG2ArithmeticDecoderState* state, uint32_t bit)
 {
-    Q_ASSERT(!m_isFinished);
-    Q_ASSERT(bit < 2);
+    if (m_isFinished || !state || bit > 1)
+    {
+        throw PDFException(PDFTranslationContext::tr("Invalid JBIG2 arithmetic encoder state or bit."));
+    }
 
     const uint8_t QeRowIndex = state->getQeRowIndex(context);
     uint8_t MPS = state->getMPS(context);
 
-    Q_ASSERT(QeRowIndex < std::size(JBIG2_ARITHMETIC_ENCODER_QE_VALUES));
+    if (QeRowIndex >= std::size(JBIG2_ARITHMETIC_ENCODER_QE_VALUES))
+    {
+        throw PDFException(PDFTranslationContext::tr("Invalid JBIG2 arithmetic probability state."));
+    }
 
     const PDFJBIG2ArithmeticEncoderQeValue& QeInfo = JBIG2_ARITHMETIC_ENCODER_QE_VALUES[QeRowIndex];
     const uint32_t Qe = QeInfo.Qe;
@@ -166,7 +171,10 @@ void PDFJBIG2ArithmeticEncoder::encodeBit(size_t context, PDFJBIG2ArithmeticDeco
 
 QByteArray PDFJBIG2ArithmeticEncoder::finish()
 {
-    Q_ASSERT(!m_isFinished);
+    if (m_isFinished)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 arithmetic encoder has already finished."));
+    }
     m_isFinished = true;
 
     // Procedure FLUSH, figure E.11. SETBITS (figure E.12) sets as many low bits
@@ -262,6 +270,10 @@ void PDFJBIG2ArithmeticEncoder::emitByte()
     }
 
     Q_ASSERT(m_b <= 0xFF);
+    if (uint64_t(m_output.size()) >= PDFJBIG2Decoder::MAX_INPUT_BYTES)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 arithmetic output size limit exceeded."));
+    }
     m_output.push_back(static_cast<char>(static_cast<uint8_t>(m_b)));
 }
 
@@ -363,6 +375,11 @@ void PDFJBIG2Encoder::validate(const PDFBitonalBitmapView& bitmap, const PDFJBIG
 
     // The decoder allocates a byte per pixel, so the same limit is used here
     PDFJBIG2Bitmap::checkSize(bitmap.width, bitmap.height);
+    // Leave room for the decoder's page, region, packed output and coding buffers.
+    if (uint64_t(bitmap.width) * bitmap.height > PDFJBIG2Decoder::MAX_DECODED_BYTES / 4)
+    {
+        throw PDFException(PDFTranslationContext::tr("Image exceeds the JBIG2 encoding resource limit."));
+    }
 
     if (parameters.MMR)
     {
@@ -380,7 +397,7 @@ void PDFJBIG2Encoder::validate(const PDFBitonalBitmapView& bitmap, const PDFJBIG
     for (int i = 0; i < atCount; ++i)
     {
         const PDFJBIG2ATPosition& position = parameters.GBAT[i];
-        if (position.y > 0 || (position.y == 0 && position.x >= 0))
+        if (position.x < -128 || position.x > 127 || position.y < -128 || position.y > 0 || (position.y == 0 && position.x >= 0))
         {
             throw PDFException(PDFTranslationContext::tr("Invalid JBIG2 adaptive template pixel position A%1 = (%2, %3).").arg(i + 1).arg(position.x).arg(position.y));
         }
@@ -389,7 +406,8 @@ void PDFJBIG2Encoder::validate(const PDFBitonalBitmapView& bitmap, const PDFJBIG
 
 bool PDFJBIG2Encoder::isSizeSupported(int width, int height)
 {
-    if (width < 1 || height < 1 || uint32_t(width) > PDFJBIG2Decoder::MAX_BITMAP_SIZE || uint32_t(height) > PDFJBIG2Decoder::MAX_BITMAP_SIZE)
+    if (width < 1 || height < 1 || uint32_t(width) > PDFJBIG2Decoder::MAX_BITMAP_SIZE || uint32_t(height) > PDFJBIG2Decoder::MAX_BITMAP_SIZE ||
+        uint64_t(width) * height > PDFJBIG2Decoder::MAX_DECODED_BYTES / 4)
     {
         return false;
     }
@@ -426,6 +444,10 @@ void PDFJBIG2Encoder::encodeGenericBitmap(const PDFBitonalBitmapView& bitmap,
     arithmeticParameters.MMR = false;
     validate(bitmap, arithmeticParameters);
 
+    if (state.getSize() != (size_t(1) << PDFJBIG2EncoderParameters::getContextBitCount(parameters.GBTEMPLATE)))
+    {
+        throw PDFException(PDFTranslationContext::tr("Invalid JBIG2 arithmetic context size for the selected template."));
+    }
     const int width = bitmap.width;
     const int height = bitmap.height;
 
@@ -637,6 +659,10 @@ QByteArray PDFJBIG2Encoder::createGenericRegionData()
 
 void PDFJBIG2Encoder::appendSegment(QByteArray& stream, uint32_t segmentNumber, SegmentType type, uint8_t pageAssociation, const QByteArray& data)
 {
+    if (uint64_t(stream.size()) + uint64_t(data.size()) + 11 > PDFJBIG2Decoder::MAX_INPUT_BYTES)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 encoded stream size limit exceeded."));
+    }
     // Segment header, see 7.2 of the specification
     appendUInt32(stream, segmentNumber);
 

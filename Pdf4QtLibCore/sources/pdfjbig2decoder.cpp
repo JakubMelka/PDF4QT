@@ -28,6 +28,29 @@
 namespace pdf
 {
 
+static constexpr uint32_t MAX_JBIG2_SYMBOL_COUNT = 1 << 20;
+static constexpr uint32_t MAX_JBIG2_SEGMENT_COUNT = 65536;
+
+static int32_t checkedJBIG2Integer(int64_t value)
+{
+    if (value < std::numeric_limits<int32_t>::min() || value > std::numeric_limits<int32_t>::max())
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 integer value out of range."));
+    }
+    return int32_t(value);
+}
+
+QByteArray PDFJBIG2Decoder::readRefinementData(PDFBitReader* reader, int32_t size)
+{
+    reader->alignToBytes();
+    if (size < 2 || size > reader->getStream()->size() - reader->getPosition())
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid refinement data length %1.").arg(size));
+    }
+    consumeDecodedBytes(uint64_t(size));
+    return reader->readSubstream(size);
+}
+
 /// Returns the value divided by two, rounded towards the negative infinity, which is
 /// the floor function used by the specification. The integer division of C++ rounds
 /// towards zero instead, so the results differ for negative odd values. The right
@@ -63,10 +86,12 @@ public:
     explicit inline PDFJBIG2SymbolDictionary() = default;
     explicit inline PDFJBIG2SymbolDictionary(std::vector<PDFJBIG2Bitmap>&& bitmaps,
                                              PDFJBIG2ArithmeticDecoderState&& genericState,
-                                             PDFJBIG2ArithmeticDecoderState&& genericRefinementState) :
+                                             PDFJBIG2ArithmeticDecoderState&& genericRefinementState,
+                                             uint16_t flags, const PDFJBIG2ATPositions& at, const PDFJBIG2ATPositions& refinementAt) :
         m_bitmaps(qMove(bitmaps)),
         m_genericState(qMove(genericState)),
-        m_genericRefinementState(qMove(genericRefinementState))
+        m_genericRefinementState(qMove(genericRefinementState)),
+        m_flags(flags), m_at(at), m_refinementAt(refinementAt)
     {
 
     }
@@ -76,11 +101,21 @@ public:
     const std::vector<PDFJBIG2Bitmap>& getBitmaps() const { return m_bitmaps; }
     const PDFJBIG2ArithmeticDecoderState& getGenericState() const { return m_genericState; }
     const PDFJBIG2ArithmeticDecoderState& getGenericRefinementState() const { return m_genericRefinementState; }
+    bool canReuse(uint16_t flags, const PDFJBIG2ATPositions& at, const PDFJBIG2ATPositions& refinementAt) const
+    {
+        const auto equal = [](const auto& a, const auto& b) { return a.x == b.x && a.y == b.y; };
+        return (m_flags & 0x0200) && ((m_flags ^ flags) & 0x1C03) == 0 &&
+               std::equal(m_at.begin(), m_at.end(), at.begin(), equal) &&
+               std::equal(m_refinementAt.begin(), m_refinementAt.end(), refinementAt.begin(), equal);
+    }
 
 private:
     std::vector<PDFJBIG2Bitmap> m_bitmaps;
     PDFJBIG2ArithmeticDecoderState m_genericState;
     PDFJBIG2ArithmeticDecoderState m_genericRefinementState;
+    uint16_t m_flags = 0;
+    PDFJBIG2ATPositions m_at = { };
+    PDFJBIG2ATPositions m_refinementAt = { };
 };
 
 class PDFJBIG2PatternDictionary : public PDFJBIG2Segment
@@ -310,7 +345,8 @@ struct PDFJBIG2BitmapDecodingParameters
     /// Data with encoded image
     QByteArray data;
 
-    /// End position in the data after reading MMR
+    /// Gray-scale planes require EOFB, followed by byte alignment.
+    bool requireMMREndOfBlock = false;
     int dataEndPosition = 0;
 
     /// State of arithmetic decoder
@@ -343,10 +379,10 @@ struct PDFJBIG2BitmapRefinementDecodingParameters
     const PDFJBIG2Bitmap* GRREFERENCE = nullptr;
 
     /// Offset x
-    int32_t GRREFERENCEX = 0;
+    int64_t GRREFERENCEX = 0;
 
     /// Offset y
-    int32_t GRREFERENCEY = 0;
+    int64_t GRREFERENCEY = 0;
 
     /// State of arithmetic decoder
     PDFJBIG2ArithmeticDecoderState* arithmeticDecoderState = nullptr;
@@ -739,6 +775,10 @@ uint32_t PDFJBIG2ArithmeticDecoder::readByte(size_t context, PDFJBIG2ArithmeticD
 
 int32_t PDFJBIG2ArithmeticDecoder::getIAID(uint32_t size, PDFJBIG2ArithmeticDecoderState* state)
 {
+    if (size > 31)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid symbol ID bit count %1.").arg(size));
+    }
     // Algorithm A.3 in annex A in the specification
     uint32_t PREV = 1;
 
@@ -750,7 +790,7 @@ int32_t PDFJBIG2ArithmeticDecoder::getIAID(uint32_t size, PDFJBIG2ArithmeticDeco
 
     // Jakub Melka: we must subtract 1 << size, because at the start of the algorithm,
     // PREV is initialized to 1, which we don't want in the result, so we subtract the value.
-    return int32_t(PREV) - int32_t(1 << size);
+    return int32_t(PREV - (uint32_t(1) << size));
 }
 
 std::optional<int32_t> PDFJBIG2ArithmeticDecoder::getSignedInteger(PDFJBIG2ArithmeticDecoderState* state)
@@ -788,7 +828,7 @@ std::optional<int32_t> PDFJBIG2ArithmeticDecoder::getSignedInteger(PDFJBIG2Arith
     };
 
     uint32_t S = readIntBit(); // S = sign of number
-    uint32_t V = 0; // V = value of number
+    uint64_t V = 0; // Keep the magnitude and its offset before checking the signed range
     if (!readIntBit())
     {
         V = readIntBits(2);
@@ -811,7 +851,7 @@ std::optional<int32_t> PDFJBIG2ArithmeticDecoder::getSignedInteger(PDFJBIG2Arith
     }
     else
     {
-        V = readIntBits(32) + 4436;
+        V = uint64_t(readIntBits(32)) + 4436;
     }
 
     if (S)
@@ -822,12 +862,12 @@ std::optional<int32_t> PDFJBIG2ArithmeticDecoder::getSignedInteger(PDFJBIG2Arith
         }
         else
         {
-            return -static_cast<int32_t>(V);
+            return checkedJBIG2Integer(-int64_t(V));
         }
     }
     else
     {
-        return V;
+        return checkedJBIG2Integer(int64_t(V));
     }
 }
 
@@ -883,13 +923,24 @@ void PDFJBIG2ArithmeticDecoder::perform_BYTEIN()
 
 uint32_t PDFJBIG2ArithmeticDecoder::perform_DECODE(size_t context, PDFJBIG2ArithmeticDecoderState* state)
 {
+    if (!state || (m_workRemaining && *m_workRemaining == 0))
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 decoding work limit exceeded or invalid state."));
+    }
+    if (m_workRemaining)
+    {
+        --*m_workRemaining;
+    }
     // Used figure G.2, in annex G, of specification
     const uint8_t QeRowIndex = state->getQeRowIndex(context);
     uint8_t MPS = state->getMPS(context);
     uint8_t D = MPS;
 
     // Sanity checks
-    Q_ASSERT(QeRowIndex < std::size(JBIG2_ARITHMETIC_DECODER_QE_VALUES));
+    if (QeRowIndex >= std::size(JBIG2_ARITHMETIC_DECODER_QE_VALUES))
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid arithmetic state."));
+    }
     Q_ASSERT(MPS < 2);
 
     const PDFJBIG2ArithmeticDecoderQeValue& QeInfo = JBIG2_ARITHMETIC_DECODER_QE_VALUES[QeRowIndex];
@@ -971,11 +1022,9 @@ PDFJBIG2SegmentHeader PDFJBIG2SegmentHeader::read(PDFBitReader* reader)
     const uint8_t flags = reader->readUnsignedByte();
     const uint8_t type = flags & 0x3F;
     const bool isPageAssociationSize4ByteLong = flags & 0x40;
+    header.m_deferredNonRetain = flags & 0x80;
 
-    // Jakub Melka: Now parse referred to segments. We do not use retain flags, so we skip
-    // these bits. Data format is described in chapter 7.2.4 of the specification. According
-    // the specification, values 5 or 6 can't be in bits 6,7,8, of the first byte. If these
-    // occurs, exception is thrown.
+    // Parse both the referred-to count and retention flags (7.2.4).
     uint32_t retentionField = reader->readUnsignedByte();
     uint32_t referredSegmentsCount = retentionField >> 5; // Bits 6,7,8
 
@@ -986,28 +1035,61 @@ PDFJBIG2SegmentHeader PDFJBIG2SegmentHeader::read(PDFBitReader* reader)
 
     if (referredSegmentsCount == 7)
     {
-        // This signalizes, that we have more than 4 referred segments. We will read 32-bit value,
-        // where bits 0-28 will be number of referred segments, and bits 29-31 are all set to 1 -
-        // they are the three bits of the count 7 read above.
         retentionField = (retentionField << 24) | reader->read(24);
         referredSegmentsCount = retentionField & 0x1FFFFFFF;
-
-        // According the specification, retention header is 4 + ceil( (R + 1) / 8) bytes long. We have already 4 bytes read,
-        // so only ceil( (R + 1) / 8 ) bytes we must skip. So, we will add 7 "bits", so we have (R + 1 + 7) / 8 bytes
-        // to be skipped. We have R + 1 bits, not R bits, because 1 bit is used for this segment retain flag.
-        const uint32_t bytesToSkip = (referredSegmentsCount + 8) / 8;
-        reader->skipBytes(bytesToSkip);
+        const uint32_t bytes = (referredSegmentsCount + 8) / 8;
+        if (referredSegmentsCount < 5 || referredSegmentsCount > MAX_JBIG2_SEGMENT_COUNT ||
+            bytes > reader->getStream()->size() - reader->getPosition())
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 invalid referred segment count."));
+        }
+        header.m_retainFlags.resize(size_t(referredSegmentsCount) + 1);
+        for (uint32_t i = 0; i < bytes; ++i)
+        {
+            const uint8_t value = reader->readUnsignedByte();
+            const uint32_t validBits = qMin(8u, referredSegmentsCount + 1 - i * 8);
+            if ((uint32_t(value) >> validBits) != 0)
+            {
+                throw PDFException(PDFTranslationContext::tr("JBIG2 invalid retention padding bits."));
+            }
+            for (uint32_t bit = 0; bit < 8 && i * 8 + bit <= referredSegmentsCount; ++bit)
+            {
+                header.m_retainFlags[i * 8 + bit] = (value >> bit) & 1;
+            }
+        }
+    }
+    else
+    {
+        if ((retentionField & 0x1F) >> (referredSegmentsCount + 1))
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 invalid retention padding bits."));
+        }
+        for (uint32_t i = 0; i <= referredSegmentsCount; ++i)
+        {
+            header.m_retainFlags.push_back((retentionField >> i) & 1);
+        }
     }
 
     // Read referred segment numbers. According to specification, chapter 7.2.5, referred segments should have
     // segment number lesser than actual segment number. So, if segment number is less, or equal to 256, then
     // 8-bit value is used to store referred segment number, if segment number is less, or equal to 65536, then
     // 16-bit value is used, otherwise 32 bit value is used.
-    header.m_referredSegments.reserve(referredSegmentsCount);
     const PDFBitReader::Value referredSegmentNumberBits = (header.m_segmentNumber <= 256) ? 8 : ((header.m_segmentNumber <= 65536) ? 16 : 32);
+    const int64_t remainingBytes = reader->getStream()->size() - reader->getPosition();
+    if (referredSegmentsCount > MAX_JBIG2_SEGMENT_COUNT ||
+        uint64_t(referredSegmentsCount) * (referredSegmentNumberBits / 8) > uint64_t(remainingBytes))
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid referred segment count."));
+    }
+    header.m_referredSegments.reserve(referredSegmentsCount);
     for (uint32_t i = 0; i < referredSegmentsCount; ++i)
     {
-        header.m_referredSegments.push_back(reader->read(referredSegmentNumberBits));
+        const uint32_t number = reader->read(referredSegmentNumberBits);
+        if (number >= header.m_segmentNumber)
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 reference must precede its segment."));
+        }
+        header.m_referredSegments.push_back(number);
     }
 
     header.m_pageAssociation = reader->read(isPageAssociationSize4ByteLong ? 32 : 8);
@@ -1091,17 +1173,25 @@ PDFJBIG2Decoder::~PDFJBIG2Decoder()
 
 PDFImageData PDFJBIG2Decoder::decode(PDFImageData::MaskingType maskingType)
 {
+    if (uint64_t(m_data.size()) + uint64_t(m_globalData.size()) > MAX_INPUT_BYTES)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 input size limit exceeded."));
+    }
     for (const QByteArray* data :  { &m_globalData, &m_data })
     {
         if (!data->isEmpty())
         {
+            m_readingGlobals = data == &m_globalData;
             m_reader = PDFBitReader(data, 8);
             processStream();
         }
     }
 
+    finishPage();
     if (m_pageBitmap.isValid())
     {
+        consumeDecodedBytes(uint64_t((m_pageBitmap.getWidth() + 7) / 8) * m_pageBitmap.getHeight());
+        consumeWork(m_pageBitmap.getPixelCount());
         PDFBitWriter writer(1);
 
         const int columns = m_pageBitmap.getWidth();
@@ -1124,8 +1214,13 @@ PDFImageData PDFJBIG2Decoder::decode(PDFImageData::MaskingType maskingType)
 
 PDFImageData PDFJBIG2Decoder::decodeFileStream()
 {
+    if (uint64_t(m_data.size()) + uint64_t(m_globalData.size()) > MAX_INPUT_BYTES)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 input size limit exceeded."));
+    }
     m_reader = PDFBitReader(&m_data, 8);
     m_isDecodingFile = true;
+    consumeDecodedBytes(uint64_t(m_data.size()) * 2);
 
     constexpr const char* JBIG2_FILE_HEADER = "\x97\x4A\x42\x32\x0D\x0A\x1A\x0A";
     if (!m_data.startsWith(JBIG2_FILE_HEADER))
@@ -1144,21 +1239,16 @@ PDFImageData PDFJBIG2Decoder::decodeFileStream()
         // If they are nonzero, probably a new version of JBIG2 format exists, but
         // is not decodable by this decoder. So, in this case, we don't do decoding
         // and report error immediately.
-        throw PDFException(PDFTranslationContext::tr("Invalid JBIG2 file header flags."));
+        throw PDFException(PDFTranslationContext::tr("Unsupported JBIG2 file header flags (extended templates are not supported)."));
     }
 
     const bool isFileOrganizationSequential = fileFlags & 0x01;
     const bool isUknownNumberOfPages = fileFlags & 0x02;
 
-    if (isUknownNumberOfPages)
-    {
-        throw PDFException(PDFTranslationContext::tr("Invalid JBIG2 file - unknown number of pages."));
-    }
-
-    const uint32_t numberOfPages = m_reader.readUnsignedInt();
+    const uint32_t numberOfPages = isUknownNumberOfPages ? 1 : m_reader.readUnsignedInt();
     if (numberOfPages != 1)
     {
-        throw PDFException(PDFTranslationContext::tr("Invalid JBIG2 file - invalid number of pages (%1).").arg(numberOfPages));
+        throw PDFException(PDFTranslationContext::tr("Unsupported JBIG2 file - expected one page (%1).").arg(numberOfPages));
     }
 
     if (isFileOrganizationSequential)
@@ -1185,9 +1275,14 @@ PDFImageData PDFJBIG2Decoder::decodeFileStream()
             SegmentInfo segmentInfo{ PDFJBIG2SegmentHeader::read(&m_reader), QByteArray(), QByteArray() };
             const int headerEndPosition = m_reader.getPosition();
             segmentInfo.headerData = m_data.mid(headerStartPosition, headerEndPosition - headerStartPosition);
+            if (segmentInfos.size() >= MAX_JBIG2_SEGMENT_COUNT)
+            {
+                throw PDFException(PDFTranslationContext::tr("JBIG2 segment count limit exceeded."));
+            }
+            consumeDecodedBytes(1024 + uint64_t(segmentInfo.header.getReferredSegments().size()) * 8);
             segmentInfos.push_back(qMove(segmentInfo));
 
-            if (segmentInfo.header.getSegmentType() == JBIG2SegmentType::EndOfFile)
+            if (segmentInfos.back().header.getSegmentType() == JBIG2SegmentType::EndOfFile)
             {
                 break;
             }
@@ -1203,14 +1298,12 @@ PDFImageData PDFJBIG2Decoder::decodeFileStream()
             info.segmentData = m_reader.readSubstream(info.header.getSegmentDataLength());
         }
 
+        if (!m_reader.isAtEnd())
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 extra data after random-access file segments."));
+        }
         for (const SegmentInfo& info : segmentInfos)
         {
-            if (info.header.getSegmentType() == JBIG2SegmentType::EndOfPage ||
-                info.header.getSegmentType() == JBIG2SegmentType::EndOfFile)
-            {
-                continue;
-            }
-
             sequentialData.append(info.headerData);
             sequentialData.append(info.segmentData);
         }
@@ -1218,7 +1311,12 @@ PDFImageData PDFJBIG2Decoder::decodeFileStream()
         m_data = qMove(sequentialData);
     }
 
-    return decode(PDFImageData::MaskingType::None);
+    PDFImageData result = decode(PDFImageData::MaskingType::None);
+    if (!m_fileEnded)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 file is missing its end-of-file segment."));
+    }
+    return result;
 }
 
 void PDFJBIG2Decoder::processStream()
@@ -1227,13 +1325,31 @@ void PDFJBIG2Decoder::processStream()
     {
         // Read the segment header, then process the segment data
         PDFJBIG2SegmentHeader segmentHeader = PDFJBIG2SegmentHeader::read(&m_reader);
-        const int64_t segmentDataStartPosition = m_reader.getPosition();
-
+        validateSegment(segmentHeader);
+        consumeDecodedBytes(1024 + uint64_t(segmentHeader.getReferredSegments().size()) * 32);
         // The unknown data length is allowed for the immediate generic region only, see 7.2.7
         if (!segmentHeader.isSegmentDataLengthDefined() && (segmentHeader.getSegmentType() != JBIG2SegmentType::GenericRegion || !segmentHeader.isImmediate()))
         {
             throw PDFException(PDFTranslationContext::tr("JBIG2 unknown data length of the segment %1 - it is allowed for an immediate generic region only.").arg(segmentHeader.getSegmentNumber()));
         }
+
+        // Keep each handler inside its segment, including arithmetic lookahead and
+        // nested refinement blocks. Restore the outer reader on every exit path.
+        QByteArray segmentData;
+        std::optional<PDFTemporaryValueChange<PDFBitReader>> segmentReaderGuard;
+        if (segmentHeader.isSegmentDataLengthDefined())
+        {
+            const uint32_t length = segmentHeader.getSegmentDataLength();
+            if (length > uint64_t(m_reader.getStream()->size() - m_reader.getPosition()) ||
+                length > uint32_t(std::numeric_limits<int>::max()))
+            {
+                throw PDFException(PDFTranslationContext::tr("JBIG2 invalid segment data length."));
+            }
+            consumeDecodedBytes(length);
+            segmentData = m_reader.readSubstream(int(length));
+            segmentReaderGuard.emplace(&m_reader, PDFBitReader(&segmentData, 8));
+        }
+        const int64_t segmentDataStartPosition = m_reader.getPosition();
 
         switch (segmentHeader.getSegmentType())
         {
@@ -1309,6 +1425,200 @@ void PDFJBIG2Decoder::processStream()
             // Always seek to the right position
             m_reader.seek(segmentDataStartPosition + segmentHeader.getSegmentDataLength());
         }
+        m_segmentPages[segmentHeader.getSegmentNumber()] = segmentHeader.getPageAssociation();
+        const auto stored = m_segments.find(segmentHeader.getSegmentNumber());
+        if (stored != m_segments.end())
+        {
+            if (stored->second->asBitmap())
+            {
+                m_regionInformation[segmentHeader.getSegmentNumber()] = m_currentRegionInformation;
+            }
+        }
+        releaseSegments(segmentHeader);
+    }
+}
+
+void PDFJBIG2Decoder::validateSegment(const PDFJBIG2SegmentHeader& header)
+{
+    const uint32_t number = header.getSegmentNumber();
+    const uint32_t page = header.getPageAssociation();
+    const auto type = header.getSegmentType();
+    if (m_fileEnded || m_seenSegments.size() >= MAX_JBIG2_SEGMENT_COUNT || !m_seenSegments.insert(number).second)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 duplicate segment, segment limit exceeded or data after EOF."));
+    }
+    if (m_readingGlobals && page != 0)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 global segment is associated with a page."));
+    }
+    const bool region = type == JBIG2SegmentType::TextRegion || type == JBIG2SegmentType::HalftoneRegion ||
+                        type == JBIG2SegmentType::GenericRegion || type == JBIG2SegmentType::GenericRefinementRegion;
+    if (type == JBIG2SegmentType::PageInformation)
+    {
+        if (!page || m_pageAssociation)
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 duplicate or unassociated page information; only one page is supported."));
+        }
+    }
+    else if (region || type == JBIG2SegmentType::EndOfPage || type == JBIG2SegmentType::EndOfStripe)
+    {
+        if (!m_pageAssociation || page != m_pageAssociation || m_pageEnded)
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 invalid page association or segment after end of page."));
+        }
+    }
+    else if ((page && m_pageAssociation && page != m_pageAssociation) ||
+             (m_pageEnded && page && type != JBIG2SegmentType::EndOfFile))
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid segment page association."));
+    }
+    if (region && ((!header.isImmediate() && !m_pageMayUseAuxiliary) ||
+                   (type == JBIG2SegmentType::GenericRefinementRegion && !m_pageMayRefine)))
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 region contradicts page refinement or auxiliary-buffer flags."));
+    }
+
+    size_t tables = 0;
+    std::set<uint32_t> references;
+    for (uint32_t ref : header.getReferredSegments())
+    {
+        if (!references.insert(ref).second)
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 duplicate segment reference."));
+        }
+        if (type == JBIG2SegmentType::Extension)
+        {
+            const auto pageIt = m_segmentPages.find(ref);
+            if (pageIt == m_segmentPages.end() || (pageIt->second != 0 && pageIt->second != page))
+            {
+                throw PDFException(PDFTranslationContext::tr("JBIG2 invalid extension reference."));
+            }
+            continue;
+        }
+        const auto it = m_segments.find(ref);
+        const auto pageIt = m_segmentPages.find(ref);
+        if (it == m_segments.end() || pageIt == m_segmentPages.end() ||
+            (pageIt->second != 0 && pageIt->second != page))
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 invalid referred segment or reference across pages."));
+        }
+        if (m_nonRetainedSegments.count(ref) && !m_retentionWarningReported)
+        {
+            m_errorReporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("JBIG2 reuses a non-retained segment; kept under the decoding memory limit for compatibility."));
+            m_retentionWarningReported = true;
+        }
+        const auto* segment = it->second.get();
+        bool valid = false;
+        switch (type)
+        {
+            case JBIG2SegmentType::SymbolDictionary:
+            case JBIG2SegmentType::TextRegion:
+                valid = segment->asSymbolDictionary() || segment->asHuffmanCodeTable();
+                tables += segment->asHuffmanCodeTable() ? 1 : 0;
+                break;
+            case JBIG2SegmentType::HalftoneRegion:
+                valid = segment->asPatternDictionary();
+                break;
+            case JBIG2SegmentType::GenericRefinementRegion:
+                valid = segment->asBitmap();
+                break;
+            default:
+                break;
+        }
+        if (!valid)
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 invalid referred segment type."));
+        }
+    }
+    const size_t count = references.size();
+    if ((type == JBIG2SegmentType::SymbolDictionary && tables > 4) ||
+        (type == JBIG2SegmentType::TextRegion && tables > 8) ||
+        (type == JBIG2SegmentType::HalftoneRegion && count != 1) ||
+        (type == JBIG2SegmentType::GenericRefinementRegion && (count > 1 || (!header.isImmediate() && count != 1))))
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid referred segment count."));
+    }
+}
+
+void PDFJBIG2Decoder::discardSegment(uint32_t number)
+{
+    m_segments.erase(number);
+    m_segmentPages.erase(number);
+    m_regionInformation.erase(number);
+}
+
+void PDFJBIG2Decoder::releaseSegments(const PDFJBIG2SegmentHeader& header)
+{
+    const auto& flags = header.getRetainFlags();
+    auto release = [&](uint32_t number)
+    {
+        if (header.isDeferredNonRetain())
+        {
+            m_deferredDiscards.insert(number);
+        }
+        else
+        {
+            // Some historical encoders clear retention on every stripe although
+            // subsequent stripes reuse the dictionary. Keep the cached data until
+            // end of page; the cumulative budget still charges every allocation.
+            m_nonRetainedSegments.insert(number);
+        }
+    };
+    if (!flags[0])
+    {
+        release(header.getSegmentNumber());
+    }
+    for (size_t i = 0; i < header.getReferredSegments().size(); ++i)
+    {
+        if (!flags[i + 1])
+        {
+            release(header.getReferredSegments()[i]);
+        }
+    }
+    if (header.getSegmentType() == JBIG2SegmentType::EndOfPage)
+    {
+        for (uint32_t number : m_deferredDiscards)
+        {
+            discardSegment(number);
+        }
+        m_deferredDiscards.clear();
+        for (uint32_t number : m_nonRetainedSegments)
+        {
+            discardSegment(number);
+        }
+        m_nonRetainedSegments.clear();
+    }
+}
+
+void PDFJBIG2Decoder::paintPage(const PDFJBIG2Bitmap& bitmap, const PDFJBIG2RegionSegmentInformationField& field)
+{
+    if (!bitmap.isValid())
+    {
+        return;
+    }
+    const int64_t bottom = int64_t(field.offsetY) + bitmap.getHeight();
+    if (m_pageStriped && bitmap.isValid())
+    {
+        if (field.offsetY <= m_lastStripeRow || bottom > m_lastStripeRow + 1 + m_maximumStripeHeight)
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 region crosses a stripe boundary."));
+        }
+        m_stripeBottom = qMax(m_stripeBottom, bottom);
+    }
+    if (m_pageSizeUndefined && bottom > m_pageBitmap.getHeight())
+    {
+        checkBitmapSize(uint32_t(bottom));
+        consumeDecodedBytes(uint64_t(m_pageBitmap.getWidth()) * (bottom - m_pageBitmap.getHeight()));
+    }
+    consumeWork(bitmap.getPixelCount());
+    m_pageBitmap.paint(bitmap, field.offsetX, field.offsetY, field.operation, m_pageSizeUndefined, m_pageDefaultPixelValue);
+}
+
+void PDFJBIG2Decoder::finishPage()
+{
+    if (m_pageSizeUndefined && (m_lastStripeRow < 0 || m_stripeBottom > m_lastStripeRow + 1))
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 unknown page height requires a final end-of-stripe segment."));
     }
 }
 
@@ -1379,7 +1689,7 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
     parameters.SDTEMPLATE = (symbolDictionaryFlags >> 10) & 0x0003;
     parameters.SDRTEMPLATE = (symbolDictionaryFlags >> 12) & 0x0001;
     parameters.SDAT = readATTemplatePixelPositions((!parameters.SDHUFF) ? ((parameters.SDTEMPLATE == 0) ? 4 : 1) : 0);
-    parameters.SDRAT = readATTemplatePixelPositions((parameters.SDREFAGG && parameters.SDRTEMPLATE == 0) ? 2 : 0);
+    parameters.SDRAT = readATTemplatePixelPositions((parameters.SDREFAGG && parameters.SDRTEMPLATE == 0) ? 2 : 0, true);
     parameters.SDNUMEXSYMS = m_reader.readUnsignedInt();
     parameters.SDNUMNEWSYMS = m_reader.readUnsignedInt();
 
@@ -1431,6 +1741,18 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
     PDFJBIG2ReferencedSegments references = getReferencedSegments(header);
     parameters.SDINSYMS = references.getSymbolBitmaps();
     parameters.SDNUMINSYMS = static_cast<uint32_t>(parameters.SDINSYMS.size());
+    if (parameters.SDNUMNEWSYMS > MAX_SYMBOL_COUNT - parameters.SDNUMINSYMS)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 maximum combined symbol count exceeded."));
+    }
+
+    if (parameters.isArithmeticCodingStateUsed &&
+        (references.symbolDictionaries.empty() ||
+         !references.symbolDictionaries.back()->canReuse(symbolDictionaryFlags, parameters.SDAT, parameters.SDRAT)))
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 incompatible or unretained arithmetic coding context."));
+    }
+    consumeDecodedBytes(2 * 65536);
 
     /* Arithmetic decoder stats */
     PDFJBIG2ArithmeticDecoderStates arithmeticDecoderStates;
@@ -1442,15 +1764,15 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
         switch (parameters.SDHUFFDH)
         {
             case 0:
-                parameters.SDHUFFDH_Decoder = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_D), std::end(PDFJBIG2StandardHuffmanTable_D));
+                parameters.SDHUFFDH_Decoder = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_D), std::end(PDFJBIG2StandardHuffmanTable_D));
                 break;
 
             case 1:
-                parameters.SDHUFFDH_Decoder = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_E), std::end(PDFJBIG2StandardHuffmanTable_E));
+                parameters.SDHUFFDH_Decoder = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_E), std::end(PDFJBIG2StandardHuffmanTable_E));
                 break;
 
             case 3:
-                parameters.SDHUFFDH_Decoder = references.getUserTable(&m_reader);
+                parameters.SDHUFFDH_Decoder = references.getUserTable(&m_reader, &m_workRemaining);
                 break;
 
             default:
@@ -1460,15 +1782,15 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
         switch (parameters.SDHUFFDW)
         {
             case 0:
-                parameters.SDHUFFDW_Decoder = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_B), std::end(PDFJBIG2StandardHuffmanTable_B));
+                parameters.SDHUFFDW_Decoder = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_B), std::end(PDFJBIG2StandardHuffmanTable_B));
                 break;
 
             case 1:
-                parameters.SDHUFFDW_Decoder = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_C), std::end(PDFJBIG2StandardHuffmanTable_C));
+                parameters.SDHUFFDW_Decoder = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_C), std::end(PDFJBIG2StandardHuffmanTable_C));
                 break;
 
             case 3:
-                parameters.SDHUFFDW_Decoder = references.getUserTable(&m_reader);
+                parameters.SDHUFFDW_Decoder = references.getUserTable(&m_reader, &m_workRemaining);
                 break;
 
             default:
@@ -1478,23 +1800,28 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
         // Both selections are single bit fields
         if (parameters.SDHUFFBMSIZE == 0)
         {
-            parameters.SDHUFFBMSIZE_Decoder = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
+            parameters.SDHUFFBMSIZE_Decoder = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
         }
         else
         {
-            parameters.SDHUFFBMSIZE_Decoder = references.getUserTable(&m_reader);
+            parameters.SDHUFFBMSIZE_Decoder = references.getUserTable(&m_reader, &m_workRemaining);
         }
 
         if (parameters.SDHUFFAGGINST == 0)
         {
-            parameters.SDHUFFAGGINST_Decoder = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
+            parameters.SDHUFFAGGINST_Decoder = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
         }
         else
         {
-            parameters.SDHUFFAGGINST_Decoder = references.getUserTable(&m_reader);
+            parameters.SDHUFFAGGINST_Decoder = references.getUserTable(&m_reader, &m_workRemaining);
         }
 
-        parameters.EXRUNLENGTH_Decoder = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
+        if (parameters.SDHUFFDH_Decoder.hasOutOfBand() || !parameters.SDHUFFDW_Decoder.hasOutOfBand() ||
+            parameters.SDHUFFBMSIZE_Decoder.hasOutOfBand() || parameters.SDHUFFAGGINST_Decoder.hasOutOfBand())
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 invalid OOB capability of dictionary huffman table."));
+        }
+        parameters.EXRUNLENGTH_Decoder = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
 
         if (references.currentUserCodeTableIndex != references.codeTables.size())
         {
@@ -1542,8 +1869,11 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
         SBSYMCODELENGTH = qMax<uint8_t>(SBSYMCODELENGTH, 1);
     }
 
+    consumeDecodedBytes((uint64_t(1) << SBSYMCODELENGTH) + 2 * 65536 + 13 * 512);
+    consumeDecodedBytes(uint64_t(parameters.SDNUMNEWSYMS + parameters.SDNUMINSYMS) *
+                         (2 * sizeof(PDFJBIG2Bitmap) + sizeof(PDFJBIG2HuffmanTableEntry) * 2 + 16));
     arithmeticDecoderStates.resetArithmeticStatesInteger(SBSYMCODELENGTH);
-    PDFJBIG2ArithmeticDecoder arithmeticDecoder(&m_reader);
+    PDFJBIG2ArithmeticDecoder arithmeticDecoder(&m_reader, &m_workRemaining);
     if (!parameters.SDHUFF)
     {
         arithmeticDecoder.initialize();
@@ -1569,7 +1899,12 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
     {
         /* 6.5.5 step 4) b) - decode height class delta height according to 6.5.6 */
         int32_t HCDH = checkInteger(parameters.SDHUFF ? parameters.SDHUFFDH_Decoder.readSignedInteger() : arithmeticDecoder.getSignedInteger(&arithmeticDecoderStates.states[PDFJBIG2ArithmeticDecoderStates::IADH]));
-        HCHEIGHT += HCDH;
+        const int64_t height = int64_t(HCHEIGHT) + HCDH;
+        if (height < 0 || height > MAX_BITMAP_SIZE)
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 invalid symbol height."));
+        }
+        HCHEIGHT = uint32_t(height);
         uint32_t SYMWIDTH = 0;
         uint32_t TOTWIDTH = 0;
         uint32_t HCFIRSTSYM = NSYMSDECODED;
@@ -1591,8 +1926,16 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
                 throw PDFException(PDFTranslationContext::tr("JBIG2 symbol height class has more symbols, than defined in the symbol dictionary header."));
             }
 
-            SYMWIDTH += *DW;
-            TOTWIDTH += SYMWIDTH;
+            const int64_t width = int64_t(SYMWIDTH) + *DW;
+            if (width < 0 || width > MAX_BITMAP_SIZE || (parameters.SDHUFF && !parameters.SDREFAGG && uint64_t(TOTWIDTH) + uint64_t(width) > MAX_BITMAP_SIZE))
+            {
+                throw PDFException(PDFTranslationContext::tr("JBIG2 invalid symbol or collective bitmap width."));
+            }
+            SYMWIDTH = uint32_t(width);
+            if (parameters.SDHUFF && !parameters.SDREFAGG)
+            {
+                TOTWIDTH += SYMWIDTH;
+            }
 
             if (parameters.SDHUFF == 0 || parameters.SDREFAGG == 1)
             {
@@ -1629,21 +1972,21 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
                         uint32_t ID = 0;
                         int32_t RDXI = 0;
                         int32_t RDYI = 0;
-                        uint32_t BMSIZE = 0;
-                        int oldPosition = 0;
+                        QByteArray refinementData;
+                        PDFBitReader refinementReader(&refinementData, 8);
+                        PDFJBIG2ArithmeticDecoder refinementDecoder(&refinementReader, &m_workRemaining);
 
                         if (parameters.SDHUFF)
                         {
-                            PDFJBIG2HuffmanDecoder huffmanDecoderO(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
-                            PDFJBIG2HuffmanDecoder huffmanDecoderA(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
+                            PDFJBIG2HuffmanDecoder huffmanDecoderO(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
+                            PDFJBIG2HuffmanDecoder huffmanDecoderA(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
 
                             ID = m_reader.read(SBSYMCODELENGTH);
                             RDXI = checkInteger(huffmanDecoderO.readSignedInteger());
                             RDYI = checkInteger(huffmanDecoderO.readSignedInteger());
-                            BMSIZE = checkInteger(huffmanDecoderA.readSignedInteger());
-                            m_reader.alignToBytes();
-                            oldPosition = m_reader.getPosition();
-                            arithmeticDecoder.initialize();
+                            const int32_t BMSIZE = checkInteger(huffmanDecoderA.readSignedInteger());
+                            refinementData = readRefinementData(&m_reader, BMSIZE);
+                            refinementDecoder.initialize();
                         }
                         else
                         {
@@ -1667,15 +2010,13 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
                         refinementParameters.GRREFERENCEY = RDYI;
                         refinementParameters.TPGRON = false;
                         refinementParameters.GRAT = parameters.SDRAT;
-                        refinementParameters.decoder = &arithmeticDecoder;
+                        refinementParameters.decoder = parameters.SDHUFF ? &refinementDecoder : &arithmeticDecoder;
                         refinementParameters.arithmeticDecoderState = &arithmeticDecoderStates.states[PDFJBIG2ArithmeticDecoderStates::Refinement];
                         parameters.SDNEWSYMS[NSYMSDECODED] = readRefinementBitmap(refinementParameters);
 
                         if (parameters.SDHUFF)
                         {
-                            arithmeticDecoder.finalize();
-                            m_reader.alignToBytes();
-                            m_reader.seek(oldPosition + BMSIZE);
+                            refinementDecoder.finalize();
                         }
                     }
                     else
@@ -1694,7 +2035,10 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
                         textParameters.SBNUMINSTANCES = uint32_t(REFAGGNINST);
                         textParameters.LOG2SBSTRIPS = 0;
                         textParameters.SBSTRIPS = 1;
-                        textParameters.SBSYMS = parameters.SDINSYMS;
+                        consumeDecodedBytes(uint64_t(parameters.SDNUMINSYMS + NSYMSDECODED) *
+                                            (2 * sizeof(PDFJBIG2HuffmanTableEntry) + 2 * sizeof(void*)));
+                        textParameters.SBSYMS.reserve(parameters.SDNUMINSYMS + NSYMSDECODED);
+                        textParameters.SBSYMS.insert(textParameters.SBSYMS.end(), parameters.SDINSYMS.begin(), parameters.SDINSYMS.end());
 
                         for (uint32_t i = 0; i < NSYMSDECODED; ++i)
                         {
@@ -1706,14 +2050,14 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
                         textParameters.SBRAT = parameters.SDRAT;
                         textParameters.arithmeticDecoder = &arithmeticDecoder;
                         textParameters.reader = &m_reader;
-                        textParameters.SBHUFFFS = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_F), std::end(PDFJBIG2StandardHuffmanTable_F));
-                        textParameters.SBHUFFDS = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_H), std::end(PDFJBIG2StandardHuffmanTable_H));
-                        textParameters.SBHUFFDT = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_K), std::end(PDFJBIG2StandardHuffmanTable_K));
-                        textParameters.SBHUFFRDW = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
-                        textParameters.SBHUFFRDH = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
-                        textParameters.SBHUFFRDX = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
-                        textParameters.SBHUFFRDY = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
-                        textParameters.SBHUFFRSIZE = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
+                        textParameters.SBHUFFFS = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_F), std::end(PDFJBIG2StandardHuffmanTable_F));
+                        textParameters.SBHUFFDS = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_H), std::end(PDFJBIG2StandardHuffmanTable_H));
+                        textParameters.SBHUFFDT = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_K), std::end(PDFJBIG2StandardHuffmanTable_K));
+                        textParameters.SBHUFFRDW = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
+                        textParameters.SBHUFFRDH = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
+                        textParameters.SBHUFFRDX = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
+                        textParameters.SBHUFFRDY = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
+                        textParameters.SBHUFFRSIZE = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
                         textParameters.initializeFrom(&arithmeticDecoderStates);
 
                         std::vector<PDFJBIG2HuffmanTableEntry> symbols(textParameters.SBNUMSYMS, PDFJBIG2HuffmanTableEntry());
@@ -1723,7 +2067,7 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
                             symbols[i].prefixBitLength = SBSYMCODELENGTH;
                         }
 
-                        textParameters.SBSYMCODES = PDFJBIG2HuffmanDecoder(&m_reader, PDFJBIG2HuffmanCodeTable::buildPrefixes(symbols));
+                        textParameters.SBSYMCODES = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, PDFJBIG2HuffmanCodeTable::buildPrefixes(symbols));
 
                         // Now, we can read the bitmap using text decode procedure
                         parameters.SDNEWSYMS[NSYMSDECODED] = readTextBitmap(textParameters);
@@ -1740,16 +2084,26 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
             ++NSYMSDECODED;
         }
 
+        if (NSYMSDECODED == HCFIRSTSYM)
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 empty symbol height class."));
+        }
+
         /* 6.5.5 step 4) d) - create collective bitmap */
         if (parameters.SDHUFF && parameters.SDREFAGG == 0)
         {
             PDFJBIG2Bitmap collectiveBitmap;
             int32_t BMSIZE = checkInteger(parameters.SDHUFFBMSIZE_Decoder.readSignedInteger());
+            if (BMSIZE < 0)
+            {
+                throw PDFException(PDFTranslationContext::tr("JBIG2 invalid collective bitmap data length."));
+            }
             m_reader.alignToBytes();
 
             if (BMSIZE == 0)
             {
                 // Uncompressed data
+                consumeDecodedBytes(uint64_t(TOTWIDTH) * HCHEIGHT);
                 collectiveBitmap = PDFJBIG2Bitmap(TOTWIDTH, HCHEIGHT, 0x00);
                 // BMSIZE is computed BMSIZE = HCHEIGHT * (TOTWIDTH + 7) / 8;
                 for (uint32_t y = 0; y < HCHEIGHT; ++y)
@@ -1768,6 +2122,7 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
                 bitmapParameters.MMR = true;
                 bitmapParameters.GBW = TOTWIDTH;
                 bitmapParameters.GBH = HCHEIGHT;
+                consumeDecodedBytes(uint64_t(BMSIZE));
                 bitmapParameters.data = m_reader.readSubstream(BMSIZE);
                 collectiveBitmap = readBitmap(bitmapParameters);
             }
@@ -1776,6 +2131,7 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
 
             for (int32_t x = 0; HCFIRSTSYM < NSYMSDECODED; ++HCFIRSTSYM)
             {
+                consumeDecodedBytes(uint64_t(parameters.SDNEWSYMWIDTHS[HCFIRSTSYM]) * HCHEIGHT);
                 parameters.SDNEWSYMS[HCFIRSTSYM] = collectiveBitmap.getSubbitmap(x, 0, parameters.SDNEWSYMWIDTHS[HCFIRSTSYM], HCHEIGHT);
                 x += parameters.SDNEWSYMWIDTHS[HCFIRSTSYM];
             }
@@ -1787,8 +2143,13 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
     const size_t symbolsSize = parameters.SDNUMINSYMS + parameters.SDNEWSYMS.size();
     EXFLAGS.reserve(symbolsSize);
     bool CUREXFLAG = false;
+    size_t exportRuns = 0;
     while (EXFLAGS.size() < symbolsSize)
     {
+        if (++exportRuns > 2 * symbolsSize + 1)
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 excessive export flag runs."));
+        }
         const uint32_t EXRUNLENGTH = static_cast<uint32_t>(checkInteger(parameters.SDHUFF ? parameters.EXRUNLENGTH_Decoder.readSignedInteger() : arithmeticDecoder.getSignedInteger(&arithmeticDecoderStates.states[PDFJBIG2ArithmeticDecoderStates::IAEX])));
 
         if (EXRUNLENGTH + EXFLAGS.size() > symbolsSize)
@@ -1806,6 +2167,10 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
         arithmeticDecoder.finalize();
     }
 
+    if (size_t(std::count(EXFLAGS.begin(), EXFLAGS.end(), true)) != parameters.SDNUMEXSYMS)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid exported symbol count."));
+    }
     std::vector<PDFJBIG2Bitmap> bitmaps;
     bitmaps.reserve(parameters.SDNUMEXSYMS);
 
@@ -1814,6 +2179,7 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
     {
         if (EXFLAGS[i])
         {
+            consumeDecodedBytes(parameters.SDINSYMS[i]->getPixelCount());
             bitmaps.push_back(*parameters.SDINSYMS[i]);
         }
     }
@@ -1823,7 +2189,7 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
     {
         if (EXFLAGS[i + parameters.SDNUMINSYMS])
         {
-            bitmaps.push_back(parameters.SDNEWSYMS[i]);
+            bitmaps.push_back(qMove(parameters.SDNEWSYMS[i]));
         }
     }
 
@@ -1836,7 +2202,7 @@ void PDFJBIG2Decoder::processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& h
         savedRefine = qMove(arithmeticDecoderStates.states[PDFJBIG2ArithmeticDecoderStates::Refinement]);
     }
 
-    m_segments[header.getSegmentNumber()] = std::make_unique<PDFJBIG2SymbolDictionary>(qMove(bitmaps), qMove(savedGeneric), qMove(savedRefine));
+    m_segments[header.getSegmentNumber()] = std::make_unique<PDFJBIG2SymbolDictionary>(qMove(bitmaps), qMove(savedGeneric), qMove(savedRefine), symbolDictionaryFlags, parameters.SDAT, parameters.SDRAT);
 }
 
 void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
@@ -1845,6 +2211,10 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
     constexpr std::array<PDFJBIG2BitOperation, 4> combinationOperators = { PDFJBIG2BitOperation::Or, PDFJBIG2BitOperation::And, PDFJBIG2BitOperation::Xor, PDFJBIG2BitOperation::NotXor };
 
     PDFJBIG2RegionSegmentInformationField regionSegmentInfo = readRegionSegmentInformationField();
+    if (!m_pageDefaultCompositionOperatorOverriden && regionSegmentInfo.operation != m_pageDefaultCompositionOperator)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 region combination operator contradicts page flags."));
+    }
     const uint16_t flags = m_reader.readUnsignedWord();
     const bool SBHUFF = flags & 0x0001;
     const bool SBREFINE = flags & 0x0002;
@@ -1902,15 +2272,15 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
         switch (SBHUFFFS)
         {
             case 0:
-                parameters.SBHUFFFS = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_F), std::end(PDFJBIG2StandardHuffmanTable_F));
+                parameters.SBHUFFFS = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_F), std::end(PDFJBIG2StandardHuffmanTable_F));
                 break;
 
             case 1:
-                parameters.SBHUFFFS = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_G), std::end(PDFJBIG2StandardHuffmanTable_G));
+                parameters.SBHUFFFS = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_G), std::end(PDFJBIG2StandardHuffmanTable_G));
                 break;
 
             case 3:
-                parameters.SBHUFFFS = references.getUserTable(&m_reader);
+                parameters.SBHUFFFS = references.getUserTable(&m_reader, &m_workRemaining);
                 break;
 
             default:
@@ -1920,50 +2290,50 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
         // Every value of the two bit selections of SBHUFFDS and SBHUFFDT is valid
         if (SBHUFFDS == 0)
         {
-            parameters.SBHUFFDS = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_H), std::end(PDFJBIG2StandardHuffmanTable_H));
+            parameters.SBHUFFDS = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_H), std::end(PDFJBIG2StandardHuffmanTable_H));
         }
         else if (SBHUFFDS == 1)
         {
-            parameters.SBHUFFDS = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_I), std::end(PDFJBIG2StandardHuffmanTable_I));
+            parameters.SBHUFFDS = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_I), std::end(PDFJBIG2StandardHuffmanTable_I));
         }
         else if (SBHUFFDS == 2)
         {
-            parameters.SBHUFFDS = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_J), std::end(PDFJBIG2StandardHuffmanTable_J));
+            parameters.SBHUFFDS = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_J), std::end(PDFJBIG2StandardHuffmanTable_J));
         }
         else
         {
-            parameters.SBHUFFDS = references.getUserTable(&m_reader);
+            parameters.SBHUFFDS = references.getUserTable(&m_reader, &m_workRemaining);
         }
 
         if (SBHUFFDT == 0)
         {
-            parameters.SBHUFFDT = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_K), std::end(PDFJBIG2StandardHuffmanTable_K));
+            parameters.SBHUFFDT = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_K), std::end(PDFJBIG2StandardHuffmanTable_K));
         }
         else if (SBHUFFDT == 1)
         {
-            parameters.SBHUFFDT = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_L), std::end(PDFJBIG2StandardHuffmanTable_L));
+            parameters.SBHUFFDT = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_L), std::end(PDFJBIG2StandardHuffmanTable_L));
         }
         else if (SBHUFFDT == 2)
         {
-            parameters.SBHUFFDT = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_M), std::end(PDFJBIG2StandardHuffmanTable_M));
+            parameters.SBHUFFDT = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_M), std::end(PDFJBIG2StandardHuffmanTable_M));
         }
         else
         {
-            parameters.SBHUFFDT = references.getUserTable(&m_reader);
+            parameters.SBHUFFDT = references.getUserTable(&m_reader, &m_workRemaining);
         }
 
         switch (SBHUFFRDW)
         {
             case 0:
-                parameters.SBHUFFRDW = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_N), std::end(PDFJBIG2StandardHuffmanTable_N));
+                parameters.SBHUFFRDW = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_N), std::end(PDFJBIG2StandardHuffmanTable_N));
                 break;
 
             case 1:
-                parameters.SBHUFFRDW = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
+                parameters.SBHUFFRDW = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
                 break;
 
             case 3:
-                parameters.SBHUFFRDW = references.getUserTable(&m_reader);
+                parameters.SBHUFFRDW = references.getUserTable(&m_reader, &m_workRemaining);
                 break;
 
             default:
@@ -1973,15 +2343,15 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
         switch (SBHUFFRDH)
         {
             case 0:
-                parameters.SBHUFFRDH = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_N), std::end(PDFJBIG2StandardHuffmanTable_N));
+                parameters.SBHUFFRDH = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_N), std::end(PDFJBIG2StandardHuffmanTable_N));
                 break;
 
             case 1:
-                parameters.SBHUFFRDH = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
+                parameters.SBHUFFRDH = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
                 break;
 
             case 3:
-                parameters.SBHUFFRDH = references.getUserTable(&m_reader);
+                parameters.SBHUFFRDH = references.getUserTable(&m_reader, &m_workRemaining);
                 break;
 
             default:
@@ -1991,15 +2361,15 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
         switch (SBHUFFRDX)
         {
             case 0:
-                parameters.SBHUFFRDX = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_N), std::end(PDFJBIG2StandardHuffmanTable_N));
+                parameters.SBHUFFRDX = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_N), std::end(PDFJBIG2StandardHuffmanTable_N));
                 break;
 
             case 1:
-                parameters.SBHUFFRDX = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
+                parameters.SBHUFFRDX = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
                 break;
 
             case 3:
-                parameters.SBHUFFRDX = references.getUserTable(&m_reader);
+                parameters.SBHUFFRDX = references.getUserTable(&m_reader, &m_workRemaining);
                 break;
 
             default:
@@ -2009,15 +2379,15 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
         switch (SBHUFFRDY)
         {
             case 0:
-                parameters.SBHUFFRDY = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_N), std::end(PDFJBIG2StandardHuffmanTable_N));
+                parameters.SBHUFFRDY = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_N), std::end(PDFJBIG2StandardHuffmanTable_N));
                 break;
 
             case 1:
-                parameters.SBHUFFRDY = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
+                parameters.SBHUFFRDY = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_O), std::end(PDFJBIG2StandardHuffmanTable_O));
                 break;
 
             case 3:
-                parameters.SBHUFFRDY = references.getUserTable(&m_reader);
+                parameters.SBHUFFRDY = references.getUserTable(&m_reader, &m_workRemaining);
                 break;
 
             default:
@@ -2027,11 +2397,11 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
         switch (SBHUFFRSIZE)
         {
             case 0:
-                parameters.SBHUFFRSIZE = PDFJBIG2HuffmanDecoder(&m_reader, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
+                parameters.SBHUFFRSIZE = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, std::begin(PDFJBIG2StandardHuffmanTable_A), std::end(PDFJBIG2StandardHuffmanTable_A));
                 break;
 
             case 1:
-                parameters.SBHUFFRSIZE = references.getUserTable(&m_reader);
+                parameters.SBHUFFRSIZE = references.getUserTable(&m_reader, &m_workRemaining);
                 break;
 
             default:
@@ -2039,9 +2409,17 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
         }
     }
 
+    if (SBHUFF && (references.currentUserCodeTableIndex != references.codeTables.size() ||
+        parameters.SBHUFFFS.hasOutOfBand() || !parameters.SBHUFFDS.hasOutOfBand() || parameters.SBHUFFDT.hasOutOfBand() ||
+        parameters.SBHUFFRDW.hasOutOfBand() || parameters.SBHUFFRDH.hasOutOfBand() ||
+        parameters.SBHUFFRDX.hasOutOfBand() || parameters.SBHUFFRDY.hasOutOfBand() || parameters.SBHUFFRSIZE.hasOutOfBand()))
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid text region huffman tables."));
+    }
+
     if (SBREFINE && SBRTEMPLATE == 0)
     {
-        parameters.SBRAT = readATTemplatePixelPositions(2);
+        parameters.SBRAT = readATTemplatePixelPositions(2, true);
     }
 
     parameters.SBSYMS = references.getSymbolBitmaps();
@@ -2054,7 +2432,7 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
         throw PDFException(PDFTranslationContext::tr("JBIG2 no referred symbols in text region segment."));
     }
 
-    PDFJBIG2ArithmeticDecoder decoder(&m_reader);
+    PDFJBIG2ArithmeticDecoder decoder(&m_reader, &m_workRemaining);
     if (SBHUFF)
     {
         // Read run code lengths
@@ -2065,8 +2443,9 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
             rangeLengthTable[i].prefixBitLength = m_reader.read(4);
         }
         rangeLengthTable = PDFJBIG2HuffmanCodeTable::buildPrefixes(rangeLengthTable);
-        PDFJBIG2HuffmanDecoder runLengthDecoder(&m_reader, qMove(rangeLengthTable));
+        PDFJBIG2HuffmanDecoder runLengthDecoder(&m_reader, &m_workRemaining, qMove(rangeLengthTable));
 
+        consumeDecodedBytes(uint64_t(parameters.SBNUMSYMS) * sizeof(PDFJBIG2HuffmanTableEntry) * 4);
         std::vector<PDFJBIG2HuffmanTableEntry> symCodeTable(parameters.SBNUMSYMS, PDFJBIG2HuffmanTableEntry());
         for (uint32_t i = 0; i < parameters.SBNUMSYMS;)
         {
@@ -2122,7 +2501,7 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
             }
         }
         symCodeTable = PDFJBIG2HuffmanCodeTable::buildPrefixes(symCodeTable);
-        parameters.SBSYMCODES = PDFJBIG2HuffmanDecoder(&m_reader, qMove(symCodeTable));
+        parameters.SBSYMCODES = PDFJBIG2HuffmanDecoder(&m_reader, &m_workRemaining, qMove(symCodeTable));
         m_reader.alignToBytes();
     }
     else
@@ -2137,6 +2516,7 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
     parameters.arithmeticDecoder = &decoder;
 
     PDFJBIG2ArithmeticDecoderStates arithmeticDecoderStates;
+    consumeDecodedBytes((uint64_t(1) << parameters.SBSYMCODELEN) + 2 * 65536 + 13 * 512);
     arithmeticDecoderStates.resetArithmeticStatesInteger(parameters.SBSYMCODELEN);
     parameters.initializeFrom(&arithmeticDecoderStates);
 
@@ -2154,7 +2534,7 @@ void PDFJBIG2Decoder::processTextRegion(const PDFJBIG2SegmentHeader& header)
 
     if (header.isImmediate())
     {
-        m_pageBitmap.paint(bitmap, regionSegmentInfo.offsetX, regionSegmentInfo.offsetY, regionSegmentInfo.operation, m_pageSizeUndefined, m_pageDefaultPixelValue);
+        paintPage(bitmap, regionSegmentInfo);
     }
     else
     {
@@ -2177,17 +2557,18 @@ void PDFJBIG2Decoder::processPatternDictionary(const PDFJBIG2SegmentHeader& head
     const bool HDMMR = flags & 0x01;
     const uint8_t HDTEMPLATE = (flags >> 1) &0x03;
 
-    if ((flags & 0b11111000) != 0)
+    if ((flags & 0b11111000) != 0 || (HDMMR && HDTEMPLATE != 0))
     {
         throw PDFException(PDFTranslationContext::tr("JBIG2 invalid pattern dictionary flags."));
     }
 
     QByteArray mmrData;
-    PDFJBIG2ArithmeticDecoder arithmeticDecoder(&m_reader);
+    PDFJBIG2ArithmeticDecoder arithmeticDecoder(&m_reader, &m_workRemaining);
     PDFJBIG2ArithmeticDecoderState genericState;
     if (!HDMMR)
     {
         arithmeticDecoder.initialize();
+        consumeDecodedBytes(65536);
         PDFJBIG2ArithmeticDecoderStates::resetArithmeticStatesGeneric(&genericState, HDTEMPLATE, nullptr);
     }
     else
@@ -2196,6 +2577,7 @@ void PDFJBIG2Decoder::processPatternDictionary(const PDFJBIG2SegmentHeader& head
         const int segmentDataStartPosition = m_reader.getPosition();
         const int segmentHeaderBytes = segmentDataStartPosition - segmentStartPosition;
         const int segmentDataBytes = getSegmentDataBytes(header, segmentHeaderBytes);
+        consumeDecodedBytes(uint64_t(segmentDataBytes));
         mmrData = m_reader.readSubstream(segmentDataBytes);
     }
 
@@ -2215,7 +2597,7 @@ void PDFJBIG2Decoder::processPatternDictionary(const PDFJBIG2SegmentHeader& head
         throw PDFException(PDFTranslationContext::tr("JBIG2 maximum bitmap size exceeded (%1 > %2).").arg(collectiveBitmapWidth).arg(MAX_BITMAP_SIZE));
     }
 
-    int8_t gbat0_x = -static_cast<int8_t>(HDPW);
+    const int16_t gbat0_x = -int16_t(HDPW);
     PDFJBIG2BitmapDecodingParameters parameters;
     parameters.MMR = HDMMR;
     parameters.GBW = int(collectiveBitmapWidth);
@@ -2247,6 +2629,7 @@ void PDFJBIG2Decoder::processPatternDictionary(const PDFJBIG2SegmentHeader& head
     }
 
     std::vector<PDFJBIG2Bitmap> bitmaps;
+    consumeDecodedBytes(uint64_t(GRAYMAX + 1) * sizeof(PDFJBIG2Bitmap) + uint64_t(collectiveBitmapWidth) * HDPH);
     bitmaps.reserve(GRAYMAX + 1);
 
     int offsetX = 0;
@@ -2263,10 +2646,18 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
 {
     const int segmentStartPosition = m_reader.getPosition();
     PDFJBIG2RegionSegmentInformationField field = readRegionSegmentInformationField();
+    if (!m_pageDefaultCompositionOperatorOverriden && field.operation != m_pageDefaultCompositionOperator)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 region combination operator contradicts page flags."));
+    }
     const uint8_t flags = m_reader.readUnsignedByte();
     const bool HMMR = flags & 0x01;
     const uint8_t HTEMPLATE = (flags >> 1) & 0x03;
     const bool HENABLESKIP = flags & 0x08;
+    if (HMMR && (HTEMPLATE != 0 || HENABLESKIP))
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid MMR halftone flags."));
+    }
     const uint8_t HCOMBOOP = (flags >> 4) & 0x07;
     const uint8_t HDEFPIXEL = (flags >> 7) & 0x01;
     const uint32_t HGW = m_reader.readUnsignedInt();
@@ -2283,6 +2674,10 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
     checkBitmapSize(HGW);
     checkBitmapSize(HGH);
     PDFJBIG2Bitmap::checkSize(HGW, HGH);
+    if (HGW == 0 || HGH == 0)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid halftone grid dimensions."));
+    }
 
     PDFJBIG2BitOperation HCOMBOOPValue = PDFJBIG2BitOperation::Invalid;
     switch (HCOMBOOP)
@@ -2327,6 +2722,7 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
     const int HPH = firstBitmap->getHeight();
 
     /* 6.6 step 1) */
+    consumeDecodedBytes(uint64_t(HBW) * HBH);
     PDFJBIG2Bitmap HTREG(HBW, HBH, HDEFPIXEL ? 0xFF : 0x00);
 
     // Position of the upper left pixel of the pattern of a cell of the grid, see the
@@ -2354,6 +2750,7 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
     if (HENABLESKIP)
     {
         /* 6.6.5.1 */
+        consumeDecodedBytes(uint64_t(HGW) * HGH);
         HSKIP = PDFJBIG2Bitmap(HGW, HGH, 0x00);
 
         for (int MG = 0; MG < static_cast<int>(HGH); ++MG)
@@ -2380,11 +2777,12 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
     /* 6.6 step 4) */
 
     QByteArray mmrData;
-    PDFJBIG2ArithmeticDecoder arithmeticDecoder(&m_reader);
+    PDFJBIG2ArithmeticDecoder arithmeticDecoder(&m_reader, &m_workRemaining);
     PDFJBIG2ArithmeticDecoderState genericState;
     if (!HMMR)
     {
         arithmeticDecoder.initialize();
+        consumeDecodedBytes(65536);
         PDFJBIG2ArithmeticDecoderStates::resetArithmeticStatesGeneric(&genericState, HTEMPLATE, nullptr);
     }
     else
@@ -2393,6 +2791,7 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
         const int segmentDataStartPosition = m_reader.getPosition();
         const int segmentHeaderBytes = segmentDataStartPosition - segmentStartPosition;
         const int segmentDataBytes = getSegmentDataBytes(header, segmentHeaderBytes);
+        consumeDecodedBytes(uint64_t(segmentDataBytes));
         mmrData = m_reader.readSubstream(segmentDataBytes);
     }
 
@@ -2400,6 +2799,7 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
     const int8_t gbat0_x = ((HTEMPLATE <= 1) ? 3 : 2);
     PDFJBIG2BitmapDecodingParameters parameters;
     parameters.MMR = HMMR;
+    parameters.requireMMREndOfBlock = HMMR;
     parameters.GBW = HGW;
     parameters.GBH = HGH;
     parameters.GBTEMPLATE = HTEMPLATE;
@@ -2416,6 +2816,7 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
     // The gray-scale image is not a bitmap - a halftone of a large pattern needs more than
     // the eight bits of a pixel of a bitmap for its value. A pattern dictionary of a screen
     // of 20 by 20 pixels, for example, defines 401 patterns, which needs nine bit planes.
+    consumeDecodedBytes(uint64_t(HGW) * HGH * sizeof(uint32_t));
     std::vector<uint32_t> GI(size_t(HGW) * size_t(HGH), 0);
 
     for (int J = HBPP - 1; J >= 0; --J)
@@ -2424,24 +2825,8 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
 
         if (HMMR)
         {
-            // We must find EOFB symbol in the data. We hope, that EOFB symbol
-            // lies in the compressed data, otherwise we can't do anything...
-            PDFBitReader reader(&parameters.data, 1);
-			
-            while (!reader.isAtEnd())
-            {
-                if (reader.look(24) == 0x1001)
-                {
-                    reader.read(24);
-                    reader.alignToBytes();
-                    parameters.data = parameters.data.mid(reader.getPosition());
-                    break;
-                }
-                else
-                {
-                    reader.read(1);
-                }
-            }
+            consumeDecodedBytes(uint64_t(parameters.data.size() - parameters.dataEndPosition));
+            parameters.data = parameters.data.mid(parameters.dataEndPosition);
         }
 
         // A decoded bitmap always has the requested width, but the MMR decoder decodes
@@ -2487,7 +2872,8 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
                 throw PDFException(PDFTranslationContext::tr("JBIG2 halftoning pattern index %1 out of bounds [0, %2]").arg(index).arg(HNUMPATS - 1));
             }
 
-            HTREG.paint(*HPATS[index], int(x), int(y), HCOMBOOPValue, false, 0x00);
+            consumeWork(uint64_t(HPATS[index]->getPixelCount()) + 1);
+            HTREG.paint(*HPATS[index], x, y, HCOMBOOPValue, false, 0x00);
         }
     }
 
@@ -2497,7 +2883,7 @@ void PDFJBIG2Decoder::processHalftoneRegion(const PDFJBIG2SegmentHeader& header)
 
     if (header.isImmediate())
     {
-        m_pageBitmap.paint(HTREG, field.offsetX, field.offsetY, field.operation, m_pageSizeUndefined, m_pageDefaultPixelValue);
+        paintPage(HTREG, field);
     }
     else
     {
@@ -2514,16 +2900,21 @@ void PDFJBIG2Decoder::processGenericRegion(const PDFJBIG2SegmentHeader& header)
 {
     const int segmentStartPosition = m_reader.getPosition();
     PDFJBIG2RegionSegmentInformationField field = readRegionSegmentInformationField();
+    if (!m_pageDefaultCompositionOperatorOverriden && field.operation != m_pageDefaultCompositionOperator)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 region combination operator contradicts page flags."));
+    }
     const uint8_t flags = m_reader.readUnsignedByte();
 
     PDFJBIG2BitmapDecodingParameters parameters;
     parameters.MMR = flags & 0b0001;
+    parameters.requireMMREndOfBlock = parameters.MMR && !header.isSegmentDataLengthDefined();
     parameters.TPGDON = flags & 0b1000;
     parameters.GBTEMPLATE = (flags >> 1) & 0b0011;
 
-    if ((flags & 0b11110000) != 0)
+    if ((flags & 0b11110000) != 0 || (parameters.MMR && parameters.GBTEMPLATE != 0))
     {
-        throw PDFException(PDFTranslationContext::tr("JBIG2 - malformed generic region flags."));
+        throw PDFException(PDFTranslationContext::tr("JBIG2 - malformed or unsupported generic region flags (extended templates are not supported)."));
     }
 
     PDFJBIG2ArithmeticDecoderState genericState;
@@ -2532,6 +2923,7 @@ void PDFJBIG2Decoder::processGenericRegion(const PDFJBIG2SegmentHeader& header)
     {
         // We will use arithmetic coding, read template pixels and reset arithmetic coder state
         parameters.GBAT = readATTemplatePixelPositions((parameters.GBTEMPLATE == 0) ? 4 : 1);
+        consumeDecodedBytes(65536);
         PDFJBIG2ArithmeticDecoderStates::resetArithmeticStatesGeneric(&genericState, parameters.GBTEMPLATE, nullptr);
     }
 
@@ -2567,8 +2959,17 @@ void PDFJBIG2Decoder::processGenericRegion(const PDFJBIG2SegmentHeader& header)
         endPosition += endSequence.size();
 
         segmentDataBytes = endPosition - segmentDataStartPosition;
+        PDFBitReader trailer = m_reader;
+        trailer.seek(endPosition);
+        const uint32_t rows = trailer.readUnsignedInt();
+        if (rows > field.height)
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 invalid actual generic region row count."));
+        }
+        field.height = rows;
     }
 
+    consumeDecodedBytes(uint64_t(segmentDataBytes));
     parameters.data = m_reader.getStream()->mid(segmentDataStartPosition, segmentDataBytes);
     parameters.GBW = field.width;
     parameters.GBH = field.height;
@@ -2576,7 +2977,7 @@ void PDFJBIG2Decoder::processGenericRegion(const PDFJBIG2SegmentHeader& header)
 
 
     PDFBitReader reader(&parameters.data, 1);
-    PDFJBIG2ArithmeticDecoder decoder(&reader);
+    PDFJBIG2ArithmeticDecoder decoder(&reader, &m_workRemaining);
 
     if (!parameters.MMR)
     {
@@ -2585,11 +2986,11 @@ void PDFJBIG2Decoder::processGenericRegion(const PDFJBIG2SegmentHeader& header)
     }
 
     PDFJBIG2Bitmap bitmap = readBitmap(parameters);
-    if (bitmap.isValid())
+    if (bitmap.isValid() || field.height == 0)
     {
         if (header.isImmediate())
         {
-            m_pageBitmap.paint(bitmap, field.offsetX, field.offsetY, field.operation, m_pageSizeUndefined, m_pageDefaultPixelValue);
+            paintPage(bitmap, field);
         }
         else
         {
@@ -2614,7 +3015,6 @@ void PDFJBIG2Decoder::processGenericRegion(const PDFJBIG2SegmentHeader& header)
 
 void PDFJBIG2Decoder::processGenericRefinementRegion(const PDFJBIG2SegmentHeader& header)
 {
-    const int segmentStartPosition = m_reader.getPosition();
     PDFJBIG2RegionSegmentInformationField field = readRegionSegmentInformationField();
     const uint8_t flags = m_reader.readUnsignedByte();
 
@@ -2629,7 +3029,7 @@ void PDFJBIG2Decoder::processGenericRefinementRegion(const PDFJBIG2SegmentHeader
     PDFJBIG2ATPositions GRAT = { };
     if (GRTEMPLATE == 0)
     {
-        GRAT = readATTemplatePixelPositions(2);
+        GRAT = readATTemplatePixelPositions(2, true);
     }
 
     PDFJBIG2Bitmap GRREFERENCE;
@@ -2644,12 +3044,20 @@ void PDFJBIG2Decoder::processGenericRefinementRegion(const PDFJBIG2SegmentHeader
                 throw PDFException(PDFTranslationContext::tr("JBIG2 - operation must be REPLACE for generic refinement region."));
             }
 
+            consumeDecodedBytes(uint64_t(field.width) * field.height);
             GRREFERENCE = m_pageBitmap.getSubbitmap(field.offsetX, field.offsetY, field.width, field.height);
             break;
         }
 
         case 1:
         {
+            const auto info = m_regionInformation.find(referredSegments.front());
+            if (info == m_regionInformation.end() || info->second.width != field.width ||
+                info->second.height != field.height || info->second.offsetX != field.offsetX ||
+                info->second.offsetY != field.offsetY || info->second.operation != field.operation)
+            {
+                throw PDFException(PDFTranslationContext::tr("JBIG2 refinement reference region metadata mismatch."));
+            }
             GRREFERENCE = takeBitmap(referredSegments.front());
             break;
         }
@@ -2664,6 +3072,7 @@ void PDFJBIG2Decoder::processGenericRefinementRegion(const PDFJBIG2SegmentHeader
     }
 
     PDFJBIG2ArithmeticDecoderState refinementState;
+    consumeDecodedBytes(8192);
     PDFJBIG2ArithmeticDecoderStates::resetArithmeticStatesGenericRefinement(&refinementState, GRTEMPLATE, nullptr);
 
     PDFJBIG2BitmapRefinementDecodingParameters parameters;
@@ -2677,7 +3086,7 @@ void PDFJBIG2Decoder::processGenericRefinementRegion(const PDFJBIG2SegmentHeader
     parameters.GRREFERENCEX = 0;
     parameters.GRREFERENCEY = 0;
 
-    PDFJBIG2ArithmeticDecoder decoder(&m_reader);
+    PDFJBIG2ArithmeticDecoder decoder(&m_reader, &m_workRemaining);
     decoder.initialize();
     parameters.decoder = &decoder;
 
@@ -2688,7 +3097,7 @@ void PDFJBIG2Decoder::processGenericRefinementRegion(const PDFJBIG2SegmentHeader
 
     if (header.isImmediate())
     {
-        m_pageBitmap.paint(refinementBitmap, field.offsetX, field.offsetY, field.operation, m_pageSizeUndefined, m_pageDefaultPixelValue);
+        paintPage(refinementBitmap, field);
     }
     else
     {
@@ -2697,12 +3106,10 @@ void PDFJBIG2Decoder::processGenericRefinementRegion(const PDFJBIG2SegmentHeader
 
     decoder.finalize();
 
-    // The arithmetic decoder reads the bytes on demand, so it can stop before the end of
-    // the segment data - the rest of the data belongs to this segment and it is skipped
-    m_reader.seek(int64_t(segmentStartPosition) + int64_t(header.getSegmentDataLength()));
+    // The bounded segment reader is advanced by processStream after checking consumption.
 }
 
-void PDFJBIG2Decoder::processPageInformation(const PDFJBIG2SegmentHeader&)
+void PDFJBIG2Decoder::processPageInformation(const PDFJBIG2SegmentHeader& header)
 {
     const uint32_t width = m_reader.readUnsignedInt();
     const uint32_t height = m_reader.readUnsignedInt();
@@ -2713,7 +3120,20 @@ void PDFJBIG2Decoder::processPageInformation(const PDFJBIG2SegmentHeader&)
     const uint8_t flags = m_reader.readUnsignedByte();
     const uint16_t striping = m_reader.readUnsignedWord();
 
-    Q_UNUSED(striping);
+    if ((flags & 0x80) || width == 0 || height == 0 ||
+        (height == 0xFFFFFFFF && !(striping & 0x8000)))
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid page information flags or size."));
+    }
+    m_pageStriped = striping & 0x8000;
+    m_maximumStripeHeight = striping & 0x7FFF;
+    if (m_pageStriped && m_maximumStripeHeight == 0)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid maximum stripe height."));
+    }
+    m_pageMayRefine = flags & 0x02;
+    m_pageMayUseAuxiliary = flags & 0x20;
+    m_pageAssociation = header.getPageAssociation();
 
     m_pageDefaultPixelValue = (flags & 0x04) ? 0xFF : 0x00;
     m_pageDefaultCompositionOperatorOverriden = (flags & 0x40);
@@ -2730,6 +3150,7 @@ void PDFJBIG2Decoder::processPageInformation(const PDFJBIG2SegmentHeader&)
     checkBitmapSize(correctedHeight);
     PDFJBIG2Bitmap::checkSize(correctedWidth, correctedHeight);
 
+    consumeDecodedBytes(uint64_t(correctedWidth) * correctedHeight);
     m_pageBitmap = PDFJBIG2Bitmap(correctedWidth, correctedHeight, m_pageDefaultPixelValue);
 }
 
@@ -2740,6 +3161,9 @@ void PDFJBIG2Decoder::processEndOfPage(const PDFJBIG2SegmentHeader& header)
         throw PDFException(PDFTranslationContext::tr("JBIG2 end-of-page segment shouldn't contain any data, but has extra data of %1 bytes.").arg(header.getSegmentDataLength()));
     }
 
+    finishPage();
+    m_pageEnded = true;
+
     // We will write a warning, because end-of-page segments should not be in PDF according to specification
     if (!m_isDecodingFile)
     {
@@ -2749,8 +3173,24 @@ void PDFJBIG2Decoder::processEndOfPage(const PDFJBIG2SegmentHeader& header)
 
 void PDFJBIG2Decoder::processEndOfStripe(const PDFJBIG2SegmentHeader& header)
 {
-    // Just skip the segment, do nothing
-    skipSegment(header);
+    if (!m_pageStriped || header.getSegmentDataLength() != 4)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid end-of-stripe segment."));
+    }
+    const int64_t row = m_reader.readUnsignedInt();
+    if (row <= m_lastStripeRow || row - m_lastStripeRow > m_maximumStripeHeight ||
+        row + 1 < m_stripeBottom || row >= MAX_BITMAP_SIZE ||
+        (!m_pageSizeUndefined && row >= m_pageBitmap.getHeight()))
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid stripe end row."));
+    }
+    if (m_pageSizeUndefined && row + 1 > m_pageBitmap.getHeight())
+    {
+        consumeDecodedBytes(uint64_t(m_pageBitmap.getWidth()) * (row + 1 - m_pageBitmap.getHeight()));
+        m_pageBitmap.resizeHeight(int(row + 1), m_pageDefaultPixelValue);
+    }
+    m_lastStripeRow = row;
+    m_stripeBottom = row + 1;
 }
 
 void PDFJBIG2Decoder::processEndOfFile(const PDFJBIG2SegmentHeader& header)
@@ -2758,6 +3198,16 @@ void PDFJBIG2Decoder::processEndOfFile(const PDFJBIG2SegmentHeader& header)
     if (header.getSegmentDataLength() != 0)
     {
         throw PDFException(PDFTranslationContext::tr("JBIG2 end-of-file segment shouldn't contain any data, but has extra data of %1 bytes.").arg(header.getSegmentDataLength()));
+    }
+
+    if (!m_pageEnded)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 end of file before end of page."));
+    }
+    m_fileEnded = true;
+    if (header.getPageAssociation() != 0)
+    {
+        m_errorReporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("JBIG2 end-of-file segment is incorrectly associated with the decoded page."));
     }
 
     // We will write a warning, because end-of-file segments should not be in PDF according to specification
@@ -2778,6 +3228,11 @@ void PDFJBIG2Decoder::processCodeTables(const PDFJBIG2SegmentHeader& header)
     const int32_t htLow = m_reader.readSignedInt();
     const int32_t htHigh = m_reader.readSignedInt();
 
+    if ((flags & 0x80) || htLow >= htHigh)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 invalid huffman table header."));
+    }
+
     if (htLow == std::numeric_limits<int32_t>::min())
     {
         // Check for underflow, we subtract 1 from htLow value
@@ -2792,14 +3247,19 @@ void PDFJBIG2Decoder::processCodeTables(const PDFJBIG2SegmentHeader& header)
     table.reserve(32);
 
     // Read standard values
-    int32_t currentRangeLow = htLow;
+    int64_t currentRangeLow = htLow;
     while (currentRangeLow < htHigh)
     {
         PDFJBIG2HuffmanTableEntry entry;
         entry.prefixBitLength = m_reader.read(htps);
         entry.rangeBitLength = m_reader.read(htrs);
-        entry.value = currentRangeLow;
-        currentRangeLow += 1 << entry.rangeBitLength;
+        if (entry.rangeBitLength > 32 || entry.prefixBitLength > 32 || table.size() >= MAX_JBIG2_SYMBOL_COUNT)
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 unsupported huffman table size or code length."));
+        }
+        consumeDecodedBytes(sizeof(PDFJBIG2HuffmanTableEntry) * 4);
+        entry.value = int32_t(currentRangeLow);
+        currentRangeLow += int64_t(1) << entry.rangeBitLength;
         table.push_back(entry);
     }
 
@@ -2858,7 +3318,7 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::takeBitmap(const uint32_t segmentIndex)
         }
 
         PDFJBIG2Bitmap result = qMove(*bitmap);
-        m_segments.erase(it);
+        discardSegment(segmentIndex);
         return result;
     }
 
@@ -2867,6 +3327,14 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::takeBitmap(const uint32_t segmentIndex)
 
 PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& parameters)
 {
+    PDFJBIG2Bitmap::checkSize(parameters.GBW, parameters.GBH);
+    checkBitmapSize(parameters.GBW);
+    checkBitmapSize(parameters.GBH);
+    consumeDecodedBytes(uint64_t(parameters.GBW) * parameters.GBH);
+    if (parameters.GBW == 0 || parameters.GBH == 0)
+    {
+        return PDFJBIG2Bitmap(parameters.GBW, parameters.GBH, 0x00);
+    }
     if (parameters.MMR)
     {
         // Use modified-modified-read (it corresponds to CCITT 2D encoding)
@@ -2878,9 +3346,26 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& par
         ccittParameters.decode = { 1.0, 0.0 };
         ccittParameters.hasBlackIsOne = true;
 
+        // Packed output and the two change-position rows of the MMR decoder.
+        consumeDecodedBytes(uint64_t((parameters.GBW + 7) / 8) * parameters.GBH + uint64_t(parameters.GBW + 2) * 16);
         PDFCCITTFaxDecoder decoder(&parameters.data, ccittParameters);
         PDFImageData data = decoder.decode();
-        parameters.dataEndPosition = decoder.getReader()->getPosition();
+        if (data.getWidth() != uint32_t(parameters.GBW) || data.getHeight() != uint32_t(parameters.GBH))
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 truncated MMR bitmap."));
+        }
+        PDFBitReader tail = *decoder.getReader();
+        if (parameters.requireMMREndOfBlock)
+        {
+            // Continue at the exact bit position, rather than searching compressed
+            // pixels for a marker or scanning arbitrary remaining segment data.
+            if (tail.read(24) != 0x1001)
+            {
+                throw PDFException(PDFTranslationContext::tr("JBIG2 missing MMR end-of-block marker."));
+            }
+            tail.alignToBytes();
+        }
+        parameters.dataEndPosition = tail.getPosition();
 
         PDFJBIG2Bitmap bitmap(data.getWidth(), data.getHeight(), m_pageDefaultPixelValue);
 
@@ -3147,6 +3632,9 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readBitmap(PDFJBIG2BitmapDecodingParameters& par
 PDFJBIG2Bitmap PDFJBIG2Decoder::readRefinementBitmap(PDFJBIG2BitmapRefinementDecodingParameters& parameters)
 {
     // Use algorithm described in 6.3.5.6
+    checkBitmapSize(parameters.GRW);
+    checkBitmapSize(parameters.GRH);
+    consumeDecodedBytes(uint64_t(parameters.GRW) * parameters.GRH);
     PDFJBIG2Bitmap GRREG(parameters.GRW, parameters.GRH, 0x00);
 
     // Use arithmetic encoding. For templates, we fill bytes from right to left, from bottom to top bits,
@@ -3161,7 +3649,7 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readRefinementBitmap(PDFJBIG2BitmapRefinementDec
     {
         uint16_t pixelContext = 0;
         uint16_t pixelContextShift = 0;
-        auto createContextBit = [&](const PDFJBIG2Bitmap* bitmap, int offsetX, int offsetY)
+        auto createContextBit = [&](const PDFJBIG2Bitmap* bitmap, int64_t offsetX, int64_t offsetY)
         {
             uint16_t bit = bitmap->getPixelSafe(offsetX, offsetY) ? 1 : 0;
             bit = bit << pixelContextShift;
@@ -3177,8 +3665,8 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readRefinementBitmap(PDFJBIG2BitmapRefinementDec
             createContextBit(&GRREG, x + 0, y - 1);
             createContextBit(&GRREG, x + parameters.GRAT[0].x, y + parameters.GRAT[0].y);
 
-            const int refX = x - parameters.GRREFERENCEX;
-            const int refY = y - parameters.GRREFERENCEY;
+            const int64_t refX = int64_t(x) - parameters.GRREFERENCEX;
+            const int64_t refY = int64_t(y) - parameters.GRREFERENCEY;
 
             createContextBit(parameters.GRREFERENCE, refX + 1, refY + 1);
             createContextBit(parameters.GRREFERENCE, refX + 0, refY + 1);
@@ -3198,8 +3686,8 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readRefinementBitmap(PDFJBIG2BitmapRefinementDec
             createContextBit(&GRREG, x + 0, y - 1);
             createContextBit(&GRREG, x - 1, y - 1);
 
-            const int refX = x - parameters.GRREFERENCEX;
-            const int refY = y - parameters.GRREFERENCEY;
+            const int64_t refX = int64_t(x) - parameters.GRREFERENCEX;
+            const int64_t refY = int64_t(y) - parameters.GRREFERENCEY;
 
             createContextBit(parameters.GRREFERENCE, refX + 1, refY + 1);
             createContextBit(parameters.GRREFERENCE, refX + 0, refY + 1);
@@ -3214,8 +3702,8 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readRefinementBitmap(PDFJBIG2BitmapRefinementDec
 
     auto evaluateTPGRPIX = [&](int x, int y, uint8_t& value) -> bool
     {
-        const int refX = x - parameters.GRREFERENCEX;
-        const int refY = y - parameters.GRREFERENCEY;
+        const int64_t refX = int64_t(x) - parameters.GRREFERENCEX;
+        const int64_t refY = int64_t(y) - parameters.GRREFERENCEY;
 
         value = parameters.GRREFERENCE->getPixelSafe(refX, refY);
 
@@ -3266,14 +3754,21 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readRefinementBitmap(PDFJBIG2BitmapRefinementDec
 PDFJBIG2Bitmap PDFJBIG2Decoder::readTextBitmap(PDFJBIG2TextRegionDecodingParameters& parameters)
 {
     /* 6.4.5 step 1) */
+    if (parameters.SBNUMINSTANCES > MAX_SYMBOL_COUNT)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 maximum symbol instance count exceeded."));
+    }
+    checkBitmapSize(parameters.SBW);
+    checkBitmapSize(parameters.SBH);
+    consumeDecodedBytes(uint64_t(parameters.SBW) * parameters.SBH);
     PDFJBIG2Bitmap SBREG(parameters.SBW, parameters.SBH, parameters.SBDEFPIXEL);
 
     Q_ASSERT(parameters.SBNUMSYMS == parameters.SBSYMS.size());
 
     /* 6.4.5 step 2) */
-    int32_t STRIPT = checkInteger(parameters.SBHUFF ? parameters.SBHUFFDT.readSignedInteger() : parameters.arithmeticDecoder->getSignedInteger(parameters.IADT));
+    int64_t STRIPT = checkInteger(parameters.SBHUFF ? parameters.SBHUFFDT.readSignedInteger() : parameters.arithmeticDecoder->getSignedInteger(parameters.IADT));
     STRIPT *= -parameters.SBSTRIPS;
-    int32_t FIRSTS = 0;
+    int64_t FIRSTS = 0;
     uint32_t NINSTANCES = 0;
 
     /* 6.4.5. step 3) */
@@ -3281,8 +3776,8 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readTextBitmap(PDFJBIG2TextRegionDecodingParamet
     {
         /* 6.4.5. step 3) b), using decoding procedure 6.4.6 */
         int32_t DT = checkInteger(parameters.SBHUFF ? parameters.SBHUFFDT.readSignedInteger() : parameters.arithmeticDecoder->getSignedInteger(parameters.IADT));
-        STRIPT += DT * parameters.SBSTRIPS;
-        int32_t CURS = 0;
+        STRIPT += int64_t(DT) * parameters.SBSTRIPS;
+        int64_t CURS = 0;
 
         bool firstSymbolInstance = true;
         while (true)
@@ -3302,7 +3797,7 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readTextBitmap(PDFJBIG2TextRegionDecodingParamet
                 if (DS.has_value())
                 {
                     const int32_t IDS = *DS;
-                    CURS += IDS + parameters.SBDSOFFSET;
+                    CURS += int64_t(IDS) + parameters.SBDSOFFSET;
                 }
                 else
                 {
@@ -3328,7 +3823,11 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readTextBitmap(PDFJBIG2TextRegionDecodingParamet
                 CURT = parameters.SBHUFF ? parameters.reader->read(parameters.LOG2SBSTRIPS) : checkInteger(parameters.arithmeticDecoder->getSignedInteger(parameters.IAIT));
             }
 
-            const int32_t TI = STRIPT + CURT;
+            if (CURT < 0 || CURT >= parameters.SBSTRIPS)
+            {
+                throw PDFException(PDFTranslationContext::tr("JBIG2 invalid symbol position within strip."));
+            }
+            const int64_t TI = STRIPT + CURT;
 
             /* 6.4.5. step 3) iv), using decoding procedure 6.4.10 */
             uint32_t ID = parameters.SBHUFF ? checkInteger(parameters.SBSYMCODES.readSignedInteger()) : parameters.arithmeticDecoder->getIAID(parameters.SBSYMCODELEN, parameters.IAID);
@@ -3342,15 +3841,17 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readTextBitmap(PDFJBIG2TextRegionDecodingParamet
             bool RI = 0;
             if (parameters.SBREFINE)
             {
-                RI = parameters.SBHUFF ? parameters.reader->read(1) : checkInteger(parameters.arithmeticDecoder->getSignedInteger(parameters.IARI));
+                const int32_t value = parameters.SBHUFF ? int32_t(parameters.reader->read(1)) : checkInteger(parameters.arithmeticDecoder->getSignedInteger(parameters.IARI));
+                if (value < 0 || value > 1)
+                {
+                    throw PDFException(PDFTranslationContext::tr("JBIG2 invalid refinement indicator."));
+                }
+                RI = value != 0;
             }
 
-            PDFJBIG2Bitmap IB;
-            if (RI == 0)
-            {
-                IB = *parameters.SBSYMS[ID];
-            }
-            else
+            PDFJBIG2Bitmap refinedBitmap;
+            const PDFJBIG2Bitmap* instanceBitmap = parameters.SBSYMS[ID];
+            if (RI)
             {
                 /* 6.4.11 1), 2), 3), 4) */
                 int32_t RDW = checkInteger(parameters.SBHUFF ? parameters.SBHUFFRDW.readSignedInteger() : parameters.arithmeticDecoder->getSignedInteger(parameters.IARDW));
@@ -3359,14 +3860,14 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readTextBitmap(PDFJBIG2TextRegionDecodingParamet
                 int32_t RDY = checkInteger(parameters.SBHUFF ? parameters.SBHUFFRDY.readSignedInteger() : parameters.arithmeticDecoder->getSignedInteger(parameters.IARDY));
 
                 /* 6.4.11 5) */
-                int32_t position = 0;
-                int32_t bmsize = parameters.SBHUFF ? checkInteger(parameters.SBHUFFRSIZE.readSignedInteger()) : 0;
-
+                QByteArray refinementData;
+                PDFBitReader refinementReader(&refinementData, 8);
+                PDFJBIG2ArithmeticDecoder refinementDecoder(&refinementReader, &m_workRemaining);
                 if (parameters.SBHUFF)
                 {
-                    parameters.reader->alignToBytes();
-                    position = parameters.reader->getPosition();
-                    parameters.arithmeticDecoder->initialize();
+                    const int32_t bmsize = checkInteger(parameters.SBHUFFRSIZE.readSignedInteger());
+                    refinementData = readRefinementData(parameters.reader, bmsize);
+                    refinementDecoder.initialize();
                 }
 
                 /* 6.4.11 6) */
@@ -3387,26 +3888,28 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readTextBitmap(PDFJBIG2TextRegionDecodingParamet
 
                 // Apply the refinement procedure acc. to Table 12
                 PDFJBIG2BitmapRefinementDecodingParameters refinementParameters;
-                refinementParameters.decoder = parameters.arithmeticDecoder;
+                refinementParameters.decoder = parameters.SBHUFF ? &refinementDecoder : parameters.arithmeticDecoder;
                 refinementParameters.arithmeticDecoderState = parameters.refinementDecoderState;
                 refinementParameters.GRW = uint32_t(GRW);
                 refinementParameters.GRH = uint32_t(GRH);
                 refinementParameters.GRTEMPLATE = parameters.SBRTEMPLATE;
                 refinementParameters.GRREFERENCE = IBO;
-                refinementParameters.GRREFERENCEX = floorDivideByTwo(RDW) + RDX;
-                refinementParameters.GRREFERENCEY = floorDivideByTwo(RDH) + RDY;
+                refinementParameters.GRREFERENCEX = int64_t(floorDivideByTwo(RDW)) + RDX;
+                refinementParameters.GRREFERENCEY = int64_t(floorDivideByTwo(RDH)) + RDY;
                 refinementParameters.TPGRON = false;
                 refinementParameters.GRAT = parameters.SBRAT;
-                IB = readRefinementBitmap(refinementParameters);
+                refinedBitmap = readRefinementBitmap(refinementParameters);
+                instanceBitmap = &refinedBitmap;
 
                 /* 6.4.11 7) */
                 if (parameters.SBHUFF)
                 {
-                    parameters.reader->alignToBytes();
-                    parameters.reader->seek(position + bmsize);
+                    refinementDecoder.finalize();
                 }
             }
 
+            const PDFJBIG2Bitmap& IB = *instanceBitmap;
+            consumeWork(uint64_t(IB.getPixelCount()) + 1);
             const int32_t WI = IB.getWidth();
             const int32_t HI = IB.getHeight();
 
@@ -3423,7 +3926,7 @@ PDFJBIG2Bitmap PDFJBIG2Decoder::readTextBitmap(PDFJBIG2TextRegionDecodingParamet
             }
 
             /* 6.4.5. step 3) c) vii) */
-            const int32_t SI = CURS;
+            const int64_t SI = CURS;
 
             /* 6.4.5. step 3) c) viii) + ix) - the reference corner is the corner of the symbol
                placed at (S, T). The bit 0 of REFCORNER is set for the top corners and the bit 1
@@ -3508,10 +4011,11 @@ PDFJBIG2RegionSegmentInformationField PDFJBIG2Decoder::readRegionSegmentInformat
     }
 
     checkRegionSegmentInformationField(result);
+    m_currentRegionInformation = result;
     return result;
 }
 
-PDFJBIG2ATPositions PDFJBIG2Decoder::readATTemplatePixelPositions(int count)
+PDFJBIG2ATPositions PDFJBIG2Decoder::readATTemplatePixelPositions(int count, bool refinement)
 {
     PDFJBIG2ATPositions result = { };
 
@@ -3519,6 +4023,10 @@ PDFJBIG2ATPositions PDFJBIG2Decoder::readATTemplatePixelPositions(int count)
     {
         result[i].x = m_reader.readSignedByte();
         result[i].y = m_reader.readSignedByte();
+        if ((!refinement || i == 0) && (result[i].y > 0 || (result[i].y == 0 && result[i].x >= 0)))
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 non-causal adaptive template pixel."));
+        }
     }
 
     return result;
@@ -3529,7 +4037,7 @@ void PDFJBIG2Decoder::skipSegment(const PDFJBIG2SegmentHeader& header)
     m_reader.skipBytes(header.getSegmentDataLength());
 }
 
-PDFJBIG2ReferencedSegments PDFJBIG2Decoder::getReferencedSegments(const PDFJBIG2SegmentHeader& header) const
+PDFJBIG2ReferencedSegments PDFJBIG2Decoder::getReferencedSegments(const PDFJBIG2SegmentHeader& header)
 {
     PDFJBIG2ReferencedSegments segments;
 
@@ -3545,10 +4053,12 @@ PDFJBIG2ReferencedSegments PDFJBIG2Decoder::getReferencedSegments(const PDFJBIG2
             }
             else if (const PDFJBIG2HuffmanCodeTable* huffmanCodeTable = referredSegment->asHuffmanCodeTable())
             {
+                consumeDecodedBytes(uint64_t(huffmanCodeTable->getEntries().size()) * sizeof(PDFJBIG2HuffmanTableEntry) * 2);
                 segments.codeTables.push_back(huffmanCodeTable);
             }
             else if (const PDFJBIG2SymbolDictionary* symbolDictionary = referredSegment->asSymbolDictionary())
             {
+                consumeDecodedBytes(uint64_t(symbolDictionary->getBitmaps().size()) * sizeof(void*) * 2);
                 segments.symbolDictionaries.push_back(symbolDictionary);
             }
             else
@@ -3557,6 +4067,7 @@ PDFJBIG2ReferencedSegments PDFJBIG2Decoder::getReferencedSegments(const PDFJBIG2
                 // a pattern dictionary - nothing else is stored
                 const PDFJBIG2PatternDictionary* patternDictionary = referredSegment->asPatternDictionary();
                 Q_ASSERT(patternDictionary);
+                consumeDecodedBytes(uint64_t(patternDictionary->getBitmaps().size()) * sizeof(void*) * 2);
                 segments.patternDictionaries.push_back(patternDictionary);
             }
         }
@@ -3585,6 +4096,26 @@ int PDFJBIG2Decoder::getSegmentDataBytes(const PDFJBIG2SegmentHeader& header, in
     }
 
     return int(segmentDataBytes);
+}
+
+void PDFJBIG2Decoder::consumeWork(uint64_t count)
+{
+    if (count > m_workRemaining)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 decoding work limit exceeded."));
+    }
+    m_workRemaining -= count;
+}
+
+void PDFJBIG2Decoder::consumeDecodedBytes(uint64_t count)
+{
+    constexpr uint64_t limit = MAX_DECODED_BYTES;
+    if (count > limit - m_decodedBytes)
+    {
+        throw PDFException(PDFTranslationContext::tr("JBIG2 cumulative decoding memory limit exceeded."));
+    }
+    m_decodedBytes += count;
+    consumeWork(count);
 }
 
 void PDFJBIG2Decoder::checkBitmapSize(const uint32_t size)
@@ -3644,7 +4175,7 @@ PDFJBIG2Bitmap::PDFJBIG2Bitmap(int width, int height, uint8_t fill) :
 
 void PDFJBIG2Bitmap::checkSize(int64_t width, int64_t height)
 {
-    if (width < 0 || height < 0)
+    if (width < 0 || height < 0 || width > std::numeric_limits<int>::max() || height > std::numeric_limits<int>::max())
     {
         throw PDFException(PDFTranslationContext::tr("JBIG2 invalid bitmap size (%1 x %2).").arg(width).arg(height));
     }
@@ -3653,11 +4184,9 @@ void PDFJBIG2Bitmap::checkSize(int64_t width, int64_t height)
     // but their product can still overflow the int - the buffer allocated for such a
     // bitmap would be much smaller than the bitmap itself and every write into it
     // would land outside of the allocated memory.
-    const int64_t pixelCount = width * height;
-
-    if (pixelCount > MAX_PIXEL_COUNT)
+    if (width != 0 && height > MAX_PIXEL_COUNT / width)
     {
-        throw PDFException(PDFTranslationContext::tr("JBIG2 maximum bitmap pixel count exceeded (%1 > %2).").arg(pixelCount).arg(MAX_PIXEL_COUNT));
+        throw PDFException(PDFTranslationContext::tr("JBIG2 maximum bitmap pixel count exceeded (%1 x %2 > %3).").arg(width).arg(height).arg(MAX_PIXEL_COUNT));
     }
 }
 
@@ -3666,9 +4195,14 @@ PDFJBIG2Bitmap::~PDFJBIG2Bitmap()
 
 }
 
-PDFJBIG2Bitmap PDFJBIG2Bitmap::getSubbitmap(int offsetX, int offsetY, int width, int height) const
+PDFJBIG2Bitmap PDFJBIG2Bitmap::getSubbitmap(int64_t offsetX, int64_t offsetY, int width, int height) const
 {
     PDFJBIG2Bitmap result(width, height, 0x00);
+    if (!result.isValid() || offsetX >= m_width || offsetY >= m_height ||
+        offsetX <= -int64_t(width) || offsetY <= -int64_t(height))
+    {
+        return result;
+    }
 
     for (int y = 0; y < height; ++y)
     {
@@ -3681,41 +4215,45 @@ PDFJBIG2Bitmap PDFJBIG2Bitmap::getSubbitmap(int offsetX, int offsetY, int width,
     return result;
 }
 
-void PDFJBIG2Bitmap::paint(const PDFJBIG2Bitmap& bitmap, int offsetX, int offsetY, PDFJBIG2BitOperation operation, bool expandY, const uint8_t expandPixel)
+void PDFJBIG2Bitmap::paint(const PDFJBIG2Bitmap& bitmap, int64_t offsetX, int64_t offsetY, PDFJBIG2BitOperation operation, bool expandY, const uint8_t expandPixel)
 {
     if (!bitmap.isValid())
     {
         return;
     }
 
-    // Expand, if it is allowed and target bitmap has too low height
-    const int64_t requiredHeight = int64_t(offsetY) + int64_t(bitmap.getHeight());
-    if (expandY && requiredHeight > int64_t(m_height))
-    {
-        checkSize(m_width, requiredHeight);
-        m_height = int(requiredHeight);
-        m_data.resize(getPixelCount(), expandPixel);
-    }
-
-    // Check out pathological cases
-    if (offsetX >= m_width || offsetY >= m_height)
+    // Reject fully clipped input before adding offsets, which may be any int64.
+    if (offsetX >= m_width || offsetX <= -int64_t(bitmap.getWidth()) ||
+        offsetY <= -int64_t(bitmap.getHeight()) || (!expandY && offsetY >= m_height))
     {
         return;
+    }
+    if (expandY)
+    {
+        if (offsetY > int64_t(std::numeric_limits<int>::max()) - bitmap.getHeight())
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 expanded bitmap height out of range."));
+        }
+        const int64_t requiredHeight = offsetY + bitmap.getHeight();
+        if (requiredHeight > m_height)
+        {
+            resizeHeight(int(requiredHeight), expandPixel);
+        }
     }
 
     // The painted area is the intersection of the painted bitmap and this bitmap,
     // so the source pixel of a target pixel always exists
-    const int targetStartX = qMax(offsetX, 0);
-    const int targetEndX = qMin(offsetX + bitmap.getWidth(), m_width);
-    const int targetStartY = qMax(offsetY, 0);
-    const int targetEndY = qMin(offsetY + bitmap.getHeight(), m_height);
+    const int targetStartX = int(qMax<int64_t>(offsetX, 0));
+    const int targetEndX = int(qMax<int64_t>(0, qMin<int64_t>(offsetX + bitmap.getWidth(), m_width)));
+    const int targetStartY = int(qMax<int64_t>(offsetY, 0));
+    const int targetEndY = int(qMax<int64_t>(0, qMin<int64_t>(offsetY + bitmap.getHeight(), m_height)));
 
     for (int targetY = targetStartY; targetY < targetEndY; ++targetY)
     {
         for (int targetX = targetStartX; targetX < targetEndX; ++targetX)
         {
-            const int sourceX = targetX - offsetX;
-            const int sourceY = targetY - offsetY;
+            const int sourceX = int(targetX - offsetX);
+            const int sourceY = int(targetY - offsetY);
 
             switch (operation)
             {
@@ -3744,6 +4282,13 @@ void PDFJBIG2Bitmap::paint(const PDFJBIG2Bitmap& bitmap, int offsetX, int offset
             }
         }
     }
+}
+
+void PDFJBIG2Bitmap::resizeHeight(int height, uint8_t fill)
+{
+    checkSize(m_width, height);
+    m_data.resize(size_t(m_width) * size_t(height), fill);
+    m_height = height;
 }
 
 void PDFJBIG2Bitmap::copyRow(int target, int source)
@@ -3776,39 +4321,23 @@ std::vector<PDFJBIG2HuffmanTableEntry> PDFJBIG2HuffmanCodeTable::buildPrefixes(c
     result.erase(std::remove_if(result.begin(), result.end(), [](const PDFJBIG2HuffmanTableEntry& entry) { return entry.prefixBitLength == 0; }), result.end());
     std::stable_sort(result.begin(), result.end(), [](const PDFJBIG2HuffmanTableEntry& l, const PDFJBIG2HuffmanTableEntry& r) { return l.prefixBitLength < r.prefixBitLength; });
 
-    if (!result.empty())
+    // B.3: a wider accumulator represents the sentinel 2^32 as well as all
+    // supported codes. Checking the next code includes shorter prefixes too.
+    uint64_t nextCode = 0;
+    uint16_t previousLength = 0;
+    for (PDFJBIG2HuffmanTableEntry& entry : result)
     {
-        result[0].prefix = 0;
-
-        // Strategy: we will have variable prefix containing actual prefix value. If we are changing
-        // the number of bits, then we must update "FIRSTCODE" variable as in the specification, i.e.
-        // compute FIRSTCODE[current bit length] = (FIRSTCODE[previous bit length] + #number of items) * 2.
-        // Number of items is automatically computed by incrementing the variable prefix, so at the end
-        // of each cycle, when we are about to shift number of bits in next cycle, we have computed
-        // variable (FIRSTCODE[last bit length] + #number of items), so in next cycle, we just do a bit shift.
-        uint16_t prefix = 1;
-        uint16_t count = 1;
-        for (uint32_t i = 1; i < result.size(); ++i)
+        if (entry.prefixBitLength > 32 || entry.rangeBitLength > 32)
         {
-            const uint16_t bitShift = result[i].prefixBitLength - result[i - 1].prefixBitLength;
-            if (bitShift > 0)
-            {
-                // Bit length of the prefix changed, we must shift the prefix by amount of new bits
-                prefix = prefix << bitShift;
-                count = 0;
-            }
-
-            result[i].prefix = prefix;
-            ++prefix;
-            ++count;
-
-            if (count > (1 << result[i].prefixBitLength))
-            {
-                // We have "overflow" of values, for binary number with prefixBitLength digits (0/1), we can
-                // have only 2^prefixBitLength values, which we exceeded. This is unrecoverable error.
-                throw PDFException(PDFTranslationContext::tr("JBIG2 overflow of prefix bit values in huffman table."));
-            }
+            throw PDFException(PDFTranslationContext::tr("JBIG2 unsupported huffman code length."));
         }
+        nextCode <<= entry.prefixBitLength - previousLength;
+        if (nextCode >= (uint64_t(1) << entry.prefixBitLength))
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 overflow of prefix bit values in huffman table."));
+        }
+        entry.prefix = uint32_t(nextCode++);
+        previousLength = entry.prefixBitLength;
     }
 
     return result;
@@ -3819,39 +4348,60 @@ PDFJBIG2Segment::~PDFJBIG2Segment()
 
 }
 
-PDFJBIG2HuffmanDecoder::PDFJBIG2HuffmanDecoder(PDFBitReader* reader, const PDFJBIG2HuffmanCodeTable* table) :
-    m_reader(reader)
+PDFJBIG2HuffmanDecoder::PDFJBIG2HuffmanDecoder(PDFBitReader* reader, uint64_t* workRemaining, const PDFJBIG2HuffmanTableEntry* begin, const PDFJBIG2HuffmanTableEntry* end) :
+    m_reader(reader), m_workRemaining(workRemaining), m_entries(begin, end)
 {
-    m_entries = table->getEntries();
-    if (!m_entries.empty())
-    {
-        m_begin = m_entries.data();
-        m_end = m_entries.data() + m_entries.size();
-    }
+    initializeEntries();
 }
 
-PDFJBIG2HuffmanDecoder::PDFJBIG2HuffmanDecoder(PDFBitReader* reader, std::vector<PDFJBIG2HuffmanTableEntry>&& table) :
-    m_reader(reader),
-    m_entries(qMove(table))
+PDFJBIG2HuffmanDecoder::PDFJBIG2HuffmanDecoder(PDFBitReader* reader, uint64_t* workRemaining, const PDFJBIG2HuffmanCodeTable* table) :
+    m_reader(reader), m_workRemaining(workRemaining), m_entries(table->getEntries())
 {
-    if (!m_entries.empty())
+    initializeEntries();
+}
+
+PDFJBIG2HuffmanDecoder::PDFJBIG2HuffmanDecoder(PDFBitReader* reader, uint64_t* workRemaining, std::vector<PDFJBIG2HuffmanTableEntry>&& table) :
+    m_reader(reader), m_workRemaining(workRemaining), m_entries(qMove(table))
+{
+    initializeEntries();
+}
+
+void PDFJBIG2HuffmanDecoder::initializeEntries()
+{
+    for (const auto& entry : m_entries)
     {
-        m_begin = m_entries.data();
-        m_end = m_entries.data() + m_entries.size();
+        if (entry.prefixBitLength == 0 || entry.prefixBitLength > 32 || entry.rangeBitLength > 32 ||
+            uint64_t(entry.prefix) >= (uint64_t(1) << entry.prefixBitLength))
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 invalid huffman code length or prefix."));
+        }
     }
+    std::sort(m_entries.begin(), m_entries.end(), [](const auto& a, const auto& b)
+    {
+        return a.prefixBitLength < b.prefixBitLength || (a.prefixBitLength == b.prefixBitLength && a.prefix < b.prefix);
+    });
+    m_begin = m_entries.empty() ? nullptr : m_entries.data();
+    m_end = m_entries.empty() ? nullptr : m_entries.data() + m_entries.size();
+    m_groupWork = 32 + 2 * log2ceil(uint32_t(m_entries.size() + 1));
+}
+
+bool PDFJBIG2HuffmanDecoder::hasOutOfBand() const
+{
+    return std::any_of(m_entries.begin(), m_entries.end(), [](const auto& entry) { return entry.isOutOfBand(); });
 }
 
 PDFJBIG2HuffmanDecoder& PDFJBIG2HuffmanDecoder::operator=(PDFJBIG2HuffmanDecoder&& other)
 {
-    m_reader = other.m_reader;
-    m_begin = other.m_begin;
-    m_end = other.m_end;
-    m_entries = qMove(other.m_entries);
-
-    if (!m_entries.empty())
+    if (this != &other)
     {
-        m_begin = m_entries.data();
-        m_end = m_entries.data() + m_entries.size();
+        m_reader = other.m_reader;
+        m_workRemaining = other.m_workRemaining;
+        m_groupWork = other.m_groupWork;
+        m_entries = qMove(other.m_entries);
+        m_begin = m_entries.empty() ? nullptr : m_entries.data();
+        m_end = m_entries.empty() ? nullptr : m_entries.data() + m_entries.size();
+        other.m_begin = other.m_end = nullptr;
+        other.m_reader = nullptr;
     }
 
     return *this;
@@ -3861,84 +4411,94 @@ std::optional<int32_t> PDFJBIG2HuffmanDecoder::readSignedInteger()
 {
     uint32_t prefixBitCount = 0;
     uint32_t prefix = 0;
-
-    for (const PDFJBIG2HuffmanTableEntry* it = m_begin; it != m_end; ++it)
+    // At most 32 groups and logarithmic searches. A large symbol table must not
+    // turn every decoded instance into a linear scan over all imported symbols.
+    for (const PDFJBIG2HuffmanTableEntry* first = m_begin; first != m_end;)
     {
-        // Align prefix with current bit value
-        Q_ASSERT(prefixBitCount <= it->prefixBitLength);
-        while (prefixBitCount < it->prefixBitLength)
+        if (m_workRemaining)
         {
-            prefix = (prefix << 1) | m_reader->read(1);
-            ++prefixBitCount;
+            if (*m_workRemaining < m_groupWork)
+            {
+                throw PDFException(PDFTranslationContext::tr("JBIG2 decoding work limit exceeded."));
+            }
+            *m_workRemaining -= m_groupWork;
         }
-
-        if (prefix == it->prefix)
+        const uint16_t length = first->prefixBitLength;
+        const auto* last = std::upper_bound(first, m_end, length, [](uint16_t bits, const auto& entry)
         {
-            // We have found value. Now, there are three cases:
-            //  1) Out of band value
-            //  2) Negative value
-            //  3) Standard value
-            if (it->isOutOfBand())
+            return bits < entry.prefixBitLength;
+        });
+        prefix = uint32_t((uint64_t(prefix) << (length - prefixBitCount)) | m_reader->read(length - prefixBitCount));
+        prefixBitCount = length;
+        const auto* entry = std::lower_bound(first, last, prefix, [](const auto& item, uint32_t code)
+        {
+            return item.prefix < code;
+        });
+        if (entry != last && entry->prefix == prefix)
+        {
+            if (entry->isOutOfBand())
             {
                 return std::nullopt;
             }
-            else if (it->isLowValue())
-            {
-                return it->value - int32_t(m_reader->read(32));
-            }
-            else if (it->rangeBitLength == 0)
-            {
-                return it->value;
-            }
-            else
-            {
-                return it->value + int32_t(m_reader->read(it->rangeBitLength));
-            }
+            const int64_t offset = int64_t(m_reader->read(entry->rangeBitLength));
+            return checkedJBIG2Integer(int64_t(entry->value) + (entry->isLowValue() ? -offset : offset));
         }
+        first = last;
     }
-
-    return std::nullopt;
+    throw PDFException(PDFTranslationContext::tr("JBIG2 invalid huffman prefix."));
 }
 
 std::vector<const PDFJBIG2Bitmap*> PDFJBIG2ReferencedSegments::getSymbolBitmaps() const
 {
-    std::vector<const PDFJBIG2Bitmap*> result;
-
-    for (const PDFJBIG2SymbolDictionary* dictionary  : symbolDictionaries)
+    size_t total = 0;
+    for (const auto* dictionary : symbolDictionaries)
     {
-        const std::vector<PDFJBIG2Bitmap>& dictionaryBitmaps = dictionary->getBitmaps();
-        result.reserve(result.size() + dictionaryBitmaps.size());
-        for (const PDFJBIG2Bitmap& bitmap : dictionaryBitmaps)
+        if (dictionary->getBitmaps().size() > MAX_JBIG2_SYMBOL_COUNT - total)
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 maximum referenced symbol count exceeded."));
+        }
+        total += dictionary->getBitmaps().size();
+    }
+    std::vector<const PDFJBIG2Bitmap*> result;
+    result.reserve(total);
+    for (const auto* dictionary : symbolDictionaries)
+    {
+        for (const PDFJBIG2Bitmap& bitmap : dictionary->getBitmaps())
         {
             result.push_back(&bitmap);
         }
     }
-
     return result;
 }
 
 std::vector<const PDFJBIG2Bitmap*> PDFJBIG2ReferencedSegments::getPatternBitmaps() const
 {
-    std::vector<const PDFJBIG2Bitmap*> result;
-
-    for (const PDFJBIG2PatternDictionary* dictionary  : patternDictionaries)
+    size_t total = 0;
+    for (const auto* dictionary : patternDictionaries)
     {
-        const std::vector<PDFJBIG2Bitmap>& dictionaryBitmaps = dictionary->getBitmaps();
-        result.reserve(result.size() + dictionaryBitmaps.size());
-        for (const PDFJBIG2Bitmap& bitmap : dictionaryBitmaps)
+        if (dictionary->getBitmaps().size() > MAX_JBIG2_SYMBOL_COUNT - total)
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 maximum referenced pattern count exceeded."));
+        }
+        total += dictionary->getBitmaps().size();
+    }
+    std::vector<const PDFJBIG2Bitmap*> result;
+    result.reserve(total);
+    for (const auto* dictionary : patternDictionaries)
+    {
+        for (const PDFJBIG2Bitmap& bitmap : dictionary->getBitmaps())
         {
             result.push_back(&bitmap);
         }
     }
-
     return result;
 }
 
-PDFJBIG2HuffmanDecoder PDFJBIG2ReferencedSegments::getUserTable(PDFBitReader* reader)
+PDFJBIG2HuffmanDecoder PDFJBIG2ReferencedSegments::getUserTable(PDFBitReader* reader, uint64_t* workRemaining)
 {
     if (currentUserCodeTableIndex < codeTables.size())
     {
-        return PDFJBIG2HuffmanDecoder(reader, codeTables[currentUserCodeTableIndex++]);
+        return PDFJBIG2HuffmanDecoder(reader, workRemaining, codeTables[currentUserCodeTableIndex++]);
     }
     else
     {
