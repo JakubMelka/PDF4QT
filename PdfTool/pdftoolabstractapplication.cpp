@@ -195,6 +195,7 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addOption(QCommandLineOption("bitonal-threshold", "Threshold used by the manual method and by the dithering (0-255).", "threshold", "128"));
         parser->addOption(QCommandLineOption("bitonal-dpi", "Resolution, at which the pages are rasterized. Zero means, that it is estimated from the images of the document.", "dpi", "0"));
         parser->addOption(QCommandLineOption("bitonal-fill", "Replace the converted items by a solid area instead of converting them. Valid values are none|black|white.", "fill", "none"));
+        parser->addOption(QCommandLineOption("bitonal-invert", "Swap the black and the white pixels of the converted items. It can be used with '--bitonal-fill none' only."));
         parser->addOption(QCommandLineOption("bitonal-compression", "Compression of the created images. Valid values are auto|flate|runlength|ccittg4|jbig2. 'auto' compresses every image by all the algorithms and keeps the smallest result.", "compression", "auto"));
     }
 
@@ -527,6 +528,20 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         else
         {
             reportInvalidValue("bitonal-fill", fill, "none|black|white");
+        }
+
+        if (parser->isSet("bitonal-invert"))
+        {
+            if (options.bitonalItemMode == pdf::PDFBitonalDocumentCreator::ItemMode::Algorithm)
+            {
+                options.bitonalItemMode = pdf::PDFBitonalDocumentCreator::ItemMode::AlgorithmInverted;
+            }
+            else if (options.bitonalInvalidArgument.isEmpty())
+            {
+                // Inverting a solid fill makes no sense - the user asks for two
+                // different things at once, so the tool refuses to guess.
+                options.bitonalInvalidArgument = PDFToolTranslationContext::tr("The option '--bitonal-invert' can be used with '--bitonal-fill none' only.");
+            }
         }
 
         const QString compression = parser->value("bitonal-compression");

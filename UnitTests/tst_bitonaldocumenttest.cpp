@@ -142,6 +142,7 @@ private slots:
     void test_page_conversion_removes_structure_tree_when_complete();
     void test_page_conversion_needs_rasterizer_pool();
     void test_page_conversion_compression();
+    void test_page_conversion_inverted();
 
 private:
     /// Resolution used by the tests. It is deliberately low - the tests verify, which
@@ -1093,6 +1094,75 @@ void BitonalDocumentTest::test_page_conversion_compression()
     const pdf::PDFStream* stream = getPageBitonalImageStream(bitonalDocument, 0);
     QVERIFY(stream);
     QCOMPARE(int(stream->getContent()->size()), smallestSize);
+}
+
+void BitonalDocumentTest::test_page_conversion_inverted()
+{
+    // The inverted mode converts the page exactly as the plain one does and then swaps
+    // the black and the white pixels, so the two results are negatives of each other.
+    // The test page is black on its left half and white on its right one.
+    struct Result
+    {
+        QImage page;
+        int width = 0;
+        int height = 0;
+    };
+
+    std::array<Result, 2> results;
+    const std::array<pdf::PDFBitonalDocumentCreator::ItemMode, 2> modes = {
+        pdf::PDFBitonalDocumentCreator::ItemMode::Algorithm,
+        pdf::PDFBitonalDocumentCreator::ItemMode::AlgorithmInverted
+    };
+
+    for (size_t index = 0; index < modes.size(); ++index)
+    {
+        pdf::PDFDocument document = createDocument({ QSizeF(200, 100) }, false);
+        RenderingContext context(&document);
+        pdf::PDFBitonalDocumentCreator creator(&document, context.getRasterizerPool(), nullptr);
+
+        pdf::PDFBitonalDocumentCreator::Settings settings = createPageSettings(1);
+        settings.items.front().mode = modes[index];
+
+        QVERIFY(creator.createBitonalDocument(settings));
+        QCOMPARE(creator.getConvertedItemCount(), size_t(1));
+        QCOMPARE(creator.getFailedItemCount(), size_t(0));
+
+        pdf::PDFDocument bitonalDocument = creator.takeBitonalDocument();
+
+        // The inversion changes the samples only, the image keeps its geometry
+        const pdf::PDFDictionary* imageDictionary = getPageBitonalImage(bitonalDocument, 0);
+        QVERIFY(imageDictionary);
+
+        pdf::PDFDocumentDataLoaderDecorator loader(&bitonalDocument);
+        results[index].width = loader.readIntegerFromDictionary(imageDictionary, "Width", 0);
+        results[index].height = loader.readIntegerFromDictionary(imageDictionary, "Height", 0);
+
+        RenderingContext bitonalContext(&bitonalDocument);
+        pdf::PDFBitonalDocumentCreator bitonalCreator(&bitonalDocument, bitonalContext.getRasterizerPool(), nullptr);
+        results[index].page = bitonalCreator.renderPage(0, QSize(200, 100), nullptr);
+        QVERIFY(!results[index].page.isNull());
+    }
+
+    QCOMPARE(results[1].width, results[0].width);
+    QCOMPARE(results[1].height, results[0].height);
+
+    // The plain conversion keeps the black half on the left, the inverted one moves it
+    // to the right
+    QVERIFY(qGray(results[0].page.pixel(50, 50)) < 64);
+    QVERIFY(qGray(results[0].page.pixel(150, 50)) > 192);
+    QVERIFY(qGray(results[1].page.pixel(50, 50)) > 192);
+    QVERIFY(qGray(results[1].page.pixel(150, 50)) < 64);
+
+    // Every pixel of the page is inverted, not only the two probed ones
+    for (int y = 0; y < 100; y += 7)
+    {
+        for (int x = 0; x < 200; x += 7)
+        {
+            const bool isBlack = qGray(results[0].page.pixel(x, y)) < 128;
+            const bool isInvertedBlack = qGray(results[1].page.pixel(x, y)) < 128;
+            QCOMPARE(isInvertedBlack, !isBlack);
+        }
+    }
 }
 
 QTEST_MAIN(BitonalDocumentTest)

@@ -271,6 +271,7 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
 
     ImagePreviewDelegate* delegate = new ImagePreviewDelegate(&m_itemsToBeConverted, this);
     connect(delegate, &ImagePreviewDelegate::conversionModeChanged, this, &PDFCreateBitonalDocumentDialog::onConversionModeChanged);
+    connect(delegate, &ImagePreviewDelegate::modeMarkClicked, this, &PDFCreateBitonalDocumentDialog::onModeMarkClicked);
     ui->imageListWidget->setItemDelegate(delegate);
 
     setGeometry(parent->geometry());
@@ -540,6 +541,23 @@ void PDFCreateBitonalDocumentDialog::onConversionModeChanged()
     updatePreview();
 }
 
+void PDFCreateBitonalDocumentDialog::onModeMarkClicked(int row)
+{
+    if (row < 0 || row >= ui->imageListWidget->count())
+    {
+        return;
+    }
+
+    const QModelIndex index = ui->imageListWidget->model()->index(row, 0);
+
+    if (index.isValid())
+    {
+        // Clicking a mark selects the item as a plain click on it would do, so a
+        // multiple selection of the list does not survive it either
+        ui->imageListWidget->selectionModel()->setCurrentIndex(index, QItemSelectionModel::ClearAndSelect);
+    }
+}
+
 void PDFCreateBitonalDocumentDialog::onItemListContextMenuRequested(const QPoint& pos)
 {
     if (m_itemsToBeConverted.empty() || m_conversionInProgress)
@@ -559,6 +577,7 @@ void PDFCreateBitonalDocumentDialog::onItemListContextMenuRequested(const QPoint
     };
 
     addModeAction(tr("Convert using the selected method"), ConversionItemInfo::Mode::Algorithm);
+    addModeAction(tr("Convert using the selected method, inverted"), ConversionItemInfo::Mode::AlgorithmInverted);
     addModeAction(tr("Leave unchanged"), ConversionItemInfo::Mode::Original);
     addModeAction(tr("Fill with black"), ConversionItemInfo::Mode::FillBlack);
     addModeAction(tr("Fill with white"), ConversionItemInfo::Mode::FillWhite);
@@ -888,6 +907,10 @@ void PDFCreateBitonalDocumentDialog::generatePreview(int generation,
             bitonalImage = pdf::PDFBitonalDocumentCreator::convertImageToBitonal(image, request.conversionMethod, request.manualThreshold, nullptr, operationControl);
             break;
 
+        case ConversionItemInfo::Mode::AlgorithmInverted:
+            bitonalImage = pdf::PDFBitonalDocumentCreator::invertBitonalImage(pdf::PDFBitonalDocumentCreator::convertImageToBitonal(image, request.conversionMethod, request.manualThreshold, nullptr, operationControl));
+            break;
+
         case ConversionItemInfo::Mode::Original:
             // Nothing is going to change, so both panes show the same image
             bitonalImage = image;
@@ -1149,6 +1172,9 @@ void PDFCreateBitonalDocumentDialog::startPreviewGeneration()
             case ConversionItemInfo::Mode::Algorithm:
                 return tr("BITONAL");
 
+            case ConversionItemInfo::Mode::AlgorithmInverted:
+                return tr("BITONAL INVERTED");
+
             case ConversionItemInfo::Mode::Original:
                 return tr("UNCHANGED");
 
@@ -1270,6 +1296,16 @@ void ImagePreviewDelegate::paintMark(QPainter* painter, QRect rect, Mode mode, b
             painter->drawPie(glyphRect, -90 * 16, 180 * 16);
             break;
 
+        case Mode::AlgorithmInverted:
+            // The same circle as the one of the conversion, but with the halves
+            // swapped - the conversion turns the colors of the item into these two
+            // and then exchanges them.
+            painter->setBrush(Qt::white);
+            painter->drawPie(glyphRect, 90 * 16, 180 * 16);
+            painter->setBrush(Qt::black);
+            painter->drawPie(glyphRect, -90 * 16, 180 * 16);
+            break;
+
         case Mode::Original:
             // A circle divided into three colors - the item keeps its colors
             painter->setBrush(QColor(220, 50, 50));
@@ -1309,6 +1345,9 @@ QString ImagePreviewDelegate::getModeToolTip(Mode mode) const
         case Mode::Algorithm:
             return tr("Convert this item to the bitonal format using the selected conversion method.");
 
+        case Mode::AlgorithmInverted:
+            return tr("Convert this item to the bitonal format using the selected conversion method and then swap its black and white pixels.");
+
         case Mode::Original:
             return tr("Leave this item unchanged.");
 
@@ -1347,14 +1386,19 @@ bool ImagePreviewDelegate::editorEvent(QEvent* event, QAbstractItemModel* model,
 
                 const Mode mode = s_modes[modeIndex];
 
+                // A mark is clicked to see, what the mode does, so the item becomes
+                // the current one even when the mode itself does not change - the
+                // preview shows the current item only.
+                Q_EMIT modeMarkClicked(index.row());
+
                 if (info.mode != mode && info.isModeAvailable(mode))
                 {
                     info.mode = mode;
                     Q_EMIT conversionModeChanged();
                 }
 
-                // The click is consumed even when nothing has changed, so clicking
-                // a mark never modifies the selection of the list.
+                // The click is consumed, so the list does not handle it a second time
+                // - the current item has been set above instead.
                 return true;
             }
         }

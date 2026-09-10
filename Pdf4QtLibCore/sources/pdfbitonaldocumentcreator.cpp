@@ -243,6 +243,13 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromImages(PDFDocumentBuild
         else
         {
             bitonalImage = convertImageToBitonal(image, settings.conversionMethod, settings.manualThreshold, &alphaMask, nullptr);
+
+            if (item.isInverted())
+            {
+                // Only the color samples are swapped - the alpha mask carries the
+                // transparency of the image, which the inversion must not touch.
+                bitonalImage = invertBitonalImage(std::move(bitonalImage));
+            }
         }
 
         PDFObject imageObject = createBitonalImageObject(bitonalImage, settings.compression);
@@ -337,7 +344,7 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromPages(PDFDocumentBuilde
     {
         pageIndices.push_back(pageIndex);
 
-        if (mode == ItemMode::Algorithm)
+        if (isConversionMode(mode))
         {
             rasterizedPageIndices.push_back(pageIndex);
         }
@@ -366,9 +373,17 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromPages(PDFDocumentBuilde
     std::vector<PDFObject> imageObjects(pageCount);
 
     auto pageSizeGetter = [dpiResolution](const PDFPage* page) { return getPageImageSize(page, dpiResolution); };
-    auto pageImageProcessor = [this, &imageObjects, &settings](PDFInteger pageIndex, QImage image)
+    auto pageImageProcessor = [this, &imageObjects, &pageModes, &settings](PDFInteger pageIndex, QImage image)
     {
         QImage bitonalImage = convertImageToBitonal(image, settings.conversionMethod, settings.manualThreshold, nullptr, nullptr);
+
+        // Only the rasterized pages reach this point, so the mode is one of the two
+        // conversion ones. The map is read by several threads at once, which is safe.
+        if (pageModes.at(pageIndex) == ItemMode::AlgorithmInverted)
+        {
+            bitonalImage = invertBitonalImage(std::move(bitonalImage));
+        }
+
         imageObjects[size_t(pageIndex)] = createBitonalImageObject(bitonalImage, settings.compression);
         stepProgress();
     };
@@ -385,7 +400,7 @@ bool PDFBitonalDocumentCreator::createBitonalDocumentFromPages(PDFDocumentBuilde
         const ItemMode mode = pageModes.at(pageIndex);
         PDFObject imageObject;
 
-        if (mode == ItemMode::Algorithm)
+        if (isConversionMode(mode))
         {
             imageObject = std::move(imageObjects[size_t(pageIndex)]);
         }
@@ -1334,6 +1349,22 @@ PDFObject PDFBitonalDocumentCreator::createBitonalImageObject(const QImage& imag
     }
 
     return result;
+}
+
+QImage PDFBitonalDocumentCreator::invertBitonalImage(QImage image)
+{
+    if (image.isNull() || image.format() != QImage::Format_Mono)
+    {
+        return QImage();
+    }
+
+    // A bitonal image stores a single bit per pixel and the default color table of the
+    // format Format_Mono maps the sample value 0 to the black color and the value 1 to
+    // the white one, so inverting the samples swaps the two colors. The bits, which pad
+    // a row to the whole byte, are inverted as well, but they lie outside of the image
+    // and neither the encoders nor the readers of the document ever see them.
+    image.invertPixels();
+    return image;
 }
 
 QImage PDFBitonalDocumentCreator::createFillImage(QSize size, bool isBlack)

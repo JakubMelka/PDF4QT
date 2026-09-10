@@ -149,7 +149,7 @@ public:
                 return true;
             }
 
-            return testedMode != Mode::Algorithm && pageIndex >= 0;
+            return !pdf::PDFBitonalDocumentCreator::isConversionMode(testedMode) && pageIndex >= 0;
         }
 
         ThumbnailState thumbnailState = ThumbnailState::Pending;
@@ -265,6 +265,11 @@ private:
     void onConversionSourceChanged();
     void onConversionSettingsChanged();
     void onConversionModeChanged();
+
+    /// Makes the item, whose mode mark has been clicked, the current one, so the
+    /// preview shows, what the clicked mode does with that item.
+    /// \param row Row of the item in the list
+    void onModeMarkClicked(int row);
 
     /// Displays the menu, which sets the conversion mode of the selected items. When
     /// nothing is selected, the menu is applied to all items in the list.
@@ -415,13 +420,18 @@ signals:
     /// the previous run does not match the new settings anymore.
     void conversionModeChanged();
 
+    /// Emitted, when the user clicks a mode mark of an item. The mark is clicked to
+    /// see, what the mode does, so the item has to become the current one.
+    /// \param row Row of the item in the list
+    void modeMarkClicked(int row);
+
 private:
     using Mode = PDFCreateBitonalDocumentDialog::ConversionItemInfo::Mode;
 
     static constexpr QSize s_iconSize = QSize(24, 24);
 
     /// Modes offered by the marks of an item, in the order in which they are painted
-    static constexpr Mode s_modes[] = { Mode::Algorithm, Mode::Original, Mode::FillBlack, Mode::FillWhite };
+    static constexpr Mode s_modes[] = { Mode::Algorithm, Mode::AlgorithmInverted, Mode::Original, Mode::FillBlack, Mode::FillWhite };
 
     /// Returns the rectangle of a single mark of an item
     /// \param option Style option of the item

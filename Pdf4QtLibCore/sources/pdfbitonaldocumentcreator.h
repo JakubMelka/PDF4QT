@@ -75,11 +75,17 @@ public:
     /// Way, in which a single item (an image or a page) is converted
     enum class ItemMode
     {
-        Algorithm,  ///< Converted using the selected conversion method
-        Original,   ///< Left as it is, the item is not touched at all
-        FillBlack,  ///< Replaced by a black area
-        FillWhite   ///< Replaced by a white area
+        Algorithm,          ///< Converted using the selected conversion method
+        AlgorithmInverted,  ///< Converted using the selected conversion method, the black and the white pixels are then swapped
+        Original,           ///< Left as it is, the item is not touched at all
+        FillBlack,          ///< Replaced by a black area
+        FillWhite           ///< Replaced by a white area
     };
+
+    /// Returns true, if the mode converts the item using the conversion method, i.e.
+    /// the item has to be decoded or rasterized before it can be converted
+    /// \param mode Mode of the item
+    static bool isConversionMode(ItemMode mode) { return mode == ItemMode::Algorithm || mode == ItemMode::AlgorithmInverted; }
 
     /// Compression of the images of the created document. Only the algorithms, which
     /// suit a bitonal image, are offered - a lossy one would destroy the result of the
@@ -108,6 +114,10 @@ public:
 
         /// Returns true, if the item is filled by the black color
         bool isFilledByBlack() const { return mode == ItemMode::FillBlack; }
+
+        /// Returns true, if the black and the white pixels of the converted item are
+        /// swapped after the conversion
+        bool isInverted() const { return mode == ItemMode::AlgorithmInverted; }
     };
 
     /// All inputs of the conversion. The structure is copyable and it does not refer
@@ -254,6 +264,11 @@ public:
     /// \param compression Compression of the image data
     static PDFObject createBitonalImageObject(const QImage& image,
                                               Compression compression = Compression::Auto);
+
+    /// Swaps the black and the white pixels of a bitonal image. Returns a null image,
+    /// when the image is null or when it is not a bitonal one.
+    /// \param image Bitonal image
+    static QImage invertBitonalImage(QImage image);
 
     /// Creates the bitonal image, which a filled item is replaced by. A single sample
     /// is enough when the image has no soft mask, because the image is stretched over
