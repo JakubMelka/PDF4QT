@@ -28,6 +28,7 @@
 
 #include <QImage>
 
+#include <array>
 #include <optional>
 #include <vector>
 
@@ -163,6 +164,15 @@ private:
     void prepareSourceImage();
 
     int calculateOtsu1DThreshold() const;
+
+    /// Estimates the lightness of the paper of the image, i.e. the lightness of its
+    /// brightest significant population. A high percentile is used instead of the
+    /// maximum, so a handful of stray bright pixels - a specular highlight, a hole
+    /// in the paper, a scanning artifact - cannot decide the result.
+    /// \param histogram Histogram of the lightness of the image
+    /// \param pixelCount Number of the pixels of the image
+    static int calculatePaperWhiteLightness(const std::array<int, 256>& histogram, size_t pixelCount);
+
     QImage convertThresholded(int threshold) const;
     QImage convertAdaptive() const;
     QImage convertDithered(int threshold) const;
@@ -184,6 +194,22 @@ private:
     static constexpr int ADAPTIVE_WINDOW_RADIUS = 8;
     static constexpr int ADAPTIVE_OFFSET = 8;
     static constexpr int OPACITY_THRESHOLD = 128;
+
+    /// Percentile of the lightness histogram, which the lightness of the paper is
+    /// estimated from. \sa calculatePaperWhiteLightness
+    static constexpr int PAPER_WHITE_PERCENTILE = 95;
+
+    /// Lightness of the ink expressed as a percentage of the lightness of the paper.
+    /// Print, toner and ink are far darker than this, while the texture of the paper,
+    /// the gradient of the illumination and the show-through of the reverse side stay
+    /// well above it.
+    static constexpr int INK_LIGHTNESS_PERCENTAGE = 75;
+
+    /// The paper of an image must be at least this bright, before the image is
+    /// treated as a scanned page. A darker image is a picture, not a document, and
+    /// the assumption "dark pixels are the ink on a bright paper" does not hold
+    /// for it.
+    static constexpr int MINIMUM_PAPER_WHITE = 128;
 
     QImage m_image;
     QImage m_convertedImage;

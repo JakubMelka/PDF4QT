@@ -190,12 +190,13 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
     if (optionFlags.testFlag(Bitonal))
     {
         parser->addPositionalArgument("bitonaldocument", "Output bitonal document filename.");
-        parser->addOption(QCommandLineOption("bitonal-source", "What is converted. Valid values are images|pages. Use 'pages' for scanned documents, which store a single page as several images.", "source", "images"));
+        parser->addOption(QCommandLineOption("bitonal-source", "What is converted. Valid values are images|pages. Use 'images' for documents, whose images are a content of the page, not a picture of it.", "source", "pages"));
         parser->addOption(QCommandLineOption("bitonal-method", "Conversion method. Valid values are automatic|manual|adaptive|dither.", "method", "automatic"));
         parser->addOption(QCommandLineOption("bitonal-threshold", "Threshold used by the manual method and by the dithering (0-255).", "threshold", "128"));
         parser->addOption(QCommandLineOption("bitonal-dpi", "Resolution, at which the pages are rasterized. Zero means, that it is estimated from the images of the document.", "dpi", "0"));
         parser->addOption(QCommandLineOption("bitonal-fill", "Replace the converted items by a solid area instead of converting them. Valid values are none|black|white.", "fill", "none"));
         parser->addOption(QCommandLineOption("bitonal-invert", "Swap the black and the white pixels of the converted items. It can be used with '--bitonal-fill none' only."));
+        parser->addOption(QCommandLineOption("bitonal-detect-blank", "Replace the pages, which are a scan of a blank sheet of paper, by a white fill instead of converting them. It can be used with '--bitonal-source pages' and '--bitonal-fill none' only."));
         parser->addOption(QCommandLineOption("bitonal-compression", "Compression of the created images. Valid values are auto|flate|runlength|ccittg4|jbig2. 'auto' compresses every image by all the algorithms and keeps the smallest result.", "compression", "auto"));
     }
 
@@ -542,6 +543,17 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
                 // different things at once, so the tool refuses to guess.
                 options.bitonalInvalidArgument = PDFToolTranslationContext::tr("The option '--bitonal-invert' can be used with '--bitonal-fill none' only.");
             }
+        }
+
+        options.bitonalDetectBlankPages = parser->isSet("bitonal-detect-blank");
+
+        if (options.bitonalDetectBlankPages &&
+            !pdf::PDFBitonalDocumentCreator::isConversionMode(options.bitonalItemMode) &&
+            options.bitonalInvalidArgument.isEmpty())
+        {
+            // Every page is replaced by the same solid fill anyway, so there is
+            // nothing, which the detection could decide
+            options.bitonalInvalidArgument = PDFToolTranslationContext::tr("The option '--bitonal-detect-blank' can be used with '--bitonal-fill none' only.");
         }
 
         const QString compression = parser->value("bitonal-compression");

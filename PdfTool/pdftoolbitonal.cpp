@@ -26,6 +26,11 @@
 #include "pdfdocumentwriter.h"
 #include "pdffont.h"
 #include "pdfoptionalcontent.h"
+#include "pdfpage.h"
+
+#include <algorithm>
+#include <map>
+#include <vector>
 
 namespace pdftool
 {
@@ -81,6 +86,14 @@ int PDFToolBitonal::execute(const PDFToolOptions& options)
         // pages and images inside form XObjects are not reachable from the page
         // resources at all, so a page range cannot be honored reliably here.
         PDFConsole::writeError(PDFToolTranslationContext::tr("Page range can be used only with '--bitonal-source pages'."), options.outputCodec);
+        return ErrorInvalidArguments;
+    }
+
+    if (!isPageSource && options.bitonalDetectBlankPages)
+    {
+        // A blank page is a property of the page, a single image of a page carries no
+        // information about it
+        PDFConsole::writeError(PDFToolTranslationContext::tr("The option '--bitonal-detect-blank' can be used only with '--bitonal-source pages'."), options.outputCodec);
         return ErrorInvalidArguments;
     }
 
@@ -142,11 +155,53 @@ int PDFToolBitonal::execute(const PDFToolOptions& options)
             return ErrorInvalidArguments;
         }
 
-        for (const pdf::PDFInteger pageIndex : pageIndices)
+        // Pages, which are a scan of a blank sheet of paper. A page is examined only
+        // when the user has asked for it - the detection rasterizes the whole document
+        // once more, and a page, which is wrongly taken for a blank one, loses its
+        // content irreversibly.
+        std::vector<char> blankPages(pageIndices.size(), 0);
+
+        if (options.bitonalDetectBlankPages && !pageIndices.empty())
+        {
+            // The detection has a resolution of its own, see PDFBitonalDocumentCreator
+            constexpr int dpiResolution = pdf::PDFBitonalDocumentCreator::BLANK_PAGE_DPI_RESOLUTION;
+
+            std::map<pdf::PDFInteger, size_t> itemIndices;
+            for (size_t index = 0; index < pageIndices.size(); ++index)
+            {
+                itemIndices[pageIndices[index]] = index;
+            }
+
+            auto pageSizeGetter = [dpiResolution](const pdf::PDFPage* page) -> QSize
+            {
+                return pdf::PDFBitonalDocumentCreator::getPageImageSize(page, dpiResolution);
+            };
+
+            auto pageImageProcessor = [dpiResolution, &itemIndices, &blankPages](pdf::PDFInteger pageIndex, QImage image)
+            {
+                auto it = itemIndices.find(pageIndex);
+
+                if (it != itemIndices.cend() && pdf::PDFBitonalDocumentCreator::detectBlankPage(image, dpiResolution, nullptr).isBlank)
+                {
+                    // Pages are examined in parallel, but each of them has an element
+                    // of its own, so the threads never write into the same one
+                    blankPages[it->second] = char(1);
+                }
+            };
+
+            creator.renderPages(pageIndices, pageSizeGetter, pageImageProcessor, nullptr);
+
+            const auto blankPageCount = std::count(blankPages.cbegin(), blankPages.cend(), char(1));
+            PDFConsole::writeError(PDFToolTranslationContext::tr("Note: %1 of %2 pages have been detected as blank and they are replaced by a white fill.")
+                                       .arg(blankPageCount)
+                                       .arg(pageIndices.size()), options.outputCodec);
+        }
+
+        for (size_t index = 0; index < pageIndices.size(); ++index)
         {
             pdf::PDFBitonalDocumentCreator::ItemInfo item;
-            item.pageIndex = pageIndex;
-            item.mode = options.bitonalItemMode;
+            item.pageIndex = pageIndices[index];
+            item.mode = blankPages[index] != 0 ? pdf::PDFBitonalDocumentCreator::ItemMode::FillWhite : options.bitonalItemMode;
             settings.items.push_back(item);
         }
     }

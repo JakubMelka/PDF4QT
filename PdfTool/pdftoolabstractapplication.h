@@ -174,12 +174,16 @@ struct PDFToolOptions
 
     // For option 'Bitonal'
     QString bitonalDocument;
-    pdf::PDFBitonalDocumentCreator::ConversionSource bitonalSource = pdf::PDFBitonalDocumentCreator::ConversionSource::Images;
+    pdf::PDFBitonalDocumentCreator::ConversionSource bitonalSource = pdf::PDFBitonalDocumentCreator::ConversionSource::Pages;
     pdf::PDFImageConversion::ConversionMethod bitonalMethod = pdf::PDFImageConversion::ConversionMethod::Automatic;
     pdf::PDFBitonalDocumentCreator::ItemMode bitonalItemMode = pdf::PDFBitonalDocumentCreator::ItemMode::Algorithm;
     pdf::PDFBitonalDocumentCreator::Compression bitonalCompression = pdf::PDFBitonalDocumentCreator::Compression::Auto;
     int bitonalThreshold = 128;
     int bitonalDpiResolution = 0;
+
+    /// Replaces the pages, which are detected as a scan of a blank sheet of paper,
+    /// by a white fill instead of converting them
+    bool bitonalDetectBlankPages = false;
 
     /// Description of the first invalid '--bitonal-*' value. It is empty, when all
     /// options have been recognized. An unknown value must not silently fall back to

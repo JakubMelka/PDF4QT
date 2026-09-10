@@ -173,6 +173,14 @@ signals:
     /// \param bitonalImage Result of the conversion of the original image
     void previewReady(int generation, QImage originalImage, QImage bitonalImage);
 
+    /// Emitted by a worker thread, when a page has been examined by the blank page
+    /// detection. The connection is a queued one, so the result is delivered into
+    /// the GUI thread.
+    /// \param generation Generation of the detection job, which examined the page
+    /// \param itemIndex Index of the item in the list
+    /// \param isBlank True, when the page carries no content
+    void blankPageDetected(int generation, int itemIndex, bool isBlank);
+
 private:
     /// Background job of the dialog. Only the result of the newest run of the job is
     /// interesting - when a new run is started, the previous one is cancelled and its
@@ -221,6 +229,14 @@ private:
         /// It is passed to the worker, so changing the conversion method does not
         /// rasterize the same page again.
         QImage cachedPageImage;
+    };
+
+    /// Immutable snapshot of the inputs of the blank page detection. The detection
+    /// deliberately carries no conversion settings - it decides, whether a page has
+    /// a content, which is a property of the page, not of the chosen thresholding.
+    struct BlankPageRequest
+    {
+        std::vector<pdf::PDFInteger> pageIndices;
     };
 
     /// Starts a new run of the job in a worker thread. The previous run is cancelled
@@ -304,8 +320,29 @@ private:
     /// GUI thread using the signal \p previewReady.
     void generatePreview(int generation, const PreviewRequest& request, const pdf::PDFOperationControl* operationControl);
 
+    /// Examines the pages and reports, which of them are blank. This function is
+    /// executed in a worker thread, it must not touch the state of the dialog - each
+    /// result is delivered into the GUI thread using the signal \p blankPageDetected.
+    void detectBlankPages(int generation, const BlankPageRequest& request, const pdf::PDFOperationControl* operationControl);
+
     void onThumbnailReady(int generation, int itemIndex, QImage thumbnail);
     void onPreviewReady(int generation, QImage originalImage, QImage bitonalImage);
+    void onBlankPageDetected(int generation, int itemIndex, bool isBlank);
+
+    /// Starts the blank page detection, or stops the running one. The detection is
+    /// available for the whole page conversion only - a blank page is a property of
+    /// the page, an image of a page carries no such information.
+    void onDetectBlankPagesButtonClicked();
+
+    /// Offers the found blank pages to the user, when the detection has finished. The
+    /// found pages are never switched to the white fill silently - a page, which is
+    /// wrongly taken for a blank one, would lose its content irreversibly.
+    void onBlankPageDetectionFinished();
+
+    /// Returns the page numbers of the given items as a text, in which the
+    /// consecutive numbers are collapsed into ranges ("1, 4-9, 15")
+    /// \param itemIndices Indices of the items in the list
+    QString getPageNumbersText(const std::vector<int>& itemIndices) const;
 
     /// Marks the items, whose thumbnail has not arrived before the thumbnail job has
     /// ended, as failed. Without this, an item, on which the worker has failed, would
@@ -375,6 +412,17 @@ private:
 
     /// Job generating the preview of the selected item
     AsyncJob m_previewJob;
+
+    /// Job looking for the blank pages of the document
+    AsyncJob m_blankPageJob;
+
+    /// Items, which the newest run of the blank page detection has found blank
+    std::vector<int> m_blankPageItems;
+
+    /// Number of the pages, which the newest run of the blank page detection has
+    /// examined, and the number of the pages, which it is going to examine
+    int m_examinedPageCount = 0;
+    int m_pagesToExamineCount = 0;
 
     /// Delays the start of the preview job, so quickly repeated changes of the settings
     /// do not start a job for each of them

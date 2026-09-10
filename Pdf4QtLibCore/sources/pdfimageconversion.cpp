@@ -458,7 +458,66 @@ int PDFImageConversion::calculateOtsu1DThreshold() const
         return DEFAULT_THRESHOLD;
     }
 
+    // Otsu's method assumes a histogram of two populations, the ink and the paper,
+    // and it splits the histogram even when only one of them is present - a scan of
+    // a blank page has no ink, so the darker half of the paper (the gradient of the
+    // illumination, the shadow of the lid, the texture of the paper) is turned into
+    // large black areas. A page carrying a negligible amount of ink, a page number
+    // for example, ends the same way, because that ink contributes almost nothing to
+    // the inter-class variance and the split again falls inside the paper.
+    //
+    // Both cases are recognized by the mean lightness of the dark class: when the
+    // class is not distinctly darker than the paper, it is not the ink and the
+    // calculated threshold is meaningless. An absolute threshold derived from the
+    // lightness of the paper is used instead. In this situation it is always lower
+    // than the one of Otsu's method, so it can only turn black pixels white, never
+    // the other way round - the ink, which really is on the page, survives it and
+    // the paper does not.
+    const int paperWhite = calculatePaperWhiteLightness(histogram, m_lightness.size());
+    const int inkLightness = paperWhite * INK_LIGHTNESS_PERCENTAGE / 100;
+
+    float darkClassMean = 0.0f;
+    const float darkClassProbability = cumulativeProbabilities[maxVarianceIndex] - normalizedHistogram[maxVarianceIndex];
+
+    if (!qFuzzyIsNull(darkClassProbability))
+    {
+        for (size_t i = 0; i < maxVarianceIndex; ++i)
+        {
+            darkClassMean += i * normalizedHistogram[i];
+        }
+
+        darkClassMean /= darkClassProbability;
+    }
+
+    if (paperWhite >= MINIMUM_PAPER_WHITE && darkClassMean >= float(inkLightness))
+    {
+        return inkLightness;
+    }
+
     return int(maxVarianceIndex);
+}
+
+int PDFImageConversion::calculatePaperWhiteLightness(const std::array<int, 256>& histogram, size_t pixelCount)
+{
+    if (pixelCount == 0)
+    {
+        return 0;
+    }
+
+    const uint64_t limit = uint64_t(pixelCount) * uint64_t(PAPER_WHITE_PERCENTILE) / 100;
+    uint64_t cumulativeCount = 0;
+
+    for (size_t i = 0; i < histogram.size(); ++i)
+    {
+        cumulativeCount += uint64_t(histogram[i]);
+
+        if (cumulativeCount > limit)
+        {
+            return int(i);
+        }
+    }
+
+    return 255;
 }
 
 QImage PDFImageConversion::convertThresholded(int threshold) const

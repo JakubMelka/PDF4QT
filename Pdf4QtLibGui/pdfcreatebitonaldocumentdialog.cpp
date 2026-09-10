@@ -37,12 +37,14 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QSignalBlocker>
+#include <QStringList>
 #include <QStyledItemDelegate>
 #include <QPainter>
 #include <QScopeGuard>
 #include <QMouseEvent>
 #include <QToolTip>
 
+#include <algorithm>
 #include <iterator>
 #include <map>
 #include <numeric>
@@ -214,6 +216,13 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     ui->conversionSourceComboBox->addItem(tr("Images"), static_cast<int>(ConversionSource::Images));
     ui->conversionSourceComboBox->addItem(tr("Whole pages"), static_cast<int>(ConversionSource::Pages));
 
+    // A scanned document, which is what this dialog is used for, usually stores a page
+    // as several images, which cannot be converted one by one into a reasonable bitonal
+    // page, so the conversion of the whole pages is the default one. The index is set
+    // before the signals of the combo box are connected, so the list of the items is
+    // built once, by the constructor itself.
+    ui->conversionSourceComboBox->setCurrentIndex(ui->conversionSourceComboBox->findData(static_cast<int>(ConversionSource::Pages)));
+
     ui->conversionMethodComboBox->addItem(tr("Automatic (Otsu's 1D method)"), static_cast<int>(pdf::PDFImageConversion::ConversionMethod::Automatic));
     ui->conversionMethodComboBox->addItem(tr("User-defined threshold"), static_cast<int>(pdf::PDFImageConversion::ConversionMethod::Manual));
     ui->conversionMethodComboBox->addItem(tr("Adaptive thresholding"), static_cast<int>(pdf::PDFImageConversion::ConversionMethod::Adaptive));
@@ -250,6 +259,7 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     connect(ui->imageListWidget, &QListWidget::currentItemChanged, this, &PDFCreateBitonalDocumentDialog::updatePreview);
     connect(ui->thresholdEditBox, qOverload<int>(&QSpinBox::valueChanged), this, &PDFCreateBitonalDocumentDialog::onConversionSettingsChanged);
     connect(ui->resolutionEditBox, qOverload<int>(&QSpinBox::valueChanged), this, &PDFCreateBitonalDocumentDialog::onConversionSettingsChanged);
+    connect(ui->detectBlankPagesButton, &QPushButton::clicked, this, &PDFCreateBitonalDocumentDialog::onDetectBlankPagesButtonClicked);
 
     // Conversion mode can be set to many items at once using the context menu, but the
     // preview still follows the current item, which exists in the extended selection
@@ -264,6 +274,7 @@ PDFCreateBitonalDocumentDialog::PDFCreateBitonalDocumentDialog(const pdf::PDFDoc
     // created before the first job is started.
     connect(this, &PDFCreateBitonalDocumentDialog::thumbnailReady, this, &PDFCreateBitonalDocumentDialog::onThumbnailReady, Qt::QueuedConnection);
     connect(this, &PDFCreateBitonalDocumentDialog::previewReady, this, &PDFCreateBitonalDocumentDialog::onPreviewReady, Qt::QueuedConnection);
+    connect(this, &PDFCreateBitonalDocumentDialog::blankPageDetected, this, &PDFCreateBitonalDocumentDialog::onBlankPageDetected, Qt::QueuedConnection);
 
     pdf::PDFWidgetUtils::scaleWidget(this, QSize(1024, 768));
     updateUi();
@@ -291,8 +302,10 @@ PDFCreateBitonalDocumentDialog::~PDFCreateBitonalDocumentDialog()
     // parallel.
     cancelJob(m_thumbnailJob);
     cancelJob(m_previewJob);
+    cancelJob(m_blankPageJob);
     finishJob(m_thumbnailJob);
     finishJob(m_previewJob);
+    finishJob(m_blankPageJob);
 
     delete ui;
 }
@@ -312,6 +325,7 @@ void PDFCreateBitonalDocumentDialog::done(int r)
     // workers are joined in the destructor.
     cancelJob(m_thumbnailJob);
     cancelJob(m_previewJob);
+    cancelJob(m_blankPageJob);
 
     QDialog::done(r);
 }
@@ -409,6 +423,12 @@ void PDFCreateBitonalDocumentDialog::onJobFinished(AsyncJob& job, int generation
         // thrown. The panes must not stay in the generating state forever.
         m_leftPreviewWidget->setGenerating(false);
         m_rightPreviewWidget->setGenerating(false);
+    }
+    else if (&job == &m_blankPageJob)
+    {
+        // The run has not been superseded, so it has really examined the whole
+        // document and its result can be offered to the user
+        onBlankPageDetectionFinished();
     }
 
     updateUi();
@@ -647,6 +667,8 @@ void PDFCreateBitonalDocumentDialog::loadItems()
     // to anything anymore.
     cancelJob(m_thumbnailJob);
     cancelJob(m_previewJob);
+    cancelJob(m_blankPageJob);
+    m_blankPageItems.clear();
 
     QSignalBlocker blocker(ui->imageListWidget);
 
@@ -980,6 +1002,231 @@ void PDFCreateBitonalDocumentDialog::onThumbnailReady(int generation, int itemIn
     }
 }
 
+void PDFCreateBitonalDocumentDialog::detectBlankPages(int generation,
+                                                      const BlankPageRequest& request,
+                                                      const pdf::PDFOperationControl* operationControl)
+{
+    // Pages are rendered in parallel and they can be finished in any order, so the
+    // item, which a rendered page belongs to, is looked up by its index.
+    std::map<pdf::PDFInteger, int> itemIndices;
+    for (size_t index = 0; index < request.pageIndices.size(); ++index)
+    {
+        itemIndices[request.pageIndices[index]] = int(index);
+    }
+
+    // The detection has a resolution of its own - it is not the resolution of the
+    // conversion, because the analysis measures the spots of the ink in millimeters
+    // and it needs no more detail than that
+    constexpr int dpiResolution = pdf::PDFBitonalDocumentCreator::BLANK_PAGE_DPI_RESOLUTION;
+
+    auto pageSizeGetter = [dpiResolution](const pdf::PDFPage* page) -> QSize
+    {
+        return pdf::PDFBitonalDocumentCreator::getPageImageSize(page, dpiResolution);
+    };
+
+    auto pageImageProcessor = [this, generation, dpiResolution, operationControl, &itemIndices](pdf::PDFInteger pageIndex, QImage image)
+    {
+        if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            return;
+        }
+
+        auto it = itemIndices.find(pageIndex);
+        if (it == itemIndices.cend())
+        {
+            return;
+        }
+
+        // A page, which could not be rendered, arrives as a null image and it is
+        // reported as a non-blank one - an unknown page must never be wiped out
+        const pdf::PDFBitonalDocumentCreator::BlankPageInfo info =
+            pdf::PDFBitonalDocumentCreator::detectBlankPage(image, dpiResolution, operationControl);
+
+        Q_EMIT blankPageDetected(generation, it->second, info.isBlank);
+    };
+
+    // Pages are rendered in small batches for the same reason as the thumbnails
+    const size_t batchSize = getThumbnailBatchSize();
+
+    for (size_t first = 0; first < request.pageIndices.size(); first += batchSize)
+    {
+        if (pdf::PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            return;
+        }
+
+        const size_t last = qMin(first + batchSize, request.pageIndices.size());
+        const std::vector<pdf::PDFInteger> batch(request.pageIndices.cbegin() + first, request.pageIndices.cbegin() + last);
+        m_creator->renderPages(batch, pageSizeGetter, pageImageProcessor, operationControl);
+    }
+}
+
+void PDFCreateBitonalDocumentDialog::onBlankPageDetected(int generation, int itemIndex, bool isBlank)
+{
+    if (generation != m_blankPageJob.generation)
+    {
+        // Result belongs to an obsolete run. The list of the items has been rebuilt
+        // in the meantime, so the index does not mean anything anymore.
+        return;
+    }
+
+    if (itemIndex < 0 || itemIndex >= int(m_itemsToBeConverted.size()))
+    {
+        Q_ASSERT(false);
+        return;
+    }
+
+    ++m_examinedPageCount;
+
+    if (isBlank)
+    {
+        m_blankPageItems.push_back(itemIndex);
+    }
+
+    // Only the progress displayed by the button changes here, the modes of the items
+    // are not touched until the user confirms them
+    updateUi();
+}
+
+void PDFCreateBitonalDocumentDialog::onDetectBlankPagesButtonClicked()
+{
+    if (m_blankPageJob.isRunning)
+    {
+        // The button stops the running detection, so the user never has to wait for
+        // a result, which is not interesting anymore
+        cancelJob(m_blankPageJob);
+        updateUi();
+        return;
+    }
+
+    if (m_conversionSource != ConversionSource::Pages || m_itemsToBeConverted.empty())
+    {
+        Q_ASSERT(false);
+        return;
+    }
+
+    BlankPageRequest request;
+    request.pageIndices.reserve(m_itemsToBeConverted.size());
+
+    for (const ConversionItemInfo& info : m_itemsToBeConverted)
+    {
+        request.pageIndices.push_back(info.pageIndex);
+    }
+
+    m_blankPageItems.clear();
+    m_examinedPageCount = 0;
+    m_pagesToExamineCount = int(request.pageIndices.size());
+
+    startJob(m_blankPageJob, [this, request](int generation, const pdf::PDFOperationControl* operationControl)
+    {
+        detectBlankPages(generation, request, operationControl);
+    });
+
+    updateUi();
+}
+
+void PDFCreateBitonalDocumentDialog::onBlankPageDetectionFinished()
+{
+    // The buttons are updated before the message box is displayed, so the dialog does
+    // not claim that the detection is still running while it asks about its result
+    updateUi();
+
+    if (m_blankPageItems.empty())
+    {
+        QMessageBox::information(this, tr("Detect Blank Pages"), tr("No blank page has been found in the document."));
+        return;
+    }
+
+    const QString message = tr("%1 of %2 pages seem to be blank. Do you want to replace them by a white fill?")
+                                .arg(m_blankPageItems.size())
+                                .arg(m_itemsToBeConverted.size());
+
+    QMessageBox messageBox(QMessageBox::Question, tr("Detect Blank Pages"), message, QMessageBox::Yes | QMessageBox::No, this);
+    messageBox.setDefaultButton(QMessageBox::No);
+    messageBox.setInformativeText(tr("Blank pages: %1").arg(getPageNumbersText(m_blankPageItems)));
+
+    if (messageBox.exec() != QMessageBox::Yes)
+    {
+        return;
+    }
+
+    bool isChanged = false;
+
+    for (const int itemIndex : m_blankPageItems)
+    {
+        if (itemIndex < 0 || itemIndex >= int(m_itemsToBeConverted.size()))
+        {
+            continue;
+        }
+
+        ConversionItemInfo& info = m_itemsToBeConverted[size_t(itemIndex)];
+
+        if (info.mode != ConversionItemInfo::Mode::FillWhite && info.isModeAvailable(ConversionItemInfo::Mode::FillWhite))
+        {
+            info.mode = ConversionItemInfo::Mode::FillWhite;
+            isChanged = true;
+        }
+    }
+
+    if (isChanged)
+    {
+        onConversionModeChanged();
+    }
+}
+
+QString PDFCreateBitonalDocumentDialog::getPageNumbersText(const std::vector<int>& itemIndices) const
+{
+    std::vector<pdf::PDFInteger> pageNumbers;
+    pageNumbers.reserve(itemIndices.size());
+
+    for (const int itemIndex : itemIndices)
+    {
+        if (itemIndex >= 0 && itemIndex < int(m_itemsToBeConverted.size()))
+        {
+            pageNumbers.push_back(m_itemsToBeConverted[size_t(itemIndex)].pageIndex + 1);
+        }
+    }
+
+    std::sort(pageNumbers.begin(), pageNumbers.end());
+
+    // Consecutive pages are collapsed into a range, so a document, whose every second
+    // page is a blank one, does not produce a list of hundreds of numbers. A list,
+    // which is long even after that, is cut - it is displayed in a message box, which
+    // would grow over the whole screen otherwise.
+    constexpr qsizetype maximumGroupCount = 40;
+
+    QStringList parts;
+    bool isCut = false;
+
+    for (size_t first = 0; first < pageNumbers.size(); )
+    {
+        size_t last = first;
+        while (last + 1 < pageNumbers.size() && pageNumbers[last + 1] == pageNumbers[last] + 1)
+        {
+            ++last;
+        }
+
+        if (parts.size() == maximumGroupCount)
+        {
+            isCut = true;
+            break;
+        }
+
+        parts << (first == last ? QString::number(pageNumbers[first])
+                                : tr("%1-%2").arg(pageNumbers[first]).arg(pageNumbers[last]));
+        first = last + 1;
+    }
+
+    QString text = parts.join(QStringLiteral(", "));
+
+    if (isCut)
+    {
+        text = tr("%1, ...").arg(text);
+    }
+
+    return text;
+}
+
 void PDFCreateBitonalDocumentDialog::onPreviewReady(int generation, QImage originalImage, QImage bitonalImage)
 {
     if (generation != m_previewJob.generation)
@@ -1078,8 +1325,23 @@ void PDFCreateBitonalDocumentDialog::updateUi()
     const bool usesResolution = m_conversionSource == ConversionSource::Pages;
 
     // Conversion cannot be started while the thumbnails are still being generated -
-    // the user does not see, what is going to be converted, yet.
-    const bool isBusy = m_conversionInProgress || m_thumbnailJob.isRunning;
+    // the user does not see, what is going to be converted, yet. The blank page
+    // detection is treated the same way and for the same reason: it is about to
+    // switch a part of the document to the white fill, so a document converted
+    // while it is running would not be the one the user has asked for.
+    const bool isBusy = m_conversionInProgress || m_thumbnailJob.isRunning || m_blankPageJob.isRunning;
+
+    // Detection examines the rasterized pages, so it makes no sense for the images -
+    // a single image of a page carries no information about the page being blank
+    const bool isDetectionAvailable = m_conversionSource == ConversionSource::Pages &&
+                                      !m_itemsToBeConverted.empty() &&
+                                      !m_thumbnailJob.isRunning;
+
+    // A running detection keeps the button enabled, so it can be stopped
+    ui->detectBlankPagesButton->setEnabled(!m_conversionInProgress && (isDetectionAvailable || m_blankPageJob.isRunning));
+    ui->detectBlankPagesButton->setText(m_blankPageJob.isRunning
+                                            ? tr("Stop Detection (%1/%2)").arg(m_examinedPageCount).arg(m_pagesToExamineCount)
+                                            : tr("Detect Blank Pages"));
 
     // While the conversion is running, no input can be changed - the worker is using
     // a snapshot of them and a modified input would not match the produced document.

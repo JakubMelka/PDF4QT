@@ -270,6 +270,41 @@ public:
     /// \param image Bitonal image
     static QImage invertBitonalImage(QImage image);
 
+    /// Result of the analysis, which decides, whether a page is a scan of a blank
+    /// sheet of paper
+    struct BlankPageInfo
+    {
+        bool isBlank = false;           ///< True, when the page carries no content
+        int contentComponentCount = 0;  ///< Number of the found spots, which are large enough to be a content
+        int inkPixelCount = 0;          ///< Number of the black pixels of the analyzed area. It is a lower estimate for a page, which obviously is not a blank one, because the counting stops as soon as that is decided.
+        double inkRatio = 0.0;          ///< Ratio of the black pixels to all pixels of the analyzed area
+    };
+
+    /// Decides, whether a rasterized page is a scan of a blank sheet of paper. A scan
+    /// of a blank page is never completely white - it carries the texture of the
+    /// paper, dust of the scanner, specks of the toner and streaks of a dirty sensor -
+    /// so the decision cannot be made by counting the black pixels. What separates a
+    /// blank page from a page carrying nothing but a page number is the structure of
+    /// the black pixels: dirt is a scatter of spots of a fraction of a millimeter,
+    /// while even a single character is a connected spot of a millimeter or more.
+    ///
+    /// The border of the page is left out of the analysis - a scan of a blank page
+    /// often has a black frame of the lid of the scanner, a shadow of the spine or a
+    /// folded corner there, and neither of them is a content of the page.
+    ///
+    /// The page is thresholded by this function itself, using the automatic method,
+    /// so the answer does not depend on the conversion method chosen by the user - a
+    /// manual threshold can turn the paper itself black, which says nothing about the
+    /// content of the page.
+    /// \param pageImage Rasterized page
+    /// \param dpiResolution Resolution, at which the page has been rasterized. The
+    ///        analysis measures the spots in millimeters, so it needs to know it.
+    /// \param operationControl Operation control (can be nullptr). A cancelled
+    ///        analysis reports the page as a non-blank one.
+    static BlankPageInfo detectBlankPage(const QImage& pageImage,
+                                         int dpiResolution,
+                                         const PDFOperationControl* operationControl);
+
     /// Creates the bitonal image, which a filled item is replaced by. A single sample
     /// is enough when the image has no soft mask, because the image is stretched over
     /// the whole area of the replaced item. When a soft mask is attached, the image
@@ -290,7 +325,52 @@ public:
     static constexpr int MAXIMUM_DPI_RESOLUTION = 600;
     static constexpr int MINIMUM_DPI_RESOLUTION = 24;
 
+    /// Resolution, at which the pages are rasterized for the blank page detection.
+    /// It is high enough for the strokes of a small character to survive the
+    /// rasterization - a character of a two millimeter type is still sixteen pixels
+    /// tall - and low enough that scanning a long document costs a fraction of the
+    /// conversion itself. \sa detectBlankPage
+    static constexpr int BLANK_PAGE_DPI_RESOLUTION = 200;
+
 private:
+    /// Decides, whether a bitonal page carries a content, see \p detectBlankPage. The
+    /// black pixels are grouped into connected spots, the spots are classified by
+    /// their size, and the page is a blank one, when no spot of the size of a content
+    /// remains.
+    /// \param image Bitonal image of the page
+    /// \param dpiResolution Resolution, at which the page has been rasterized
+    /// \param operationControl Operation control (can be nullptr)
+    static BlankPageInfo analyzeBitonalPage(const QImage& image,
+                                            int dpiResolution,
+                                            const PDFOperationControl* operationControl);
+
+    /// Width of the border of the page, which the blank page analysis ignores, in
+    /// millimeters. \sa detectBlankPage
+    static constexpr double BLANK_PAGE_BORDER_MM = 5.0;
+
+    /// Minimal size of a spot, which is treated as a content of the page, in
+    /// millimeters. A character of the smallest type, which is still readable, is
+    /// about a millimeter and a half tall, while the dust and the specks of the
+    /// toner stay far below it.
+    static constexpr double BLANK_PAGE_CONTENT_SIZE_MM = 1.0;
+
+    /// Minimal length of a thin spot, which is treated as a printed line - a rule of
+    /// a table, an underline - in millimeters
+    static constexpr double BLANK_PAGE_LINE_LENGTH_MM = 10.0;
+
+    /// Maximal thickness of a streak of a dirty sensor of the scanner, in millimeters
+    static constexpr double BLANK_PAGE_STREAK_THICKNESS_MM = 0.3;
+
+    /// Fraction of the analyzed area, which a streak of a dirty sensor of the scanner
+    /// spans. A streak runs across the whole page, a printed line does not.
+    static constexpr double BLANK_PAGE_STREAK_LENGTH_RATIO = 0.9;
+
+    /// Maximal ratio of the black pixels of the analyzed area of a blank page. Above
+    /// it the page is not a blank one, whatever the structure of its black pixels is,
+    /// and the analysis ends without grouping them - a page of a text has hundreds of
+    /// thousands of spots, which are of no interest.
+    static constexpr double BLANK_PAGE_MAXIMUM_INK_RATIO = 0.005;
+
     bool createBitonalDocumentFromImages(PDFDocumentBuilder& builder, const Settings& settings);
     bool createBitonalDocumentFromPages(PDFDocumentBuilder& builder, const Settings& settings);
 

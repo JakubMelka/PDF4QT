@@ -1367,6 +1367,226 @@ QImage PDFBitonalDocumentCreator::invertBitonalImage(QImage image)
     return image;
 }
 
+PDFBitonalDocumentCreator::BlankPageInfo PDFBitonalDocumentCreator::detectBlankPage(const QImage& pageImage,
+                                                                                   int dpiResolution,
+                                                                                   const PDFOperationControl* operationControl)
+{
+    // The page is thresholded by the automatic method deliberately, so the answer
+    // does not depend on the settings of the conversion. The manual threshold is
+    // not used by that method, so the value passed here is irrelevant.
+    const QImage bitonalImage = convertImageToBitonal(pageImage, PDFImageConversion::ConversionMethod::Automatic, 128, nullptr, operationControl);
+    return analyzeBitonalPage(bitonalImage, dpiResolution, operationControl);
+}
+
+PDFBitonalDocumentCreator::BlankPageInfo PDFBitonalDocumentCreator::analyzeBitonalPage(const QImage& image,
+                                                                                      int dpiResolution,
+                                                                                      const PDFOperationControl* operationControl)
+{
+    BlankPageInfo result;
+
+    if (image.isNull() || image.format() != QImage::Format_Mono || dpiResolution <= 0)
+    {
+        return result;
+    }
+
+    auto toPixels = [dpiResolution](double millimeters) -> int
+    {
+        return qMax(1, qRound(millimeters * dpiResolution / 25.4));
+    };
+
+    // A sample of the format Format_Mono is stored with the most significant bit
+    // first and the default color table maps the value 0 to the black color
+    auto isBlackSample = [](const uchar* line, int x) -> bool
+    {
+        return (line[x >> 3] & uchar(0x80 >> (x & 7))) == 0;
+    };
+
+    const int borderSize = toPixels(BLANK_PAGE_BORDER_MM);
+    QRect area = image.rect().adjusted(borderSize, borderSize, -borderSize, -borderSize);
+
+    if (area.isEmpty())
+    {
+        // The page is not larger than the border, so nothing can be left out of it
+        area = image.rect();
+    }
+
+    // Count the black pixels first. A page, which carries more ink than a blank one
+    // ever could, is decided by this pass alone - a page of a text consists of
+    // hundreds of thousands of spots and grouping them would be a waste of time.
+    const uint64_t areaPixelCount = uint64_t(area.width()) * uint64_t(area.height());
+    const uint64_t inkPixelLimit = uint64_t(double(areaPixelCount) * BLANK_PAGE_MAXIMUM_INK_RATIO);
+
+    uint64_t inkPixelCount = 0;
+    bool isInkPixelLimitExceeded = false;
+
+    for (int y = area.top(); y <= area.bottom() && !isInkPixelLimitExceeded; ++y)
+    {
+        const uchar* line = image.constScanLine(y);
+
+        for (int x = area.left(); x <= area.right(); ++x)
+        {
+            if (isBlackSample(line, x) && ++inkPixelCount > inkPixelLimit)
+            {
+                isInkPixelLimitExceeded = true;
+                break;
+            }
+        }
+    }
+
+    result.inkPixelCount = int(inkPixelCount);
+    result.inkRatio = areaPixelCount > 0 ? double(inkPixelCount) / double(areaPixelCount) : 0.0;
+
+    if (isInkPixelLimitExceeded || PDFOperationControl::isOperationCancelled(operationControl))
+    {
+        return result;
+    }
+
+    // Group the black pixels into connected spots. The pixels are grouped as runs of
+    // a row, not one by one - a spot of dust is a run or two, so there are orders of
+    // magnitude fewer runs than pixels.
+    struct BlackRun
+    {
+        int y = 0;
+        int xBegin = 0; ///< Position of the first black pixel of the run
+        int xEnd = 0;   ///< Position after the last black pixel of the run
+    };
+
+    std::vector<BlackRun> runs;
+    std::vector<size_t> parents;
+
+    auto findRoot = [&parents](size_t index)
+    {
+        while (parents[index] != index)
+        {
+            parents[index] = parents[parents[index]];
+            index = parents[index];
+        }
+
+        return index;
+    };
+
+    auto mergeRuns = [&findRoot, &parents](size_t first, size_t second)
+    {
+        const size_t firstRoot = findRoot(first);
+        const size_t secondRoot = findRoot(second);
+
+        if (firstRoot != secondRoot)
+        {
+            parents[qMax(firstRoot, secondRoot)] = qMin(firstRoot, secondRoot);
+        }
+    };
+
+    size_t previousRowBegin = 0;
+    size_t previousRowEnd = 0;
+
+    for (int y = area.top(); y <= area.bottom(); ++y)
+    {
+        if (PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            return result;
+        }
+
+        const uchar* line = image.constScanLine(y);
+        const size_t currentRowBegin = runs.size();
+        size_t previousIndex = previousRowBegin;
+
+        int x = area.left();
+        while (x <= area.right())
+        {
+            if (!isBlackSample(line, x))
+            {
+                ++x;
+                continue;
+            }
+
+            const int xBegin = x;
+            while (x <= area.right() && isBlackSample(line, x))
+            {
+                ++x;
+            }
+
+            const size_t runIndex = runs.size();
+            runs.push_back(BlackRun{ y, xBegin, x });
+            parents.push_back(runIndex);
+
+            // The runs of both rows are ordered by their position, so a run of the
+            // previous row, which cannot reach this one anymore, is skipped once and
+            // for all. Diagonally adjacent pixels belong to the same spot, so two
+            // runs meet, when their ranges overlap by a single pixel.
+            while (previousIndex < previousRowEnd && runs[previousIndex].xEnd < xBegin)
+            {
+                ++previousIndex;
+            }
+
+            for (size_t index = previousIndex; index < previousRowEnd && runs[index].xBegin <= x; ++index)
+            {
+                mergeRuns(index, runIndex);
+            }
+        }
+
+        previousRowBegin = currentRowBegin;
+        previousRowEnd = runs.size();
+    }
+
+    // Bounds of the spots. Only the runs, which represent their spot, get them - the
+    // bounds of the other ones stay null and they are skipped by the classification.
+    std::vector<QRect> spots(runs.size());
+
+    for (size_t index = 0; index < runs.size(); ++index)
+    {
+        const BlackRun& run = runs[index];
+        const QRect runBounds(run.xBegin, run.y, run.xEnd - run.xBegin, 1);
+
+        QRect& bounds = spots[findRoot(index)];
+        bounds = bounds.isNull() ? runBounds : bounds.united(runBounds);
+    }
+
+    const int contentSize = toPixels(BLANK_PAGE_CONTENT_SIZE_MM);
+    const int lineLength = toPixels(BLANK_PAGE_LINE_LENGTH_MM);
+    const int streakThickness = toPixels(BLANK_PAGE_STREAK_THICKNESS_MM);
+    const int streakWidth = qRound(area.width() * BLANK_PAGE_STREAK_LENGTH_RATIO);
+    const int streakHeight = qRound(area.height() * BLANK_PAGE_STREAK_LENGTH_RATIO);
+
+    for (const QRect& bounds : spots)
+    {
+        if (bounds.isNull())
+        {
+            continue;
+        }
+
+        const int width = bounds.width();
+        const int height = bounds.height();
+
+        // A spot of the size of a character, or a larger one, is a content
+        if (width >= contentSize && height >= contentSize)
+        {
+            ++result.contentComponentCount;
+            continue;
+        }
+
+        // A long thin spot is either a printed line - a rule of a table, an
+        // underline - or a defect of the scanner: a hair, a scratch, a streak of a
+        // dirty sensor. A streak runs across the whole page, a printed line does not.
+        if (width >= lineLength || height >= lineLength)
+        {
+            const bool isStreak = (height <= streakThickness && width >= streakWidth) ||
+                                  (width <= streakThickness && height >= streakHeight);
+
+            if (!isStreak)
+            {
+                ++result.contentComponentCount;
+            }
+
+            continue;
+        }
+
+        // Anything else is a speck of the dust, of the toner or of the paper itself
+    }
+
+    result.isBlank = result.contentComponentCount == 0;
+    return result;
+}
+
 QImage PDFBitonalDocumentCreator::createFillImage(QSize size, bool isBlack)
 {
     QImage image(size.expandedTo(QSize(1, 1)), QImage::Format_Mono);

@@ -26,6 +26,7 @@
 #include "pdfdocument.h"
 #include "pdfdocumentbuilder.h"
 #include "pdffont.h"
+#include "pdfimageconversion.h"
 #include "pdfoptionalcontent.h"
 #include "pdfpage.h"
 #include "pdfrenderer.h"
@@ -143,6 +144,8 @@ private slots:
     void test_page_conversion_needs_rasterizer_pool();
     void test_page_conversion_compression();
     void test_page_conversion_inverted();
+    void test_automatic_threshold_on_scanned_paper();
+    void test_blank_page_detection();
 
 private:
     /// Resolution used by the tests. It is deliberately low - the tests verify, which
@@ -198,6 +201,29 @@ private:
     /// Creates the settings converting the given pages using the algorithm
     /// \param pageCount Number of the converted pages, starting from the first one
     static pdf::PDFBitonalDocumentCreator::Settings createPageSettings(size_t pageCount);
+
+    /// Creates a synthetic scan of a blank sheet of paper - a bright surface with a
+    /// gradient of the illumination and a noise, which is what a scanner produces.
+    /// Nothing of it is a content of the page. The image is deterministic, so a test
+    /// built on it cannot fail once in a while.
+    /// \param size Size of the image
+    static QImage createScannedPaper(QSize size);
+
+    /// Paints a dark rectangle into a scanned page, i.e. the ink
+    /// \param image Image of the page
+    /// \param rect Painted rectangle
+    static void paintInk(QImage& image, QRect rect);
+
+    /// Returns the number of the black pixels of a bitonal image
+    static int getBlackPixelCount(const QImage& image);
+
+    /// Returns the rectangle bounding all black pixels of a bitonal image, or a null
+    /// rectangle, when the image has none
+    static QRect getBlackPixelBounds(const QImage& image);
+
+    /// Size of the synthetic scan, i.e. an A4 page scanned at the resolution of the
+    /// blank page detection
+    static QSize getScannedPaperSize();
 };
 
 pdf::PDFDocument BitonalDocumentTest::createDocument(const std::vector<QSizeF>& pageSizes,
@@ -1162,6 +1188,243 @@ void BitonalDocumentTest::test_page_conversion_inverted()
             const bool isInvertedBlack = qGray(results[1].page.pixel(x, y)) < 128;
             QCOMPARE(isInvertedBlack, !isBlack);
         }
+    }
+}
+
+QSize BitonalDocumentTest::getScannedPaperSize()
+{
+    constexpr int dpiResolution = pdf::PDFBitonalDocumentCreator::BLANK_PAGE_DPI_RESOLUTION;
+    return QSize(qRound(8.268 * dpiResolution), qRound(11.693 * dpiResolution));
+}
+
+QImage BitonalDocumentTest::createScannedPaper(QSize size)
+{
+    QImage image(size, QImage::Format_RGB32);
+    quint32 random = 12345;
+
+    const int halfWidth = qMax(1, size.width() / 2);
+    const int halfHeight = qMax(1, size.height() / 2);
+
+    for (int y = 0; y < size.height(); ++y)
+    {
+        QRgb* line = reinterpret_cast<QRgb*>(image.scanLine(y));
+
+        for (int x = 0; x < size.width(); ++x)
+        {
+            random = random * 1664525u + 1013904223u;
+
+            // The illumination of a scanner falls off towards the edges of the page
+            // and the paper itself is not perfectly even
+            const int gradient = 12 * qAbs(x - halfWidth) / halfWidth + 8 * qAbs(y - halfHeight) / halfHeight;
+            const int noise = int((random >> 24) % 9) - 4;
+            const int value = qBound(0, 247 - gradient - noise, 255);
+
+            line[x] = qRgb(value, value, value);
+        }
+    }
+
+    return image;
+}
+
+void BitonalDocumentTest::paintInk(QImage& image, QRect rect)
+{
+    const QRect area = rect.intersected(image.rect());
+
+    for (int y = area.top(); y <= area.bottom(); ++y)
+    {
+        QRgb* line = reinterpret_cast<QRgb*>(image.scanLine(y));
+
+        for (int x = area.left(); x <= area.right(); ++x)
+        {
+            line[x] = qRgb(30, 30, 30);
+        }
+    }
+}
+
+int BitonalDocumentTest::getBlackPixelCount(const QImage& image)
+{
+    int count = 0;
+
+    for (int y = 0; y < image.height(); ++y)
+    {
+        const uchar* line = image.constScanLine(y);
+
+        for (int x = 0; x < image.width(); ++x)
+        {
+            if ((line[x >> 3] & uchar(0x80 >> (x & 7))) == 0)
+            {
+                ++count;
+            }
+        }
+    }
+
+    return count;
+}
+
+QRect BitonalDocumentTest::getBlackPixelBounds(const QImage& image)
+{
+    QRect bounds;
+
+    for (int y = 0; y < image.height(); ++y)
+    {
+        const uchar* line = image.constScanLine(y);
+
+        for (int x = 0; x < image.width(); ++x)
+        {
+            if ((line[x >> 3] & uchar(0x80 >> (x & 7))) == 0)
+            {
+                const QRect pixel(x, y, 1, 1);
+                bounds = bounds.isNull() ? pixel : bounds.united(pixel);
+            }
+        }
+    }
+
+    return bounds;
+}
+
+void BitonalDocumentTest::test_automatic_threshold_on_scanned_paper()
+{
+    const QSize size = getScannedPaperSize();
+
+    auto convert = [](const QImage& image) -> QImage
+    {
+        pdf::PDFImageConversion conversion;
+        conversion.setConversionMethod(pdf::PDFImageConversion::ConversionMethod::Automatic);
+        conversion.setImage(image);
+
+        if (!conversion.convert())
+        {
+            return QImage();
+        }
+
+        return conversion.getConvertedImage();
+    };
+
+    // Otsu's method splits a histogram of two populations, the ink and the paper. A
+    // scan of a blank page has only one of them, so the method used to split the paper
+    // itself and to turn its darker half - the gradient of the illumination - black.
+    // Nothing of the paper may become an ink.
+    {
+        const QImage bitonalImage = convert(createScannedPaper(size));
+        QVERIFY(!bitonalImage.isNull());
+        QCOMPARE(getBlackPixelCount(bitonalImage), 0);
+    }
+
+    // A page carrying nothing but a page number ends the same way, because that ink
+    // contributes almost nothing to the inter-class variance. The page number is the
+    // only thing, which may survive the conversion.
+    {
+        const QRect pageNumber(800, 2100, 12, 16);
+
+        QImage image = createScannedPaper(size);
+        paintInk(image, pageNumber);
+
+        const QImage bitonalImage = convert(image);
+        QVERIFY(!bitonalImage.isNull());
+        QCOMPARE(getBlackPixelBounds(bitonalImage), pageNumber);
+    }
+
+    // A page of a text has both populations, so the threshold really is calculated
+    // and it separates the ink from the paper
+    {
+        QImage image = createScannedPaper(size);
+
+        for (int y = 200; y < 2100; y += 40)
+        {
+            paintInk(image, QRect(200, y, 1200, 16));
+        }
+
+        pdf::PDFImageConversion conversion;
+        conversion.setConversionMethod(pdf::PDFImageConversion::ConversionMethod::Automatic);
+        conversion.setImage(image);
+        QVERIFY(conversion.convert());
+
+        const int threshold = conversion.getThreshold();
+        QVERIFY(threshold > 30);
+        QVERIFY(threshold < 223);
+    }
+}
+
+void BitonalDocumentTest::test_blank_page_detection()
+{
+    constexpr int dpiResolution = pdf::PDFBitonalDocumentCreator::BLANK_PAGE_DPI_RESOLUTION;
+    const QSize size = getScannedPaperSize();
+
+    // A scan of a blank sheet of paper
+    {
+        const auto info = pdf::PDFBitonalDocumentCreator::detectBlankPage(createScannedPaper(size), dpiResolution, nullptr);
+        QVERIFY(info.isBlank);
+        QCOMPARE(info.contentComponentCount, 0);
+    }
+
+    // Dust of the scanner and specks of the toner are scattered over the page. They
+    // are the reason, why a page cannot be decided by counting its black pixels.
+    {
+        QImage image = createScannedPaper(size);
+        quint32 random = 987654321;
+
+        for (int index = 0; index < 400; ++index)
+        {
+            random = random * 1664525u + 1013904223u;
+            const int x = int((random >> 8) % quint32(size.width() - 4));
+            random = random * 1664525u + 1013904223u;
+            const int y = int((random >> 8) % quint32(size.height() - 4));
+
+            paintInk(image, QRect(x, y, 2, 2));
+        }
+
+        const auto info = pdf::PDFBitonalDocumentCreator::detectBlankPage(image, dpiResolution, nullptr);
+        QVERIFY(info.isBlank);
+        QVERIFY(info.inkPixelCount > 0);
+    }
+
+    // A page carrying nothing but a page number is not a blank one
+    {
+        QImage image = createScannedPaper(size);
+        paintInk(image, QRect(800, 2100, 12, 16));
+
+        const auto info = pdf::PDFBitonalDocumentCreator::detectBlankPage(image, dpiResolution, nullptr);
+        QVERIFY(!info.isBlank);
+        QCOMPARE(info.contentComponentCount, 1);
+    }
+
+    // The black frame of the lid of the scanner lies in the border of the page, which
+    // the analysis leaves out
+    {
+        QImage image = createScannedPaper(size);
+        paintInk(image, QRect(0, 0, size.width(), 24));
+        paintInk(image, QRect(0, size.height() - 24, size.width(), 24));
+        paintInk(image, QRect(0, 0, 24, size.height()));
+        paintInk(image, QRect(size.width() - 24, 0, 24, size.height()));
+
+        const auto info = pdf::PDFBitonalDocumentCreator::detectBlankPage(image, dpiResolution, nullptr);
+        QVERIFY(info.isBlank);
+    }
+
+    // A streak of a dirty sensor of the scanner runs across the whole page
+    {
+        QImage image = createScannedPaper(size);
+        paintInk(image, QRect(800, 0, 1, size.height()));
+
+        const auto info = pdf::PDFBitonalDocumentCreator::detectBlankPage(image, dpiResolution, nullptr);
+        QVERIFY(info.isBlank);
+    }
+
+    // A printed line is thin as well, but it does not run across the whole page
+    {
+        QImage image = createScannedPaper(size);
+        paintInk(image, QRect(700, 1200, 120, 1));
+
+        const auto info = pdf::PDFBitonalDocumentCreator::detectBlankPage(image, dpiResolution, nullptr);
+        QVERIFY(!info.isBlank);
+        QCOMPARE(info.contentComponentCount, 1);
+    }
+
+    // A cancelled analysis must never report a page as a blank one
+    {
+        CancelledOperationControl operationControl;
+        const auto info = pdf::PDFBitonalDocumentCreator::detectBlankPage(createScannedPaper(size), dpiResolution, &operationControl);
+        QVERIFY(!info.isBlank);
     }
 }
 
