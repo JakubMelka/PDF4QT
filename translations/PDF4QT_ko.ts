@@ -4,27 +4,27 @@
 <context>
     <name>Application</name>
     <message>
-        <location filename="../Pdf4QtEditor/main.cpp" line="48"/>
+        <location filename="../Pdf4QtEditor/main.cpp" line="49"/>
         <source>PDF4QT Editor</source>
         <translation>PDF4QT Editor</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtViewer/main.cpp" line="41"/>
+        <location filename="../Pdf4QtViewer/main.cpp" line="42"/>
         <source>PDF4QT Viewer</source>
         <translation>PDF4QT Viewer</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/main.cpp" line="40"/>
+        <location filename="../Pdf4QtPageMaster/main.cpp" line="74"/>
         <source>PDF4QT PageMaster</source>
         <translation>PDF4QT PageMaster</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtDiff/main.cpp" line="41"/>
+        <location filename="../Pdf4QtDiff/main.cpp" line="43"/>
         <source>PDF4QT Diff</source>
         <translation>PDF4QT Diff</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLaunchPad/main.cpp" line="35"/>
+        <location filename="../Pdf4QtLaunchPad/main.cpp" line="42"/>
         <source>PDF4QT LaunchPad</source>
         <translation>PDF4QT LaunchPad</translation>
     </message>
@@ -59,16 +59,26 @@
     </message>
     <message>
         <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="60"/>
+        <source>Optimize images in output PDFs</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="67"/>
+        <source>Image Optimization Settings...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="74"/>
         <source>doc-#.pdf</source>
         <translation>doc-#.pdf</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="67"/>
+        <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="81"/>
         <source>Generate into directory</source>
         <translation>디렉터리에 생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="74"/>
+        <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.ui" line="88"/>
         <source>Outline Mode</source>
         <translation>개요 모드</translation>
     </message>
@@ -79,6 +89,19 @@
         <location filename="../Pdf4QtEditorPlugins/AudioBookPlugin/audiotextstreameditordockwidget.ui" line="14"/>
         <source>Text Stream for Audio Book</source>
         <translation>오디오북용 텍스트 스트림</translation>
+    </message>
+</context>
+<context>
+    <name>CommandLine</name>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfsettings.cpp" line="38"/>
+        <source>Use custom directory for user settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfsettings.cpp" line="39"/>
+        <source>path</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -135,6 +158,74 @@
     </message>
 </context>
 <context>
+    <name>CropPagesDialog</name>
+    <message>
+        <location filename="../Pdf4QtPageMaster/croppagesdialog.ui" line="6"/>
+        <source>Crop Pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/croppagesdialog.ui" line="12"/>
+        <source>Crop selected workspace pages. PDF pages are cropped in assembled output; images are cropped before being placed into output pages.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/croppagesdialog.ui" line="24"/>
+        <source>Reference page size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/croppagesdialog.ui" line="34"/>
+        <source>Apply</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/croppagesdialog.ui" line="46"/>
+        <source>Preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/croppagesdialog.ui" line="52"/>
+        <source>Crop margins equally</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/croppagesdialog.ui" line="64"/>
+        <source>Margin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/croppagesdialog.ui" line="76"/>
+        <source>Set crop box manually</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/croppagesdialog.ui" line="85"/>
+        <source>Left</source>
+        <translation type="unfinished">왼쪽</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/croppagesdialog.ui" line="95"/>
+        <source>Top</source>
+        <translation type="unfinished">상단</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/croppagesdialog.ui" line="105"/>
+        <source>Width</source>
+        <translation type="unfinished">너비</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/croppagesdialog.ui" line="115"/>
+        <source>Height</source>
+        <translation type="unfinished">높이</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/croppagesdialog.ui" line="132"/>
+        <source>Resulting page size</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>DifferencesDockWidget</name>
     <message>
         <location filename="../Pdf4QtDiff/differencesdockwidget.ui" line="14"/>
@@ -143,86 +234,76 @@
     </message>
 </context>
 <context>
-    <name>DimensionTool</name>
+    <name>DimensionScale</name>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="288"/>
-        <source>pt</source>
-        <translation>pt</translation>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionunits.cpp" line="258"/>
+        <source>%1 %2 = %3 %4</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="289"/>
-        <source>in</source>
-        <translation>in</translation>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionunits.cpp" line="356"/>
+        <source>Real size (1:1)</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="290"/>
-        <source>mm</source>
-        <translation>mm</translation>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionunits.cpp" line="356"/>
+        <source>The drawing is in the real size</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="291"/>
-        <source>cm</source>
-        <translation>cm</translation>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionunits.cpp" line="357"/>
+        <source>Metric 1:20</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="292"/>
-        <source>m</source>
-        <translation>m</translation>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionunits.cpp" line="358"/>
+        <source>Metric 1:50</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="293"/>
-        <source>ft</source>
-        <translation>ft</translation>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionunits.cpp" line="359"/>
+        <source>Metric 1:100</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="294"/>
-        <source>yd</source>
-        <translation>yd</translation>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionunits.cpp" line="360"/>
+        <source>Metric 1:200</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="303"/>
-        <source>sq. pt</source>
-        <translation>평방 포인트</translation>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionunits.cpp" line="361"/>
+        <source>Metric 1:500</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="304"/>
-        <source>sq. in</source>
-        <translation>평방인치</translation>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionunits.cpp" line="362"/>
+        <source>Metric 1:1000</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="305"/>
-        <source>sq. mm</source>
-        <translation>평방 mm</translation>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionunits.cpp" line="363"/>
+        <source>Metric 1:10000</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="306"/>
-        <source>sq. cm</source>
-        <translation>평방 cm</translation>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionunits.cpp" line="364"/>
+        <source>Architectural 1/8&quot; = 1&apos;</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="307"/>
-        <source>sq. m</source>
-        <translation>평방 미터</translation>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionunits.cpp" line="365"/>
+        <source>Architectural 1/4&quot; = 1&apos;</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="308"/>
-        <source>sq. ft</source>
-        <translation>평방 피트</translation>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionunits.cpp" line="366"/>
+        <source>Engineering 1&quot; = 10&apos;</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="309"/>
-        <source>sq. yd</source>
-        <translation>평방야드</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="318"/>
-        <source>°</source>
-        <translation>°</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensiontool.cpp" line="319"/>
-        <source>rad</source>
-        <translation>rad</translation>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionunits.cpp" line="367"/>
+        <source>Engineering 1&quot; = 100&apos;</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -430,6 +511,117 @@
     </message>
 </context>
 <context>
+    <name>InsertPageNumbersDialog</name>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.ui" line="14"/>
+        <source>Insert Page Numbers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.ui" line="20"/>
+        <source>Numbering</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.ui" line="26"/>
+        <source>Style</source>
+        <translation type="unfinished">스타일</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.ui" line="36"/>
+        <source>Format</source>
+        <translation type="unfinished">형식</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.ui" line="50"/>
+        <source>Start number</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.ui" line="70"/>
+        <source>Preview</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.ui" line="87"/>
+        <source>Appearance</source>
+        <translation type="unfinished">모양</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.ui" line="93"/>
+        <source>Font</source>
+        <translation type="unfinished">글꼴</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.ui" line="116"/>
+        <source>Color</source>
+        <translation type="unfinished">색상</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.ui" line="123"/>
+        <source>...</source>
+        <translation type="unfinished">...</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.ui" line="130"/>
+        <source>Alignment</source>
+        <translation type="unfinished">정렬</translation>
+    </message>
+</context>
+<context>
+    <name>ItemPropertiesDialog</name>
+    <message>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.ui" line="6"/>
+        <source>Item Properties</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.ui" line="17"/>
+        <source>Display name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.ui" line="70"/>
+        <source>Type</source>
+        <translation type="unfinished">유형</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.ui" line="84"/>
+        <source>Source path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.ui" line="98"/>
+        <source>Original page number</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.ui" line="112"/>
+        <source>Pixel dimensions</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.ui" line="126"/>
+        <source>Page size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.ui" line="140"/>
+        <source>Orientation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.ui" line="154"/>
+        <source>Rotation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.ui" line="170"/>
+        <source>Group contents</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>LaunchApplicationWidget</name>
     <message>
         <location filename="../Pdf4QtLaunchPad/launchapplicationwidget.ui" line="14"/>
@@ -455,54 +647,44 @@
         <translation>애플리케이션 실행</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="60"/>
+        <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="59"/>
         <source>Editor</source>
         <translation>편집기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="61"/>
+        <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="60"/>
         <source>Viewer</source>
         <translation>뷰어</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="62"/>
+        <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="61"/>
         <source>Diff</source>
         <translation>차이점</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="63"/>
+        <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="62"/>
         <source>PageMaster</source>
         <translation>페이지마스터</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="65"/>
+        <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="64"/>
         <source>Go beyond basic browsing. This tool packs a punch with a host of advanced features, including encryption, document reading, digital signature verification, annotation editing, and even support for searching text using regular expressions. Turn pages into images, and enhance your PDF interactions with multiple available plugins.</source>
         <translation>기본 탐색 이상의 기능을 제공합니다. 이 도구는 암호화, 문서 읽기, 디지털 서명 확인, 주석 편집, 정규식을 사용한 텍스트 검색 지원 등 다양한 고급 기능을 갖추고 있습니다. 페이지를 이미지로 변환하고 사용 가능한 여러 플러그인을 사용하여 PDF 상호 작용을 강화하세요.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="66"/>
+        <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="65"/>
         <source>Simplify your viewing experience. This lightweight viewer offers essential viewing functions in a clean, user-friendly interface.</source>
         <translation>보기 환경을 단순화합니다. 이 경량 뷰어는 깔끔하고 사용자 친화적인 인터페이스로 필수 보기 기능을 제공합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="67"/>
+        <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="66"/>
         <source>Spot differences effortlessly. This tool allows users to open two documents and receive a detailed list of differences. View these differences in a page-to-page window where they are clearly marked. Save these differences into an XML file for future reference.</source>
         <translation>차이점을 손쉽게 찾아보세요. 이 도구를 사용하면 사용자는 두 개의 문서를 열고 차이점에 대한 자세한 목록을 받을 수 있습니다. 명확하게 표시된 페이지 간 창에서 이러한 차이점을 확인하세요. 나중에 참조할 수 있도록 이러한 차이점을 XML 파일에 저장하세요.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="68"/>
+        <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="67"/>
         <source>Take control of your documents. Manage whole documents or individual pages with ease. Merge documents into a single file, or split them into multiple ones. You can also move, clone, or add pages with a few clicks, all within an intuitive user interface.</source>
         <translation>문서를 제어하세요. 전체 문서 또는 개별 페이지를 쉽게 관리하세요. 문서를 단일 파일로 병합하거나 여러 파일로 분할합니다. 직관적인 사용자 인터페이스 내에서 몇 번의 클릭만으로 페이지를 이동, 복제 또는 추가할 수도 있습니다.</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="133"/>
-        <source>Error</source>
-        <translation>오류</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtLaunchPad/launchdialog.cpp" line="133"/>
-        <source>Failed to start process &apos;%1&apos;</source>
-        <translation>&apos;%1&apos; 프로세스를 시작하지 못했습니다.</translation>
     </message>
 </context>
 <context>
@@ -529,7 +711,7 @@
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="88"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="170"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="208"/>
         <source>Ctrl+O</source>
         <translation>Ctrl+O</translation>
     </message>
@@ -540,7 +722,7 @@
     </message>
     <message>
         <location filename="../JBIG2_Viewer/mainwindow.ui" line="96"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="518"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="564"/>
         <source>Ctrl+W</source>
         <translation>Ctrl+W</translation>
     </message>
@@ -580,414 +762,534 @@
         <translation>&amp;파일</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="70"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="66"/>
+        <source>&amp;Recent</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="83"/>
         <source>&amp;Edit</source>
         <translation>&amp;편집</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="92"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="87"/>
+        <source>&amp;Sort</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="124"/>
         <source>&amp;Insert</source>
         <translation>&amp;삽입</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="100"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="133"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="63"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="67"/>
         <source>&amp;View</source>
         <translation>&amp;보기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="117"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="153"/>
         <source>&amp;Make</source>
         <translation>&amp;만들기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="125"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="163"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="42"/>
         <source>&amp;Help</source>
         <translation>&amp;도움말</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="134"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="172"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="50"/>
         <source>&amp;Toolbars</source>
         <translation>&amp;도구 모음</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="139"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="177"/>
         <source>&amp;Regroup</source>
         <translation>&amp;재그룹</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="164"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="202"/>
         <source>&amp;Add Documents...</source>
         <translation>&amp;문서 추가...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="167"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="205"/>
         <source>Add Documents</source>
         <translation>문서 추가</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="179"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="217"/>
         <source>C&amp;lose</source>
         <translation>&amp;닫기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="182"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="220"/>
         <source>Alt+F4</source>
         <translation>Alt+F4</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="191"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="229"/>
         <source>Clone &amp;Selection</source>
         <translation>복제 &amp;선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="194"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="232"/>
         <source>Ctrl+L</source>
         <translation>Ctrl+L</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="203"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="241"/>
         <source>Re&amp;move Selection</source>
         <translation>&amp;선택 항목 제거</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="206"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="244"/>
         <source>Del</source>
         <translation>Del</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="215"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="253"/>
         <source>Restore Removed &amp;Items</source>
         <translation>제거된 항목 &amp;복원</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="218"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="256"/>
         <source>Ctrl+Shift+R</source>
         <translation>Ctrl+Shift+R</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="227"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="265"/>
         <source>Insert &amp;PDF</source>
         <translation>PDF &amp;삽입</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="230"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="268"/>
         <source>Insert PDF</source>
         <translation>PDF 삽입</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="233"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="271"/>
         <source>Ctrl+I</source>
         <translation>Ctrl+I</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="242"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="280"/>
         <source>&amp;Insert Image</source>
         <translation>&amp;이미지 삽입</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="245"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="283"/>
         <source>Ctrl+Alt+I</source>
         <translation>Ctrl+Alt+I</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="254"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="292"/>
         <source>Insert &amp;Empty Page</source>
         <translation>빈 &amp;페이지 삽입</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="257"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="295"/>
         <source>Ctrl+Shift+I</source>
         <translation>Ctrl+Shift+I</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="266"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="304"/>
         <source>Cu&amp;t</source>
         <translation>&amp;잘라내기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="269"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="307"/>
         <source>Ctrl+X</source>
         <translation>Ctrl+X</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="278"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="316"/>
         <source>&amp;Copy</source>
         <translation>&amp;복사</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="281"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="319"/>
         <source>Ctrl+C</source>
         <translation>Ctrl+C</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="290"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="328"/>
         <source>&amp;Paste</source>
         <translation>&amp;붙여넣기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="293"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="331"/>
         <source>Ctrl+V</source>
         <translation>Ctrl+V</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="302"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="340"/>
         <source>Repl&amp;ace Selection</source>
         <translation>&amp;선택 항목 바꾸기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="305"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="343"/>
         <source>Ctrl+Alt+R</source>
         <translation>Ctrl+Alt+R</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="314"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="352"/>
         <source>Select &amp;None</source>
         <translation>없음 &amp;선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="317"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="355"/>
         <source>Ctrl+N</source>
         <translation>Ctrl+N</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="326"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="364"/>
         <source>Select &amp;All</source>
         <translation>모두 &amp;선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="329"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="367"/>
         <source>Ctrl+A</source>
         <translation>Ctrl+A</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="338"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="376"/>
         <source>Select &amp;Even</source>
         <translation>짝수 &amp;선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="341"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="379"/>
         <source>F9</source>
         <translation>F9</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="350"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="388"/>
         <source>Select &amp;Odd</source>
         <translation>홀수 &amp;선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="353"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="391"/>
         <source>F10</source>
         <translation>F10</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="362"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="400"/>
         <source>Select &amp;Portrait</source>
         <translation>세로 &amp;선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="365"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="403"/>
         <source>F11</source>
         <translation>F11</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="374"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="412"/>
         <source>Select &amp;Landscape</source>
         <translation>가로 &amp;선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="377"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="415"/>
         <source>F12</source>
         <translation>F12</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="386"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="424"/>
         <source>Rotate &amp;Right</source>
         <translation>오른쪽으로 &amp;회전</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="389"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="427"/>
         <source>F4</source>
         <translation>F4</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="398"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="436"/>
         <source>Rotate &amp;Left</source>
         <translation>왼쪽으로 &amp;회전</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="401"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="439"/>
         <source>Shift+F4</source>
         <translation>Shift+F4</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="410"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="444"/>
+        <source>Page &amp;Geometry...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="447"/>
+        <source>Configure page size, margins and content placement for output documents.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="456"/>
         <source>&amp;Zoom In</source>
         <translation>&amp;확대</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="413"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="459"/>
         <source>Ctrl++</source>
         <translation>Ctrl++</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="422"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="468"/>
         <source>Zoo&amp;m Out</source>
         <translation>&amp;축소</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="425"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="471"/>
         <source>Ctrl+-</source>
         <translation>Ctrl+-</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="434"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="480"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="108"/>
         <source>&amp;Get Source</source>
         <translation>&amp;소스 가져오기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="443"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="489"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="117"/>
         <source>&amp;About...</source>
         <translation>&amp;정보...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="446"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="492"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="120"/>
         <source>F1</source>
         <translation>F1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="455"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="501"/>
         <source>&amp;United Document...</source>
         <translation>&amp;유나이티드 문서...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="458"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="504"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="150"/>
         <source>F5</source>
         <translation>F5</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="467"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="513"/>
         <source>&amp;Separate to Multiple Documents...</source>
         <translation>&amp;여러 문서로 분리...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="470"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="516"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="186"/>
         <source>F6</source>
         <translation>F6</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="479"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="525"/>
         <source>Separate to Multiple Documents (&amp;Grouped)...</source>
         <translation>여러 문서로 분리(&amp;그룹화)...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="482"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="528"/>
         <source>F7</source>
         <translation>F7</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="491"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="537"/>
         <source>&amp;Group</source>
         <translation>&amp;그룹</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="494"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="540"/>
         <source>Ctrl+G</source>
         <translation>Ctrl+G</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="503"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="549"/>
         <source>U&amp;ngroup</source>
         <translation>&amp;그룹 해제</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="506"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="552"/>
         <source>Ctrl+Shift+G</source>
         <translation>Ctrl+Shift+G</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="515"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="561"/>
         <source>&amp;Clear</source>
         <translation>&amp;지우기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="527"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="573"/>
         <source>Regroup by &amp;Even/Odd Pages</source>
         <translation>짝수/홀수 &amp;페이지별로 재그룹화</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="536"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="582"/>
         <source>Regroup by Re&amp;verse</source>
         <translation>역방향으로 &amp;재그룹화</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="545"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="591"/>
         <source>Regroup by &amp;Page Pairs</source>
         <translation>페이지 쌍별로 &amp;재그룹화</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="554"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="600"/>
         <source>Regroup by &amp;Outline</source>
         <translation>개요별로 다시 &amp;그룹화</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="563"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="609"/>
         <source>Regroup by &amp;Alternating Pages</source>
         <translation>페이지를 교체하여 &amp;다시 그룹화</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="572"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="618"/>
         <source>Regroup by Alternating Pages (&amp;Reversed Order)</source>
         <translation>페이지를 교체하여 다시 그룹화(&amp;역순)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="581"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="627"/>
         <source>&amp;Invert Selection</source>
         <translation>&amp;선택 반전</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="590"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="636"/>
         <source>&amp;Undo</source>
         <translation>&amp;실행 취소</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="593"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="639"/>
         <source>Ctrl+Z</source>
         <translation>Ctrl+Z</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="602"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="648"/>
         <source>Re&amp;do</source>
         <translation>&amp;다시 실행</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="605"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="651"/>
         <source>Ctrl+Y</source>
         <translation>Ctrl+Y</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="610"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="656"/>
         <source>&amp;Prepare Icon Theme</source>
         <translation>&amp;아이콘 테마 준비</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="619"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="665"/>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="372"/>
         <source>Become a &amp;Sponsor</source>
         <translation>스폰서 &amp;되기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="627"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="673"/>
         <source>Show Document Title in Items</source>
         <translation>항목에 문서 제목 표시</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="685"/>
+        <source>Open Workspace...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="694"/>
+        <source>Save Workspace...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="703"/>
+        <source>Save Checkpoint...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="712"/>
+        <source>Load Checkpoint...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="721"/>
+        <source>Clear Recent</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="730"/>
+        <source>Insert PDF Pages...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="739"/>
+        <source>Split...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="748"/>
+        <source>Select Page Range...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="757"/>
+        <source>Select Visible</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="766"/>
+        <source>Clear Search</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="775"/>
+        <source>Sort by File Name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="784"/>
+        <source>Sort by Source</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="793"/>
+        <source>Sort by Page Number</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="802"/>
+        <source>Sort by Type</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="811"/>
+        <source>Reverse Order</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="820"/>
+        <source>Reset Rotation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="829"/>
+        <source>Rename Item or Group...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="838"/>
+        <source>Crop Pages...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="847"/>
+        <source>Properties...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.ui" line="859"/>
+        <source>Details View</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtDiff/mainwindow.ui" line="55"/>
@@ -1367,26 +1669,31 @@
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="81"/>
+        <source>Use wildcards (* and ?)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="88"/>
         <source>Clear</source>
         <translation>지우기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="91"/>
+        <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="98"/>
         <source>Regular Expression Settings</source>
         <translation>정규식 설정</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="97"/>
+        <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="104"/>
         <source>Dot matches everything (including newline characters)</source>
         <translation>점은 모든 항목과 일치합니다(개행 문자 포함).</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="107"/>
+        <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="114"/>
         <source>Multiline matching (enables search using &apos;^&apos; and &apos;$&apos; to mark line beginnings/endings)</source>
         <translation>여러 줄 일치(줄 시작/끝을 표시하기 위해 &apos;^&apos; 및 &apos;$&apos;를 사용하여 검색 가능)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="131"/>
+        <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.ui" line="138"/>
         <source>Results</source>
         <translation>결과</translation>
     </message>
@@ -1418,13 +1725,33 @@
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.ui" line="36"/>
-        <source>Automatic (Otsu&apos;s 1D method)</source>
-        <translation>자동(Otsu의 1D 방식)</translation>
+        <source>Convert:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.ui" line="46"/>
+        <source>Conversion method:</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.ui" line="56"/>
-        <source>User-Defined Intensity Threshold (0-255):</source>
-        <translation>사용자 정의 강도 임계값(0-255):</translation>
+        <source>Threshold (0-255):</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.ui" line="73"/>
+        <source>Resolution (DPI):</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.ui" line="96"/>
+        <source>Image compression:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.ui" line="106"/>
+        <source>Detect Blank Pages</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1580,7 +1907,7 @@
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="135"/>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="792"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="827"/>
         <source>&amp;Help</source>
         <translation>&amp;도움말</translation>
     </message>
@@ -1595,678 +1922,763 @@
         <translation>&amp;편집</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="175"/>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="800"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="177"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="835"/>
         <source>&amp;Insert</source>
         <translation>&amp;삽입</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="179"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="181"/>
         <source>Sticky &amp;Note</source>
         <translation>스티커 &amp;메모</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="191"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="193"/>
         <source>&amp;Stamp</source>
         <translation>&amp;스탬프</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="196"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="198"/>
         <source>Text Hi&amp;ghlight</source>
         <translation>텍스트 &amp;강조 표시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="242"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="207"/>
+        <source>Hyperlink to this PDF</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="265"/>
         <source>&amp;Open...</source>
         <translation>&amp;열기...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="251"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="274"/>
         <source>&amp;Close</source>
         <translation>&amp;닫기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="260"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="283"/>
         <source>&amp;Quit</source>
         <translation>&amp;종료</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="268"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="291"/>
         <source>&amp;Single Page</source>
         <translation>&amp;단일 페이지</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="271"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="294"/>
         <source>Single Page</source>
         <translation>단일 페이지</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="274"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="297"/>
         <source>Ctrl+1</source>
         <translation>Ctrl+1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="282"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="305"/>
         <source>&amp;Continuous</source>
         <translation>&amp;연속</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="285"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="308"/>
         <source>Continuous</source>
         <translation>연속</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="288"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="311"/>
         <source>Ctrl+2</source>
         <translation>Ctrl+2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="296"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="319"/>
         <source>Two &amp;Pages</source>
         <translation>&amp;2페이지</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="299"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="322"/>
         <source>Two Pages</source>
         <translation>2페이지</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="302"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="325"/>
         <source>Ctrl+3</source>
         <translation>Ctrl+3</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="310"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="333"/>
         <source>&amp;Two columns</source>
         <translation>&amp;2열</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="313"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="336"/>
         <source>Two columns</source>
         <translation>2열</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="316"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="339"/>
         <source>Ctrl+4</source>
         <translation>Ctrl+4</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="324"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="347"/>
         <source>&amp;First page on right side</source>
         <translation>&amp;오른쪽 첫 페이지</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="327"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="350"/>
         <source>First page on right side</source>
         <translation>오른쪽 첫 페이지</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="330"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="353"/>
         <source>Ctrl+5</source>
         <translation>Ctrl+5</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="338"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="361"/>
         <source>&amp;Fullscreen Mode</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="341"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="364"/>
         <source>Fullscreen Mode</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="350"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="373"/>
         <source>&amp;Rendering Errors...</source>
         <translation>&amp;렌더링 오류...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="353"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="376"/>
         <source>Ctrl+E</source>
         <translation>Ctrl+E</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="361"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="384"/>
         <source>&amp;Antialiasing</source>
         <translation>&amp;앤티앨리어싱</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="364"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="387"/>
         <source>Antialiasing</source>
         <translation>앤티앨리어싱</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="372"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="395"/>
         <source>&amp;Text Antialiasing</source>
         <translation>&amp;텍스트 앤티앨리어싱</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="375"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="398"/>
         <source>Text Antialiasing</source>
         <translation>텍스트 앤티앨리어싱</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="383"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="406"/>
         <source>&amp;Smooth Pictures</source>
         <translation>&amp;부드러운 그림</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="386"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="409"/>
         <source>Smooth Pictures</source>
         <translation>부드러운 그림</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="394"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="417"/>
         <source>&amp;Ignore Optional Content Settings</source>
         <translation>&amp;선택적 콘텐츠 설정 무시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="397"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="420"/>
         <source>Ignore Optional Content Settings</source>
         <translation>선택적 콘텐츠 설정 무시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="406"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="429"/>
         <source>&amp;Options...</source>
         <translation>&amp;옵션...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="409"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="432"/>
         <source>Ctrl+K</source>
         <translation>Ctrl+K</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="414"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="437"/>
         <source>Reset to &amp;Factory Settings</source>
         <translation>공장 설정으로 &amp;재설정</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="423"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="446"/>
         <source>&amp;Zoom In</source>
         <translation>&amp;확대</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="432"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="455"/>
         <source>Zoom &amp;Out</source>
         <translation>&amp;축소</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="441"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="464"/>
         <source>&amp;About...</source>
         <translation>&amp;정보...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="450"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="473"/>
         <source>Fit &amp;Page</source>
         <translation>페이지 &amp;맞춤</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="459"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="482"/>
         <source>Fit &amp;Width</source>
         <translation>너비 &amp;맞춤</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="462"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="485"/>
         <source>W</source>
         <translation>여</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="471"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="494"/>
         <source>&amp;Fit Height</source>
         <translation>&amp;높이 맞춤</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="474"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="497"/>
         <source>H</source>
         <translation>시간</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="483"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="506"/>
         <source>Prope&amp;rties...</source>
         <translation>&amp;속성...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="492"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="515"/>
         <source>Send by &amp;E-Mail...</source>
         <translation>이메일로 &amp;보내기...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="500"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="523"/>
         <source>Show Text &amp;Blocks</source>
         <translation>텍스트 블록 &amp;표시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="508"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="531"/>
         <source>Show Text &amp;Lines</source>
         <translation>텍스트 줄 &amp;표시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="517"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="540"/>
         <source>&amp;Find</source>
         <translation>&amp;찾기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="526"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="549"/>
         <source>Fin&amp;d Previous</source>
         <translation>&amp;이전 찾기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="535"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="558"/>
         <source>Fi&amp;nd Next</source>
         <translation>&amp;다음 찾기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="547"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="570"/>
         <source>Select te&amp;xt</source>
         <translation>텍스트 &amp;선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="559"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="582"/>
         <source>Select &amp;table</source>
         <translation>테이블 &amp;선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="568"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="591"/>
         <source>Select &amp;All</source>
         <translation>모두 &amp;선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="577"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="600"/>
         <source>Dese&amp;lect</source>
         <translation>&amp;선택 취소</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="586"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="609"/>
         <source>&amp;Copy text</source>
         <translation>&amp;텍스트 복사</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="598"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="621"/>
         <source>Color | &amp;Inverted</source>
         <translation>색상 | &amp;거꾸로</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="610"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="633"/>
         <source>Color | &amp;Grayscale</source>
         <translation>색상 | &amp;그레이스케일</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="622"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="645"/>
         <source>Color | &amp;High Contrast</source>
         <translation>색상 | &amp;고대비</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="634"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="657"/>
         <source>Color | &amp;Monochromatic</source>
         <translation>색상 | &amp;단색</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="646"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="669"/>
         <source>Color | &amp;Custom</source>
         <translation>색상 | &amp;관습</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="655"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="678"/>
         <source>Rotate &amp;Right</source>
         <translation>오른쪽으로 &amp;회전</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="664"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="687"/>
         <source>Rotate &amp;Left</source>
         <translation>왼쪽으로 &amp;회전</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="673"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="696"/>
         <source>&amp;Print...</source>
         <translation>&amp;인쇄...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="678"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="701"/>
         <source>Render to &amp;Images...</source>
         <translation>이미지로 &amp;렌더링...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="690"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="713"/>
         <source>&amp;Magnifier</source>
         <translation>&amp;돋보기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="693"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="716"/>
         <source>Magnifier Tool</source>
         <translation>돋보기 도구</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="705"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="728"/>
         <source>&amp;Screenshot</source>
         <translation>&amp;스크린샷</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="717"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="740"/>
         <source>&amp;Extract Image</source>
         <translation>&amp;이미지 추출</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="725"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="748"/>
         <source>&amp;Display Annotations</source>
         <translation>&amp;주석 표시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="728"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="751"/>
         <source>Display Annotations</source>
         <translation>주석 표시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="737"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="760"/>
         <source>&amp;Undo</source>
         <translation>&amp;실행 취소</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="746"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="769"/>
         <source>&amp;Redo</source>
         <translation>&amp;다시 실행</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="755"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="778"/>
         <source>&amp;Optimize...</source>
         <translation>&amp;최적화...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="758"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="781"/>
         <source>Optimizes document to reduce file size.</source>
         <translation>파일 크기를 줄이기 위해 문서를 최적화합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="767"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="790"/>
+        <source>Optimize &amp;Images...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="793"/>
+        <source>Optimizes embedded images to reduce file size.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="802"/>
         <source>Save &amp;As...</source>
         <translation>다른 &amp;이름으로 저장...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="776"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="811"/>
         <source>&amp;Save</source>
         <translation>&amp;저장</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="784"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="819"/>
         <source>&amp;Comment</source>
         <translation>&amp;설명</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="808"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="843"/>
         <source>&amp;Key</source>
         <translation>&amp;키</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="816"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="851"/>
         <source>&amp;New Paragraph</source>
         <translation>&amp;새 단락</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="824"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="859"/>
         <source>No&amp;te</source>
         <translation>&amp;참고</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="832"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="867"/>
         <source>&amp;Paragraph</source>
         <translation>&amp;단락</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="844"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="879"/>
         <source>&amp;Hyperlink</source>
         <translation>&amp;하이퍼링크</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="856"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="887"/>
+        <source>Fit Page</source>
+        <translation type="unfinished">페이지 맞춤</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="895"/>
+        <source>Fit Page Horizontally</source>
+        <translation type="unfinished">페이지를 가로로 맞춤</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="903"/>
+        <source>Fit Page Vertically</source>
+        <translation type="unfinished">페이지를 수직으로 맞추기</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="911"/>
+        <source>Fit Rectangle</source>
+        <translation type="unfinished">직사각형 맞춤</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="919"/>
+        <source>Fit Bounding Box</source>
+        <translation type="unfinished">경계 상자 맞춤</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="927"/>
+        <source>Fit Bounding Box Horizontally</source>
+        <translation type="unfinished">경계 상자를 수평으로 맞추기</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="935"/>
+        <source>Fit Bounding Box Vertically</source>
+        <translation type="unfinished">경계 상자를 수직으로 맞추기</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="943"/>
+        <source>XYZ</source>
+        <translation type="unfinished">XYZ</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="951"/>
+        <source>XYZ (Inherit Zoom)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="963"/>
         <source>&amp;Inline text</source>
         <translation>&amp;인라인 텍스트</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="868"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="975"/>
+        <source>Insert Page &amp;Numbers...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="987"/>
         <source>Str&amp;aight Line</source>
         <translation>&amp;직선</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="880"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="999"/>
         <source>Pol&amp;yline</source>
         <translation>&amp;폴리라인</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="892"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1011"/>
         <source>&amp;Rectangle</source>
         <translation>&amp;직사각형</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="904"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1023"/>
         <source>&amp;Polygon</source>
         <translation>&amp;다각형</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="916"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1035"/>
         <source>&amp;Ellipse</source>
         <translation>&amp;타원</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="928"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1047"/>
         <source>&amp;Freehand Curve</source>
         <translation>&amp;자유형 곡선</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="940"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1055"/>
+        <source>&amp;Delete Annotations</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1058"/>
+        <source>Delete annotations - click on an annotation, or drag a rectangle over several annotations</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1070"/>
         <source>&amp;Highlight</source>
         <translation>&amp;강조 표시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="952"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1082"/>
         <source>&amp;Underline</source>
         <translation>&amp;밑줄</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="964"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1094"/>
         <source>Stri&amp;keout</source>
         <translation>&amp;취소선</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="976"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1106"/>
         <source>&amp;Squiggly</source>
         <translation>&amp;구불구불한</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="985"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1115"/>
         <source>Go to document &amp;start</source>
         <translation>문서 시작으로 &amp;이동</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="994"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1124"/>
         <source>Go to document &amp;end</source>
         <translation>문서 끝으로 &amp;이동</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1003"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1133"/>
         <source>Go to &amp;next page</source>
         <translation>다음 페이지로 &amp;이동</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1012"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1142"/>
         <source>Go to &amp;previous page</source>
         <translation>이전 페이지로 &amp;이동</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1021"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1151"/>
         <source>Go &amp;to next line</source>
         <translation>다음 &amp;줄로 이동</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1030"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1160"/>
         <source>Go t&amp;o previous line</source>
         <translation>이전 &amp;줄로 이동</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1039"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1169"/>
         <source>&amp;Get Source</source>
         <translation>&amp;소스 가져오기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1048"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1178"/>
         <source>&amp;Encryption...</source>
         <translation>&amp;암호화...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1057"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1187"/>
         <source>&amp;Certificates...</source>
         <translation>&amp;인증서...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1066"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1196"/>
         <source>&amp;Sanitize...</source>
         <translation>&amp;삭제...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1069"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1199"/>
         <source>Sanitize document to remove sensitive information.</source>
         <translation>중요한 정보를 제거하려면 문서를 삭제하세요.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1074"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1204"/>
         <source>Remove External &amp;Links</source>
         <translation>외부 링크 &amp;제거</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1077"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1207"/>
         <source>Remove all external link annotations from the document.</source>
         <translation>문서에서 모든 외부 링크 주석을 제거합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1085"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1216"/>
+        <source>Page &amp;Geometry...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1219"/>
+        <source>Change page size, margins and content placement.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1227"/>
         <source>Automatic &amp;Document Refresh</source>
         <translation>자동 &amp;문서 새로 ​​고침</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1088"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1230"/>
         <source>Automatically reloads the document if a change made by an external program is detected.</source>
         <translation>외부 프로그램에 의한 변경 사항이 감지되면 문서를 자동으로 다시 로드합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1097"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1239"/>
         <source>Become a &amp;Sponsor</source>
         <translation>스폰서 &amp;되기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1106"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1248"/>
         <source>Create &amp;Bitonal Document...</source>
         <translation>이중 &amp;문서 생성...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1109"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1251"/>
         <source>Create Bitonal Document</source>
         <translation>이중 문서 생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1112"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1254"/>
         <source>Convert the colored images to monochromatic to create a bitonal document.</source>
         <translation>컬러 이미지를 단색으로 변환하여 흑백 문서를 만듭니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1121"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1263"/>
         <source>&amp;Bookmark Page</source>
         <translation>&amp;북마크 페이지</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1124"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1266"/>
         <source>Bookmark Page</source>
         <translation>북마크 페이지</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1127"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1269"/>
         <source>Bookmark page for fast navigation.</source>
         <translation>빠른 탐색을 위한 북마크 페이지입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1136"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1278"/>
         <source>&amp;Go to Next Bookmark</source>
         <translation>&amp;다음 북마크로 이동</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1139"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1281"/>
         <source>Go to Next Bookmark</source>
         <translation>다음 북마크로 이동</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1142"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1284"/>
         <source>Navigates to the next bookmarked page.</source>
         <translation>북마크된 다음 페이지로 이동합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1151"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1293"/>
         <source>Go to Previous Boo&amp;kmark</source>
         <translation>이전 북마크로 &amp;이동</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1154"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1296"/>
         <source>Go to Previous Bookmark</source>
         <translation>이전 북마크로 이동</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1157"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1299"/>
         <source>Navigates to the previous bookmarked page.</source>
         <translation>북마크된 이전 페이지로 이동합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1166"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1308"/>
         <source>&amp;Export Bookmarks</source>
         <translation>&amp;북마크 내보내기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1169"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1311"/>
         <source>Export Bookmarks</source>
         <translation>북마크 내보내기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1172"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1314"/>
         <source>Export bookmarks to the file.</source>
         <translation>북마크를 파일로 내보냅니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1181"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1323"/>
         <source>&amp;Import Bookmarks</source>
         <translation>&amp;북마크 가져오기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1184"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1326"/>
         <source>Import Bookmarks</source>
         <translation>북마크 가져오기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1187"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1329"/>
         <source>Import bookmarks from the file.</source>
         <translation>파일에서 북마크를 가져옵니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1199"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1341"/>
         <source>&amp;Generate Bookmarks Automatically</source>
         <translation>&amp;자동으로 책갈피 생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1202"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1344"/>
         <source>Generate Bookmarks Automatically</source>
         <translation>자동으로 책갈피 생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1205"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1347"/>
         <source>If checked, bookmarks for main document chapters are generated automatically.</source>
         <translation>선택하면 기본 문서 장에 대한 북마크가 자동으로 생성됩니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1213"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1355"/>
         <source>Display &amp;Render Times</source>
         <translation>렌더링 &amp;시간 표시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1216"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1358"/>
         <source>Display Render Times</source>
         <translation>렌더링 시간 표시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1224"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.ui" line="1366"/>
         <source>Clear Recent File &amp;History</source>
         <translation>최근 파일 기록 &amp;지우기</translation>
     </message>
@@ -2390,6 +2802,149 @@
         <location filename="../Pdf4QtLibGui/pdfoptimizedocumentdialog.ui" line="20"/>
         <source>Optimization Settings</source>
         <translation>최적화 설정</translation>
+    </message>
+</context>
+<context>
+    <name>PDFOptimizeImagesDialog</name>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="6"/>
+        <source>Optimize Images</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="27"/>
+        <source>Tip: hold Ctrl or Shift while clicking to select multiple images (Ctrl+A selects all). Global Defaults already apply to every image without an override.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="41"/>
+        <source>Global Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="47"/>
+        <source>Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="57"/>
+        <source>Color mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="67"/>
+        <source>Goal</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="77"/>
+        <source>Keep original if larger</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="84"/>
+        <source>Preserve transparency</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="98"/>
+        <source>Color</source>
+        <translation type="unfinished">색상</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="104"/>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="186"/>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="268"/>
+        <source>Algorithm</source>
+        <translation type="unfinished">알고리즘</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="114"/>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="196"/>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="278"/>
+        <source>Target DPI</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="128"/>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="210"/>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="292"/>
+        <source>Resample</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="138"/>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="220"/>
+        <source>JPEG quality</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="155"/>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="237"/>
+        <source>JPEG2000 rate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="172"/>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="254"/>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="330"/>
+        <source>PNG predictor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="180"/>
+        <source>Grayscale</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="262"/>
+        <source>Bitonal</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="302"/>
+        <source>Threshold</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="321"/>
+        <source>Auto</source>
+        <translation type="unfinished">자동</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="341"/>
+        <source>Selected Images</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="347"/>
+        <source>Enable compression for selected images</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="354"/>
+        <source>Override settings for selected images</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="405"/>
+        <source>Preview</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="413"/>
+        <source>Before</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="449"/>
+        <source>After</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.ui" line="493"/>
+        <source>Summary</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2720,6 +3275,72 @@
     </message>
 </context>
 <context>
+    <name>PDFPageImportDialog</name>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pdfpageimportdialog.ui" line="14"/>
+        <source>Insert PDF Pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pdfpageimportdialog.ui" line="22"/>
+        <source>Source file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pdfpageimportdialog.ui" line="39"/>
+        <source>Document pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pdfpageimportdialog.ui" line="53"/>
+        <source>All pages</source>
+        <translation type="unfinished">모든 페이지</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pdfpageimportdialog.ui" line="63"/>
+        <source>Page range</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pdfpageimportdialog.ui" line="73"/>
+        <source>Example: 1-5, 7, 10-, odd, even</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pdfpageimportdialog.ui" line="80"/>
+        <source>Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>PDFPageRangeWidget</name>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagerangewidget.ui" line="17"/>
+        <source>All pages</source>
+        <translation type="unfinished">모든 페이지</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagerangewidget.ui" line="27"/>
+        <source>Even pages</source>
+        <translation type="unfinished">짝수 페이지</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagerangewidget.ui" line="34"/>
+        <source>Odd pages</source>
+        <translation type="unfinished">홀수 페이지</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagerangewidget.ui" line="41"/>
+        <source>Custom page range:</source>
+        <translation type="unfinished">사용자 정의 페이지 범위:</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagerangewidget.ui" line="48"/>
+        <source>Visible pages</source>
+        <translation type="unfinished">표시되는 페이지</translation>
+    </message>
+</context>
+<context>
     <name>PDFRenderToImagesDialog</name>
     <message>
         <location filename="../Pdf4QtLibGui/pdfrendertoimagesdialog.ui" line="14"/>
@@ -2860,34 +3481,6 @@
     </message>
 </context>
 <context>
-    <name>PDFSelectPagesDialog</name>
-    <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.ui" line="20"/>
-        <source>All pages</source>
-        <translation>모든 페이지</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.ui" line="30"/>
-        <source>Even pages</source>
-        <translation>짝수 페이지</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.ui" line="37"/>
-        <source>Odd pages</source>
-        <translation>홀수 페이지</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.ui" line="44"/>
-        <source>Custom page range:</source>
-        <translation>사용자 정의 페이지 범위:</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.ui" line="51"/>
-        <source>Visible pages</source>
-        <translation>표시되는 페이지</translation>
-    </message>
-</context>
-<context>
     <name>PDFSidebarWidget</name>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsidebarwidget.ui" line="84"/>
@@ -3017,168 +3610,183 @@
         <translation>권장 코덱: UTF-8 또는 %1</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="384"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="424"/>
         <source>Unknown console format &apos;%1&apos;. Defaulting to text console format.</source>
         <translation>알 수 없는 콘솔 형식 &apos;%1&apos;. 텍스트 콘솔 형식으로 기본 설정됩니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="414"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="454"/>
         <source>Unknown console date/time format &apos;%1&apos;. Defaulting to short date/time format.</source>
         <translation>알 수 없는 콘솔 날짜/시간 형식 &apos;%1&apos;. 기본적으로 간단한 날짜/시간 형식으로 설정됩니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="511"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="476"/>
+        <source>Invalid value &apos;%1&apos; of the option &apos;--%2&apos;. Valid values are %3.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="544"/>
+        <source>The option &apos;--bitonal-invert&apos; can be used with &apos;--bitonal-fill none&apos; only.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="556"/>
+        <source>The option &apos;--bitonal-detect-blank&apos; can be used with &apos;--bitonal-fill none&apos; only.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="690"/>
         <source>Unknown text layout analysis algorithm &apos;%1&apos;. Defaulting to automatic algorithm selection.</source>
         <translation>알 수 없는 텍스트 레이아웃 분석 알고리즘 &apos;%1&apos;. 자동 알고리즘 선택을 기본값으로 설정합니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="539"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="718"/>
         <source>Unknown audio format &apos;%1&apos;. Defaulting to mp3 audio format.</source>
         <translation>알 수 없는 오디오 형식 &apos;%1&apos;. mp3 오디오 형식으로 기본 설정됩니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="562"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="741"/>
         <source>Image format &apos;%1&apos; is not supported. Defaulting to png.</source>
         <translation>&apos;%1&apos; 이미지 형식은 지원되지 않습니다. png로 기본 설정됩니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="579"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="758"/>
         <source>Image format subtype &apos;%1&apos; is not supported.</source>
         <translation>이미지 형식 하위 유형 &apos;%1&apos;은 지원되지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="598"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="777"/>
         <source>Image compression for current format is not supported.</source>
         <translation>현재 형식의 이미지 압축은 지원되지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="603"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="782"/>
         <source>Invalid compression level &apos;%1&apos;.</source>
         <translation>잘못된 압축 수준 &apos;%1&apos;.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="622"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="801"/>
         <source>Image quality settings for current format is not supported.</source>
         <translation>현재 형식에 대한 이미지 품질 설정은 지원되지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="627"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="806"/>
         <source>Invalid image quality &apos;%1&apos;.</source>
         <translation>이미지 품질 &apos;%1&apos;이(가) 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="642"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="821"/>
         <source>Optimized write is not supported.</source>
         <translation>최적화된 쓰기가 지원되지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="654"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="833"/>
         <source>Progressive scan write is not supported.</source>
         <translation>프로그레시브 스캔 쓰기는 지원되지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="686"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="865"/>
         <source>Invalid image resolution mode &apos;%1&apos;. Defaulting to dpi.</source>
         <translation>잘못된 이미지 해상도 모드 &apos;%1&apos;. 기본값은 dpi입니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="694"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="873"/>
         <source>Cannot set dpi value, resolution mode must be dpi.</source>
         <translation>dpi 값을 설정할 수 없습니다. 해상도 모드는 dpi여야 합니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="705"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="884"/>
         <source>Dpi must be in range from %1 to %2. Defaulting to %3.</source>
         <translation>Dpi는 %1에서 %2 사이에 있어야 합니다. 기본값은 %3입니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="712"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="891"/>
         <source>Invalid image dpi value &apos;%1&apos;.</source>
         <translation>잘못된 이미지 dpi 값 &apos;%1&apos;.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="720"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="899"/>
         <source>Cannot set pixel value, resolution mode must be pixel.</source>
         <translation>픽셀 값을 설정할 수 없습니다. 해상도 모드는 픽셀이어야 합니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="731"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="910"/>
         <source>Pixel value must be in range from %1 to %2. Defaulting to %3.</source>
         <translation>픽셀 값은 %1에서 %2 사이에 있어야 합니다. 기본값은 %3입니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="738"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="917"/>
         <source>Invalid image pixel value &apos;%1&apos;.</source>
         <translation>잘못된 이미지 픽셀 값 &apos;%1&apos;.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="759"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="938"/>
         <source>Unknown color management system &apos;%1&apos;. Defaulting to lcms.</source>
         <translation>알 수 없는 색상 관리 시스템 &apos;%1&apos;. 기본값은 lcms입니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="778"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="957"/>
         <source>Uknown color management system accuracy &apos;%1&apos;. Defaulting to medium.</source>
         <translation>알 수 없는 색상 관리 시스템 정확도 &apos;%1&apos;. 기본적으로 중간으로 설정되어 있습니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="805"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="984"/>
         <source>Unknown color adaptation method &apos;%1&apos;. Defaulting to bradford.</source>
         <translation>알 수 없는 색상 적응 방법 &apos;%1&apos;. 브래드포드로 기본 설정.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="832"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1011"/>
         <source>Uknown color management system rendering intent &apos;%1&apos;. Defaulting to auto.</source>
         <translation>알 수 없는 색상 관리 시스템 렌더링 의도 &apos;%1&apos;. 자동으로 기본 설정됩니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="881"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1060"/>
         <source>Uknown bool value &apos;%1&apos;. Default value is used.</source>
         <translation>알 수 없는 부울 값 &apos;%1&apos;. 기본값이 사용됩니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="894"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1073"/>
         <source>Uknown bool value &apos;%1&apos;. GPU rendering is used as default.</source>
         <translation>알 수 없는 부울 값 &apos;%1&apos;. GPU 렌더링이 기본값으로 사용됩니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="901"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1080"/>
         <source>Uknown MSAA sample count &apos;%1&apos;. 4 samples are used as default.</source>
         <translation>알 수 없는 MSAA 샘플 수 &apos;%1&apos;. 기본적으로 4개의 샘플이 사용됩니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="910"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1089"/>
         <source>Uknown rasterizer count &apos;%1&apos;. %2 rasterizers are used as default.</source>
         <translation>알 수 없는 래스터라이저 개수 &apos;%1&apos;. %2 래스터라이저가 기본값으로 사용됩니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="915"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1094"/>
         <source>Invalid raterizer count: %1. Correcting to use %2 rasterizers.</source>
         <translation>잘못된 평가자 수: %1. %2 래스터라이저를 사용하도록 수정 중입니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="974"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1337"/>
         <source>Unknown encryption algorithm &apos;%1&apos;. Defaulting to AES-256 encryption.</source>
         <translation>알 수 없는 암호화 알고리즘 &apos;%1&apos;. AES-256 암호화로 기본 설정됩니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="997"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1360"/>
         <source>Unknown encryption contents mode &apos;%1&apos;. Defaulting to encrypt all contents.</source>
         <translation>알 수 없는 암호화 콘텐츠 모드 &apos;%1&apos;. 모든 콘텐츠를 암호화하도록 기본 설정되어 있습니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1056"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1419"/>
         <source>Invalid password provided.</source>
         <translation>잘못된 비밀번호가 제공되었습니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1062"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1425"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="84"/>
         <source>Error occured during document reading. %1</source>
         <translation>문서를 읽는 동안 오류가 발생했습니다. %1</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1075"/>
+        <location filename="../PdfTool/pdftoolabstractapplication.cpp" line="1438"/>
         <location filename="../PdfTool/pdftoolverifysignatures.cpp" line="95"/>
         <source>Warning: %1</source>
         <translation>경고: %1</translation>
@@ -4516,22 +5124,22 @@
         <translation>합계</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftooloptimize.cpp" line="39"/>
+        <location filename="../PdfTool/pdftooloptimize.cpp" line="40"/>
         <source>Optimize</source>
         <translation>최적화</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftooloptimize.cpp" line="42"/>
+        <location filename="../PdfTool/pdftooloptimize.cpp" line="43"/>
         <source>Optimize document size using various algorithms.</source>
         <translation>다양한 알고리즘을 사용하여 문서 크기를 최적화합니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftooloptimize.cpp" line="56"/>
+        <location filename="../PdfTool/pdftooloptimize.cpp" line="57"/>
         <source>No optimization option has been set.</source>
         <translation>최적화 옵션이 설정되지 않았습니다.</translation>
     </message>
     <message>
-        <location filename="../PdfTool/pdftooloptimize.cpp" line="77"/>
+        <location filename="../PdfTool/pdftooloptimize.cpp" line="87"/>
         <source>Failed to write optimize document. %1</source>
         <translation>최적화 문서를 작성하지 못했습니다. %1</translation>
     </message>
@@ -5208,6 +5816,76 @@
         <source>Failed to write document. %1</source>
         <translation>문서를 작성하지 못했습니다. %1</translation>
     </message>
+    <message>
+        <location filename="../PdfTool/pdftoolbitonal.cpp" line="48"/>
+        <source>Bitonal Document</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolbitonal.cpp" line="51"/>
+        <source>Convert a document into a bitonal (monochromatic) one.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolbitonal.cpp" line="71"/>
+        <source>No output document specified.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolbitonal.cpp" line="77"/>
+        <source>Threshold must be in range 0 to 255.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolbitonal.cpp" line="88"/>
+        <source>Page range can be used only with &apos;--bitonal-source pages&apos;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolbitonal.cpp" line="96"/>
+        <source>The option &apos;--bitonal-detect-blank&apos; can be used only with &apos;--bitonal-source pages&apos;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolbitonal.cpp" line="104"/>
+        <source>Resolution must be zero, or in range %1 to %2 DPI.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolbitonal.cpp" line="198"/>
+        <source>Blank page detection failed. The output document has not been written.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolbitonal.cpp" line="203"/>
+        <source>Note: %1 of %2 pages have been detected as blank and they are replaced by a white fill.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolbitonal.cpp" line="229"/>
+        <source>No page has been selected for the conversion.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolbitonal.cpp" line="230"/>
+        <source>Document does not contain any convertible image.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolbitonal.cpp" line="240"/>
+        <source>Failed to convert the document into the bitonal format.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolbitonal.cpp" line="248"/>
+        <source>Warning: %1 of %2 items could not be converted and they are left unchanged.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../PdfTool/pdftoolbitonal.cpp" line="259"/>
+        <source>Failed to write bitonal document. %1</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>PDFViewerMainWindow</name>
@@ -5723,20 +6401,23 @@
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="195"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="202"/>
         <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="237"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="624"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="638"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="645"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="861"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="882"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="948"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1043"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1074"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1289"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1296"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1367"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1374"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1388"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1395"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="254"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="271"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="658"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="672"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="679"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="895"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="916"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1021"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1116"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1130"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1161"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1376"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1383"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1454"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1461"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1475"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1482"/>
         <source>Enable</source>
         <translation>활성화</translation>
     </message>
@@ -5808,52 +6489,27 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>주석 표시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="246"/>
-        <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
-p, li { white-space: pre-wrap; }
-hr { height: 1px; border-width: 0; }
-li.unchecked::marker { content: &quot;\2610&quot;; }
-li.checked::marker { content: &quot;\2612&quot;; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The rendering settings control how the rendering engine handles page content and the appearance of displayed graphics. &lt;span style=&quot; font-weight:600;&quot;&gt;Antialiasing&lt;/span&gt; smooths out the appearance of painted shapes, such as rectangles, vector graphics, and lines, but doesn&apos;t affect text. &lt;span style=&quot; font-weight:600;&quot;&gt;Text antialiasing&lt;/span&gt;, on the other hand, refines the appearance of text characters, leaving other items untouched. Both &lt;span style=&quot; font-weight:600;&quot;&gt;Antialiasing &lt;/span&gt;and &lt;span style=&quot; font-weight:600;&quot;&gt;Text antialiasing &lt;/span&gt;are relevant only for the software renderer. If you&apos;re using a hardware rendering engine like OpenGL, these settings won&apos;t have an impact because OpenGL renders images using MSAA antialiasing (if enabled). &lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Smooth pictures&lt;/span&gt; option enables pictures to be transformed into device space coordinates using a high-quality image transformation method. This generally results in better image quality. When disabled, a default fast transformation is used, potentially reducing image quality if the source DPI and device DPI differ. &lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Ignore optional content &lt;/span&gt;ignores all optional content settings and renders everything in the content stream. &lt;span style=&quot; font-weight:600;&quot;&gt;Clip to crop box&lt;/span&gt; restricts the rendering area to the page&apos;s crop box, which is usually smaller than the whole page. Graphics outside the crop box aren&apos;t drawn, which can be useful for removing printer marks and similar elements. &lt;span style=&quot; font-weight:600;&quot;&gt;Display page compile/draw time&lt;/span&gt; can be handy for debugging, showing the time taken to compile a page (stored in the cache) and the time taken to render the compiled page contents onto the output device. &lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Using the &lt;span style=&quot; font-weight:600;&quot;&gt;Display annotations&lt;/span&gt; setting, you can enable or disable the display of annotations. If annotations are disabled, the user will not be able to interact with them. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
-p, li { 공백: 사전 포장; }
-시간 { 높이: 1px; 테두리 너비: 0; }
-li.unchecked::marker { 내용: &quot;\2610&quot;; }
-li.checked::marker { 내용: &quot;\2612&quot;; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;렌더링 설정은 렌더링 엔진이 페이지 콘텐츠와 표시된 그래픽의 모양을 처리하는 방법을 제어합니다. &lt;span style=&quot; font-weight:600;&quot;&gt;앤티앨리어싱&lt;/span&gt;은 직사각형, 벡터 그래픽, 선 등 칠해진 모양의 모양을 부드럽게 하지만 텍스트에는 영향을 주지 않습니다. 반면에 &lt;span style=&quot; font-weight:600;&quot;&gt;텍스트 앤티앨리어싱&lt;/span&gt;은 텍스트 문자의 모양을 다듬고 다른 항목은 그대로 유지합니다. &lt;span style=&quot; font-weight:600;&quot;&gt;앤티앨리어싱 &lt;/span&gt;및 &lt;span style=&quot; font-weight:600;&quot;&gt;텍스트 앤티앨리어싱 &lt;/span&gt;은 모두 소프트웨어 렌더러에만 관련됩니다. OpenGL과 같은 하드웨어 렌더링 엔진을 사용하는 경우 OpenGL은 MSAA 앤티앨리어싱(활성화된 경우)을 사용하여 이미지를 렌더링하므로 이러한 설정은 영향을 미치지 않습니다. &lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Smooth Pictures&lt;/span&gt; 옵션을 사용하면 고품질 이미지 변환 방법을 사용하여 그림을 장치 공간 좌표로 변환할 수 있습니다. 이는 일반적으로 이미지 품질을 향상시킵니다. 비활성화되면 기본 빠른 변환이 사용되어 소스 DPI와 장치 DPI가 다른 경우 이미지 품질이 저하될 수 있습니다. &lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;선택적 콘텐츠 무시 &lt;/span&gt;은 모든 선택적 콘텐츠 설정을 무시하고 콘텐츠 스트림의 모든 것을 렌더링합니다. &lt;span style=&quot; font-weight:600;&quot;&gt;자르기 상자에 자르기&lt;/span&gt;는 렌더링 영역을 페이지의 자르기 상자로 제한합니다. 이는 일반적으로 전체 페이지보다 작습니다. 자르기 상자 외부의 그래픽은 그려지지 않으므로 프린터 표시 및 유사한 요소를 제거하는 데 유용할 수 있습니다. &lt;span style=&quot; font-weight:600;&quot;&gt;페이지 컴파일/그리기 시간 표시&lt;/span&gt;은 페이지를 컴파일하는 데 걸리는 시간(캐시에 저장됨)과 컴파일된 페이지 콘텐츠를 출력 장치에 렌더링하는 데 걸리는 시간을 표시하여 디버깅에 유용할 수 있습니다. &lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;주석 표시&lt;/span&gt; 설정을 사용하면 주석 표시를 활성화하거나 비활성화할 수 있습니다. 주석이 비활성화되면 사용자는 주석과 상호 작용할 수 없습니다. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="282"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="316"/>
         <source>Shading Settings</source>
         <translation>음영 설정</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="290"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="324"/>
         <source>Preferred mesh resolution ratio</source>
         <translation>기본 메시 해상도 비율</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="297"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="331"/>
         <source>Color tolerance</source>
         <translation>색상 허용 오차</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="304"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="338"/>
         <source>Minimal mesh resolution ratio</source>
         <translation>최소 메시 해상도 비율</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="370"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="404"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -5878,38 +6534,38 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;색상 허용치&lt;/span&gt;은 두 가지 색상이 서로 다르게 인식되는 임계값입니다. 비교는 구성요소별로 수행되므로 하나 이상의 색상 구성요소가 이 매개변수를 초과하면 색상이 다른 것으로 처리됩니다. &lt;/p&gt;&lt;/&amp;body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="406"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="440"/>
         <source>Cache Settings</source>
         <translation>캐시 설정</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="414"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="448"/>
         <source>Thumbnail image cache size</source>
         <translation>썸네일 이미지 캐시 크기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="421"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="455"/>
         <source>Cached font limit</source>
         <translation>캐시된 글꼴 제한</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="444"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="467"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="478"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="501"/>
         <source> kB</source>
         <translation> kB</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="460"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="494"/>
         <source>Compiled page cache size</source>
         <translation>컴파일된 페이지 캐시 크기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="483"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="517"/>
         <source>Cached instanced font limit</source>
         <translation>캐시된 인스턴스 글꼴 제한</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="502"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="536"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -5932,82 +6588,82 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;렌더링 중에 글꼴도 캐시됩니다. 글꼴 캐시에는 두 가지 수준이 있습니다. 하나는 일반 글꼴이고 다른 하나는 인스턴스별 글꼴(특정 크기의 글꼴)입니다. &lt;span style=&quot; font-weight:600;&quot;&gt;캐시된 글꼴 제한&lt;/span&gt;은 캐시에 저장할 수 있는 최대 글꼴 수를 설정합니다. &lt;span style=&quot; font-weight:600;&quot;&gt;인스턴스 글꼴 캐시 제한&lt;/span&gt;은 저장할 수 있는 인스턴스별 글꼴의 최대 수를 설정합니다. 이러한 캐시 제한을 초과하면 글꼴이 캐시에서 제거됩니다. 그러나 이는 경쟁 조건을 피하기 위해 다른 스레드(예: 페이지 컴파일)에서 작업이 수행되지 않는 경우에만 발생합니다. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="537"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="571"/>
         <source>Shortcuts</source>
         <translation>바로가기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="569"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="603"/>
         <source>Color management system settings</source>
         <translation>색상 관리 시스템 설정</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="580"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="614"/>
         <source>Black point compensation</source>
         <translation>블랙 포인트 보정</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="587"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="621"/>
         <source>Device gray color profile</source>
         <translation>장치 회색 색상 프로필</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="600"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="634"/>
         <source>Accuracy</source>
         <translation>정확도</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="610"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="644"/>
         <source>Additional color profile directory</source>
         <translation>추가 색상 프로필 디렉터리</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="617"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="651"/>
         <source>White paper color transformed</source>
         <translation>흰색 종이 색상 변형</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="631"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="665"/>
         <source>Output color profile</source>
         <translation>출력 색상 프로필</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="652"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="686"/>
         <source>Rendering intent</source>
         <translation>렌더링 의도</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="665"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="699"/>
         <source>Consider document output intents</source>
         <translation>문서 출력 의도 고려</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="672"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="706"/>
         <source>Device RGB color profile</source>
         <translation>장치 RGB 색상 프로필</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="679"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="713"/>
         <source>Color management system</source>
         <translation>색상 관리 시스템</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="686"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="720"/>
         <source>Device CMYK color profile</source>
         <translation>장치 CMYK 색상 프로필</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="698"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="732"/>
         <source>...</source>
         <translation>...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="713"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="747"/>
         <source>Color adaptation method (XYZ whitepoint)</source>
         <translation>색상 적응 방법(XYZ 화이트포인트)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="722"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="756"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6030,32 +6686,32 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;문서에는 색상 공간 간 변환에 사용할 수 있는 출력 의도가 포함될 수 있습니다. &lt;span style=&quot; font-weight:600;&quot;&gt;Consider Document Output Intents&lt;/span&gt; 옵션이 선택되어 있으면 색상 관리 시스템은 문서에 출력 의도가 포함되어 있는지 확인합니다. 이러한 의도가 있는 경우 장치 색상 공간(회색/RGB/CMYK)으로 색상 변환에 사용됩니다. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="757"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="791"/>
         <source>Color Postprocessing</source>
         <translation>색상 후처리</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="768"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="802"/>
         <source>Sigmoid function slope parameter</source>
         <translation>시그모이드 함수 기울기 매개변수</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="775"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="809"/>
         <source>Foreground color</source>
         <translation>전경색</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="785"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="819"/>
         <source>Background color</source>
         <translation>배경색</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="802"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="836"/>
         <source>Bitonal threshold</source>
         <translation>이중 임계값</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="818"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="852"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6078,22 +6734,22 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:700;&quot;&gt;Bitonal 임계값&lt;/span&gt;은 Bitonal 렌더링 색상 모드에서 사용됩니다. 흑백 색상을 구별합니다. 그러나 이미지의 임계값은 자동으로 결정됩니다. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="853"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="887"/>
         <source>Security Settings</source>
         <translation>보안 설정</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="868"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="902"/>
         <source>Allow URI link launch</source>
         <translation>URI 링크 실행 허용</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="875"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="909"/>
         <source>Allow application launch</source>
         <translation>애플리케이션 실행 허용</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="891"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="925"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6116,88 +6772,148 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;사용자는 이러한 설정에 주의를 기울여야 하며 문서가 안전하고 신뢰할 수 있는 소스에서 나온 경우에만 실행을 확인해야 합니다. 외부 애플리케이션을 실행하고 URI 링크를 따라가면 사용자 컴퓨터에 위험이 발생할 수 있습니다. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="926"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="944"/>
+        <source>Author Identity</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="950"/>
+        <source>Author of new annotations</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="960"/>
+        <source>Custom author name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="970"/>
+        <source>The author name is stored in the document and is visible to anyone who opens it. To protect your privacy, the name of the system user is used only when you explicitly select it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="999"/>
         <source>UI Settings</source>
         <translation>UI 설정</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="934"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1007"/>
         <source>Maximum redo steps</source>
         <translation>최대 다시 실행 단계</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="969"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1042"/>
         <source>Sidebar button icon size</source>
         <translation>사이드바 버튼 아이콘 크기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="976"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1049"/>
         <source>Magnifier size</source>
         <translation>돋보기 크기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1036"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1109"/>
+        <source>Show sidebar when opening documents</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1123"/>
         <source>Use logical pixels when zooming</source>
         <translation>확대/축소 시 논리적 픽셀 사용</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1057"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1144"/>
         <source>Smooth mouse wheel scrolling</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1010"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1083"/>
         <source>px</source>
         <translation>px</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="993"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1066"/>
         <source>Maximum undo steps</source>
         <translation>최대 실행 취소 단계</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="962"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1035"/>
         <source>Magnifier zoom</source>
         <translation>돋보기 확대/축소</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1000"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1073"/>
         <source>Maximum count of recent files</source>
         <translation>최근 파일의 최대 개수</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1050"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1137"/>
         <source>Developer mode</source>
         <translation>개발자 모드</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1026"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1099"/>
         <source>Color Scheme (GUI)</source>
         <translation>색 구성표(GUI)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1064"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="244"/>
+        <source>Draw text as real text (print/export)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="251"/>
+        <source>Uses substitute fonts and may look different from the embedded font. Only affects printing and exporting to devices which preserve text (such as SVG), it has no effect on the on-screen page view.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="261"/>
+        <source>Adjust colors of annotations</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="268"/>
+        <source>Applies the active color adjustment (inverted colors, grayscale, high contrast, bitonal or custom colors) also to annotations, so they match the adjusted page content. It affects the screen only, printing and exporting of the document are not changed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="280"/>
+        <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+hr { height: 1px; border-width: 0; }
+li.unchecked::marker { content: &quot;\2610&quot;; }
+li.checked::marker { content: &quot;\2612&quot;; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Segoe UI&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;The rendering settings control how the rendering engine handles page content and the appearance of displayed graphics. &lt;span style=&quot; font-weight:600;&quot;&gt;Antialiasing&lt;/span&gt; smooths out the appearance of painted shapes, such as rectangles, vector graphics, and lines, but doesn&apos;t affect text. &lt;span style=&quot; font-weight:600;&quot;&gt;Text antialiasing&lt;/span&gt;, on the other hand, refines the appearance of text characters, leaving other items untouched. Both &lt;span style=&quot; font-weight:600;&quot;&gt;Antialiasing &lt;/span&gt;and &lt;span style=&quot; font-weight:600;&quot;&gt;Text antialiasing &lt;/span&gt;are relevant only for the software renderer. If you&apos;re using a hardware rendering engine like OpenGL, these settings won&apos;t have an impact because OpenGL renders images using MSAA antialiasing (if enabled). &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Smooth pictures&lt;/span&gt; option enables pictures to be transformed into device space coordinates using a high-quality image transformation method. This generally results in better image quality. When disabled, a default fast transformation is used, potentially reducing image quality if the source DPI and device DPI differ. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Ignore optional content &lt;/span&gt;ignores all optional content settings and renders everything in the content stream. &lt;span style=&quot; font-weight:600;&quot;&gt;Clip to crop box&lt;/span&gt; restricts the rendering area to the page&apos;s crop box, which is usually smaller than the whole page. Graphics outside the crop box aren&apos;t drawn, which can be useful for removing printer marks and similar elements. &lt;span style=&quot; font-weight:600;&quot;&gt;Display page compile/draw time&lt;/span&gt; can be handy for debugging, showing the time taken to compile a page (stored in the cache) and the time taken to render the compiled page contents onto the output device. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Using the &lt;span style=&quot; font-weight:600;&quot;&gt;Display annotations&lt;/span&gt; setting, you can enable or disable the display of annotations. If annotations are disabled, the user will not be able to interact with them. &lt;span style=&quot; font-weight:600;&quot;&gt;Adjust colors of annotations&lt;/span&gt; controls whether the active color adjustment, such as inverted colors, is applied to annotations as well, or whether annotations keep their original colors above the adjusted page content. It affects the screen only, printing and exporting of the document are never color adjusted. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1151"/>
         <source>Language</source>
         <translation>언어</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1081"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1168"/>
         <source>Horizontal mouse wheel speed</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1088"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1102"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1175"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1189"/>
         <source>%</source>
         <translation type="unfinished">%</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1095"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1182"/>
         <source>Vertical mouse wheel speed</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1111"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1198"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6220,42 +6936,42 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;실행 취소/다시 실행&lt;/span&gt; 단계 수를 지정하여 문서 편집 중에 사용할 수 있는 실행 취소/다시 실행 단계 수를 제어합니다. 최대 실행 취소 단계 수를 0으로 설정하면 실행 취소/다시 실행 기능이 비활성화됩니다. 또한 실행 취소 단계 수를 0이 아닌 값으로 설정하고 다시 실행 단계 수를 0으로 설정할 수도 있습니다. 이렇게 하면 다시 실행 작업이 비활성화된 상태에서 실행 취소 작업만 사용할 수 있습니다. 변경 사항은 메모리 사용에 최적화되어 있으므로 각 실행 취소/다시 실행 단계는 수정되지 않은 개체를 다른 사람과 공유합니다. 즉, 대략적으로 말하면 50MB 문서를 10번 수정하면 약 51MB의 메모리가 소모될 수 있습니다. 실제 메모리 사용량은 변경 정도에 따라 다르지만 일반적으로 변경 사항이 적은 수의 개체에 영향을 미치기 때문에(예: 양식 필드 편집 또는 주석 수정) 일반적으로 최소입니다. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1146"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1233"/>
         <source>Speech Settings</source>
         <translation>음성 설정</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1154"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1241"/>
         <source>Voice</source>
         <translation>음성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1161"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1248"/>
         <source>Pitch</source>
         <translation>피치</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1168"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1255"/>
         <source>Volume</source>
         <translation>볼륨</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1175"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1262"/>
         <source>Rate</source>
         <translation>속도</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1182"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1269"/>
         <source>Voice synthetiser</source>
         <translation>음성 합성기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1189"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1276"/>
         <source>Locale</source>
         <translation>로케일</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1234"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1321"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6274,22 +6990,22 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;문서 읽기를 위한 텍스트 음성 변환 기능을 활성화하려면 음성 설정을 구성합니다. 이러한 설정은 텍스트 음성 변환 기능의 기본값으로 작동하지만 일부는 나중에 조정할 수 있습니다. &apos;피치&apos; 설정은 -1.0에서 1.0까지 다양하며 기본값은 0.0입니다. 마찬가지로 &apos;Rate&apos;의 범위는 -1.0에서 1.0까지이며 0.0은 정상적인 음성 흐름을 나타냅니다. 마지막으로 &apos;Volume&apos;은 0.0에서 1.0 사이에서 조정할 수 있습니다. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1267"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1354"/>
         <source>Form Settings</source>
         <translation>양식 설정</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1275"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1362"/>
         <source>Highlight form fields</source>
         <translation>양식 필드 강조 표시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1282"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1369"/>
         <source>Highlight required form fields</source>
         <translation>필수 양식 필드 강조 표시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1305"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1392"/>
         <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;meta charset=&quot;utf-8&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -6308,47 +7024,47 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;편집 가능한 필드를 강조 표시하는 옵션을 포함하여 제공된 설정을 사용하여 양식 필드의 모양을 사용자 정의할 수 있습니다. 필수 양식 필드는 빨간색으로 별도로 강조 표시할 수 있고, 다른 필드는 파란색으로 강조 표시할 수 있습니다. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1338"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1425"/>
         <source>Digital Signature Verification</source>
         <translation>디지털 서명 확인</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1346"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1433"/>
         <source>Ignore expired certificates</source>
         <translation>만료된 인증서 무시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1353"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1440"/>
         <source>Signature verification</source>
         <translation>서명 확인</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1360"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1447"/>
         <source>Strict mode</source>
         <translation>엄격 모드</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1381"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1468"/>
         <source>Use system certificate store</source>
         <translation>시스템 인증서 저장소 사용</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1411"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1498"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Trusted certificate store&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;신뢰할 수 있는 인증서 저장소&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1440"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1527"/>
         <source>Remove</source>
         <translation>제거</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1456"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1543"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;These are the settings for digital signature verification. Digital signatures are verified as strictly as possible to prevent any malicious content or signature manipulation. Verification can also be disabled, if not required. When &lt;span style=&quot; font-weight:600;&quot;&gt;Strict mode&lt;/span&gt; is enabled, every warning is treated as an error. You have the option to ignore the certificate expiration date, but this should only be done if you fully understand the potential risks involved. Verification uses a list of trusted certificates. System certificates can be added to this list, and you can also manage your own list of trusted certificates.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;디지털 서명 확인을 위한 설정입니다. 악의적인 내용이나 서명 조작을 방지하기 위해 디지털 서명은 최대한 엄격하게 검증됩니다. 필요하지 않은 경우 확인을 비활성화할 수도 있습니다. &lt;span style=&quot; font-weight:600;&quot;&gt;엄격 모드&lt;/span&gt;이 활성화되면 모든 경고가 오류로 처리됩니다. 인증서 만료 날짜를 무시할 수 있는 옵션이 있지만 이는 관련된 잠재적 위험을 완전히 이해하는 경우에만 수행해야 합니다. 확인에서는 신뢰할 수 있는 인증서 목록을 사용합니다. 시스템 인증서를 이 목록에 추가할 수 있으며 신뢰할 수 있는 인증서 목록을 직접 관리할 수도 있습니다.  &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1485"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.ui" line="1572"/>
         <source>Plugins</source>
         <translation>플러그인</translation>
     </message>
@@ -6356,8 +7072,274 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>QObject</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="242"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="466"/>
         <source>Text color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="54"/>
+        <source> mm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="80"/>
+        <source>0 B</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="85"/>
+        <source>%1 KB</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="88"/>
+        <source>%1 MB</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="189"/>
+        <source>Auto</source>
+        <translation type="unfinished">자동</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="190"/>
+        <source>Flate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="193"/>
+        <source>JPEG</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="194"/>
+        <source>JPEG2000</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="196"/>
+        <source>RunLength</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="199"/>
+        <source>CCITT Group 4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="200"/>
+        <source>JBIG2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="210"/>
+        <source>Nearest</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="211"/>
+        <source>Bilinear</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="212"/>
+        <source>Bicubic</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="213"/>
+        <source>Lanczos</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/wiascannerbackend.cpp" line="45"/>
+        <source>Windows Image Acquisition</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/wiascannerbackend.cpp" line="52"/>
+        <source>System dialog</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/wiascannerbackend.cpp" line="62"/>
+        <source>Failed to create a temporary directory for scanned images.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/wiascannerbackend.cpp" line="69"/>
+        <source>PowerShell was not found. It is required to start the Windows WIA scanner dialog.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/wiascannerbackend.cpp" line="105"/>
+        <source>Failed to run the Windows WIA scanner dialog.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/wiascannerbackend.cpp" line="114"/>
+        <source>The Windows WIA scanner dialog failed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/wiascannerbackend.cpp" line="135"/>
+        <source>No image was acquired from the Windows WIA scanner dialog.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="706"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="726"/>
+        <source>Grouped</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="706"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="734"/>
+        <source>Ungrouped</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="713"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="742"/>
+        <source>Portrait</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="718"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="750"/>
+        <source>Landscape</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLaunchPad/launchapplication.cpp" line="66"/>
+        <location filename="../Pdf4QtLaunchPad/launchapplication.cpp" line="72"/>
+        <source>Error</source>
+        <translation type="unfinished">오류</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLaunchPad/launchapplication.cpp" line="66"/>
+        <location filename="../Pdf4QtLaunchPad/launchapplication.cpp" line="72"/>
+        <source>Failed to start process &apos;%1&apos;</source>
+        <translation type="unfinished">&apos;%1&apos; 프로세스를 시작하지 못했습니다.</translation>
+    </message>
+</context>
+<context>
+    <name>ScaleDialog</name>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scaledialog.ui" line="14"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scaledialog.ui" line="30"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scaledialog.cpp" line="91"/>
+        <source>Scale</source>
+        <translation type="unfinished">규모</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scaledialog.ui" line="36"/>
+        <source>Distance on the paper</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scaledialog.ui" line="59"/>
+        <source>Real distance</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scaledialog.ui" line="95"/>
+        <source>Preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scaledialog.ui" line="101"/>
+        <source>Name</source>
+        <translation type="unfinished">이름</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scaledialog.ui" line="111"/>
+        <source>Description</source>
+        <translation type="unfinished">설명</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scaledialog.cpp" line="83"/>
+        <source>Calibrate Scale</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scaledialog.cpp" line="84"/>
+        <source>Enter the real distance between the two points you have picked in the document. The scale of the drawing is calculated from it. If you name the scale, it is stored as a preset and you can use it for other documents.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scaledialog.cpp" line="92"/>
+        <source>Enter the distance measured on the paper and the real distance, which it represents. For example, a drawing in the scale 1:50 is defined as 1 mm = 50 mm.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scaledialog.cpp" line="155"/>
+        <source>Resulting scale: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ScalePresetsDialog</name>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scalepresetsdialog.ui" line="14"/>
+        <source>Manage Scale Presets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scalepresetsdialog.ui" line="37"/>
+        <source>Add...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scalepresetsdialog.ui" line="44"/>
+        <source>Edit...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scalepresetsdialog.ui" line="51"/>
+        <source>Remove</source>
+        <translation type="unfinished">제거</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scalepresetsdialog.ui" line="58"/>
+        <source>Restore Defaults</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scalepresetsdialog.cpp" line="46"/>
+        <source>Name</source>
+        <translation type="unfinished">이름</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scalepresetsdialog.cpp" line="46"/>
+        <source>Scale</source>
+        <translation type="unfinished">규모</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scalepresetsdialog.cpp" line="46"/>
+        <source>Description</source>
+        <translation type="unfinished">설명</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scalepresetsdialog.cpp" line="123"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scalepresetsdialog.cpp" line="151"/>
+        <source>Scale Preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scalepresetsdialog.cpp" line="123"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scalepresetsdialog.cpp" line="151"/>
+        <source>Name of the preset must be filled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scalepresetsdialog.cpp" line="176"/>
+        <source>Scale Presets</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/scalepresetsdialog.cpp" line="176"/>
+        <source>Do you want to replace the scale presets by the default ones?</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -6371,11 +7353,6 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 </context>
 <context>
     <name>SettingsDialog</name>
-    <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="14"/>
-        <source>Unit Settings</source>
-        <translation>장치 설정</translation>
-    </message>
     <message>
         <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="20"/>
         <source>Units</source>
@@ -6397,38 +7374,73 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>각도</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="66"/>
-        <source>Scale 1:</source>
-        <translation>스케일 1:</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="76"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="135"/>
         <source>Appearance</source>
         <translation>모양</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="92"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="151"/>
         <source>Font</source>
         <translation>글꼴</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="106"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="165"/>
         <source>Select...</source>
         <translation>선택...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="99"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="158"/>
         <source>Text Color</source>
         <translation>텍스트 색상</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="113"/>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="120"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="14"/>
+        <source>Measurement Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="59"/>
+        <source>Scale</source>
+        <translation type="unfinished">규모</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="65"/>
+        <source>Default scale</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="79"/>
+        <source>Change...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="86"/>
+        <source>Remember the scale for each document separately</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="93"/>
+        <source>The default scale is used for documents, which were not calibrated yet and which do not define their own scale.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="106"/>
+        <source>Measurements</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="112"/>
+        <source>Store measurements as</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="172"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="179"/>
         <source>Select</source>
         <translation>선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="85"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.ui" line="144"/>
         <source>Background Color</source>
         <translation>배경색</translation>
     </message>
@@ -6479,19 +7491,39 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>채도</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.cpp" line="50"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.cpp" line="93"/>
+        <source>Temporary measurements</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.cpp" line="94"/>
+        <source>Annotations in the document</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.cpp" line="108"/>
         <source>Select Text Color</source>
         <translation>텍스트 색상 선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.cpp" line="57"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.cpp" line="116"/>
         <source>Select Background Color</source>
         <translation>배경색 선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.cpp" line="65"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.cpp" line="125"/>
         <source>Select Font</source>
         <translation>글꼴 선택</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.cpp" line="191"/>
+        <source>Measurements are added to the document as measurement annotations, so they are saved with it and can be read by other applications. The scale, which was used, is stored in the annotation, so changing the scale later does not affect the measurements created before. Annotations are drawn by the annotation renderer, which uses its own font, so the font below applies to the temporary measurements only. The colors are used for both.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/settingsdialog.cpp" line="201"/>
+        <source>Measurements are drawn over the document and are lost when the document is closed. They always use the current scale and the document itself is not modified.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -6648,9 +7680,115 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
     </message>
 </context>
 <context>
+    <name>pdf::InsertPageNumbersDialog</name>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.cpp" line="48"/>
+        <source>Arabic numerals (1, 2, 3, ...)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.cpp" line="49"/>
+        <source>Uppercase roman numerals (I, II, III, ...)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.cpp" line="50"/>
+        <source>Lowercase roman numerals (i, ii, iii, ...)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.cpp" line="51"/>
+        <source>Uppercase letters (A, B, C, ...)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.cpp" line="52"/>
+        <source>Lowercase letters (a, b, c, ...)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.cpp" line="56"/>
+        <source>Page %1</source>
+        <translation type="unfinished">페이지 %1</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.cpp" line="57"/>
+        <source>Page %1 of %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.cpp" line="60"/>
+        <source>Left</source>
+        <translation type="unfinished">왼쪽</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.cpp" line="61"/>
+        <source>Center</source>
+        <translation type="unfinished">가운데</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.cpp" line="62"/>
+        <source>Right</source>
+        <translation type="unfinished">오른쪽</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.cpp" line="65"/>
+        <source>Pages to Number</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.cpp" line="128"/>
+        <source>Error</source>
+        <translation type="unfinished">오류</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/insertpagenumbersdialog.cpp" line="146"/>
+        <source>Select Text Color</source>
+        <translation type="unfinished">텍스트 색상 선택</translation>
+    </message>
+</context>
+<context>
+    <name>pdf::PDFAnnotationStyleWidget</name>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfannotationstyle.cpp" line="98"/>
+        <source>Annotation Style</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfannotationstyle.cpp" line="107"/>
+        <source>Color</source>
+        <translation type="unfinished">색상</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfannotationstyle.cpp" line="112"/>
+        <source>Fill</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfannotationstyle.cpp" line="132"/>
+        <source>Pen width</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfannotationstyle.cpp" line="202"/>
+        <source>Select Color</source>
+        <translation type="unfinished">색상 선택</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfannotationstyle.cpp" line="213"/>
+        <source>Select Fill Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfannotationstyle.cpp" line="264"/>
+        <source>None</source>
+        <translation type="unfinished">없음</translation>
+    </message>
+</context>
+<context>
     <name>pdf::PDFAsynchronousTextLayoutCompiler</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfcompiler.cpp" line="548"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfcompiler.cpp" line="656"/>
         <source>Indexing document contents...</source>
         <translation>문서 내용 인덱싱 중...</translation>
     </message>
@@ -6658,7 +7796,7 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFAttachmentsTreeItemModel</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfitemmodels.cpp" line="917"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfitemmodels.cpp" line="1000"/>
         <source>Files</source>
         <translation>파일</translation>
     </message>
@@ -6666,77 +7804,77 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFCMSManager</name>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1596"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1797"/>
         <source>Generic</source>
         <translation>일반</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1602"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1803"/>
         <source>Little CMS %1.%2</source>
         <translation>작은 CMS %1.%2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1656"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1857"/>
         <source>Gray D65, γ = 2.2</source>
         <translation>회색 D65, γ = 2.2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1657"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1858"/>
         <source>Gray D50, γ = 2.2</source>
         <translation>회색 D50, γ = 2.2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1658"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1859"/>
         <source>Gray D93, γ = 2.2</source>
         <translation>회색 D93, γ = 2.2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1659"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1860"/>
         <source>Gray D65, γ = 1.0 (linear)</source>
         <translation>회색 D65, γ = 1.0(선형)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1660"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1861"/>
         <source>Gray D50, γ = 1.0 (linear)</source>
         <translation>회색 D50, γ = 1.0(선형)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1661"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1862"/>
         <source>Gray D93, γ = 1.0 (linear)</source>
         <translation>회색 D93, γ = 1.0(선형)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1678"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1879"/>
         <source>HDTV (ITU-R BT.709)</source>
         <translation>HDTV(ITU-R BT.709)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1679"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1880"/>
         <source>Adobe RGB 1998</source>
         <translation>어도비 RGB 1998</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1680"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1881"/>
         <source>PAL / SECAM</source>
         <translation>PAL / SECAM</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1681"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1882"/>
         <source>NTSC</source>
         <translation>NTSC</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1682"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1883"/>
         <source>Adobe Wide Gamut RGB</source>
         <translation>Adobe 넓은 영역 RGB</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1683"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1884"/>
         <source>ProPhoto RGB</source>
         <translation>프로포토 RGB</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="1834"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="2051"/>
         <source>sRGB</source>
         <translation>sRGB</translation>
     </message>
@@ -6885,96 +8023,106 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFCreateFreeTextTool</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="182"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="406"/>
         <source>Free text annotation</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="201"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="425"/>
         <source>Select</source>
         <translation type="unfinished">선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="211"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="435"/>
         <source>Left</source>
         <translation type="unfinished">왼쪽</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="212"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="436"/>
         <source>Center</source>
         <translation type="unfinished">가운데</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="213"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="437"/>
         <source>Right</source>
         <translation type="unfinished">오른쪽</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="223"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="447"/>
         <source>Automatically expand annotation to fit text</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="226"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="450"/>
         <source>Text:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="227"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="451"/>
         <source>Font:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="228"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="452"/>
         <source>Size:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="229"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="453"/>
         <source>Color:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="230"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="454"/>
         <source>Alignment:</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
-    <name>pdf::PDFCreateHighlightTextTool</name>
-    <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="1268"/>
-        <source>Select Color</source>
-        <translation>색상 선택</translation>
-    </message>
-</context>
-<context>
     <name>pdf::PDFCreateHyperlinkTool</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="147"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="186"/>
         <source>Hyperlink</source>
         <translation>하이퍼링크</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="147"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="186"/>
         <source>Enter url address of the hyperlink</source>
         <translation>하이퍼링크의 URL 주소를 입력하세요</translation>
     </message>
 </context>
 <context>
+    <name>pdf::PDFCreateInDocumentHyperlinkTool</name>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="253"/>
+        <source>Select hyperlink rectangle.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="289"/>
+        <source>Select target rectangle.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="295"/>
+        <source>Select target page.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>pdf::PDFCreateLineTypeTool</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="536"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="795"/>
         <source>Orthogonal mode is enabled.</source>
         <translation>직교 모드가 활성화되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="540"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="799"/>
         <source>Orthogonal mode is disabled.</source>
         <translation>직교 모드가 비활성화되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="701"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="558"/>
         <source>Use key &apos;C&apos; to show/hide large cross. Use key &apos;O&apos; to switch on/off orthogonal mode.</source>
         <translation>&apos;C&apos; 키를 사용하여 큰 십자가를 표시하거나 숨깁니다. 직교 모드를 켜거나 끄려면 키 &apos;O&apos;를 사용하십시오.</translation>
     </message>
@@ -6982,7 +8130,17 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFCreatePCElementImageTool</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditortools.cpp" line="422"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditortools.cpp" line="427"/>
+        <source>Images (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditortools.cpp" line="428"/>
+        <source>All files (*)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditortools.cpp" line="430"/>
         <source>Select Image</source>
         <translation>이미지 선택</translation>
     </message>
@@ -6990,137 +8148,145 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFCreateStickyNoteTool</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="98"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="136"/>
         <source>Sticky note</source>
         <translation>스티커 메모</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="98"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="136"/>
         <source>Enter text to be displayed in the sticky note</source>
         <translation>스티커 메모에 표시할 텍스트를 입력합니다.</translation>
     </message>
 </context>
 <context>
+    <name>pdf::PDFDeleteAnnotationTool</name>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfadvancedtools.cpp" line="2078"/>
+        <source>Click on an annotation to delete it. Drag a rectangle to delete all annotations inside it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>pdf::PDFDependentLibraryInfo</name>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="265"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="291"/>
         <source>Qt</source>
         <translation>Qt</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="266"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="292"/>
         <source>LGPLv3</source>
         <translation>LGPLv3</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="268"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="294"/>
         <source>https://www.qt.io/</source>
         <translation>https://www.qt.io/</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="274"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="300"/>
         <source>permissive + ack.</source>
         <translation>허용 + 승인.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="316"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="342"/>
         <source>%1.%2</source>
         <translation>%1.%2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="288"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="314"/>
         <source>FreeType</source>
         <translation>FreeType</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="273"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="299"/>
         <source>libjpeg-turbo</source>
         <translation>libjpeg-터보</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="275"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="301"/>
         <source>https://libjpeg-turbo.org/</source>
         <translation>https://libjpeg-turbo.org/</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="289"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="315"/>
         <source>FTL</source>
         <translation>FTL</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="290"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="316"/>
         <source>%1.%2.%3</source>
         <translation>%1.%2.%3</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="291"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="317"/>
         <source>https://www.freetype.org/index.html</source>
         <translation>https://www.freetype.org/index.html</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="296"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="322"/>
         <source>OpenJPEG</source>
         <translation>OpenJPEG</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="297"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="315"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="323"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="341"/>
         <source>2-clause MIT license</source>
         <translation>2절 MIT 라이선스</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="299"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="325"/>
         <source>https://www.openjpeg.org/</source>
         <translation>https://www.openjpeg.org/</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="304"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="330"/>
         <source>OpenSSL</source>
         <translation>OpenSSL</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="305"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="331"/>
         <source>Apache 2.0</source>
         <translation>아파치 2.0</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="307"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="333"/>
         <source>https://www.openssl.org/</source>
         <translation>https://www.openssl.org/</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="314"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="340"/>
         <source>LittleCMS</source>
         <translation>LittleCMS</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="317"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="343"/>
         <source>http://www.littlecms.com/</source>
         <translation>http://www.littlecms.com/</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="322"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="348"/>
         <source>zlib</source>
         <translation>zlib</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="323"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="335"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="349"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="361"/>
         <source>zlib specific</source>
         <translation>zlib 특정</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="325"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="351"/>
         <source>https://zlib.net/</source>
         <translation>https://zlib.net/</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="334"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="360"/>
         <source>Blend2D</source>
         <translation>Blend2D</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="337"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="363"/>
         <source>https://blend2d.com/</source>
         <translation>https://blend2d.com/</translation>
     </message>
@@ -7296,50 +8462,50 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFDocumentManipulator</name>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="35"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="55"/>
         <source>Empty page list.</source>
         <translation>빈 페이지 목록입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="62"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="283"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="82"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="346"/>
         <source>Invalid document.</source>
         <translation>잘못된 문서입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="170"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="305"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="192"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="368"/>
         <source>Missing page (%1) in a document.</source>
         <translation>문서에 페이지(%1)가 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="211"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="218"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="233"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="240"/>
         <source>Missing image.</source>
         <translation>이미지가 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="239"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="281"/>
         <source>Error occured during page creation.</source>
         <translation>페이지 생성 중에 오류가 발생했습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="577"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="640"/>
         <source>Document %1</source>
         <translation>문서 %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="582"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="645"/>
         <source>%1, p. %2</source>
         <translation>%1, p. %2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="591"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="654"/>
         <source>%1 Images</source>
         <translation>%1 이미지</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="595"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentmanipulator.cpp" line="658"/>
         <source>%1 Pages</source>
         <translation>%1 페이지</translation>
     </message>
@@ -7409,48 +8575,53 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFDocumentSanitizer</name>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="156"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="676"/>
         <source>Document info was removed.</source>
         <translation>문서 정보가 제거되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="174"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="694"/>
         <source>Metadata streams removed: %1</source>
         <translation>제거된 메타데이터 스트림: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="189"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="709"/>
         <source>Outline was removed.</source>
         <translation>개요가 제거되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="199"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="719"/>
         <source>File attachments removed: %1.</source>
         <translation>제거된 첨부 파일: %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="227"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="747"/>
         <source>Embedded files were removed.</source>
         <translation>포함된 파일이 제거되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="259"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="779"/>
         <source>Search index was removed.</source>
         <translation>검색 색인이 제거되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="270"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="790"/>
         <source>Markup annotations removed: %1.</source>
         <translation>마크업 주석 제거됨: %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="298"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="818"/>
         <source>Page thumbnails removed: %1.</source>
         <translation>페이지 축소판이 제거됨: %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="321"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="841"/>
         <source>Page labels were removed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfdocumentsanitizer.cpp" line="900"/>
+        <source>Invisible text content streams sanitized: %1.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -7540,7 +8711,7 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFExtractImageTool</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="1704"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="1790"/>
         <source>Image of size %1 x %2 pixels was copied to the clipboard.</source>
         <translation>%1 x %2 픽셀 크기의 이미지가 클립보드에 복사되었습니다.</translation>
     </message>
@@ -7548,38 +8719,38 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFFindTextTool</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="409"/>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="662"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="412"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="665"/>
         <source>Find</source>
         <translation>찾기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="421"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="424"/>
         <source>Case sensitive</source>
         <translation>대소문자를 구분합니다</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="422"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="425"/>
         <source>Whole words only</source>
         <translation>전체 단어만</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="423"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="426"/>
         <source>Previous</source>
         <translation>이전</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="424"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="427"/>
         <source>Next</source>
         <translation>다음</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="448"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="451"/>
         <source>Search text</source>
         <translation>검색 텍스트</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="666"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="669"/>
         <source>Find (%1/%2)</source>
         <translation>찾기(%1/%2)</translation>
     </message>
@@ -8406,7 +9577,7 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFOutlineTreeItemModel</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfitemmodels.cpp" line="692"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfitemmodels.cpp" line="775"/>
         <source>Item %1</source>
         <translation>항목 %1</translation>
     </message>
@@ -8450,32 +9621,32 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>이미지</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="111"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="112"/>
         <source>Text</source>
         <translation>텍스트</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="118"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="119"/>
         <source>Style</source>
         <translation>스타일</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="131"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="132"/>
         <source>Transformation</source>
         <translation>변환</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="355"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="362"/>
         <source>Select Image</source>
         <translation>이미지 선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="387"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="395"/>
         <source>Select Color for Pen</source>
         <translation>펜 색상 선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="412"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorediteditemsettings.cpp" line="420"/>
         <source>Select Color for Brush</source>
         <translation>브러시 색상 선택</translation>
     </message>
@@ -8568,6 +9739,313 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontenteditorstylesettings.cpp" line="466"/>
         <source>Select Color for Brush</source>
         <translation>브러시 색상 선택</translation>
+    </message>
+</context>
+<context>
+    <name>pdf::PDFPageGeometryDialog</name>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="86"/>
+        <source>Page Geometry</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="92"/>
+        <source>Pages</source>
+        <translation type="unfinished">페이지</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="94"/>
+        <source>Document page count: 0</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="97"/>
+        <source>All pages</source>
+        <translation type="unfinished">모든 페이지</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="98"/>
+        <source>Odd pages</source>
+        <translation type="unfinished">홀수 페이지</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="99"/>
+        <source>Even pages</source>
+        <translation type="unfinished">짝수 페이지</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="100"/>
+        <source>Portrait pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="101"/>
+        <source>Landscape pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="103"/>
+        <source>Page range</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="104"/>
+        <source>Subset</source>
+        <translation type="unfinished">하위 집합</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="107"/>
+        <source>Reference and Target Boxes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="110"/>
+        <source>Media box</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="111"/>
+        <source>Crop box</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="112"/>
+        <source>Bleed box</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="113"/>
+        <source>Trim box</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="114"/>
+        <source>Art box</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="116"/>
+        <source>Media</source>
+        <translation type="unfinished">미디어</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="117"/>
+        <source>Crop</source>
+        <translation type="unfinished">자르기</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="118"/>
+        <source>Bleed</source>
+        <translation type="unfinished">블리드</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="119"/>
+        <source>Trim</source>
+        <translation type="unfinished">손질</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="120"/>
+        <source>Art</source>
+        <translation type="unfinished">아트</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="124"/>
+        <source>Reference box</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="126"/>
+        <source>Apply to</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="134"/>
+        <source>Size and Margins</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="137"/>
+        <source>Use target page size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="139"/>
+        <source>Custom</source>
+        <translation type="unfinished">사용자 정의</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="140"/>
+        <source>A5 148 x 210</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="141"/>
+        <source>A4 210 x 297</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="142"/>
+        <source>A3 297 x 420</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="143"/>
+        <source>Letter 216 x 279</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="144"/>
+        <source>Legal 216 x 356</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="158"/>
+        <source>Preset</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="160"/>
+        <source>Width</source>
+        <translation type="unfinished">너비</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="162"/>
+        <source>Height</source>
+        <translation type="unfinished">높이</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="164"/>
+        <source>Left margin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="166"/>
+        <source>Top margin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="168"/>
+        <source>Right margin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="170"/>
+        <source>Bottom margin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="174"/>
+        <source>Placement and Content</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="178"/>
+        <source>Top left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="179"/>
+        <source>Top center</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="180"/>
+        <source>Top right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="181"/>
+        <source>Middle left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="182"/>
+        <source>Middle center</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="183"/>
+        <source>Middle right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="184"/>
+        <source>Bottom left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="185"/>
+        <source>Bottom center</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="186"/>
+        <source>Bottom right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="192"/>
+        <source>Scale content</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="193"/>
+        <source>Preserve aspect ratio</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="194"/>
+        <source>Scale comments and form fields</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="198"/>
+        <source>Anchor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="200"/>
+        <source>Offset X</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="202"/>
+        <source>Offset Y</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="209"/>
+        <source>Tip: if content scaling is disabled, page geometry is adjusted only by page boxes (non-destructive).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="227"/>
+        <source>Document page count: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="326"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="335"/>
+        <source>Error</source>
+        <translation type="unfinished">오류</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="326"/>
+        <source>Select at least one target page box.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagegeometrydialog.cpp" line="335"/>
+        <source>Target page size must be greater than zero.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>pdf::PDFPageRangeWidget</name>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagerangewidget.cpp" line="125"/>
+        <source>Selected page range is empty.</source>
+        <translation type="unfinished">선택한 페이지 범위가 비어 있습니다.</translation>
     </message>
 </context>
 <context>
@@ -8750,7 +10228,7 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFPickTool</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="1583"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="1639"/>
         <source>Use key &apos;C&apos; to show/hide large cross.</source>
         <translation>&apos;C&apos; 키를 사용하여 큰 십자가를 표시하거나 숨깁니다.</translation>
     </message>
@@ -8796,7 +10274,7 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFScreenshotTool</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="1673"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="1759"/>
         <source>Page contents of size %1 x %2 pixels were copied to the clipboard.</source>
         <translation>%1 x %2 픽셀 크기의 페이지 콘텐츠가 클립보드에 복사되었습니다.</translation>
     </message>
@@ -8822,21 +10300,15 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdf::PDFSelectPagesDialog</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.cpp" line="128"/>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.cpp" line="135"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.cpp" line="70"/>
         <source>Error</source>
         <translation>오류</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfselectpagesdialog.cpp" line="135"/>
-        <source>Selected page range is empty.</source>
-        <translation>선택한 페이지 범위가 비어 있습니다.</translation>
     </message>
 </context>
 <context>
     <name>pdf::PDFSelectTableTool</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="2037"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgettool.cpp" line="2123"/>
         <source>Table region was selected. Use left/right mouse buttons to add/remove rows/columns, then use Enter key to copy the table.</source>
         <translation>테이블 영역이 선택되었습니다. 마우스 왼쪽/오른쪽 버튼을 사용하여 행/열을 추가/제거한 후 Enter 키를 사용하여 테이블을 복사하세요.</translation>
     </message>
@@ -8855,14 +10327,14 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="204"/>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="2750"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="2834"/>
         <source>Text</source>
         <translation>텍스트</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="207"/>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="213"/>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="1128"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="1201"/>
         <source>Line</source>
         <translation>라인</translation>
     </message>
@@ -8989,7 +10461,7 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="285"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="966"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="1022"/>
         <source>Rich Media</source>
         <translation>리치 미디어</translation>
     </message>
@@ -8999,142 +10471,142 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>응답</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3034"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3146"/>
         <source>&amp;Approved</source>
         <translation>&amp;승인됨</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3035"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3147"/>
         <source>APPROVED</source>
         <translation>APPROVED</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3039"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3151"/>
         <source>As &amp;Is</source>
         <translation>&amp;현재대로</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3040"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3152"/>
         <source>AS IS</source>
         <translation>현상태</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3044"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3156"/>
         <source>&amp;Confidential</source>
         <translation>&amp;기밀</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3045"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3157"/>
         <source>CONFIDENTIAL</source>
         <translation>CONFIDENTIAL</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3049"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3161"/>
         <source>&amp;Departmental</source>
         <translation>&amp;부서별</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3050"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3162"/>
         <source>DEPARTMENTAL</source>
         <translation>DEPARTMENTAL</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3054"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3166"/>
         <source>Dra&amp;ft</source>
         <translation>&amp;초안</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3055"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3167"/>
         <source>DRAFT</source>
         <translation>DRAFT</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3059"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3171"/>
         <source>&amp;Experimental</source>
         <translation>&amp;실험적</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3060"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3172"/>
         <source>EXPERIMENTAL</source>
         <translation>EXPERIMENTAL</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3064"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3176"/>
         <source>E&amp;xpired</source>
         <translation>&amp;만료됨</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3065"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3177"/>
         <source>EXPIRED</source>
         <translation>EXPIRED</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3069"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3181"/>
         <source>Fina&amp;l</source>
         <translation>&amp;최종</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3070"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3182"/>
         <source>FINAL</source>
         <translation>FINAL</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3074"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3186"/>
         <source>For Co&amp;mment</source>
         <translation>&amp;설명용</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3075"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3187"/>
         <source>FOR COMMENT</source>
         <translation>설명용</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3079"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3191"/>
         <source>For P&amp;ublic Release</source>
         <translation>공개 &amp;릴리스용</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3080"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3192"/>
         <source>FOR PUBLIC RELEASE</source>
         <translation>공개 릴리스용</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3084"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3196"/>
         <source>Not A&amp;pproved</source>
         <translation>승인되지 &amp;않음</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3085"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3197"/>
         <source>NOT APPROVED</source>
         <translation>승인되지 않음</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3089"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3201"/>
         <source>N&amp;ot For Public Release</source>
         <translation>&amp;공개 릴리스용 아님</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3090"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3202"/>
         <source>NOT FOR PUBLIC RELEASE</source>
         <translation>공개 릴리스용 아님</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3094"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3206"/>
         <source>&amp;Sold</source>
         <translation>&amp;판매됨</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3095"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3207"/>
         <source>SOLD</source>
         <translation>SOLD</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3099"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3211"/>
         <source>&amp;Top Secret</source>
         <translation>&amp;기밀</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3100"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfannotation.cpp" line="3212"/>
         <source>TOP SECRET</source>
         <translation>기밀</translation>
     </message>
@@ -9215,105 +10687,98 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfblendfunction.cpp" line="244"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1096"/>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="2758"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1501"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="2842"/>
         <source>Unknown</source>
         <translation>알 수 없음</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="355"/>
-        <source>Invalid pass encoding data in CCITT stream.</source>
-        <translation>CCITT 스트림의 패스 인코딩 데이터가 잘못되었습니다.</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="361"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="116"/>
         <source>CCITT b2 index out of range.</source>
         <translation>CCITT b2 인덱스가 범위를 벗어났습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="384"/>
-        <source>Invalid horizontal encoding data in CCITT stream.</source>
-        <translation>CCITT 스트림의 수평 인코딩 데이터가 잘못되었습니다.</translation>
+        <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="47"/>
+        <source>Invalid number of columns (%1) of the CCITT image.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="403"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="424"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="435"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="154"/>
         <source>Invalid vertical encoding data in CCITT stream.</source>
         <translation>CCITT 스트림의 수직 인코딩 데이터가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="594"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="337"/>
         <source>Invalid index of CCITT changing element a1: a1 = %1, columns = %2.</source>
         <translation>요소 a1을 변경하는 CCITT의 잘못된 인덱스: a1 = %1, 열 = %2.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="675"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="418"/>
         <source>Invalid CCITT run length code word.</source>
         <translation>CCITT 실행 길이 코드 워드가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="697"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfccittfaxdecoder.cpp" line="440"/>
         <source>Invalid CCITT 2D mode.</source>
         <translation>CCITT 2D 모드가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="198"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="535"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="348"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="685"/>
         <source>Conversion from gray to output device using CMS failed.</source>
         <translation>CMS를 사용하여 회색에서 출력 장치로 변환하지 못했습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="210"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="550"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="360"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="700"/>
         <source>Conversion from gray to output device using CMS failed - invalid data format.</source>
         <translation>CMS를 사용하여 회색에서 출력 장치로 변환하지 못했습니다. 데이터 형식이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="222"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="562"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="372"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="712"/>
         <source>Conversion from RGB to output device using CMS failed.</source>
         <translation>CMS를 사용하여 RGB에서 출력 장치로 변환하지 못했습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="235"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="577"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="385"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="727"/>
         <source>Conversion from RGB to output device using CMS failed - invalid data format.</source>
         <translation>CMS를 사용하여 RGB에서 출력 장치로 변환하지 못했습니다. 데이터 형식이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="247"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="589"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="397"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="739"/>
         <source>Conversion from CMYK to output device using CMS failed.</source>
         <translation>CMS를 사용하여 CMYK에서 출력 장치로 변환하지 못했습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="265"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="604"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="415"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="754"/>
         <source>Conversion from CMYK to output device using CMS failed - invalid data format.</source>
         <translation>CMS를 사용하여 CMYK에서 출력 장치로 변환하지 못했습니다. 데이터 형식이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="277"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="616"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="427"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="766"/>
         <source>Conversion from XYZ to output device using CMS failed.</source>
         <translation>CMS를 사용하여 XYZ에서 출력 장치로 변환하지 못했습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="307"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="632"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="457"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="782"/>
         <source>Conversion from XYZ to output device using CMS failed - invalid data format.</source>
         <translation>CMS를 사용하여 XYZ에서 출력 장치로 변환하지 못했습니다. 데이터 형식이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="319"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="701"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="469"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="851"/>
         <source>Conversion from icc profile space to output device using CMS failed.</source>
         <translation>CMS를 사용하여 ICC 프로파일 공간에서 출력 장치로 변환하는 데 실패했습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="348"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="723"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="498"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcms.cpp" line="873"/>
         <source>Conversion from icc profile space to output device using CMS failed - invalid data format.</source>
         <translation>CMS를 사용하여 ICC 프로필 공간에서 출력 장치로 변환하지 못했습니다. 데이터 형식이 잘못되었습니다.</translation>
     </message>
@@ -9334,313 +10799,625 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>태그가 지정된 유효한 문서가 필요합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1002"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1014"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1033"/>
         <source>JBIG2 invalid header - bad referred segments.</source>
         <translation>JBIG2 잘못된 헤더 - 잘못 참조된 세그먼트입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1103"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1309"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1163"/>
         <source>JBIG2 invalid segment type %1.</source>
         <translation>JBIG2 잘못된 세그먼트 유형 %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1154"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1228"/>
         <source>Invalid JBIG2 file header.</source>
         <translation>JBIG2 파일 헤더가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1168"/>
-        <source>Invalid JBIG2 file header flags.</source>
-        <translation>JBIG2 파일 헤더 플래그가 잘못되었습니다.</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1176"/>
-        <source>Invalid JBIG2 file - unknown number of pages.</source>
-        <translation>잘못된 JBIG2 파일 - 페이지 수를 알 수 없습니다.</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1182"/>
-        <source>Invalid JBIG2 file - invalid number of pages (%1).</source>
-        <translation>잘못된 JBIG2 파일 - 잘못된 페이지 수(%1).</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1222"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1295"/>
         <source>Invalid JBIG2 file - segment length is not defined.</source>
         <translation>잘못된 JBIG2 파일 - 세그먼트 길이가 정의되지 않았습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1320"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1417"/>
         <source>JBIG2 bad segment data - handler doesn&apos;t process all segment data - %1 bytes left.</source>
         <translation>JBIG2 불량 세그먼트 데이터 - 핸들러가 모든 세그먼트 데이터를 처리하지 않음 - %1바이트 남음.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1325"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1422"/>
         <source>JBIG2 bad segment data - handler reads %1 bytes past segment end.</source>
         <translation>JBIG2 잘못된 세그먼트 데이터 - 핸들러가 세그먼트 끝을 지나 %1바이트를 읽습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1358"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1365"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1373"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1380"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1385"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1726"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1733"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1742"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1749"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1754"/>
         <source>JBIG2 invalid flags for symbol dictionary segment.</source>
         <translation>기호 사전 세그먼트에 대한 JBIG2 잘못된 플래그입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1416"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1434"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1448"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1462"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1903"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1925"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1947"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1965"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1983"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2001"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2019"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2033"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3981"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1797"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1815"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2318"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2371"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2389"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2407"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2425"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2439"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="4529"/>
         <source>JBIG2 invalid user huffman code table.</source>
         <translation>JBIG2 잘못된 사용자 허프만 코드 테이블.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1469"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1846"/>
         <source>JBIG2 invalid number of huffam code table - %1 unused.</source>
         <translation>JBIG2 허팜 코드 테이블의 잘못된 번호 - %1 사용되지 않음.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1479"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1496"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1856"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1873"/>
         <source>JBIG2 trying to use aritmetic decoder context from previous symbol dictionary, but it doesn&apos;t exist.</source>
         <translation>JBIG2가 이전 기호 사전의 산술 디코더 컨텍스트를 사용하려고 시도했지만 존재하지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1559"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1969"/>
         <source>JBIG2 symbol height class has more symbols, than defined in the symbol dictionary header.</source>
         <translation>JBIG2 기호 높이 클래스에는 기호 사전 헤더에 정의된 것보다 더 많은 기호가 있습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1618"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2040"/>
         <source>Trying to use reference bitmap %1, but number of decoded bitmaps is %2.</source>
         <translation>참조 비트맵 %1을(를) 사용하려고 시도 중이지만 디코딩된 비트맵 수가 %2입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1757"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2191"/>
         <source>JBIG2 - invalid export flags in symbol dictionary.</source>
         <translation>JBIG2 - 기호 사전의 내보내기 플래그가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1884"/>
-        <source>JBIG2 - invalid huffman table flags in text region segment.</source>
-        <translation>JBIG2 - 텍스트 영역 세그먼트에 잘못된 허프만 테이블 플래그가 있습니다.</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2049"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2463"/>
         <source>JBIG2 no referred symbols in text region segment.</source>
         <translation>JBIG2 텍스트 영역 세그먼트에 참조 기호가 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2087"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2504"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2521"/>
         <source>JBIG2 invalid symbol length code table for text region segment.</source>
         <translation>JBIG2 텍스트 영역 세그먼트에 대한 잘못된 기호 길이 코드 테이블입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2157"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2561"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3026"/>
         <source>JBIG2 - invalid bitmap for generic region.</source>
         <translation>JBIG2 - 일반 영역에 대한 비트맵이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2178"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2593"/>
         <source>JBIG2 invalid pattern dictionary flags.</source>
         <translation>JBIG2 잘못된 패턴 사전 플래그입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2201"/>
-        <source>JBIG2 unknown data length for pattern dictionary.</source>
-        <translation>JBIG2 패턴 사전의 데이터 길이를 알 수 없습니다.</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2230"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2659"/>
         <source>JBIG2 invalid pattern dictionary collective bitmap.</source>
         <translation>JBIG2 잘못된 패턴 사전 집합 비트맵입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2289"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3532"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2734"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="4034"/>
         <source>JBIG2 region segment information - invalid bit operation mode.</source>
         <translation>JBIG2 영역 세그먼트 정보 - 잘못된 비트 작동 모드입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2295"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2740"/>
         <source>JBIG2 invalid referenced pattern dictionaries for halftone segment.</source>
         <translation>하프톤 세그먼트에 대한 JBIG2 잘못된 참조 패턴 사전입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2303"/>
-        <source>JBIG2 invalid patterns for halftone segment.</source>
-        <translation>하프톤 세그먼트에 대한 JBIG2 잘못된 패턴입니다.</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2343"/>
-        <source>JBIG2 halftoning with more than 8 grayscale bit planes not supported (current bitplanes: %1).</source>
-        <translation>8개 이상의 회색조 비트 평면이 있는 JBIG2 하프톤은 지원되지 않습니다(현재 비트 평면: %1).</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2368"/>
-        <source>JBIG2 unknown data length for halftone dictionary.</source>
-        <translation>하프톤 사전에 대한 JBIG2 알 수 없는 데이터 길이입니다.</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2418"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2865"/>
         <source>JBIG2 invalid halftone grayscale bit plane image.</source>
         <translation>JBIG2 잘못된 하프톤 회색조 비트 평면 이미지.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2446"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2900"/>
         <source>JBIG2 halftoning pattern index %1 out of bounds [0, %2]</source>
         <translation>JBIG2 하프톤 패턴 인덱스 %1 범위를 벗어남 [0, %2]</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2466"/>
-        <source>JBIG2 - invalid bitmap for halftone region.</source>
-        <translation>JBIG2 - 하프톤 영역에 대한 비트맵이 잘못되었습니다.</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2488"/>
-        <source>JBIG2 - malformed generic region flags.</source>
-        <translation>JBIG2 - 잘못된 일반 지역 플래그입니다.</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2523"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2979"/>
         <source>JBIG2 - end of data byte sequence not found for generic region.</source>
         <translation>JBIG2 - 일반 영역에 대해 데이터 바이트 시퀀스의 끝을 찾을 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2580"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3047"/>
         <source>JBIG2 - invalid flags for generic refinement region.</source>
         <translation>JBIG2 - 일반 구체화 영역에 대한 잘못된 플래그입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2601"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3068"/>
         <source>JBIG2 - operation must be REPLACE for generic refinement region.</source>
         <translation>JBIG2 - 일반 구체화 영역에 대한 작업은 REPLACE여야 합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2615"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3090"/>
         <source>JBIG2 - invalid referred segments (%1) for generic refinement region.</source>
         <translation>JBIG2 - 일반 구체화 영역에 대해 잘못된 참조 세그먼트(%1)입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2620"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3095"/>
         <source>JBIG2 - invalid referred bitmap size [%1 x %2] instead of [%3 x %4] for generic refinement region.</source>
         <translation>JBIG2 - 일반 구체화 영역에 대해 [%3 x %4] 대신 잘못된 참조 비트맵 크기 [%1 x %2].</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2655"/>
-        <source>JBIG2 - invalid bitmap for generic refinement region.</source>
-        <translation>JBIG2 - 일반 구체화 영역에 대한 비트맵이 잘못되었습니다.</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2715"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3185"/>
         <source>JBIG2 end-of-page segment shouldn&apos;t contain any data, but has extra data of %1 bytes.</source>
         <translation>JBIG2 페이지 끝 세그먼트에는 데이터가 포함되어서는 안 되지만 %1 바이트의 추가 데이터가 있습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2719"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3194"/>
         <source>JBIG2 end-of-page segment detected and ignored.</source>
         <translation>JBIG2 페이지 끝 세그먼트가 감지되고 무시됩니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2732"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3224"/>
         <source>JBIG2 end-of-file segment shouldn&apos;t contain any data, but has extra data of %1 bytes.</source>
         <translation>JBIG2 파일 끝 세그먼트에는 데이터가 포함되어서는 안 되지만 %1 바이트의 추가 데이터가 있습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2736"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3240"/>
         <source>JBIG2 end-of-file segment detected and ignored.</source>
         <translation>JBIG2 파일 끝 세그먼트가 감지되고 무시됩니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2753"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3263"/>
         <source>JBIG2 underflow of the low value in huffman table.</source>
         <translation>허프만 테이블에서 낮은 값의 JBIG2 언더플로.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2810"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3326"/>
         <source>JBIG2 unknown extension %1 necessary for decoding the image.</source>
         <translation>이미지 디코딩에 필요한 JBIG2 알 수 없는 확장자 %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2819"/>
-        <source>JBIG2 segment with unknown extension has not defined length.</source>
-        <translation>확장자를 알 수 없는 JBIG2 세그먼트의 길이가 정의되지 않았습니다.</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2834"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3341"/>
         <source>JBIG2 segment %1 is not a bitmap.</source>
         <translation>JBIG2 세그먼트 %1은 비트맵이 아닙니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2850"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3349"/>
         <source>JBIG2 bitmap segment %1 not found.</source>
         <translation>JBIG2 비트맵 세그먼트 %1을(를) 찾을 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3338"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3862"/>
         <source>JBIG2 symbol index %1 not found in symbol table of length %2.</source>
         <translation>JBIG2 기호 인덱스 %1이(가) 길이가 %2인 기호 테이블에서 찾을 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3506"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="4008"/>
         <source>JBIG2 region segment information flags are invalid.</source>
         <translation>JBIG2 지역 세그먼트 정보 플래그가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3560"/>
-        <source>JBIG2 segment with unknown data length can&apos;t be skipped.</source>
-        <translation>데이터 길이를 알 수 없는 JBIG2 세그먼트는 건너뛸 수 없습니다.</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3597"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="4100"/>
         <source>JBIG2 invalid referred segment %1 referenced by segment %2.</source>
         <translation>JBIG2 잘못된 참조 세그먼트 %1이 세그먼트 %2에서 참조되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3608"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2628"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="4149"/>
         <source>JBIG2 maximum bitmap size exceeded (%1 &gt; %2).</source>
         <translation>JBIG2 최대 비트맵 크기가 초과되었습니다(%1 &gt; %2).</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3621"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="38"/>
+        <source>JBIG2 integer value out of range.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="48"/>
+        <source>JBIG2 invalid refinement data length %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="780"/>
+        <source>JBIG2 invalid symbol ID bit count %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="928"/>
+        <source>JBIG2 decoding work limit exceeded or invalid state.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="942"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.h" line="155"/>
+        <source>JBIG2 invalid arithmetic state.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1044"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1082"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1547"/>
+        <source>JBIG2 invalid referred segment count.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1053"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1065"/>
+        <source>JBIG2 invalid retention padding bits.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1090"/>
+        <source>JBIG2 reference must precede its segment.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1178"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1219"/>
+        <source>JBIG2 input size limit exceeded.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1242"/>
+        <source>Unsupported JBIG2 file header flags (extended templates are not supported).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1251"/>
+        <source>Unsupported JBIG2 file - expected one page (%1).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1280"/>
+        <source>JBIG2 segment count limit exceeded.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1303"/>
+        <source>JBIG2 extra data after random-access file segments.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1317"/>
+        <source>JBIG2 file is missing its end-of-file segment.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1333"/>
+        <source>JBIG2 unknown data length of the segment %1 - it is allowed for an immediate generic region only.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1346"/>
+        <source>JBIG2 invalid segment data length.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1448"/>
+        <source>JBIG2 duplicate segment, segment limit exceeded or data after EOF.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1452"/>
+        <source>JBIG2 global segment is associated with a page.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1460"/>
+        <source>JBIG2 duplicate or unassociated page information; only one page is supported.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1467"/>
+        <source>JBIG2 invalid page association or segment after end of page.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1473"/>
+        <source>JBIG2 invalid segment page association.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1481"/>
+        <source>JBIG2 intermediate region on a page which does not announce auxiliary buffers; the page flag is ignored.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1486"/>
+        <source>JBIG2 refinement region on a page which does not announce refinements; the page flag is ignored.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1495"/>
+        <source>JBIG2 duplicate segment reference.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1502"/>
+        <source>JBIG2 invalid extension reference.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1511"/>
+        <source>JBIG2 invalid referred segment or reference across pages.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1515"/>
+        <source>JBIG2 reuses a non-retained segment; kept under the decoding memory limit for compatibility.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1538"/>
+        <source>JBIG2 invalid referred segment type.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1612"/>
+        <source>JBIG2 region crosses a stripe boundary.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1631"/>
+        <source>JBIG2 region combination operator contradicts the page flags; the operator of the region is used.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1639"/>
+        <source>JBIG2 unknown page height requires a final end-of-stripe segment.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1691"/>
+        <source>JBIG2 symbol dictionary uses the text region decoding procedure for a single symbol instance aggregation.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1721"/>
+        <source>JBIG2 maximum symbol count exceeded (%1 / %2 &gt; %3).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1764"/>
+        <source>JBIG2 maximum combined symbol count exceeded.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1771"/>
+        <source>JBIG2 incompatible or unretained arithmetic coding context.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1840"/>
+        <source>JBIG2 invalid OOB capability of dictionary huffman table.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1948"/>
+        <source>JBIG2 invalid symbol height.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="1975"/>
+        <source>JBIG2 invalid symbol or collective bitmap width.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2010"/>
+        <source>JBIG2 invalid number of symbol instances in the aggregation (%1).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2123"/>
+        <source>JBIG2 empty symbol height class.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2133"/>
+        <source>JBIG2 invalid collective bitmap data length.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2185"/>
+        <source>JBIG2 excessive export flag runs.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2206"/>
+        <source>JBIG2 invalid exported symbol count.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2448"/>
+        <source>JBIG2 invalid text region huffman tables.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2617"/>
+        <source>JBIG2 invalid pattern size (%1 x %2) in the pattern dictionary.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2687"/>
+        <source>JBIG2 invalid MMR halftone flags.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2707"/>
+        <source>JBIG2 invalid halftone grid dimensions.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2941"/>
+        <source>JBIG2 - malformed or unsupported generic region flags (extended templates are not supported).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="2991"/>
+        <source>JBIG2 invalid actual generic region row count.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3083"/>
+        <source>JBIG2 refinement reference region metadata mismatch.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3150"/>
+        <source>JBIG2 invalid page information flags or size.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3156"/>
+        <source>JBIG2 invalid maximum stripe height.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3202"/>
+        <source>JBIG2 invalid end-of-stripe segment.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3209"/>
+        <source>JBIG2 invalid stripe end row.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3229"/>
+        <source>JBIG2 end of file before end of page.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3234"/>
+        <source>JBIG2 end-of-file segment is incorrectly associated with the decoded page.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3257"/>
+        <source>JBIG2 invalid huffman table header.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3282"/>
+        <source>JBIG2 unsupported huffman table size or code length.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3379"/>
+        <source>JBIG2 truncated MMR bitmap.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3388"/>
+        <source>JBIG2 missing MMR end-of-block marker.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3783"/>
+        <source>JBIG2 maximum symbol instance count exceeded.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3840"/>
+        <source>JBIG2 text region has more symbol instances, than defined in its header (%1).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3852"/>
+        <source>JBIG2 invalid symbol position within strip.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3871"/>
+        <source>JBIG2 invalid refinement indicator.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3910"/>
+        <source>JBIG2 invalid size (%1 x %2) of a refined symbol instance bitmap.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="4052"/>
+        <source>JBIG2 non-causal adaptive template pixel.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="4119"/>
+        <source>JBIG2 invalid data length %1 of the segment %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="4129"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="4446"/>
+        <source>JBIG2 decoding work limit exceeded.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="4139"/>
+        <source>JBIG2 cumulative decoding memory limit exceeded.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="4162"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="4204"/>
         <source>JBIG2 invalid bitmap size (%1 x %2).</source>
         <translation>JBIG2 잘못된 비트맵 크기(%1 x %2).</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3626"/>
-        <source>JBIG2 invalid bit operation.</source>
-        <translation>JBIG2 잘못된 비트 작업입니다.</translation>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="4400"/>
+        <source>JBIG2 invalid huffman code length or prefix.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3638"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="4472"/>
+        <source>JBIG2 invalid huffman prefix.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="4482"/>
+        <source>JBIG2 maximum referenced symbol count exceeded.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="4505"/>
+        <source>JBIG2 maximum referenced pattern count exceeded.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="4181"/>
         <source>JBIG2 can&apos;t read integer.</source>
         <translation>JBIG2는 정수를 읽을 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3743"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="4213"/>
+        <source>JBIG2 maximum bitmap pixel count exceeded (%1 x %2 &gt; %3).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="4259"/>
+        <source>JBIG2 expanded bitmap height out of range.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="4305"/>
         <source>JBIG2 - invalid bitmap paint operation.</source>
         <translation>JBIG2 - 비트맵 그리기 작업이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3753"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="4322"/>
         <source>JBIG2 - invalid bitmap copy row operation.</source>
         <translation>JBIG2 - 비트맵 복사 행 작업이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="3809"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="4356"/>
+        <source>JBIG2 unsupported huffman code length.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.cpp" line="4361"/>
         <source>JBIG2 overflow of prefix bit values in huffman table.</source>
         <translation>허프만 테이블의 접두사 비트 값의 JBIG2 오버플로입니다.</translation>
     </message>
@@ -9787,8 +11564,8 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="152"/>
         <location filename="../Pdf4QtLibCore/sources/pdfpattern.cpp" line="156"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="905"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1019"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="934"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1049"/>
         <source>Invalid pattern.</source>
         <translation>잘못된 패턴입니다.</translation>
     </message>
@@ -10167,16 +11944,16 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1502"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="733"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="767"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="1443"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="1636"/>
         <source>Invalid number bits of image mask (should be 1 bit instead of %1 bits).</source>
         <translation>이미지 마스크의 숫자 비트가 잘못되었습니다(%1 비트 대신 1비트여야 함).</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1507"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="716"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="741"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="772"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="1426"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="1451"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="1641"/>
         <source>Invalid size of image (%1x%2)</source>
         <translation>잘못된 이미지 크기(%1x%2)</translation>
     </message>
@@ -10192,8 +11969,8 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1658"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2095"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2141"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2245"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2288"/>
         <source>Invalid colors for indexed color space. Color space has %1 colors. Provided color count is %4.</source>
         <translation>인덱스 색상 공간에 대한 색상이 잘못되었습니다. 색상 공간에는 %1 색상이 있습니다. 제공된 색상 수는 %4입니다.</translation>
     </message>
@@ -10205,8 +11982,8 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1748"/>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1992"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="496"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2269"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="596"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2406"/>
         <source>Image masking not implemented!</source>
         <translation>이미지 마스킹이 구현되지 않았습니다!</translation>
     </message>
@@ -10214,10 +11991,10 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1763"/>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1825"/>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1918"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="227"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="317"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="426"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2201"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="284"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="375"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="487"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2345"/>
         <source>Invalid colors for color space. Color space has %1 colors. Provided color count is %4.</source>
         <translation>색상 공간에 대한 색상이 잘못되었습니다. 색상 공간에는 %1 색상이 있습니다. 제공된 색상 수는 %4입니다.</translation>
     </message>
@@ -10225,9 +12002,9 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1769"/>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1831"/>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2024"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="233"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="323"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="565"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="290"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="381"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="665"/>
         <source>Invalid size of the decode array. Expected %1, actual %2.</source>
         <translation>디코드 배열의 크기가 잘못되었습니다. 예상되는 %1, 실제 %2.</translation>
     </message>
@@ -10238,33 +12015,33 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1925"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="433"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2208"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="494"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2352"/>
         <source>Invalid number of color components in color key mask. Expected %1, provided %2.</source>
         <translation>색상 키 마스크의 색상 구성 요소 수가 잘못되었습니다. %1이 필요하고 %2이 제공되었습니다.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="1931"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="439"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2214"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="500"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2358"/>
         <source>Invalid size of the decoded array. Expected %1, actual %2.</source>
         <translation>디코딩된 배열의 크기가 잘못되었습니다. 예상되는 %1, 실제 %2.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2005"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="546"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="646"/>
         <source>Soft mask can&apos;t have masking.</source>
         <translation>소프트 마스크는 마스킹을 가질 수 없습니다.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2010"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="551"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="651"/>
         <source>Invalid size of soft mask.</source>
         <translation>소프트 마스크의 크기가 잘못되었습니다.</translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2018"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="559"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="659"/>
         <source>Soft mask should have only 1 color component (alpha) instead of %1.</source>
         <translation>소프트 마스크에는 %1 대신 1개의 색상 구성 요소(알파)만 있어야 합니다.</translation>
     </message>
@@ -10294,99 +12071,121 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>셰이딩 샘플러를 생성할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2781"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2782"/>
         <source>Image painting not implemented.</source>
         <translation>이미지 페인팅이 구현되지 않았습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2788"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2789"/>
         <source>Mesh painting not implemented.</source>
         <translation>메시 페인팅이 구현되지 않았습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2943"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2944"/>
         <source>Invalid source ink index %1.</source>
         <translation>잘못된 소스 잉크 인덱스 %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2950"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2951"/>
         <source>Invalid target ink index %1.</source>
         <translation>잘못된 대상 잉크 인덱스 %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2998"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="2999"/>
         <source>Transformation from source color space to target blending color space failed.</source>
         <translation>소스 색상 공간에서 대상 혼합 색상 공간으로 변환하지 못했습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3166"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3167"/>
         <source>Gray</source>
         <translation>회색</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3183"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3184"/>
         <source>Red</source>
         <translation>빨간색</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3194"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3195"/>
         <source>Green</source>
         <translation>녹색</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3205"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3206"/>
         <source>Blue</source>
         <translation>파란색</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3222"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3223"/>
         <source>Cyan</source>
         <translation>청록색</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3233"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3234"/>
         <source>Magenta</source>
         <translation>마젠타</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3244"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3245"/>
         <source>Yellow</source>
         <translation>노란색</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3255"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3256"/>
         <source>Black</source>
         <translation>검정색</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3271"/>
+        <location filename="../Pdf4QtLibCore/sources/pdftransparencyrenderer.cpp" line="3272"/>
         <source>Process Generic%1</source>
         <translation>프로세스 일반%1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="99"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="86"/>
+        <source>Invalid bit reader size or component length.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="95"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="122"/>
+        <source>Invalid bit count %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="108"/>
         <source>Not enough data to read %1-bit value.</source>
         <translation>%1비트 값을 읽을 수 있는 데이터가 충분하지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="139"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="152"/>
         <source>Can&apos;t seek to position %1.</source>
         <translation>%1 위치를 찾을 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="194"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="160"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="167"/>
+        <source>Can&apos;t skip %1 bytes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="215"/>
+        <source>Invalid substream length %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="220"/>
         <source>Can&apos;t get substream - remaining %1 bits in buffer.</source>
         <translation>하위 스트림을 가져올 수 없습니다. 버퍼에 %1 비트가 남아 있습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="450"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="456"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="475"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="476"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="482"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="501"/>
         <source>Can&apos;t convert &apos;%1&apos; to a number.</source>
         <translation>&apos;%1&apos;을(를) 숫자로 변환할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="462"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfutils.cpp" line="488"/>
         <source>Closed interval [%1, %2] is invalid.</source>
         <translation>닫힌 간격 [%1, %2]이 유효하지 않습니다.</translation>
     </message>
@@ -10439,127 +12238,127 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>카탈로그는 사전이어야 합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="919"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="975"/>
         <source>Required features %1 are unsupported. Document processing can be limited.</source>
         <translation>필수 기능 %1은 지원되지 않습니다. 서류 처리가 제한될 수 있습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="930"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="986"/>
         <source>Optional Content User Interaction</source>
         <translation>선택적 콘텐츠 사용자 상호 작용</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="932"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="988"/>
         <source>Optional Content Usage</source>
         <translation>선택적 콘텐츠 사용</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="934"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="990"/>
         <source>Acrobat Forms</source>
         <translation>아크로뱃 양식</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="936"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="992"/>
         <source>Navigation</source>
         <translation>탐색</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="938"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="994"/>
         <source>Markup Annotations</source>
         <translation>마크업 주석</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="940"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="996"/>
         <source>Markup of 3D Content</source>
         <translation>3D 콘텐츠 마크업</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="942"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="998"/>
         <source>Multimedia</source>
         <translation>멀티미디어</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="944"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="1000"/>
         <source>U3D Format of PDF 3D</source>
         <translation>PDF 3D의 U3D 형식</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="946"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="1002"/>
         <source>PRC Format of PDF 3D</source>
         <translation>PDF 3D의 PRC 형식</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="948"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="1004"/>
         <source>Actions</source>
         <translation>작업</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="950"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="1006"/>
         <source>JavaScript</source>
         <translation>JavaScript</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="952"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="1008"/>
         <source>Attached Files</source>
         <translation>첨부 파일</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="954"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="1010"/>
         <source>Attached Files Modification</source>
         <translation>첨부 파일 수정</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="956"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="1012"/>
         <source>Collections of Attached Files</source>
         <translation>첨부 파일 모음</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="958"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="1014"/>
         <source>Collections of Attached Files (editation)</source>
         <translation>첨부 파일 모음(편집)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="960"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="1016"/>
         <source>Digital Signature Validation</source>
         <translation>디지털 서명 검증</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="962"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="1018"/>
         <source>Apply Digital Signature</source>
         <translation>디지털 서명 적용</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="964"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="1020"/>
         <source>Digital Signature Validation (with MDP)</source>
         <translation>디지털 서명 검증(MDP 사용)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="968"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="1024"/>
         <source>Geospatial 2D Features</source>
         <translation>지리공간 2D 기능</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="970"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="1026"/>
         <source>Geospatial 3D Features</source>
         <translation>지리공간 3D 기능</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="972"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="1028"/>
         <source>Navigation for Document Parts</source>
         <translation>문서 부분 탐색</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="974"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="1030"/>
         <source>Separation Simulation</source>
         <translation>분리 시뮬레이션</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="976"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="1032"/>
         <source>Transitions/Presentations</source>
         <translation>전환/프레젠테이션</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="978"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcatalog.cpp" line="1034"/>
         <source>Encryption</source>
         <translation>암호화</translation>
     </message>
@@ -10602,7 +12401,7 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
     </message>
     <message>
         <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="436"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="538"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="543"/>
         <source>zlib code: %1</source>
         <translation>zlib 코드: %1</translation>
     </message>
@@ -10617,199 +12416,199 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>플랫 압축 해제 스트림을 초기화하지 못했습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="541"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="546"/>
         <source>Error decompressing by flate method: %1</source>
         <translation>플랫 방법으로 압축을 푸는 중 오류: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="762"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="767"/>
         <source>Property &apos;%1&apos; should be in range from %2 to %3.</source>
         <translation>&apos;%1&apos; 속성은 %2에서 %3 사이의 범위에 있어야 합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="772"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="777"/>
         <source>Invalid property &apos;%1&apos; of the stream predictor parameters.</source>
         <translation>스트림 예측기 매개변수의 &apos;%1&apos; 속성이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="806"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="811"/>
         <source>Invalid predictor algorithm.</source>
         <translation>예측자 알고리즘이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="949"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfstreamfilters.cpp" line="954"/>
         <source>Security handler required, but not provided.</source>
         <translation>보안 처리기가 필요하지만 제공되지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="536"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="636"/>
         <source>Invalid number of color components. Expected number is %1, actual number is %2.</source>
         <translation>색상 구성 요소 수가 잘못되었습니다. 예상 숫자는 %1이고 실제 숫자는 %2입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1145"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1278"/>
         <source>Transformation between color spaces failed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1152"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1285"/>
         <source>CMS transformation between color spaces failed. Simplified fallback conversion was used.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1243"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1343"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1376"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1476"/>
         <source>Can&apos;t load color space, because color space structure is too complex.</source>
         <translation>색상 공간 구조가 너무 복잡하기 때문에 색상 공간을 로드할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1332"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1397"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2414"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2437"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1465"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1530"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2453"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2476"/>
         <source>Invalid color space.</source>
         <translation>잘못된 색상 공간입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1956"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2089"/>
         <source>Can&apos;t determine alternate color space for ICC based profile. Number of components is %1.</source>
         <translation>ICC 기반 프로필에 대한 대체 색상 공간을 결정할 수 없습니다. 구성 요소 수는 %1입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1964"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2097"/>
         <source>Can&apos;t determine alternate color space for ICC based profile.</source>
         <translation>ICC 기반 프로필에 대한 대체 색상 공간을 결정할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="1975"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2108"/>
         <source>Too much color components for ICC based profile.</source>
         <translation>ICC 기반 프로필에 대한 색상 구성 요소가 너무 많습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2108"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2157"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2257"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2303"/>
         <source>Operation cancelled!</source>
         <translation>작업이 취소되었습니다!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2289"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2426"/>
         <source>Can&apos;t determine base color space for indexed color space.</source>
         <translation>인덱스 색상 공간에 대한 기본 색상 공간을 결정할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2315"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2452"/>
         <source>Invalid colors for indexed color space. Color space has %1 colors, %2 color components and must have %3 size. Provided size is %4.</source>
         <translation>인덱스 색상 공간에 대한 색상이 잘못되었습니다. 색상 공간에는 %1 색상, %2 색상 구성요소가 있으며 %3 크기가 있어야 합니다. 제공되는 크기는 %4입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2499"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2636"/>
         <source>Can&apos;t determine color name for separation color space.</source>
         <translation>분리 색상 공간에 대한 색상 이름을 결정할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2507"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2644"/>
         <source>Can&apos;t determine alternate color space for separation color space.</source>
         <translation>분리 색상 공간에 대한 대체 색상 공간을 결정할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2513"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2650"/>
         <source>Can&apos;t determine tint transform for separation color space.</source>
         <translation>분리 색상 공간에 대한 색조 변환을 결정할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2565"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2702"/>
         <source>Pattern doesn&apos;t have defined uniform color.</source>
         <translation>패턴에 균일한 색상이 정의되어 있지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2729"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2866"/>
         <source>Invalid colorants for DeviceN color space.</source>
         <translation>DeviceN 색상 공간에 대한 착색제가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2743"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2880"/>
         <source>Can&apos;t determine alternate color space for DeviceN color space.</source>
         <translation>DeviceN 색상 공간에 대한 대체 색상 공간을 결정할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2749"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfcolorspaces.cpp" line="2886"/>
         <source>Can&apos;t determine tint transform for DeviceN color space.</source>
         <translation>DeviceN 색상 공간에 대한 색조 변환을 확인할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="167"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="186"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="203"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="187"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="206"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="223"/>
         <source>Page %1 doesn&apos;t exist.</source>
         <translation>페이지 %1이(가) 존재하지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="338"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="402"/>
         <source>Start at %1...</source>
         <translation>%1에서 시작...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="344"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="408"/>
         <source>Rendering document into images.</source>
         <translation>문서를 이미지로 렌더링합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="357"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="433"/>
         <source>Page %1 not found.</source>
         <translation>페이지 %1을(를) 찾을 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="418"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="517"/>
         <source>Finished at %1...</source>
         <translation>%1에 완료됨...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="419"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="518"/>
         <source>%1 miliseconds elapsed to render %2 pages...</source>
         <translation>%2 페이지를 렌더링하는 데 %1 밀리초가 경과했습니다...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="569"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="668"/>
         <source>Image_%</source>
         <translation>영상_%</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="651"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="750"/>
         <source>Target directory is empty.</source>
         <translation>대상 디렉터리가 비어 있습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="659"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="758"/>
         <source>Target directory &apos;%1&apos; doesn&apos;t exist.</source>
         <translation>대상 디렉터리 &apos;%1&apos;이(가) 존재하지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="665"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="764"/>
         <source>File template is empty.</source>
         <translation>파일 템플릿이 비어 있습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="671"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="770"/>
         <source>File template must contain character &apos;%&apos; for page number.</source>
         <translation>파일 템플릿에는 페이지 번호에 문자 &apos;%&apos;가 포함되어야 합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="684"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="783"/>
         <source>Page list is invalid. It should have form such as &apos;1-12,17,24,27-29&apos;.</source>
         <translation>페이지 목록이 잘못되었습니다. &apos;1-12,17,24,27-29&apos;와 같은 형식이어야 합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="690"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="789"/>
         <source>Page list contains page, which is not in the document (%1).</source>
         <translation>페이지 목록에 문서에 없는 페이지가 포함되어 있습니다(%1).</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="700"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="799"/>
         <source>DPI resolution should be in range %1 to %2.</source>
         <translation>DPI 해상도는 %1 ~ %2 범위 내에 있어야 합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="706"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfrenderer.cpp" line="805"/>
         <source>Pixel resolution should be in range %1 to %2.</source>
         <translation>픽셀 해상도는 %1에서 %2 범위 내에 있어야 합니다.</translation>
     </message>
@@ -10825,260 +12624,265 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>그래픽 상태 스택이 복원된 것보다 더 많이 저장되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="531"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="538"/>
         <source>Transparency group blending color space is invalid.</source>
         <translation>투명도 그룹 혼합 색상 공간이 유효하지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="588"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="595"/>
         <source>Invalid inline image dictionary, ID operator is missing.</source>
         <translation>잘못된 인라인 이미지 사전, ID 연산자가 누락되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="625"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="675"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="632"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="683"/>
         <source>Expected name in the inline image dictionary stream.</source>
         <translation>인라인 이미지 사전 스트림의 예상 이름입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="686"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="715"/>
         <source>Invalid inline image stream.</source>
         <translation>잘못된 인라인 이미지 스트림입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="871"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="971"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="900"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1001"/>
         <source>Shading pattern graphic state is invalid.</source>
         <translation>음영 패턴 그래픽 상태가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1072"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1102"/>
         <source>Uncolored tiling pattern has not underlying color space.</source>
         <translation>무색 타일링 패턴에는 기본 색상 공간이 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1620"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1145"/>
+        <source>Tiling pattern is too complex (%1 tiles) and it was not painted.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1656"/>
         <source>Unknown operator &apos;%1&apos;.</source>
         <translation>알 수 없는 연산자 &apos;%1&apos;.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1626"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1662"/>
         <source>Not implemented operator &apos;%1&apos;.</source>
         <translation>&apos;%1&apos; 연산자가 구현되지 않았습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1642"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1678"/>
         <source>Current point of path is not set. Path is empty.</source>
         <translation>경로의 현재 지점이 설정되지 않았습니다. 경로가 비어 있습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1802"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1809"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2882"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1838"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1845"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2921"/>
         <source>Invalid line dash pattern.</source>
         <translation>선 파선 패턴이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1870"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1906"/>
         <source>Marked content is not well formed (not enough EMC operators).</source>
         <translation>표시된 콘텐츠의 형식이 올바르지 않습니다(EMC 운영자가 충분하지 않음).</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1953"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="1989"/>
         <source>Blend mode &apos;%1&apos; is invalid.</source>
         <translation>혼합 모드 &apos;%1&apos;이(가) 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2075"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2111"/>
         <source>Graphic state &apos;%1&apos; found, but invalid in resource dictionary.</source>
         <translation>그래픽 상태 &apos;%1&apos;이 발견되었지만 리소스 사전에서 유효하지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2080"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2116"/>
         <source>Graphic state &apos;%1&apos; not found in resource dictionary.</source>
         <translation>그래픽 상태 &apos;%1&apos;을(를) 리소스 사전에서 찾을 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2085"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2121"/>
         <source>Invalid graphic state resource dictionary.</source>
         <translation>그래픽 상태 리소스 사전이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2101"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2137"/>
         <source>Trying to restore graphic state more times than it was saved.</source>
         <translation>그래픽 상태가 저장된 것보다 여러 번 복원하려고 합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2137"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2173"/>
         <source>Transformation matrix is not invertible.</source>
         <translation>변환 행렬은 반전할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2158"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2194"/>
         <source>Can&apos;t read operand (real number) on index %1. Operand is of type &apos;%2&apos;.</source>
         <translation>인덱스 %1에서 피연산자(실수)를 읽을 수 없습니다. 피연산자는 &apos;%2&apos; 유형입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2163"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2199"/>
         <source>Can&apos;t read operand (real number) on index %1. Only %2 operands provided.</source>
         <translation>인덱스 %1에서 피연산자(실수)를 읽을 수 없습니다. %2 피연산자만 제공됩니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2180"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2216"/>
         <source>Can&apos;t read operand (integer) on index %1. Operand is of type &apos;%2&apos;.</source>
         <translation>인덱스 %1에서 피연산자(정수)를 읽을 수 없습니다. 피연산자는 &apos;%2&apos; 유형입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2185"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2221"/>
         <source>Can&apos;t read operand (integer) on index %1. Only %2 operands provided.</source>
         <translation>인덱스 %1에서 피연산자(정수)를 읽을 수 없습니다. %2 피연산자만 제공됩니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2202"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2238"/>
         <source>Can&apos;t read operand (name) on index %1. Operand is of type &apos;%2&apos;.</source>
         <translation>%1 인덱스에서 피연산자(이름)를 읽을 수 없습니다. 피연산자는 &apos;%2&apos; 유형입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2207"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2243"/>
         <source>Can&apos;t read operand (name) on index %1. Only %2 operands provided.</source>
         <translation>%1 인덱스에서 피연산자(이름)를 읽을 수 없습니다. %2 피연산자만 제공됩니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2225"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2261"/>
         <source>Can&apos;t read operand (string) on index %1. Operand is of type &apos;%2&apos;.</source>
         <translation>인덱스 %1에서 피연산자(문자열)를 읽을 수 없습니다. 피연산자는 &apos;%2&apos; 유형입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2230"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2266"/>
         <source>Can&apos;t read operand (string) on index %1. Only %2 operands provided.</source>
         <translation>인덱스 %1에서 피연산자(문자열)를 읽을 수 없습니다. %2 피연산자만 제공됩니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2466"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2544"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.h" line="924"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2505"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2583"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.h" line="960"/>
         <source>Invalid color component count. Provided %1, required %2.</source>
         <translation>색상 구성 요소 수가 잘못되었습니다. %1 제공, %2 필요.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2506"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2510"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2584"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2588"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2545"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2549"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2623"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2627"/>
         <source>Invalid pattern for Pattern color space.</source>
         <translation>패턴 색상 공간에 대한 패턴이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2692"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2731"/>
         <source>Text object already started.</source>
         <translation>텍스트 개체가 이미 시작되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2702"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2741"/>
         <source>Text object ended more than once.</source>
         <translation>텍스트 개체가 두 번 이상 종료되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2773"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2812"/>
         <source>Font &apos;%1&apos; not found in font dictionary.</source>
         <translation>&apos;%1&apos; 글꼴이 글꼴 사전에 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2778"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2817"/>
         <source>Invalid font dictionary.</source>
         <translation>잘못된 글꼴 사전입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2853"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2865"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2896"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2933"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3390"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2892"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2904"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2935"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2972"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3448"/>
         <source>Invalid font, text can&apos;t be printed.</source>
         <translation>글꼴이 잘못되어 텍스트를 인쇄할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2875"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2914"/>
         <source>Invalid parameters of text operator with individual character spacing.</source>
         <translation>개별 문자 간격이 있는 텍스트 연산자의 매개변수가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2924"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2963"/>
         <source>Invalid operand of text show operator.</source>
         <translation>텍스트 표시 연산자의 피연산자가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="2966"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3005"/>
         <source>Shading &apos;%1&apos; not found.</source>
         <translation>&apos;%1&apos; 음영을 찾을 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3006"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3045"/>
         <source>Invalid color space of the image.</source>
         <translation>이미지의 색상 공간이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3038"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3077"/>
         <source>Can&apos;t decode the image.</source>
         <translation>이미지를 디코딩할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3046"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3085"/>
         <source>Color operators are not allowed in uncolored tilling pattern.</source>
         <translation>무색 경작 패턴에서는 색상 연산자가 허용되지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3107"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3153"/>
         <source>Reference to optional content expected.</source>
         <translation>선택적 콘텐츠에 대한 참조가 필요합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3122"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3168"/>
         <source>Form of type %1 not supported.</source>
         <translation>%1 유형의 형식은 지원되지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3129"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3175"/>
         <source>Unknown XObject type &apos;%1&apos;.</source>
         <translation>알 수 없는 XObject 유형 &apos;%1&apos;.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3134"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3180"/>
         <source>Invalid format of XObject. Dictionary expected.</source>
         <translation>XObject 형식이 잘못되었습니다. 사전이 예상됩니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3139"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3185"/>
         <source>XObject resource dictionary not found.</source>
         <translation>XObject 리소스 사전을 찾을 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3187"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3233"/>
         <source>Mismatched begin/end of marked content.</source>
         <translation>표시된 콘텐츠의 시작/끝이 일치하지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3203"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3249"/>
         <source>Compatibility operator begin/end mismatch.</source>
         <translation>호환성 연산자 시작/끝이 일치하지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3325"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3383"/>
         <source>Type 3 font matrix is not invertible.</source>
         <translation>유형 3 글꼴 매트릭스는 반전할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3410"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3468"/>
         <source>Invalid stroking color.</source>
         <translation>스트로크 색상이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3418"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="3476"/>
         <source>Invalid filling color.</source>
         <translation>채우기 색상이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="4084"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontentprocessor.cpp" line="4142"/>
         <source>Invalid soft mask transfer function.</source>
         <translation>소프트 마스크 전송 기능이 잘못되었습니다.</translation>
     </message>
@@ -11256,499 +13060,639 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>스택에는 출력 크기(%1 남음)보다 더 많은 값이 포함됩니다(PostScript 기능).</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="437"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="457"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="593"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="613"/>
         <source>Inexact font substitution: font %1 replaced by %2 using font family %3.</source>
         <translation>부정확한 글꼴 대체: 글꼴 %1이 글꼴 모음 %3을 사용하여 %2로 대체되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="479"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="635"/>
         <source>Inexact font substitution: font %1 replaced by %2.</source>
         <translation>부정확한 글꼴 대체: %1 글꼴이 %2로 대체되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="492"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="648"/>
         <source>FontConfig error building pattern for font %1</source>
         <translation>글꼴 %1에 대한 FontConfig 구축 패턴 오류</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="548"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="704"/>
         <source>Inexact font substitution: font %1 replaced by standard font Times New Roman.</source>
         <translation>부정확한 글꼴 대체: 글꼴 %1이 표준 글꼴 Times New Roman으로 대체되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="636"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1006"/>
         <source>Fontconfig error</source>
         <translation>Fontconfig 오류</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="841"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1219"/>
         <source>Glyph for simple font character code &apos;%1&apos; not found.</source>
         <translation>단순 글꼴 문자 코드 &apos;%1&apos;에 대한 글리프를 찾을 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="879"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1280"/>
         <source>Glyph for composite font character with cid &apos;%1&apos; not found.</source>
         <translation>cid가 &apos;%1&apos;인 합성 글꼴 문자에 대한 글리프를 찾을 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1007"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1412"/>
         <source>Details</source>
         <translation>세부 정보</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1011"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1416"/>
         <source>Font</source>
         <translation>글꼴</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1015"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1420"/>
         <source>Style</source>
         <translation>스타일</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1018"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1423"/>
         <source>Yes</source>
         <translation>예</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1019"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1424"/>
         <source>No</source>
         <translation>아니요</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1021"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1426"/>
         <source>Glyph count</source>
         <translation>글리프 수</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1022"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1427"/>
         <source>Is CID keyed</source>
         <translation>CID 키가 지정되어 있나요</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1023"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1428"/>
         <source>Is bold</source>
         <translation>굵게 표시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1024"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1429"/>
         <source>Is italics</source>
         <translation>기울임꼴입니다</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1025"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1430"/>
         <source>Has vertical writing system</source>
         <translation>세로 쓰기 시스템이 있습니다</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1026"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1431"/>
         <source>Has SFNT storage scheme</source>
         <translation>SFNT 스토리지 구성표 있음</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1027"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1432"/>
         <source>Has glyph names</source>
         <translation>문자 모양 이름이 있습니다</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1031"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2159"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1436"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2686"/>
         <source>Encoding</source>
         <translation>인코딩</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1041"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1446"/>
         <source>None</source>
         <translation>없음</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1045"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1450"/>
         <source>Unicode</source>
         <translation>유니코드</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1049"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1454"/>
         <source>MS Symbol</source>
         <translation>MS 기호</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1053"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1458"/>
         <source>Japanese Shift JIS</source>
         <translation>일본어 Shift JIS</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1057"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1462"/>
         <source>PRC - Simplified Chinese</source>
         <translation>PRC - 중국어 간체</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1061"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1466"/>
         <source>Traditional Chinese</source>
         <translation>중국어 번체</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1065"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1470"/>
         <source>Korean Extended Wansung</source>
         <translation>한국어 확장 완성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1069"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1474"/>
         <source>Korean Standard</source>
         <translation>한국 표준</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1073"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1478"/>
         <source>Adobe Standard</source>
         <translation>어도비 스탠다드</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1077"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1482"/>
         <source>Adobe Expert</source>
         <translation>어도비 전문가</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1080"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1485"/>
         <source>Adobe Custom</source>
         <translation>어도비 커스텀</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1084"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1489"/>
         <source>Adobe Latin 1</source>
         <translation>어도비 라틴어 1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1088"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1493"/>
         <source>Old Latin 1</source>
         <translation>고대 라틴어 1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1092"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1497"/>
         <source>Apple Roman</source>
         <translation>애플로만</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1100"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1505"/>
         <source>Platform/Encoding = %1 %2</source>
         <translation>플랫폼/인코딩 = %1 %2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1191"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1614"/>
         <source>FreeType error code %1: %2</source>
         <translation>FreeType 오류 코드 %1: %2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1278"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1703"/>
         <source>Can&apos;t load system font &apos;%1&apos;.</source>
         <translation>시스템 글꼴 &apos;%1&apos;을(를) 로드할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1385"/>
-        <source>Invalid font encoding.</source>
-        <translation>글꼴 인코딩이 잘못되었습니다.</translation>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1709"/>
+        <source>System font &apos;%1&apos; is too large to be loaded by FreeType.</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1421"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1843"/>
         <source>Font object must be a dictionary.</source>
         <translation>글꼴 개체는 사전이어야 합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1439"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1861"/>
         <source>Invalid font type.</source>
         <translation>글꼴 유형이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1561"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1571"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1577"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1995"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2007"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2013"/>
         <source>Invalid differences in encoding entry of the font.</source>
         <translation>글꼴 인코딩 항목의 차이가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1583"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1626"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2019"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2065"/>
         <source>Invalid encoding entry of the font.</source>
         <translation>글꼴의 인코딩 항목이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1811"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2323"/>
         <source>Invalid CMAP in CID-keyed font.</source>
         <translation>CID 키 글꼴의 CMAP가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1817"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1829"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2329"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2341"/>
         <source>Invalid descendant font in CID-keyed font.</source>
         <translation>CID 키 글꼴의 하위 글꼴이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1823"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2335"/>
         <source>Invalid number (%1) of descendant fonts in CID-keyed font - exactly one is required.</source>
         <translation>CID 키 글꼴의 하위 글꼴 번호(%1)가 잘못되었습니다. 정확히 1개가 필요합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1918"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2430"/>
         <source>Invalid Type 3 font matrix.</source>
         <translation>유형 3 글꼴 매트릭스가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1925"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2437"/>
         <source>Invalid Type 3 font character content streams.</source>
         <translation>잘못된 유형 3 글꼴 문자 콘텐츠 스트림입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1934"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2446"/>
         <source>Invalid Type 3 font character range (from %1 to %2).</source>
         <translation>잘못된 유형 3 글꼴 문자 범위(%1부터 %2까지).</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1940"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1947"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2452"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2459"/>
         <source>Invalid Type 3 font encoding.</source>
         <translation>유형 3 글꼴 인코딩이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1965"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="1980"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2477"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2492"/>
         <source>Invalid differences in encoding entry of type 3 font.</source>
         <translation>유형 3 글꼴 인코딩 항목의 차이가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2117"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2644"/>
         <source>Standard</source>
         <translation>표준</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2121"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2648"/>
         <source>Mac Roman</source>
         <translation>맥 로만</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2125"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2652"/>
         <source>Win Ansi</source>
         <translation>안시 승리</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2129"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2656"/>
         <source>PDF Doc</source>
         <translation>PDF 문서</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2133"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2660"/>
         <source>Mac Expert</source>
         <translation>맥 전문가</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2137"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2217"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2664"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2747"/>
         <source>Symbol</source>
         <translation>기호</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2141"/>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2221"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2668"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2751"/>
         <source>Zapf Dingbats</source>
         <translation>자프 딩뱃츠</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2145"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2672"/>
         <source>Mac OS Roman</source>
         <translation>맥 OS 로마자</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2149"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2676"/>
         <source>Custom</source>
         <translation>사용자 정의</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2199"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2729"/>
         <source>Times Roman</source>
         <translation>Times Roman</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2206"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2736"/>
         <source>Helvetica</source>
         <translation>Helvetica</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2213"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2743"/>
         <source>Courier</source>
         <translation>Courier</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2229"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2759"/>
         <source>Standard font</source>
         <translation>표준 글꼴</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2383"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2856"/>
+        <source>Font &apos;%1&apos; is not embedded, using substitute font for real text drawing.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2997"/>
         <source>Can&apos;t load CID font mapping named &apos;%1&apos;.</source>
         <translation>&apos;%1&apos;이라는 CID 글꼴 매핑을 로드할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2422"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="3036"/>
         <source>Can&apos;t fetch code from CMap definition.</source>
         <translation>CMap 정의에서 코드를 가져올 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2432"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="3046"/>
         <source>Can&apos;t fetch CID from CMap definition.</source>
         <translation>CMap 정의에서 CID를 가져올 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2466"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="3080"/>
         <source>Can&apos;t use cmap inside cmap file.</source>
         <translation>cmap 파일 내에서 cmap을 사용할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2877"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="3679"/>
         <source>Character count</source>
         <translation>문자 수</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="2925"/>
+        <location filename="../Pdf4QtLibCore/sources/pdffont.cpp" line="3756"/>
         <source>Content stream for type 3 font character code &apos;%1&apos; not found.</source>
         <translation>유형 3 글꼴 문자 코드 &apos;%1&apos;에 대한 콘텐츠 스트림을 찾을 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="74"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="94"/>
+        <source>Failed to normalize image for monochrome conversion.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="100"/>
+        <source>Failed to allocate intermediate image buffer.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="146"/>
+        <source>Cannot encode empty image.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="157"/>
+        <source>Invalid target size for image encoding.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="193"/>
+        <source>Selected compression supports only 1-bit monochrome images; the image is converted to monochrome.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="209"/>
+        <source>Selected compression does not support 1-bit monochrome images; grayscale encoding will be used instead.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="284"/>
+        <source>Failed to convert image to monochrome.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="290"/>
+        <source>Unexpected pixel format after monochrome conversion.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="304"/>
+        <source>Unsupported image color mode.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="310"/>
+        <source>Image alpha channel was composited onto white background during encoding.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="448"/>
+        <source>JPEG encoder supports only 8-bit grayscale or RGB images.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="460"/>
+        <source>Error writing JPEG image: %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="606"/>
+        <source>JPEG 2000 encoder supports only 8-bit grayscale or RGB images.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="635"/>
+        <source>Failed to allocate JPEG 2000 image structure.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="676"/>
+        <source>Failed to create JPEG 2000 encoder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="687"/>
+        <source>Failed to setup JPEG 2000 encoder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="700"/>
+        <source>Failed to create JPEG 2000 stream.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="727"/>
+        <source>JPEG 2000 encoder error: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="732"/>
+        <source>JPEG 2000 encoder failed to write image.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="740"/>
+        <source>JPEG 2000 warning: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="784"/>
         <source>Image has not data.</source>
         <translation>이미지에 데이터가 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="97"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="807"/>
         <source>Soft mask image can&apos;t have mask / soft mask itself.</source>
         <translation>소프트 마스크 이미지는 마스크/소프트 마스크 자체를 가질 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="102"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="812"/>
         <source>Regular image can&apos;t have Matte entry (used for soft masks).</source>
         <translation>일반 이미지에는 매트 항목(소프트 마스크에 사용됨)이 있을 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="144"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="854"/>
         <source>Invalid mask image.</source>
         <translation>마스크 이미지가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="175"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="885"/>
         <source>Invalid soft mask object.</source>
         <translation>소프트 마스크 개체가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="264"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="974"/>
         <source>Malformed data while reading JPEG stream. %1 bytes skipped.</source>
         <translation>JPEG 스트림을 읽는 동안 데이터 형식이 잘못되었습니다. %1바이트를 건너뛰었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="273"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="983"/>
         <source>Error reading JPEG (DCT) image: %1.</source>
         <translation>JPEG(DCT) 이미지 읽기 오류: %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="383"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="1093"/>
         <source>JPEG 2000 Warning: %1</source>
         <translation>JPEG 2000 경고: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="389"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="1099"/>
         <source>JPEG 2000 Error: %1</source>
         <translation>JPEG 2000 오류: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="479"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="1189"/>
         <source>Unknown color space for JPEG 2000 image.</source>
         <translation>JPEG 2000 이미지의 색상 공간을 알 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="532"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="1242"/>
         <source>JPEG 2000 image has too much non-alpha channels. Ignoring %1 channels.</source>
         <translation>JPEG 2000 이미지에 알파 채널이 아닌 채널이 너무 많습니다. %1 채널을 무시합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="538"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="1248"/>
         <source>JPEG 2000 image has too much alpha channels. Ignoring %1 alpha channels.</source>
         <translation>JPEG 2000 이미지에 알파 채널이 너무 많습니다. %1 알파 채널을 무시합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="630"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="1340"/>
         <source>Incompatible color components for JPEG 2000 image.</source>
         <translation>JPEG 2000 이미지에 대해 호환되지 않는 색상 구성 요소입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="664"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="1374"/>
         <source>Invalid parameters for filter CCITT fax decode.</source>
         <translation>필터 CCITT 팩스 디코드에 대한 매개변수가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="711"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="1421"/>
         <source>Invalid number of bits per component (%1).</source>
         <translation>구성 요소당 비트 수가 잘못되었습니다(%1).</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="651"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="1484"/>
+        <source>Image of the size %1 x %2 is too large for the JBIG2 coding; the CCITT fax coding is used instead.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfimage.cpp" line="1537"/>
+        <source>Encoded image stream is empty.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="887"/>
         <source>Invalid XML text.</source>
         <translation>잘못된 XML 텍스트입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="682"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="1259"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="1268"/>
         <source>Error during converting text to font encoding. Some characters were not converted: &apos;%1&apos;.</source>
         <translation>텍스트를 글꼴 인코딩으로 변환하는 동안 오류가 발생했습니다. 일부 문자가 변환되지 않았습니다: &apos;%1&apos;.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="687"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="913"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="1082"/>
         <source>Text font not defined!</source>
         <translation>텍스트 글꼴이 정의되지 않았습니다!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="724"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="956"/>
         <source>Invalid rendering mode &apos;%1&apos;. Valid values are 0-7.</source>
         <translation>잘못된 렌더링 모드 &apos;%1&apos;. 유효한 값은 0-7입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="739"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="754"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="769"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="784"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="799"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="816"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="840"/>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="844"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="941"/>
         <source>Cannot convert text &apos;%1&apos; to number.</source>
         <translation>텍스트 &apos;%1&apos;을 숫자로 변환할 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="826"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="1046"/>
+        <source>Invalid boolean value &apos;%1&apos;. Valid values are 0, 1, true and false.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="1073"/>
+        <source>Space command requires one attribute - advance.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="1106"/>
+        <source>Cannot encode character with cid &apos;%1&apos; using the current font.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="1115"/>
+        <source>Character command requires one attribute - cid.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="1140"/>
         <source>Text font command requires two attributes - font and size.</source>
         <translation>텍스트 글꼴 명령에는 글꼴과 크기라는 두 가지 속성이 필요합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="853"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="1170"/>
         <source>Text translation command requires two attributes - x and y.</source>
         <translation>텍스트 번역 명령에는 x와 y라는 두 가지 속성이 필요합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="877"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="1194"/>
         <source>Invalid text matrix parameters.</source>
         <translation>텍스트 매트릭스 매개변수가 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="886"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="1203"/>
         <source>Set text matrix command requires six elements - m11, m12, m21, m22, x, y.</source>
         <translation>텍스트 매트릭스 설정 명령에는 m11, m12, m21, m22, x, y의 6개 요소가 필요합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="891"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="1208"/>
         <source>Invalid command &apos;%1&apos;.</source>
         <translation>&apos;%1&apos; 명령이 잘못되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="626"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="1382"/>
+        <source>Font &apos;%1&apos; is invalid: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagecontenteditorcontentstreambuilder.cpp" line="1431"/>
+        <source>Failed to create fallback font &apos;%1&apos;: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="748"/>
         <source>Info</source>
         <translation>정보</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="632"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="754"/>
         <source>%1 (%2 replies)</source>
         <translation>%1 (%2 응답)</translation>
     </message>
@@ -11768,85 +13712,219 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>직사각형</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="1266"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="1339"/>
         <source>SVG image</source>
         <translation>SVG 이미지</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="1395"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="1468"/>
         <source>Dot</source>
         <translation>도트</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="1493"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="1566"/>
         <source>Freehand curve</source>
         <translation>프리핸드 곡선</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="2570"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="2646"/>
         <source>Text box &apos;%1&apos;</source>
         <translation>텍스트 상자 &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="2745"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="2829"/>
         <source>Image</source>
         <translation>이미지</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="2755"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfpagecontentelements.cpp" line="2839"/>
         <source>Path</source>
         <translation>경로</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfdrawspacecontroller.cpp" line="943"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfdrawspacecontroller.cpp" line="961"/>
         <source>Compile time:    %1 [ms]</source>
         <translation>컴파일 시간: %1 [ms]</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfdrawspacecontroller.cpp" line="945"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfdrawspacecontroller.cpp" line="963"/>
         <source>Draw time:       %1 [ms]</source>
         <translation>그리기 시간: %1 [ms]</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfcompiler.cpp" line="309"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfcompiler.cpp" line="415"/>
         <source>Precompiled page size is too high (%1 kB). Cache size is %2 kB. Increase the cache size!</source>
         <translation>미리 컴파일된 페이지 크기가 너무 높습니다(%1kB). 캐시 크기는 %2kB입니다. 캐시 크기를 늘려보세요!</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfccittfaxencoder.cpp" line="96"/>
+        <source>Invalid bitonal image for the CCITT fax encoding.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagegeometry.cpp" line="385"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagegeometry.cpp" line="496"/>
+        <source>Invalid document.</source>
+        <translation type="unfinished">잘못된 문서입니다.</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagegeometry.cpp" line="501"/>
+        <source>No target page box selected.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagegeometry.cpp" line="536"/>
+        <source>Reference box on page %1 is invalid.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagegeometry.cpp" line="555"/>
+        <source>Target page size for page %1 is invalid.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagegeometry.cpp" line="565"/>
+        <source>Margins for page %1 exceed target page size.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfpagegeometry.cpp" line="585"/>
+        <source>Content scale for page %1 is invalid.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.h" line="92"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.h" line="104"/>
+        <source>JBIG2 arithmetic state limit exceeded.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.h" line="119"/>
+        <source>JBIG2 incompatible arithmetic context size.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.h" line="130"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.h" line="140"/>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2decoder.h" line="151"/>
+        <source>JBIG2 arithmetic context out of range.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2encoder.cpp" line="108"/>
+        <source>Invalid JBIG2 arithmetic encoder state or bit.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2encoder.cpp" line="116"/>
+        <source>Invalid JBIG2 arithmetic probability state.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2encoder.cpp" line="176"/>
+        <source>JBIG2 arithmetic encoder has already finished.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2encoder.cpp" line="275"/>
+        <source>JBIG2 arithmetic output size limit exceeded.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2encoder.cpp" line="366"/>
+        <source>Invalid bitonal image for the JBIG2 encoding.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2encoder.cpp" line="373"/>
+        <source>Image of the size %1 x %2 is too large for the JBIG2 encoding, the maximum size is %3 x %3.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2encoder.cpp" line="381"/>
+        <source>Image exceeds the JBIG2 encoding resource limit.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2encoder.cpp" line="391"/>
+        <source>Invalid JBIG2 generic region template %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2encoder.cpp" line="402"/>
+        <source>Invalid JBIG2 adaptive template pixel position A%1 = (%2, %3).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2encoder.cpp" line="449"/>
+        <source>Invalid JBIG2 arithmetic context size for the selected template.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2encoder.cpp" line="456"/>
+        <source>Invalid size (%1 x %2) of the JBIG2 skip bitmap, the image size is %3 x %4.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfjbig2encoder.cpp" line="664"/>
+        <source>JBIG2 encoded stream size limit exceeded.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfimageoptimizer.cpp" line="873"/>
+        <source>Optimizing images...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfbitonaldocumentcreator.cpp" line="203"/>
+        <source>Converting images...</source>
+        <translation type="unfinished">이미지 변환 중...</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfbitonaldocumentcreator.cpp" line="364"/>
+        <source>Converting pages...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibCore/sources/pdfeditorfallbackfont.cpp" line="144"/>
+        <source>Character &apos;%1&apos; (U+%2) is not available in any substitute font, an empty glyph is used.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>pdf::PDFWidgetAnnotationManager</name>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="279"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="323"/>
         <source>Annotation</source>
         <translation>주석</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="280"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="324"/>
         <source>Show Popup Window</source>
         <translation>팝업 창 표시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="281"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="325"/>
         <source>Copy to Multiple Pages</source>
         <translation>여러 페이지에 복사</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="282"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="326"/>
         <source>Edit</source>
         <translation>편집</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="283"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="327"/>
         <source>Delete</source>
         <translation>삭제</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="1075"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="1197"/>
         <source>Copy Annotation</source>
         <translation>주석 복사</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="1075"/>
+        <location filename="../Pdf4QtLibWidgets/sources/pdfwidgetannotation.cpp" line="1197"/>
         <source>Copy Annotation onto Multiple Pages</source>
         <translation>주석을 여러 페이지에 복사</translation>
     </message>
@@ -12060,128 +14138,994 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdfpagemaster::AssembleOutputSettingsDialog</name>
     <message>
-        <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="40"/>
+        <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="92"/>
         <source>No Outline</source>
         <translation>개요 없음</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="41"/>
+        <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="93"/>
         <source>Join Outlines</source>
         <translation>조인 개요</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="42"/>
+        <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="94"/>
         <source>Document Parts</source>
         <translation>문서 부분</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="76"/>
+        <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="97"/>
+        <source>&lt;html&gt;&lt;body&gt;&lt;p&gt;&lt;b&gt;File template placeholders&lt;/b&gt;&lt;/p&gt;&lt;p&gt;# = output number, @ = source page, % = source document index. Repeat them to pad with zeroes, for example ###.&lt;/p&gt;&lt;p&gt;Named tokens: {source_name}, {source_base}, {source_ext}, {source_page}, {output_index}, {group_index}, {group_name}, {date}.&lt;/p&gt;&lt;p&gt;Examples: {source_base}.pdf, {group_name}.pdf, document-{output_index}.pdf, {date}-{source_base}.pdf&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="106"/>
+        <source>Output file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="106"/>
+        <source>Pages</source>
+        <translation type="unfinished">페이지</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="106"/>
+        <source>First source</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="106"/>
+        <source>Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="106"/>
+        <source>Status</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="248"/>
+        <source>Empty output</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="277"/>
+        <source>Output Preview</source>
+        <translation type="unfinished">출력 미리보기</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="277"/>
+        <source>The output preview contains errors. Please fix them before assembling documents.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/assembleoutputsettingsdialog.cpp" line="294"/>
         <source>Select output directory</source>
         <translation>출력 디렉터리 선택</translation>
     </message>
 </context>
 <context>
+    <name>pdfpagemaster::CropPagesDialog</name>
+    <message>
+        <location filename="../Pdf4QtPageMaster/croppagesdialog.cpp" line="48"/>
+        <location filename="../Pdf4QtPageMaster/croppagesdialog.cpp" line="123"/>
+        <source>%1 x %2 mm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/croppagesdialog.cpp" line="49"/>
+        <source>Apply to selected pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/croppagesdialog.cpp" line="50"/>
+        <source>Apply to all pages from same source</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/croppagesdialog.cpp" line="57"/>
+        <source> mm</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>pdfpagemaster::ImageOptimizationSettingsDialog</name>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="79"/>
+        <source>Image Optimization Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="83"/>
+        <source>Global Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="87"/>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="92"/>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="149"/>
+        <source>Auto</source>
+        <translation type="unfinished">자동</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="88"/>
+        <source>Custom</source>
+        <translation type="unfinished">사용자 정의</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="89"/>
+        <source>Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="93"/>
+        <source>Preserve</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="94"/>
+        <source>Color (RGB)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="95"/>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="121"/>
+        <source>Grayscale</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="96"/>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="122"/>
+        <source>Bitonal</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="97"/>
+        <source>Color mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="100"/>
+        <source>Prefer quality</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="101"/>
+        <source>Minimum size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="102"/>
+        <source>Goal</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="104"/>
+        <source>Keep original image if re-encoded stream is larger</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="107"/>
+        <source>Preserve transparency</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="120"/>
+        <source>Color</source>
+        <translation type="unfinished">색상</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="150"/>
+        <source>Flate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="153"/>
+        <source>JPEG</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="154"/>
+        <source>JPEG2000</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="156"/>
+        <source>RunLength</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="157"/>
+        <source>Algorithm</source>
+        <translation type="unfinished">알고리즘</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="161"/>
+        <source> dpi</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="162"/>
+        <source>Target DPI</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="165"/>
+        <source>Nearest</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="166"/>
+        <source>Bilinear</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="167"/>
+        <source>Bicubic</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="168"/>
+        <source>Lanczos</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="169"/>
+        <source>Resample</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/imageoptimizationsettingsdialog.cpp" line="175"/>
+        <source>JPEG quality</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>pdfpagemaster::ItemPropertiesDialog</name>
+    <message>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.cpp" line="67"/>
+        <source>PDF Page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.cpp" line="69"/>
+        <source>Image</source>
+        <translation type="unfinished">이미지</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.cpp" line="71"/>
+        <source>Blank Page</source>
+        <translation type="unfinished">빈 페이지</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.cpp" line="126"/>
+        <source>%1 x %2 px</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.cpp" line="142"/>
+        <source>Square</source>
+        <translation type="unfinished">정사각형</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.cpp" line="144"/>
+        <source>Landscape</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.cpp" line="144"/>
+        <source>Portrait</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.cpp" line="152"/>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.cpp" line="255"/>
+        <source>None</source>
+        <translation type="unfinished">없음</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.cpp" line="154"/>
+        <source>90 deg</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.cpp" line="156"/>
+        <source>180 deg</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.cpp" line="158"/>
+        <source>270 deg</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.cpp" line="242"/>
+        <source>page %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.cpp" line="256"/>
+        <location filename="../Pdf4QtPageMaster/itempropertiesdialog.cpp" line="257"/>
+        <source>Not applicable</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>pdfpagemaster::MainWindow</name>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="159"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="975"/>
         <source>&amp;Main</source>
         <translation>&amp;기본</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="170"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="990"/>
         <source>&amp;Insert</source>
         <translation>&amp;삽입</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="173"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="993"/>
         <source>&amp;Select</source>
         <translation>&amp;선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="176"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="996"/>
         <source>&amp;Regroup</source>
         <translation>&amp;재그룹</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="179"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="999"/>
+        <source>&amp;Arrange</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1002"/>
         <source>&amp;Zoom</source>
         <translation>&amp;확대/축소</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="182"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1005"/>
         <source>Ma&amp;ke</source>
         <translation>&amp;만들기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="264"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="886"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1008"/>
+        <source>&amp;Search</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1011"/>
+        <source>Search workspace</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1014"/>
+        <source>Search</source>
+        <translation type="unfinished">검색</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1122"/>
+        <source>Move items here</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1141"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3953"/>
+        <source>Unsupported files cannot be inserted.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1148"/>
+        <source>Insert image here</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1149"/>
+        <source>Insert %1 %2 here</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1149"/>
+        <source>file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1149"/>
+        <source>files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1152"/>
+        <source> (%1 unsupported skipped)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1153"/>
+        <source>%1 unsupported file(s) will be skipped.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1203"/>
+        <source>Files inserted.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1209"/>
+        <source>No supported files were inserted.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1241"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3747"/>
         <source>Select PDF document(s)</source>
         <translation>PDF 문서 선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="264"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="886"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="915"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1241"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3747"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3768"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3834"/>
         <source>PDF document (*.pdf)</source>
         <translation>PDF 문서(*.pdf)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="299"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1284"/>
         <source>Select</source>
         <translation>선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="306"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1293"/>
         <source>Regroup</source>
         <translation>재그룹</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="384"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1320"/>
+        <source>&amp;Undo</source>
+        <translation type="unfinished">&amp;실행 취소</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1320"/>
+        <source>&amp;Undo %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1321"/>
+        <source>&amp;Redo</source>
+        <translation type="unfinished">&amp;다시 실행</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1321"/>
+        <source>&amp;Redo %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1322"/>
+        <source>Undo</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1322"/>
+        <source>Undo %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1323"/>
+        <source>Redo</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1323"/>
+        <source>Redo %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1343"/>
+        <source>Exporting...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1396"/>
+        <source>%1 document(s) exported.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1420"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1446"/>
+        <source>Recent File</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1420"/>
+        <source>File &apos;%1&apos; no longer exists.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1446"/>
+        <source>File &apos;%1&apos; is not a supported PDF or image file.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1460"/>
+        <source>Recent Workspace</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1460"/>
+        <source>Workspace &apos;%1&apos; no longer exists.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1482"/>
+        <source>Recent Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1482"/>
+        <source>Folder &apos;%1&apos; no longer exists.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1492"/>
+        <source>Current folder set to &apos;%1&apos;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1554"/>
+        <source>Cannot open workspace file &apos;%1&apos;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1562"/>
+        <source>Cannot parse workspace JSON: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1607"/>
+        <source>Source Files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1608"/>
+        <source>Workspaces</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1609"/>
+        <source>Folders</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1613"/>
+        <source>No Recent Items</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1826"/>
+        <source>%1 of %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1830"/>
+        <source>%1 items</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2073"/>
+        <source>%1 unsupported file(s) skipped.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2109"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3132"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3780"/>
         <source>Encrypted document</source>
         <translation>암호화된 문서</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="384"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2109"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3132"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3780"/>
         <source>Enter password to access document &apos;%1&apos;</source>
         <translation>&apos;%1&apos; 문서에 액세스하려면 비밀번호를 입력하세요.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="407"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="413"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="743"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="829"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="842"/>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="851"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2405"/>
+        <source>Output directory does not exist</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2418"/>
+        <source>Ready</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2422"/>
+        <source>Will overwrite</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2422"/>
+        <source>Already exists</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2428"/>
+        <source>Duplicate name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2445"/>
+        <source>Export</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2445"/>
+        <source>Another export is already running.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2466"/>
+        <source>Output directory does not exist.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2486"/>
+        <source>Output file name &apos;%1&apos; is generated more than once. Please change the file template.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2515"/>
+        <source>Preparing export...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2531"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2701"/>
+        <source>Split PDF</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2534"/>
+        <source>Split the whole workspace.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2534"/>
+        <source>Split the selected workspace items.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2539"/>
+        <source>Every page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2540"/>
+        <source>Every N pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2541"/>
+        <source>At selected page numbers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2542"/>
+        <source>At top-level bookmarks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2543"/>
+        <source>By approximate output file size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2544"/>
+        <source>Split</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2546"/>
+        <source>Pages per document</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2552"/>
+        <source>Start new document at pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2554"/>
+        <source>10, 20, 35</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2557"/>
+        <source>Approximate size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2562"/>
+        <source> MB</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2566"/>
+        <source>Approximate size split is estimated from source file sizes; actual PDF output size can vary.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2663"/>
+        <source>Enter one or more page numbers, for example 10, 20, 35.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2672"/>
+        <source>Top-level bookmark split requires exactly one source PDF.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2680"/>
+        <source>No top-level bookmarks with page destinations were found.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2680"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2701"/>
+        <source>No output documents would be created.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2684"/>
+        <source>%1 output document(s) will be created before writing files.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2707"/>
+        <source>Split documents (approximate size)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2707"/>
+        <source>Split documents</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2717"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2895"/>
+        <source>Select Page Range</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2721"/>
+        <source>Use workspace order for visible items, or original PDF page numbers for the current source document.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2727"/>
+        <source>1-3, 8, 10-12</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2728"/>
+        <source>Range</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2731"/>
+        <source>Select in whole workspace (visible order)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2732"/>
+        <source>Select within current source document (original page numbers)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2733"/>
+        <source>Scope</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2736"/>
+        <source>Replace current selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2737"/>
+        <source>Add to current selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2738"/>
+        <source>Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2789"/>
+        <source>Enter a page range, for example 1-3, 8, 10-12.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2802"/>
+        <source>Select a workspace item from a PDF source first.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2870"/>
+        <source>No visible workspace items match this page range.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2881"/>
+        <source>%1 visible workspace item(s) will be selected.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2993"/>
+        <source>Workspace references a PDF source that is not loaded.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3003"/>
+        <source>Workspace references page %1 outside the loaded PDF source &apos;%2&apos;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3014"/>
+        <source>Workspace references an image source that is not loaded.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3105"/>
+        <source>The selected file is not a PageMaster workspace project.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3204"/>
+        <source>The following workspace sources are missing:
+%1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3244"/>
+        <source>Save Workspace</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3244"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3275"/>
+        <source>PageMaster Workspace (*.pagemaster)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3257"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3265"/>
+        <source>Cannot write workspace file &apos;%1&apos;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3275"/>
+        <source>Open Workspace</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3285"/>
+        <source>Checkpoint #%1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3287"/>
+        <source>Save Checkpoint</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3287"/>
+        <source>Checkpoint name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3309"/>
+        <source>Load Checkpoint</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3309"/>
+        <source>Checkpoint</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3596"/>
+        <source>Rename Item or Group</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3596"/>
+        <source>Display name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3656"/>
+        <source>United document</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3659"/>
+        <source>Separate documents</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3662"/>
+        <source>Grouped documents</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1392"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1554"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1562"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="1569"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2128"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2134"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2140"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2357"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2466"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2486"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2493"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3257"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3265"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3324"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3674"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3790"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3799"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3815"/>
         <source>Error</source>
         <translation>오류</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="407"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="381"/>
+        <source>Assembling documents...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="440"/>
+        <source>Writing documents...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="455"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2493"/>
+        <source>Document with filename &apos;%1&apos; already exists.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2128"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3815"/>
+        <source>Document &apos;%1&apos; is already in the workspace.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2134"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3799"/>
         <source>Document security doesn&apos;t permit to organize pages.</source>
         <translation>문서 보안은 페이지 구성을 허용하지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="743"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="2357"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3674"/>
         <source>No documents to assemble.</source>
         <translation>조합할 문서가 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="842"/>
-        <source>Document with given filename already exists.</source>
-        <translation>해당 파일 이름을 가진 문서가 이미 존재합니다.</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="867"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3724"/>
         <source>Images (*.%1)</source>
         <translation>이미지(*.%1)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="868"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3725"/>
         <source>Select Image(s)</source>
         <translation>이미지 선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="915"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3768"/>
+        <location filename="../Pdf4QtPageMaster/mainwindow.cpp" line="3834"/>
         <source>Select PDF document</source>
         <translation>PDF 문서 선택</translation>
     </message>
@@ -12210,56 +15154,397 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
     </message>
 </context>
 <context>
+    <name>pdfpagemaster::PDFPageImportDialog</name>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pdfpageimportdialog.cpp" line="144"/>
+        <source>Invalid page number &apos;%1&apos;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pdfpageimportdialog.cpp" line="165"/>
+        <source>Invalid page range &apos;%1&apos;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pdfpageimportdialog.cpp" line="173"/>
+        <source>No pages selected.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pdfpageimportdialog.cpp" line="198"/>
+        <source>%1 of %2 pages selected.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pdfpageimportdialog.cpp" line="204"/>
+        <source>No valid pages selected.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>pdfpagemaster::PageItemDelegate</name>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemdelegate.cpp" line="139"/>
+        <source>90°</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemdelegate.cpp" line="142"/>
+        <source>180°</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemdelegate.cpp" line="145"/>
+        <source>270°</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>pdfpagemaster::PageItemModel</name>
     <message>
-        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="981"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1833"/>
         <source>Page Group</source>
         <translation>페이지 그룹</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1021"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="2073"/>
         <source>Document collection</source>
         <translation>문서 컬렉션</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1023"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="2075"/>
         <source>Page Count: %1</source>
         <translation>페이지 수: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1057"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1856"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1869"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1982"/>
         <source>Image</source>
         <translation>이미지</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1057"/>
-        <source>Images</source>
-        <translation>이미지</translation>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="49"/>
+        <source>Order</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1063"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="51"/>
+        <source>Name</source>
+        <translation type="unfinished">이름</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="53"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1304"/>
+        <source>Type</source>
+        <translation type="unfinished">유형</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="55"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1305"/>
+        <source>Source</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="57"/>
+        <source>Original Page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="59"/>
+        <source>Pages in Group</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="61"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1308"/>
+        <source>Size</source>
+        <translation type="unfinished">크기</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="63"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1309"/>
+        <source>Orientation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="65"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1310"/>
+        <source>Rotation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="67"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1311"/>
+        <source>Tags</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="177"/>
+        <source>Add Documents</source>
+        <translation type="unfinished">문서 추가</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="177"/>
+        <source>Insert PDF Pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="209"/>
+        <source>Insert Image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="272"/>
+        <source>Paste Image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="287"/>
+        <source>Pasted image %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="390"/>
+        <source>Group</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="433"/>
+        <source>Ungroup</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="479"/>
+        <source>Restore Removed Items</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="507"/>
+        <source>Clone Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="545"/>
+        <source>Remove Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="563"/>
+        <source>Insert Empty Page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="689"/>
+        <source>Rotate Left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="718"/>
+        <source>Rotate Right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="747"/>
+        <source>Reset Rotation</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="774"/>
+        <source>Reverse Order</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="783"/>
+        <source>Sort by File Name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="787"/>
+        <source>Sort by Source</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="791"/>
+        <source>Sort by Page Number</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="795"/>
+        <source>Sort by Type</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="799"/>
+        <source>Sort Items</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="942"/>
+        <source>Rename Item</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="978"/>
+        <source>Rename Image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1073"/>
+        <source>Crop Pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1303"/>
+        <source>File name</source>
+        <translation type="unfinished">파일 이름</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1306"/>
+        <source>Original page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1307"/>
+        <source>Page count</source>
+        <translation type="unfinished">페이지 수</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1335"/>
+        <source>Path</source>
+        <translation type="unfinished">경로</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1336"/>
+        <source>Format</source>
+        <translation type="unfinished">형식</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1341"/>
+        <source>Group items</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1413"/>
+        <source>Regroup Reversed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1488"/>
+        <source>Regroup Even/Odd</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1528"/>
+        <source>Regroup by Page Pairs</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1563"/>
+        <source>Regroup by Outline</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1608"/>
+        <source>Regroup by Alternating Pages Reversed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1608"/>
+        <source>Regroup by Alternating Pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1890"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1984"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="2122"/>
         <source>Blank Page</source>
         <translation>빈 페이지</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1063"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1926"/>
+        <source>blank-page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1980"/>
+        <source>PDF Page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="2027"/>
+        <source>Square</source>
+        <translation type="unfinished">정사각형</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="2029"/>
+        <source>Landscape</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="2029"/>
+        <source>Portrait</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="2037"/>
+        <source>None</source>
+        <translation type="unfinished">없음</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="2039"/>
+        <source>90°</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="2041"/>
+        <source>180°</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="2043"/>
+        <source>270°</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="2115"/>
+        <source>%1 Images</source>
+        <translation type="unfinished">%1 이미지</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="2122"/>
         <source>Blank Pages</source>
         <translation>빈 페이지</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1074"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="2133"/>
         <source>#BBBB00@Collection</source>
         <translation>#BBBB00@Collection</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1078"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="2137"/>
         <source>#D98335@Blank</source>
         <translation>#D98335@Blank</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="1082"/>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="2141"/>
         <source>#24A5EA@Image</source>
         <translation>#24A5EA@Image</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="2145"/>
+        <source>#9C5BD1@Crop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="2254"/>
+        <source>Move Items</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtPageMaster/pageitemmodel.cpp" line="2643"/>
+        <source>Change Workspace</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -12496,72 +15781,218 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdfplugin::DimensionsPlugin</name>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="50"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="86"/>
         <source>&amp;Horizontal Dimension</source>
         <translation>&amp;가로 크기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="51"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="87"/>
         <source>&amp;Vertical Dimension</source>
         <translation>&amp;세로 크기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="52"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="88"/>
         <source>&amp;Linear Dimension</source>
         <translation>&amp;선형 치수</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="53"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="89"/>
         <source>&amp;Perimeter</source>
         <translation>&amp;경계</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="54"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="90"/>
         <source>&amp;Rectangle Perimeter</source>
         <translation>&amp;직사각형 둘레</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="55"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="91"/>
         <source>&amp;Area</source>
         <translation>&amp;영역</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="56"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="92"/>
         <source>R&amp;ectangle Area</source>
         <translation>&amp;직사각형 영역</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="57"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="93"/>
         <source>An&amp;gle</source>
         <translation>&amp;각도</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="93"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="94"/>
+        <source>Cali&amp;brate Scale</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="116"/>
+        <source>Pick two points of a known distance in the document to calculate the scale of the drawing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="136"/>
         <source>&amp;Show Dimensions</source>
         <translation>&amp;크기 표시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="94"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="137"/>
         <source>&amp;Clear Dimensions</source>
         <translation>&amp;치수 지우기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="95"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="138"/>
+        <source>Con&amp;vert to Annotations</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="139"/>
+        <source>&amp;Export Measurements...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="140"/>
+        <source>Sca&amp;le</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="141"/>
         <source>Se&amp;ttings</source>
         <translation>&amp;설정</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="151"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="153"/>
+        <source>Store the temporary measurements in the document as measurement annotations, so they are saved with it</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="156"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="697"/>
+        <source>Scale</source>
+        <translation type="unfinished">규모</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="247"/>
         <source>&amp;Dimensions</source>
         <translation>&amp;크기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="279"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="457"/>
         <source>A = %1 %2</source>
         <translation>A = %1 %2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="283"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="475"/>
+        <source>Length</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="478"/>
+        <source>Perimeter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="481"/>
+        <source>Area</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="484"/>
+        <source>Angle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="522"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="526"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="696"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="802"/>
+        <source>Measurement</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="522"/>
+        <source>The measurements cannot be stored in the document as annotations.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="526"/>
+        <source>Some of the measurements could not be stored in the document as annotations. They are displayed as temporary measurements.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="598"/>
+        <source>Calibrate Scale</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="598"/>
+        <source>The picked line has a zero length, the scale cannot be calculated.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="647"/>
+        <source>&amp;Custom Scale...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="650"/>
+        <source>&amp;Manage Presets...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="671"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="675"/>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="686"/>
+        <source>Export Measurements</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="671"/>
+        <source>The document does not contain any measurement.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="675"/>
+        <source>Comma separated values (*.csv)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="686"/>
+        <source>File &apos;%1&apos; cannot be opened for writing.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="694"/>
+        <source>Page</source>
+        <translation type="unfinished">페이지</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="695"/>
+        <source>Type</source>
+        <translation type="unfinished">유형</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="802"/>
+        <source>The measurement cannot be stored in the document as an annotation. It is displayed as a temporary measurement instead.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="1245"/>
+        <source>Sca&amp;le: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="1247"/>
+        <source>Scale of the drawing: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="1254"/>
+        <source>The scale of this document cannot be remembered, because the document cannot be identified.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsplugin.cpp" line="454"/>
         <source>p = %1 %2</source>
         <translation>p = %1 %2</translation>
     </message>
@@ -12569,97 +16000,107 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdfplugin::EditorPlugin</name>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="63"/>
+        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="64"/>
         <source>&amp;Edit page content</source>
         <translation>&amp;페이지 콘텐츠 편집</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="64"/>
+        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="65"/>
         <source>Create &amp;Text Label</source>
         <translation>텍스트 &amp;레이블 생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="65"/>
+        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="66"/>
         <source>Create &amp;Freehand Curve</source>
         <translation>프리핸드 &amp;곡선 생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="66"/>
+        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="67"/>
         <source>Create &amp;Accept Mark</source>
         <translation>승인 &amp;표시 생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="67"/>
+        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="68"/>
         <source>Create &amp;Reject Mark</source>
         <translation>거부 &amp;표시 생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="68"/>
+        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="69"/>
         <source>Create R&amp;ectangle</source>
         <translation>직사각형 &amp;만들기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="69"/>
+        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="70"/>
         <source>&amp;Create Rounded Rectangle</source>
         <translation>&amp;둥근 직사각형 생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="70"/>
+        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="71"/>
         <source>Create &amp;Horizontal Line</source>
         <translation>가로선 &amp;생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="71"/>
+        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="72"/>
         <source>Create &amp;Vertical Line</source>
         <translation>수직선 &amp;생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="72"/>
+        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="73"/>
         <source>Create L&amp;ine</source>
         <translation>라인 &amp;생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="73"/>
+        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="74"/>
         <source>Create &amp;Dot</source>
         <translation>도트 &amp;생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="74"/>
+        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="75"/>
         <source>Create &amp;SVG Image</source>
         <translation>SVG &amp;이미지 생성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="75"/>
+        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="76"/>
+        <source>&amp;Undo</source>
+        <translation type="unfinished">&amp;실행 취소</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="77"/>
+        <source>&amp;Redo</source>
+        <translation type="unfinished">&amp;다시 실행</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="78"/>
         <source>Clear A&amp;ll Graphics</source>
         <translation>모든 &amp;그래픽 지우기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="189"/>
+        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="202"/>
         <source>Ed&amp;itor</source>
         <translation>&amp;편집기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="309"/>
+        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="324"/>
         <source>Errors (%2) occured while creating content stream on page %3.&lt;br&gt;%1</source>
         <translation>%3.&lt;br&gt;%1 페이지에서 콘텐츠 스트림을 생성하는 동안 오류(%2)가 발생했습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="310"/>
+        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="325"/>
         <source>Error</source>
         <translation>오류</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="381"/>
+        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="398"/>
         <source>Confirm Changes</source>
         <translation>변경 사항 확인</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="381"/>
+        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="398"/>
         <source>The changes to the page content will be written to the document. Do you want to continue?</source>
         <translation>페이지 콘텐츠의 변경 사항이 문서에 기록됩니다. 계속하시겠습니까?</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="705"/>
+        <location filename="../Pdf4QtEditorPlugins/EditorPlugin/editorplugin.cpp" line="820"/>
         <source>Editor Toolbox</source>
         <translation>편집기 도구 상자</translation>
     </message>
@@ -13190,19 +16631,130 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>&apos;고급 검색&apos; 도구를 통해 텍스트를 선택한 다음 이 도구를 사용하여 수정합니다. 특정 결과를 선택하려면 &apos;결과&apos; 테이블에서 행을 선택하세요.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="153"/>
+        <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="155"/>
         <source>Redact Pages</source>
         <translation>페이지 수정</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="153"/>
+        <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="155"/>
         <source>Page Range to be Redacted</source>
         <translation>수정될 페이지 범위</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="206"/>
+        <location filename="../Pdf4QtEditorPlugins/RedactPlugin/redactplugin.cpp" line="208"/>
         <source>Error</source>
         <translation>오류</translation>
+    </message>
+</context>
+<context>
+    <name>pdfplugin::ScanDialog</name>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/scandialog.cpp" line="41"/>
+        <source>Scan Pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/scandialog.cpp" line="49"/>
+        <source>Reload Devices</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/scandialog.cpp" line="51"/>
+        <source>Scan</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/scandialog.cpp" line="53"/>
+        <source>Color</source>
+        <translation type="unfinished">색상</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/scandialog.cpp" line="54"/>
+        <source>Grayscale</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/scandialog.cpp" line="55"/>
+        <source>Lineart</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/scandialog.cpp" line="60"/>
+        <source> dpi</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/scandialog.cpp" line="66"/>
+        <source>Device:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/scandialog.cpp" line="67"/>
+        <source>Source:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/scandialog.cpp" line="68"/>
+        <source>Color mode:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/scandialog.cpp" line="69"/>
+        <source>Resolution:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/scandialog.cpp" line="70"/>
+        <source>Pages:</source>
+        <translation type="unfinished">페이지:</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/scandialog.cpp" line="110"/>
+        <source>No scanner backend is available for this platform.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/scandialog.cpp" line="122"/>
+        <source>%1 (%2 %3)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/scandialog.cpp" line="130"/>
+        <source>No scanner devices found.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/scandialog.cpp" line="134"/>
+        <source>%1 scanner backend ready.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/scandialog.cpp" line="151"/>
+        <source>Default</source>
+        <translation type="unfinished">기본값</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/scandialog.cpp" line="176"/>
+        <source>Scanner Error</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/scandialog.cpp" line="181"/>
+        <source>Scanned pages: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>pdfplugin::ScannerPlugin</name>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/scannerplugin.cpp" line="48"/>
+        <source>&amp;Scan Pages...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtEditorPlugins/ScannerPlugin/scannerplugin.cpp" line="61"/>
+        <source>&amp;Scanner</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -13387,9 +16939,29 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdfviewer::ImagePreviewDelegate</name>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="482"/>
-        <source>Toggle this icon to switch image conversion to bitonal format on or off.</source>
-        <translation>이 아이콘을 토글하여 이미지 변환을 흑백 형식으로 켜거나 끕니다.</translation>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1619"/>
+        <source>Convert this item to the bitonal format using the selected conversion method.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1622"/>
+        <source>Convert this item to the bitonal format using the selected conversion method and then swap its black and white pixels.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1625"/>
+        <source>Leave this item unchanged.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1628"/>
+        <source>Replace this item with a black area.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1631"/>
+        <source>Replace this item with a white area.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -13441,22 +17013,22 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>컨텍스트</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="126"/>
+        <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="129"/>
         <source>Search error</source>
         <translation>검색 오류</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="126"/>
+        <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="129"/>
         <source>Search phrase regular expression has error &apos;%1&apos; near symbol %2.</source>
         <translation>검색 구문 정규 표현식 %2 기호 근처에 &apos;%1&apos; 오류가 있습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="183"/>
+        <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="204"/>
         <source>Results (%1)</source>
         <translation>결과(%1)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="183"/>
+        <location filename="../Pdf4QtLibGui/pdfadvancedfindwidget.cpp" line="204"/>
         <source>Results</source>
         <translation>결과</translation>
     </message>
@@ -13485,24 +17057,227 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
 <context>
     <name>pdfviewer::PDFCreateBitonalDocumentDialog</name>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="126"/>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="196"/>
         <source>ORIGINAL</source>
         <translation>ORIGINAL</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="127"/>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="197"/>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1392"/>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1446"/>
         <source>BITONAL</source>
         <translation>BITONAL</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="135"/>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="216"/>
+        <source>Images</source>
+        <translation type="unfinished">이미지</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="217"/>
+        <source>Whole pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="226"/>
+        <source>Automatic (Otsu&apos;s 1D method)</source>
+        <translation type="unfinished">자동(Otsu의 1D 방식)</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="227"/>
+        <source>User-defined threshold</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="228"/>
+        <source>Adaptive thresholding</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="229"/>
+        <source>Dithering (Floyd-Steinberg)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="231"/>
+        <source>Automatic (smallest result)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="232"/>
+        <source>Flate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="233"/>
+        <source>RunLength</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="234"/>
+        <source>CCITT Group 4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="235"/>
+        <source>JBIG2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="254"/>
         <source>Perform</source>
         <translation>수행</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="185"/>
-        <source>Converting images...</source>
-        <translation>이미지 변환 중...</translation>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="435"/>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1145"/>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1153"/>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1355"/>
+        <source>Detect Blank Pages</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="435"/>
+        <source>Blank page detection could not examine all pages. No page modes have been changed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="469"/>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1004"/>
+        <source>Not available</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="486"/>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="501"/>
+        <source>Create Bitonal Document</source>
+        <translation type="unfinished">이중 문서 생성</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="486"/>
+        <source>The bitonal document has not been created. No item of the document could be converted.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="497"/>
+        <source>%1 of %2 items could not be converted and they are left unchanged. Do you want to use the partially converted document?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="600"/>
+        <source>Selected items (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="600"/>
+        <source>All items</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="608"/>
+        <source>Convert using the selected method</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="609"/>
+        <source>Convert using the selected method, inverted</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="610"/>
+        <source>Leave unchanged</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="611"/>
+        <source>Fill with black</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="612"/>
+        <source>Fill with white</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="734"/>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="748"/>
+        <source>Generating...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="734"/>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1278"/>
+        <source>Image %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="748"/>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1281"/>
+        <source>Page %1</source>
+        <translation type="unfinished">페이지 %1</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1145"/>
+        <source>No blank page has been found in the document.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1149"/>
+        <source>%1 of %2 pages seem to be blank. Do you want to replace them by a white fill?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1155"/>
+        <source>Blank pages: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1227"/>
+        <source>%1-%2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1235"/>
+        <source>%1, ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1354"/>
+        <source>Stop Detection (%1/%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1449"/>
+        <source>BITONAL INVERTED</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1452"/>
+        <source>UNCHANGED</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1455"/>
+        <source>FILLED BLACK</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1458"/>
+        <source>FILLED WHITE</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="1474"/>
+        <source>%1 - PREVIEW AT %2 DPI</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>pdfviewer::PDFCreateBitonalDocumentPreviewWidget</name>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfcreatebitonaldocumentdialog.cpp" line="148"/>
+        <source>Generating...</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -13940,27 +17715,27 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
         <translation>표준</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="255"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="268"/>
         <source>%</source>
         <translation>%</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="289"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="302"/>
         <source>&amp;Sidebar</source>
         <translation>&amp;사이드바</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="299"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="325"/>
         <source>Advanced find</source>
         <translation>고급 찾기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="307"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="333"/>
         <source>Ad&amp;vanced Find...</source>
         <translation>&amp;고급 찾기...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="444"/>
+        <location filename="../Pdf4QtLibGui/pdfeditormainwindow.cpp" line="480"/>
         <source> / %1</source>
         <translation> / %1</translation>
     </message>
@@ -14100,200 +17875,550 @@ li.checked::marker { 내용: &quot;\2612&quot;; }
     </message>
 </context>
 <context>
+    <name>pdfviewer::PDFOptimizeImagesDialog</name>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="175"/>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="178"/>
+        <source>Auto</source>
+        <translation type="unfinished">자동</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="176"/>
+        <source>Custom</source>
+        <translation type="unfinished">사용자 정의</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="179"/>
+        <source>Preserve</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="180"/>
+        <source>Color (RGB)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="181"/>
+        <source>Grayscale</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="182"/>
+        <source>Bitonal</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="184"/>
+        <source>Prefer quality</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="185"/>
+        <source>Minimum size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="222"/>
+        <source>Optimize</source>
+        <translation type="unfinished">최적화</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="235"/>
+        <source>&lt;b&gt;Mode&lt;/b&gt;&lt;br/&gt;Auto uses image analysis to pick color mode and compression.&lt;br/&gt;Custom respects the selected color mode and profiles.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="236"/>
+        <source>&lt;b&gt;Color mode&lt;/b&gt;&lt;br/&gt;Choose output color space or let the optimizer decide.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="237"/>
+        <source>&lt;b&gt;Goal&lt;/b&gt;&lt;br/&gt;&lt;b&gt;Prefer quality&lt;/b&gt; keeps more detail.&lt;br/&gt;&lt;b&gt;Minimum size&lt;/b&gt; prefers smaller output.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="238"/>
+        <source>&lt;b&gt;Keep original if larger&lt;/b&gt;&lt;br/&gt;Leaves the original image if re-encoding does not shrink it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="239"/>
+        <source>&lt;b&gt;Preserve transparency&lt;/b&gt;&lt;br/&gt;Stores alpha as a soft mask when possible.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="241"/>
+        <source>&lt;b&gt;Algorithm&lt;/b&gt;&lt;br/&gt;Compression for color images (Auto picks based on content).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="242"/>
+        <source>&lt;b&gt;Algorithm&lt;/b&gt;&lt;br/&gt;Compression for grayscale images (Auto picks based on content).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="243"/>
+        <source>&lt;b&gt;Algorithm&lt;/b&gt;&lt;br/&gt;Compression for bitonal images (Auto picks JBIG2, which is lossless and usually the smallest).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="245"/>
+        <source>&lt;b&gt;Target DPI&lt;/b&gt;&lt;br/&gt;Downsample color images to this DPI (0 keeps original).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="246"/>
+        <source>&lt;b&gt;Target DPI&lt;/b&gt;&lt;br/&gt;Downsample grayscale images to this DPI (0 keeps original).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="247"/>
+        <source>&lt;b&gt;Target DPI&lt;/b&gt;&lt;br/&gt;Downsample bitonal images to this DPI (0 keeps original).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="249"/>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="250"/>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="251"/>
+        <source>&lt;b&gt;Resample&lt;/b&gt;&lt;br/&gt;Scaling filter used when resizing images.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="253"/>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="254"/>
+        <source>&lt;b&gt;JPEG quality&lt;/b&gt;&lt;br/&gt;Higher values preserve detail but increase size.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="256"/>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="257"/>
+        <source>&lt;b&gt;JPEG2000 rate&lt;/b&gt;&lt;br/&gt;0 = lossless, higher values increase compression.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="259"/>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="260"/>
+        <source>&lt;b&gt;PNG predictor&lt;/b&gt;&lt;br/&gt;Improves Flate compression for continuous-tone images.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="261"/>
+        <source>&lt;b&gt;PNG predictor&lt;/b&gt;&lt;br/&gt;Improves Flate compression for 1-bit images.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="263"/>
+        <source>&lt;b&gt;Threshold&lt;/b&gt;&lt;br/&gt;Manual threshold for bitonal conversion (0-255).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="264"/>
+        <source>&lt;b&gt;Auto threshold&lt;/b&gt;&lt;br/&gt;Let the optimizer pick an automatic threshold.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="266"/>
+        <source>&lt;b&gt;Enable compression&lt;/b&gt;&lt;br/&gt;Exclude the selected images from optimization when unchecked.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="267"/>
+        <source>&lt;b&gt;Override settings&lt;/b&gt;&lt;br/&gt;Use custom settings for the selected images.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="268"/>
+        <source>&lt;b&gt;Images&lt;/b&gt;&lt;br/&gt;Hold Ctrl or Shift while clicking to select multiple images, or press Ctrl+A to select all of them. The settings editor and the check boxes below then apply to the whole selection.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="270"/>
+        <source>&lt;b&gt;Optimize&lt;/b&gt;&lt;br/&gt;Run image optimization with the current settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="403"/>
+        <source>Image %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="404"/>
+        <source>%1 x %2 px</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="412"/>
+        <source>disabled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="417"/>
+        <source>override</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="429"/>
+        <source>will keep original</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="435"/>
+        <source>Status: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="440"/>
+        <source>Min DPI: %1 x %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="444"/>
+        <source>ColorSpace: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="448"/>
+        <source>Filter: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="454"/>
+        <source>Size: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="458"/>
+        <source>Size: %1 -&gt; %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="500"/>
+        <source>Original images size: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="501"/>
+        <source>Estimated optimized size: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="506"/>
+        <source>Compression ratio: %1%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="510"/>
+        <source>Compression ratio: n/a</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="578"/>
+        <source>Edits on the right apply to the overrides of %1 selected images. Each override started as a copy of the global settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="583"/>
+        <source>Edits on the right currently apply only to this image. The override started as a copy of the global settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="589"/>
+        <source>Edits on the right currently change the global settings used by images without an override.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="593"/>
+        <source>%1 of the selected images use an override and are not affected.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="601"/>
+        <source>Selected images: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="602"/>
+        <source>Enabled for optimization: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="603"/>
+        <source>Original size of selection: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="608"/>
+        <source>Reference: %1 %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="611"/>
+        <source>Transparency: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="611"/>
+        <source>Yes</source>
+        <translation type="unfinished">예</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="611"/>
+        <source>No</source>
+        <translation type="unfinished">아니요</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="614"/>
+        <source>Soft mask: Yes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="619"/>
+        <source>BPC: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="662"/>
+        <source>Settings Editor - Global Defaults</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="663"/>
+        <source>These settings currently modify the global defaults used by images without an override.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="667"/>
+        <source>Settings Editor - Selected Image Overrides</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="668"/>
+        <source>These settings currently modify the overrides of all selected images.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="672"/>
+        <source>Settings Editor - Selected Image Override</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="673"/>
+        <source>These settings currently modify only the selected image override.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="1038"/>
+        <source>Optimization is disabled for the selected image. The original image will be kept.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="1052"/>
+        <source>Estimated size: %1 -&gt; %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfoptimizeimagesdialog.cpp" line="1056"/>
+        <source> (will keep original)</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>pdfviewer::PDFProgramController</name>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="796"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="838"/>
         <source>Printing document</source>
         <translation>문서 인쇄</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="857"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="899"/>
         <source>Go to action</source>
         <translation>작업으로 이동</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="857"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="899"/>
         <source>Failed to go to destination &apos;%1&apos;. Destination wasn&apos;t found.</source>
         <translation>&apos;%1&apos; 대상으로 이동하지 못했습니다. 목적지를 찾을 수 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="905"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="925"/>
         <source>Would you like to launch application &apos;%1&apos; in working directory &apos;%2&apos; with parameters &apos;%3&apos;?</source>
         <translation>&apos;%3&apos; 매개변수를 사용하여 작업 디렉터리 &apos;%2&apos;에서 &apos;%1&apos; 응용 프로그램을 시작하시겠습니까?</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="906"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="921"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="934"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="940"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="926"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="941"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="954"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="960"/>
         <source>Launch application</source>
         <translation>애플리케이션 실행</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="921"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="940"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="941"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="960"/>
         <source>Executing application failed. Error code is %1.</source>
         <translation>애플리케이션 실행에 실패했습니다. 오류 코드는 %1입니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="933"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="953"/>
         <source>Would you like to launch application &apos;%1&apos;?</source>
         <translation>&apos;%1&apos; 응용 프로그램을 시작하시겠습니까?</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="962"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="982"/>
         <source>Would you like to open URL &apos;%1&apos;?</source>
         <translation>&apos;%1&apos; URL을 열시겠습니까?</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="963"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="968"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="983"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="988"/>
         <source>Open URL</source>
         <translation>URL 열기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="968"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="988"/>
         <source>Opening url &apos;%1&apos; failed.</source>
         <translation>&apos;%1&apos; URL을 열지 못했습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1213"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1248"/>
         <source>Save As</source>
         <translation>다른 이름으로 저장</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1213"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1248"/>
         <source>Portable Document (*.pdf);;All files (*.*)</source>
         <translation>휴대용 문서(*.pdf);;모든 파일(*.*)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1248"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1399"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1283"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1434"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1566"/>
         <source>Error</source>
         <translation>오류</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1296"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1331"/>
         <source>Save Document</source>
         <translation>문서 저장</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1297"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1332"/>
         <source>Do you wish to save modified document before it is closed?</source>
         <translation>수정된 문서를 닫기 전에 저장하시겠습니까?</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1399"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1434"/>
         <source>Error while starting email client occured!</source>
         <translation>이메일 클라이언트를 시작하는 중 오류가 발생했습니다!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1472"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1473"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1519"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1520"/>
         <source>No external link annotations found.</source>
         <translation>외부 링크 주석이 없습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1490"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1491"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1537"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1538"/>
         <source>External link annotations removed: %1.</source>
         <translation>외부 링크 주석 제거됨: %1.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1530"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1614"/>
         <source>Permission to change document security is denied.</source>
         <translation>문서 보안 변경 권한이 거부되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1549"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1633"/>
         <source>Failed to create security handler.</source>
         <translation>보안 핸들러를 생성하지 못했습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1562"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1573"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1646"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1657"/>
         <source>Reauthorization is required to change document encryption.</source>
         <translation>문서 암호화를 변경하려면 재인증이 필요합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1657"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1741"/>
         <source>Encrypted document</source>
         <translation>암호화된 문서</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1657"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="1741"/>
         <source>Enter password to access document content</source>
         <translation>문서 콘텐츠에 액세스하려면 비밀번호를 입력하세요</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2072"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2162"/>
         <source>Document &apos;%1&apos; was successfully loaded!</source>
         <translation>&apos;%1&apos; 문서가 성공적으로 로드되었습니다!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2078"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2168"/>
         <source>Document read error: %1</source>
         <translation>문서 읽기 오류: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2290"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2379"/>
         <source>%1 - %2</source>
         <translation>%1 - %2</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2559"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2566"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2649"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2656"/>
         <source>Reset Settings</source>
         <translation>설정 재설정</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2559"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2649"/>
         <source>Do you wish to restore the default factory settings of the program? All settings changed by the user will be deleted. Application will be closed.</source>
         <translation>프로그램의 기본 공장 설정을 복원하시겠습니까? 사용자가 변경한 모든 설정이 삭제됩니다. 신청이 마감됩니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2566"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2656"/>
         <source>Default factory settings were restored. Application will be now closed.</source>
         <translation>기본 공장 설정이 복원되었습니다. 이제 신청이 마감됩니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2611"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2701"/>
         <source>Plugins</source>
         <translation>플러그인</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2611"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2701"/>
         <source>Plugin on/off state has been changed. Please restart application to apply settings.</source>
         <translation>플러그인 켜기/끄기 상태가 변경되었습니다. 설정을 적용하려면 애플리케이션을 다시 시작하세요.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2638"/>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2710"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2728"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2800"/>
         <source>Select PDF document</source>
         <translation>PDF 문서 선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2638"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2728"/>
         <source>PDF document (*.pdf)</source>
         <translation>PDF 문서(*.pdf)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2695"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2785"/>
         <source>Export Bookmarks As</source>
         <translation>북마크 내보내기 형식</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2695"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2785"/>
         <source>JSON (*.json);;All files (*.*)</source>
         <translation>JSON(*.json);;모든 파일(*.*)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2710"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2800"/>
         <source>JSON (*.json)</source>
         <translation>JSON(*.json)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2729"/>
+        <location filename="../Pdf4QtLibGui/pdfprogramcontroller.cpp" line="2819"/>
         <source>Rendering of page %1: %2 errors occured.</source>
         <translation>페이지 렌더링 %1: %2 오류가 발생했습니다.</translation>
     </message>
@@ -14339,82 +18464,87 @@ Page %2: %3</source>
 <context>
     <name>pdfviewer::PDFSanitizeDocumentDialog</name>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="58"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="59"/>
         <source>Remove document info</source>
         <translation>문서 정보 제거</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="59"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="60"/>
         <source>Remove all metadata</source>
         <translation>모든 메타데이터 제거</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="60"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="61"/>
         <source>Remove outline</source>
         <translation>윤곽선 제거</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="61"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="62"/>
         <source>Remove file attachments</source>
         <translation>첨부 파일 제거</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="62"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="63"/>
         <source>Remove embedded search index</source>
         <translation>포함된 검색 색인 제거</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="63"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="64"/>
         <source>Remove comments and other markup annotations</source>
         <translation>주석 및 기타 마크업 주석 제거</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="64"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="65"/>
         <source>Remove page thumbnails</source>
         <translation>페이지 축소판 제거</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="65"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="66"/>
         <source>Remove page labels</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="67"/>
+        <source>Remove invisible text (OCR layer)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="69"/>
         <source>Sanitize</source>
         <translation>삭제</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="119"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="121"/>
         <source>Sanitization started!</source>
         <translation>정리가 시작되었습니다!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="130"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="132"/>
         <source>Sanitization finished!</source>
         <translation>정리가 완료되었습니다!</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="140"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="142"/>
         <source>Sanitized in %1 msecs</source>
         <translation>%1밀리초 단위로 삭제됨</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="144"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="146"/>
         <source>Bytes before sanitization: %1</source>
         <translation>삭제 전 바이트: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="145"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="147"/>
         <source>Bytes after sanitization:  %1</source>
         <translation>정리 후 바이트: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="146"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="148"/>
         <source>Bytes saved by sanitization: %1</source>
         <translation>정리를 통해 절약된 바이트: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="154"/>
+        <location filename="../Pdf4QtLibGui/pdfsanitizedocumentdialog.cpp" line="156"/>
         <source>Compression ratio: %1 %</source>
         <translation>압축 비율: %1 %</translation>
     </message>
@@ -14422,368 +18552,450 @@ Page %2: %3</source>
 <context>
     <name>pdfviewer::PDFSidebarWidget</name>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="383"/>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="387"/>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="942"/>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="947"/>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="953"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="408"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="412"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="416"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="976"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="992"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1008"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1012"/>
         <source>Error</source>
         <translation>오류</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="383"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="408"/>
         <source>Speech feature is unavailable. No speech engines detected. If you&apos;re using Linux, please install speech libraries like &apos;flite&apos; or &apos;speechd&apos;.</source>
         <translation>음성 기능을 사용할 수 없습니다. 음성 엔진이 감지되지 않았습니다. Linux를 사용하는 경우 &apos;flite&apos; 또는 &apos;speechd&apos;와 같은 음성 라이브러리를 설치하세요.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="387"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="412"/>
+        <source>Speech engine failed to initialize. Reported error: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="416"/>
         <source>The speech feature is available, but its options are not properly set. Please check the speech settings in the options dialog.</source>
         <translation>음성 기능을 사용할 수 있지만 해당 옵션이 제대로 설정되지 않았습니다. 옵션 대화상자에서 음성 설정을 확인하세요.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="546"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="575"/>
         <source>Signature - %1</source>
         <translation>서명 - %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="550"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="579"/>
         <source>Timestamp - %1</source>
         <translation>타임스탬프 - %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="561"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="590"/>
         <source>Unknown</source>
         <translation>알 수 없음</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="579"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="608"/>
         <source>Certificate is valid.</source>
         <translation>인증서가 유효합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="585"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="614"/>
         <source>Signature is valid.</source>
         <translation>서명이 유효합니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="604"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="633"/>
         <source>Hash algorithm: %1</source>
         <translation>해시 알고리즘: %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="624"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="653"/>
         <source>Certificate validation chain</source>
         <translation>인증서 유효성 검사 체인</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="649"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="678"/>
         <source>Protected by RSA method, %1-bit key</source>
         <translation>RSA 방식으로 보호됨, %1비트 키</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="653"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="682"/>
         <source>Protected by DSA method, %1-bit key</source>
         <translation>DSA 방식으로 보호됨, %1비트 키</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="657"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="686"/>
         <source>Protected by EC method, %1-bit key</source>
         <translation>EC 방법으로 보호됨, %1비트 키</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="661"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="690"/>
         <source>Protected by DH method, %1-bit key</source>
         <translation>DH 방식으로 보호됨, %1비트 키</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="665"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="694"/>
         <source>Unknown protection method, %1-bit key</source>
         <translation>알 수 없는 보호 방법, %1비트 키</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="673"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="702"/>
         <source>Country</source>
         <translation>국가</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="674"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="703"/>
         <source>Organization</source>
         <translation>조직</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="675"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="704"/>
         <source>Org. unit</source>
         <translation>Org. 단위</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="676"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="705"/>
         <source>Name</source>
         <translation>이름</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="677"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="706"/>
         <source>State</source>
         <translation>상태</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="678"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="707"/>
         <source>Serial number</source>
         <translation>일련 번호</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="679"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="708"/>
         <source>Locality</source>
         <translation>지역성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="680"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="709"/>
         <source>Title</source>
         <translation>제목</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="681"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="710"/>
         <source>Surname</source>
         <translation>성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="682"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="711"/>
         <source>Forename</source>
         <translation>이름</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="683"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="712"/>
         <source>Initials</source>
         <translation>이니셜</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="684"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="713"/>
         <source>Pseudonym</source>
         <translation>가명</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="685"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="714"/>
         <source>Qualifier</source>
         <translation>한정자</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="686"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="715"/>
         <source>Email</source>
         <translation>이메일</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="709"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="738"/>
         <source>Digital signatures</source>
         <translation>디지털 서명</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="713"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="742"/>
         <source>Non-repudiation</source>
         <translation>부인 방지</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="717"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="746"/>
         <source>Key encipherement</source>
         <translation>키 암호화</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="721"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="750"/>
         <source>Application data encipherement</source>
         <translation>애플리케이션 데이터 암호화</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="725"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="754"/>
         <source>Key agreement</source>
         <translation>주요 계약</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="729"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="758"/>
         <source>Verify signatures on certificates</source>
         <translation>인증서의 서명 확인</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="733"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="762"/>
         <source>Verify signatures on revocation information</source>
         <translation>해지 정보에 대한 서명 확인</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="737"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="766"/>
         <source>Encipher data during key agreement</source>
         <translation>키 계약 중 데이터 암호화</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="741"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="770"/>
         <source>Decipher data during key agreement</source>
         <translation>키 계약 중 데이터 해독</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="745"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="774"/>
         <source>Trusted timestamping</source>
         <translation>신뢰할 수 있는 타임스탬프</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="750"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="779"/>
         <source>Key usages</source>
         <translation>주요 용도</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="817"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="846"/>
         <source>User</source>
         <translation>사용자</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="825"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="854"/>
         <source>Page %1</source>
         <translation>페이지 %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="919"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="953"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1027"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1038"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1053"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1066"/>
+        <source>Open Attachment</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="954"/>
         <source>Save to File...</source>
         <translation>파일에 저장...</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="927"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="968"/>
         <source>Save attachment</source>
         <translation>첨부 파일 저장</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="942"/>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="947"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1008"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1012"/>
         <source>Failed to save attachment to file. %1</source>
         <translation>첨부 파일을 파일에 저장하지 못했습니다. %1</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="953"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="976"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="992"/>
         <source>Failed to save attachment to file. Attachment is corrupted.</source>
         <translation>첨부 파일을 파일에 저장하지 못했습니다. 첨부파일이 손상되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="982"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1089"/>
         <source>Add to trusted certificates</source>
         <translation>신뢰할 수 있는 인증서에 추가</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="986"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1093"/>
         <source>Add to Trusted Certificate Store</source>
         <translation>신뢰할 수 있는 인증서 저장소에 추가</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="986"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1093"/>
         <source>Are you sure want to add &apos;%1&apos; to the trusted certificate store?</source>
         <translation>신뢰할 수 있는 인증서 저장소에 &apos;%1&apos;을(를) 추가하시겠습니까?</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="990"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1097"/>
         <source>Trusted Certificate Store Error</source>
         <translation>신뢰할 수 있는 인증서 저장소 오류</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="990"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1097"/>
         <source>Failed to add certificate to the trusted certificate store.</source>
         <translation>신뢰할 수 있는 인증서 저장소에 인증서를 추가하지 못했습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1061"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1131"/>
         <source>Follow</source>
         <translation>따르세요</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1065"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1136"/>
         <source>Delete</source>
         <translation>삭제</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1066"/>
-        <source>Insert</source>
-        <translation>삽입</translation>
-    </message>
-    <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1067"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1137"/>
         <source>Rename</source>
         <translation>이름 바꾸기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1090"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1158"/>
         <source>Font Bold</source>
         <translation>굵은 글꼴</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1091"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1160"/>
         <source>Font Italic</source>
         <translation>글꼴 기울임꼴</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1099"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1804"/>
         <source>Set Target</source>
         <translation>대상 설정</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1161"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1613"/>
         <source>Select Named Destination</source>
         <translation>명명된 대상 선택</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1172"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1624"/>
         <source>OK</source>
         <translation>OK</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1173"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1625"/>
         <source>Cancel</source>
         <translation>취소</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1206"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1170"/>
         <source>Named Destination</source>
         <translation>명명된 대상</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1207"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1027"/>
+        <source>Opening attachments is disabled by application launch security settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1034"/>
+        <source>attachment</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1037"/>
+        <source>Would you like to open attachment &apos;%1&apos; using the associated application?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1053"/>
+        <source>Failed to create temporary directory for attachment.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1066"/>
+        <source>Opening attachment &apos;%1&apos; failed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1123"/>
+        <source>Outline</source>
+        <translation type="unfinished">개요</translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1135"/>
+        <source>New Outline Item</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1145"/>
+        <source>Create a new outline item pointing to the current page and start editing its title.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1147"/>
+        <source>Move Up</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1149"/>
+        <source>Move Down</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1151"/>
+        <source>Move Left</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1153"/>
+        <source>Move the item one level up in the outline hierarchy.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1154"/>
+        <source>Move Right</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1156"/>
+        <source>Make the item a child of the preceding item.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1171"/>
         <source>Fit Page</source>
         <translation>페이지 맞춤</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1208"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1172"/>
         <source>Fit Page Horizontally</source>
         <translation>페이지를 가로로 맞춤</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1209"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1173"/>
         <source>Fit Page Vertically</source>
         <translation>페이지를 수직으로 맞추기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1210"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1174"/>
         <source>Fit Rectangle</source>
         <translation>직사각형 맞춤</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1211"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1175"/>
         <source>Fit Bounding Box</source>
         <translation>경계 상자 맞춤</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1212"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1176"/>
         <source>Fit Bounding Box Horizontally</source>
         <translation>경계 상자를 수평으로 맞추기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1213"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1177"/>
         <source>Fit Bounding Box Vertically</source>
         <translation>경계 상자를 수직으로 맞추기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1214"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1178"/>
         <source>XYZ</source>
         <translation>XYZ</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1281"/>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1319"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1191"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1738"/>
         <source>Inherit Zoom for All Chapters</source>
         <translation>모든 챕터에 대해 확대/축소 상속</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1282"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1739"/>
         <source>%1 link(s) will be fixed to inherit zoom.
 
 Do you want to perform this action?</source>
@@ -14792,9 +19004,17 @@ Do you want to perform this action?</source>
 이 작업을 수행하시겠습니까?</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1317"/>
+        <location filename="../Pdf4QtLibGui/pdfsidebarwidget.cpp" line="1190"/>
         <source>Inherit Zoom</source>
         <translation>확대/축소 상속</translation>
+    </message>
+</context>
+<context>
+    <name>pdfviewer::PDFTextToSpeech</name>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdftexttospeech.cpp" line="218"/>
+        <source>Unknown error of the speech engine.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -14823,333 +19043,353 @@ Do you want to perform this action?</source>
 <context>
     <name>pdfviewer::PDFViewerSettingsDialog</name>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="87"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="61"/>
+        <source>%1: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="108"/>
         <source>Engine</source>
         <translation>엔진</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="88"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="109"/>
         <source>Rendering</source>
         <translation>렌더링</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="89"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="110"/>
         <source>Shading</source>
         <translation>음영</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="90"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="111"/>
         <source>Cache</source>
         <translation>캐시</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="91"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="112"/>
         <source>Shortcuts</source>
         <translation>바로가기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="92"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="113"/>
         <source>Colors | CMS</source>
         <translation>색상 | CMS</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="93"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="114"/>
         <source>Colors | Postprocessing</source>
         <translation>색상 | 후처리</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="94"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="115"/>
         <source>Security</source>
         <translation>보안</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="95"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="116"/>
         <source>UI</source>
         <translation>UI</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="96"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="117"/>
         <source>Speech</source>
         <translation>음성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="97"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="118"/>
         <source>Forms</source>
         <translation>양식</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="98"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="119"/>
         <source>Signature</source>
         <translation>서명</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="99"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="120"/>
         <source>Plugins</source>
         <translation>플러그인</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="110"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="131"/>
         <source>Software | QPainter</source>
         <translation>소프트웨어 | QPainter</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="111"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="132"/>
         <source>Software | Blend2D | Parallel</source>
         <translation>소프트웨어 | 블렌드2D | 평행한</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="112"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="133"/>
         <source>Software | Blend2D | Sequential</source>
         <translation>소프트웨어 | 블렌드2D | 잇달아 일어나는</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="114"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="135"/>
         <source>Single thread</source>
         <translation>단일 스레드</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="115"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="136"/>
         <source>Multithreading (load balanced)</source>
         <translation>멀티스레딩(로드 밸런싱)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="116"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="137"/>
         <source>Multithreading (maximum threads)</source>
         <translation>멀티스레딩(최대 스레드)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="125"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="148"/>
         <source>Auto</source>
         <translation>자동</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="126"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="149"/>
         <source>Perceptual</source>
         <translation>지각적</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="127"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="150"/>
         <source>Relative colorimetric</source>
         <translation>상대 색도계</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="128"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="151"/>
         <source>Absolute colorimetric</source>
         <translation>절대 비색계</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="129"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="152"/>
         <source>Saturation</source>
         <translation>채도</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="131"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="154"/>
         <source>Low</source>
         <translation>낮음</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="132"/>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="147"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="155"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="175"/>
         <source>Medium</source>
         <translation>중간</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="133"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="156"/>
         <source>High</source>
         <translation>높음</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="135"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="158"/>
         <source>None</source>
         <translation>없음</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="136"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="159"/>
         <source>XYZ scaling</source>
         <translation>XYZ 스케일링</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="137"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="160"/>
         <source>CAT97 matrix</source>
         <translation>CAT97 매트릭스</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="138"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="161"/>
         <source>CAT02 matrix</source>
         <translation>CAT02 매트릭스</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="139"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="162"/>
         <source>Bradford method</source>
         <translation>Bradford 방법</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="142"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="165"/>
+        <source>Anonymous (do not disclose the user name)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="166"/>
+        <source>System user name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="167"/>
+        <source>Custom name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="170"/>
         <source>Automatic (or via command line)</source>
         <translation>자동(또는 명령줄을 통해)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="143"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="171"/>
         <source>Light scheme</source>
         <translation>조명 구성표</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="144"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="172"/>
         <source>Dark scheme</source>
         <translation>어두운 구성표</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="146"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="174"/>
         <source>Small</source>
         <translation>소형</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="148"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="176"/>
         <source>Large</source>
         <translation>대형</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="149"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="177"/>
         <source>Very Large</source>
         <translation>매우 큼</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="154"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="182"/>
         <source>Automatic detection</source>
         <translation>자동 감지</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="155"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="183"/>
         <source>English</source>
         <translation>영어</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="156"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="184"/>
         <source>German</source>
         <translation>독일어</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="157"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="185"/>
         <source>Korean</source>
         <translation>한국어</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="158"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="186"/>
         <source>Spanish</source>
         <translation>스페인어</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="159"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="187"/>
         <source>Czech</source>
         <translation>체코어</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="160"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="188"/>
         <source>Chinese (Simplified)</source>
         <translation>중국어(간체)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="161"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="189"/>
         <source>Chinese (Traditional)</source>
         <translation>중국어(번체)</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="162"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="190"/>
         <source>French</source>
         <translation>프랑스어</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="163"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="191"/>
         <source>Turkish</source>
         <translation>터키어</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="164"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="192"/>
         <source>Russian</source>
         <translation>러시아어</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="704"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="799"/>
         <source>Type</source>
         <translation>유형</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="704"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="799"/>
         <source>Certificate</source>
         <translation>인증서</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="704"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="799"/>
         <source>Organization</source>
         <translation>조직</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="704"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="799"/>
         <source>Valid from</source>
         <translation>유효 기간</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="704"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="799"/>
         <source>Valid to</source>
         <translation>다음에 유효함</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="712"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="807"/>
         <source>User</source>
         <translation>사용자</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="716"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="811"/>
         <source>System</source>
         <translation>시스템</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="756"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="851"/>
         <source>Action</source>
         <translation>작업</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="756"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="851"/>
         <source>Shortcut</source>
         <translation>바로가기</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="785"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="880"/>
         <source>Error</source>
         <translation>오류</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="785"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="880"/>
         <source>Shortcut &apos;%1&apos; is invalid for action %2.</source>
         <translation>&apos;%1&apos; 바로가기는 %2 작업에 유효하지 않습니다.</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="808"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="903"/>
         <source>Active</source>
         <translation>활성</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="808"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="903"/>
         <source>Name</source>
         <translation>이름</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="808"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="903"/>
         <source>Author</source>
         <translation>작성자</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="808"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="903"/>
         <source>Version</source>
         <translation>버전</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="808"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="903"/>
         <source>License</source>
         <translation>라이선스</translation>
     </message>
     <message>
-        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="922"/>
+        <location filename="../Pdf4QtLibGui/pdfviewersettingsdialog.cpp" line="1038"/>
         <source>Select color profile directory</source>
         <translation>색상 프로필 디렉터리 선택</translation>
     </message>

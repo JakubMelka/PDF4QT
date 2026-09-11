@@ -530,6 +530,7 @@ void PDFDrawWidgetProxy::init(PDFWidget* widget)
 
     connect(m_horizontalScrollbar, &QScrollBar::valueChanged, this, &PDFDrawWidgetProxy::onHorizontalScrollbarValueChanged);
     connect(m_verticalScrollbar, &QScrollBar::valueChanged, this, &PDFDrawWidgetProxy::onVerticalScrollbarValueChanged);
+    connect(this, &PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFDrawWidgetProxy::updateCompilerActivePages);
     connect(this, &PDFDrawWidgetProxy::drawSpaceChanged, this, &PDFDrawWidgetProxy::repaintNeeded);
     connect(getCMSManager(), &PDFCMSManager::colorManagementSystemChanged, this, &PDFDrawWidgetProxy::onColorManagementSystemChanged);
 
@@ -789,12 +790,21 @@ void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
 {
     drawPages(painter, rect, m_features);
 
-    for (IDocumentDrawInterface* drawInterface : m_drawInterfaces)
+    // Jakub Melka: we must iterate over a copy of the draw interfaces. A draw
+    // interface can activate or deactivate a tool while it is drawing (which
+    // registers or unregisters a draw interface), and that would invalidate
+    // the iterators of the set we are iterating over.
+    for (IDocumentDrawInterface* drawInterface : getDrawInterfaces())
     {
         painter->save();
         drawInterface->drawPostRendering(painter, rect);
         painter->restore();
     }
+}
+
+std::vector<IDocumentDrawInterface*> PDFDrawWidgetProxy::getDrawInterfaces() const
+{
+    return std::vector<IDocumentDrawInterface*>(m_drawInterfaces.cbegin(), m_drawInterfaces.cend());
 }
 
 QColor PDFDrawWidgetProxy::getPaperColor()
@@ -840,7 +850,7 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
                 painter->fillRect(placedRect, paperColor);
             }
 
-            const PDFPrecompiledPage* compiledPage = m_compiler->getCompiledPage(item.pageIndex, true);
+            const PDFPrecompiledPage* compiledPage = m_compiler->getCompiledPage(item.pageIndex, PDFAsynchronousPageCompiler::CompileMode::Viewport);
             if (compiledPage && compiledPage->isValid())
             {
                 QElapsedTimer timer;
@@ -851,7 +861,7 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
                 PDFTextLayoutGetter layoutGetter = m_textLayoutCompiler->getTextLayoutLazy(item.pageIndex);
 
                 bool isPageContentDrawSuppressed = false;
-                for (IDocumentDrawInterface* drawInterface : m_drawInterfaces)
+                for (IDocumentDrawInterface* drawInterface : getDrawInterfaces())
                 {
                     isPageContentDrawSuppressed = isPageContentDrawSuppressed || drawInterface->isPageContentDrawSuppressed();
                 }
@@ -915,7 +925,7 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
                 QList<PDFRenderError> drawInterfaceErrors;
                 if (!features.testFlag(PDFRenderer::DenyExtraGraphics))
                 {
-                    for (IDocumentDrawInterface* drawInterface : m_drawInterfaces)
+                    for (IDocumentDrawInterface* drawInterface : getDrawInterfaces())
                     {
                         painter->save();
                         drawInterface->drawPage(painter, item.pageIndex, compiledPage, layoutGetter, matrix, convertor, drawInterfaceErrors);
@@ -988,7 +998,9 @@ QImage PDFDrawWidgetProxy::drawThumbnailImage(PDFInteger pageIndex, int pixelSiz
 
         if (imageSize.isValid())
         {
-            const PDFPrecompiledPage* compiledPage = m_compiler->getCompiledPage(pageIndex, true);
+            // Jakub Melka: thumbnails are independent on the displayed area, so their
+            // compilation must not be cancelled by scrolling of the main draw widget.
+            const PDFPrecompiledPage* compiledPage = m_compiler->getCompiledPage(pageIndex, PDFAsynchronousPageCompiler::CompileMode::Persistent);
             if (compiledPage && compiledPage->isValid())
             {
                 // Rasterize the image.
@@ -1101,7 +1113,7 @@ PDFWidgetSnapshot PDFDrawWidgetProxy::getSnapshot() const
             PDFWidgetSnapshot::SnapshotItem snapshotItem;
             snapshotItem.rect = placedRect;
             snapshotItem.pageIndex = item.pageIndex;
-            snapshotItem.compiledPage = m_compiler->getCompiledPage(item.pageIndex, false);
+            snapshotItem.compiledPage = m_compiler->getCompiledPage(item.pageIndex, PDFAsynchronousPageCompiler::CompileMode::None);
             snapshotItem.pageToDeviceMatrix = createPagePointToDevicePointMatrix(page, placedRect);
             snapshot.items.emplace_back(qMove(snapshotItem));
         }
@@ -1740,6 +1752,14 @@ void PDFDrawWidgetProxy::performPageCacheClear()
     m_compiler->smartClearCache(CACHE_PAGE_EXPIRATION_TIMEOUT, activePage);
 }
 
+void PDFDrawWidgetProxy::updateCompilerActivePages()
+{
+    if (m_widget)
+    {
+        m_compiler->setActivePages(getActivePages());
+    }
+}
+
 void PDFDrawWidgetProxy::onTextLayoutChanged()
 {
     Q_EMIT repaintNeeded();
@@ -1808,7 +1828,7 @@ void PDFDrawWidgetProxy::prefetchPages(PDFInteger pageIndex)
         const PDFInteger pageEnd = qMin(pageCount, pageIndex + prefetchCount + 1);
         for (PDFInteger i = pageIndex + 1; i < pageEnd; ++i)
         {
-            m_compiler->getCompiledPage(i, true);
+            m_compiler->getCompiledPage(i, PDFAsynchronousPageCompiler::CompileMode::Viewport);
         }
     }
 }

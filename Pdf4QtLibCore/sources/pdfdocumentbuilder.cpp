@@ -35,6 +35,7 @@
 #include <QPdfWriter>
 
 #include <cmath>
+#include <set>
 
 #include "pdfdbgheap.h"
 
@@ -2061,10 +2062,73 @@ void PDFDocumentBuilder::removeAnnotation(PDFObjectReference page, PDFObjectRefe
 {
     PDFDocumentDataLoaderDecorator loader(&m_storage);
 
+    std::vector<PDFObjectReference> annots;
     if (const PDFDictionary* pageDictionary = m_storage.getDictionaryFromObject(m_storage.getObjectByReference(page)))
     {
-        std::vector<PDFObjectReference> annots = loader.readReferenceArrayFromDictionary(pageDictionary, "Annots");
-        annots.erase(std::remove(annots.begin(), annots.end(), annotation), annots.end());
+        annots = loader.readReferenceArrayFromDictionary(pageDictionary, "Annots");
+    }
+
+    // Jakub Melka: a markup annotation can own other annotations - a popup annotation
+    // (the /Popup entry) and the annotations, which are replies to it (their /IRT entry
+    // points back to it). All of them are stored as separate annotations in the page's
+    // annotation array and all of them must be removed together with their owner,
+    // otherwise orphaned annotations referencing a non-existing annotation would remain
+    // in the document. A reply can own a popup and further replies, so the owned
+    // annotations are collected transitively.
+    std::set<PDFObjectReference> removedAnnotations = { annotation };
+
+    bool isModified = true;
+    while (isModified)
+    {
+        isModified = false;
+
+        for (PDFObjectReference currentAnnotation : annots)
+        {
+            if (removedAnnotations.count(currentAnnotation))
+            {
+                continue;
+            }
+
+            const PDFDictionary* dictionary = m_storage.getDictionaryFromObject(m_storage.getObjectByReference(currentAnnotation));
+            if (!dictionary)
+            {
+                continue;
+            }
+
+            const PDFObject& inReplyTo = dictionary->get("IRT");
+            if (inReplyTo.isReference() && removedAnnotations.count(inReplyTo.getReference()))
+            {
+                removedAnnotations.insert(currentAnnotation);
+                isModified = true;
+            }
+        }
+
+        // Popup annotations are usually not a part of the annotation array of the page,
+        // so they are collected from the owning annotations, not from the array.
+        for (PDFObjectReference currentAnnotation : std::vector<PDFObjectReference>(removedAnnotations.cbegin(), removedAnnotations.cend()))
+        {
+            const PDFDictionary* dictionary = m_storage.getDictionaryFromObject(m_storage.getObjectByReference(currentAnnotation));
+            if (!dictionary)
+            {
+                continue;
+            }
+
+            const PDFObject& popupObject = dictionary->get("Popup");
+            if (popupObject.isReference() && !removedAnnotations.count(popupObject.getReference()))
+            {
+                removedAnnotations.insert(popupObject.getReference());
+                isModified = true;
+            }
+        }
+    }
+
+    if (!annots.empty())
+    {
+        auto isRemoved = [&removedAnnotations](PDFObjectReference reference)
+        {
+            return removedAnnotations.count(reference) > 0;
+        };
+        annots.erase(std::remove_if(annots.begin(), annots.end(), isRemoved), annots.end());
 
         PDFObjectFactory factory;
         factory.beginDictionary();
@@ -2083,7 +2147,10 @@ void PDFDocumentBuilder::removeAnnotation(PDFObjectReference page, PDFObjectRefe
         mergeTo(page, factory.takeObject());
     }
 
-    setObject(annotation, PDFObject());
+    for (PDFObjectReference removedAnnotation : removedAnnotations)
+    {
+        setObject(removedAnnotation, PDFObject());
+    }
 }
 
 void PDFDocumentBuilder::updateDocumentInfo(PDFObject info)

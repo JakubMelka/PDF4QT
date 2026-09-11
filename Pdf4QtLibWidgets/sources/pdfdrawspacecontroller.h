@@ -460,7 +460,17 @@ private:
     void alignViewToPagePoint(PDFInteger pageIndex, std::optional<PDFReal> left, std::optional<PDFReal> top);
     void fitToDestinationRectangle(PDFInteger pageIndex, const QRectF& rectangle);
 
+    /// Returns a snapshot of the registered draw interfaces. Drawing must always
+    /// iterate over the snapshot - a draw interface can (de)activate a tool while
+    /// it is being drawn, which modifies the set of the registered draw interfaces
+    /// and would invalidate the iterators.
+    std::vector<IDocumentDrawInterface*> getDrawInterfaces() const;
+
     void performPageCacheClear();
+
+    /// Informs the page compiler, which pages are currently interesting for the
+    /// user, so it can cancel compilation of pages, which are not displayed anymore.
+    void updateCompilerActivePages();
 
     void onTextLayoutChanged();
     void onOptionalContentGroupStateChanged();
