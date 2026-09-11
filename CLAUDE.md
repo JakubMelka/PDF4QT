@@ -16,7 +16,7 @@ Newest issues go first inside `CURRENT:`; the section is renamed to a version li
 
 ## Build and test
 
-Do not run builds unless the user explicitly asks for a build in the current conversation (see [AGENTS.md](AGENTS.md)).
+Changes are expected to be built and tested: after editing code, build the affected targets and run the unit tests, and report the result (see [AGENTS.md](AGENTS.md)). A change is not finished until it compiles warning-free and the relevant tests pass.
 
 Configure (vcpkg toolchain is required; Qt 6.9+):
 
