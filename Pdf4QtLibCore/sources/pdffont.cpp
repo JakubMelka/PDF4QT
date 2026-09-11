@@ -219,6 +219,89 @@ static const char* getCjkFontLanguage(ECjkDefaultFontType type)
     return nullptr;
 }
 
+#ifdef Q_OS_WIN
+/// Returns the windows character set covering the script of the CJK font type,
+/// or DEFAULT_CHARSET, if the script is not a CJK one. The character set is used
+/// to find any installed font of the script (same role as the language on unix).
+static BYTE getCjkFontCharacterSet(ECjkDefaultFontType type)
+{
+    switch (type)
+    {
+        case ECjkDefaultFontType::AdobeGB:
+            return GB2312_CHARSET;
+
+        case ECjkDefaultFontType::AdobeCNS:
+            return CHINESEBIG5_CHARSET;
+
+        case ECjkDefaultFontType::AdobeJapan:
+            return SHIFTJIS_CHARSET;
+
+        case ECjkDefaultFontType::AdobeKorea:
+            return HANGUL_CHARSET;
+
+        default:
+            break;
+    }
+
+    return DEFAULT_CHARSET;
+}
+
+/// Returns a character, which any font usable for the script must contain. The
+/// font mapper returns the closest match, which can be a font of the right character
+/// set but without the common glyphs (an extension font, for example), so the chosen
+/// font has to be verified against the script.
+static wchar_t getCjkFontRepresentativeCharacter(ECjkDefaultFontType type)
+{
+    switch (type)
+    {
+        case ECjkDefaultFontType::AdobeGB:
+        case ECjkDefaultFontType::AdobeCNS:
+            return wchar_t(0x4E2D); // CJK ideograph 'middle'
+
+        case ECjkDefaultFontType::AdobeJapan:
+            return wchar_t(0x3042); // Hiragana letter A
+
+        case ECjkDefaultFontType::AdobeKorea:
+            return wchar_t(0xAC00); // Hangul syllable GA
+
+        default:
+            break;
+    }
+
+    return wchar_t(0);
+}
+
+/// Returns true, if the font selected into the device context contains the character
+static bool isCharacterCoveredByFont(HDC hdc, wchar_t character)
+{
+    const DWORD size = ::GetFontUnicodeRanges(hdc, nullptr);
+    if (size < sizeof(GLYPHSET))
+    {
+        return false;
+    }
+
+    std::vector<char> buffer(size, char());
+    GLYPHSET* glyphSet = reinterpret_cast<GLYPHSET*>(buffer.data());
+    glyphSet->cbThis = size;
+
+    if (::GetFontUnicodeRanges(hdc, glyphSet) == 0)
+    {
+        return false;
+    }
+
+    for (DWORD i = 0; i < glyphSet->cRanges; ++i)
+    {
+        const WCRANGE& range = glyphSet->ranges[i];
+        if (character >= range.wcLow && character - range.wcLow < range.cGlyphs)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+#endif
+
 /// Returns name of the predefined CMap, which maps unicode code points to the CIDs
 /// of the given character collection. Reversing this CMap gives a CID to unicode
 /// mapping, which is needed to render (and extract text of) a non-embedded CID keyed
@@ -463,6 +546,18 @@ private:
     static QString getFontPostscriptName(QString fontName);
 
 #ifdef Q_OS_WIN
+    /// Finds any installed font covering the given character set. This is the last
+    /// resort used when none of the known CJK font families is installed - it mirrors
+    /// the fontconfig language matching used on unix.
+    /// \param descriptor Descriptor describing the font
+    /// \param characterSet Character set the font has to cover
+    /// \param representativeCharacter Character the font has to contain
+    /// \param reporter Error reporter
+    SystemFontData loadFontByCharacterSet(const FontDescriptor* descriptor,
+                                          BYTE characterSet,
+                                          wchar_t representativeCharacter,
+                                          PDFRenderErrorReporter* reporter) const;
+
     /// Callback for enumerating fonts
     static int CALLBACK enumerateFontProc(const LOGFONT* font, const TEXTMETRIC* textMetrics, DWORD fontType, LPARAM lParam);
 
@@ -659,7 +754,12 @@ SystemFontData PDFSystemFontInfoStorage::loadFont(const CIDSystemInfo* cidSystem
                 }
             }
 
-#ifdef Q_OS_UNIX
+#if defined(Q_OS_WIN)
+            // Let the system font list provide a script-compatible font even if its
+            // family is absent from our platform fallback list.
+            fontData = loadFontByCharacterSet(descriptor, getCjkFontCharacterSet(cjkDefaultFontType),
+                                              getCjkFontRepresentativeCharacter(cjkDefaultFontType), reporter);
+#elif defined(Q_OS_UNIX)
             // Let fontconfig find a script-compatible font even if its family is
             // absent from our platform fallback list.
             fontData = loadFontImpl(descriptor, descriptor->isSerif() ? QStringLiteral("serif") : QStringLiteral("sans-serif"),
@@ -961,6 +1061,69 @@ PDFSystemFontInfoStorage::PDFSystemFontInfoStorage()
 }
 
 #ifdef Q_OS_WIN
+SystemFontData PDFSystemFontInfoStorage::loadFontByCharacterSet(const FontDescriptor* descriptor,
+                                                                BYTE characterSet,
+                                                                wchar_t representativeCharacter,
+                                                                PDFRenderErrorReporter* reporter) const
+{
+    if (characterSet == DEFAULT_CHARSET || representativeCharacter == wchar_t(0))
+    {
+        return SystemFontData();
+    }
+
+    // Ask the font mapper for a font of the character set - the face name is left
+    // empty, so the mapper is free to choose any installed font covering the script.
+    // Character sets of the enumerated fonts can't be used for this, because a font
+    // is enumerated only once, with a single (usually latin) character set.
+    LOGFONT logFont;
+    std::memset(&logFont, 0, sizeof(logFont));
+    logFont.lfCharSet = characterSet;
+    logFont.lfWeight = qRound(descriptor->fontWeight);
+    logFont.lfItalic = (descriptor->italicAngle != 0.0) ? TRUE : FALSE;
+    logFont.lfPitchAndFamily = static_cast<BYTE>(DEFAULT_PITCH | (descriptor->isSerif() ? FF_ROMAN : FF_SWISS));
+    logFont.lfFaceName[0] = 0;
+
+    QString faceName;
+
+    HDC hdc = GetDC(NULL);
+    if (HFONT fontHandle = ::CreateFontIndirect(&logFont))
+    {
+        HGDIOBJ oldFont = ::SelectObject(hdc, fontHandle);
+
+        // The mapper returns the closest match, which is not necessarily a font of
+        // the requested character set, and even a font of the right character set does
+        // not have to contain the common glyphs of the script (an extension font, for
+        // example) - verify both before the font is accepted
+        if (::GetTextCharset(hdc) == characterSet && isCharacterCoveredByFont(hdc, representativeCharacter))
+        {
+            std::array<wchar_t, LF_FACESIZE> buffer = { };
+            if (::GetTextFace(hdc, static_cast<int>(buffer.size()), buffer.data()) > 0)
+            {
+                faceName = QString::fromWCharArray(buffer.data());
+            }
+        }
+
+        ::SelectObject(hdc, oldFont);
+        ::DeleteObject(fontHandle);
+    }
+    ReleaseDC(NULL, hdc);
+
+    // Face names starting with '@' are the vertical writing variants
+    if (faceName.isEmpty() || faceName.startsWith(QChar('@')))
+    {
+        return SystemFontData();
+    }
+
+    SystemFontData fontData = loadFontImpl(descriptor, faceName, StandardFontType::Invalid, reporter, true);
+
+    if (!fontData.isEmpty())
+    {
+        reporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Inexact font substitution: font %1 replaced by %2.").arg(QString::fromLatin1(descriptor->fontName), faceName));
+    }
+
+    return fontData;
+}
+
 int PDFSystemFontInfoStorage::enumerateFontProc(const LOGFONT* font, const TEXTMETRIC* textMetrics, DWORD fontType, LPARAM lParam)
 {
     if ((fontType & TRUETYPE_FONTTYPE))

@@ -43,6 +43,8 @@ private slots:
     void test_type0_cjk_substitution();
     void test_type0_missing_substitute_glyph();
     void test_type0_cjk_collection_face();
+    void test_type0_cjk_collection_coverage_data();
+    void test_type0_cjk_collection_coverage();
     void test_simple_font_encode();
     void test_type3_font_encode();
     void test_fallback_font_generator();
@@ -315,6 +317,53 @@ void FontEncodingTest::test_type0_cjk_collection_face()
     pdf::PDFRenderErrorReporterDummy reporter;
     const auto realized = pdf::PDFRealizedFont::createRealizedFont(font, 20.0, &reporter);
     QCOMPARE(realized->getPostScriptName(), QStringLiteral("NotoSansCJKkr-Regular"));
+}
+
+void FontEncodingTest::test_type0_cjk_collection_coverage_data()
+{
+    QTest::addColumn<QByteArray>("ordering");
+    QTest::addColumn<char32_t>("codePoint");
+    QTest::newRow("Japan1") << QByteArray("Japan1") << U'\u3042';
+    QTest::newRow("GB1") << QByteArray("GB1") << U'\u4e2d';
+    QTest::newRow("CNS1") << QByteArray("CNS1") << U'\u4e2d';
+    QTest::newRow("Korea1") << QByteArray("Korea1") << U'\uac00';
+}
+
+void FontEncodingTest::test_type0_cjk_collection_coverage()
+{
+    QFETCH(QByteArray, ordering);
+    QFETCH(char32_t, codePoint);
+
+    // The substituted font is found either in the platform fallback list, or by the
+    // last resort script matching (fontconfig language on unix, character set of the
+    // installed fonts on windows). Whichever font is found, it must really cover the
+    // script - a latin font matched by name similarity would render nothing.
+    pdf::FontDescriptor descriptor;
+    descriptor.fontName = "PDF4QTNonexistentCJKFont";
+
+    pdf::PDFFontPointer font(new pdf::PDFType0Font(pdf::CIDSystemInfo{ "Adobe", ordering, 2 }, "F1", descriptor,
+        pdf::PDFFontCMap::createFromName("Identity-H"), pdf::PDFFontCMap(), pdf::PDFCIDtoGIDMapper(QByteArray()), 1000.0, {}));
+
+    const QByteArray encoded = font->encodeCharacter(codePoint);
+    QVERIFY2(!encoded.isEmpty(), "Character is not in the character collection");
+
+    pdf::PDFRenderErrorReporterDummy reporter;
+    pdf::PDFRealizedFontPointer realized;
+    try
+    {
+        realized = pdf::PDFRealizedFont::createRealizedFont(font, 20.0, &reporter);
+    }
+    catch (const pdf::PDFException&)
+    {
+        QSKIP("No font covering the script of this character collection is installed.");
+    }
+
+    pdf::TextSequence sequence;
+    realized->fillTextSequence(encoded, sequence, &reporter);
+    QCOMPARE(sequence.items.size(), size_t(1));
+    QCOMPARE(sequence.items.front().character, QChar(char16_t(codePoint)));
+    QVERIFY2(sequence.items.front().glyph && !sequence.items.front().glyph->isEmpty(),
+             qPrintable(QStringLiteral("Substituted font %1 has no glyph for the script").arg(realized->getPostScriptName())));
 }
 
 void FontEncodingTest::test_type0_missing_substitute_glyph()
