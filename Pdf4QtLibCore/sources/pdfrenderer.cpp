@@ -34,6 +34,8 @@
 #include <QtMath>
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 
 #include "pdfdbgheap.h"
 
@@ -268,6 +270,10 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
                              PageRotation extraRotation)
 {
     QImage image(size, QImage::Format_ARGB32_Premultiplied);
+    if (image.isNull())
+    {
+        return QImage();
+    }
 
     PDFColorConvertor convertor = cms->getColorConvertor();
     PDFRenderer::applyFeaturesToColorConvertor(features, convertor);
@@ -307,10 +313,23 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
     // Calculate image DPI
     QSizeF rotatedSizeInMeters = page->getRotatedMediaBoxMM().size() / 1000.0;
     QSizeF rotatedSizeInPixels = image.size();
-    qreal dpiX = rotatedSizeInPixels.width() / rotatedSizeInMeters.width();
-    qreal dpiY = rotatedSizeInPixels.height() / rotatedSizeInMeters.height();
-    image.setDotsPerMeterX(qCeil(dpiX));
-    image.setDotsPerMeterY(qCeil(dpiY));
+    auto dotsPerMeter = [](qreal pixels, qreal meters) -> int
+    {
+        if (!std::isfinite(meters) || meters <= 0.0)
+        {
+            return 0;
+        }
+        // A tiny MediaBox can imply a resolution outside the int range even
+        // for a small image. Bound it before qCeil converts it to an integer.
+        const qreal resolution = pixels / meters;
+        if (!std::isfinite(resolution) || resolution >= std::numeric_limits<int>::max())
+        {
+            return std::numeric_limits<int>::max();
+        }
+        return qCeil(resolution);
+    };
+    image.setDotsPerMeterX(dotsPerMeter(rotatedSizeInPixels.width(), rotatedSizeInMeters.width()));
+    image.setDotsPerMeterY(dotsPerMeter(rotatedSizeInPixels.height(), rotatedSizeInMeters.height()));
 
     return image;
 }
@@ -461,9 +480,15 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
             return;
         }
 
-        QImage image = rasterizer->render(pageIndex, page, &precompiledPage, imageSizeGetter(page), m_features, &annotationManager, cms.data(), PageRotation::None);
-        qint64 pageRenderTime = pageTimer.elapsed();
-        release(rasterizer);
+        QImage image;
+        qint64 pageRenderTime = 0;
+        {
+            // Return the rasterizer even if the size getter or rendering throws.
+            // Otherwise a subsequent job can wait on the semaphore forever.
+            auto rasterizerGuard = qScopeGuard([this, rasterizer]() { release(rasterizer); });
+            image = rasterizer->render(pageIndex, page, &precompiledPage, imageSizeGetter(page), m_features, &annotationManager, cms.data(), PageRotation::None);
+            pageRenderTime = pageTimer.elapsed();
+        }
 
         if (PDFOperationControl::isOperationCancelled(operationControl))
         {

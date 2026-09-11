@@ -26,6 +26,7 @@
 #include "pdfdocument.h"
 #include "pdfdocumentbuilder.h"
 #include "pdffont.h"
+#include "pdfexecutionpolicy.h"
 #include "pdfimageconversion.h"
 #include "pdfoptionalcontent.h"
 #include "pdfpage.h"
@@ -34,11 +35,13 @@
 #include <QtTest>
 #include <QElapsedTimer>
 #include <QImage>
+#include <QScopeGuard>
 
 #include <array>
 #include <atomic>
 #include <limits>
 #include <memory>
+#include <stdexcept>
 #include <thread>
 #include <vector>
 
@@ -146,6 +149,11 @@ private slots:
     void test_page_conversion_inverted();
     void test_automatic_threshold_on_scanned_paper();
     void test_blank_page_detection();
+    void test_automatic_threshold_preserves_gray_content();
+    void test_execution_policy_propagates_exceptions();
+    void test_rasterizer_returned_after_exception();
+    void test_page_image_size_rejects_overflow();
+    void test_page_rasterization_limits_resolution();
 
 private:
     /// Resolution used by the tests. It is deliberately low - the tests verify, which
@@ -1426,6 +1434,113 @@ void BitonalDocumentTest::test_blank_page_detection()
         const auto info = pdf::PDFBitonalDocumentCreator::detectBlankPage(createScannedPaper(size), dpiResolution, &operationControl);
         QVERIFY(!info.isBlank);
     }
+}
+
+void BitonalDocumentTest::test_automatic_threshold_preserves_gray_content()
+{
+    // Gray text is a distinct foreground, despite being brighter than 75% of
+    // paper white. The blank-paper correction must not erase it.
+    const QRect content(100, 100, 12, 16);
+    for (const int lightness : { 200, 210, 230 })
+    {
+        QImage image(QSize(400, 400), QImage::Format_RGB32);
+        image.fill(Qt::white);
+        for (int y = content.top(); y <= content.bottom(); ++y)
+        {
+            QRgb* line = reinterpret_cast<QRgb*>(image.scanLine(y));
+            for (int x = content.left(); x <= content.right(); ++x)
+            {
+                line[x] = qRgb(lightness, lightness, lightness);
+            }
+        }
+
+        pdf::PDFImageConversion conversion;
+        conversion.setImage(image);
+        QVERIFY(conversion.convert());
+        QCOMPARE(getBlackPixelBounds(conversion.getConvertedImage()), content);
+        QVERIFY(!pdf::PDFBitonalDocumentCreator::detectBlankPage(image, 200, nullptr).isBlank);
+    }
+}
+
+void BitonalDocumentTest::test_execution_policy_propagates_exceptions()
+{
+    using Policy = pdf::PDFExecutionPolicy;
+    const auto previousStrategy = Policy::isParallelizing(Policy::Scope::Content) ? Policy::Strategy::AlwaysMultithreaded :
+                                  Policy::isParallelizing(Policy::Scope::Page) ? Policy::Strategy::PageMultithreaded :
+                                                                               Policy::Strategy::SingleThreaded;
+    auto strategyGuard = qScopeGuard([previousStrategy]() { Policy::setStrategy(previousStrategy); });
+
+    for (const auto strategy : { Policy::Strategy::SingleThreaded, Policy::Strategy::AlwaysMultithreaded })
+    {
+        Policy::setStrategy(strategy);
+        std::array<int, 8> values = { };
+        std::atomic<int> processed = 0;
+        auto process = [&](int& value)
+        {
+            ++value;
+            ++processed;
+            if (&value == &values.front() || &value == &values.back())
+            {
+                throw std::runtime_error("Worker failure");
+            }
+        };
+        QVERIFY_THROWS_EXCEPTION(std::runtime_error, Policy::execute(Policy::Scope::Page, values.begin(), values.end(), process));
+        QCOMPARE(processed.load(), strategy == Policy::Strategy::SingleThreaded ? 1 : int(values.size()));
+
+        // The pool remains usable and mutable iterator references are preserved.
+        Policy::execute(Policy::Scope::Content, values.begin(), values.end(), [](int& value) { value = 42; });
+        for (const int value : values)
+        {
+            QCOMPARE(value, 42);
+        }
+    }
+}
+
+void BitonalDocumentTest::test_rasterizer_returned_after_exception()
+{
+    pdf::PDFDocument document = createDocument({ QSizeF(200, 100) }, false);
+    RenderingContext context(&document, 1);
+    auto* pool = context.getRasterizerPool();
+    pdf::PDFBitonalDocumentCreator creator(&document, pool, nullptr);
+
+    auto throwingSizeGetter = [](const pdf::PDFPage*) -> QSize
+    {
+        throw std::runtime_error("Size getter failure");
+    };
+    QVERIFY_THROWS_EXCEPTION(std::runtime_error, creator.renderPages({ 0 }, throwingSizeGetter, [](pdf::PDFInteger, QImage) { }, nullptr));
+
+    // A timeout makes a leaked semaphore permit fail without hanging the test.
+    TimedOperationControl timeout(200);
+    pdf::PDFRasterizer* rasterizer = pool->acquire(&timeout);
+    QVERIFY(rasterizer);
+    pool->release(rasterizer);
+    QVERIFY(!creator.renderPage(0, QSize(64, 32), nullptr).isNull());
+
+    QVERIFY_THROWS_EXCEPTION(std::runtime_error, creator.renderPages({ 0 }, [](const pdf::PDFPage*) { return QSize(64, 32); },
+        [](pdf::PDFInteger, QImage) { throw std::runtime_error("Image processor failure"); }, nullptr));
+    QVERIFY(!creator.renderPage(0, QSize(64, 32), nullptr).isNull());
+}
+
+void BitonalDocumentTest::test_page_image_size_rejects_overflow()
+{
+    pdf::PDFDocument document = createDocument({ QSizeF(200, 100), QSizeF(1.0e12, 100), QSizeF(200, 1.0e12) }, false);
+    const auto* catalog = document.getCatalog();
+    QCOMPARE(pdf::PDFBitonalDocumentCreator::getPageImageSize(catalog->getPage(0), 200), QSize(556, 278));
+    QVERIFY(!pdf::PDFBitonalDocumentCreator::getPageImageSize(catalog->getPage(1), 200).isValid());
+    QVERIFY(!pdf::PDFBitonalDocumentCreator::getPageImageSize(catalog->getPage(2), 200).isValid());
+    QVERIFY(!pdf::PDFBitonalDocumentCreator::getPageImageSize(nullptr, 200).isValid());
+    QVERIFY(!pdf::PDFBitonalDocumentCreator::detectBlankPage(QImage(), 200, nullptr).isBlank);
+}
+
+void BitonalDocumentTest::test_page_rasterization_limits_resolution()
+{
+    pdf::PDFDocument document = createDocument({ QSizeF(1.0e-6, 100) }, false);
+    RenderingContext context(&document, 1);
+    QImage image;
+    context.getRasterizerPool()->render({ 0 }, [](const pdf::PDFPage*) { return QSize(64, 32); },
+        [&image](pdf::PDFRenderedPageImage& rendered) { image = rendered.pageImage; }, nullptr, nullptr);
+    QVERIFY(!image.isNull());
+    QCOMPARE(image.dotsPerMeterX(), std::numeric_limits<int>::max());
 }
 
 QTEST_MAIN(BitonalDocumentTest)

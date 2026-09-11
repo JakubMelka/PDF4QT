@@ -36,6 +36,8 @@
 #include <QScopeGuard>
 
 #include <array>
+#include <cmath>
+#include <limits>
 #include <map>
 #include <set>
 #include <utility>
@@ -1371,6 +1373,11 @@ PDFBitonalDocumentCreator::BlankPageInfo PDFBitonalDocumentCreator::detectBlankP
                                                                                    int dpiResolution,
                                                                                    const PDFOperationControl* operationControl)
 {
+    if (pageImage.isNull() || dpiResolution <= 0 || PDFOperationControl::isOperationCancelled(operationControl))
+    {
+        return BlankPageInfo();
+    }
+
     // The page is thresholded by the automatic method deliberately, so the answer
     // does not depend on the settings of the conversion. The manual threshold is
     // not used by that method, so the value passed here is irrelevant.
@@ -1421,6 +1428,11 @@ PDFBitonalDocumentCreator::BlankPageInfo PDFBitonalDocumentCreator::analyzeBiton
 
     for (int y = area.top(); y <= area.bottom() && !isInkPixelLimitExceeded; ++y)
     {
+        if (PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            return result;
+        }
+
         const uchar* line = image.constScanLine(y);
 
         for (int x = area.left(); x <= area.right(); ++x)
@@ -1433,7 +1445,7 @@ PDFBitonalDocumentCreator::BlankPageInfo PDFBitonalDocumentCreator::analyzeBiton
         }
     }
 
-    result.inkPixelCount = int(inkPixelCount);
+    result.inkPixelCount = inkPixelCount;
     result.inkRatio = areaPixelCount > 0 ? double(inkPixelCount) / double(areaPixelCount) : 0.0;
 
     if (isInkPixelLimitExceeded || PDFOperationControl::isOperationCancelled(operationControl))
@@ -1534,6 +1546,11 @@ PDFBitonalDocumentCreator::BlankPageInfo PDFBitonalDocumentCreator::analyzeBiton
 
     for (size_t index = 0; index < runs.size(); ++index)
     {
+        if ((index & 0xFFFF) == 0 && PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            return BlankPageInfo();
+        }
+
         const BlackRun& run = runs[index];
         const QRect runBounds(run.xBegin, run.y, run.xEnd - run.xBegin, 1);
 
@@ -1549,6 +1566,11 @@ PDFBitonalDocumentCreator::BlankPageInfo PDFBitonalDocumentCreator::analyzeBiton
 
     for (const QRect& bounds : spots)
     {
+        if (PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            return BlankPageInfo();
+        }
+
         if (bounds.isNull())
         {
             continue;
@@ -1583,7 +1605,7 @@ PDFBitonalDocumentCreator::BlankPageInfo PDFBitonalDocumentCreator::analyzeBiton
         // Anything else is a speck of the dust, of the toner or of the paper itself
     }
 
-    result.isBlank = result.contentComponentCount == 0;
+    result.isBlank = result.contentComponentCount == 0 && !PDFOperationControl::isOperationCancelled(operationControl);
     return result;
 }
 
@@ -1728,13 +1750,25 @@ QImage PDFBitonalDocumentCreator::renderPage(PDFInteger pageIndex, QSize size, c
 
 QSize PDFBitonalDocumentCreator::getPageImageSize(const PDFPage* page, int dpiResolution)
 {
-    Q_ASSERT(page);
+    if (!page)
+    {
+        return QSize();
+    }
 
     // The resolution comes from the caller, so it is clamped here - a page rasterized
     // at an extreme resolution would need gigabytes of memory for a single image.
     const int resolution = qBound(MINIMUM_DPI_RESOLUTION, dpiResolution, MAXIMUM_DPI_RESOLUTION);
 
     const QSizeF size = page->getMediaBox().size() * PDF_POINT_TO_INCH * resolution;
+    const double maximumDimension = std::numeric_limits<int>::max() - 1.0;
+    if (!std::isfinite(size.width()) || !std::isfinite(size.height()) ||
+        size.width() <= 0.0 || size.height() <= 0.0 ||
+        size.width() > maximumDimension || size.height() > maximumDimension)
+    {
+        // MediaBox is untrusted. Reject dimensions before rounding to int;
+        // overflow must not turn an oversized page into a tiny blank image.
+        return QSize();
+    }
     return size.toSize().expandedTo(QSize(1, 1));
 }
 
@@ -1760,7 +1794,8 @@ int PDFBitonalDocumentCreator::getEstimatedDpiResolution() const
         }
 
         const QRectF mediaBox = page->getMediaBox();
-        if (mediaBox.width() < 1.0 || mediaBox.height() < 1.0)
+        if (!std::isfinite(mediaBox.width()) || !std::isfinite(mediaBox.height()) ||
+            mediaBox.width() < 1.0 || mediaBox.height() < 1.0)
         {
             continue;
         }
@@ -1775,12 +1810,12 @@ int PDFBitonalDocumentCreator::getEstimatedDpiResolution() const
             // raise the resolution, so an inaccurate estimate cannot lose any detail.
             if (width > 0)
             {
-                dpiResolution = qMax(dpiResolution, qRound(width / (mediaBox.width() * PDF_POINT_TO_INCH)));
+                dpiResolution = qMax(dpiResolution, qRound(qBound(0.0, width / (mediaBox.width() * PDF_POINT_TO_INCH), double(MAXIMUM_DPI_RESOLUTION))));
             }
 
             if (height > 0)
             {
-                dpiResolution = qMax(dpiResolution, qRound(height / (mediaBox.height() * PDF_POINT_TO_INCH)));
+                dpiResolution = qMax(dpiResolution, qRound(qBound(0.0, height / (mediaBox.height() * PDF_POINT_TO_INCH), double(MAXIMUM_DPI_RESOLUTION))));
             }
         });
     }

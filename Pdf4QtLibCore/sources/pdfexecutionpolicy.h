@@ -25,11 +25,17 @@
 
 #include "pdfglobal.h"
 
+#include <QMutex>
+#include <QScopeGuard>
 #include <QSemaphore>
 #include <QThreadPool>
 
 #include <atomic>
 #include <execution>
+#include <exception>
+#include <limits>
+#include <stdexcept>
+#include <utility>
 
 namespace pdf
 {
@@ -101,8 +107,35 @@ public:
         if (isParallelizing(scope))
         {
             QSemaphore semaphore(0);
-            int count = static_cast<int>(std::distance(first, last));
+            const auto distance = std::distance(first, last);
+            if (distance < 0 || distance > std::numeric_limits<int>::max())
+            {
+                throw std::length_error("Too many tasks for the execution policy.");
+            }
+            const int count = static_cast<int>(distance);
             int remainder = count;
+
+            // Exceptions must reach the calling thread only after every worker has
+            // stopped using the callable and the semaphore on this stack.
+            QMutex exceptionMutex;
+            std::exception_ptr exception;
+            auto guardedFunction = [&](auto&& value)
+            {
+                try
+                {
+                    f(std::forward<decltype(value)>(value));
+                }
+                catch (...)
+                {
+                    QMutexLocker lock(&exceptionMutex);
+                    if (!exception)
+                    {
+                        exception = std::current_exception();
+                    }
+                }
+            };
+            int scheduledCount = 0;
+            auto waitGuard = qScopeGuard([&]() { semaphore.acquire(scheduledCount); });
 
             int bucketSize = 1;
 
@@ -112,7 +145,7 @@ public:
             // into buckets of appropriate size.
             if (scope != Scope::Page)
             {
-                const int buckets = 8 * QThread::idealThreadCount();
+                const int buckets = 8 * qBound(1, QThread::idealThreadCount(), std::numeric_limits<int>::max() / 8);
                 bucketSize = qMax(1, count / buckets);
             }
 
@@ -126,7 +159,8 @@ public:
 
                 auto itStart = it;
                 auto itEnd = std::next(it, currentSize);
-                pool->start(new Runnable(itStart, itEnd, &f, &semaphore));
+                pool->start(new Runnable(itStart, itEnd, &guardedFunction, &semaphore));
+                scheduledCount += currentSize;
 
                 remainder -= currentSize;
                 std::advance(it, currentSize);
@@ -134,11 +168,16 @@ public:
 
             Q_ASSERT(it == last);
 
-            semaphore.acquire(count);
+            semaphore.acquire(scheduledCount);
+            waitGuard.dismiss();
+            if (exception)
+            {
+                std::rethrow_exception(exception);
+            }
         }
         else
         {
-            std::for_each(std::execution::seq, first, last, f);
+            std::for_each(first, last, f);
         }
     }
 

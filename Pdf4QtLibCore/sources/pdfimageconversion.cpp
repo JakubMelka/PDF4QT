@@ -373,10 +373,14 @@ int PDFImageConversion::calculateOtsu1DThreshold() const
     // is exactly, what they represent. Skipping them instead would leave a foreground
     // layer of a scanned page with a histogram of the ink color only, from which no
     // meaningful threshold can be calculated.
-    std::array<int, 256> histogram = { };
+    std::array<uint64_t, 256> histogram = { };
 
     for (size_t i = 0; i < m_lightness.size(); ++i)
     {
+        if ((i & 0xFFFF) == 0 && isCancelled())
+        {
+            return DEFAULT_THRESHOLD;
+        }
         histogram[m_lightness[i]] += 1;
     }
 
@@ -489,7 +493,22 @@ int PDFImageConversion::calculateOtsu1DThreshold() const
         darkClassMean /= darkClassProbability;
     }
 
-    if (paperWhite >= MINIMUM_PAPER_WHITE && darkClassMean >= float(inkLightness))
+    // Do not erase a distinct gray foreground on white paper. A mean alone
+    // cannot distinguish that foreground from the darker part of a blank scan.
+    size_t darkLightness = maxVarianceIndex;
+    while (darkLightness > 0 && histogram[darkLightness - 1] == 0)
+    {
+        --darkLightness;
+    }
+    size_t lightLightness = maxVarianceIndex;
+    while (lightLightness < histogram.size() && histogram[lightLightness] == 0)
+    {
+        ++lightLightness;
+    }
+    const bool splitsPaper = darkLightness > 0 && lightLightness < histogram.size() &&
+                             lightLightness - (darkLightness - 1) <= MAXIMUM_PAPER_LIGHTNESS_GAP;
+
+    if (splitsPaper && paperWhite >= MINIMUM_PAPER_WHITE && darkClassMean >= float(inkLightness))
     {
         return inkLightness;
     }
@@ -497,14 +516,15 @@ int PDFImageConversion::calculateOtsu1DThreshold() const
     return int(maxVarianceIndex);
 }
 
-int PDFImageConversion::calculatePaperWhiteLightness(const std::array<int, 256>& histogram, size_t pixelCount)
+int PDFImageConversion::calculatePaperWhiteLightness(const std::array<uint64_t, 256>& histogram, size_t pixelCount)
 {
     if (pixelCount == 0)
     {
         return 0;
     }
 
-    const uint64_t limit = uint64_t(pixelCount) * uint64_t(PAPER_WHITE_PERCENTILE) / 100;
+    const uint64_t limit = (uint64_t(pixelCount) / 100) * PAPER_WHITE_PERCENTILE +
+                           (uint64_t(pixelCount) % 100) * PAPER_WHITE_PERCENTILE / 100;
     uint64_t cumulativeCount = 0;
 
     for (size_t i = 0; i < histogram.size(); ++i)

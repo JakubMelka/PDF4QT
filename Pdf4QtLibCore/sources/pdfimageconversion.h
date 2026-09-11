@@ -29,6 +29,7 @@
 #include <QImage>
 
 #include <array>
+#include <cstdint>
 #include <optional>
 #include <vector>
 
@@ -171,7 +172,7 @@ private:
     /// in the paper, a scanning artifact - cannot decide the result.
     /// \param histogram Histogram of the lightness of the image
     /// \param pixelCount Number of the pixels of the image
-    static int calculatePaperWhiteLightness(const std::array<int, 256>& histogram, size_t pixelCount);
+    static int calculatePaperWhiteLightness(const std::array<uint64_t, 256>& histogram, size_t pixelCount);
 
     QImage convertThresholded(int threshold) const;
     QImage convertAdaptive() const;
@@ -204,6 +205,10 @@ private:
     /// the gradient of the illumination and the show-through of the reverse side stay
     /// well above it.
     static constexpr int INK_LIGHTNESS_PERCENTAGE = 75;
+
+    /// A gap between the two populations indicates distinct ink and paper, even
+    /// when the ink is gray. Paper texture has a continuous lightness histogram.
+    static constexpr int MAXIMUM_PAPER_LIGHTNESS_GAP = 16;
 
     /// The paper of an image must be at least this bright, before the image is
     /// treated as a scanned page. A darker image is a picture, not a document, and

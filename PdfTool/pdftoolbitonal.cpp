@@ -189,7 +189,15 @@ int PDFToolBitonal::execute(const PDFToolOptions& options)
                 }
             };
 
-            creator.renderPages(pageIndices, pageSizeGetter, pageImageProcessor, nullptr);
+            try
+            {
+                creator.renderPages(pageIndices, pageSizeGetter, pageImageProcessor, nullptr);
+            }
+            catch (...)
+            {
+                PDFConsole::writeError(PDFToolTranslationContext::tr("Blank page detection failed. The output document has not been written."), options.outputCodec);
+                return ErrorUnknown;
+            }
 
             const auto blankPageCount = std::count(blankPages.cbegin(), blankPages.cend(), char(1));
             PDFConsole::writeError(PDFToolTranslationContext::tr("Note: %1 of %2 pages have been detected as blank and they are replaced by a white fill.")

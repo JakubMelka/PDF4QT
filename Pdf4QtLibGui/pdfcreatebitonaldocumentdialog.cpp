@@ -426,9 +426,18 @@ void PDFCreateBitonalDocumentDialog::onJobFinished(AsyncJob& job, int generation
     }
     else if (&job == &m_blankPageJob)
     {
-        // The run has not been superseded, so it has really examined the whole
-        // document and its result can be offered to the user
-        onBlankPageDetectionFinished();
+        // A worker exception is caught by startJob. Such a run can finish with
+        // only partial results, which must not be presented as a full detection.
+        if (m_examinedPageCount != m_pagesToExamineCount)
+        {
+            m_blankPageItems.clear();
+            updateUi();
+            QMessageBox::warning(this, tr("Detect Blank Pages"), tr("Blank page detection could not examine all pages. No page modes have been changed."));
+        }
+        else
+        {
+            onBlankPageDetectionFinished();
+        }
     }
 
     updateUi();
@@ -1145,14 +1154,16 @@ void PDFCreateBitonalDocumentDialog::onBlankPageDetectionFinished()
     messageBox.setDefaultButton(QMessageBox::No);
     messageBox.setInformativeText(tr("Blank pages: %1").arg(getPageNumbersText(m_blankPageItems)));
 
-    if (messageBox.exec() != QMessageBox::Yes)
+    const int generation = m_blankPageJob.generation;
+    const std::vector<int> blankPageItems = m_blankPageItems;
+    if (messageBox.exec() != QMessageBox::Yes || generation != m_blankPageJob.generation)
     {
         return;
     }
 
     bool isChanged = false;
 
-    for (const int itemIndex : m_blankPageItems)
+    for (const int itemIndex : blankPageItems)
     {
         if (itemIndex < 0 || itemIndex >= int(m_itemsToBeConverted.size()))
         {

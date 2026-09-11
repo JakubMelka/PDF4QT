@@ -234,7 +234,8 @@ public:
 
     /// Returns size of the rasterized page image for a given resolution. The resolution
     /// is clamped into the range supported by this class - a page rasterized at an
-    /// extreme resolution would need gigabytes of memory.
+    /// extreme resolution would need gigabytes of memory. Returns an invalid size
+    /// when the page dimensions cannot be represented safely.
     /// \param page Page
     /// \param dpiResolution Resolution in dots per inch
     static QSize getPageImageSize(const PDFPage* page, int dpiResolution);
@@ -274,10 +275,10 @@ public:
     /// sheet of paper
     struct BlankPageInfo
     {
-        bool isBlank = false;           ///< True, when the page carries no content
-        int contentComponentCount = 0;  ///< Number of the found spots, which are large enough to be a content
-        int inkPixelCount = 0;          ///< Number of the black pixels of the analyzed area. It is a lower estimate for a page, which obviously is not a blank one, because the counting stops as soon as that is decided.
-        double inkRatio = 0.0;          ///< Ratio of the black pixels to all pixels of the analyzed area
+        bool isBlank = false;               ///< True, when the page carries no content
+        uint64_t contentComponentCount = 0;  ///< Number of the found spots, which are large enough to be a content
+        uint64_t inkPixelCount = 0;          ///< Number of the black pixels of the analyzed area. It is a lower estimate for a page, which obviously is not a blank one, because the counting stops as soon as that is decided.
+        double inkRatio = 0.0;              ///< Ratio of the black pixels to all pixels of the analyzed area
     };
 
     /// Decides, whether a rasterized page is a scan of a blank sheet of paper. A scan
