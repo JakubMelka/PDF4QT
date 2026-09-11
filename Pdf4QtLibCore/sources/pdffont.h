@@ -793,6 +793,16 @@ public:
     /// \param cid CID of the glyph
     PDFReal getGlyphAdvance(CID cid) const;
 
+    /// Returns unicode character of the CID, which is obtained from the CID to unicode
+    /// mapping of the predefined Adobe character collection of this font (Adobe-Japan1,
+    /// Adobe-GB1, ...). Returns null character, if the font does not use a predefined
+    /// character collection, or if the CID is not mapped. This mapping is used only when
+    /// the font has no ToUnicode CMap - for a non-embedded font, it is also the only way
+    /// to find the glyph in the substituted system font, because the CID is not a valid
+    /// glyph index there.
+    /// \param cid CID of the glyph
+    QChar getUnicodeFromCID(CID cid) const;
+
     virtual QByteArray encodeCharacter(char32_t codePoint) const override;
 
 private:
@@ -809,6 +819,9 @@ private:
 
     mutable std::once_flag m_encodeMapFlag;
     mutable std::unordered_map<char32_t, QByteArray> m_encodeMap;
+
+    mutable std::once_flag m_cidToUnicodeFlag;
+    mutable const std::unordered_map<CID, char16_t>* m_cidToUnicode = nullptr;
 };
 
 /// Repository with predefined CMaps

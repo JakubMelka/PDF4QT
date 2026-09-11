@@ -43,6 +43,7 @@
 #include <QDataStream>
 
 #include <limits>
+#include <map>
 
 #include "pdfdbgheap.h"
 
@@ -77,33 +78,187 @@ struct PDF_Default_CJK_Font
     const char* name = nullptr;
 };
 
+/// Fonts used to substitute a non-embedded CID keyed font of the given Adobe
+/// character collection. Fonts are tried in the listed order, the ones matching
+/// the serif flag of the font descriptor first. Only exact face name matches are
+/// accepted - a generic name such as "Gothic" would otherwise be matched to an
+/// unrelated latin font (for example Franklin Gothic), which contains no CJK
+/// glyphs at all.
 static constexpr std::array S_DEFAULT_CJK_FONTS =
 {
-    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "KaiTi_GB2312" },
-    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "Song" },
-    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, false, "Heiti" },
-    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "SimFang" },
-    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "FangSong" },
+    // Adobe-GB1 - simplified chinese
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, false, "Microsoft YaHei" },
     PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, false, "SimHei" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, false, "Noto Sans CJK SC" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, false, "Source Han Sans SC" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, false, "WenQuanYi Zen Hei" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, false, "PingFang SC" },
     PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "SimSun" },
-    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "SimKai" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "NSimSun" },
     PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "KaiTi" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "FangSong" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "STSong" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "Songti SC" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "Noto Serif CJK SC" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "Source Han Serif SC" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "KaiTi_GB2312" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "SimKai" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "SimFang" },
     PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "SimLi" },
     PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "SimLiU" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "Song" },
     PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "STSong-Light" },
-    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, true, "STSong-Light,Bold" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, false, "Heiti SC" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeGB, false, "Heiti" },
 
-    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeCNS, true, "Ming" },
-    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeCNS, false, "Fangti" },
+    // Adobe-CNS1 - traditional chinese
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeCNS, false, "Microsoft JhengHei" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeCNS, false, "Noto Sans CJK TC" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeCNS, false, "Source Han Sans TC" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeCNS, false, "PingFang TC" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeCNS, true, "PMingLiU" },
     PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeCNS, true, "MingLiU" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeCNS, true, "MingLiU_HKSCS" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeCNS, true, "Songti TC" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeCNS, true, "Noto Serif CJK TC" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeCNS, true, "Source Han Serif TC" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeCNS, true, "Ming" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeCNS, false, "Heiti TC" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeCNS, false, "Fangti" },
 
-    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, false, "Gothic" },
-    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, true, "Mincho" },
+    // Adobe-Japan1, Adobe-Japan2 - japanese
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, false, "MS PGothic" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, false, "MS Gothic" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, false, "MS UI Gothic" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, false, "Yu Gothic" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, false, "Meiryo" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, false, "Hiragino Kaku Gothic ProN" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, false, "Hiragino Sans" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, false, "Noto Sans CJK JP" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, false, "Source Han Sans JP" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, false, "IPAGothic" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, false, "IPAPGothic" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, false, "TakaoGothic" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, false, "VL Gothic" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, true, "MS PMincho" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, true, "MS Mincho" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, true, "Yu Mincho" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, true, "Hiragino Mincho ProN" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, true, "Noto Serif CJK JP" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, true, "Source Han Serif JP" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, true, "IPAMincho" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, true, "IPAPMincho" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeJapan, true, "TakaoMincho" },
 
+    // Adobe-Korea1, Adobe-KR - korean
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeKorea, false, "Malgun Gothic" },
     PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeKorea, false, "Gulim" },
     PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeKorea, false, "Dotum" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeKorea, false, "Apple SD Gothic Neo" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeKorea, false, "Noto Sans CJK KR" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeKorea, false, "Source Han Sans KR" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeKorea, false, "NanumGothic" },
     PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeKorea, true, "Batang" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeKorea, true, "BatangChe" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeKorea, true, "Noto Serif CJK KR" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeKorea, true, "Source Han Serif KR" },
+    PDF_Default_CJK_Font{ ECjkDefaultFontType::AdobeKorea, true, "NanumMyeongjo" },
 };
+
+/// Returns type of the default CJK font for the given character collection,
+/// or ECjkDefaultFontType::Invalid, if the collection is not a CJK one
+static ECjkDefaultFontType getCjkDefaultFontType(const CIDSystemInfo* cidSystemInfo)
+{
+    if (!cidSystemInfo || cidSystemInfo->registry != "Adobe")
+    {
+        return ECjkDefaultFontType::Invalid;
+    }
+
+    if (cidSystemInfo->ordering == "GB1")
+    {
+        return ECjkDefaultFontType::AdobeGB;
+    }
+    if (cidSystemInfo->ordering == "CNS1")
+    {
+        return ECjkDefaultFontType::AdobeCNS;
+    }
+    if (cidSystemInfo->ordering == "Japan1" || cidSystemInfo->ordering == "Japan2")
+    {
+        return ECjkDefaultFontType::AdobeJapan;
+    }
+    if (cidSystemInfo->ordering == "Korea1" || cidSystemInfo->ordering == "KR")
+    {
+        return ECjkDefaultFontType::AdobeKorea;
+    }
+
+    return ECjkDefaultFontType::Invalid;
+}
+
+/// Returns language tag of the CJK font type. The language is used by fontconfig
+/// to select a font, which really covers the script (same approach is used by poppler).
+static const char* getCjkFontLanguage(ECjkDefaultFontType type)
+{
+    switch (type)
+    {
+        case ECjkDefaultFontType::AdobeGB:
+            return "zh-cn";
+
+        case ECjkDefaultFontType::AdobeCNS:
+            return "zh-tw";
+
+        case ECjkDefaultFontType::AdobeJapan:
+            return "ja";
+
+        case ECjkDefaultFontType::AdobeKorea:
+            return "ko";
+
+        default:
+            break;
+    }
+
+    return nullptr;
+}
+
+/// Returns name of the predefined CMap, which maps unicode code points to the CIDs
+/// of the given character collection. Reversing this CMap gives a CID to unicode
+/// mapping, which is needed to render (and extract text of) a non-embedded CID keyed
+/// font using a substituted system font. Returns empty array for unknown collections.
+static QByteArray getUnicodeCMapNameForCollection(const CIDSystemInfo* cidSystemInfo)
+{
+    if (!cidSystemInfo || cidSystemInfo->registry != "Adobe")
+    {
+        return QByteArray();
+    }
+
+    const QByteArray& ordering = cidSystemInfo->ordering;
+
+    if (ordering == "Japan1")
+    {
+        return QByteArrayLiteral("UniJIS-UCS2-H");
+    }
+    if (ordering == "Japan2")
+    {
+        return QByteArrayLiteral("UniHojo-UCS2-H");
+    }
+    if (ordering == "GB1")
+    {
+        return QByteArrayLiteral("UniGB-UCS2-H");
+    }
+    if (ordering == "CNS1")
+    {
+        return QByteArrayLiteral("UniCNS-UCS2-H");
+    }
+    if (ordering == "Korea1")
+    {
+        return QByteArrayLiteral("UniKS-UCS2-H");
+    }
+    if (ordering == "KR")
+    {
+        return QByteArrayLiteral("UniAKR-UTF16-H");
+    }
+
+    return QByteArray();
+}
 
 struct PDF_Font_Replacement
 {
@@ -284,10 +439,21 @@ private:
 
     /// Loads font from descriptor
     /// \param descriptor Descriptor describing the font
+    /// \param fontName Name of the font to be found in the system
+    /// \param standardFontType Standard font type, if font is a standard one
+    /// \param reporter Error reporter
+    /// \param exactMatchOnly Accept only a font, whose face name is exactly the
+    ///        requested one. Fuzzy matching (font family, substring of the face name)
+    ///        is not used. This is required, when a list of candidate fonts is tried,
+    ///        because a fuzzy match of the first candidate would prevent the better
+    ///        candidates from being used at all.
+    /// \param language Language, which the font must support (fontconfig only), can be nullptr
     SystemFontData loadFontImpl(const FontDescriptor* descriptor,
                                 QString fontName,
                                 StandardFontType standardFontType,
-                                PDFRenderErrorReporter* reporter) const;
+                                PDFRenderErrorReporter* reporter,
+                                bool exactMatchOnly = false,
+                                const char* language = nullptr) const;
 
 #ifdef Q_OS_UNIX
     static void checkFontConfigError(FcBool result);
@@ -304,7 +470,9 @@ private:
     static QByteArray getFontData(const LOGFONT* font, HDC hdc);
 
     /// Retrieves font data for desired font using DirectWrite
-    static SystemFontData getDirectWriteFontData(const FontDescriptor* descriptor, const QString& fontName);
+    /// \param matchDescriptorFamily Font family of the descriptor can be used to find
+    ///        the font, if the font name itself does not match any font family
+    static SystemFontData getDirectWriteFontData(const FontDescriptor* descriptor, const QString& fontName, bool matchDescriptorFamily);
 
     struct FontInfo
     {
@@ -459,36 +627,28 @@ SystemFontData PDFSystemFontInfoStorage::loadFont(const CIDSystemInfo* cidSystem
 
     SystemFontData fontData = loadFontImpl(descriptor, fontName, standardFontType, reporter);
 
-    if (fontData.isEmpty() && cidSystemInfo->registry == "Adobe")
+    if (fontData.isEmpty())
     {
-        // Try to load CJK font
-        ECjkDefaultFontType cjkDefaultFontType = ECjkDefaultFontType::Invalid;
-
-        if (cidSystemInfo->ordering == "GB1")
-        {
-            cjkDefaultFontType = ECjkDefaultFontType::AdobeGB;
-        }
-        else if (cidSystemInfo->ordering == "CNS1")
-        {
-            cjkDefaultFontType = ECjkDefaultFontType::AdobeCNS;
-        }
-        else if (cidSystemInfo->ordering == "Japan1")
-        {
-            cjkDefaultFontType = ECjkDefaultFontType::AdobeJapan;
-        }
-        else if (cidSystemInfo->ordering == "Korea1")
-        {
-            cjkDefaultFontType = ECjkDefaultFontType::AdobeKorea;
-        }
+        // Try to load CJK font. The fonts matching the serif flag of the descriptor
+        // are preferred, but a font of the other style is still much better than
+        // a latin font without any CJK glyph.
+        const ECjkDefaultFontType cjkDefaultFontType = getCjkDefaultFontType(cidSystemInfo);
 
         if (cjkDefaultFontType != ECjkDefaultFontType::Invalid)
         {
-            for (const PDF_Default_CJK_Font& defaultCjkFont : S_DEFAULT_CJK_FONTS)
+            const char* language = getCjkFontLanguage(cjkDefaultFontType);
+
+            for (bool matchingStyle : { true, false })
             {
-                if (defaultCjkFont.type == cjkDefaultFontType &&
-                    defaultCjkFont.isSerif == descriptor->isSerif())
+                for (const PDF_Default_CJK_Font& defaultCjkFont : S_DEFAULT_CJK_FONTS)
                 {
-                    fontData = loadFontImpl(descriptor, defaultCjkFont.name, StandardFontType::Invalid, reporter);
+                    if (defaultCjkFont.type != cjkDefaultFontType ||
+                        (defaultCjkFont.isSerif == descriptor->isSerif()) != matchingStyle)
+                    {
+                        continue;
+                    }
+
+                    fontData = loadFontImpl(descriptor, defaultCjkFont.name, StandardFontType::Invalid, reporter, true, language);
 
                     if (!fontData.isEmpty())
                     {
@@ -521,26 +681,33 @@ SystemFontData PDFSystemFontInfoStorage::loadFont(const CIDSystemInfo* cidSystem
 SystemFontData PDFSystemFontInfoStorage::loadFontImpl(const FontDescriptor* descriptor,
                                                       QString fontName,
                                                       StandardFontType standardFontType,
-                                                      PDFRenderErrorReporter* reporter) const
+                                                      PDFRenderErrorReporter* reporter,
+                                                      bool exactMatchOnly,
+                                                      const char* language) const
 {
     SystemFontData result;
 
 #if defined(Q_OS_WIN)
 
     Q_UNUSED(standardFontType);
-    result = getDirectWriteFontData(descriptor, fontName);
+    Q_UNUSED(language);
+    result = getDirectWriteFontData(descriptor, fontName, !exactMatchOnly);
     if (!result.isEmpty())
     {
         return result;
     }
 
+    // Face names of the enumerated system fonts are normalized, so the requested
+    // name must be normalized, too (font names with spaces would never match).
+    const QString fontNameAdjusted = getFontPostscriptName(fontName);
+
     HDC hdc = GetDC(NULL);
     const BYTE lfItalic = (descriptor->italicAngle != 0.0 ? TRUE : FALSE);
-    if (!fontName.isEmpty())
+    if (!fontNameAdjusted.isEmpty())
     {
         for (const FontInfo& fontInfo : m_fontInfos)
         {
-            if (fontInfo.faceNameAdjusted == fontName &&
+            if (fontInfo.faceNameAdjusted == fontNameAdjusted &&
                 fontInfo.logFont.lfWeight == descriptor->fontWeight &&
                 fontInfo.logFont.lfItalic == lfItalic)
             {
@@ -558,7 +725,7 @@ SystemFontData PDFSystemFontInfoStorage::loadFontImpl(const FontDescriptor* desc
         {
             for (const FontInfo& fontInfo : m_fontInfos)
             {
-                if (fontInfo.faceNameAdjusted == fontName)
+                if (fontInfo.faceNameAdjusted == fontNameAdjusted)
                 {
                     LOGFONT logFont = fontInfo.logFont;
                     logFont.lfWeight = descriptor->fontWeight;
@@ -572,6 +739,12 @@ SystemFontData PDFSystemFontInfoStorage::loadFontImpl(const FontDescriptor* desc
                 }
             }
         }
+    }
+
+    if (exactMatchOnly)
+    {
+        ReleaseDC(NULL, hdc);
+        return result;
     }
 
     // Exact match for font, if font can't be exact matched, then match font family
@@ -619,11 +792,11 @@ SystemFontData PDFSystemFontInfoStorage::loadFontImpl(const FontDescriptor* desc
     }
 
     // Try to inexact match for font name - find similar font
-    if (!fontName.isEmpty() && result.isEmpty())
+    if (!fontNameAdjusted.isEmpty() && result.isEmpty())
     {
         for (const FontInfo& fontInfo : m_fontInfos)
         {
-            if (fontInfo.faceNameAdjusted.contains(fontName))
+            if (fontInfo.faceNameAdjusted.contains(fontNameAdjusted))
             {
                 LOGFONT logFont = fontInfo.logFont;
                 logFont.lfWeight = descriptor->fontWeight;
@@ -642,10 +815,19 @@ SystemFontData PDFSystemFontInfoStorage::loadFontImpl(const FontDescriptor* desc
     ReleaseDC(NULL, hdc);
     return result;
 #elif defined(Q_OS_UNIX)
-    FcPattern* p = FcPatternBuild(nullptr, FC_FAMILY, FcTypeString, fontName.constData(), nullptr);
+    const QByteArray fontNameUtf8 = fontName.toUtf8();
+    FcPattern* p = FcPatternBuild(nullptr, FC_FAMILY, FcTypeString, fontNameUtf8.constData(), nullptr);
     if (!p)
     {
         throw PDFException(PDFTranslationContext::tr("FontConfig error building pattern for font %1").arg(fontName));
+    }
+
+    // Require the font to cover the script of the character collection. Fontconfig
+    // always returns some font for any family name, so without the language, the
+    // first candidate would be accepted even if it has no CJK glyph at all.
+    if (language)
+    {
+        checkFontConfigError(FcPatternAddString(p, FC_LANG, reinterpret_cast<const FcChar8*>(language)));
     }
 
     constexpr const std::array<std::pair<PDFReal, int>, 9> weights{
@@ -687,8 +869,28 @@ SystemFontData PDFSystemFontInfoStorage::loadFontImpl(const FontDescriptor* desc
     FcPattern* match = FcFontMatch(nullptr, p, &res);
     if (match)
     {
+        // Fontconfig substitutes an arbitrary font for an unknown family. When a list
+        // of candidate fonts is tried, accept the match only if it really is the
+        // requested family, so that the remaining candidates can be tried, too.
+        bool isMatchAccepted = true;
+
+        if (exactMatchOnly)
+        {
+            isMatchAccepted = false;
+
+            FcChar8* matchedFamily = nullptr;
+            for (int i = 0; FcPatternGetString(match, FC_FAMILY, i, &matchedFamily) == FcResultMatch; ++i)
+            {
+                if (QString::fromUtf8(reinterpret_cast<char*>(matchedFamily)).compare(fontName, Qt::CaseInsensitive) == 0)
+                {
+                    isMatchAccepted = true;
+                    break;
+                }
+            }
+        }
+
         FcChar8* s = nullptr;
-        if (FcPatternGetString(match, FC_FILE, 0, &s) == FcResultMatch)
+        if (isMatchAccepted && FcPatternGetString(match, FC_FILE, 0, &s) == FcResultMatch)
         {
             QFile f(QString::fromUtf8(reinterpret_cast<char*>(s)));
             if ( f.open(QIODevice::ReadOnly) )
@@ -697,9 +899,13 @@ SystemFontData PDFSystemFontInfoStorage::loadFontImpl(const FontDescriptor* desc
                 f.close();
             }
         }
+
+        FcPatternDestroy(match);
     }
 
-    if (result.isEmpty() && standardFontType == StandardFontType::Invalid)
+    FcPatternDestroy(p);
+
+    if (result.isEmpty() && !exactMatchOnly && standardFontType == StandardFontType::Invalid)
     {
         reporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Inexact font substitution: font %1 replaced by standard font Times New Roman.").arg(fontName));
         result = loadFontImpl(descriptor, fontName, StandardFontType::TimesRoman, reporter);
@@ -761,11 +967,11 @@ int PDFSystemFontInfoStorage::enumerateFontProc(const LOGFONT* font, const TEXTM
     return TRUE;
 }
 
-SystemFontData PDFSystemFontInfoStorage::getDirectWriteFontData(const FontDescriptor* descriptor, const QString& fontName)
+SystemFontData PDFSystemFontInfoStorage::getDirectWriteFontData(const FontDescriptor* descriptor, const QString& fontName, bool matchDescriptorFamily)
 {
     SystemFontData result;
 
-    const QString descriptorFontFamily = QString::fromLatin1(descriptor->fontFamily);
+    const QString descriptorFontFamily = matchDescriptorFamily ? QString::fromLatin1(descriptor->fontFamily) : QString();
     if (fontName.isEmpty() && descriptorFontFamily.isEmpty())
     {
         return result;
@@ -1246,6 +1452,15 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
                 {
                     character = cmap->getUnicodeFromCode(mappedCode.code);
                 }
+                if (character.isNull())
+                {
+                    // Font has no ToUnicode CMap. If it belongs to one of the predefined
+                    // character collections, the CID can still be translated to unicode
+                    // using the collection's unicode CMap. For a non-embedded font, this
+                    // is the only way to find the glyph in the substituted system font -
+                    // the CID is meaningless as a glyph index there.
+                    character = font->getUnicodeFromCID(cid);
+                }
 
                 std::optional<GID> glyphIndex;
                 if (!m_isEmbedded && !character.isNull() && m_face->charmap && m_face->charmap->encoding == FT_ENCODING_UNICODE)
@@ -1270,7 +1485,14 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
                 if (glyphIndex)
                 {
                     const Glyph& glyph = getGlyph(*glyphIndex);
-                    textSequence.items.emplace_back(&glyph.glyph, character, glyph.advance, cid);
+
+                    // Glyph of a substituted font has a different advance than the glyph
+                    // of the original font. Widths from the font dictionary (W, DW) are
+                    // the authoritative ones, so use them - otherwise the text would be
+                    // spaced using metrics of an unrelated font and characters would overlap.
+                    const PDFReal advance = m_isEmbedded ? glyph.advance
+                                                         : glyphWidth * m_pixelSize * FONT_WIDTH_MULTIPLIER;
+                    textSequence.items.emplace_back(&glyph.glyph, character, advance, cid);
                 }
                 else
                 {
@@ -3550,6 +3772,98 @@ PDFFontCMapRepository::PDFFontCMapRepository()
 
 }
 
+/// Repository of CID to unicode mappings of the predefined Adobe character collections.
+/// The mapping is created by reversing the predefined unicode CMap of the collection -
+/// UniJIS-UCS2-H maps unicode code points to Adobe-Japan1 CIDs, so the reverse mapping
+/// gives the unicode value of a CID. Poppler builds the CID to GID map of substituted
+/// CID keyed fonts by reversing the very same CMaps.
+class PDFCIDToUnicodeRepository
+{
+public:
+    using Mapping = std::unordered_map<CID, char16_t>;
+
+    static PDFCIDToUnicodeRepository* getInstance();
+
+    /// Returns CID to unicode mapping of the character collection, or nullptr, if the
+    /// collection is not one of the predefined ones. Returned pointer is valid for the
+    /// whole lifetime of the application.
+    const Mapping* getMapping(const CIDSystemInfo* cidSystemInfo);
+
+private:
+    explicit PDFCIDToUnicodeRepository() = default;
+
+    QMutex m_mutex;
+    std::map<QByteArray, Mapping> m_mappings;
+};
+
+PDFCIDToUnicodeRepository* PDFCIDToUnicodeRepository::getInstance()
+{
+    static PDFCIDToUnicodeRepository instance;
+    return &instance;
+}
+
+const PDFCIDToUnicodeRepository::Mapping* PDFCIDToUnicodeRepository::getMapping(const CIDSystemInfo* cidSystemInfo)
+{
+    const QByteArray cMapName = getUnicodeCMapNameForCollection(cidSystemInfo);
+
+    if (cMapName.isEmpty())
+    {
+        return nullptr;
+    }
+
+    QMutexLocker lock(&m_mutex);
+
+    auto it = m_mappings.find(cMapName);
+    if (it != m_mappings.cend())
+    {
+        return &it->second;
+    }
+
+    Mapping mapping;
+
+    try
+    {
+        const PDFFontCMap cMap = PDFFontCMap::createFromName(cMapName);
+        cMap.enumerate([&mapping](unsigned int code, unsigned int, CID cid)
+        {
+            // Code of an unicode CMap is the unicode code point. Codes outside of the
+            // basic multilingual plane (surrogate pairs) can't be expressed by a single
+            // QChar, so they are skipped. Several code points can be mapped to a single
+            // CID (for example halfwidth/fullwidth forms) - the first one is used.
+            if (cid != 0 && code != 0 && code <= 0xFFFF)
+            {
+                mapping.emplace(cid, static_cast<char16_t>(code));
+            }
+        });
+    }
+    catch (const PDFException&)
+    {
+        // CMap is not available - an empty mapping is stored, so that loading
+        // of the CMap is not attempted again
+    }
+
+    return &m_mappings.emplace(cMapName, qMove(mapping)).first->second;
+}
+
+QChar PDFType0Font::getUnicodeFromCID(CID cid) const
+{
+    std::call_once(m_cidToUnicodeFlag, [this]()
+    {
+        m_cidToUnicode = PDFCIDToUnicodeRepository::getInstance()->getMapping(getCIDSystemInfo());
+    });
+
+    if (m_cidToUnicode)
+    {
+        auto it = m_cidToUnicode->find(cid);
+        if (it != m_cidToUnicode->cend())
+        {
+            return QChar(it->second);
+        }
+    }
+
+    return QChar();
+}
+
 PDFReal PDFType0Font::getGlyphAdvance(CID cid) const
 {
     auto it = m_advances.find(cid);
@@ -3639,6 +3953,35 @@ void PDFType0Font::buildEncodeMap() const
             }
 
             if (!m_toUnicode.getToUnicode(code, byteCount).isNull())
+            {
+                return;
+            }
+
+            m_encodeMap.emplace(codePoint, serializeCode(code, byteCount));
+        });
+    }
+
+    // Pass 3: the forward pass finally translates the CID using the CID to unicode
+    // mapping of the predefined character collection of the font.
+    if (PDFCIDToUnicodeRepository::getInstance()->getMapping(getCIDSystemInfo()))
+    {
+        m_cmap.enumerate([&, this](unsigned int code, unsigned int byteCount, CID cid)
+        {
+            const QChar character = getUnicodeFromCID(cid);
+            if (character.isNull())
+            {
+                return;
+            }
+
+            const char32_t codePoint = character.unicode();
+            if (m_encodeMap.count(codePoint))
+            {
+                return;
+            }
+
+            // Character codes handled by the previous passes of the forward decoding
+            if (!m_toUnicode.getToUnicode(code, byteCount).isNull() ||
+                (!m_fontDescriptor.isEmbedded() && !m_cmap.getUnicodeFromCode(code).isNull()))
             {
                 return;
             }

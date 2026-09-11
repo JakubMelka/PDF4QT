@@ -34,6 +34,7 @@ class FontEncodingTest : public QObject
 private slots:
     void test_cmap_encode_roundtrip();
     void test_type0_encode_invariant();
+    void test_type0_cid_to_unicode();
     void test_simple_font_encode();
     void test_type3_font_encode();
     void test_fallback_font_generator();
@@ -121,6 +122,68 @@ void FontEncodingTest::test_type0_encode_invariant()
     // Characters not present in the font must not be encoded
     QVERIFY(!font.encodeText(QString(QChar(0x2026))).isValid);
     QVERIFY(font.encodeCharacter(0x2026).isEmpty());
+}
+
+void FontEncodingTest::test_type0_cid_to_unicode()
+{
+    // Identity-H encoding, no ToUnicode CMap - this is how non-embedded CID keyed
+    // fonts of the predefined adobe collections are usually written (issue #393).
+    // The CIDs must be translated to unicode using the predefined unicode CMap of
+    // the character collection, otherwise neither the text can be extracted, nor
+    // a glyph can be found in the substituted system font.
+    QByteArray identityCMapData =
+        "1 begincodespacerange\n"
+        "<0000> <FFFF>\n"
+        "endcodespacerange\n"
+        "1 begincidrange\n"
+        "<0000> <FFFF> 0\n"
+        "endcidrange\n";
+
+    pdf::PDFFontCMap cmap = pdf::PDFFontCMap::createFromData(identityCMapData);
+    QVERIFY(cmap.isValid());
+
+    auto createFont = [&cmap](const char* registry, const char* ordering)
+    {
+        pdf::CIDSystemInfo cidSystemInfo;
+        cidSystemInfo.registry = registry;
+        cidSystemInfo.ordering = ordering;
+        cidSystemInfo.supplement = 2;
+
+        return pdf::PDFType0Font(cidSystemInfo, "F1", pdf::FontDescriptor(), cmap, pdf::PDFFontCMap(),
+                                 pdf::PDFCIDtoGIDMapper(QByteArray()), 1000.0, {});
+    };
+
+    // Adobe-Japan1: CIDs 1 - 94 are the proportional latin characters, CID 843 is
+    // hiragana letter A. Values are taken from the UniJIS-UCS2-H CMap.
+    pdf::PDFType0Font japaneseFont = createFont("Adobe", "Japan1");
+    QCOMPARE(japaneseFont.getUnicodeFromCID(1), QChar(' '));
+    QCOMPARE(japaneseFont.getUnicodeFromCID(34), QChar('A'));
+    QCOMPARE(japaneseFont.getUnicodeFromCID(53), QChar('T'));
+    QCOMPARE(japaneseFont.getUnicodeFromCID(66), QChar('a'));
+    QCOMPARE(japaneseFont.getUnicodeFromCID(843), QChar(0x3042));
+
+    // CID 0 is the notdef glyph, it has no unicode value
+    QVERIFY(japaneseFont.getUnicodeFromCID(0).isNull());
+
+    // The latin part is the same in all of the adobe collections
+    for (const char* ordering : { "GB1", "CNS1", "Korea1" })
+    {
+        pdf::PDFType0Font font = createFont("Adobe", ordering);
+        QCOMPARE(font.getUnicodeFromCID(1), QChar(' '));
+        QCOMPARE(font.getUnicodeFromCID(34), QChar('A'));
+        QCOMPARE(font.getUnicodeFromCID(66), QChar('a'));
+    }
+
+    // Adobe-Identity has no character collection, so no mapping exists
+    pdf::PDFType0Font identityFont = createFont("Adobe", "Identity");
+    QVERIFY(identityFont.getUnicodeFromCID(1).isNull());
+    QVERIFY(identityFont.getUnicodeFromCID(34).isNull());
+
+    // Text encoding must use the same mapping as decoding - 'A' is CID 34,
+    // which is the character code 0x0022 of the Identity-H encoding
+    QCOMPARE(japaneseFont.encodeCharacter(U'A'), QByteArray("\x00\x22", 2));
+    QCOMPARE(japaneseFont.encodeCharacter(0x3042), QByteArray("\x03\x4B", 2));
+    QVERIFY(identityFont.encodeCharacter(U'A').isEmpty());
 }
 
 void FontEncodingTest::test_simple_font_encode()
