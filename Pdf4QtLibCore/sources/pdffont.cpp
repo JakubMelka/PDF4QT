@@ -625,15 +625,17 @@ SystemFontData PDFSystemFontInfoStorage::loadFont(const CIDSystemInfo* cidSystem
         }
     }
 
-    SystemFontData fontData = loadFontImpl(descriptor, fontName, standardFontType, reporter);
+    // A fuzzy match can return a latin font before the CJK candidates are tried.
+    // Preserve exact installed font names, then substitute by character collection.
+    const ECjkDefaultFontType cjkDefaultFontType = getCjkDefaultFontType(cidSystemInfo);
+    SystemFontData fontData = loadFontImpl(descriptor, fontName, standardFontType, reporter,
+                                         cjkDefaultFontType != ECjkDefaultFontType::Invalid);
 
     if (fontData.isEmpty())
     {
         // Try to load CJK font. The fonts matching the serif flag of the descriptor
         // are preferred, but a font of the other style is still much better than
         // a latin font without any CJK glyph.
-        const ECjkDefaultFontType cjkDefaultFontType = getCjkDefaultFontType(cidSystemInfo);
-
         if (cjkDefaultFontType != ECjkDefaultFontType::Invalid)
         {
             const char* language = getCjkFontLanguage(cjkDefaultFontType);
@@ -656,6 +658,14 @@ SystemFontData PDFSystemFontInfoStorage::loadFont(const CIDSystemInfo* cidSystem
                     }
                 }
             }
+
+#ifdef Q_OS_UNIX
+            // Let fontconfig find a script-compatible font even if its family is
+            // absent from our platform fallback list.
+            fontData = loadFontImpl(descriptor, descriptor->isSerif() ? QStringLiteral("serif") : QStringLiteral("sans-serif"),
+                                    StandardFontType::Invalid, reporter, false, language);
+#endif
+            return fontData;
         }
     }
 
@@ -707,7 +717,7 @@ SystemFontData PDFSystemFontInfoStorage::loadFontImpl(const FontDescriptor* desc
     {
         for (const FontInfo& fontInfo : m_fontInfos)
         {
-            if (fontInfo.faceNameAdjusted == fontNameAdjusted &&
+            if (fontInfo.faceNameAdjusted.compare(fontNameAdjusted, Qt::CaseInsensitive) == 0 &&
                 fontInfo.logFont.lfWeight == descriptor->fontWeight &&
                 fontInfo.logFont.lfItalic == lfItalic)
             {
@@ -725,7 +735,7 @@ SystemFontData PDFSystemFontInfoStorage::loadFontImpl(const FontDescriptor* desc
         {
             for (const FontInfo& fontInfo : m_fontInfos)
             {
-                if (fontInfo.faceNameAdjusted == fontNameAdjusted)
+                if (fontInfo.faceNameAdjusted.compare(fontNameAdjusted, Qt::CaseInsensitive) == 0)
                 {
                     LOGFONT logFont = fontInfo.logFont;
                     logFont.lfWeight = descriptor->fontWeight;
@@ -822,9 +832,8 @@ SystemFontData PDFSystemFontInfoStorage::loadFontImpl(const FontDescriptor* desc
         throw PDFException(PDFTranslationContext::tr("FontConfig error building pattern for font %1").arg(fontName));
     }
 
-    // Require the font to cover the script of the character collection. Fontconfig
-    // always returns some font for any family name, so without the language, the
-    // first candidate would be accepted even if it has no CJK glyph at all.
+    // Prefer the script of the character collection. Fontconfig always returns
+    // the closest match, so its language coverage must also be checked below.
     if (language)
     {
         checkFontConfigError(FcPatternAddString(p, FC_LANG, reinterpret_cast<const FcChar8*>(language)));
@@ -878,15 +887,26 @@ SystemFontData PDFSystemFontInfoStorage::loadFontImpl(const FontDescriptor* desc
         {
             isMatchAccepted = false;
 
-            FcChar8* matchedFamily = nullptr;
-            for (int i = 0; FcPatternGetString(match, FC_FAMILY, i, &matchedFamily) == FcResultMatch; ++i)
+            for (const char* property : { FC_FAMILY, FC_FULLNAME, FC_POSTSCRIPT_NAME })
             {
-                if (QString::fromUtf8(reinterpret_cast<char*>(matchedFamily)).compare(fontName, Qt::CaseInsensitive) == 0)
+                FcChar8* matchedName = nullptr;
+                for (int i = 0; FcPatternGetString(match, property, i, &matchedName) == FcResultMatch; ++i)
                 {
-                    isMatchAccepted = true;
-                    break;
+                    if (getFontPostscriptName(QString::fromUtf8(reinterpret_cast<char*>(matchedName))).compare(
+                            getFontPostscriptName(fontName), Qt::CaseInsensitive) == 0)
+                    {
+                        isMatchAccepted = true;
+                        break;
+                    }
                 }
             }
+        }
+
+        if (isMatchAccepted && language)
+        {
+            FcLangSet* languages = nullptr;
+            isMatchAccepted = FcPatternGetLangSet(match, FC_LANG, 0, &languages) == FcResultMatch &&
+                              FcLangSetHasLang(languages, reinterpret_cast<const FcChar8*>(language)) == FcLangEqual;
         }
 
         FcChar8* s = nullptr;
@@ -896,6 +916,13 @@ SystemFontData PDFSystemFontInfoStorage::loadFontImpl(const FontDescriptor* desc
             if ( f.open(QIODevice::ReadOnly) )
             {
                 result.data = f.readAll();
+                // CJK families often share a TTC file. Loading face zero would
+                // discard the language or style selected by fontconfig.
+                int faceIndex = 0;
+                if (FcPatternGetInteger(match, FC_INDEX, 0, &faceIndex) == FcResultMatch)
+                {
+                    result.faceIndex = faceIndex;
+                }
                 f.close();
             }
         }
@@ -905,7 +932,7 @@ SystemFontData PDFSystemFontInfoStorage::loadFontImpl(const FontDescriptor* desc
 
     FcPatternDestroy(p);
 
-    if (result.isEmpty() && !exactMatchOnly && standardFontType == StandardFontType::Invalid)
+    if (result.isEmpty() && !exactMatchOnly && !language && standardFontType == StandardFontType::Invalid)
     {
         reporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Inexact font substitution: font %1 replaced by standard font Times New Roman.").arg(fontName));
         result = loadFontImpl(descriptor, fontName, StandardFontType::TimesRoman, reporter);
@@ -1471,7 +1498,11 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
                         glyphIndex = unicodeGlyphIndex;
                     }
                 }
-                if (!glyphIndex)
+                // CIDs and CIDToGIDMap refer to the original font program. Once
+                // Unicode or a known collection is available, a missing substitute
+                // glyph must not fall back to an unrelated (possibly invalid) GID.
+                if (!glyphIndex && (m_isEmbedded ||
+                    (character.isNull() && getCjkDefaultFontType(font->getCIDSystemInfo()) == ECjkDefaultFontType::Invalid)))
                 {
                     const std::optional<GID> mappedGlyphIndex = CIDtoGIDmapper->tryMap(cid);
                     if (mappedGlyphIndex && canRenderGlyphIndex(*mappedGlyphIndex, character))
@@ -1502,7 +1533,7 @@ void PDFRealizedFontImpl::fillTextSequence(const QByteArray& byteArray, TextSequ
                         reporter->reportRenderError(RenderErrorType::Warning, PDFTranslationContext::tr("Glyph for composite font character with cid '%1' not found.").arg(cid));
                     }
 
-                    if (glyphWidth > 0)
+                    if (glyphWidth != 0)
                     {
                         // We do not multiply advance with font size and FONT_WIDTH_MULTIPLIER, because in the code,
                         // "advance" is treated as in font space.
@@ -2582,48 +2613,49 @@ PDFFontPointer PDFFont::createFont(const PDFObject& object, QByteArray fontId, c
 
             baseFont = fontLoader.readNameFromDictionary(descendantFontDictionary, "BaseFont");
 
-            // Read default advance
-            PDFReal dw = fontLoader.readNumberFromDictionary(descendantFontDictionary, "DW", 1000.0);
-            std::array<PDFReal, 2> dw2 = { };
-            fontLoader.readNumberArrayFromDictionary(descendantFontDictionary, "DW2", dw2.begin(), dw2.end());
-            PDFReal defaultWidth = descendantFontDictionary->hasKey("DW") ? dw : dw2.back();
+            // Advances follow the writing mode. DW defaults to 1000, while
+            // DW2 defaults to [880 -1000]; W2 stores triples (w1y, v1x, v1y).
+            const bool vertical = cmap.isVertical();
+            const PDFReal dw = fontLoader.readNumberFromDictionary(descendantFontDictionary, "DW", 1000.0);
+            const std::vector<PDFReal> dw2 = fontLoader.readNumberArrayFromDictionary(descendantFontDictionary, "DW2", { 880.0, -1000.0 });
+            const PDFReal defaultWidth = vertical ? (dw2.size() == 2 ? dw2[1] : -1000.0) : dw;
 
-            // Read horizontal advances
             std::unordered_map<CID, PDFReal> advances;
-            if (descendantFontDictionary->hasKey("W"))
+            const PDFObject& widthsObject = document->getObject(descendantFontDictionary->get(vertical ? "W2" : "W"));
+            if (widthsObject.isArray())
             {
-                 const PDFObject& wArrayObject = document->getObject(descendantFontDictionary->get("W"));
-                 if (wArrayObject.isArray())
-                 {
-                     const PDFArray* wArray = wArrayObject.getArray();
-                     const size_t size = wArray->getCount();
-
-                     for (size_t i = 0; i < size;)
-                     {
-                         CID startCID = fontLoader.readInteger(wArray->getItem(i++), 0);
-                         const PDFObject& arrayOrCID = document->getObject(wArray->getItem(i++));
-
-                         if (arrayOrCID.isInt())
-                         {
-                             CID endCID = arrayOrCID.getInteger();
-                             PDFReal width = fontLoader.readInteger(wArray->getItem(i++), 0);
-                             for (CID currentCID = startCID; currentCID <= endCID; ++currentCID)
-                             {
-                                 advances[currentCID] = width;
-                             }
-                         }
-                         else if (arrayOrCID.isArray())
-                         {
-                             const PDFArray* widthArray = arrayOrCID.getArray();
-                             const size_t widthArraySize = widthArray->getCount();
-                             for (size_t widthArrayIndex = 0; widthArrayIndex < widthArraySize; ++widthArrayIndex)
-                             {
-                                 PDFReal width = fontLoader.readNumber(widthArray->getItem(widthArrayIndex), 0);
-                                 advances[startCID + static_cast<CID>(widthArrayIndex)] = width;
-                             }
-                         }
-                     }
-                 }
+                const PDFArray* cidWidths = widthsObject.getArray();
+                const size_t size = cidWidths->getCount();
+                const size_t stride = vertical ? 3 : 1;
+                for (size_t i = 0; i + 1 < size;)
+                {
+                    const CID startCID = fontLoader.readInteger(cidWidths->getItem(i++), 0);
+                    const PDFObject& arrayOrCID = document->getObject(cidWidths->getItem(i++));
+                    if (arrayOrCID.isInt())
+                    {
+                        if (size - i < stride)
+                        {
+                            break;
+                        }
+                        const CID endCID = arrayOrCID.getInteger();
+                        const PDFReal width = fontLoader.readNumber(cidWidths->getItem(i), 0);
+                        i += stride;
+                        // A wider counter avoids wrapping when the last CID is UINT_MAX.
+                        for (quint64 cid = startCID; cid <= endCID; ++cid)
+                        {
+                            advances[static_cast<CID>(cid)] = width;
+                        }
+                    }
+                    else if (arrayOrCID.isArray())
+                    {
+                        const PDFArray* widthArray = arrayOrCID.getArray();
+                        const size_t count = widthArray->getCount() / stride;
+                        for (size_t index = 0; index < count; ++index)
+                        {
+                            advances[startCID + static_cast<CID>(index)] = fontLoader.readNumber(widthArray->getItem(index * stride), 0);
+                        }
+                    }
+                }
             }
 
             PDFFontCMap toUnicodeCMap;
@@ -3821,25 +3853,30 @@ const PDFCIDToUnicodeRepository::Mapping* PDFCIDToUnicodeRepository::getMapping(
 
     Mapping mapping;
 
-    try
+    QByteArray verticalCMapName = cMapName;
+    verticalCMapName.back() = 'V';
+    // Vertical punctuation and presentation forms have their own CIDs. Retain
+    // the horizontal mappings and fill the remaining CIDs from the vertical map.
+    for (const QByteArray& name : { cMapName, verticalCMapName })
     {
-        const PDFFontCMap cMap = PDFFontCMap::createFromName(cMapName);
-        cMap.enumerate([&mapping](unsigned int code, unsigned int, CID cid)
+        try
         {
-            // Code of an unicode CMap is the unicode code point. Codes outside of the
-            // basic multilingual plane (surrogate pairs) can't be expressed by a single
-            // QChar, so they are skipped. Several code points can be mapped to a single
-            // CID (for example halfwidth/fullwidth forms) - the first one is used.
-            if (cid != 0 && code != 0 && code <= 0xFFFF)
+            const PDFFontCMap cMap = PDFFontCMap::createFromName(name);
+            cMap.enumerate([&mapping](unsigned int code, unsigned int, CID cid)
             {
-                mapping.emplace(cid, static_cast<char16_t>(code));
-            }
-        });
-    }
-    catch (const PDFException&)
-    {
-        // CMap is not available - an empty mapping is stored, so that loading
-        // of the CMap is not attempted again
+                // Only BMP scalar values can be represented by a single QChar.
+                // Several code points can map to one CID; retain the first one.
+                if (cid != 0 && code != 0 && code <= 0xFFFF && !(code >= 0xD800 && code <= 0xDFFF))
+                {
+                    mapping.emplace(cid, static_cast<char16_t>(code));
+                }
+            });
+        }
+        catch (const PDFException&)
+        {
+            // Keep any mappings from the other CMap and cache the result, so
+            // unavailable resources are not repeatedly loaded.
+        }
     }
 
     return &m_mappings.emplace(cMapName, qMove(mapping)).first->second;
@@ -3986,7 +4023,16 @@ void PDFType0Font::buildEncodeMap() const
                 return;
             }
 
-            m_encodeMap.emplace(codePoint, serializeCode(code, byteCount));
+            const QByteArray encoded = serializeCode(code, byteCount);
+            const auto decoded = m_cmap.interpretWithCode(encoded);
+            // Overlapping entries and shorter code prefixes can shadow this
+            // entry. Only expose codes that decode to this CID as one character.
+            if (decoded.size() != 1 || decoded.front().cid != cid || decoded.front().byteCount != byteCount)
+            {
+                return;
+            }
+
+            m_encodeMap.emplace(codePoint, encoded);
         });
     }
 }

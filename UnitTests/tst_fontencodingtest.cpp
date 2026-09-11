@@ -23,6 +23,8 @@
 #include <QtTest>
 
 #include "pdffont.h"
+#include "pdfparser.h"
+#include <QFontDatabase>
 #include "pdfdocument.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfeditorfallbackfont.h"
@@ -35,6 +37,12 @@ private slots:
     void test_cmap_encode_roundtrip();
     void test_type0_encode_invariant();
     void test_type0_cid_to_unicode();
+    void test_type0_cid_encode_ambiguity();
+    void test_type0_dictionary_advances_data();
+    void test_type0_dictionary_advances();
+    void test_type0_cjk_substitution();
+    void test_type0_missing_substitute_glyph();
+    void test_type0_cjk_collection_face();
     void test_simple_font_encode();
     void test_type3_font_encode();
     void test_fallback_font_generator();
@@ -161,6 +169,9 @@ void FontEncodingTest::test_type0_cid_to_unicode()
     QCOMPARE(japaneseFont.getUnicodeFromCID(53), QChar('T'));
     QCOMPARE(japaneseFont.getUnicodeFromCID(66), QChar('a'));
     QCOMPARE(japaneseFont.getUnicodeFromCID(843), QChar(0x3042));
+    // Vertical punctuation has separate CIDs, absent from UniJIS-UCS2-H.
+    QCOMPARE(japaneseFont.getUnicodeFromCID(7887), QChar(0x3001));
+    QCOMPARE(japaneseFont.getUnicodeFromCID(7888), QChar(0x3002));
 
     // CID 0 is the notdef glyph, it has no unicode value
     QVERIFY(japaneseFont.getUnicodeFromCID(0).isNull());
@@ -184,6 +195,162 @@ void FontEncodingTest::test_type0_cid_to_unicode()
     QCOMPARE(japaneseFont.encodeCharacter(U'A'), QByteArray("\x00\x22", 2));
     QCOMPARE(japaneseFont.encodeCharacter(0x3042), QByteArray("\x03\x4B", 2));
     QVERIFY(identityFont.encodeCharacter(U'A').isEmpty());
+}
+
+void FontEncodingTest::test_type0_cid_encode_ambiguity()
+{
+    // CID fallback must respect the decoder's first matching entry, including
+    // a shorter code that consumes the prefix of a longer code.
+    for (const QByteArray& data : {
+        QByteArray("2 begincidrange\n<0021> <0022> 33\n<0022> <0022> 66\nendcidrange\n"),
+        QByteArray("2 begincidchar\n<22> 34\n<2200> 66\nendcidchar\n") })
+    {
+        const auto cmap = pdf::PDFFontCMap::createFromData(data);
+        pdf::PDFType0Font font(pdf::CIDSystemInfo{ "Adobe", "Japan1", 2 }, "F1", pdf::FontDescriptor(), cmap,
+            pdf::PDFFontCMap(), pdf::PDFCIDtoGIDMapper(QByteArray()), 1000.0, {});
+        const QByteArray encoded = font.encodeCharacter(U'A');
+        QVERIFY(!encoded.isEmpty());
+        const auto decoded = cmap.interpretWithCode(encoded);
+        QCOMPARE(decoded.size(), size_t(1));
+        QCOMPARE(font.getUnicodeFromCID(decoded.front().cid), QChar('A'));
+        QVERIFY(font.encodeCharacter(U'a').isEmpty());
+    }
+}
+
+void FontEncodingTest::test_type0_dictionary_advances_data()
+{
+    QTest::addColumn<QByteArray>("encoding");
+    QTest::addColumn<QByteArray>("metrics");
+    QTest::addColumn<double>("advance");
+    QTest::newRow("horizontal-default") << QByteArray("Identity-H") << QByteArray() << 1000.0;
+    QTest::newRow("horizontal-ignores-DW2") << QByteArray("Identity-H") << QByteArray("/DW2 [880 -700]") << 1000.0;
+    QTest::newRow("horizontal-DW") << QByteArray("Identity-H") << QByteArray("/DW 600") << 600.0;
+    QTest::newRow("horizontal-W-range") << QByteArray("Identity-H") << QByteArray("/W [34 35 450.5]") << 450.5;
+    QTest::newRow("horizontal-W-array") << QByteArray("Identity-H") << QByteArray("/W [33 [200 450.5]]") << 450.5;
+    QTest::newRow("vertical-default") << QByteArray("Identity-V") << QByteArray() << -1000.0;
+    QTest::newRow("vertical-ignores-W") << QByteArray("Identity-V") << QByteArray("/DW 600 /W [34 34 400]") << -1000.0;
+    QTest::newRow("vertical-DW2") << QByteArray("Identity-V") << QByteArray("/DW2 [880 -700]") << -700.0;
+    QTest::newRow("vertical-W2-range") << QByteArray("Identity-V") << QByteArray("/W2 [34 35 -450.5 250 880]") << -450.5;
+    QTest::newRow("vertical-W2-array") << QByteArray("Identity-V") << QByteArray("/W2 [33 [-200 250 880 -450.5 250 880]]") << -450.5;
+}
+
+void FontEncodingTest::test_type0_dictionary_advances()
+{
+    QFETCH(QByteArray, encoding);
+    QFETCH(QByteArray, metrics);
+    QFETCH(double, advance);
+
+    const QByteArray data = "<< /Type /Font /Subtype /Type0 /BaseFont /Test /Encoding /" + encoding +
+        " /DescendantFonts [<< /Type /Font /Subtype /CIDFontType2 /BaseFont /Test "
+        "/CIDSystemInfo << /Registry (Adobe) /Ordering (Japan1) /Supplement 2 >> " + metrics + " >>] >>";
+    pdf::PDFParser parser(data, nullptr, pdf::PDFParser::None);
+    pdf::PDFDocumentBuilder builder;
+    builder.createDocument();
+    const pdf::PDFDocument document = builder.build();
+    const auto font = pdf::PDFFont::createFont(parser.getObject(), "F1", &document);
+    const auto* type0 = dynamic_cast<const pdf::PDFType0Font*>(font.get());
+    QVERIFY(type0);
+    QCOMPARE(type0->getGlyphAdvance(34), advance);
+}
+
+void FontEncodingTest::test_type0_cjk_substitution()
+{
+    // Gothic must not be matched to Franklin Gothic, and the descriptor's latin
+    // family must not bypass the CJK fallback.
+    QString cjkFamily;
+    for (const QString& candidate : { QStringLiteral("MS PGothic"), QStringLiteral("Noto Sans CJK JP"), QStringLiteral("Hiragino Sans") })
+    {
+        if (QFontDatabase::families().contains(candidate))
+        {
+            cjkFamily = candidate;
+            break;
+        }
+    }
+    if (cjkFamily.isEmpty())
+    {
+        QSKIP("No supported Japanese test font installed.");
+    }
+
+    pdf::PDFRenderErrorReporterDummy reporter;
+    const auto cmap = pdf::PDFFontCMap::createFromName("Identity-H");
+    auto realize = [&](const QByteArray& name, const QByteArray& family)
+    {
+        pdf::FontDescriptor descriptor;
+        descriptor.fontName = name;
+        descriptor.fontFamily = family;
+        pdf::PDFFontPointer font(new pdf::PDFType0Font(pdf::CIDSystemInfo{ "Adobe", "Japan1", 2 }, "F1", descriptor,
+            cmap, pdf::PDFFontCMap(), pdf::PDFCIDtoGIDMapper(QByteArray()), 1000.0,
+            std::unordered_map<pdf::CID, pdf::PDFReal>{ { 34, 450.5 } }));
+        return pdf::PDFRealizedFont::createRealizedFont(font, 20.0, &reporter);
+    };
+    for (const QByteArray& name : { QByteArray("Gothic"), QByteArray("PDF4QTNonexistentCJKFont") })
+    {
+        const auto actual = realize(name, "Arial");
+        QVERIFY(actual->getPostScriptName() != QStringLiteral("ArialMT"));
+        pdf::TextSequence sequence;
+        actual->fillTextSequence(QByteArray::fromHex("0022034b"), sequence, &reporter);
+        QCOMPARE(sequence.items.size(), size_t(2));
+        QCOMPARE(sequence.items[0].character, QChar('A'));
+        QCOMPARE(sequence.items[0].advance, 9.01);
+        QCOMPARE(sequence.items[1].character, QChar(0x3042));
+        QCOMPARE(sequence.items[1].advance, 20.0);
+        QVERIFY(sequence.items[1].glyph && !sequence.items[1].glyph->isEmpty());
+    }
+}
+
+void FontEncodingTest::test_type0_cjk_collection_face()
+{
+    // Noto CJK shares several regional faces in one TTC. The Korean face is
+    // index 1, so silently loading face 0 would return the Japanese font.
+    const QString family = QStringLiteral("Noto Sans CJK KR");
+    if (!QFontDatabase::families().contains(family))
+    {
+        QSKIP("Noto Sans CJK KR is not installed.");
+    }
+
+    pdf::FontDescriptor descriptor;
+    descriptor.fontName = family.toLatin1();
+    pdf::PDFFontPointer font(new pdf::PDFType0Font(pdf::CIDSystemInfo{ "Adobe", "Korea1", 2 }, "F1", descriptor,
+        pdf::PDFFontCMap::createFromName("Identity-H"), pdf::PDFFontCMap(), pdf::PDFCIDtoGIDMapper(QByteArray()), 1000.0, {}));
+    pdf::PDFRenderErrorReporterDummy reporter;
+    const auto realized = pdf::PDFRealizedFont::createRealizedFont(font, 20.0, &reporter);
+    QCOMPARE(realized->getPostScriptName(), QStringLiteral("NotoSansCJKkr-Regular"));
+}
+
+void FontEncodingTest::test_type0_missing_substitute_glyph()
+{
+    QString family;
+    for (const QString& candidate : { QStringLiteral("Arial"), QStringLiteral("Liberation Sans"), QStringLiteral("DejaVu Sans") })
+    {
+        if (QFontDatabase::families().contains(candidate))
+        {
+            family = candidate;
+            break;
+        }
+    }
+    if (family.isEmpty())
+    {
+        QSKIP("No supported Latin test font installed.");
+    }
+
+    pdf::FontDescriptor descriptor;
+    descriptor.fontName = family.toLatin1();
+    const auto cmap = pdf::PDFFontCMap::createFromName("Identity-H");
+    const auto toUnicode = pdf::PDFFontCMap::createFromData("1 beginbfchar\n<0022> <FFFF>\nendbfchar\n");
+    pdf::PDFFontPointer font(new pdf::PDFType0Font(pdf::CIDSystemInfo{ "Adobe", "Japan1", 2 }, "F1", descriptor,
+        cmap, toUnicode, pdf::PDFCIDtoGIDMapper(QByteArray()), 500.0, std::unordered_map<pdf::CID, pdf::PDFReal>()));
+    pdf::PDFRenderErrorReporterDummy reporter;
+    const auto realized = pdf::PDFRealizedFont::createRealizedFont(font, 20.0, &reporter);
+    pdf::TextSequence sequence;
+    // Neither a missing Unicode glyph nor an unmapped CID may become an unrelated
+    // glyph index in the substitute (or an out-of-range FreeType glyph load).
+    realized->fillTextSequence(QByteArray::fromHex("0022ffff"), sequence, &reporter);
+    QCOMPARE(sequence.items.size(), size_t(2));
+    for (const auto& item : sequence.items)
+    {
+        QVERIFY(!item.glyph);
+        QCOMPARE(item.advance, -500.0);
+    }
 }
 
 void FontEncodingTest::test_simple_font_encode()
