@@ -327,11 +327,13 @@ std::vector<std::pair<PDFReal, std::set<PDFReal>>> PDFTextLayout::getAngleGroups
     }
 
     // Angles are stored in an ordered set, so we can just walk through them and
-    // start a new group, when the gap to the previous angle is too large.
+    // start a new group, when its total angular span would become too large.
+    // Comparing only adjacent angles would merge arbitrarily different writing
+    // directions through a chain of small differences.
     std::vector<std::set<PDFReal>> groups;
     for (PDFReal angle : m_angles)
     {
-        if (!groups.empty() && angle - *groups.back().crbegin() <= m_settings.angleSensitivity)
+        if (!groups.empty() && angle - *groups.back().cbegin() <= m_settings.angleSensitivity)
         {
             groups.back().insert(angle);
         }
@@ -343,7 +345,7 @@ std::vector<std::pair<PDFReal, std::set<PDFReal>>> PDFTextLayout::getAngleGroups
 
     // Angles are cyclic - the last group can be a continuation of the first one
     // (for example angles 359 and 0 are almost the same angle).
-    if (groups.size() > 1 && (*groups.front().cbegin() + 360.0) - *groups.back().crbegin() <= m_settings.angleSensitivity)
+    if (groups.size() > 1 && (*groups.front().crbegin() + 360.0) - *groups.back().cbegin() <= m_settings.angleSensitivity)
     {
         groups.front().insert(groups.back().cbegin(), groups.back().cend());
         groups.pop_back();
@@ -688,6 +690,14 @@ void PDFTextLayout::performDoLayout(PDFReal angle, const std::set<PDFReal>& angl
     //         distance between the lines, and also using again, transitive closure.
     //      5) Sort blocks using topological ordering
     TextCharacters characters = getCharactersForAngles(angles);
+
+    // Lines and blocks use the first character's angle to construct selection
+    // geometry. Store the common layout angle so a skewed first glyph cannot
+    // rotate the selection away from the baseline used to arrange the text.
+    for (TextCharacter& character : characters)
+    {
+        character.angle = angle;
+    }
 
     // Step 1) - rotate blocks
     QTransform angleMatrix;

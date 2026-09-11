@@ -259,6 +259,20 @@ void PDFWidgetAnnotationManager::mousePressEvent(QWidget* widget, QMouseEvent* e
     }
 }
 
+bool PDFWidgetAnnotationManager::canDeleteAnnotation(const PageAnnotation& annotation) const
+{
+    if (!m_document || !annotation.annotation ||
+        !m_document->getStorage().getSecurityHandler()->isAllowed(PDFSecurityHandler::Permission::ModifyInteractiveItems))
+    {
+        return false;
+    }
+
+    const PDFAnnotation::Flags flags = annotation.annotation->getEffectiveFlags();
+    return PDFAnnotation::isTypeEditable(annotation.annotation->getType()) &&
+           !flags.testFlag(PDFAnnotation::Locked) && !flags.testFlag(PDFAnnotation::ReadOnly) &&
+           isAnnotationDrawEnabled(annotation);
+}
+
 void PDFWidgetAnnotationManager::keyPressEvent(QWidget* widget, QKeyEvent* event)
 {
     Q_UNUSED(widget);
@@ -298,7 +312,7 @@ void PDFWidgetAnnotationManager::keyPressEvent(QWidget* widget, QKeyEvent* event
                 continue;
             }
 
-            if (!PDFAnnotation::isTypeEditable(pageAnnotation.annotation->getType()))
+            if (!canDeleteAnnotation(pageAnnotation))
             {
                 continue;
             }

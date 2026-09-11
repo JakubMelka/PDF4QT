@@ -1620,14 +1620,8 @@ void PDFCreateHighlightTextTool::setActiveImpl(bool active)
     }
     else
     {
-        // Jakub Melka: text layout of the document must be created, otherwise it would
-        // be recreated page by page during the selection (on each mouse move).
-        pdf::PDFAsynchronousTextLayoutCompiler* compiler = getProxy()->getTextLayoutCompiler();
-        if (!compiler->isTextLayoutReady())
-        {
-            compiler->makeTextLayout();
-        }
-
+        // Layouts are cached on demand. Annotating a page must not start
+        // indexing every page of a potentially large document.
         m_styleManager->showStyleWindow(getProxy()->getWidget());
     }
 }
@@ -2148,11 +2142,8 @@ std::vector<PDFDeleteAnnotationTool::AnnotationInfo> PDFDeleteAnnotationTool::ge
             continue;
         }
 
-        // Jakub Melka: only annotations, which the user can edit, can be deleted.
-        // Without this check, the tool would also delete for example the widget
-        // annotations of the interactive form fields, which would break the form.
-        // The same check is used by the context menu of the annotation.
-        if (!PDFAnnotation::isTypeEditable(annotation->getType()))
+        // Use the same permissions and visibility checks as the Delete shortcut.
+        if (!annotationManager->canDeleteAnnotation(pageAnnotation))
         {
             continue;
         }
@@ -2419,14 +2410,7 @@ void PDFCreateRedactTextTool::setActiveImpl(bool active)
     }
     else
     {
-        // Jakub Melka: text layout of the document must be created, otherwise it would
-        // be recreated page by page during the selection (on each mouse move).
-        pdf::PDFAsynchronousTextLayoutCompiler* compiler = getProxy()->getTextLayoutCompiler();
-        if (!compiler->isTextLayoutReady())
-        {
-            compiler->makeTextLayout();
-        }
-
+        // Layouts are cached on demand, just as for text highlighting.
         m_styleManager->showStyleWindow(getProxy()->getWidget());
         m_color = m_styleManager->getStyle().strokeColor;
     }

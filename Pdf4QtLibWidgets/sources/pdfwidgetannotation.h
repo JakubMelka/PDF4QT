@@ -84,6 +84,10 @@ public:
     bool canAcceptAnnotationDrag(const QMimeData* data) const;
     bool handleAnnotationDrop(const QMimeData* data, const QPoint& widgetPos, Qt::DropAction action);
 
+    /// Returns whether a visible, editable annotation can be deleted by the user.
+    /// Checks both document permissions and annotation flags.
+    bool canDeleteAnnotation(const PageAnnotation& annotation) const;
+
     /// Returns snap information generated from editable annotation geometry on a page.
     /// \param pageIndex Page index
     PDFSnapInfo getSnapInfo(PDFInteger pageIndex) const;
