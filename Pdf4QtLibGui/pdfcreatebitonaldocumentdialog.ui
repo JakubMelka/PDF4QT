@@ -20,7 +20,7 @@
       <enum>Qt::Horizontal</enum>
      </property>
      <property name="standardButtons">
-      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+      <set>QDialogButtonBox::Cancel</set>
      </property>
     </widget>
    </item>
@@ -31,29 +31,79 @@
      </property>
      <layout class="QGridLayout" name="optionsGridLayout">
       <item row="0" column="0">
+       <widget class="QLabel" name="conversionSourceLabel">
+        <property name="text">
+         <string>Convert:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QComboBox" name="conversionSourceComboBox"/>
+      </item>
+      <item row="1" column="0">
        <widget class="QLabel" name="conversionMethodLabel">
         <property name="text">
          <string>Conversion method:</string>
         </property>
        </widget>
       </item>
-      <item row="0" column="1">
+      <item row="1" column="1">
        <widget class="QComboBox" name="conversionMethodComboBox"/>
       </item>
-      <item row="1" column="0">
+      <item row="2" column="0">
        <widget class="QLabel" name="thresholdLabel">
         <property name="text">
          <string>Threshold (0-255):</string>
         </property>
        </widget>
       </item>
-      <item row="1" column="1">
+      <item row="2" column="1">
        <widget class="QSpinBox" name="thresholdEditBox">
         <property name="maximum">
          <number>255</number>
         </property>
         <property name="value">
          <number>128</number>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="resolutionLabel">
+        <property name="text">
+         <string>Resolution (DPI):</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QSpinBox" name="resolutionEditBox">
+        <property name="minimum">
+         <number>24</number>
+        </property>
+        <property name="maximum">
+         <number>600</number>
+        </property>
+        <property name="singleStep">
+         <number>25</number>
+        </property>
+        <property name="value">
+         <number>300</number>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="compressionLabel">
+        <property name="text">
+         <string>Image compression:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QComboBox" name="compressionComboBox"/>
+      </item>
+      <item row="5" column="0" colspan="2">
+       <widget class="QPushButton" name="detectBlankPagesButton">
+        <property name="text">
+         <string>Detect Blank Pages</string>
         </property>
        </widget>
       </item>
@@ -74,22 +124,6 @@
  </widget>
  <resources/>
  <connections>
-  <connection>
-   <sender>buttonBox</sender>
-   <signal>accepted()</signal>
-   <receiver>PDFCreateBitonalDocumentDialog</receiver>
-   <slot>accept()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>370</x>
-     <y>508</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>370</x>
-     <y>264</y>
-    </hint>
-   </hints>
-  </connection>
   <connection>
    <sender>buttonBox</sender>
    <signal>rejected()</signal>

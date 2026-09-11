@@ -24,9 +24,12 @@
 #define PDFJBIG2DECODER_H
 
 #include "pdfutils.h"
+#include "pdfexception.h"
 #include "pdfcolorspaces.h"
 
 #include <optional>
+#include <map>
+#include <set>
 
 namespace pdf
 {
@@ -70,7 +73,7 @@ struct PDFJBIG2HuffmanTableEntry
     int32_t value = 0;              ///< Base value
     uint16_t prefixBitLength = 0;   ///< Bit length of prefix
     uint16_t rangeBitLength = 0;    ///< Bit length of additional value
-    uint16_t prefix = 0;            ///< Bit prefix of the huffman code
+    uint32_t prefix = 0;            ///< Bit prefix of the huffman code (up to 32 bits)
     Type type = Type::Standard;     ///< Type of the value
 };
 
@@ -82,16 +85,25 @@ class PDF4QTLIBCORESHARED_EXPORT PDFJBIG2ArithmeticDecoderState
 {
 public:
     explicit inline PDFJBIG2ArithmeticDecoderState() = default;
-    explicit inline PDFJBIG2ArithmeticDecoderState(size_t size) :
-        m_state(size, 0)
+    explicit inline PDFJBIG2ArithmeticDecoderState(size_t size)
     {
-
+        if (size > (size_t(1) << 20))
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 arithmetic state limit exceeded."));
+        }
+        m_state.resize(size, 0);
     }
+
+    size_t getSize() const { return m_state.size(); }
 
     /// Resets the context
     inline void reset(const uint8_t bits)
     {
-        size_t size = (1ULL << bits);
+        if (bits > 20)
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 arithmetic state limit exceeded."));
+        }
+        size_t size = (size_t(1) << bits);
         std::fill(m_state.begin(), m_state.end(), 0);
         if (m_state.size() != size)
         {
@@ -102,28 +114,31 @@ public:
     /// Resets the context using another context
     inline void reset(const uint8_t bits, const PDFJBIG2ArithmeticDecoderState& other)
     {
-        reset(bits);
-
-        const size_t size = qMin(m_state.size(), other.m_state.size());
-        std::copy(other.m_state.begin(), other.m_state.begin() + size, m_state.begin());
+        if (bits > 20 || other.m_state.size() != (size_t(1) << bits))
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 incompatible arithmetic context size."));
+        }
+        m_state = other.m_state;
     }
 
     /// Returns row index to Qe value table, according to document ISO/IEC 14492:2001,
     /// annex E, table E.1 (Qe values and probability estimation process).
     inline uint8_t getQeRowIndex(size_t context) const
     {
-        Q_ASSERT(context < m_state.size());
+        if (context >= m_state.size())
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 arithmetic context out of range."));
+        }
         return m_state[context] >> 1;
     }
-
-    /// Returns Qe value for row index, according to document ISO/IEC 14492:2001,
-    /// annex E, table E.1 (Qe values and probability estimation process).
-    inline uint32_t getQe(size_t context) const;
 
     /// Returns current bit value of MPS (most probable symbol)
     inline uint8_t getMPS(size_t context) const
     {
-        Q_ASSERT(context < m_state.size());
+        if (context >= m_state.size())
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 arithmetic context out of range."));
+        }
         return m_state[context] & 0x1;
     }
 
@@ -131,8 +146,14 @@ public:
     /// (most probable symbol).
     inline void setQeRowIndexAndMPS(size_t context, uint8_t QeRowIndex, uint8_t MPS)
     {
-        Q_ASSERT(context < m_state.size());
-        Q_ASSERT(MPS < 2);
+        if (context >= m_state.size())
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 arithmetic context out of range."));
+        }
+        if (MPS > 1 || QeRowIndex >= 47)
+        {
+            throw PDFException(PDFTranslationContext::tr("JBIG2 invalid arithmetic state."));
+        }
         m_state[context] = (QeRowIndex << 1) + MPS;
     }
 
@@ -147,12 +168,13 @@ private:
 class PDF4QTLIBCORESHARED_EXPORT PDFJBIG2ArithmeticDecoder
 {
 public:
-    explicit inline PDFJBIG2ArithmeticDecoder(PDFBitReader* reader) :
+    explicit inline PDFJBIG2ArithmeticDecoder(PDFBitReader* reader, uint64_t* workRemaining = nullptr) :
         m_c(0),
         m_a(0),
         m_ct(0),
         m_lastByte(0),
-        m_reader(reader)
+        m_reader(reader),
+        m_workRemaining(workRemaining)
     {
 
     }
@@ -202,11 +224,11 @@ private:
 
     /// Data source to read from
     PDFBitReader* m_reader;
+    uint64_t* m_workRemaining;
 };
 
 enum class JBIG2SegmentType : uint32_t
 {
-    Invalid,
     SymbolDictionary,           ///< See chapter 7.4.2  in specification
     TextRegion,                 ///< See chapter 7.4.3  in specification
     PatternDictionary,          ///< See chapter 7.4.4  in specification
@@ -225,13 +247,14 @@ enum class JBIG2SegmentType : uint32_t
 class PDFJBIG2SegmentHeader
 {
 public:
-    explicit inline PDFJBIG2SegmentHeader() = default;
-
     /// Returns segment type
     inline JBIG2SegmentType getSegmentType() const { return m_segmentType; }
 
     /// Returns segment number
     inline uint32_t getSegmentNumber() const { return m_segmentNumber; }
+    uint32_t getPageAssociation() const { return m_pageAssociation; }
+    bool isDeferredNonRetain() const { return m_deferredNonRetain; }
+    const std::vector<bool>& getRetainFlags() const { return m_retainFlags; }
 
     /// Returns segment data length (or 0xFFFFFFFF, if length is not defined)
     /// \sa isSegmentDataLengthDefined
@@ -250,16 +273,21 @@ public:
     inline const std::vector<uint32_t>& getReferredSegments() const { return m_referredSegments; }
 
     /// Reads the segment header from the data stream. If error occurs, then
-    /// exception is thrown.
+    /// exception is thrown. A header is created only by this function, so
+    /// every header has a valid segment type.
     static PDFJBIG2SegmentHeader read(PDFBitReader* reader);
 
 private:
+    explicit inline PDFJBIG2SegmentHeader() = default;
+
     uint32_t m_segmentNumber = 0;
     uint32_t m_pageAssociation = 0;
     uint32_t m_segmentDataLength = 0;
-    JBIG2SegmentType m_segmentType = JBIG2SegmentType::Invalid;
+    JBIG2SegmentType m_segmentType = JBIG2SegmentType::SymbolDictionary;
     bool m_immediate = false;
     bool m_lossless = false;
+    bool m_deferredNonRetain = false;
+    std::vector<bool> m_retainFlags;
     std::vector<uint32_t> m_referredSegments;
 };
 
@@ -273,13 +301,8 @@ public:
     virtual PDFJBIG2Bitmap* asBitmap() { return nullptr; }
 
     virtual const PDFJBIG2HuffmanCodeTable* asHuffmanCodeTable() const { return nullptr; }
-    virtual PDFJBIG2HuffmanCodeTable* asHuffmanCodeTable() { return nullptr; }
-
     virtual const PDFJBIG2SymbolDictionary* asSymbolDictionary() const { return nullptr; }
-    virtual PDFJBIG2SymbolDictionary* asSymbolDictionary() { return nullptr; }
-
     virtual const PDFJBIG2PatternDictionary* asPatternDictionary() const { return nullptr; }
-    virtual PDFJBIG2PatternDictionary* asPatternDictionary() { return nullptr; }
 };
 
 /// Huffman decoder - can decode integers / out of band values from huffman table.
@@ -288,23 +311,17 @@ class PDFJBIG2HuffmanDecoder
 public:
     explicit inline PDFJBIG2HuffmanDecoder() = default;
 
-    /// Constructs huffman decoder from static tables, so no memory are allocated (vector is empty)
-    explicit inline PDFJBIG2HuffmanDecoder(PDFBitReader* reader, const PDFJBIG2HuffmanTableEntry* begin, const PDFJBIG2HuffmanTableEntry* end) :
-        m_reader(reader),
-        m_begin(begin),
-        m_end(end)
-    {
-
-    }
+    /// Constructs a sorted, owned lookup table from standard entries
+    explicit PDFJBIG2HuffmanDecoder(PDFBitReader* reader, uint64_t* workRemaining, const PDFJBIG2HuffmanTableEntry* begin, const PDFJBIG2HuffmanTableEntry* end);
 
     /// Constructs huffman decoder from huffman code table, in this case, memory is allocated
-    explicit PDFJBIG2HuffmanDecoder(PDFBitReader* reader, const PDFJBIG2HuffmanCodeTable* table);
+    explicit PDFJBIG2HuffmanDecoder(PDFBitReader* reader, uint64_t* workRemaining, const PDFJBIG2HuffmanCodeTable* table);
 
     /// Constructs huffman decoder from huffman code table, in this case, memory is allocated
-    explicit PDFJBIG2HuffmanDecoder(PDFBitReader* reader, std::vector<PDFJBIG2HuffmanTableEntry>&& table);
+    explicit PDFJBIG2HuffmanDecoder(PDFBitReader* reader, uint64_t* workRemaining, std::vector<PDFJBIG2HuffmanTableEntry>&& table);
 
     PDFJBIG2HuffmanDecoder(const PDFJBIG2HuffmanDecoder&) = delete;
-    PDFJBIG2HuffmanDecoder(PDFJBIG2HuffmanDecoder&& other);
+    PDFJBIG2HuffmanDecoder(PDFJBIG2HuffmanDecoder&& other) = delete;
 
     PDFJBIG2HuffmanDecoder& operator=(const PDFJBIG2HuffmanDecoder&) = delete;
     PDFJBIG2HuffmanDecoder& operator=(PDFJBIG2HuffmanDecoder&& other);
@@ -312,17 +329,19 @@ public:
     /// Returns true, if huffman table is valid (and usable)
     bool isValid() const { return m_begin != m_end; }
 
-    /// Returns true, if huffman table has out-of-band value
-    bool isOutOfBandSupported() const;
-
     /// Tries to read signed integer using the table and current reader.
     /// \returns Integer, or out-of-band value, using the std::optional semantics
     std::optional<int32_t> readSignedInteger();
+    bool hasOutOfBand() const;
 
 private:
+    void initializeEntries();
+
     /// Data source to read from
     PDFBitReader* m_reader = nullptr;
 
+    uint64_t* m_workRemaining = nullptr;
+    uint64_t m_groupWork = 0;
     const PDFJBIG2HuffmanTableEntry* m_begin = nullptr;
     const PDFJBIG2HuffmanTableEntry* m_end = nullptr;
     std::vector<PDFJBIG2HuffmanTableEntry> m_entries;
@@ -332,27 +351,44 @@ class PDF4QTLIBCORESHARED_EXPORT PDFJBIG2Bitmap : public PDFJBIG2Segment
 {
 public:
     explicit PDFJBIG2Bitmap();
-    explicit PDFJBIG2Bitmap(int width, int height);
     explicit PDFJBIG2Bitmap(int width, int height, uint8_t fill);
     virtual ~PDFJBIG2Bitmap() override;
 
     virtual const PDFJBIG2Bitmap* asBitmap() const override { return this; }
     virtual PDFJBIG2Bitmap* asBitmap() override { return this; }
 
+    /// Maximum number of pixels of a single bitmap. A bitmap is decoded into one byte
+    /// per pixel, so this is also the maximum amount of memory a single bitmap can
+    /// occupy. Both dimensions alone can be as large as \p MAX_BITMAP_SIZE, so without
+    /// this limit their product overflows the int and the allocated buffer would be
+    /// much smaller than the bitmap.
+    static constexpr int MAX_PIXEL_COUNT = 1024 * 1024 * 1024;
+
+    /// Checks the size of a bitmap. Throws an exception, if any dimension is negative,
+    /// or if the bitmap would have more pixels than \p MAX_PIXEL_COUNT. Dimensions are
+    /// accepted as 64-bit values, so a caller can pass a computed size, which has not
+    /// been proven to fit into an int yet.
+    /// \param width Width of the bitmap
+    /// \param height Height of the bitmap
+    static void checkSize(int64_t width, int64_t height);
+
     inline int getWidth() const { return m_width; }
     inline int getHeight() const { return m_height; }
+
+    /// Returns the number of the pixels of the bitmap. The size is validated when the
+    /// bitmap is created or expanded, so the product cannot overflow.
     inline int getPixelCount() const { return m_width * m_height; }
     inline uint8_t getPixel(int x, int y) const { return m_data[y * m_width + x]; }
     inline void setPixel(int x, int y, uint8_t value) { m_data[y * m_width + x] = value; }
 
-    inline uint8_t getPixelSafe(int x, int y) const
+    inline uint8_t getPixelSafe(int64_t x, int64_t y) const
     {
         if (x < 0 || x >= m_width || y < 0 || y >= m_height)
         {
             return 0;
         }
 
-        return getPixel(x, y);
+        return getPixel(int(x), int(y));
     }
 
     inline void fill(uint8_t value) { std::fill(m_data.begin(), m_data.end(), value); }
@@ -367,7 +403,7 @@ public:
     /// \param offsetY Vertical offset of subbitmap
     /// \param width Width of subbitmap
     /// \param height Height of subbitmap
-    PDFJBIG2Bitmap getSubbitmap(int offsetX, int offsetY, int width, int height) const;
+    PDFJBIG2Bitmap getSubbitmap(int64_t offsetX, int64_t offsetY, int width, int height) const;
 
     /// Paints another bitmap onto this bitmap. If bitmap is invalid, nothing is done.
     /// If \p expandY is true, height of target bitmap is expanded to fit source draw area.
@@ -377,13 +413,16 @@ public:
     /// \param operation Paint operation to be performed
     /// \param expandY Expand vertically, if painted bitmap exceeds current bitmap area
     /// \param expandPixel Initialize pixels by this value during expanding
-    void paint(const PDFJBIG2Bitmap& bitmap, int offsetX, int offsetY, PDFJBIG2BitOperation operation, bool expandY, const uint8_t expandPixel);
+    void paint(const PDFJBIG2Bitmap& bitmap, int64_t offsetX, int64_t offsetY, PDFJBIG2BitOperation operation, bool expandY, const uint8_t expandPixel);
 
     /// Copies data from source row to target row. If source or target row doesn't exists,
     /// then exception is thrown.
     /// \param target Target row
     /// \param source Source row
     void copyRow(int target, int source);
+
+    /// Resize vertically, preserving existing rows and filling new rows.
+    void resizeHeight(int height, uint8_t fill);
 
 private:
     int m_width;
@@ -407,7 +446,7 @@ struct PDFJBIG2ReferencedSegments
 
     /// Returns current user huffman table according the index. If index
     /// is out of range, then exception is thrown.
-    PDFJBIG2HuffmanDecoder getUserTable(PDFBitReader* reader);
+    PDFJBIG2HuffmanDecoder getUserTable(PDFBitReader* reader, uint64_t* workRemaining);
 };
 
 /// Region segment information field, see chapter 7.4.1 in the specification
@@ -423,8 +462,9 @@ struct PDFJBIG2RegionSegmentInformationField
 /// Info structure for adaptative template
 struct PDFJBIG2ATPosition
 {
-    int8_t x = 0;
-    int8_t y = 0;
+    // Explicit coordinates use signed bytes; pattern dictionaries derive -HDPW.
+    int16_t x = 0;
+    int16_t y = 0;
 };
 
 using PDFJBIG2ATPositions = std::array<PDFJBIG2ATPosition, 4>;
@@ -443,7 +483,8 @@ public:
         m_pageDefaultPixelValue(0),
         m_pageDefaultCompositionOperator(PDFJBIG2BitOperation::Invalid),
         m_pageDefaultCompositionOperatorOverriden(false),
-        m_pageSizeUndefined(false)
+        m_pageSizeUndefined(false),
+        m_isDecodingFile(false)
     {
 
     }
@@ -466,14 +507,48 @@ public:
     /// If number of pages is invalid, then exception is thrown.
     PDFImageData decodeFileStream();
 
-private:
+    /// Maximum width and height of a single bitmap, which the decoder accepts. The
+    /// limit is public, so an encoder can refuse an image, which the decoder would
+    /// not be able to read back.
     static constexpr const uint32_t MAX_BITMAP_SIZE = 65536;
+
+    /// Conservative cumulative limits shared by page and global segments, including
+    /// temporary buffers and retries. Exceeding them raises PDFException.
+    /// Per-operation input, cumulative allocation and decoding-work limits.
+    ///
+    /// A bitmap of the decoder needs a byte per pixel, and a page is charged roughly
+    /// twice its pixel count - once for the page buffer and once for the region which
+    /// is composited onto it - plus an eighth of it for the packed output. The budget
+    /// of two gigabytes therefore admits a page of about one gigapixel - an A4 page
+    /// scanned at 2400 DPI - which matches MAX_PIXEL_COUNT: a document of a single
+    /// region is bounded by the size of its bitmap, and the cumulative budget stops
+    /// documents which allocate over and over. The work budget is scaled with it: a
+    /// pixel of a page costs about four units of work (allocation, arithmetic
+    /// decision, painting and packing), so both budgets end at about the same size.
+    static constexpr uint64_t MAX_DECODED_BYTES = 2048ULL * 1024 * 1024;
+    static constexpr uint64_t MAX_DECODE_WORK = 1ULL << 32;
+    static constexpr uint64_t MAX_INPUT_BYTES = 128ULL * 1024 * 1024;
+
+private:
+
+    /// Maximum number of the symbols of a single symbol dictionary. The number of the
+    /// symbols is read from the segment header before anything is decoded, so without
+    /// a limit a four byte field can request an allocation of billions of bitmaps.
+    static constexpr const uint32_t MAX_SYMBOL_COUNT = 1 << 20;
 
     /// Processes current data stream (reads all data from the stream, interprets
     /// them as segments and processes the segments).
     void processStream();
 
     void processSymbolDictionary(const PDFJBIG2SegmentHeader& header);
+
+    /// Processes a symbol dictionary segment. A symbol of an aggregation of a single
+    /// symbol instance is coded in two different ways - see \p processSymbolDictionary,
+    /// which selects between them.
+    /// \param header Header of the segment
+    /// \param isSingleInstanceAggregateTextRegion Decode a symbol, which is an aggregation
+    ///        of a single symbol instance, by the text region decoding procedure
+    void processSymbolDictionaryImpl(const PDFJBIG2SegmentHeader& header, bool isSingleInstanceAggregateTextRegion);
     void processTextRegion(const PDFJBIG2SegmentHeader& header);
     void processPatternDictionary(const PDFJBIG2SegmentHeader& header);
     void processHalftoneRegion(const PDFJBIG2SegmentHeader& header);
@@ -487,11 +562,14 @@ private:
     void processCodeTables(const PDFJBIG2SegmentHeader& header);
     void processExtension(const PDFJBIG2SegmentHeader& header);
 
-    /// Returns bitmap for given segment index. If bitmap is not found, or segment
-    /// is of different type, then exception is thrown.
+    /// Takes the bitmap of an intermediate region stored under the segment index - the
+    /// bitmap is removed from the stored segments, because it is consumed by the region
+    /// referring to it. If the segment is not found, or it is of a different type, then
+    /// an exception is thrown.
     /// \param segmentIndex Segment index with bitmap
-    /// \param remove Remove the segment?
-    PDFJBIG2Bitmap getBitmap(const uint32_t segmentIndex, bool remove);
+    PDFJBIG2Bitmap takeBitmap(const uint32_t segmentIndex);
+
+    QByteArray readRefinementData(PDFBitReader* reader, int32_t size);
 
     /// Reads bitmap using decoding parameters
     /// \param parameters Decoding parameters
@@ -509,7 +587,7 @@ private:
     PDFJBIG2RegionSegmentInformationField readRegionSegmentInformationField();
 
     /// Read adaptative pixel template positions, positions, which are not read, are filled with 0
-    PDFJBIG2ATPositions readATTemplatePixelPositions(int count);
+    PDFJBIG2ATPositions readATTemplatePixelPositions(int count, bool refinement = false);
 
     /// Skip segment data
     void skipSegment(const PDFJBIG2SegmentHeader& header);
@@ -517,11 +595,55 @@ private:
     /// Returns structure containing referenced segments. If segment numbers
     /// are wrong, or invalid segments appears, then exception is thrown.
     /// \param header Header, from which referred segments are read
-    PDFJBIG2ReferencedSegments getReferencedSegments(const PDFJBIG2SegmentHeader& header) const;
+    PDFJBIG2ReferencedSegments getReferencedSegments(const PDFJBIG2SegmentHeader& header);
+
+    /// Returns the number of the data bytes of a segment, which follow the already
+    /// read part of its header. Throws an exception, if the segment declares less
+    /// data than its header has already consumed.
+    /// \param header Segment header
+    /// \param segmentHeaderBytes Number of the header bytes read so far
+    int getSegmentDataBytes(const PDFJBIG2SegmentHeader& header, int segmentHeaderBytes) const;
 
     static void checkBitmapSize(const uint32_t size);
     static void checkRegionSegmentInformationField(const PDFJBIG2RegionSegmentInformationField& field);
     static int32_t checkInteger(std::optional<int32_t> value);
+
+    /// Charges cumulative allocation/copy bytes and work for the whole image, including globals.
+    /// Releasing a segment or retrying a dictionary does not reset these counters.
+    void consumeDecodedBytes(uint64_t count);
+    uint64_t m_decodedBytes = 0;
+    uint64_t m_workRemaining = MAX_DECODE_WORK;
+    void consumeWork(uint64_t count);
+    void paintPage(const PDFJBIG2Bitmap& bitmap, const PDFJBIG2RegionSegmentInformationField& field);
+
+    /// Reports a warning, if the external combination operator of a region contradicts
+    /// the page flags, see 7.4.8.5. The operator of the region is used regardless - the
+    /// flag is a promise of the encoder about the page, and not a part of the coded data.
+    void checkRegionCompositionOperator(const PDFJBIG2RegionSegmentInformationField& field);
+    void finishPage();
+    void validateSegment(const PDFJBIG2SegmentHeader& header);
+    void releaseSegments(const PDFJBIG2SegmentHeader& header);
+    void discardSegment(uint32_t number);
+    std::set<uint32_t> m_seenSegments;
+    std::set<uint32_t> m_deferredDiscards;
+    std::set<uint32_t> m_nonRetainedSegments;
+    bool m_retentionWarningReported = false;
+    bool m_auxiliaryBufferWarningReported = false;
+    bool m_refinementFlagWarningReported = false;
+    bool m_compositionOperatorWarningReported = false;
+    std::map<uint32_t, uint32_t> m_segmentPages;
+    std::map<uint32_t, PDFJBIG2RegionSegmentInformationField> m_regionInformation;
+    PDFJBIG2RegionSegmentInformationField m_currentRegionInformation;
+    uint32_t m_pageAssociation = 0;
+    bool m_readingGlobals = false;
+    bool m_pageEnded = false;
+    bool m_fileEnded = false;
+    bool m_pageStriped = false;
+    bool m_pageMayRefine = false;
+    bool m_pageMayUseAuxiliary = false;
+    uint16_t m_maximumStripeHeight = 0;
+    int64_t m_lastStripeRow = -1;
+    int64_t m_stripeBottom = 0;
 
     QByteArray m_data;
     QByteArray m_globalData;
@@ -532,6 +654,10 @@ private:
     PDFJBIG2BitOperation m_pageDefaultCompositionOperator;
     bool m_pageDefaultCompositionOperatorOverriden;
     bool m_pageSizeUndefined;
+
+    /// True, if a JBIG2 file is decoded instead of an embedded stream of PDF. The
+    /// end of page and the end of file segments are a normal part of a file.
+    bool m_isDecodingFile;
     PDFJBIG2Bitmap m_pageBitmap;
 };
 

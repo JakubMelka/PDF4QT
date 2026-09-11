@@ -187,6 +187,19 @@ void PDFToolAbstractApplication::initializeCommandLineParser(QCommandLineParser*
         parser->addPositionalArgument("right", "Right (new) document to be compared.");
     }
 
+    if (optionFlags.testFlag(Bitonal))
+    {
+        parser->addPositionalArgument("bitonaldocument", "Output bitonal document filename.");
+        parser->addOption(QCommandLineOption("bitonal-source", "What is converted. Valid values are images|pages. Use 'images' for documents, whose images are a content of the page, not a picture of it.", "source", "pages"));
+        parser->addOption(QCommandLineOption("bitonal-method", "Conversion method. Valid values are automatic|manual|adaptive|dither.", "method", "automatic"));
+        parser->addOption(QCommandLineOption("bitonal-threshold", "Threshold used by the manual method and by the dithering (0-255).", "threshold", "128"));
+        parser->addOption(QCommandLineOption("bitonal-dpi", "Resolution, at which the pages are rasterized. Zero means, that it is estimated from the images of the document.", "dpi", "0"));
+        parser->addOption(QCommandLineOption("bitonal-fill", "Replace the converted items by a solid area instead of converting them. Valid values are none|black|white.", "fill", "none"));
+        parser->addOption(QCommandLineOption("bitonal-invert", "Swap the black and the white pixels of the converted items. It can be used with '--bitonal-fill none' only."));
+        parser->addOption(QCommandLineOption("bitonal-detect-blank", "Replace the pages, which are a scan of a blank sheet of paper, by a white fill instead of converting them. It can be used with '--bitonal-source pages' and '--bitonal-fill none' only."));
+        parser->addOption(QCommandLineOption("bitonal-compression", "Compression of the created images. Valid values are auto|flate|runlength|ccittg4|jbig2. 'auto' compresses every image by all the algorithms and keeps the smallest result.", "compression", "auto"));
+    }
+
     if (optionFlags.testFlag(Redact))
     {
         parser->addPositionalArgument("redacteddocument", "Output redacted document filename.");
@@ -447,6 +460,145 @@ PDFToolOptions PDFToolAbstractApplication::getOptions(QCommandLineParser* parser
         options.document = positionalArguments.isEmpty() ? QString() : positionalArguments.front();
         options.password = parser->isSet("pswd") ? parser->value("pswd") : QString();
         options.permissiveReading = !parser->isSet("no-permissive-reading");
+    }
+
+    if (optionFlags.testFlag(Bitonal))
+    {
+        options.bitonalDocument = positionalArguments.size() >= 2 ? positionalArguments[1] : QString();
+
+        // An unrecognized value must be reported, not silently replaced by a default
+        // one. The parsing has no error channel, so the first problem is remembered
+        // and the tool refuses to do anything when it finds it.
+        auto reportInvalidValue = [&options](const QString& option, const QString& value, const QString& validValues)
+        {
+            if (options.bitonalInvalidArgument.isEmpty())
+            {
+                options.bitonalInvalidArgument = PDFToolTranslationContext::tr("Invalid value '%1' of the option '--%2'. Valid values are %3.").arg(value, option, validValues);
+            }
+        };
+
+        const QString source = parser->value("bitonal-source");
+        if (source == "images")
+        {
+            options.bitonalSource = pdf::PDFBitonalDocumentCreator::ConversionSource::Images;
+        }
+        else if (source == "pages")
+        {
+            options.bitonalSource = pdf::PDFBitonalDocumentCreator::ConversionSource::Pages;
+        }
+        else
+        {
+            reportInvalidValue("bitonal-source", source, "images|pages");
+        }
+
+        const QString method = parser->value("bitonal-method");
+        if (method == "automatic")
+        {
+            options.bitonalMethod = pdf::PDFImageConversion::ConversionMethod::Automatic;
+        }
+        else if (method == "manual")
+        {
+            options.bitonalMethod = pdf::PDFImageConversion::ConversionMethod::Manual;
+        }
+        else if (method == "adaptive")
+        {
+            options.bitonalMethod = pdf::PDFImageConversion::ConversionMethod::Adaptive;
+        }
+        else if (method == "dither")
+        {
+            options.bitonalMethod = pdf::PDFImageConversion::ConversionMethod::Dither;
+        }
+        else
+        {
+            reportInvalidValue("bitonal-method", method, "automatic|manual|adaptive|dither");
+        }
+
+        const QString fill = parser->value("bitonal-fill");
+        if (fill == "none")
+        {
+            options.bitonalItemMode = pdf::PDFBitonalDocumentCreator::ItemMode::Algorithm;
+        }
+        else if (fill == "black")
+        {
+            options.bitonalItemMode = pdf::PDFBitonalDocumentCreator::ItemMode::FillBlack;
+        }
+        else if (fill == "white")
+        {
+            options.bitonalItemMode = pdf::PDFBitonalDocumentCreator::ItemMode::FillWhite;
+        }
+        else
+        {
+            reportInvalidValue("bitonal-fill", fill, "none|black|white");
+        }
+
+        if (parser->isSet("bitonal-invert"))
+        {
+            if (options.bitonalItemMode == pdf::PDFBitonalDocumentCreator::ItemMode::Algorithm)
+            {
+                options.bitonalItemMode = pdf::PDFBitonalDocumentCreator::ItemMode::AlgorithmInverted;
+            }
+            else if (options.bitonalInvalidArgument.isEmpty())
+            {
+                // Inverting a solid fill makes no sense - the user asks for two
+                // different things at once, so the tool refuses to guess.
+                options.bitonalInvalidArgument = PDFToolTranslationContext::tr("The option '--bitonal-invert' can be used with '--bitonal-fill none' only.");
+            }
+        }
+
+        options.bitonalDetectBlankPages = parser->isSet("bitonal-detect-blank");
+
+        if (options.bitonalDetectBlankPages &&
+            !pdf::PDFBitonalDocumentCreator::isConversionMode(options.bitonalItemMode) &&
+            options.bitonalInvalidArgument.isEmpty())
+        {
+            // Every page is replaced by the same solid fill anyway, so there is
+            // nothing, which the detection could decide
+            options.bitonalInvalidArgument = PDFToolTranslationContext::tr("The option '--bitonal-detect-blank' can be used with '--bitonal-fill none' only.");
+        }
+
+        const QString compression = parser->value("bitonal-compression");
+        if (compression == "auto")
+        {
+            options.bitonalCompression = pdf::PDFBitonalDocumentCreator::Compression::Auto;
+        }
+        else if (compression == "flate")
+        {
+            options.bitonalCompression = pdf::PDFBitonalDocumentCreator::Compression::Flate;
+        }
+        else if (compression == "runlength")
+        {
+            options.bitonalCompression = pdf::PDFBitonalDocumentCreator::Compression::RunLength;
+        }
+        else if (compression == "ccittg4")
+        {
+            options.bitonalCompression = pdf::PDFBitonalDocumentCreator::Compression::CCITTGroup4;
+        }
+        else if (compression == "jbig2")
+        {
+            options.bitonalCompression = pdf::PDFBitonalDocumentCreator::Compression::JBIG2;
+        }
+        else
+        {
+            reportInvalidValue("bitonal-compression", compression, "auto|flate|runlength|ccittg4|jbig2");
+        }
+
+        bool isThresholdValid = false;
+        const QString threshold = parser->value("bitonal-threshold");
+        options.bitonalThreshold = threshold.toInt(&isThresholdValid);
+
+        if (!isThresholdValid)
+        {
+            reportInvalidValue("bitonal-threshold", threshold, "whole numbers from 0 to 255");
+        }
+
+        bool isResolutionValid = false;
+        const QString dpiResolution = parser->value("bitonal-dpi");
+        options.bitonalDpiResolution = dpiResolution.toInt(&isResolutionValid);
+
+        if (!isResolutionValid)
+        {
+            reportInvalidValue("bitonal-dpi", dpiResolution, "whole numbers");
+        }
     }
 
     if (optionFlags.testFlag(Redact))

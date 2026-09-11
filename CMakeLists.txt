@@ -48,6 +48,7 @@ endif()
 
 option(PDF4QT_BUILD_ONLY_CORE_LIBRARY "Build only core library" OFF)
 option(PDF4QT_BUILD_TESTS "Build UnitTests" ON)
+option(PDF4QT_ENABLE_COVERAGE "Instrument the code for the source based code coverage of clang (llvm-cov)" OFF)
 
 set(PDF4QT_QT_ROOT "" CACHE PATH "Qt root directory")
 
@@ -97,6 +98,28 @@ set(CMAKE_AUTORCC_OPTIONS "--threshold;0;--compress;9")
 
 if (MSVC)
     add_compile_options(/bigobj /W4 /wd5054 /wd4127 /wd4702)
+endif()
+
+if(PDF4QT_ENABLE_COVERAGE)
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "The code coverage requires the clang compiler (clang or clang-cl).")
+    endif()
+
+    # Source based code coverage of clang - the profile is written by the instrumented
+    # binaries when they exit, see the file named by the environment variable
+    # LLVM_PROFILE_FILE. The profile runtime is linked automatically by the driver, but
+    # the MSVC linker does not know its directory, so it is added explicitly.
+    # The MC/DC coverage needs the conditions of the decisions instrumented as well
+    add_compile_options(-fprofile-instr-generate -fcoverage-mapping -fcoverage-mcdc)
+
+    if(MSVC)
+        execute_process(COMMAND ${CMAKE_CXX_COMPILER} /clang:-print-resource-dir
+                        OUTPUT_VARIABLE PDF4QT_CLANG_RESOURCE_DIR
+                        OUTPUT_STRIP_TRAILING_WHITESPACE)
+        link_directories("${PDF4QT_CLANG_RESOURCE_DIR}/lib/windows")
+    else()
+        add_link_options(-fprofile-instr-generate)
+    endif()
 endif()
 
 if (MINGW)
@@ -197,6 +220,9 @@ if(PDF4QT_BUILD_TESTS)
     add_subdirectory(UnitTests)
 endif()
 
+# The translations belong to the applications, which are not built with the core library alone
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+
 qt_collect_translation_source_targets(i18n_targets)
 message("CMAKE_TRANSLATION_TARGETS = " ${i18n_targets})
 
@@ -224,6 +250,8 @@ if(WIN32)
                                    -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/NormalizeTsLineEndings.cmake
                            COMMENT "Normalizing TS files to CRLF")
     endif()
+endif()
+
 endif()
 
 message("CMAKE_PREFIX_PATH = " ${CMAKE_PREFIX_PATH})

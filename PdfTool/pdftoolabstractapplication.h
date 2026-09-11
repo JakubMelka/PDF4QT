@@ -32,6 +32,7 @@
 #include "pdfoptimizer.h"
 #include "pdfimageoptimizer.h"
 #include "pdfredact.h"
+#include "pdfbitonaldocumentcreator.h"
 
 #include <QtGlobal>
 #include <QString>
@@ -171,6 +172,28 @@ struct PDFToolOptions
     pdf::PDFRedact::Options redactOptions = {};
     QString redactedDocument;
 
+    // For option 'Bitonal'
+    QString bitonalDocument;
+    pdf::PDFBitonalDocumentCreator::ConversionSource bitonalSource = pdf::PDFBitonalDocumentCreator::ConversionSource::Pages;
+    pdf::PDFImageConversion::ConversionMethod bitonalMethod = pdf::PDFImageConversion::ConversionMethod::Automatic;
+    pdf::PDFBitonalDocumentCreator::ItemMode bitonalItemMode = pdf::PDFBitonalDocumentCreator::ItemMode::Algorithm;
+    pdf::PDFBitonalDocumentCreator::Compression bitonalCompression = pdf::PDFBitonalDocumentCreator::Compression::Auto;
+    int bitonalThreshold = 128;
+    int bitonalDpiResolution = 0;
+
+    /// Replaces the pages, which are detected as a scan of a blank sheet of paper,
+    /// by a white fill instead of converting them
+    bool bitonalDetectBlankPages = false;
+
+    /// Description of the first invalid '--bitonal-*' value. It is empty, when all
+    /// options have been recognized. An unknown value must not silently fall back to
+    /// a default one - the tool overwrites the target file, so the user would get a
+    /// document created by a different algorithm than the one they asked for.
+    QString bitonalInvalidArgument;
+
+    /// Returns true, if the user has restricted the conversion to a page range
+    bool isPageRangeSet() const { return !pageSelectorFirstPage.isEmpty() || !pageSelectorLastPage.isEmpty() || !pageSelectorSelection.isEmpty(); }
+
     // For option 'Encrypt'
     pdf::PDFSecurityHandlerFactory::Algorithm encryptionAlgorithm = pdf::PDFSecurityHandlerFactory::Algorithm::AES_256;
     pdf::PDFSecurityHandlerFactory::EncryptContents encryptionContents = pdf::PDFSecurityHandlerFactory::EncryptContents::All;
@@ -265,6 +288,7 @@ public:
         Encrypt                         = 0x00800000,       ///< Encryption settings
         Diff                            = 0x01000000,       ///< Diff settings (compare documents)
         Redact                          = 0x02000000,       ///< Settings for Redact tool
+        Bitonal                         = 0x04000000,       ///< Settings for Bitonal tool
     };
     Q_DECLARE_FLAGS(Options, Option)
 

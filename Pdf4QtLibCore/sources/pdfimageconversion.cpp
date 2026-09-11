@@ -17,7 +17,13 @@ void PDFImageConversion::setImage(QImage image)
 {
     m_image = std::move(image);
     m_convertedImage = QImage();
+    m_convertedAlphaMask = QImage();
     m_automaticThreshold = DEFAULT_THRESHOLD;
+    m_width = 0;
+    m_height = 0;
+    m_lightness.clear();
+    m_gray.clear();
+    m_opacity.clear();
 }
 
 void PDFImageConversion::setConversionMethod(ConversionMethod method)
@@ -30,36 +36,190 @@ void PDFImageConversion::setThreshold(int threshold)
     m_manualThreshold = threshold;
 }
 
+void PDFImageConversion::setOperationControl(const PDFOperationControl* operationControl)
+{
+    m_operationControl = operationControl;
+}
+
+void PDFImageConversion::setAlphaMode(AlphaMode alphaMode)
+{
+    m_alphaMode = alphaMode;
+}
+
+void PDFImageConversion::prepareSourceImage()
+{
+    m_width = 0;
+    m_height = 0;
+    m_lightness.clear();
+    m_gray.clear();
+    m_opacity.clear();
+    m_convertedAlphaMask = QImage();
+
+    if (m_image.isNull())
+    {
+        return;
+    }
+
+    const QImage source = m_image.convertToFormat(QImage::Format_ARGB32);
+    if (source.isNull())
+    {
+        return;
+    }
+
+    m_width = source.width();
+    m_height = source.height();
+
+    const size_t pixelCount = size_t(m_width) * size_t(m_height);
+    m_lightness.resize(pixelCount);
+    m_gray.resize(pixelCount);
+
+    // Alpha channel is processed only when it is not being ignored. Images without
+    // the alpha channel are always fully opaque, so no opacity buffer is needed.
+    const bool isAlphaProcessed = m_alphaMode == AlphaMode::Composite && source.hasAlphaChannel();
+    std::vector<unsigned char> opacity;
+
+    if (isAlphaProcessed)
+    {
+        opacity.resize(pixelCount, 255);
+    }
+
+    bool hasTransparentPixel = false;
+
+    for (int y = 0; y < m_height; ++y)
+    {
+        if (isCancelled())
+        {
+            // Buffers are incomplete, so no conversion can be performed with them
+            m_lightness.clear();
+            m_gray.clear();
+            m_opacity.clear();
+            return;
+        }
+
+        const QRgb* sourceLine = reinterpret_cast<const QRgb*>(source.constScanLine(y));
+        unsigned char* lightnessLine = m_lightness.data() + size_t(y) * size_t(m_width);
+        unsigned char* grayLine = m_gray.data() + size_t(y) * size_t(m_width);
+        unsigned char* opacityLine = isAlphaProcessed ? opacity.data() + size_t(y) * size_t(m_width) : nullptr;
+
+        for (int x = 0; x < m_width; ++x)
+        {
+            const QRgb pixel = sourceLine[x];
+
+            int red = qRed(pixel);
+            int green = qGreen(pixel);
+            int blue = qBlue(pixel);
+
+            if (isAlphaProcessed)
+            {
+                const int alpha = qAlpha(pixel);
+
+                if (alpha != 255)
+                {
+                    // Composite the pixel onto the white background. Without this step,
+                    // color values of the fully transparent pixels (which are often just
+                    // an uninitialized garbage, or a leftover of a lossy compression)
+                    // would be thresholded as if they were a real image content.
+                    red = (red * alpha + 255 * (255 - alpha)) / 255;
+                    green = (green * alpha + 255 * (255 - alpha)) / 255;
+                    blue = (blue * alpha + 255 * (255 - alpha)) / 255;
+                }
+
+                opacityLine[x] = static_cast<unsigned char>(alpha);
+
+                if (alpha < OPACITY_THRESHOLD)
+                {
+                    hasTransparentPixel = true;
+                }
+            }
+
+            // Lightness of the HSL color model, i.e. the same value, which is
+            // returned by the function QColor::lightness. It is used by the global
+            // thresholding, which has always worked with this representation.
+            const int maximum = qMax(red, qMax(green, blue));
+            const int minimum = qMin(red, qMin(green, blue));
+            lightnessLine[x] = static_cast<unsigned char>((maximum + minimum + 1) / 2);
+
+            // Luminance, i.e. the value, which the conversion to the format
+            // QImage::Format_Grayscale8 produces. Adaptive thresholding and dithering
+            // have always worked with the grayscale representation of the image and
+            // for saturated colors it differs substantially from the lightness.
+            grayLine[x] = static_cast<unsigned char>(qGray(red, green, blue));
+        }
+    }
+
+    if (!hasTransparentPixel)
+    {
+        // Image is fully opaque - we do not need the opacity buffer at all
+        return;
+    }
+
+    m_opacity = std::move(opacity);
+
+    // Create the transparency mask, so the caller can preserve the transparency
+    // of the source image (for example as a soft mask of the converted image).
+    m_convertedAlphaMask = createBitonalImage();
+
+    if (m_convertedAlphaMask.isNull())
+    {
+        // The mask cannot be allocated. The transparency of the image would be lost
+        // silently, so the conversion fails instead - the buffers are cleared, which
+        // the conversion recognizes as a failure.
+        m_lightness.clear();
+        m_gray.clear();
+        m_opacity.clear();
+        return;
+    }
+
+    for (int y = 0; y < m_height; ++y)
+    {
+        const size_t rowIndex = size_t(y) * size_t(m_width);
+
+        for (int x = 0; x < m_width; ++x)
+        {
+            if (!isTransparent(rowIndex + size_t(x)))
+            {
+                setWhiteSample(m_convertedAlphaMask, x, y);
+            }
+        }
+    }
+}
+
 bool PDFImageConversion::convert()
 {
+    m_convertedImage = QImage();
+
     if (m_image.isNull())
     {
         return false;
     }
 
-    QImage bitonal;
+    prepareSourceImage();
 
-    // Thresholding
-    int threshold = DEFAULT_THRESHOLD;
+    if (m_lightness.empty() || isCancelled())
+    {
+        return false;
+    }
 
     switch (m_conversionMethod)
     {
         case pdf::PDFImageConversion::ConversionMethod::Automatic:
             m_automaticThreshold = calculateOtsu1DThreshold();
-            threshold = m_automaticThreshold;
+            m_convertedImage = convertThresholded(m_automaticThreshold);
             break;
 
         case pdf::PDFImageConversion::ConversionMethod::Manual:
-            threshold = m_manualThreshold;
+            m_convertedImage = convertThresholded(m_manualThreshold);
             break;
 
         case pdf::PDFImageConversion::ConversionMethod::Adaptive:
             m_automaticThreshold = calculateOtsu1DThreshold();
-            bitonal = convertAdaptive();
-            m_convertedImage = std::move(bitonal);
-            return !m_convertedImage.isNull();
+            m_convertedImage = convertAdaptive();
+            break;
 
         case pdf::PDFImageConversion::ConversionMethod::Dither:
+        {
+            int threshold = DEFAULT_THRESHOLD;
+
             if (m_manualThreshold != DEFAULT_THRESHOLD)
             {
                 threshold = m_manualThreshold;
@@ -69,30 +229,22 @@ bool PDFImageConversion::convert()
                 m_automaticThreshold = calculateOtsu1DThreshold();
                 threshold = m_automaticThreshold;
             }
-            bitonal = convertDithered(threshold);
-            m_convertedImage = std::move(bitonal);
-            return !m_convertedImage.isNull();
+
+            m_convertedImage = convertDithered(threshold);
+            break;
+        }
 
         default:
             Q_ASSERT(false);
             break;
     }
 
-    bitonal = QImage(m_image.width(), m_image.height(), QImage::Format_Mono);
-    bitonal.fill(0);
-
-    for (int y = 0; y < m_image.height(); ++y)
+    if (m_convertedImage.isNull())
     {
-        for (int x = 0; x < m_image.width(); ++x)
-        {
-            QColor pixelColor = m_image.pixelColor(x, y);
-            int pixelValue = pixelColor.lightness();
-            bool bit = (pixelValue >= threshold);
-            bitonal.setPixel(x, y, bit);
-        }
+        m_convertedAlphaMask = QImage();
+        return false;
     }
 
-    m_convertedImage = std::move(bitonal);
     return true;
 }
 
@@ -121,29 +273,118 @@ QImage PDFImageConversion::getConvertedImage() const
     return m_convertedImage;
 }
 
-int PDFImageConversion::calculateOtsu1DThreshold() const
+QImage PDFImageConversion::getConvertedAlphaMask() const
 {
-    if (m_image.isNull())
+    return m_convertedAlphaMask;
+}
+
+std::optional<QImage> PDFImageConversion::createAlphaMask(const QImage& image)
+{
+    if (image.isNull() || !image.hasAlphaChannel())
     {
-        return 128;
+        return QImage();
     }
 
-    // Histogram of lightness occurences
-    std::array<int, 256> histogram = { };
-
-    for (int x = 0; x < m_image.width(); ++x)
+    const QImage source = image.convertToFormat(QImage::Format_ARGB32);
+    if (source.isNull())
     {
-        for (int y = 0; y < m_image.height(); ++y)
-        {
-            int lightness = m_image.pixelColor(x, y).lightness();
-            Q_ASSERT(lightness >= 0 && lightness <= 255);
+        // The conversion of the format has failed - the memory has run out
+        return std::nullopt;
+    }
 
-            int clampedLightness = qBound(0, lightness, 255);
-            histogram[clampedLightness] += 1;
+    const int width = source.width();
+    const int height = source.height();
+
+    QImage mask = createBitonalImage(QSize(width, height));
+
+    if (mask.isNull())
+    {
+        return std::nullopt;
+    }
+
+    bool hasTransparentPixel = false;
+
+    // The mask must be built with exactly the same opacity threshold, which the
+    // conversion uses, otherwise the mask of a converted image and the mask of a
+    // filled image would not agree on the border pixels. \sa prepareSourceImage
+    for (int y = 0; y < height; ++y)
+    {
+        const QRgb* sourceLine = reinterpret_cast<const QRgb*>(source.constScanLine(y));
+
+        for (int x = 0; x < width; ++x)
+        {
+            if (qAlpha(sourceLine[x]) >= OPACITY_THRESHOLD)
+            {
+                setWhiteSample(mask, x, y);
+            }
+            else
+            {
+                hasTransparentPixel = true;
+            }
         }
     }
 
-    float factor = 1.0f / float(m_image.width() * m_image.height());
+    if (!hasTransparentPixel)
+    {
+        // Image is fully opaque, so it does not need a mask at all
+        return QImage();
+    }
+
+    return mask;
+}
+
+QImage PDFImageConversion::createBitonalImage() const
+{
+    return createBitonalImage(QSize(m_width, m_height));
+}
+
+QImage PDFImageConversion::createBitonalImage(QSize size)
+{
+    QImage image(size, QImage::Format_Mono);
+
+    if (image.isNull())
+    {
+        // The image cannot be allocated - filling a null image is harmless, but
+        // the caller must be able to recognize the failure
+        return QImage();
+    }
+
+    image.fill(0);
+    return image;
+}
+
+void PDFImageConversion::setWhiteSample(QImage& image, int x, int y)
+{
+    // Format_Mono stores the samples with the most significant bit first,
+    // and the default color table maps the sample value 1 to the white color.
+    uchar* line = image.scanLine(y);
+    line[x >> 3] |= uchar(0x80 >> (x & 7));
+}
+
+int PDFImageConversion::calculateOtsu1DThreshold() const
+{
+    if (m_lightness.empty())
+    {
+        return DEFAULT_THRESHOLD;
+    }
+
+    // Histogram of lightness occurences. Transparent pixels are already composited
+    // onto the white background, so they enter the histogram as a blank paper - which
+    // is exactly, what they represent. Skipping them instead would leave a foreground
+    // layer of a scanned page with a histogram of the ink color only, from which no
+    // meaningful threshold can be calculated.
+    std::array<uint64_t, 256> histogram = { };
+
+    for (size_t i = 0; i < m_lightness.size(); ++i)
+    {
+        if ((i & 0xFFFF) == 0 && isCancelled())
+        {
+            return DEFAULT_THRESHOLD;
+        }
+        histogram[m_lightness[i]] += 1;
+    }
+
+    float factor = 1.0f / float(m_lightness.size());
 
     std::array<float, 256> normalizedHistogram = { };
     std::array<float, 256> cumulativeProbabilities = { };
@@ -211,47 +452,180 @@ int PDFImageConversion::calculateOtsu1DThreshold() const
         }
     }
 
+    if (maxVarianceValue <= 0.0f)
+    {
+        // The image consists of a single intensity, so the inter-class variance is
+        // zero for every candidate and Otsu's method has no answer. Returning the
+        // first candidate would mean the threshold 0, which turns even a completely
+        // black image into a white one, so the default threshold is used instead -
+        // it maps a dark uniform image to black and a bright one to white.
+        return DEFAULT_THRESHOLD;
+    }
+
+    // Otsu's method assumes a histogram of two populations, the ink and the paper,
+    // and it splits the histogram even when only one of them is present - a scan of
+    // a blank page has no ink, so the darker half of the paper (the gradient of the
+    // illumination, the shadow of the lid, the texture of the paper) is turned into
+    // large black areas. A page carrying a negligible amount of ink, a page number
+    // for example, ends the same way, because that ink contributes almost nothing to
+    // the inter-class variance and the split again falls inside the paper.
+    //
+    // Both cases are recognized by the mean lightness of the dark class: when the
+    // class is not distinctly darker than the paper, it is not the ink and the
+    // calculated threshold is meaningless. An absolute threshold derived from the
+    // lightness of the paper is used instead. In this situation it is always lower
+    // than the one of Otsu's method, so it can only turn black pixels white, never
+    // the other way round - the ink, which really is on the page, survives it and
+    // the paper does not.
+    const int paperWhite = calculatePaperWhiteLightness(histogram, m_lightness.size());
+    const int inkLightness = paperWhite * INK_LIGHTNESS_PERCENTAGE / 100;
+
+    float darkClassMean = 0.0f;
+    const float darkClassProbability = cumulativeProbabilities[maxVarianceIndex] - normalizedHistogram[maxVarianceIndex];
+
+    if (!qFuzzyIsNull(darkClassProbability))
+    {
+        for (size_t i = 0; i < maxVarianceIndex; ++i)
+        {
+            darkClassMean += i * normalizedHistogram[i];
+        }
+
+        darkClassMean /= darkClassProbability;
+    }
+
+    // Do not erase a distinct gray foreground on white paper. A mean alone
+    // cannot distinguish that foreground from the darker part of a blank scan.
+    size_t darkLightness = maxVarianceIndex;
+    while (darkLightness > 0 && histogram[darkLightness - 1] == 0)
+    {
+        --darkLightness;
+    }
+    size_t lightLightness = maxVarianceIndex;
+    while (lightLightness < histogram.size() && histogram[lightLightness] == 0)
+    {
+        ++lightLightness;
+    }
+    const bool splitsPaper = darkLightness > 0 && lightLightness < histogram.size() &&
+                             lightLightness - (darkLightness - 1) <= MAXIMUM_PAPER_LIGHTNESS_GAP;
+
+    if (splitsPaper && paperWhite >= MINIMUM_PAPER_WHITE && darkClassMean >= float(inkLightness))
+    {
+        return inkLightness;
+    }
+
     return int(maxVarianceIndex);
+}
+
+int PDFImageConversion::calculatePaperWhiteLightness(const std::array<uint64_t, 256>& histogram, size_t pixelCount)
+{
+    if (pixelCount == 0)
+    {
+        return 0;
+    }
+
+    const uint64_t limit = (uint64_t(pixelCount) / 100) * PAPER_WHITE_PERCENTILE +
+                           (uint64_t(pixelCount) % 100) * PAPER_WHITE_PERCENTILE / 100;
+    uint64_t cumulativeCount = 0;
+
+    for (size_t i = 0; i < histogram.size(); ++i)
+    {
+        cumulativeCount += uint64_t(histogram[i]);
+
+        if (cumulativeCount > limit)
+        {
+            return int(i);
+        }
+    }
+
+    return 255;
+}
+
+QImage PDFImageConversion::convertThresholded(int threshold) const
+{
+    if (m_lightness.empty())
+    {
+        return QImage();
+    }
+
+    QImage bitonal = createBitonalImage();
+
+    if (bitonal.isNull())
+    {
+        return QImage();
+    }
+
+    for (int y = 0; y < m_height; ++y)
+    {
+        if (isCancelled())
+        {
+            return QImage();
+        }
+
+        const size_t rowIndex = size_t(y) * size_t(m_width);
+
+        for (int x = 0; x < m_width; ++x)
+        {
+            const size_t index = rowIndex + size_t(x);
+
+            // Transparent pixels are not painted at all, so they are converted
+            // to the white color to not create an artificial black background.
+            const bool isWhite = isTransparent(index) || m_lightness[index] >= threshold;
+
+            if (isWhite)
+            {
+                setWhiteSample(bitonal, x, y);
+            }
+        }
+    }
+
+    return bitonal;
 }
 
 QImage PDFImageConversion::convertAdaptive() const
 {
-    if (m_image.isNull())
+    if (m_gray.empty())
     {
         return QImage();
     }
 
-    QImage source = m_image.convertToFormat(QImage::Format_Grayscale8);
-    if (source.isNull())
-    {
-        return QImage();
-    }
-
-    const int width = source.width();
-    const int height = source.height();
+    const int width = m_width;
+    const int height = m_height;
     const int radius = ADAPTIVE_WINDOW_RADIUS;
 
-    // Integral image stores, for every position, the sum of all pixels
-    // in the rectangle from the top-left corner to that position.
-    // Thanks to this precomputation we can later get the sum inside any
-    // local window with only a few array reads instead of summing all
-    // pixels in the window again for every output pixel.
-    std::vector<int> integral((width + 1) * (height + 1), 0);
+    QImage bitonal = createBitonalImage();
 
-    for (int y = 1; y <= height; ++y)
+    if (bitonal.isNull())
     {
-        const uchar* row = source.constScanLine(y - 1);
-        int rowSum = 0;
-        for (int x = 1; x <= width; ++x)
-        {
-            rowSum += row[x - 1];
-            const int idx = y * (width + 1) + x;
-            integral.at(idx) = integral.at(idx - (width + 1)) + rowSum;
-        }
+        return QImage();
     }
 
-    QImage bitonal(width, height, QImage::Format_Mono);
-    bitonal.fill(0);
+    // For every column we keep the sum of the lightness values of the pixels lying
+    // in the vertical part of the local window. Moving to the next row means adding
+    // one row into these sums and removing another one, so the sum of the local
+    // window can then be computed by moving a horizontal window over the column
+    // sums. Compared to an integral image of the whole picture, this needs only
+    // a memory proportional to the width of the image and it cannot overflow.
+    std::vector<int> columnSum(size_t(width), 0);
+
+    auto updateColumns = [&](int row, int sign)
+    {
+        if (row < 0 || row >= height)
+        {
+            return;
+        }
+
+        const size_t rowIndex = size_t(row) * size_t(width);
+
+        for (int x = 0; x < width; ++x)
+        {
+            columnSum[size_t(x)] += sign * int(m_gray[rowIndex + size_t(x)]);
+        }
+    };
+
+    for (int row = 0; row <= radius; ++row)
+    {
+        updateColumns(row, 1);
+    }
 
     // Adaptive thresholding does not use one global threshold for the whole image.
     // Instead, each pixel gets its own threshold derived from the average brightness
@@ -259,34 +633,67 @@ QImage PDFImageConversion::convertAdaptive() const
     // the page is bright and another is darker because of shadows or uneven scanning.
     for (int y = 0; y < height; ++y)
     {
-        int y0 = qMax(0, y - radius);
-        int y1 = qMin(height - 1, y + radius);
+        if (isCancelled())
+        {
+            return QImage();
+        }
+
+        if (y > 0)
+        {
+            updateColumns(y + radius, 1);
+            updateColumns(y - radius - 1, -1);
+        }
+
+        const int windowHeight = qMin(height - 1, y + radius) - qMax(0, y - radius) + 1;
+
+        int windowSum = 0;
+        for (int x = 0; x <= radius && x < width; ++x)
+        {
+            windowSum += columnSum[size_t(x)];
+        }
+
+        const size_t rowIndex = size_t(y) * size_t(width);
+
         for (int x = 0; x < width; ++x)
         {
-            int x0 = qMax(0, x - radius);
-            int x1 = qMin(width - 1, x + radius);
+            if (x > 0)
+            {
+                const int addedColumn = x + radius;
+                const int removedColumn = x - radius - 1;
 
-            const int ax0 = x0;
-            const int ay0 = y0;
-            const int ax1 = x1 + 1;
-            const int ay1 = y1 + 1;
+                if (addedColumn < width)
+                {
+                    windowSum += columnSum[size_t(addedColumn)];
+                }
 
-            // Sum of grayscale values in the local window computed from the integral image.
-            const int sum = integral[ay1 * (width + 1) + ax1]
-                            - integral[ay0 * (width + 1) + ax1]
-                            - integral[ay1 * (width + 1) + ax0]
-                            + integral[ay0 * (width + 1) + ax0];
+                if (removedColumn >= 0)
+                {
+                    windowSum -= columnSum[size_t(removedColumn)];
+                }
+            }
 
-            const int count = (x1 - x0 + 1) * (y1 - y0 + 1);
-            const int mean = count > 0 ? (sum / count) : 0;
+            const size_t index = rowIndex + size_t(x);
+
+            if (isTransparent(index))
+            {
+                setWhiteSample(bitonal, x, y);
+                continue;
+            }
+
+            const int windowWidth = qMin(width - 1, x + radius) - qMax(0, x - radius) + 1;
+            const int count = windowWidth * windowHeight;
+            const int mean = count > 0 ? (windowSum / count) : 0;
+
             // We shift the threshold slightly below the neighborhood average.
             // Without this offset, faint dark strokes could disappear too easily
             // when the local average is already influenced by a bright background.
             const int threshold = mean - ADAPTIVE_OFFSET;
 
-            const int pixelValue = source.pixelColor(x, y).lightness();
             // Pixels brighter than the local threshold become white, the others black.
-            bitonal.setPixel(x, y, pixelValue >= threshold);
+            if (m_gray[index] >= threshold)
+            {
+                setWhiteSample(bitonal, x, y);
+            }
         }
     }
 
@@ -295,42 +702,47 @@ QImage PDFImageConversion::convertAdaptive() const
 
 QImage PDFImageConversion::convertDithered(int threshold) const
 {
-    if (m_image.isNull())
+    if (m_gray.empty())
     {
         return QImage();
     }
 
-    QImage source = m_image.convertToFormat(QImage::Format_Grayscale8);
-    if (source.isNull())
-    {
-        return QImage();
-    }
-
-    const int width = source.width();
-    const int height = source.height();
+    const int width = m_width;
+    const int height = m_height;
 
     // Error-diffusion dithering intentionally keeps a working buffer in grayscale.
     // Each pixel is quantized to pure black or white, and the quantization error
     // is pushed into neighboring pixels that have not been processed yet.
     // Visually this replaces missing gray levels with a fine black/white pattern.
-    std::vector<float> buffer(width * height, 0.0f);
-    for (int y = 0; y < height; ++y)
+    std::vector<float> buffer(m_gray.begin(), m_gray.end());
+
+    QImage bitonal = createBitonalImage();
+
+    if (bitonal.isNull())
     {
-        const uchar* row = source.constScanLine(y);
-        for (int x = 0; x < width; ++x)
-        {
-            buffer.at(y * width + x) = row[x];
-        }
+        return QImage();
     }
 
-    QImage bitonal(width, height, QImage::Format_Mono);
-    bitonal.fill(0);
-
     for (int y = 0; y < height; ++y)
     {
+        if (isCancelled())
+        {
+            return QImage();
+        }
+
         for (int x = 0; x < width; ++x)
         {
-            const int index = y * width + x;
+            const size_t index = size_t(y) * size_t(width) + size_t(x);
+
+            if (isTransparent(index))
+            {
+                // Transparent pixels are not a part of the image content. They are
+                // converted to the white color and they do not diffuse any error,
+                // so the dithering pattern does not leak into the transparent areas.
+                setWhiteSample(bitonal, x, y);
+                continue;
+            }
+
             const float oldPixel = buffer[index];
             // Reduce the current pixel to the nearest output value:
             // either full white or full black.
@@ -338,7 +750,11 @@ QImage PDFImageConversion::convertDithered(int threshold) const
             // The difference is not discarded. It is redistributed to surrounding
             // pixels so that the average tone over a larger area stays similar.
             const float error = oldPixel - newPixel;
-            bitonal.setPixel(x, y, newPixel >= 128.0f);
+
+            if (newPixel >= 128.0f)
+            {
+                setWhiteSample(bitonal, x, y);
+            }
 
             // Floyd-Steinberg diffusion:
             //   current -> right        7/16
@@ -350,18 +766,18 @@ QImage PDFImageConversion::convertDithered(int threshold) const
             // top to bottom.
             if (x + 1 < width)
             {
-                buffer.at(index + 1) += error * 7.0f / 16.0f;
+                buffer[index + 1] += error * 7.0f / 16.0f;
             }
             if (y + 1 < height)
             {
                 if (x > 0)
                 {
-                    buffer.at(index + width - 1) += error * 3.0f / 16.0f;
+                    buffer[index + size_t(width) - 1] += error * 3.0f / 16.0f;
                 }
-                buffer.at(index + width) += error * 5.0f / 16.0f;
+                buffer[index + size_t(width)] += error * 5.0f / 16.0f;
                 if (x + 1 < width)
                 {
-                    buffer.at(index + width + 1) += error * 1.0f / 16.0f;
+                    buffer[index + size_t(width) + 1] += error * 1.0f / 16.0f;
                 }
             }
         }

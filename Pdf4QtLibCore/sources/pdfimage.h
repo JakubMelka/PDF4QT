@@ -85,7 +85,9 @@ public:
         Flate,          ///< FlateDecode compressed data with PNG predictor
         JPEG,           ///< DCTDecode
         JPEG2000,       ///< JPXDecode
-        RunLength       ///< RunLengthDecode
+        RunLength,      ///< RunLengthDecode
+        CCITTGroup4,    ///< CCITTFaxDecode, pure two dimensional encoding (K = -1), bitonal images only
+        JBIG2           ///< JBIG2Decode, single generic region, bitonal images only
     };
 
     enum class ImageColorMode

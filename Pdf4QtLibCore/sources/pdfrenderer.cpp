@@ -30,7 +30,12 @@
 
 #include <QDir>
 #include <QElapsedTimer>
+#include <QScopeGuard>
 #include <QtMath>
+
+#include <algorithm>
+#include <cmath>
+#include <limits>
 
 #include "pdfdbgheap.h"
 
@@ -265,6 +270,10 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
                              PageRotation extraRotation)
 {
     QImage image(size, QImage::Format_ARGB32_Premultiplied);
+    if (image.isNull())
+    {
+        return QImage();
+    }
 
     PDFColorConvertor convertor = cms->getColorConvertor();
     PDFRenderer::applyFeaturesToColorConvertor(features, convertor);
@@ -304,17 +313,56 @@ QImage PDFRasterizer::render(PDFInteger pageIndex,
     // Calculate image DPI
     QSizeF rotatedSizeInMeters = page->getRotatedMediaBoxMM().size() / 1000.0;
     QSizeF rotatedSizeInPixels = image.size();
-    qreal dpiX = rotatedSizeInPixels.width() / rotatedSizeInMeters.width();
-    qreal dpiY = rotatedSizeInPixels.height() / rotatedSizeInMeters.height();
-    image.setDotsPerMeterX(qCeil(dpiX));
-    image.setDotsPerMeterY(qCeil(dpiY));
+    auto dotsPerMeter = [](qreal pixels, qreal meters) -> int
+    {
+        if (!std::isfinite(meters) || meters <= 0.0)
+        {
+            return 0;
+        }
+        // A tiny MediaBox can imply a resolution outside the int range even
+        // for a small image. Bound it before qCeil converts it to an integer.
+        const qreal resolution = pixels / meters;
+        if (!std::isfinite(resolution) || resolution >= std::numeric_limits<int>::max())
+        {
+            return std::numeric_limits<int>::max();
+        }
+        return qCeil(resolution);
+    };
+    image.setDotsPerMeterX(dotsPerMeter(rotatedSizeInPixels.width(), rotatedSizeInMeters.width()));
+    image.setDotsPerMeterY(dotsPerMeter(rotatedSizeInPixels.height(), rotatedSizeInMeters.height()));
 
     return image;
 }
 
-PDFRasterizer* PDFRasterizerPool::acquire()
+bool PDFRenderedPageImage::hasSevereError() const
 {
-    m_semaphore.acquire();
+    return std::any_of(errors.cbegin(), errors.cend(), [](const PDFRenderError& error)
+    {
+        return error.type == RenderErrorType::Error || error.type == RenderErrorType::NotImplemented;
+    });
+}
+
+PDFRasterizer* PDFRasterizerPool::acquire(const PDFOperationControl* operationControl)
+{
+    if (operationControl)
+    {
+        // The waiting is interruptible - a cancelled task must not occupy a rasterizer,
+        // which a newer task is waiting for, so the cancellation is polled while the
+        // semaphore is being waited for.
+        constexpr int POLL_INTERVAL_MS = 20;
+
+        while (!m_semaphore.tryAcquire(1, POLL_INTERVAL_MS))
+        {
+            if (operationControl->isOperationCancelled())
+            {
+                return nullptr;
+            }
+        }
+    }
+    else
+    {
+        m_semaphore.acquire();
+    }
 
     QMutexLocker guard(&m_mutex);
     Q_ASSERT(!m_rasterizers.empty());
@@ -337,7 +385,8 @@ void PDFRasterizerPool::release(pdf::PDFRasterizer* rasterizer)
 void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
                                const PDFRasterizerPool::PageImageSizeGetter& imageSizeGetter,
                                const PDFRasterizerPool::ProcessImageMethod& processImage,
-                               PDFProgress* progress)
+                               PDFProgress* progress,
+                               const PDFOperationControl* operationControl)
 {
     if (pageIndices.empty())
     {
@@ -359,16 +408,28 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
         info.text = PDFTranslationContext::tr("Rendering document into images.");
         progress->start(pageIndices.size(), qMove(info));
     }
-    auto processPage = [this, progress, &imageSizeGetter, &processImage](const PDFInteger pageIndex)
+    auto processPage = [this, progress, operationControl, &imageSizeGetter, &processImage](const PDFInteger pageIndex)
     {
-        const PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
-
-        if (!page)
+        // Progress must be stepped even when the page is skipped, otherwise
+        // the progress would never reach its end.
+        auto progressGuard = qScopeGuard([progress]()
         {
             if (progress)
             {
                 progress->step();
             }
+        });
+
+        if (PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            // Operation has been cancelled, remaining pages are not rendered at all
+            return;
+        }
+
+        const PDFPage* page = m_document->getCatalog()->getPage(pageIndex);
+
+        if (!page)
+        {
             Q_EMIT renderError(pageIndex, PDFRenderError(RenderErrorType::Error, PDFTranslationContext::tr("Page %1 not found.").arg(pageIndex)));
             return;
         }
@@ -383,9 +444,17 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
         PDFPrecompiledPage precompiledPage;
         PDFCMSPointer cms = m_cmsManager->getCurrentCMS();
         PDFRenderer renderer(m_document, m_fontCache, cms.data(), m_optionalContentActivity, m_features, m_meshQualitySettings);
+        renderer.setOperationControl(operationControl);
         renderer.compile(&precompiledPage, pageIndex);
 
         qint64 pageCompileTime = pageTimer.restart();
+
+        if (PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            // The compilation has been interrupted, so the page is incomplete and there
+            // is no point in rasterizing it - that is the most expensive part.
+            return;
+        }
 
         for (const PDFRenderError& error : precompiledPage.getErrors())
         {
@@ -402,26 +471,41 @@ void PDFRasterizerPool::render(const std::vector<PDFInteger>& pageIndices,
 
         // Render page to image
         pageTimer.restart();
-        PDFRasterizer* rasterizer = acquire();
+        PDFRasterizer* rasterizer = acquire(operationControl);
         qint64 pageWaitTime = pageTimer.restart();
-        QImage image = rasterizer->render(pageIndex, page, &precompiledPage, imageSizeGetter(page), m_features, &annotationManager, cms.data(), PageRotation::None);
-        qint64 pageRenderTime = pageTimer.elapsed();
-        release(rasterizer);
+
+        if (!rasterizer)
+        {
+            // The operation has been cancelled while a free rasterizer was being waited for
+            return;
+        }
+
+        QImage image;
+        qint64 pageRenderTime = 0;
+        {
+            // Return the rasterizer even if the size getter or rendering throws.
+            // Otherwise a subsequent job can wait on the semaphore forever.
+            auto rasterizerGuard = qScopeGuard([this, rasterizer]() { release(rasterizer); });
+            image = rasterizer->render(pageIndex, page, &precompiledPage, imageSizeGetter(page), m_features, &annotationManager, cms.data(), PageRotation::None);
+            pageRenderTime = pageTimer.elapsed();
+        }
+
+        if (PDFOperationControl::isOperationCancelled(operationControl))
+        {
+            // Nobody is interested in the image anymore - it must not be processed.
+            return;
+        }
 
         // Now, process the image
         PDFRenderedPageImage renderedPageImage;
         renderedPageImage.pageIndex = pageIndex;
         renderedPageImage.pageImage = qMove(image);
+        renderedPageImage.errors = precompiledPage.getErrors();
         renderedPageImage.pageCompileTime = pageCompileTime;
         renderedPageImage.pageWaitTime = pageWaitTime;
         renderedPageImage.pageRenderTime = pageRenderTime;
         renderedPageImage.pageTotalTime = totalPageTimer.elapsed();
         processImage(renderedPageImage);
-
-        if (progress)
-        {
-            progress->step();
-        }
     };
     PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, pageIndices.cbegin(), pageIndices.cend(), processPage);
 

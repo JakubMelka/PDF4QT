@@ -2,3 +2,4 @@
 *.qbs.user
 *.txt.user
 build/*
+jbig2test/
