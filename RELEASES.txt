@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #332: Some suggestions and problem requests for PDF editors
  - Issue #425: Update bitonal document feature
  - Issue #413: Editor: embedded images (signatures) flipped vertically after editing page content
  - Issue #424: Improved measurement functionality.

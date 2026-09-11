@@ -31,6 +31,7 @@
 #include <QPainterPath>
 
 #include <set>
+#include <list>
 #include <compare>
 
 class QMutex;
@@ -90,6 +91,13 @@ struct PDFTextLayoutSettings
 
     /// Minimal horizontal overlap for two lines considered to be in one block
     PDFReal blockOverlapSensitivity = 0.3;
+
+    /// Maximal difference of character angles (in degrees) for characters to be
+    /// laid out together. Text, which is placed by a slightly skewed transformation
+    /// matrix (which is common for text mixed with images or for text generated
+    /// by some producers), would otherwise be split into several independent
+    /// layout groups and it would not be possible to select it as a single text.
+    PDFReal angleSensitivity = 2.0;
 
     friend QDataStream& operator<<(QDataStream& stream, const PDFTextLayoutSettings& settings);
     friend QDataStream& operator>>(QDataStream& stream, PDFTextLayoutSettings& settings);
@@ -424,13 +432,22 @@ public:
     friend QDataStream& operator>>(QDataStream& stream, PDFTextLayout& layout);
 
 private:
-    /// Makes layout for particular angle
-    void performDoLayout(PDFReal angle);
+    /// Makes layout for a group of characters with a similar angle
+    /// \param angle Representative angle of the group, plane is rotated by this angle
+    /// \param angles Exact angles, which belong to this group
+    void performDoLayout(PDFReal angle, const std::set<PDFReal>& angles);
 
-    /// Returns a list of characters for particular angle. Exact match is used
-    /// for angle, even if angle is floating point number.
-    /// \param angle Angle
-    TextCharacters getCharactersForAngle(PDFReal angle) const;
+    /// Splits angles of the characters into groups of similar angles. Angles,
+    /// which differ by less than \p PDFTextLayoutSettings::angleSensitivity, are
+    /// placed into the same group. Representative angle of the group is the angle
+    /// with the highest number of characters.
+    /// \returns Vector of pairs (representative angle, angles of the group)
+    std::vector<std::pair<PDFReal, std::set<PDFReal>>> getAngleGroups() const;
+
+    /// Returns a list of characters for particular angles. Exact match is used
+    /// for angles, even if angle is floating point number.
+    /// \param angles Angles
+    TextCharacters getCharactersForAngles(const std::set<PDFReal>& angles) const;
 
     /// Applies transform to text characters (positions and bounding boxes)
     /// \param characters Characters
@@ -443,7 +460,12 @@ private:
     PDFTextBlocks m_blocks;
 };
 
-/// Cache for storing single text layout
+/// Cache for storing text layouts of recently used pages. Creating a text layout
+/// means parsing of the whole page content stream, so it is expensive. Cache must
+/// hold more than one page - during a single repaint, text layouts of all displayed
+/// pages are queried (and multiple pages can be displayed at once). With a single
+/// page cache, layouts of the displayed pages would be recreated on each repaint,
+/// which means recreating them on each mouse move during a text selection.
 class PDF4QTLIBCORESHARED_EXPORT PDFTextLayoutCache
 {
 public:
@@ -453,15 +475,22 @@ public:
     void clear();
 
     /// Returns text layout. This function always succeeds. If compiler is not active,
-    /// then empty layout is returned.
+    /// then empty layout is returned. Returned reference is valid until the layout
+    /// is evicted from the cache, i.e. until \p CACHE_SIZE other pages are queried.
     /// \param compiler Text layout compiler
     /// \param pageIndex Page index
     const PDFTextLayout& getTextLayout(PDFInteger pageIndex);
 
 private:
+    /// Maximal number of page text layouts stored in the cache. It must be safely
+    /// above the number of pages which can be displayed at once.
+    static constexpr size_t CACHE_SIZE = 8;
+
+    /// Cached layouts, most recently used one is at the front of the list
+    using CachedLayouts = std::list<std::pair<PDFInteger, PDFTextLayout>>;
+
     std::function<PDFTextLayout(PDFInteger)> m_textLayoutGetter;
-    PDFInteger m_pageIndex;
-    PDFTextLayout m_layout;
+    CachedLayouts m_layouts;
 };
 
 class PDF4QTLIBCORESHARED_EXPORT PDFTextLayoutGetter

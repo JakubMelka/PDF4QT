@@ -229,6 +229,8 @@
     <addaction name="menuStamp"/>
     <addaction name="menuTextHighlight"/>
     <addaction name="separator"/>
+    <addaction name="actionDeleteAnnotation"/>
+    <addaction name="separator"/>
     <addaction name="actionInsertPageNumbers"/>
    </widget>
    <addaction name="menuFile"/>
@@ -1043,6 +1045,17 @@
    </property>
    <property name="text">
     <string>&amp;Freehand Curve</string>
+   </property>
+  </action>
+  <action name="actionDeleteAnnotation">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>&amp;Delete Annotations</string>
+   </property>
+   <property name="toolTip">
+    <string>Delete annotations - click on an annotation, or drag a rectangle over several annotations</string>
    </property>
   </action>
   <action name="actionCreateTextHighlight">

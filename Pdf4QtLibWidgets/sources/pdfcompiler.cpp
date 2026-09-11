@@ -33,6 +33,7 @@
 #include "pdfdbgheap.h"
 
 #include <execution>
+#include <limits>
 
 namespace pdf
 {
@@ -55,14 +56,7 @@ void PDFAsynchronousPageCompilerWorkerThread::run()
         {
             while (!isInterruptionRequested())
             {
-                std::vector<PDFAsynchronousPageCompiler::CompileTask> tasks;
-                for (auto& task : m_compiler->m_tasks)
-                {
-                    if (!task.second.finished)
-                    {
-                        tasks.push_back(task.second);
-                    }
-                }
+                std::vector<PDFAsynchronousPageCompiler::CompileTask> tasks = m_compiler->pickTasksForCompilation();
 
                 if (!tasks.empty())
                 {
@@ -75,11 +69,20 @@ void PDFAsynchronousPageCompilerWorkerThread::run()
                     auto compilePage = [this, proxy](PDFAsynchronousPageCompiler::CompileTask& task) -> PDFPrecompiledPage
                     {
                         PDFPrecompiledPage compiledPage;
+
+                        // Jakub Melka: task can be cancelled while it is waiting in the thread
+                        // pool queue - in that case we do not start the compilation at all.
+                        if (task.isCancelled())
+                        {
+                            return compiledPage;
+                        }
+
+                        PDFPageCompilerOperationControl operationControl(m_compiler, task.cancelFlag);
                         PDFCMSPointer cms = proxy->getCMSManager()->getCurrentCMS();
                         PDFRenderer renderer(proxy->getDocument(), proxy->getFontCache(), cms.data(), proxy->getOptionalContentActivity(), proxy->getFeatures(), proxy->getMeshQualitySettings());
-                        renderer.setOperationControl(m_compiler);
+                        renderer.setOperationControl(&operationControl);
                         renderer.compile(&task.precompiledPage, task.pageIndex);
-                        task.finished = true;
+                        task.finished = !operationControl.isOperationCancelled();
                         return compiledPage;
                     };
                     PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Page, tasks.begin(), tasks.end(), compilePage);
@@ -89,14 +92,22 @@ void PDFAsynchronousPageCompilerWorkerThread::run()
                     // Relock the mutex to write the tasks
                     locker.relock();
 
-                    // Now, write compiled pages
+                    // Now, write compiled pages. We must check, that the task is still
+                    // present in the task map - it can be cancelled and erased while we
+                    // were compiling it (for example, page scrolled out of the viewport).
                     bool isSomethingWritten = false;
                     for (auto& task : tasks)
                     {
-                        if (task.finished)
+                        if (!task.finished || task.isCancelled())
+                        {
+                            continue;
+                        }
+
+                        auto it = m_compiler->m_tasks.find(task.pageIndex);
+                        if (it != m_compiler->m_tasks.end() && !it->second.finished)
                         {
                             isSomethingWritten = true;
-                            m_compiler->m_tasks[task.pageIndex] = std::move(task);
+                            it->second = std::move(task);
                         }
                     }
 
@@ -191,6 +202,7 @@ void PDFAsynchronousPageCompiler::stop(bool clearCache)
             // It is safe to do not use mutex, because
             // we have ended the work thread.
             m_tasks.clear();
+            m_activePages.clear();
 
             if (clearCache)
             {
@@ -221,7 +233,7 @@ void PDFAsynchronousPageCompiler::setCacheLimit(qsizetype limit)
     m_cache->setMaxCost(limit);
 }
 
-const PDFPrecompiledPage* PDFAsynchronousPageCompiler::getCompiledPage(PDFInteger pageIndex, bool compile)
+const PDFPrecompiledPage* PDFAsynchronousPageCompiler::getCompiledPage(PDFInteger pageIndex, CompileMode mode)
 {
     if (m_state != State::Active || !m_proxy->getDocument())
     {
@@ -231,13 +243,23 @@ const PDFPrecompiledPage* PDFAsynchronousPageCompiler::getCompiledPage(PDFIntege
 
     PDFPrecompiledPage* page = m_cache->object(pageIndex);
 
-    if (!page && compile)
+    if (!page && mode != CompileMode::None)
     {
+        const bool isCancellable = mode == CompileMode::Viewport;
+
         QMutexLocker locker(&m_mutex);
-        if (!m_tasks.count(pageIndex))
+        auto it = m_tasks.find(pageIndex);
+        if (it == m_tasks.cend())
         {
-            m_tasks.insert(std::make_pair(pageIndex, CompileTask(pageIndex)));
+            m_tasks.insert(std::make_pair(pageIndex, CompileTask(pageIndex, isCancellable)));
             m_waitCondition.wakeOne();
+        }
+        else if (!isCancellable && it->second.isCancellable)
+        {
+            // Jakub Melka: page is already being compiled for the viewport, but now
+            // it is requested also by a consumer, which is independent on the viewport.
+            // Such task must not be cancelled by scrolling anymore.
+            it->second.isCancellable = false;
         }
     }
 
@@ -247,6 +269,90 @@ const PDFPrecompiledPage* PDFAsynchronousPageCompiler::getCompiledPage(PDFIntege
     }
 
     return page;
+}
+
+std::vector<PDFAsynchronousPageCompiler::CompileTask> PDFAsynchronousPageCompiler::pickTasksForCompilation()
+{
+    // Jakub Melka: mutex must be locked by the caller (worker thread).
+    std::vector<CompileTask> tasks;
+
+    for (const auto& item : m_tasks)
+    {
+        if (!item.second.finished && !item.second.isCancelled())
+        {
+            tasks.push_back(item.second);
+        }
+    }
+
+    // Sort the tasks by priority - pages, which are nearest to the active
+    // (visible) pages, are compiled first. Without this, in a large document
+    // the user can wait for the currently displayed page, while the engine
+    // is busy with pages, which are far away.
+    auto getPriority = [this](const CompileTask& task)
+    {
+        if (m_activePages.empty())
+        {
+            return PDFInteger(0);
+        }
+
+        auto it = std::lower_bound(m_activePages.cbegin(), m_activePages.cend(), task.pageIndex);
+        PDFInteger distance = std::numeric_limits<PDFInteger>::max();
+
+        if (it != m_activePages.cend())
+        {
+            distance = qAbs(*it - task.pageIndex);
+        }
+        if (it != m_activePages.cbegin())
+        {
+            distance = qMin(distance, qAbs(*std::prev(it) - task.pageIndex));
+        }
+
+        return distance;
+    };
+
+    auto comparator = [&getPriority](const CompileTask& left, const CompileTask& right)
+    {
+        return std::make_pair(getPriority(left), left.pageIndex) < std::make_pair(getPriority(right), right.pageIndex);
+    };
+    std::sort(tasks.begin(), tasks.end(), comparator);
+
+    if (tasks.size() > MAXIMAL_TASK_BATCH_SIZE)
+    {
+        tasks.resize(MAXIMAL_TASK_BATCH_SIZE);
+    }
+
+    return tasks;
+}
+
+void PDFAsynchronousPageCompiler::setActivePages(const std::vector<PDFInteger>& activePages)
+{
+    if (m_state != State::Active)
+    {
+        return;
+    }
+
+    Q_ASSERT(std::is_sorted(activePages.cbegin(), activePages.cend()));
+
+    QMutexLocker locker(&m_mutex);
+    m_activePages = activePages;
+
+    // Cancel and erase all tasks of pages, which are not active anymore. Already
+    // running compilation is stopped via the cancellation flag, the result of such
+    // compilation is thrown away by the worker thread.
+    for (auto it = m_tasks.begin(); it != m_tasks.end();)
+    {
+        const CompileTask& task = it->second;
+
+        if (task.finished || !task.isCancellable ||
+            std::binary_search(activePages.cbegin(), activePages.cend(), task.pageIndex))
+        {
+            ++it;
+            continue;
+        }
+
+        task.cancel();
+        it = m_tasks.erase(it);
+    }
 }
 
 void PDFAsynchronousPageCompiler::smartClearCache(const int milisecondsLimit, const std::vector<PDFInteger>& activePages)

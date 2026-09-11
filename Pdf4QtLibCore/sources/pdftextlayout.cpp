@@ -279,7 +279,16 @@ void PDFTextLayout::addCharacter(const PDFTextCharacterInfo& info)
     QLineF testLine(QPointF(0.0, 0.0), QPointF(info.isVerticalWritingSystem ? 0.0 : info.advance, !info.isVerticalWritingSystem ? 0.0 : info.advance));
     QLineF mappedLine = info.matrix.map(testLine);
     character.advance = mappedLine.length();
+
+    // Jakub Melka: angle must be normalized to the range [0, 360). QLineF::angle()
+    // returns a value from the range [0, 360), but rounding of an angle slightly
+    // below 360 gives 360, which would be a different group than the angle 0,
+    // even though these two angles are the same.
     character.angle = qRound(mappedLine.angle());
+    if (character.angle >= 360.0)
+    {
+        character.angle -= 360.0;
+    }
 
     QLineF fontTestLine(QPointF(0.0, 0.0), QPointF(0.0, info.fontSize));
     QLineF fontMappedLine = info.matrix.map(fontTestLine);
@@ -294,10 +303,66 @@ void PDFTextLayout::addCharacter(const PDFTextCharacterInfo& info)
 
 void PDFTextLayout::perform()
 {
+    for (const auto& angleGroup : getAngleGroups())
+    {
+        performDoLayout(angleGroup.first, angleGroup.second);
+    }
+}
+
+std::vector<std::pair<PDFReal, std::set<PDFReal>>> PDFTextLayout::getAngleGroups() const
+{
+    std::vector<std::pair<PDFReal, std::set<PDFReal>>> result;
+
+    if (m_angles.empty())
+    {
+        return result;
+    }
+
+    // Count the characters for each angle - the most frequent angle of the group
+    // is used as the representative angle of the whole group.
+    std::map<PDFReal, size_t> characterCounts;
+    for (const TextCharacter& character : m_characters)
+    {
+        ++characterCounts[character.angle];
+    }
+
+    // Angles are stored in an ordered set, so we can just walk through them and
+    // start a new group, when the gap to the previous angle is too large.
+    std::vector<std::set<PDFReal>> groups;
     for (PDFReal angle : m_angles)
     {
-        performDoLayout(angle);
+        if (!groups.empty() && angle - *groups.back().crbegin() <= m_settings.angleSensitivity)
+        {
+            groups.back().insert(angle);
+        }
+        else
+        {
+            groups.push_back({ angle });
+        }
     }
+
+    // Angles are cyclic - the last group can be a continuation of the first one
+    // (for example angles 359 and 0 are almost the same angle).
+    if (groups.size() > 1 && (*groups.front().cbegin() + 360.0) - *groups.back().crbegin() <= m_settings.angleSensitivity)
+    {
+        groups.front().insert(groups.back().cbegin(), groups.back().cend());
+        groups.pop_back();
+    }
+
+    for (const std::set<PDFReal>& group : groups)
+    {
+        Q_ASSERT(!group.empty());
+
+        auto comparator = [&characterCounts](PDFReal left, PDFReal right)
+        {
+            return std::make_pair(characterCounts[left], -left) < std::make_pair(characterCounts[right], -right);
+        };
+        const PDFReal representativeAngle = *std::max_element(group.cbegin(), group.cend(), comparator);
+
+        result.emplace_back(representativeAngle, group);
+    }
+
+    return result;
 }
 
 void PDFTextLayout::optimize()
@@ -608,7 +673,7 @@ struct NearestCharacterInfo
     inline bool operator<(const NearestCharacterInfo& other) const { return distance < other.distance; }
 };
 
-void PDFTextLayout::performDoLayout(PDFReal angle)
+void PDFTextLayout::performDoLayout(PDFReal angle, const std::set<PDFReal>& angles)
 {
     // We will implement variation of 'docstrum' algorithm, we have divided characters by angles,
     // for each angle we get characters for that particular angle, and run 'docstrum' algorithm.
@@ -622,7 +687,7 @@ void PDFTextLayout::performDoLayout(PDFReal angle)
     //      4) Merge text lines into text blocks using various criteria, such as overlap,
     //         distance between the lines, and also using again, transitive closure.
     //      5) Sort blocks using topological ordering
-    TextCharacters characters = getCharactersForAngle(angle);
+    TextCharacters characters = getCharactersForAngles(angles);
 
     // Step 1) - rotate blocks
     QTransform angleMatrix;
@@ -868,10 +933,10 @@ void PDFTextLayout::performDoLayout(PDFReal angle)
     }
 }
 
-TextCharacters PDFTextLayout::getCharactersForAngle(PDFReal angle) const
+TextCharacters PDFTextLayout::getCharactersForAngles(const std::set<PDFReal>& angles) const
 {
     TextCharacters result;
-    std::copy_if(m_characters.cbegin(), m_characters.cend(), std::back_inserter(result), [angle](const TextCharacter& character) { return character.angle == angle; });
+    std::copy_if(m_characters.cbegin(), m_characters.cend(), std::back_inserter(result), [&angles](const TextCharacter& character) { return angles.count(character.angle) > 0; });
     return result;
 }
 
@@ -1200,6 +1265,7 @@ QDataStream& operator<<(QDataStream& stream, const PDFTextLayoutSettings& settin
     stream << settings.fontSensitivity;
     stream << settings.blockVerticalSensitivity;
     stream << settings.blockOverlapSensitivity;
+    stream << settings.angleSensitivity;
     return stream;
 }
 
@@ -1211,6 +1277,7 @@ QDataStream& operator>>(QDataStream& stream, PDFTextLayoutSettings& settings)
     stream >> settings.fontSensitivity;
     stream >> settings.blockVerticalSensitivity;
     stream >> settings.blockOverlapSensitivity;
+    stream >> settings.angleSensitivity;
     return stream;
 }
 
@@ -1683,28 +1750,36 @@ QPainterPath PDFTextSelectionPainter::prepareGeometry(PDFInteger pageIndex, PDFT
 }
 
 PDFTextLayoutCache::PDFTextLayoutCache(std::function<PDFTextLayout (PDFInteger)> textLayoutGetter) :
-    m_textLayoutGetter(qMove(textLayoutGetter)),
-    m_pageIndex(-1),
-    m_layout()
+    m_textLayoutGetter(qMove(textLayoutGetter))
 {
 
 }
 
 void PDFTextLayoutCache::clear()
 {
-    m_pageIndex = -1;
-    m_layout = PDFTextLayout();
+    m_layouts.clear();
 }
 
 const PDFTextLayout& PDFTextLayoutCache::getTextLayout(PDFInteger pageIndex)
 {
-    if (m_pageIndex != pageIndex)
+    auto it = std::find_if(m_layouts.begin(), m_layouts.end(), [pageIndex](const auto& item) { return item.first == pageIndex; });
+
+    if (it != m_layouts.end())
     {
-        m_pageIndex = pageIndex;
-        m_layout = m_textLayoutGetter(pageIndex);
+        // Jakub Melka: mark the layout as recently used. Splice does not invalidate
+        // the references to the stored layout, so it is safe to do it here.
+        m_layouts.splice(m_layouts.begin(), m_layouts, it);
+        return m_layouts.front().second;
     }
 
-    return m_layout;
+    m_layouts.emplace_front(pageIndex, m_textLayoutGetter(pageIndex));
+
+    while (m_layouts.size() > CACHE_SIZE)
+    {
+        m_layouts.pop_back();
+    }
+
+    return m_layouts.front().second;
 }
 
 }   // namespace pdf
