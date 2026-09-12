@@ -348,16 +348,21 @@ void PDFPainter::performImagePainting(const QImage& image)
 
     QImage adjustedImage = image;
 
-    if (hasFeature(PDFRenderer::SmoothImages))
+    // Jakub Melka: if the image is being shrunk, then we must downscale it explicitly.
+    // The raster paint engines resample from a 2x2 neighbourhood only, so most of the
+    // source pixels would never be sampled at all. Bitonal images are downscaled by
+    // the ink coverage downscaler, so thin strokes of a scan do not wash out, and they
+    // are downscaled even without the feature SmoothImages. The size is computed from
+    // the device transform and not from the world transform - the world transform is
+    // in the logical pixels, which are not the real pixels of the target on a display
+    // with a device pixel ratio above one.
+    const QSize downscaledSize = PDFImageScaling::getDownscaledSize(adjustedImage.size(), m_painter->deviceTransform());
+    if (!downscaledSize.isEmpty())
     {
-        // Jakub Melka: if the image is being shrunk, then we must downscale it explicitly.
-        // The raster paint engines resample from a 2x2 neighbourhood only, so most of the
-        // source pixels would never be sampled at all. Bitonal images are downscaled by
-        // the ink coverage downscaler, so thin strokes of a scan do not wash out.
-        const QSize downscaledSize = PDFImageScaling::getDownscaledSize(adjustedImage.size(), m_painter->worldTransform());
-        if (!downscaledSize.isEmpty())
+        const PDFImageScaling::ImageType imageType = PDFImageScaling::getImageType(adjustedImage);
+        if (PDFImageScaling::isDownscalingEnabled(m_painter->device(), imageType, hasFeature(PDFRenderer::SmoothImages)))
         {
-            QImage downscaledImage = PDFImageScaling::scaleDown(adjustedImage, downscaledSize, PDFImageScaling::getImageType(adjustedImage));
+            QImage downscaledImage = PDFImageScaling::scaleDown(adjustedImage, downscaledSize, imageType);
             if (!downscaledImage.isNull())
             {
                 adjustedImage = qMove(downscaledImage);
@@ -592,13 +597,16 @@ void PDFPrecompiledPage::draw(QPainter* painter,
                 // resolution ourselves - otherwise most of the source pixels would never be
                 // sampled at all and thin strokes of a bitonal scan would wash out. The
                 // downscaled images are memoized in the cache of the caller, because they
-                // depend on the zoom and so they cannot become a part of this page.
+                // depend on the zoom and so they cannot become a part of this page. Bitonal
+                // images are downscaled even without the feature SmoothImages, but only for
+                // a raster target - the redaction replays the page into a pdf writer, which
+                // must get the image at its full resolution.
                 QImage downscaledImage;
                 const QImage* image = &data.image;
 
-                if (features.testFlag(PDFRenderer::SmoothImages))
+                if (PDFImageScaling::isDownscalingEnabled(painter->device(), data.imageType, features.testFlag(PDFRenderer::SmoothImages)))
                 {
-                    const QSize downscaledSize = PDFImageScaling::getDownscaledSize(image->size(), painter->worldTransform());
+                    const QSize downscaledSize = PDFImageScaling::getDownscaledSize(image->size(), painter->deviceTransform());
                     if (!downscaledSize.isEmpty())
                     {
                         downscaledImage = scaledImageCache ? scaledImageCache->getScaledImage(*image, downscaledSize, data.imageType)

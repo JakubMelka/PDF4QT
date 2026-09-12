@@ -22,13 +22,18 @@
 
 #include "pdfimagescaling.h"
 #include "pdfpainter.h"
+#include "pdfblpainter.h"
 
 #include <QtTest>
 #include <QImage>
 #include <QPainter>
 #include <QTransform>
+#include <QBuffer>
+#include <QPdfWriter>
+#include <QPicture>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <vector>
@@ -139,6 +144,24 @@ static double getInkCoverage(const QImage& image, int x, int y)
     return double(255 - image.constScanLine(y)[x]) / 255.0;
 }
 
+/// Paint device, which reports an arbitrary device type. The decision about the downscaling
+/// of the images queries the type only, so the device need not be able to paint.
+class DeviceTypePaintDevice : public QPaintDevice
+{
+public:
+    explicit DeviceTypePaintDevice(int deviceType) :
+        m_deviceType(deviceType)
+    {
+
+    }
+
+    virtual int devType() const override { return m_deviceType; }
+    virtual QPaintEngine* paintEngine() const override { return nullptr; }
+
+private:
+    int m_deviceType;
+};
+
 class ImageScalingTest : public QObject
 {
     Q_OBJECT
@@ -161,9 +184,14 @@ private slots:
     void testRejectedArguments();
     void testUnallocatableResult();
     void testDegenerate();
+    void testDownscalingEnabled();
     void testCache();
     void testPrecompiledPageDrawing();
+    void testPrecompiledPageTargets();
+    void testHighDpiGeometry();
+    void testHighDpiImageResolution();
 };
+
 
 void ImageScalingTest::testGeometryNoShrink()
 {
@@ -774,6 +802,50 @@ void ImageScalingTest::testDegenerate()
     QVERIFY(std::abs(getInkCoverage(singlePixelImage, 0, 0) - 0.25) < 0.01);
 }
 
+void ImageScalingTest::testDownscalingEnabled()
+{
+    const std::array rasterDeviceTypes = { QInternal::Widget, QInternal::Pixmap, QInternal::Image, QInternal::Pbuffer,
+                                           QInternal::FramebufferObject, QInternal::CustomRaster, QInternal::PaintBuffer, QInternal::OpenGL };
+    const std::array vectorDeviceTypes = { QInternal::UnknownDevice, QInternal::Printer, QInternal::Picture };
+
+    for (const QInternal::PaintDeviceFlags deviceType : rasterDeviceTypes)
+    {
+        const DeviceTypePaintDevice paintDevice(deviceType);
+
+        // Bitonal images are downscaled for a raster device always, other ones only on request
+        QVERIFY(pdf::PDFImageScaling::isDownscalingEnabled(&paintDevice, ImageType::Monochrome, false));
+        QVERIFY(pdf::PDFImageScaling::isDownscalingEnabled(&paintDevice, ImageType::StencilMask, false));
+        QVERIFY(!pdf::PDFImageScaling::isDownscalingEnabled(&paintDevice, ImageType::Generic, false));
+        QVERIFY(pdf::PDFImageScaling::isDownscalingEnabled(&paintDevice, ImageType::Generic, true));
+        QVERIFY(pdf::PDFImageScaling::isDownscalingEnabled(&paintDevice, ImageType::Monochrome, true));
+    }
+
+    for (const QInternal::PaintDeviceFlags deviceType : vectorDeviceTypes)
+    {
+        const DeviceTypePaintDevice paintDevice(deviceType);
+
+        // A vector device stores the image into a document, so nothing is downscaled implicitly
+        QVERIFY(!pdf::PDFImageScaling::isDownscalingEnabled(&paintDevice, ImageType::Monochrome, false));
+        QVERIFY(!pdf::PDFImageScaling::isDownscalingEnabled(&paintDevice, ImageType::StencilMask, false));
+        QVERIFY(!pdf::PDFImageScaling::isDownscalingEnabled(&paintDevice, ImageType::Generic, false));
+
+        // The feature SmoothImages keeps its former meaning for all of the devices
+        QVERIFY(pdf::PDFImageScaling::isDownscalingEnabled(&paintDevice, ImageType::Generic, true));
+        QVERIFY(pdf::PDFImageScaling::isDownscalingEnabled(&paintDevice, ImageType::Monochrome, true));
+    }
+
+    // The real paint devices report the types, which the decision relies on
+    const QImage image(1, 1, QImage::Format_RGB32);
+    QVERIFY(pdf::PDFImageScaling::isDownscalingEnabled(&image, ImageType::Monochrome, false));
+
+    const QPicture picture;
+    QVERIFY(!pdf::PDFImageScaling::isDownscalingEnabled(&picture, ImageType::Monochrome, false));
+
+    QBuffer buffer;
+    QPdfWriter pdfWriter(&buffer);
+    QVERIFY(!pdf::PDFImageScaling::isDownscalingEnabled(&pdfWriter, ImageType::Monochrome, false));
+}
+
 void ImageScalingTest::testCache()
 {
     const int width = 600;
@@ -872,32 +944,40 @@ void ImageScalingTest::testPrecompiledPageDrawing()
 
     QVERIFY(page.isValid());
 
-    auto drawPage = [&](pdf::PDFScaledImageCache* cache)
+    auto drawPage = [&](pdf::PDFScaledImageCache* cache, pdf::PDFRenderer::Features features)
     {
         QImage target(targetSize, QImage::Format_ARGB32_Premultiplied);
         target.fill(Qt::white);
 
         QPainter painter(&target);
         page.draw(&painter, QRectF(), QTransform::fromScale(targetSize.width(), targetSize.height()),
-                  pdf::PDFRenderer::SmoothImages, 1.0, cache);
+                  features, 1.0, cache);
         painter.end();
 
         return target;
     };
 
-    const QImage drawnImage = drawPage(nullptr);
-
     // Every pair of the destination pixels holds exactly one clearly visible stroke. Without
     // the downscaling the raster paint engine samples the source bilinearly and the strokes
     // fade unevenly, depending on their phase relative to the sampling grid.
-    for (int x = 0; x + 1 < drawnImage.width(); x += 2)
+    auto verifyStrokes = [](const QImage& drawnImage)
     {
-        const double firstCoverage = 1.0 - double(qGray(drawnImage.pixel(x, 1))) / 255.0;
-        const double secondCoverage = 1.0 - double(qGray(drawnImage.pixel(x + 1, 1))) / 255.0;
+        for (int x = 0; x + 1 < drawnImage.width(); x += 2)
+        {
+            const double firstCoverage = 1.0 - double(qGray(drawnImage.pixel(x, 1))) / 255.0;
+            const double secondCoverage = 1.0 - double(qGray(drawnImage.pixel(x + 1, 1))) / 255.0;
 
-        QVERIFY2(qMax(firstCoverage, secondCoverage) >= 0.45,
-                 qPrintable(QString("pixel %1: the coverage %2 is too low").arg(x).arg(qMax(firstCoverage, secondCoverage))));
-        QVERIFY(qMin(firstCoverage, secondCoverage) < 0.01);
+            QVERIFY2(qMax(firstCoverage, secondCoverage) >= 0.45,
+                     qPrintable(QString("pixel %1: the coverage %2 is too low").arg(x).arg(qMax(firstCoverage, secondCoverage))));
+            QVERIFY(qMin(firstCoverage, secondCoverage) < 0.01);
+        }
+    };
+
+    const QImage drawnImage = drawPage(nullptr, pdf::PDFRenderer::SmoothImages);
+    verifyStrokes(drawnImage);
+    if (QTest::currentTestFailed())
+    {
+        return;
     }
 
     // The cache is only a memoization - the result must not depend on it
@@ -906,33 +986,231 @@ void ImageScalingTest::testPrecompiledPageDrawing()
     {
         pdf::PDFScaledImageCache::DrawingPassGuard guard(&cache);
 
-        QCOMPARE(drawPage(&cache), drawnImage);
+        QCOMPARE(drawPage(&cache, pdf::PDFRenderer::SmoothImages), drawnImage);
 
         // The image has been downscaled and the downscaled variant has been memoized
         QCOMPARE(cache.getImageCount(), size_t(1));
 
         // Drawing the page again in the same pass hits the cache
-        QCOMPARE(drawPage(&cache), drawnImage);
+        QCOMPARE(drawPage(&cache, pdf::PDFRenderer::SmoothImages), drawnImage);
         QCOMPARE(cache.getImageCount(), size_t(1));
     }
 
-    // Without the feature SmoothImages the image is drawn as it is, so nothing is cached
+    // A bitonal image is downscaled even without the feature SmoothImages - the paint engine
+    // would lose its thin strokes otherwise. The image is not compared with the one drawn
+    // above, because the painter samples it without the smooth pixmap transformation then.
     cache.clear();
 
     {
         pdf::PDFScaledImageCache::DrawingPassGuard guard(&cache);
 
-        QImage target(targetSize, QImage::Format_ARGB32_Premultiplied);
-        target.fill(Qt::white);
+        verifyStrokes(drawPage(&cache, pdf::PDFRenderer::None));
+        QCOMPARE(cache.getImageCount(), size_t(1));
+    }
+}
 
-        QPainter painter(&target);
+void ImageScalingTest::testPrecompiledPageTargets()
+{
+    // Without the feature SmoothImages only the bitonal images drawn onto a raster target are
+    // downscaled. The count of the cached images tells, whether an image has been downscaled.
+    const int width = 600;
+    const int height = 60;
+    const QSize targetSize(width / 3, height / 3);
+
+    auto getDownscaledImageCount = [&](const QImage& image, QPaintDevice* paintDevice)
+    {
+        pdf::PDFPrecompiledPage page;
+        page.addSetWorldMatrix(QTransform());
+        page.addImage(image);
+        page.finalize(0, { });
+
+        pdf::PDFScaledImageCache cache;
+        pdf::PDFScaledImageCache::DrawingPassGuard guard(&cache);
+
+        QPainter painter(paintDevice);
         page.draw(&painter, QRectF(), QTransform::fromScale(targetSize.width(), targetSize.height()),
                   pdf::PDFRenderer::None, 1.0, &cache);
         painter.end();
 
-        QCOMPARE(cache.getImageCount(), size_t(0));
+        return cache.getImageCount();
+    };
+
+    const QImage bitonalImage = createBitonalImage(width, height, createStrokeSamples(width, height, 6, 0));
+
+    QImage genericImage(width, height, QImage::Format_RGB32);
+    genericImage.fill(Qt::gray);
+
+    QImage rasterTarget(targetSize, QImage::Format_ARGB32_Premultiplied);
+    rasterTarget.fill(Qt::white);
+
+    QCOMPARE(getDownscaledImageCount(bitonalImage, &rasterTarget), size_t(1));
+    QCOMPARE(getDownscaledImageCount(genericImage, &rasterTarget), size_t(0));
+
+    // The redaction replays the page into a pdf writer of 72 dpi, which stores the image into
+    // the redacted document - there the image must be kept at its full resolution
+    QBuffer buffer;
+    QVERIFY(buffer.open(QIODevice::WriteOnly));
+    QPdfWriter pdfWriter(&buffer);
+    pdfWriter.setResolution(72);
+    QCOMPARE(getDownscaledImageCount(bitonalImage, &pdfWriter), size_t(0));
+
+    QPicture picture;
+    QCOMPARE(getDownscaledImageCount(bitonalImage, &picture), size_t(0));
+}
+
+/// Returns the bounding rectangle of the pixels, which differ from the background color
+static QRect getPaintedBoundingRect(const QImage& image, QRgb backgroundColor)
+{
+    QRect boundingRect;
+
+    for (int y = 0; y < image.height(); ++y)
+    {
+        for (int x = 0; x < image.width(); ++x)
+        {
+            if (image.pixel(x, y) != backgroundColor)
+            {
+                boundingRect = boundingRect.united(QRect(x, y, 1, 1));
+            }
+        }
+    }
+
+    return boundingRect;
+}
+
+void ImageScalingTest::testHighDpiGeometry()
+{
+    // The paint devices of both of the rendering engines carry a device pixel ratio, and the
+    // painting must end up in the same real pixels in both of them. This pins down the
+    // assumption of the image downscaling - that the device transform of the painter maps
+    // to the real pixels of the target.
+    const qreal devicePixelRatio = 2.0;
+    const QSize physicalSize(200, 100);
+    const QSize logicalSize(100, 50);
+    const QRect logicalRect(10, 20, 50, 20);
+    const QRect expectedRect(20, 40, 100, 40);
+
+    const QRect logicalImageRect(60, 10, 20, 10);
+    const QRect expectedImageRect(120, 20, 40, 20);
+    const QRect logicalClipRect(10, 5, 10, 5);
+    const QRect expectedClipRect(20, 10, 20, 10);
+
+    QImage sourceImage(4, 2, QImage::Format_ARGB32_Premultiplied);
+    sourceImage.fill(Qt::black);
+
+    // The paint engine of Blend2D clears the buffer when it begins, so the background must
+    // be painted through the painter and not into the image beforehand
+    auto paint = [&](QPainter* painter)
+    {
+        painter->fillRect(QRect(QPoint(0, 0), logicalSize), Qt::white);
+        painter->fillRect(logicalRect, Qt::black);
+
+        // An image and a clipped path must land in the real pixels as well
+        painter->drawImage(logicalImageRect, sourceImage);
+
+        painter->save();
+        painter->setClipRect(logicalClipRect);
+        painter->fillRect(QRect(QPoint(0, 0), logicalSize), Qt::black);
+        painter->restore();
+    };
+
+    QImage rasterBuffer(physicalSize, QImage::Format_ARGB32_Premultiplied);
+    rasterBuffer.setDevicePixelRatio(devicePixelRatio);
+    rasterBuffer.fill(Qt::white);
+
+    {
+        QPainter painter(&rasterBuffer);
+        QCOMPARE(painter.deviceTransform().m11(), devicePixelRatio);
+        QCOMPARE(painter.deviceTransform().m22(), devicePixelRatio);
+        paint(&painter);
+    }
+
+    QCOMPARE(getPaintedBoundingRect(rasterBuffer, qRgb(255, 255, 255)), expectedRect.united(expectedImageRect).united(expectedClipRect));
+    QCOMPARE(getPaintedBoundingRect(rasterBuffer.copy(expectedImageRect), qRgb(255, 255, 255)), QRect(QPoint(0, 0), expectedImageRect.size()));
+    QCOMPARE(getPaintedBoundingRect(rasterBuffer.copy(QRect(0, 0, expectedClipRect.right() + 20, expectedClipRect.bottom() + 1)), qRgb(255, 255, 255)), expectedClipRect);
+
+    QImage blendBuffer(physicalSize, QImage::Format_ARGB32_Premultiplied);
+    blendBuffer.setDevicePixelRatio(devicePixelRatio);
+    blendBuffer.fill(Qt::white);
+
+    {
+        pdf::PDFBLPaintDevice paintDevice(blendBuffer, false);
+        QPainter painter;
+        QVERIFY(painter.begin(&paintDevice));
+
+        // The Blend2D paint device must report its device pixel ratio to the painter, so the
+        // downscaling of the images targets the real pixels there as well
+        QCOMPARE(painter.deviceTransform().m11(), devicePixelRatio);
+        QCOMPARE(painter.deviceTransform().m22(), devicePixelRatio);
+
+        paint(&painter);
+        painter.end();
+    }
+
+    QCOMPARE(getPaintedBoundingRect(blendBuffer, qRgb(255, 255, 255)), expectedRect.united(expectedImageRect).united(expectedClipRect));
+    QCOMPARE(getPaintedBoundingRect(blendBuffer.copy(expectedImageRect), qRgb(255, 255, 255)), QRect(QPoint(0, 0), expectedImageRect.size()));
+    QCOMPARE(getPaintedBoundingRect(blendBuffer.copy(QRect(0, 0, expectedClipRect.right() + 20, expectedClipRect.bottom() + 1)), qRgb(255, 255, 255)), expectedClipRect);
+}
+
+void ImageScalingTest::testHighDpiImageResolution()
+{
+    // An image must be downscaled to the real pixels of the target and not to the logical
+    // ones - otherwise a display with a device pixel ratio of two would get a half of the
+    // resolution it can show, and the paint device would enlarge the image back.
+    const int width = 1200;
+    const int height = 120;
+    const QSize logicalSize(200, 20);
+    const qreal devicePixelRatio = 2.0;
+
+    const QImage image = createBitonalImage(width, height, createStrokeSamples(width, height, 6, 0));
+
+    pdf::PDFPrecompiledPage page;
+    page.addSetWorldMatrix(QTransform());
+    page.addImage(image);
+    page.finalize(0, { });
+
+    auto drawPage = [&](qreal dpr, pdf::PDFScaledImageCache* cache)
+    {
+        QImage target(logicalSize * dpr, QImage::Format_ARGB32_Premultiplied);
+        target.setDevicePixelRatio(dpr);
+        target.fill(Qt::white);
+
+        QPainter painter(&target);
+        page.draw(&painter, QRectF(), QTransform::fromScale(logicalSize.width(), logicalSize.height()),
+                  pdf::PDFRenderer::SmoothImages, 1.0, cache);
+        painter.end();
+
+        return target;
+    };
+
+    pdf::PDFScaledImageCache cache;
+
+    {
+        pdf::PDFScaledImageCache::DrawingPassGuard guard(&cache);
+        const QImage target = drawPage(devicePixelRatio, &cache);
+
+        QCOMPARE(target.size(), QSize(400, 40));
+        QCOMPARE(cache.getImageCount(), size_t(1));
+
+        // The image has been downscaled to the real pixels (400 x 40), so a stroke of a
+        // single pixel every six pixels is still resolved - at the logical resolution
+        // (200 x 20) the shrink factor would be six instead of three and the strokes would
+        // be markedly paler
+        const qint64 physicalMemory = cache.getMemoryConsumptionEstimate();
+        QCOMPARE(physicalMemory, qint64(400) * qint64(40));
+    }
+
+    // The very same page drawn without the device pixel ratio uses the logical resolution
+    pdf::PDFScaledImageCache logicalCache;
+
+    {
+        pdf::PDFScaledImageCache::DrawingPassGuard guard(&logicalCache);
+        const QImage target = drawPage(1.0, &logicalCache);
+
+        QCOMPARE(target.size(), logicalSize);
+        QCOMPARE(logicalCache.getMemoryConsumptionEstimate(), qint64(200) * qint64(20));
     }
 }
+
 
 QTEST_MAIN(ImageScalingTest)
 

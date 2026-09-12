@@ -723,7 +723,11 @@ int PDFBLPaintDevice::metric(PaintDeviceMetric metric) const
     case QPaintDevice::PdmDevicePixelRatio:
         return m_offscreenBuffer.devicePixelRatio();
     case QPaintDevice::PdmDevicePixelRatioScaled:
-        return m_offscreenBuffer.devicePixelRatioFScale();
+        // Jakub Melka: the metric is the device pixel ratio multiplied by the scale, not
+        // the scale itself. QPainter divides it back by the scale, so reporting the scale
+        // alone would tell the painter, that the ratio is one, and the painting would then
+        // happen in the logical pixels instead of in the real ones.
+        return qRound(m_offscreenBuffer.devicePixelRatioF() * QPaintDevice::devicePixelRatioFScale());
 #if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
     case QPaintDevice::PdmDevicePixelRatioF_EncodedA:
     case QPaintDevice::PdmDevicePixelRatioF_EncodedB:
@@ -770,9 +774,10 @@ bool PDFBLPaintEngine::begin(QPaintDevice*)
     {
         blcompat::clear_all(*m_blContext);
 
-        qreal devicePixelRatio = m_qtOffscreenBuffer.devicePixelRatioF();
-        m_blContext->scale(devicePixelRatio);
-        blcompat::user_to_meta(*m_blContext);
+        // Jakub Melka: the device pixel ratio is deliberately not applied here. The paint
+        // device reports it to the painter (see PDFBLPaintDevice::metric), so the painter
+        // already delivers the transformations in the real pixels of the offscreen buffer.
+        // Applying it here as well would scale everything twice.
 
         setBLPen(m_blContext.value(), m_currentPen);
         setBLBrush(m_blContext.value(), m_currentBrush);

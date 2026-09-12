@@ -24,6 +24,7 @@
 #include "pdfdbgheap.h"
 
 #include <QtMath>
+#include <QPaintDevice>
 
 #include <array>
 #include <bit>
@@ -34,30 +35,126 @@
 namespace pdf
 {
 
-/// Span of the source pixels, which contribute to a single destination pixel of one axis.
-/// The first and the last source pixel are covered only partially (by \p firstWeight and
-/// \p lastWeight of their area), all the source pixels between them contribute fully.
-struct PDFImageScalingSpan
+/// Algorithms of the ink coverage downscaler of \p PDFImageScaling - the computation of the
+/// source spans of the destination pixels, the unpacking of the samples of a monochromatic
+/// image, the statistics of the ink and the interpolation of the colors. All of the functions
+/// are pure and reentrant.
+class PDFImageScalingHelper
 {
-    int first = 0;
-    int last = 0;
-    double firstWeight = 0.0;
-    double lastWeight = 0.0;
+public:
+    PDFImageScalingHelper() = delete;
+    PDFImageScalingHelper(const PDFImageScalingHelper&) = delete;
+    PDFImageScalingHelper& operator=(const PDFImageScalingHelper&) = delete;
+
+    /// Span of the source pixels, which contribute to a single destination pixel of one axis.
+    /// The first and the last source pixel are covered only partially (by \p firstWeight and
+    /// \p lastWeight of their area), all the source pixels between them contribute fully.
+    struct Span
+    {
+        int first = 0;
+        int last = 0;
+        double firstWeight = 0.0;
+        double lastWeight = 0.0;
+    };
+
+    /// Creates the spans of the source pixels for all the destination pixels of one axis. The
+    /// destination pixel i covers the source interval [i * source / target, (i+1) * source /
+    /// target), which is evaluated in an exact integer arithmetic, so the resulting indices
+    /// never need to be clamped. The sum of the weights of a single span is exactly the ratio
+    /// of the sizes, so the sum of the weights of both of the axes is the area of the source
+    /// box of a destination pixel.
+    /// \param sourceSize Size of the source axis
+    /// \param targetSize Size of the target axis (must not be greater than the source size)
+    static std::vector<Span> createSpans(int sourceSize, int targetSize);
+
+    /// Returns the weight of the source pixel in the span
+    /// \param span Span
+    /// \param index Index of the source pixel
+    static double getSpanWeight(const Span& span, int index);
+
+    /// Reduces a single source row of the ink indicators to the destination width. The output
+    /// is the ink area of the destination pixels in the units of the source pixels.
+    /// \param line Ink indicators of the source row (one byte per source pixel)
+    /// \param spans Spans of the destination pixels
+    /// \param output Output buffer of the size of the destination width
+    static void reduceRow(const uint8_t* line, const std::vector<Span>& spans, double* output);
+
+    /// Returns the table, which unpacks a byte of a monochromatic image of the given bit
+    /// order into the indicators of the given ink sample value
+    /// \param isMostSignificantBitFirst Is the format Format_Mono (and not Format_MonoLSB)?
+    /// \param inkSample Sample value, which is considered to be the ink
+    static const std::array<std::array<uint8_t, 8>, 256>& getBitTable(bool isMostSignificantBitFirst, int inkSample);
+
+    /// Unpacks a single row of a monochromatic image into the ink indicators (0 or 1)
+    /// \param scanLine Scan line of the source image
+    /// \param width Width of the image in pixels
+    /// \param table Unpacking table \sa getBitTable
+    /// \param output Output buffer of the size of the width
+    static void unpackMonochromeRow(const uchar* scanLine,
+                                    int width,
+                                    const std::array<std::array<uint8_t, 8>, 256>& table,
+                                    uint8_t* output);
+
+    /// Counts the samples of the value one in a monochromatic image. The padding bits at the
+    /// end of the rows are masked out, so they are not counted.
+    /// \param image Monochromatic image
+    /// \param isMostSignificantBitFirst Is the format Format_Mono (and not Format_MonoLSB)?
+    static qint64 countSetSamples(const QImage& image, bool isMostSignificantBitFirst);
+
+    /// Counts the opaque pixels of a stencil mask and returns the color of the first of them
+    /// in \p opaqueColor (which is left intact, when the mask is fully transparent).
+    /// \param image Stencil mask
+    /// \param opaqueColor Color of the opaque pixels
+    static qint64 countOpaquePixels(const QImage& image, QRgb& opaqueColor);
+
+    /// Returns true, if the color is a neutral (gray) one
+    /// \param color Color
+    static bool isNeutralColor(QRgb color);
+
+    /// Interpolates between the two channel values using the given factor from the range
+    /// <0, 1>. The result is always a valid channel value, so it needs no clamping.
+    /// \param from Channel value of the factor zero
+    /// \param to Channel value of the factor one
+    /// \param factor Interpolation factor
+    static int interpolateChannel(int from, int to, double factor);
+
+    /// Returns true, if the paint device shows the drawing in its pixels. Printers, pictures
+    /// and the devices of an unknown type (a pdf writer, an svg generator) store the drawing
+    /// into a document instead.
+    /// \param paintDevice Paint device
+    static bool isRasterPaintDevice(const QPaintDevice* paintDevice);
+
 };
 
-/// Creates the spans of the source pixels for all the destination pixels of one axis. The
-/// destination pixel i covers the source interval [i * source / target, (i+1) * source /
-/// target), which is evaluated in an exact integer arithmetic, so the resulting indices
-/// never need to be clamped. The sum of the weights of a single span is exactly the ratio
-/// of the sizes, so the sum of the weights of both of the axes is the area of the source
-/// box of a destination pixel.
-/// \param sourceSize Size of the source axis
-/// \param targetSize Size of the target axis (must not be greater than the source size)
-static std::vector<PDFImageScalingSpan> createImageScalingSpans(int sourceSize, int targetSize)
+/// Creates the table, which unpacks a single byte of a monochromatic image into eight ink
+/// indicators. The function is immediate and it is deliberately kept outside of
+/// \p PDFImageScalingHelper - it is evaluated by the compiler only, and a member function
+/// would still be emitted into the binary (and reported as an uncovered one) by some of
+/// the compilers.
+/// \param isMostSignificantBitFirst Is the format Format_Mono (and not Format_MonoLSB)?
+/// \param inkSample Sample value, which is considered to be the ink
+static consteval std::array<std::array<uint8_t, 8>, 256> createImageScalingBitTable(bool isMostSignificantBitFirst, int inkSample)
+{
+    std::array<std::array<uint8_t, 8>, 256> table = { };
+
+    for (int byteValue = 0; byteValue < 256; ++byteValue)
+    {
+        for (int bit = 0; bit < 8; ++bit)
+        {
+            const int shift = isMostSignificantBitFirst ? (7 - bit) : bit;
+            const int sample = (byteValue >> shift) & 1;
+            table[size_t(byteValue)][size_t(bit)] = (sample == inkSample) ? uint8_t(1) : uint8_t(0);
+        }
+    }
+
+    return table;
+}
+
+std::vector<PDFImageScalingHelper::Span> PDFImageScalingHelper::createSpans(int sourceSize, int targetSize)
 {
     Q_ASSERT(sourceSize > 0 && targetSize > 0 && targetSize <= sourceSize);
 
-    std::vector<PDFImageScalingSpan> spans(static_cast<size_t>(targetSize));
+    std::vector<Span> spans(static_cast<size_t>(targetSize));
 
     const qint64 source = sourceSize;
     const qint64 target = targetSize;
@@ -73,7 +170,7 @@ static std::vector<PDFImageScalingSpan> createImageScalingSpans(int sourceSize, 
 
         Q_ASSERT(first <= last && last < source);
 
-        PDFImageScalingSpan& span = spans[size_t(i)];
+        Span& span = spans[size_t(i)];
         span.first = static_cast<int>(first);
         span.last = static_cast<int>(last);
 
@@ -93,8 +190,7 @@ static std::vector<PDFImageScalingSpan> createImageScalingSpans(int sourceSize, 
     return spans;
 }
 
-/// Returns the weight of the source pixel in the span
-static double getImageScalingSpanWeight(const PDFImageScalingSpan& span, int index)
+double PDFImageScalingHelper::getSpanWeight(const Span& span, int index)
 {
     if (index == span.first)
     {
@@ -109,15 +205,13 @@ static double getImageScalingSpanWeight(const PDFImageScalingSpan& span, int ind
     return 1.0;
 }
 
-/// Reduces a single source row of the ink indicators to the destination width. The output is
-/// the ink area of the destination pixels in the units of the source pixels.
-static void reduceImageScalingRow(const uint8_t* line, const std::vector<PDFImageScalingSpan>& spans, double* output)
+void PDFImageScalingHelper::reduceRow(const uint8_t* line, const std::vector<Span>& spans, double* output)
 {
     const size_t targetWidth = spans.size();
 
     for (size_t i = 0; i < targetWidth; ++i)
     {
-        const PDFImageScalingSpan& span = spans[i];
+        const Span& span = spans[i];
 
         if (span.first == span.last)
         {
@@ -135,49 +229,26 @@ static void reduceImageScalingRow(const uint8_t* line, const std::vector<PDFImag
     }
 }
 
-/// Creates the table, which unpacks a single byte of a monochromatic image into eight ink
-/// indicators. \p isMostSignificantBitFirst distinguishes Format_Mono from Format_MonoLSB,
-/// \p inkSample is the sample value, which is considered to be the ink. The function is
-/// immediate, so the tables below are built by the compiler and no code is generated for it.
-static consteval std::array<std::array<uint8_t, 8>, 256> createImageScalingBitTable(bool isMostSignificantBitFirst, int inkSample)
+const std::array<std::array<uint8_t, 8>, 256>& PDFImageScalingHelper::getBitTable(bool isMostSignificantBitFirst, int inkSample)
 {
-    std::array<std::array<uint8_t, 8>, 256> table = { };
+    // The tables are built by the compiler, so they need no initialization at the run time
+    static constexpr std::array<std::array<uint8_t, 8>, 256> tableMsbInk0 = createImageScalingBitTable(true, 0);
+    static constexpr std::array<std::array<uint8_t, 8>, 256> tableMsbInk1 = createImageScalingBitTable(true, 1);
+    static constexpr std::array<std::array<uint8_t, 8>, 256> tableLsbInk0 = createImageScalingBitTable(false, 0);
+    static constexpr std::array<std::array<uint8_t, 8>, 256> tableLsbInk1 = createImageScalingBitTable(false, 1);
 
-    for (int byteValue = 0; byteValue < 256; ++byteValue)
-    {
-        for (int bit = 0; bit < 8; ++bit)
-        {
-            const int shift = isMostSignificantBitFirst ? (7 - bit) : bit;
-            const int sample = (byteValue >> shift) & 1;
-            table[size_t(byteValue)][size_t(bit)] = (sample == inkSample) ? uint8_t(1) : uint8_t(0);
-        }
-    }
-
-    return table;
-}
-
-static constexpr std::array<std::array<uint8_t, 8>, 256> IMAGE_SCALING_BIT_TABLE_MSB_INK_0 = createImageScalingBitTable(true, 0);
-static constexpr std::array<std::array<uint8_t, 8>, 256> IMAGE_SCALING_BIT_TABLE_MSB_INK_1 = createImageScalingBitTable(true, 1);
-static constexpr std::array<std::array<uint8_t, 8>, 256> IMAGE_SCALING_BIT_TABLE_LSB_INK_0 = createImageScalingBitTable(false, 0);
-static constexpr std::array<std::array<uint8_t, 8>, 256> IMAGE_SCALING_BIT_TABLE_LSB_INK_1 = createImageScalingBitTable(false, 1);
-
-/// Returns the table, which unpacks a byte of a monochromatic image of the given bit order
-/// into the indicators of the given ink sample value
-static const std::array<std::array<uint8_t, 8>, 256>& getImageScalingBitTable(bool isMostSignificantBitFirst, int inkSample)
-{
     if (isMostSignificantBitFirst)
     {
-        return (inkSample == 0) ? IMAGE_SCALING_BIT_TABLE_MSB_INK_0 : IMAGE_SCALING_BIT_TABLE_MSB_INK_1;
+        return (inkSample == 0) ? tableMsbInk0 : tableMsbInk1;
     }
 
-    return (inkSample == 0) ? IMAGE_SCALING_BIT_TABLE_LSB_INK_0 : IMAGE_SCALING_BIT_TABLE_LSB_INK_1;
+    return (inkSample == 0) ? tableLsbInk0 : tableLsbInk1;
 }
 
-/// Unpacks a single row of a monochromatic image into the ink indicators (0 or 1)
-static void unpackImageScalingMonochromeRow(const uchar* scanLine,
-                                            int width,
-                                            const std::array<std::array<uint8_t, 8>, 256>& table,
-                                            uint8_t* output)
+void PDFImageScalingHelper::unpackMonochromeRow(const uchar* scanLine,
+                                                int width,
+                                                const std::array<std::array<uint8_t, 8>, 256>& table,
+                                                uint8_t* output)
 {
     const int fullByteCount = width / 8;
     const int remainingBitCount = width % 8;
@@ -193,9 +264,7 @@ static void unpackImageScalingMonochromeRow(const uchar* scanLine,
     }
 }
 
-/// Counts the samples of the value one in a monochromatic image. The padding bits at the end
-/// of the rows are masked out, so they are not counted.
-static qint64 countImageScalingSetSamples(const QImage& image, bool isMostSignificantBitFirst)
+qint64 PDFImageScalingHelper::countSetSamples(const QImage& image, bool isMostSignificantBitFirst)
 {
     const int width = image.width();
     const int height = image.height();
@@ -229,9 +298,7 @@ static qint64 countImageScalingSetSamples(const QImage& image, bool isMostSignif
     return count;
 }
 
-/// Counts the opaque pixels of a stencil mask and returns the color of the first of them in
-/// \p opaqueColor (which is left intact, when the mask is fully transparent).
-static qint64 countImageScalingOpaquePixels(const QImage& image, QRgb& opaqueColor)
+qint64 PDFImageScalingHelper::countOpaquePixels(const QImage& image, QRgb& opaqueColor)
 {
     qint64 count = 0;
     bool hasOpaqueColor = false;
@@ -258,15 +325,12 @@ static qint64 countImageScalingOpaquePixels(const QImage& image, QRgb& opaqueCol
     return count;
 }
 
-/// Returns true, if the color is a neutral (gray) one
-static bool isImageScalingNeutralColor(QRgb color)
+bool PDFImageScalingHelper::isNeutralColor(QRgb color)
 {
     return qRed(color) == qGreen(color) && qGreen(color) == qBlue(color);
 }
 
-/// Interpolates between the two channel values using the given factor from the range <0, 1>.
-/// The result is always a valid channel value, so it needs no clamping.
-static int interpolateImageScalingChannel(int from, int to, double factor)
+int PDFImageScalingHelper::interpolateChannel(int from, int to, double factor)
 {
     Q_ASSERT(factor >= 0.0 && factor <= 1.0);
 
@@ -274,6 +338,29 @@ static int interpolateImageScalingChannel(int from, int to, double factor)
     Q_ASSERT(result >= 0 && result <= 255);
 
     return result;
+}
+
+bool PDFImageScalingHelper::isRasterPaintDevice(const QPaintDevice* paintDevice)
+{
+    Q_ASSERT(paintDevice);
+
+    switch (paintDevice->devType())
+    {
+        case QInternal::Widget:
+        case QInternal::Pixmap:
+        case QInternal::Image:
+        case QInternal::Pbuffer:
+        case QInternal::FramebufferObject:
+        case QInternal::CustomRaster:
+        case QInternal::PaintBuffer:
+        case QInternal::OpenGL:
+            return true;
+
+        default:
+            break;
+    }
+
+    return false;
 }
 
 PDFImageScaling::ImageType PDFImageScaling::getImageType(const QImage& image)
@@ -356,16 +443,21 @@ PDFImageScaling::ImageType PDFImageScaling::getImageType(const QImage& image)
     return ImageType::Generic;
 }
 
-QSize PDFImageScaling::getDownscaledSize(QSize imageSize, const QTransform& worldTransform)
+bool PDFImageScaling::isDownscalingEnabled(const QPaintDevice* paintDevice, ImageType imageType, bool isSmoothImagesEnabled)
 {
-    if (imageSize.isEmpty() || !worldTransform.isAffine())
+    return isSmoothImagesEnabled || (isBitonal(imageType) && PDFImageScalingHelper::isRasterPaintDevice(paintDevice));
+}
+
+QSize PDFImageScaling::getDownscaledSize(QSize imageSize, const QTransform& deviceTransform)
+{
+    if (imageSize.isEmpty() || !deviceTransform.isAffine())
     {
         return QSize();
     }
 
-    // Vectors, to which the unit vectors of the image are mapped by the world transform
-    const qreal mappedWidth = std::hypot(worldTransform.m11(), worldTransform.m12());
-    const qreal mappedHeight = std::hypot(worldTransform.m21(), worldTransform.m22());
+    // Vectors, to which the unit vectors of the image are mapped by the device transform
+    const qreal mappedWidth = std::hypot(deviceTransform.m11(), deviceTransform.m12());
+    const qreal mappedHeight = std::hypot(deviceTransform.m21(), deviceTransform.m22());
 
     if (!(mappedWidth > 0.0) || !(mappedHeight > 0.0))
     {
@@ -376,7 +468,7 @@ QSize PDFImageScaling::getDownscaledSize(QSize imageSize, const QTransform& worl
     // the mapped vectors are orthogonal. Test it by their dot product, relatively to their
     // lengths - a matrix, which is a product of several matrices, is never exactly
     // orthogonal. Mirrored transformations are accepted, only skewed ones are rejected.
-    const qreal dotProduct = worldTransform.m11() * worldTransform.m21() + worldTransform.m12() * worldTransform.m22();
+    const qreal dotProduct = deviceTransform.m11() * deviceTransform.m21() + deviceTransform.m12() * deviceTransform.m22();
     if (std::abs(dotProduct) > ORTHOGONALITY_TOLERANCE * mappedWidth * mappedHeight)
     {
         return QSize();
@@ -466,7 +558,7 @@ QImage PDFImageScaling::scaleDownBitonal(const QImage& image,
             return QImage();
         }
 
-        const qint64 setSampleCount = countImageScalingSetSamples(image, isMostSignificantBitFirst);
+        const qint64 setSampleCount = PDFImageScalingHelper::countSetSamples(image, isMostSignificantBitFirst);
         const qint64 totalSampleCount = qint64(sourceWidth) * qint64(sourceHeight);
 
         // Jakub Melka: the ink is the minority sample value, not the darker color of the
@@ -486,7 +578,7 @@ QImage PDFImageScaling::scaleDownBitonal(const QImage& image,
     else
     {
         // The ink of a stencil mask is always its opaque part
-        inkSampleCount = countImageScalingOpaquePixels(image, inkColor);
+        inkSampleCount = PDFImageScalingHelper::countOpaquePixels(image, inkColor);
     }
 
     const double scaleX = double(sourceWidth) / double(targetWidth);
@@ -504,7 +596,9 @@ QImage PDFImageScaling::scaleDownBitonal(const QImage& image,
         gamma = 1.0 - (1.0 - inkGamma) * qBound(0.0, shrinkFactor - 1.0, 1.0);
     }
 
-    const bool isGrayscaleOutput = isMonochrome && isImageScalingNeutralColor(inkColor) && isImageScalingNeutralColor(paperColor);
+    const bool isGrayscaleOutput = isMonochrome &&
+                                   PDFImageScalingHelper::isNeutralColor(inkColor) &&
+                                   PDFImageScalingHelper::isNeutralColor(paperColor);
     const QImage::Format outputFormat = isMonochrome ? (isGrayscaleOutput ? QImage::Format_Grayscale8 : QImage::Format_RGB32)
                                                      : QImage::Format_ARGB32_Premultiplied;
 
@@ -527,33 +621,33 @@ QImage PDFImageScaling::scaleDownBitonal(const QImage& image,
 
         if (isGrayscaleOutput)
         {
-            grayscaleLookupTable[size_t(i)] = static_cast<uint8_t>(interpolateImageScalingChannel(qRed(paperColor), qRed(inkColor), transferredCoverage));
+            grayscaleLookupTable[size_t(i)] = static_cast<uint8_t>(PDFImageScalingHelper::interpolateChannel(qRed(paperColor), qRed(inkColor), transferredCoverage));
         }
         else if (isMonochrome)
         {
-            colorLookupTable[size_t(i)] = qRgb(interpolateImageScalingChannel(qRed(paperColor), qRed(inkColor), transferredCoverage),
-                                               interpolateImageScalingChannel(qGreen(paperColor), qGreen(inkColor), transferredCoverage),
-                                               interpolateImageScalingChannel(qBlue(paperColor), qBlue(inkColor), transferredCoverage));
+            colorLookupTable[size_t(i)] = qRgb(PDFImageScalingHelper::interpolateChannel(qRed(paperColor), qRed(inkColor), transferredCoverage),
+                                               PDFImageScalingHelper::interpolateChannel(qGreen(paperColor), qGreen(inkColor), transferredCoverage),
+                                               PDFImageScalingHelper::interpolateChannel(qBlue(paperColor), qBlue(inkColor), transferredCoverage));
         }
         else
         {
             // The output of a stencil mask is premultiplied, so all of the channels are
             // multiplied by the coverage
-            colorLookupTable[size_t(i)] = qRgba(interpolateImageScalingChannel(0, qRed(inkColor), transferredCoverage),
-                                                interpolateImageScalingChannel(0, qGreen(inkColor), transferredCoverage),
-                                                interpolateImageScalingChannel(0, qBlue(inkColor), transferredCoverage),
-                                                interpolateImageScalingChannel(0, 255, transferredCoverage));
+            colorLookupTable[size_t(i)] = qRgba(PDFImageScalingHelper::interpolateChannel(0, qRed(inkColor), transferredCoverage),
+                                                PDFImageScalingHelper::interpolateChannel(0, qGreen(inkColor), transferredCoverage),
+                                                PDFImageScalingHelper::interpolateChannel(0, qBlue(inkColor), transferredCoverage),
+                                                PDFImageScalingHelper::interpolateChannel(0, 255, transferredCoverage));
         }
     }
 
-    const std::vector<PDFImageScalingSpan> columnSpans = createImageScalingSpans(sourceWidth, targetWidth);
-    const std::vector<PDFImageScalingSpan> rowSpans = createImageScalingSpans(sourceHeight, targetHeight);
+    const std::vector<PDFImageScalingHelper::Span> columnSpans = PDFImageScalingHelper::createSpans(sourceWidth, targetWidth);
+    const std::vector<PDFImageScalingHelper::Span> rowSpans = PDFImageScalingHelper::createSpans(sourceHeight, targetHeight);
 
     std::vector<uint8_t> sourceLine(size_t(sourceWidth), uint8_t(0));
     std::vector<double> reducedRow(size_t(targetWidth), 0.0);
     std::vector<double> accumulator(size_t(targetWidth), 0.0);
 
-    const std::array<std::array<uint8_t, 8>, 256>& bitTable = getImageScalingBitTable(isMostSignificantBitFirst, inkSample);
+    const std::array<std::array<uint8_t, 8>, 256>& bitTable = PDFImageScalingHelper::getBitTable(isMostSignificantBitFirst, inkSample);
 
     // The last source row, which has been unpacked and reduced. A source row at the boundary
     // belongs to two destination rows and would be reduced twice otherwise.
@@ -563,14 +657,14 @@ QImage PDFImageScaling::scaleDownBitonal(const QImage& image,
     {
         std::fill(accumulator.begin(), accumulator.end(), 0.0);
 
-        const PDFImageScalingSpan& rowSpan = rowSpans[size_t(targetRow)];
+        const PDFImageScalingHelper::Span& rowSpan = rowSpans[size_t(targetRow)];
         for (int sourceRow = rowSpan.first; sourceRow <= rowSpan.last; ++sourceRow)
         {
             if (sourceRow != cachedSourceRow)
             {
                 if (isMonochrome)
                 {
-                    unpackImageScalingMonochromeRow(image.constScanLine(sourceRow), sourceWidth, bitTable, sourceLine.data());
+                    PDFImageScalingHelper::unpackMonochromeRow(image.constScanLine(sourceRow), sourceWidth, bitTable, sourceLine.data());
                 }
                 else
                 {
@@ -581,11 +675,11 @@ QImage PDFImageScaling::scaleDownBitonal(const QImage& image,
                     }
                 }
 
-                reduceImageScalingRow(sourceLine.data(), columnSpans, reducedRow.data());
+                PDFImageScalingHelper::reduceRow(sourceLine.data(), columnSpans, reducedRow.data());
                 cachedSourceRow = sourceRow;
             }
 
-            const double rowWeight = getImageScalingSpanWeight(rowSpan, sourceRow);
+            const double rowWeight = PDFImageScalingHelper::getSpanWeight(rowSpan, sourceRow);
             for (int targetColumn = 0; targetColumn < targetWidth; ++targetColumn)
             {
                 accumulator[size_t(targetColumn)] += rowWeight * reducedRow[size_t(targetColumn)];

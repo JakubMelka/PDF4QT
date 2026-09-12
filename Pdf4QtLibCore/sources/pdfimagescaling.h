@@ -80,13 +80,31 @@ public:
     /// \param imageType Image type
     static bool isBitonal(ImageType imageType) { return imageType != ImageType::Generic; }
 
-    /// Returns the size, to which an image of the given size should be downscaled before
-    /// it is drawn using the given world transform, or an invalid size, when the image
-    /// should be drawn as it is (it is being enlarged, or the transform is skewed,
-    /// degenerate or not affine).
+    /// Returns true, if an image should be downscaled to the resolution of the paint device
+    /// before it is drawn onto it. Bitonal images are downscaled always, when they are drawn
+    /// onto a raster paint device - the paint engines cannot shrink them without losing their
+    /// thin strokes, so for them it is a matter of the correctness and not of the quality.
+    /// Other images are downscaled only, when the smooth images are requested. A bitonal
+    /// image is not downscaled for a paint device, which is not a raster one (a pdf writer,
+    /// a printer, a picture) - such a device stores the image into a document, and its
+    /// resolution (72 dpi of a pdf writer) is not the resolution of the final output.
+    /// \param paintDevice Paint device, onto which the image is drawn
+    /// \param imageType Type of the image \sa getImageType
+    /// \param isSmoothImagesEnabled Are the smooth images requested? \sa PDFRenderer::SmoothImages
+    static bool isDownscalingEnabled(const QPaintDevice* paintDevice, ImageType imageType, bool isSmoothImagesEnabled);
+
+    /// Returns the size, to which an image of the given size should be downscaled before it
+    /// is drawn using the given transform, or an invalid size, when the image should be
+    /// drawn as it is (it is being enlarged, or the transform is skewed, degenerate or not
+    /// affine). The transform must be the device transform of the painter and not its world
+    /// transform - the world transform is in the logical pixels, so on a display with a
+    /// device pixel ratio above one it would downscale the image to a half (or a third, ...)
+    /// of the resolution, which the paint device really has, and the paint device would then
+    /// have to enlarge it back. \sa QPainter::deviceTransform
     /// \param imageSize Size of the source image
-    /// \param worldTransform World transform, which maps the unit square of the image
-    static QSize getDownscaledSize(QSize imageSize, const QTransform& worldTransform);
+    /// \param deviceTransform Transform, which maps the unit square of the image to the
+    ///        real pixels of the paint device
+    static QSize getDownscaledSize(QSize imageSize, const QTransform& deviceTransform);
 
     /// Downscales the image to the target size. Bitonal images are downscaled by the ink
     /// coverage downscaler \p scaleDownBitonal, all other images by the box filter of Qt.
