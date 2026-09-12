@@ -501,6 +501,7 @@ void PDFDrawWidgetProxy::setDocument(const PDFModifiedDocument& document, std::v
     if (getDocument() != document)
     {
         m_cacheClearTimer->stop();
+        m_scaledImageCache.clear();
         m_compiler->stop(document.hasReset() || document.hasPageContentsChanged());
         m_textLayoutCompiler->stop(document.hasReset() || document.hasPageContentsChanged());
         m_controller->setDocument(document);
@@ -788,6 +789,13 @@ QTransform PDFDrawWidgetProxy::createPagePointToDevicePointMatrix(const PDFPage*
 
 void PDFDrawWidgetProxy::draw(QPainter* painter, QRect rect)
 {
+    // Jakub Melka: the whole repaint is a single drawing pass of the cache of the
+    // downscaled images. The pass must wrap this function and not drawPages - the
+    // magnifier tool draws the pages a second time, at a different zoom, from
+    // drawPostRendering below, and the images downscaled for both of the zooms
+    // must survive the same frame.
+    PDFScaledImageCache::DrawingPassGuard scaledImageCacheGuard(&m_scaledImageCache);
+
     drawPages(painter, rect, m_features);
 
     // Jakub Melka: we must iterate over a copy of the draw interfaces. A draw
@@ -868,7 +876,7 @@ void PDFDrawWidgetProxy::drawPages(QPainter* painter, QRect rect, PDFRenderer::F
 
                 if (!isPageContentDrawSuppressed)
                 {
-                    compiledPage->draw(painter, page->getCropBox(), matrix, features, groupInfo.transparency);
+                    compiledPage->draw(painter, page->getCropBox(), matrix, features, groupInfo.transparency, &m_scaledImageCache);
                 }
 
                 // Draw text blocks/text lines, if it is enabled

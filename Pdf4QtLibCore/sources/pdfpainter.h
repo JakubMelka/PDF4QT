@@ -30,6 +30,7 @@
 #include "pdftextlayout.h"
 #include "pdfcolorconvertor.h"
 #include "pdfsnapper.h"
+#include "pdfimagescaling.h"
 
 #include <QPen>
 #include <QBrush>
@@ -208,11 +209,17 @@ public:
     /// \param pagePointToDevicePointMatrix Page point to device point transformation matrix
     /// \param features Renderer features
     /// \param opacity Opacity of page graphics
+    /// \param scaledImageCache Cache of the downscaled images (it can be nullptr). The
+    ///        cache is owned by the caller and it is shared between the successive
+    ///        drawings, so an image drawn at the same size again is scaled only once.
+    ///        The cache is not thread safe - pass nullptr, when the page is drawn
+    ///        from a worker thread.
     void draw(QPainter* painter,
               const QRectF& cropBox,
               const QTransform& pagePointToDevicePointMatrix,
               PDFRenderer::Features features,
-              PDFReal opacity) const;
+              PDFReal opacity,
+              PDFScaledImageCache* scaledImageCache = nullptr) const;
 
     /// Redact path - remove all content intersecting given path,
     /// and fill redact path with given color.
@@ -342,13 +349,19 @@ private:
     struct ImageData
     {
         inline ImageData() = default;
-        inline ImageData(QImage image) :
-            image(qMove(image))
+        inline ImageData(QImage image, PDFImageScaling::ImageType imageType) :
+            image(qMove(image)),
+            imageType(imageType)
         {
 
         }
 
         QImage image;
+
+        /// Type of the image, which selects the downscaler used, when the image is drawn
+        /// at a smaller size than its own. It is determined once, when the image is added
+        /// to the page, because determining it is expensive. \sa PDFImageScaling
+        PDFImageScaling::ImageType imageType = PDFImageScaling::ImageType::Generic;
     };
 
     struct MeshPaintData

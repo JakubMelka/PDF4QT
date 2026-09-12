@@ -157,6 +157,8 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfdocumentsanitizer.cpp
     sources/pdfimageconversion.h
     sources/pdfimageconversion.cpp
+    sources/pdfimagescaling.h
+    sources/pdfimagescaling.cpp
     sources/pdfbitonaldocumentcreator.h
     sources/pdfbitonaldocumentcreator.cpp
     sources/pdfcolorconvertor.h

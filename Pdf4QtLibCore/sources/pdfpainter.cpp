@@ -350,28 +350,17 @@ void PDFPainter::performImagePainting(const QImage& image)
 
     if (hasFeature(PDFRenderer::SmoothImages))
     {
-        // Test, if we can use smooth images. We can use them under following conditions:
-        //  1) Transformed rectangle is not skewed or deformed (so vectors (0, 1) and (1, 0) are orthogonal)
-        //  2) We are shrinking the image
-
-        QTransform transform = m_painter->worldTransform();
-        QLineF mappedWidthVector = transform.map(QLineF(0, 0, 1, 0));
-        QLineF mappedHeightVector = transform.map(QLineF(0, 0, 0, 1));
-        qreal angle = mappedWidthVector.angleTo(mappedHeightVector);
-        if (qFuzzyCompare(angle, 90.0))
+        // Jakub Melka: if the image is being shrunk, then we must downscale it explicitly.
+        // The raster paint engines resample from a 2x2 neighbourhood only, so most of the
+        // source pixels would never be sampled at all. Bitonal images are downscaled by
+        // the ink coverage downscaler, so thin strokes of a scan do not wash out.
+        const QSize downscaledSize = PDFImageScaling::getDownscaledSize(adjustedImage.size(), m_painter->worldTransform());
+        if (!downscaledSize.isEmpty())
         {
-            // Image is not skewed, so we test enlargement factor
-            const int newWidth = mappedWidthVector.length();
-            const int newHeight = mappedHeightVector.length();
-
-            const int newPixels = newWidth * newHeight;
-            const int oldPixels = image.width() * image.height();
-
-            if (newPixels < oldPixels)
+            QImage downscaledImage = PDFImageScaling::scaleDown(adjustedImage, downscaledSize, PDFImageScaling::getImageType(adjustedImage));
+            if (!downscaledImage.isNull())
             {
-                QSize size = adjustedImage.size();
-                QSize adjustedImageSize = size.scaled(newWidth, newHeight, Qt::KeepAspectRatio);
-                adjustedImage = adjustedImage.scaled(adjustedImageSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                adjustedImage = qMove(downscaledImage);
             }
         }
     }
@@ -551,7 +540,8 @@ void PDFPrecompiledPage::draw(QPainter* painter,
                               const QRectF& cropBox,
                               const QTransform& pagePointToDevicePointMatrix,
                               PDFRenderer::Features features,
-                              PDFReal opacity) const
+                              PDFReal opacity,
+                              PDFScaledImageCache* scaledImageCache) const
 {
     Q_ASSERT(painter);
     Q_ASSERT(pagePointToDevicePointMatrix.isInvertible());
@@ -593,20 +583,44 @@ void PDFPrecompiledPage::draw(QPainter* painter,
             case InstructionType::DrawImage:
             {
                 const ImageData& data = m_images[instruction.dataIndex];
-                const QImage& image = data.image;
 
                 painter->save();
 
-                QTransform imageTransform(1.0 / image.width(), 0, 0, 1.0 / image.height(), 0, 0);
+                // Jakub Melka: a precompiled page is independent on the zoom, so the images
+                // are stored in it at their full resolution. The raster paint engines resample
+                // from a 2x2 neighbourhood only, so we must downscale the image to the target
+                // resolution ourselves - otherwise most of the source pixels would never be
+                // sampled at all and thin strokes of a bitonal scan would wash out. The
+                // downscaled images are memoized in the cache of the caller, because they
+                // depend on the zoom and so they cannot become a part of this page.
+                QImage downscaledImage;
+                const QImage* image = &data.image;
+
+                if (features.testFlag(PDFRenderer::SmoothImages))
+                {
+                    const QSize downscaledSize = PDFImageScaling::getDownscaledSize(image->size(), painter->worldTransform());
+                    if (!downscaledSize.isEmpty())
+                    {
+                        downscaledImage = scaledImageCache ? scaledImageCache->getScaledImage(*image, downscaledSize, data.imageType)
+                                                           : PDFImageScaling::scaleDown(*image, downscaledSize, data.imageType);
+
+                        if (!downscaledImage.isNull())
+                        {
+                            image = &downscaledImage;
+                        }
+                    }
+                }
+
+                QTransform imageTransform(1.0 / image->width(), 0, 0, 1.0 / image->height(), 0, 0);
                 QTransform worldTransform = imageTransform * painter->worldTransform();
 
                 // Jakub Melka: Because Qt uses opposite axis direction than PDF, then we must transform the y-axis
                 // to the opposite (so the image is then unchanged)
-                worldTransform.translate(0, image.height());
+                worldTransform.translate(0, image->height());
                 worldTransform.scale(1, -1);
 
                 painter->setWorldTransform(worldTransform);
-                painter->drawImage(0, 0, image);
+                painter->drawImage(0, 0, *image);
                 painter->restore();
                 break;
             }
@@ -769,8 +783,13 @@ void PDFPrecompiledPage::addClip(QPainterPath path)
 
 void PDFPrecompiledPage::addImage(QImage image)
 {
+    // Jakub Melka: determine the type of the image here, when the page is being compiled
+    // on a worker thread, and not when the page is drawn - determining it can require
+    // a scan of all the pixels of the image.
+    const PDFImageScaling::ImageType imageType = PDFImageScaling::getImageType(image);
+
     m_instructions.emplace_back(InstructionType::DrawImage, m_images.size());
-    m_images.emplace_back(qMove(image));
+    m_images.emplace_back(qMove(image), imageType);
 }
 
 void PDFPrecompiledPage::addMesh(PDFMesh mesh, PDFReal alpha)
@@ -829,6 +848,13 @@ void PDFPrecompiledPage::convertColors(const PDFColorConvertor& colorConvertor)
     for (ImageData& imageData : m_images)
     {
         imageData.image = colorConvertor.convert(imageData.image);
+
+        // Jakub Melka: the conversion can both destroy the bitonal representation of the
+        // image (the grayscale mode returns a 32 bit image) and create it (the bitonal
+        // mode thresholds a gray scan into a monochromatic image), so the type of the
+        // image must be determined again. It is still done just once, here, and not
+        // each time the image is drawn.
+        imageData.imageType = PDFImageScaling::getImageType(imageData.image);
     }
 
     for (MeshPaintData& meshPaintData : m_meshes)

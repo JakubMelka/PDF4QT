@@ -31,6 +31,7 @@
 #include "pdffont.h"
 #include "pdfdocumentdrawinterface.h"
 #include "pdfwidgetsnapshot.h"
+#include "pdfimagescaling.h"
 
 #include <QRectF>
 #include <QObject>
@@ -564,6 +565,11 @@ private:
 
     /// Page image rasterizer for thumbnails
     PDFRasterizer* m_rasterizer;
+
+    /// Cache of the images downscaled for the current zoom. Precompiled pages are
+    /// independent on the zoom, so the downscaled images cannot be stored in them;
+    /// this cache is not counted into the memory limit of their cache either.
+    PDFScaledImageCache m_scaledImageCache;
 
     /// Progress
     PDFProgress* m_progress;
