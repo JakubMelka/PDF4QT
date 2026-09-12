@@ -22,6 +22,7 @@
 
 #include "pdfblpainter.h"
 #include "pdffont.h"
+#include "pdfpathboolean.h"
 
 #include <QThread>
 #include <QRawFont>
@@ -1117,7 +1118,7 @@ void PDFBLPaintEngine::drawPathImpl(const QPainterPath& path, bool enableStroke,
 
             if ((isFillActive() && enableFill) || forceFill)
             {
-                QPainterPath fillPath = transformedPath.intersected(m_finalClipPath.value());
+                QPainterPath fillPath = PDFPathBoolean::intersect(transformedPath, m_finalClipPath.value());
 
                 if (!fillPath.isEmpty())
                 {
@@ -1133,7 +1134,7 @@ void PDFBLPaintEngine::drawPathImpl(const QPainterPath& path, bool enableStroke,
                 QPainterPathStroker stroker(m_currentPen);
                 QPainterPath strokedPath = stroker.createStroke(path);
                 QPainterPath transformedStrokedPath = m_currentTransform.map(strokedPath);
-                QPainterPath finalTransformedStrokedPath = transformedStrokedPath.intersected(m_finalClipPath.value());
+                QPainterPath finalTransformedStrokedPath = PDFPathBoolean::intersect(transformedStrokedPath, m_finalClipPath.value());
 
                 if (!finalTransformedStrokedPath.isEmpty())
                 {

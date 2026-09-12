@@ -14,6 +14,7 @@ CURRENT:
  - Issue #397: No Audio Output When Using Text-to-Speech
  - Issue #395: [idea] white crosshair easier to see in dark mode
  - Issue #393: Text in some PDFs is displayed incorrectly
+ - Issue #328: PDF viewer display error visible only at some zoom levels
  - Issue #332: Some suggestions and problem requests for PDF editors
  - Issue #299: PDF element display error
  - Issue #258: feat: Insert page number

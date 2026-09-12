@@ -89,6 +89,8 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfpagetransition.h
     sources/pdfpainterutils.cpp
     sources/pdfpainterutils.h
+    sources/pdfpathboolean.cpp
+    sources/pdfpathboolean.h
     sources/pdfparser.cpp
     sources/pdfparser.h
     sources/pdfdocument.cpp
@@ -209,6 +211,7 @@ target_include_directories(Pdf4QtLibCore INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/s
 target_include_directories(Pdf4QtLibCore PUBLIC ${CMAKE_BINARY_DIR}/${INSTALL_INCLUDEDIR})
 
 target_link_libraries(Pdf4QtLibCore PRIVATE blend2d::blend2d)
+target_link_libraries(Pdf4QtLibCore PRIVATE Clipper2::Clipper2)
 
 set_target_properties(Pdf4QtLibCore PROPERTIES
                       VERSION ${PDF4QT_VERSION}

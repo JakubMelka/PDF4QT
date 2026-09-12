@@ -24,6 +24,7 @@
 #include "pdfpainter.h"
 #include "pdfdocumentbuilder.h"
 #include "pdfoptimizer.h"
+#include "pdfpathboolean.h"
 #include "pdfdbgheap.h"
 
 namespace pdf
@@ -103,7 +104,7 @@ PDFDocument PDFRedact::perform(Options options)
             const PDFRedactAnnotation* redactAnnotation = dynamic_cast<const PDFRedactAnnotation*>(annotation.get());
             Q_ASSERT(redactAnnotation);
 
-            redactPath = redactPath.united(redactAnnotation->getRedactionRegion().getPath());
+            redactPath = PDFPathBoolean::unite(redactPath, redactAnnotation->getRedactionRegion().getPath());
         }
 
         QTransform matrix;

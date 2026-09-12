@@ -24,6 +24,7 @@
 #include "pdfpattern.h"
 #include "pdfcms.h"
 #include "pdfpainterutils.h"
+#include "pdfpathboolean.h"
 
 #include <QPainter>
 #include <QCryptographicHash>
@@ -688,7 +689,7 @@ void PDFPrecompiledPage::redact(QPainterPath redactPath, const QTransform& matri
                 QTransform currentMatrix = worldMatrixStack.top().inverted();
                 QPainterPath mappedRedactPath = currentMatrix.map(redactPath);
                 PathPaintData& path = m_paths[instruction.dataIndex];
-                path.path = path.path.subtracted(mappedRedactPath);
+                path.path = PDFPathBoolean::subtract(path.path, mappedRedactPath);
                 break;
             }
 
@@ -720,7 +721,7 @@ void PDFPrecompiledPage::redact(QPainterPath redactPath, const QTransform& matri
             {
                 QTransform currentMatrix = worldMatrixStack.top().inverted();
                 QPainterPath mappedRedactPath = currentMatrix.map(redactPath);
-                m_clips[instruction.dataIndex].clipPath = m_clips[instruction.dataIndex].clipPath.subtracted(mappedRedactPath);
+                m_clips[instruction.dataIndex].clipPath = PDFPathBoolean::subtract(m_clips[instruction.dataIndex].clipPath, mappedRedactPath);
                 break;
             }
 

@@ -193,6 +193,20 @@ set_target_properties(UnitTestsMeasure PROPERTIES
 )
 add_test(UnitTestsMeasure  "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsMeasure")
 
+add_executable(UnitTestsPathBoolean
+	tst_pathbooleantest.cpp
+)
+
+target_link_libraries(UnitTestsPathBoolean PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+
+set_target_properties(UnitTestsPathBoolean PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_LIB_DIR}
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsPathBoolean  "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsPathBoolean")
+
 add_executable(UnitTestsDimensions
 	tst_dimensionstest.cpp
 	../Pdf4QtEditorPlugins/DimensionsPlugin/dimensionsettings.cpp
