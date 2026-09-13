@@ -104,6 +104,9 @@ void LexicalAnalyzerTest::test_numbers()
     testTokens("1 +2 -3 +40 -55", { Token(Type::Integer, 1), Token(Type::Integer, 2), Token(Type::Integer, -3), Token(Type::Integer, 40), Token(Type::Integer, -55) });
     testTokens(".0 0.1 3.5 -4. +5.0 -6.58 7.478", { Token(Type::Real, 0.0),  Token(Type::Real, 0.1),  Token(Type::Real, 3.5),  Token(Type::Real, -4.0),  Token(Type::Real, 5.0),  Token(Type::Real, -6.58),  Token(Type::Real, 7.478) });
     testTokens("1000000000000000000000000000", { Token(Type::Real, 1e27) });
+
+    // Minus sign in the middle of the number is ignored (issue #223)
+    testTokens("0.00-90 12-34 -5-6 --7 8- -.5-5", { Token(Type::Real, 0.009), Token(Type::Integer, 1234), Token(Type::Integer, -56), Token(Type::Integer, -7), Token(Type::Integer, 8), Token(Type::Real, -0.55) });
 }
 
 void LexicalAnalyzerTest::test_strings()
@@ -227,7 +230,11 @@ void LexicalAnalyzerTest::test_invalid_input()
     bigNumber.back() = 0;
 
     QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("(\\)"));
-    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("123 456 +4-5"));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("123 456 +4+5"));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("123 456 +-5"));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("123 456 -+5"));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("123 456 4.5.6"));
+    QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("123 456 -"));
     QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("123 456 +"));
     QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream("123 456 + 45"));
     QVERIFY_THROWS_EXCEPTION(pdf::PDFException, scanWholeStream(bigNumber.constData()));
@@ -1154,7 +1161,7 @@ void LexicalAnalyzerTest::testTokens(const char* stream, const std::vector<pdf::
     for (size_t i = 0; i < scanned.size(); ++i)
     {
         const pdf::PDFLexicalAnalyzer::Token& scannedItem = scanned[i];
-        const pdf::PDFLexicalAnalyzer::Token& tokenItem = scanned[i];
+        const pdf::PDFLexicalAnalyzer::Token& tokenItem = tokens[i];
 
         if (scannedItem == tokenItem)
         {

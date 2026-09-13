@@ -135,6 +135,12 @@ PDFLexicalAnalyzer::Token PDFLexicalAnalyzer::fetch()
                         }
                     }
                 }
+                else if (lookChar() == '-')
+                {
+                    // Minus sign in the middle of the number is ignored, as other PDF readers
+                    // do. Some producers write malformed numbers like "0.00-90" (issue #223).
+                    ++m_current;
+                }
                 else if (isWhitespace(lookChar()) || isDelimiter(lookChar()))
                 {
                     // Whitespace appeared - whitespaces/delimiters delimits tokens - break

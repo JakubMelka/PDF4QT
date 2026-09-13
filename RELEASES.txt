@@ -22,6 +22,7 @@ CURRENT:
  - Issue #258: feat: Insert page number
  - Issue #238: Pdf Editor: "Edit page content" makes image disappear
  - Issue #231: PDF4Qt Diff does not open files on Linux
+ - Issue #223: Page corrupted
  - Issue #211: Text is inverted on edit
  - Issue #203: Editor seems to forget location of text after editing it
  - Issue #169: Option to render text as text when using Qpainter backend

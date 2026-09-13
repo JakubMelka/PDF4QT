@@ -749,14 +749,34 @@ void PDFPageContentProcessor::processContent(const QByteArray& content)
         }
         catch (const PDFException& exception)
         {
-            // If we get exception when parsing, and parser position is not advanced,
-            // then we must advance it manually, otherwise we get infinite loop.
-            if (!tokenFetched && oldParserPosition == parser.pos() && !parser.isAtEnd())
+            if (!tokenFetched)
             {
-                parser.seek(parser.pos() + 1);
+                // The token can't be read. Operands read before this token are kept and the
+                // token is replaced by an operand, which can't be read by any operator (command
+                // is never an operand). An operator, which reads it, reports an error and is not
+                // executed, other operators (for example 'Q') are executed as usual. The rest
+                // of the invalid token is skipped, so it is not read as another operand.
+                PDFInteger position = parser.pos();
+                while (position < content.size() && PDFLexicalAnalyzer::isRegular(content[position]))
+                {
+                    ++position;
+                }
+
+                // If parser position is not advanced, then we must advance
+                // it manually, otherwise we get infinite loop.
+                if (position == oldParserPosition && position < content.size())
+                {
+                    ++position;
+                }
+
+                parser.seek(position);
+                m_operands.push_back(PDFLexicalAnalyzer::Token(PDFLexicalAnalyzer::TokenType::Command, QByteArray()));
+            }
+            else
+            {
+                m_operands.clear();
             }
 
-            m_operands.clear();
             m_errorList.append(PDFRenderError(RenderErrorType::Error, exception.getMessage()));
         }
         catch (const PDFRendererException &exception)

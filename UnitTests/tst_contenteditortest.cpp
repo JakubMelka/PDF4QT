@@ -116,6 +116,9 @@ private slots:
     void test_inserted_image_keeps_the_alpha_channel();
     void test_text_positions_are_preserved();
     void test_text_matrix_is_discarded_at_text_end();
+    void test_minus_sign_in_the_middle_of_number_is_ignored();
+    void test_invalid_token_keeps_previous_operands();
+    void test_invalid_token_invalidates_operator();
 
 private:
     enum class Variant
@@ -162,6 +165,13 @@ private:
 
     /// Processes the page content of the first page and returns the edited page content
     static pdf::PDFEditedPageContent processPageContent(const pdf::PDFDocument* document);
+
+    /// Processes the page content of the first page, stores the edited page
+    /// content into \p content and returns the errors of the processing
+    static QList<pdf::PDFRenderError> processPageContent(const pdf::PDFDocument* document, pdf::PDFEditedPageContent* content);
+
+    /// Returns the color of the page point in the image rendered by renderPage
+    static QColor getPageColor(const QImage& image, QPointF point);
 
     /// Rewrites the content of the first page - the same way as the editor
     /// plugin does it, when the edited page content is written back
@@ -1324,6 +1334,113 @@ void ContentEditorTest::test_text_matrix_is_discarded_at_text_end()
     }
 
     QCOMPARE(processor.textMatrixUpdatesOutsideTextObject, 0);
+}
+
+QColor ContentEditorTest::getPageColor(const QImage& image, QPointF point)
+{
+    // The page 200 x 200 is rendered into the image 400 x 400 and
+    // the vertical axis of the page coordinate space points up.
+    return QColor(image.pixel(int(2.0 * point.x()), int(image.height() - 2.0 * point.y())));
+}
+
+QList<pdf::PDFRenderError> ContentEditorTest::processPageContent(const pdf::PDFDocument* document, pdf::PDFEditedPageContent* content)
+{
+    const pdf::PDFPage* page = document->getCatalog()->getPage(0);
+
+    pdf::PDFCMSGeneric cms;
+    pdf::PDFFontCache fontCache(32, 32);
+    pdf::PDFOptionalContentActivity activity(document, pdf::OCUsage::View, nullptr);
+    fontCache.setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(document), &activity));
+
+    pdf::PDFPageContentEditorProcessor processor(page, document, &fontCache, &cms, &activity,
+                                                 QTransform(), pdf::PDFMeshQualitySettings());
+    QList<pdf::PDFRenderError> errors = processor.processContents();
+    *content = processor.takeEditedPageContent();
+    return errors;
+}
+
+void ContentEditorTest::test_minus_sign_in_the_middle_of_number_is_ignored()
+{
+    // Issue #223 - the malformed number "0.00-90" (minus sign in the middle of
+    // the number) must be read as the number 0.0090, as other PDF readers do.
+    // If the number is rejected, the clipping path loses two of its points and
+    // becomes a triangle, which hides a half of the clipped content.
+    QByteArray pageContent = "q 0.00-90 0.00-90 m 100 0.00-90 l 100 100 l 0.00-90 100 l h W* n "
+                             "0 0 1 rg 0 0 200 200 re f Q";
+
+    pdf::PDFDocument document = createDocumentWithText(pageContent);
+
+    pdf::PDFEditedPageContent content;
+    QList<pdf::PDFRenderError> errors = processPageContent(&document, &content);
+    QVERIFY(errors.isEmpty());
+    QCOMPARE(content.getElementCount(), size_t(1));
+
+    pdf::PDFEditedPageContentElement* element = content.getElement(0);
+    QVERIFY(element->asPath());
+
+    const QPainterPath& clipPath = element->getClipPath();
+    QVERIFY(clipPath.contains(QPointF(90, 10)));
+    QVERIFY(clipPath.contains(QPointF(10, 90)));
+    QVERIFY(!clipPath.contains(QPointF(150, 150)));
+
+    QImage originalImage = renderPage(&document);
+    QCOMPARE(getPageColor(originalImage, QPointF(90, 10)), QColor(Qt::blue));
+    QCOMPARE(getPageColor(originalImage, QPointF(10, 90)), QColor(Qt::blue));
+    QCOMPARE(getPageColor(originalImage, QPointF(150, 150)), QColor(Qt::white));
+
+    // The page content written by the editor must keep the whole clipping rectangle
+    pdf::PDFDocumentPointer modifiedDocument = rewritePageContent(&document, content, false, nullptr);
+    QVERIFY(modifiedDocument);
+    QCOMPARE(renderPage(modifiedDocument.data()), originalImage);
+}
+
+void ContentEditorTest::test_invalid_token_keeps_previous_operands()
+{
+    // The token "1.2.3" can't be read. Operands read before it must not be
+    // discarded - the rectangle operator reads the first four operands and
+    // the invalid token is an extra operand, which is not read at all.
+    QByteArray pageContent = "0 0 1 rg 20 30 60 40 1.2.3 re f";
+
+    pdf::PDFDocument document = createDocumentWithText(pageContent);
+
+    pdf::PDFEditedPageContent content;
+    QList<pdf::PDFRenderError> errors = processPageContent(&document, &content);
+    QCOMPARE(errors.size(), 1);
+    QCOMPARE(content.getElementCount(), size_t(1));
+    QCOMPARE(content.getElement(0)->getBoundingBox(), QRectF(20, 30, 60, 40));
+
+    QImage image = renderPage(&document);
+    QCOMPARE(getPageColor(image, QPointF(50, 50)), QColor(Qt::blue));
+    QCOMPARE(getPageColor(image, QPointF(10, 10)), QColor(Qt::white));
+}
+
+void ContentEditorTest::test_invalid_token_invalidates_operator()
+{
+    // The operator, which reads the invalid token "1.2.3", must not be executed.
+    // The rest of the invalid token (".3") must not be read as another operand,
+    // otherwise the first rectangle is painted with wrong operands (0.3 30 60 40).
+    // Operators, which don't read the invalid token, are executed - if the 'Q'
+    // operator were not executed, the second rectangle would be translated.
+    // The invalid token at the end of the content stream is harmless.
+    QByteArray pageContent = "0 0 1 rg "
+                             "20 1.2.3 30 60 40 re f "
+                             "q 1 0 0 1 -100 0 cm 1.2.3 Q "
+                             "120 120 40 40 re f "
+                             "1.2.3";
+
+    pdf::PDFDocument document = createDocumentWithText(pageContent);
+
+    pdf::PDFEditedPageContent content;
+    QList<pdf::PDFRenderError> errors = processPageContent(&document, &content);
+    QCOMPARE(errors.size(), 4);
+    QCOMPARE(content.getElementCount(), size_t(1));
+    QCOMPARE(content.getElement(0)->getBoundingBox(), QRectF(120, 120, 40, 40));
+
+    QImage image = renderPage(&document);
+    QCOMPARE(getPageColor(image, QPointF(10, 50)), QColor(Qt::white));
+    QCOMPARE(getPageColor(image, QPointF(40, 50)), QColor(Qt::white));
+    QCOMPARE(getPageColor(image, QPointF(40, 140)), QColor(Qt::white));
+    QCOMPARE(getPageColor(image, QPointF(140, 140)), QColor(Qt::blue));
 }
 
 QTEST_MAIN(ContentEditorTest)
