@@ -22,14 +22,23 @@
 
 #include "pdfpagecontenteditorprocessor.h"
 #include "pdfcolorconvertor.h"
+#include "pdfcolorspaces.h"
+#include "pdfdocument.h"
 #include "pdfpattern.h"
 
 #include <QPainter>
 
 #include <algorithm>
+#include <set>
 
 namespace pdf
 {
+
+static PDFObject resolveColorSpaceResourceNames(const PDFObject& colorSpaceObject,
+                                                const PDFDocument* document,
+                                                const PDFDictionary* colorSpaceDictionary,
+                                                int recursion,
+                                                bool* isChanged);
 
 PDFPageContentEditorProcessor::PDFPageContentEditorProcessor(const PDFPage* page,
                                                              const PDFDocument* document,
@@ -89,12 +98,13 @@ void PDFPageContentEditorProcessor::performInterceptInstruction(Operator current
             // because the text object is not yet started). The text element is written into
             // its own BT/ET block, so its initial state must contain the identity matrices.
             // Otherwise a text matrix equal to the stale one would not be serialized at all.
-            PDFPageContentProcessorState state = getElementState();
+            PDFPageContentProcessorState state = *getGraphicState();
             state.setTextMatrix(QTransform());
             state.setTextLineMatrix(QTransform());
 
             m_contentElementText.reset(new PDFEditedPageContentElementText(state, getGraphicState()->getCurrentTransformationMatrix()));
             m_contentElementText->setClipPath(getCurrentClipPathInElementSpace(m_contentElementText->getTransform()));
+            m_contentElementText->setTransparencyGroup(getCurrentTransparencyGroup());
         }
 
         if (currentOperator == Operator::TextSetFontAndFontSize)
@@ -108,15 +118,14 @@ void PDFPageContentEditorProcessor::performInterceptInstruction(Operator current
             // stream. The graphic state must be taken before the operator is performed,
             // because the operator changes the fill color space to the shading pattern.
             m_shadingObject = PDFObject();
-            const PDFPageContentProcessorState elementState = getElementState();
-            m_shadingState = elementState;
+            m_shadingState = *getGraphicState();
             m_isShadingOperatorActive = true;
 
             const PDFFlatArray<PDFLexicalAnalyzer::Token, 33>& operands = getOperands();
             const PDFDictionary* shadingDictionary = getShadingDictionary();
             if (shadingDictionary && operands.size() == 1 && operands[0].type == PDFLexicalAnalyzer::TokenType::Name)
             {
-                m_shadingObject = shadingDictionary->get(operands[0].data.toByteArray());
+                m_shadingObject = getShadingObjectWithResolvedColorSpace(shadingDictionary->get(operands[0].data.toByteArray()));
             }
         }
     }
@@ -210,10 +219,11 @@ void PDFPageContentEditorProcessor::performPathPainting(const QPainterPath& path
     }
     else
     {
-        m_content.addContentPath(getElementState(), path, stroke, fill);
+        m_content.addContentPath(*getGraphicState(), path, stroke, fill);
         if (PDFEditedPageContentElement* backElement = m_content.getBackElement())
         {
             backElement->setClipPath(getCurrentClipPathInElementSpace(backElement->getTransform()));
+            backElement->setTransparencyGroup(getCurrentTransparencyGroup());
         }
     }
 }
@@ -251,10 +261,11 @@ bool PDFPageContentEditorProcessor::performOriginalImagePainting(const PDFImage&
     BaseClass::performOriginalImagePainting(image, stream, reference);
 
     PDFObject imageObject = PDFObject::createStream(std::make_shared<PDFStream>(*stream));
-    m_content.addContentImage(getElementState(), std::move(imageObject), QImage());
+    m_content.addContentImage(*getGraphicState(), std::move(imageObject), QImage());
     if (PDFEditedPageContentElement* backElement = m_content.getBackElement())
     {
         backElement->setClipPath(getCurrentClipPathInElementSpace(backElement->getTransform()));
+        backElement->setTransparencyGroup(getCurrentTransparencyGroup());
     }
 
     return false;
@@ -407,6 +418,7 @@ bool PDFPageContentEditorProcessor::performPathPaintingUsingShading(const QPaint
 
     auto element = std::make_unique<PDFEditedPageContentElementShading>(m_shadingState, m_shadingObject, std::move(area), std::make_shared<const PDFMesh>(std::move(mesh)), transform);
     element->setClipPath(getCurrentClipPathInElementSpace(transform));
+    element->setTransparencyGroup(getCurrentTransparencyGroup());
     m_content.addContentElement(std::move(element));
 
     return true;
@@ -422,7 +434,43 @@ void PDFPageContentEditorProcessor::performBeginTransparencyGroup(ProcessOrder o
         // with which the transparency group is composed onto its backdrop (they
         // are reset in the graphic state of the group, when the group is started).
         const PDFPageContentProcessorState* state = getGraphicState();
-        m_transparencyGroups.push_back(TransparencyGroupState{ state->getBlendMode(), state->getAlphaFilling(), state->getAlphaStroking() });
+        const BlendMode blendMode = state->getBlendMode();
+        const bool isNormalBlendMode = blendMode == BlendMode::Normal || blendMode == BlendMode::Compatible;
+
+        // The isolated group is composed on the transparent backdrop, so its content
+        // is not blended with the objects painted before the group. The objects of the
+        // knockout group don't compose with each other. Both properties matter even if
+        // the group is painted with the normal blend mode and without constant alpha.
+        PDFEditedPageContentTransparencyGroupPointer currentGroup = getCurrentTransparencyGroup();
+        if (!isNormalBlendMode ||
+            state->getAlphaFilling() != 1.0 ||
+            state->getAlphaStroking() != 1.0 ||
+            transparencyGroup.isolated ||
+            transparencyGroup.knockout ||
+            !transparencyGroup.colorSpaceObject.isNull())
+        {
+            auto group = std::make_shared<PDFEditedPageContentTransparencyGroup>();
+            group->parent = std::move(currentGroup);
+            group->blendMode = blendMode;
+            group->alphaFilling = state->getAlphaFilling();
+            group->alphaStroking = state->getAlphaStroking();
+            group->isolated = transparencyGroup.isolated;
+            group->knockout = transparencyGroup.knockout;
+            group->colorSpaceObject = transparencyGroup.colorSpaceObject;
+
+            // The color space of the group can be a name of the color space resource
+            // (of the resources, from which the group is painted), so it is resolved.
+            if (const PDFDictionary* colorSpaceDictionary = getColorSpaceDictionary(); colorSpaceDictionary && !group->colorSpaceObject.isNull())
+            {
+                bool isColorSpaceResolved = false;
+                group->colorSpaceObject = resolveColorSpaceResourceNames(group->colorSpaceObject, getDocument(), colorSpaceDictionary, 0, &isColorSpaceResolved);
+            }
+            currentGroup = std::move(group);
+        }
+
+        // Non-isolated and non-knockout group composed with the normal blend mode and
+        // without constant alpha is flattened into the enclosing group (or into the page).
+        m_transparencyGroups.push_back(std::move(currentGroup));
     }
 }
 
@@ -436,34 +484,221 @@ void PDFPageContentEditorProcessor::performEndTransparencyGroup(ProcessOrder ord
     }
 }
 
-PDFPageContentProcessorState PDFPageContentEditorProcessor::getElementState() const
+/// Returns true, if the name is a name of the color space family, which
+/// is not looked up in the color space resource dictionary
+static bool isColorSpaceFamilyName(const QByteArray& name)
 {
-    PDFPageContentProcessorState state = *getGraphicState();
+    return name == COLOR_SPACE_NAME_DEVICE_GRAY ||
+           name == COLOR_SPACE_NAME_DEVICE_RGB ||
+           name == COLOR_SPACE_NAME_DEVICE_CMYK ||
+           name == COLOR_SPACE_NAME_PATTERN;
+}
 
-    if (!m_transparencyGroups.empty())
+/// Replaces names of the color space resources in the color space object by the objects
+/// from the color space resource dictionary. Names are replaced also in the color spaces,
+/// on which the color space depends - the base color space of the indexed and the pattern
+/// color space, the alternate color space of the separation, the DeviceN and the ICC based
+/// color space and the color spaces in the attributes of the DeviceN color space.
+/// \param colorSpaceObject Color space object
+/// \param document Document
+/// \param colorSpaceDictionary Color space resource dictionary
+/// \param recursion Recursion level
+/// \param isChanged Set to true, if a name was replaced
+/// \returns Color space object with the resolved names (the original object, if nothing was replaced)
+static PDFObject resolveColorSpaceResourceNames(const PDFObject& colorSpaceObject,
+                                                const PDFDocument* document,
+                                                const PDFDictionary* colorSpaceDictionary,
+                                                int recursion,
+                                                bool* isChanged)
+{
+    if (recursion > COLOR_SPACE_MAX_LEVEL_OF_RECURSION)
     {
-        PDFReal alphaFilling = state.getAlphaFilling();
-        PDFReal alphaStroking = state.getAlphaStroking();
-        BlendMode blendMode = state.getBlendMode();
-
-        // From the innermost transparency group to the outermost one
-        for (auto it = m_transparencyGroups.crbegin(); it != m_transparencyGroups.crend(); ++it)
-        {
-            alphaFilling *= it->alphaFilling;
-            alphaStroking *= it->alphaStroking;
-
-            if (blendMode == BlendMode::Normal)
-            {
-                blendMode = it->blendMode;
-            }
-        }
-
-        state.setAlphaFilling(alphaFilling);
-        state.setAlphaStroking(alphaStroking);
-        state.setBlendMode(blendMode);
+        return colorSpaceObject;
     }
 
-    return state;
+    auto resolve = [document, colorSpaceDictionary, recursion](const PDFObject& object, bool* isObjectChanged)
+    {
+        return resolveColorSpaceResourceNames(object, document, colorSpaceDictionary, recursion + 1, isObjectChanged);
+    };
+
+    const PDFObject& dereferencedObject = document->getObject(colorSpaceObject);
+
+    if (dereferencedObject.isName())
+    {
+        const QByteArray name = dereferencedObject.getString();
+        if (!isColorSpaceFamilyName(name) && colorSpaceDictionary->hasKey(name))
+        {
+            *isChanged = true;
+            return resolve(colorSpaceDictionary->get(name), isChanged);
+        }
+
+        return colorSpaceObject;
+    }
+
+    const PDFArray* array = dereferencedObject.isArray() ? dereferencedObject.getArray() : nullptr;
+    if (!array || array->getCount() < 2)
+    {
+        return colorSpaceObject;
+    }
+
+    const PDFObject& familyObject = document->getObject(array->getItem(0));
+    const QByteArray family = familyObject.isName() ? familyObject.getString() : QByteArray();
+
+    PDFArray resolvedArray = *array;
+    bool isArrayChanged = false;
+
+    auto resolveItem = [&](size_t index)
+    {
+        if (index < resolvedArray.getCount())
+        {
+            bool isItemChanged = false;
+            PDFObject item = resolve(resolvedArray.getItem(index), &isItemChanged);
+            if (isItemChanged)
+            {
+                resolvedArray.setItem(std::move(item), index);
+                isArrayChanged = true;
+            }
+        }
+    };
+
+    if (family == COLOR_SPACE_NAME_INDEXED || family == COLOR_SPACE_NAME_PATTERN)
+    {
+        // [/Indexed base hival lookup], [/Pattern base]
+        resolveItem(1);
+    }
+    else if (family == COLOR_SPACE_NAME_SEPARATION)
+    {
+        // [/Separation name alternateSpace tintTransform]
+        resolveItem(2);
+    }
+    else if (family == COLOR_SPACE_NAME_ICCBASED)
+    {
+        // [/ICCBased profileStream], the alternate color space is in the stream dictionary.
+        // The profile stream can be shared, so a modified copy of the stream is created.
+        const PDFObject& profileObject = document->getObject(resolvedArray.getItem(1));
+        if (profileObject.isStream())
+        {
+            const PDFStream* profileStream = profileObject.getStream();
+            const PDFDictionary* profileDictionary = profileStream->getDictionary();
+
+            if (profileDictionary->hasKey("Alternate"))
+            {
+                bool isAlternateChanged = false;
+                PDFObject alternate = resolve(profileDictionary->get("Alternate"), &isAlternateChanged);
+                if (isAlternateChanged)
+                {
+                    PDFDictionary resolvedProfileDictionary = *profileDictionary;
+                    resolvedProfileDictionary.setEntry(PDFInplaceOrMemoryString("Alternate"), std::move(alternate));
+                    resolvedArray.setItem(PDFObject::createStream(std::make_shared<PDFStream>(std::move(resolvedProfileDictionary), QByteArray(*profileStream->getContent()))), 1);
+                    isArrayChanged = true;
+                }
+            }
+        }
+    }
+    else if (family == COLOR_SPACE_NAME_DEVICE_N)
+    {
+        // [/DeviceN names alternateSpace tintTransform attributes]
+        resolveItem(2);
+
+        const PDFDictionary* attributes = resolvedArray.getCount() > 4 ? document->getDictionaryFromObject(resolvedArray.getItem(4)) : nullptr;
+        if (attributes)
+        {
+            PDFDictionary resolvedAttributes = *attributes;
+            bool isAttributesChanged = false;
+
+            // Colorants - dictionary of the separation color spaces
+            if (const PDFDictionary* colorants = document->getDictionaryFromObject(attributes->get("Colorants")))
+            {
+                PDFDictionary resolvedColorants = *colorants;
+                bool isColorantsChanged = false;
+
+                for (size_t i = 0; i < colorants->getCount(); ++i)
+                {
+                    bool isColorantChanged = false;
+                    PDFObject colorant = resolve(colorants->getValue(i), &isColorantChanged);
+                    if (isColorantChanged)
+                    {
+                        resolvedColorants.setEntry(PDFInplaceOrMemoryString(colorants->getKey(i).getString()), std::move(colorant));
+                        isColorantsChanged = true;
+                    }
+                }
+
+                if (isColorantsChanged)
+                {
+                    resolvedAttributes.setEntry(PDFInplaceOrMemoryString("Colorants"), PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(resolvedColorants))));
+                    isAttributesChanged = true;
+                }
+            }
+
+            // Process - dictionary with the process color space
+            if (const PDFDictionary* process = document->getDictionaryFromObject(attributes->get("Process")))
+            {
+                bool isProcessColorSpaceChanged = false;
+                PDFObject processColorSpace = resolve(process->get("ColorSpace"), &isProcessColorSpaceChanged);
+                if (isProcessColorSpaceChanged)
+                {
+                    PDFDictionary resolvedProcess = *process;
+                    resolvedProcess.setEntry(PDFInplaceOrMemoryString("ColorSpace"), std::move(processColorSpace));
+                    resolvedAttributes.setEntry(PDFInplaceOrMemoryString("Process"), PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(resolvedProcess))));
+                    isAttributesChanged = true;
+                }
+            }
+
+            if (isAttributesChanged)
+            {
+                resolvedArray.setItem(PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(resolvedAttributes))), 4);
+                isArrayChanged = true;
+            }
+        }
+    }
+
+    if (!isArrayChanged)
+    {
+        return colorSpaceObject;
+    }
+
+    *isChanged = true;
+    return PDFObject::createArray(std::make_shared<PDFArray>(std::move(resolvedArray)));
+}
+
+PDFEditedPageContentTransparencyGroupPointer PDFPageContentEditorProcessor::getCurrentTransparencyGroup() const
+{
+    return !m_transparencyGroups.empty() ? m_transparencyGroups.back() : PDFEditedPageContentTransparencyGroupPointer();
+}
+
+PDFObject PDFPageContentEditorProcessor::getShadingObjectWithResolvedColorSpace(const PDFObject& shadingObject) const
+{
+    const PDFDocument* document = getDocument();
+    const PDFObject& dereferencedShadingObject = document->getObject(shadingObject);
+    const PDFStream* shadingStream = dereferencedShadingObject.isStream() ? dereferencedShadingObject.getStream() : nullptr;
+    const PDFDictionary* shadingDictionary = shadingStream ? shadingStream->getDictionary() : document->getDictionaryFromObject(dereferencedShadingObject);
+    const PDFDictionary* colorSpaceDictionary = getColorSpaceDictionary();
+
+    if (!shadingDictionary || !colorSpaceDictionary)
+    {
+        return shadingObject;
+    }
+
+    // Color space names (other than the color space family names) denote the color
+    // space resources, which can be missing in the page resources (also inside
+    // the color space, for example the alternate color space of the separation).
+    bool isColorSpaceResolved = false;
+    PDFObject colorSpaceObject = resolveColorSpaceResourceNames(shadingDictionary->get("ColorSpace"), document, colorSpaceDictionary, 0, &isColorSpaceResolved);
+
+    if (!isColorSpaceResolved)
+    {
+        return shadingObject;
+    }
+
+    PDFDictionary resolvedShadingDictionary = *shadingDictionary;
+    resolvedShadingDictionary.setEntry(PDFInplaceOrMemoryString("ColorSpace"), std::move(colorSpaceObject));
+
+    if (shadingStream)
+    {
+        return PDFObject::createStream(std::make_shared<PDFStream>(std::move(resolvedShadingDictionary), QByteArray(*shadingStream->getContent())));
+    }
+
+    return PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(resolvedShadingDictionary)));
 }
 
 void PDFPageContentEditorProcessor::registerFontResources(PDFEditedPageContentElementText* textElement) const
@@ -835,6 +1070,16 @@ void PDFEditedPageContentElement::setClipPath(const QPainterPath& clipPath)
     m_clipPath = clipPath;
 }
 
+const PDFEditedPageContentTransparencyGroupPointer& PDFEditedPageContentElement::getTransparencyGroup() const
+{
+    return m_transparencyGroup;
+}
+
+void PDFEditedPageContentElement::setTransparencyGroup(const PDFEditedPageContentTransparencyGroupPointer& transparencyGroup)
+{
+    m_transparencyGroup = transparencyGroup;
+}
+
 PDFEditedPageContentElementPath::PDFEditedPageContentElementPath(PDFPageContentProcessorState state, QPainterPath path, bool strokePath, bool fillPath, QTransform transform) :
     PDFEditedPageContentElement(std::move(state), transform),
     m_path(std::move(path)),
@@ -853,6 +1098,7 @@ PDFEditedPageContentElementPath* PDFEditedPageContentElementPath::clone() const
 {
     PDFEditedPageContentElementPath* copy = new PDFEditedPageContentElementPath(getState(), getPath(), getStrokePath(), getFillPath(), getTransform());
     copy->setClipPath(getClipPath());
+    copy->setTransparencyGroup(getTransparencyGroup());
     return copy;
 }
 
@@ -916,6 +1162,7 @@ PDFEditedPageContentElementImage* PDFEditedPageContentElementImage::clone() cons
 {
     PDFEditedPageContentElementImage* copy = new PDFEditedPageContentElementImage(getState(), getImageObject(), getImage(), getTransform());
     copy->setClipPath(getClipPath());
+    copy->setTransparencyGroup(getTransparencyGroup());
     return copy;
 }
 
@@ -973,6 +1220,7 @@ PDFEditedPageContentElementShading* PDFEditedPageContentElementShading::clone() 
 {
     PDFEditedPageContentElementShading* copy = new PDFEditedPageContentElementShading(getState(), getShadingObject(), getArea(), m_mesh, getTransform());
     copy->setClipPath(getClipPath());
+    copy->setTransparencyGroup(getTransparencyGroup());
     return copy;
 }
 
@@ -1045,6 +1293,7 @@ PDFEditedPageContentElementText* PDFEditedPageContentElementText::clone() const
 {
     PDFEditedPageContentElementText* copy = new PDFEditedPageContentElementText(getState(), getItems(), getTextPath(), getTransform(), getItemsAsText());
     copy->setClipPath(getClipPath());
+    copy->setTransparencyGroup(getTransparencyGroup());
     copy->setFontResources(getFontResources());
     return copy;
 }
@@ -1121,6 +1370,82 @@ const std::vector<PDFEditedPageContentElementText::FontResource>& PDFEditedPageC
 void PDFEditedPageContentElementText::setFontResources(const std::vector<FontResource>& fontResources)
 {
     m_fontResources = fontResources;
+}
+
+/// Returns true, if the object means the same in both documents, i.e. the object
+/// itself and all objects, to which it refers, are the same in both documents.
+/// \param object Object
+/// \param sourceDocument Document, in which the object is valid
+/// \param targetDocument Document, into which the object is transferred
+/// \param visitedReferences References, which were already checked (or are being checked)
+static bool isObjectSameInDocuments(const PDFObject& object,
+                                    const PDFDocument* sourceDocument,
+                                    const PDFDocument* targetDocument,
+                                    std::set<PDFObjectReference>& visitedReferences)
+{
+    switch (object.getType())
+    {
+        case PDFObject::Type::Reference:
+        {
+            const PDFObjectReference reference = object.getReference();
+            if (!visitedReferences.insert(reference).second)
+            {
+                return true;
+            }
+
+            const PDFObject& sourceObject = sourceDocument->getObjectByReference(reference);
+            return sourceObject == targetDocument->getObjectByReference(reference) &&
+                   isObjectSameInDocuments(sourceObject, sourceDocument, targetDocument, visitedReferences);
+        }
+
+        case PDFObject::Type::Array:
+        {
+            const PDFArray* array = object.getArray();
+            for (size_t i = 0; i < array->getCount(); ++i)
+            {
+                if (!isObjectSameInDocuments(array->getItem(i), sourceDocument, targetDocument, visitedReferences))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        case PDFObject::Type::Dictionary:
+        case PDFObject::Type::Stream:
+        {
+            const PDFDictionary* dictionary = object.isStream() ? object.getStream()->getDictionary() : object.getDictionary();
+            for (size_t i = 0; i < dictionary->getCount(); ++i)
+            {
+                if (!isObjectSameInDocuments(dictionary->getValue(i), sourceDocument, targetDocument, visitedReferences))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        default:
+            return true;
+    }
+}
+
+std::vector<PDFEditedPageContentElementText::FontResource> PDFEditedPageContentElementText::getFontResourcesValidInDocument(const std::vector<FontResource>& fontResources,
+                                                                                                                             const PDFDocument* sourceDocument,
+                                                                                                                             const PDFDocument* targetDocument)
+{
+    std::vector<FontResource> result = fontResources;
+
+    for (FontResource& fontResource : result)
+    {
+        std::set<PDFObjectReference> visitedReferences;
+        if (!fontResource.fontObject.isNull() && !isObjectSameInDocuments(fontResource.fontObject, sourceDocument, targetDocument, visitedReferences))
+        {
+            fontResource.fontObject = PDFObject();
+        }
+    }
+
+    return result;
 }
 
 QByteArray PDFEditedPageContentElementText::getFontResourceKey(const PDFFont* font) const

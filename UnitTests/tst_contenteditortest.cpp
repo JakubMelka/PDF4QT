@@ -31,11 +31,13 @@
 #include "pdfpagecontenteditorcontentstreambuilder.h"
 #include "pdfpagecontenteditorprocessor.h"
 #include "pdfstreamfilters.h"
+#include "pdftransparencyrenderer.h"
 #include "pdfutils.h"
 
 #include <QtTest>
 #include <QBuffer>
 #include <QColor>
+#include <QColorSpace>
 #include <QImage>
 #include <QPainter>
 #include <QPdfWriter>
@@ -124,6 +126,14 @@ private slots:
     void test_text_colors_are_preserved();
     void test_shading_is_preserved();
     void test_transparency_group_blend_mode_is_preserved();
+    void test_transparency_group_is_composed_before_blending();
+    void test_refreshed_text_element_uses_valid_fonts();
+    void test_shading_color_space_from_form_resources_is_preserved();
+    void test_transparency_group_bounding_box_contains_stroke_joins();
+    void test_nested_isolated_transparency_group_is_preserved();
+    void test_shading_composite_color_space_from_form_resources_is_preserved();
+    void test_transparency_group_color_space_is_preserved();
+    void test_shading_icc_alternate_color_space_from_form_resources_is_preserved();
 
 private:
     enum class Variant
@@ -228,6 +238,14 @@ private:
 
     /// Renders the first page of the document into the image
     static QImage renderPage(const pdf::PDFDocument* document);
+
+    /// Renders the first page of the document into the image using the transparency
+    /// renderer, which composes transparency groups before they are blended with
+    /// the backdrop (the renderer used by renderPage only approximates it).
+    static QImage renderPageWithTransparency(const pdf::PDFDocument* document);
+
+    /// Returns the number of pixels, whose color components differ by more than \p tolerance
+    static int getDifferentPixelCount(const QImage& image1, const QImage& image2, int tolerance);
 };
 
 QImage ContentEditorTest::createTestImage()
@@ -787,8 +805,56 @@ QImage ContentEditorTest::renderPage(const pdf::PDFDocument* document)
     QPainter painter(&image);
     renderer.render(&painter, QRectF(0, 0, image.width(), image.height()), 0);
     painter.end();
-
     return image;
+}
+
+QImage ContentEditorTest::renderPageWithTransparency(const pdf::PDFDocument* document)
+{
+    const pdf::PDFPage* page = document->getCatalog()->getPage(0);
+
+    pdf::PDFCMSGeneric cms;
+    pdf::PDFFontCache fontCache(32, 32);
+    pdf::PDFOptionalContentActivity activity(document, pdf::OCUsage::View, nullptr);
+    fontCache.setDocument(pdf::PDFModifiedDocument(const_cast<pdf::PDFDocument*>(document), &activity));
+
+    const QSize imageSize(400, 400);
+    pdf::PDFInkMapper inkMapper(nullptr, document);
+    pdf::PDFTransparencyRendererSettings settings;
+    QTransform pagePointToDevicePointMatrix = pdf::PDFRenderer::createPagePointToDevicePointMatrix(page, QRect(QPoint(0, 0), imageSize));
+    pdf::PDFTransparencyRenderer renderer(page, document, &fontCache, &cms, &activity, &inkMapper, settings, pagePointToDevicePointMatrix);
+
+    renderer.beginPaint(imageSize);
+    renderer.processContents();
+    renderer.endPaint();
+
+    return renderer.toImage(false, true, pdf::PDFRGB{ 1.0f, 1.0f, 1.0f }).convertToFormat(QImage::Format_RGB888);
+}
+
+int ContentEditorTest::getDifferentPixelCount(const QImage& image1, const QImage& image2, int tolerance)
+{
+    if (image1.size() != image2.size())
+    {
+        return image1.width() * image1.height();
+    }
+
+    int count = 0;
+    for (int y = 0; y < image1.height(); ++y)
+    {
+        for (int x = 0; x < image1.width(); ++x)
+        {
+            const QRgb color1 = image1.pixel(x, y);
+            const QRgb color2 = image2.pixel(x, y);
+
+            if (qAbs(qRed(color1) - qRed(color2)) > tolerance ||
+                qAbs(qGreen(color1) - qGreen(color2)) > tolerance ||
+                qAbs(qBlue(color1) - qBlue(color2)) > tolerance)
+            {
+                ++count;
+            }
+        }
+    }
+
+    return count;
 }
 
 void ContentEditorTest::testVariant(Variant variant, bool clearImageObjects)
@@ -1733,13 +1799,517 @@ void ContentEditorTest::test_transparency_group_blend_mode_is_preserved()
     pdf::PDFEditedPageContent content;
     QVERIFY(processPageContent(&document, &content).isEmpty());
     QCOMPARE(content.getElementCount(), size_t(3));
-    QVERIFY(content.getElement(0)->getState().getBlendMode() == pdf::BlendMode::Normal);
-    QVERIFY(content.getElement(1)->getState().getBlendMode() == pdf::BlendMode::Multiply);
-    QVERIFY(content.getElement(2)->getState().getBlendMode() == pdf::BlendMode::Multiply);
+    // The elements of the group are painted with the normal blend mode. The blend mode
+    // is used to compose the whole group, which is written back as a form XObject.
+    QVERIFY(!content.getElement(0)->getTransparencyGroup());
+    for (size_t i = 1; i < 3; ++i)
+    {
+        const pdf::PDFEditedPageContentTransparencyGroupPointer& group = content.getElement(i)->getTransparencyGroup();
+        QVERIFY(group);
+        QVERIFY(group == content.getElement(1)->getTransparencyGroup());
+        QVERIFY(group->blendMode == pdf::BlendMode::Multiply);
+        QVERIFY(content.getElement(i)->getState().getBlendMode() == pdf::BlendMode::Normal);
+    }
+
+    QByteArray outputContent;
+    pdf::PDFDocumentPointer modifiedDocument = rewritePageContent(&document, content, false, &outputContent);
+    QVERIFY(modifiedDocument);
+    QCOMPARE(outputContent.count(" Do\n"), 1);
+
+    pdf::PDFEditedPageContent modifiedContent;
+    QVERIFY(processPageContent(modifiedDocument.data(), &modifiedContent).isEmpty());
+    QCOMPARE(modifiedContent.getElementCount(), size_t(3));
+    QVERIFY(modifiedContent.getElement(2)->getTransparencyGroup());
+    QVERIFY(modifiedContent.getElement(2)->getTransparencyGroup()->blendMode == pdf::BlendMode::Multiply);
+
+    QCOMPARE(renderPage(modifiedDocument.data()), renderPage(&document));
+    QCOMPARE(getDifferentPixelCount(renderPageWithTransparency(modifiedDocument.data()), renderPageWithTransparency(&document), 2), 0);
+}
+
+void ContentEditorTest::test_transparency_group_is_composed_before_blending()
+{
+    // Issue #337 - the blend mode and the constant alpha of a transparency group can't
+    // be applied to each object of the group. The blue rectangle covers the red one inside
+    // the group, then the composed group is multiplied with the white page and painted
+    // with the half opacity. So the overlap must be light blue, not dark violet.
+    QByteArray pageContent = "q /GS1 gs /Fm1 Do Q";
+    QByteArray formContent = "1 0 0 rg 20 20 120 120 re f 0 0 1 rg 60 60 120 120 re f";
+
+    pdf::PDFDocument document = createDocument(pageContent, [&formContent](pdf::PDFDocumentBuilder* builder)
+    {
+        pdf::PDFObject group = createDictionaryObject({ { "Type", pdf::PDFObject::createName("Group") },
+                                                        { "S", pdf::PDFObject::createName("Transparency") },
+                                                        { "I", pdf::PDFObject::createBool(true) } });
+        pdf::PDFObject formObject = addStreamObject(builder, { { "Type", pdf::PDFObject::createName("XObject") },
+                                                               { "Subtype", pdf::PDFObject::createName("Form") },
+                                                               { "BBox", createNumberArrayObject({ 0, 0, 200, 200 }) },
+                                                               { "Group", group } }, formContent);
+
+        pdf::PDFObject graphicState = createDictionaryObject({ { "Type", pdf::PDFObject::createName("ExtGState") },
+                                                               { "BM", pdf::PDFObject::createName("Multiply") },
+                                                               { "ca", pdf::PDFObject::createReal(0.5) } });
+
+        pdf::PDFDictionary resources;
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("ExtGState"), createDictionaryObject({ { "GS1", graphicState } }));
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"), createDictionaryObject({ { "Fm1", formObject } }));
+        return resources;
+    });
+
+    pdf::PDFEditedPageContent content;
+    QVERIFY(processPageContent(&document, &content).isEmpty());
+    QCOMPARE(content.getElementCount(), size_t(2));
 
     pdf::PDFDocumentPointer modifiedDocument = rewritePageContent(&document, content, false, nullptr);
     QVERIFY(modifiedDocument);
-    QCOMPARE(renderPage(modifiedDocument.data()), renderPage(&document));
+
+    pdf::PDFEditedPageContent modifiedContent;
+    QVERIFY(processPageContent(modifiedDocument.data(), &modifiedContent).isEmpty());
+    QCOMPARE(modifiedContent.getElementCount(), size_t(2));
+
+    auto isColor = [](const QColor& color, int red, int green, int blue)
+    {
+        return qAbs(color.red() - red) <= 4 && qAbs(color.green() - green) <= 4 && qAbs(color.blue() - blue) <= 4;
+    };
+
+    const QImage originalImage = renderPageWithTransparency(&document);
+    const QImage modifiedImage = renderPageWithTransparency(modifiedDocument.data());
+
+    for (const QImage& image : { originalImage, modifiedImage })
+    {
+        const QColor redColor = getPageColor(image, QPointF(30, 30));
+        const QColor overlapColor = getPageColor(image, QPointF(100, 100));
+        const QColor blueColor = getPageColor(image, QPointF(170, 170));
+        QVERIFY2(isColor(redColor, 255, 128, 128), qPrintable(redColor.name()));
+        QVERIFY2(isColor(overlapColor, 128, 128, 255), qPrintable(overlapColor.name()));
+        QVERIFY2(isColor(blueColor, 128, 128, 255), qPrintable(blueColor.name()));
+    }
+
+    QCOMPARE(getDifferentPixelCount(modifiedImage, originalImage, 2), 0);
+}
+
+void ContentEditorTest::test_refreshed_text_element_uses_valid_fonts()
+{
+    // The editor refreshes the edited text element from a temporary document, into which
+    // the element was written. Font objects created only in the temporary document (here
+    // the fallback font replacing an unknown font) must not be used in the edited document.
+    // Font resources are filtered by the editor, the content stream builder must cope
+    // with the unfiltered font resources too.
+    for (const bool isFontResourcesFiltered : { false, true })
+    {
+        pdf::PDFDocument document = createDocumentWithText("BT /F1 24 Tf 20 100 Td (Hello) Tj ET");
+        pdf::PDFEditedPageContent content = processPageContent(&document);
+        QCOMPARE(content.getElementCount(), size_t(1));
+
+        pdf::PDFEditedPageContentElementText* targetElement = content.getElement(0)->asText();
+        QVERIFY(targetElement);
+        targetElement->setItemsAsText(targetElement->getItemsAsText().replace("F1", "MissingFont"));
+
+        pdf::PDFDocumentPointer temporaryDocument = rewritePageContent(&document, content, false, nullptr);
+        QVERIFY(temporaryDocument);
+
+        pdf::PDFEditedPageContent temporaryContent = processPageContent(temporaryDocument.data());
+        QCOMPARE(temporaryContent.getElementCount(), size_t(1));
+        const pdf::PDFEditedPageContentElementText* sourceElement = temporaryContent.getElement(0)->asText();
+        QVERIFY(sourceElement);
+
+        // The same refresh, as EditorPlugin::updateTextElement performs
+        targetElement->setState(sourceElement->getState());
+        targetElement->setTextPath(sourceElement->getTextPath());
+        targetElement->setItems(sourceElement->getItems());
+        targetElement->setTransform(sourceElement->getTransform());
+        targetElement->setClipPath(sourceElement->getClipPath());
+        targetElement->setFontResources(isFontResourcesFiltered ? pdf::PDFEditedPageContentElementText::getFontResourcesValidInDocument(sourceElement->getFontResources(), temporaryDocument.data(), &document)
+                                                                : sourceElement->getFontResources());
+        targetElement->setItemsAsText(sourceElement->getItemsAsText());
+
+        if (isFontResourcesFiltered)
+        {
+            QVERIFY(!targetElement->getFontResources().empty());
+            for (const pdf::PDFEditedPageContentElementText::FontResource& fontResource : targetElement->getFontResources())
+            {
+                QVERIFY(fontResource.fontObject.isNull());
+            }
+        }
+
+        QByteArray outputContent;
+        pdf::PDFDocumentPointer modifiedDocument = rewritePageContent(&document, content, false, &outputContent);
+        QVERIFY(modifiedDocument);
+
+        pdf::PDFEditedPageContent modifiedContent;
+        QList<pdf::PDFRenderError> errors = processPageContent(modifiedDocument.data(), &modifiedContent);
+        QVERIFY2(errors.isEmpty(), qPrintable(errors.isEmpty() ? QString() : errors.front().message + "\n" + QString::fromLatin1(outputContent)));
+        QCOMPARE(getTextBoundingBoxes(modifiedContent).size(), size_t(1));
+        QCOMPARE(renderPage(modifiedDocument.data()), renderPage(temporaryDocument.data()));
+    }
+}
+
+void ContentEditorTest::test_shading_color_space_from_form_resources_is_preserved()
+{
+    // Issue #337 - the color space of the shading painted by a form XObject can be a name
+    // of the color space resource of the form. The same name denotes another color space
+    // in the page resources.
+    QByteArray pageContent = "q /Fm1 Do Q";
+    QByteArray formContent = "q 20 20 160 160 re W n /Sh0 sh Q";
+
+    pdf::PDFDocument document = createDocument(pageContent, [&formContent](pdf::PDFDocumentBuilder* builder)
+    {
+        pdf::PDFObject function = createDictionaryObject({ { "FunctionType", pdf::PDFObject::createInteger(2) },
+                                                           { "Domain", createNumberArrayObject({ 0, 1 }) },
+                                                           { "C0", createNumberArrayObject({ 1, 0, 0 }) },
+                                                           { "C1", createNumberArrayObject({ 0, 0, 1 }) },
+                                                           { "N", pdf::PDFObject::createInteger(1) } });
+
+        pdf::PDFObject shading = createDictionaryObject({ { "ShadingType", pdf::PDFObject::createInteger(2) },
+                                                          { "ColorSpace", pdf::PDFObject::createName("LocalRGB") },
+                                                          { "Coords", createNumberArrayObject({ 20, 0, 180, 0 }) },
+                                                          { "Function", function } });
+
+        pdf::PDFObject formResources = createDictionaryObject({ { "Shading", createDictionaryObject({ { "Sh0", shading } }) },
+                                                                { "ColorSpace", createDictionaryObject({ { "LocalRGB", pdf::PDFObject::createName("DeviceRGB") } }) } });
+
+        pdf::PDFObject formObject = addStreamObject(builder, { { "Type", pdf::PDFObject::createName("XObject") },
+                                                               { "Subtype", pdf::PDFObject::createName("Form") },
+                                                               { "BBox", createNumberArrayObject({ 0, 0, 200, 200 }) },
+                                                               { "Resources", formResources } }, formContent);
+
+        pdf::PDFDictionary resources;
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("ColorSpace"), createDictionaryObject({ { "LocalRGB", pdf::PDFObject::createName("DeviceGray") } }));
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"), createDictionaryObject({ { "Fm1", formObject } }));
+        return resources;
+    });
+
+    pdf::PDFEditedPageContent content;
+    QVERIFY(processPageContent(&document, &content).isEmpty());
+    QCOMPARE(getShadingElementCount(content), size_t(1));
+
+    QByteArray outputContent;
+    pdf::PDFDocumentPointer modifiedDocument = rewritePageContent(&document, content, false, &outputContent);
+    QVERIFY(modifiedDocument);
+    QCOMPARE(outputContent.count(" sh\n"), 1);
+
+    pdf::PDFEditedPageContent modifiedContent;
+    QList<pdf::PDFRenderError> errors = processPageContent(modifiedDocument.data(), &modifiedContent);
+    QVERIFY2(errors.isEmpty(), qPrintable(errors.isEmpty() ? QString() : errors.front().message));
+    QCOMPARE(getShadingElementCount(modifiedContent), size_t(1));
+
+    // The shading goes from red to blue
+    QImage originalImage = renderPage(&document);
+    QColor leftColor = getPageColor(originalImage, QPointF(25, 100));
+    QColor rightColor = getPageColor(originalImage, QPointF(175, 100));
+    QVERIFY2(leftColor.red() > 200 && leftColor.green() < 55 && leftColor.blue() < 55, qPrintable(leftColor.name()));
+    QVERIFY2(rightColor.blue() > 200 && rightColor.green() < 55 && rightColor.red() < 55, qPrintable(rightColor.name()));
+
+    QCOMPARE(renderPage(modifiedDocument.data()), originalImage);
+}
+
+void ContentEditorTest::test_transparency_group_bounding_box_contains_stroke_joins()
+{
+    // Issue #337 - the bounding box of the form XObject of a transparency group must
+    // contain the whole stroke of the paths. The miter join of the sharp angle exceeds
+    // the path far more than by the line width.
+    QByteArray pageContent = "q /GS1 gs /Fm1 Do Q";
+    QByteArray formContent = "0 0 1 RG 10 w 0 j 10 M 80 20 m 100 160 l 120 20 l S";
+
+    pdf::PDFDocument document = createDocument(pageContent, [&formContent](pdf::PDFDocumentBuilder* builder)
+    {
+        pdf::PDFObject group = createDictionaryObject({ { "S", pdf::PDFObject::createName("Transparency") },
+                                                        { "I", pdf::PDFObject::createBool(true) } });
+        pdf::PDFObject formObject = addStreamObject(builder, { { "Subtype", pdf::PDFObject::createName("Form") },
+                                                               { "BBox", createNumberArrayObject({ 0, 0, 200, 200 }) },
+                                                               { "Group", group } }, formContent);
+
+        pdf::PDFObject graphicState = createDictionaryObject({ { "ca", pdf::PDFObject::createReal(0.5) },
+                                                               { "CA", pdf::PDFObject::createReal(0.5) } });
+
+        pdf::PDFDictionary resources;
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"), createDictionaryObject({ { "Fm1", formObject } }));
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("ExtGState"), createDictionaryObject({ { "GS1", graphicState } }));
+        return resources;
+    });
+
+    pdf::PDFEditedPageContent content;
+    QVERIFY(processPageContent(&document, &content).isEmpty());
+    QCOMPARE(content.getElementCount(), size_t(1));
+
+    pdf::PDFDocumentPointer modifiedDocument = rewritePageContent(&document, content, false, nullptr);
+    QVERIFY(modifiedDocument);
+
+    const QImage originalImage = renderPageWithTransparency(&document);
+    const QImage modifiedImage = renderPageWithTransparency(modifiedDocument.data());
+
+    // The tip of the miter join is above the path (the path ends at y = 160)
+    const QColor tipColor = getPageColor(originalImage, QPointF(100, 175));
+    QVERIFY2(tipColor != QColor(Qt::white), qPrintable(tipColor.name()));
+    QCOMPARE(getPageColor(modifiedImage, QPointF(100, 175)), tipColor);
+    QCOMPARE(getDifferentPixelCount(modifiedImage, originalImage, 2), 0);
+}
+
+void ContentEditorTest::test_nested_isolated_transparency_group_is_preserved()
+{
+    // Issue #337 - the isolated transparency group must be preserved, even if it is painted
+    // with the normal blend mode and without constant alpha. The blue rectangle is multiplied
+    // with the transparent backdrop of the inner isolated group (so it stays blue) and then
+    // it covers the red rectangle. If the inner group was flattened, the blue rectangle would
+    // be multiplied with the red rectangle.
+    QByteArray pageContent = "q /Outer gs /Fm1 Do Q";
+    QByteArray outerFormContent = "1 0 0 rg 20 20 120 120 re f /Fm2 Do";
+    QByteArray innerFormContent = "q /Multiply gs 0 0 1 rg 60 60 120 120 re f Q";
+
+    pdf::PDFDocument document = createDocument(pageContent, [&](pdf::PDFDocumentBuilder* builder)
+    {
+        pdf::PDFObject group = createDictionaryObject({ { "S", pdf::PDFObject::createName("Transparency") },
+                                                        { "I", pdf::PDFObject::createBool(true) } });
+        pdf::PDFObject innerFormObject = addStreamObject(builder, { { "Subtype", pdf::PDFObject::createName("Form") },
+                                                                    { "BBox", createNumberArrayObject({ 0, 0, 200, 200 }) },
+                                                                    { "Group", group } }, innerFormContent);
+        pdf::PDFObject outerFormObject = addStreamObject(builder, { { "Subtype", pdf::PDFObject::createName("Form") },
+                                                                    { "BBox", createNumberArrayObject({ 0, 0, 200, 200 }) },
+                                                                    { "Group", group } }, outerFormContent);
+
+        pdf::PDFObject graphicStates = createDictionaryObject({ { "Outer", createDictionaryObject({ { "ca", pdf::PDFObject::createReal(0.5) } }) },
+                                                                { "Multiply", createDictionaryObject({ { "BM", pdf::PDFObject::createName("Multiply") } }) } });
+
+        pdf::PDFDictionary resources;
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"), createDictionaryObject({ { "Fm1", outerFormObject }, { "Fm2", innerFormObject } }));
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("ExtGState"), std::move(graphicStates));
+        return resources;
+    });
+
+    pdf::PDFEditedPageContent content;
+    QVERIFY(processPageContent(&document, &content).isEmpty());
+    QCOMPARE(content.getElementCount(), size_t(2));
+
+    // The blue rectangle is in the inner group, which is nested in the outer group
+    const pdf::PDFEditedPageContentTransparencyGroupPointer& outerGroup = content.getElement(0)->getTransparencyGroup();
+    const pdf::PDFEditedPageContentTransparencyGroupPointer& innerGroup = content.getElement(1)->getTransparencyGroup();
+    QVERIFY(outerGroup);
+    QVERIFY(innerGroup);
+    QVERIFY(innerGroup != outerGroup);
+    QVERIFY(innerGroup->parent == outerGroup);
+    QVERIFY(innerGroup->isolated);
+
+    QByteArray outputContent;
+    pdf::PDFDocumentPointer modifiedDocument = rewritePageContent(&document, content, false, &outputContent);
+    QVERIFY(modifiedDocument);
+
+    pdf::PDFEditedPageContent modifiedContent;
+    QVERIFY(processPageContent(modifiedDocument.data(), &modifiedContent).isEmpty());
+    QCOMPARE(modifiedContent.getElementCount(), size_t(2));
+
+    const QImage originalImage = renderPageWithTransparency(&document);
+    const QImage modifiedImage = renderPageWithTransparency(modifiedDocument.data());
+
+    const QColor overlapColor = getPageColor(originalImage, QPointF(100, 100));
+    QVERIFY2(qAbs(overlapColor.red() - 128) <= 4 && qAbs(overlapColor.green() - 128) <= 4 && qAbs(overlapColor.blue() - 255) <= 4, qPrintable(overlapColor.name()));
+    QCOMPARE(getDifferentPixelCount(modifiedImage, originalImage, 2), 0);
+}
+
+void ContentEditorTest::test_shading_composite_color_space_from_form_resources_is_preserved()
+{
+    // Issue #337 - the color space of the shading painted by a form XObject can depend on
+    // a color space resource of the form (here the alternate color space of the separation
+    // and of the DeviceN color space). The same name denotes another color space in the page
+    // resources.
+    for (const bool isDeviceN : { false, true })
+    {
+        QByteArray pageContent = "q /Fm1 Do Q";
+        QByteArray formContent = "q 20 20 160 160 re W n /Sh0 sh Q";
+
+        pdf::PDFDocument document = createDocument(pageContent, [&formContent, isDeviceN](pdf::PDFDocumentBuilder* builder)
+        {
+            pdf::PDFObject function = createDictionaryObject({ { "FunctionType", pdf::PDFObject::createInteger(2) },
+                                                               { "Domain", createNumberArrayObject({ 0, 1 }) },
+                                                               { "C0", createNumberArrayObject({ 0 }) },
+                                                               { "C1", createNumberArrayObject({ 1 }) },
+                                                               { "N", pdf::PDFObject::createInteger(1) } });
+
+            // The tint transformation maps the tint 0 to red and the tint 1 to blue
+            pdf::PDFObject tintTransform = createDictionaryObject({ { "FunctionType", pdf::PDFObject::createInteger(2) },
+                                                                    { "Domain", createNumberArrayObject({ 0, 1 }) },
+                                                                    { "C0", createNumberArrayObject({ 1, 0, 0 }) },
+                                                                    { "C1", createNumberArrayObject({ 0, 0, 1 }) },
+                                                                    { "N", pdf::PDFObject::createInteger(1) } });
+
+            pdf::PDFArray colorSpace;
+            if (isDeviceN)
+            {
+                pdf::PDFArray colorantNames;
+                colorantNames.appendItem(pdf::PDFObject::createName("Spot"));
+
+                colorSpace.appendItem(pdf::PDFObject::createName("DeviceN"));
+                colorSpace.appendItem(pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(std::move(colorantNames))));
+            }
+            else
+            {
+                colorSpace.appendItem(pdf::PDFObject::createName("Separation"));
+                colorSpace.appendItem(pdf::PDFObject::createName("Spot"));
+            }
+            colorSpace.appendItem(pdf::PDFObject::createName("LocalRGB"));
+            colorSpace.appendItem(tintTransform);
+
+            pdf::PDFObject shading = createDictionaryObject({ { "ShadingType", pdf::PDFObject::createInteger(2) },
+                                                              { "ColorSpace", pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(std::move(colorSpace))) },
+                                                              { "Coords", createNumberArrayObject({ 20, 0, 180, 0 }) },
+                                                              { "Function", function } });
+
+            pdf::PDFObject formResources = createDictionaryObject({ { "Shading", createDictionaryObject({ { "Sh0", shading } }) },
+                                                                    { "ColorSpace", createDictionaryObject({ { "LocalRGB", pdf::PDFObject::createName("DeviceRGB") } }) } });
+
+            pdf::PDFObject formObject = addStreamObject(builder, { { "Type", pdf::PDFObject::createName("XObject") },
+                                                                   { "Subtype", pdf::PDFObject::createName("Form") },
+                                                                   { "BBox", createNumberArrayObject({ 0, 0, 200, 200 }) },
+                                                                   { "Resources", formResources } }, formContent);
+
+            pdf::PDFDictionary resources;
+            resources.addEntry(pdf::PDFInplaceOrMemoryString("ColorSpace"), createDictionaryObject({ { "LocalRGB", pdf::PDFObject::createName("DeviceGray") } }));
+            resources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"), createDictionaryObject({ { "Fm1", formObject } }));
+            return resources;
+        });
+
+        pdf::PDFEditedPageContent content;
+        QVERIFY(processPageContent(&document, &content).isEmpty());
+        QCOMPARE(getShadingElementCount(content), size_t(1));
+
+        QByteArray outputContent;
+        pdf::PDFDocumentPointer modifiedDocument = rewritePageContent(&document, content, false, &outputContent);
+        QVERIFY(modifiedDocument);
+        QCOMPARE(outputContent.count(" sh\n"), 1);
+
+        pdf::PDFEditedPageContent modifiedContent;
+        QList<pdf::PDFRenderError> errors = processPageContent(modifiedDocument.data(), &modifiedContent);
+        QVERIFY2(errors.isEmpty(), qPrintable(errors.isEmpty() ? QString() : errors.front().message));
+        QCOMPARE(getShadingElementCount(modifiedContent), size_t(1));
+
+        // The shading goes from red to blue
+        QImage originalImage = renderPage(&document);
+        QColor leftColor = getPageColor(originalImage, QPointF(25, 100));
+        QColor rightColor = getPageColor(originalImage, QPointF(175, 100));
+        QVERIFY2(leftColor.red() > 200 && leftColor.green() < 55 && leftColor.blue() < 55, qPrintable(leftColor.name()));
+        QVERIFY2(rightColor.blue() > 200 && rightColor.green() < 55 && rightColor.red() < 55, qPrintable(rightColor.name()));
+
+        QCOMPARE(renderPage(modifiedDocument.data()), originalImage);
+    }
+}
+
+void ContentEditorTest::test_transparency_group_color_space_is_preserved()
+{
+    // Issue #337 - the colors of the transparency group are converted into the blending
+    // color space of the group, so the red rectangle of the group with the gray color space
+    // is gray. The color space can be given directly, or as a name of the color space
+    // resource of the form XObject, which paints the group.
+    for (const bool isColorSpaceResource : { false, true })
+    {
+        pdf::PDFDocument document = createDocument("q /Fm1 Do Q", [isColorSpaceResource](pdf::PDFDocumentBuilder* builder)
+        {
+            pdf::PDFObject group = createDictionaryObject({ { "S", pdf::PDFObject::createName("Transparency") },
+                                                            { "I", pdf::PDFObject::createBool(true) },
+                                                            { "CS", pdf::PDFObject::createName(isColorSpaceResource ? "LocalGray" : "DeviceGray") } });
+            pdf::PDFObject groupFormObject = addStreamObject(builder, { { "Subtype", pdf::PDFObject::createName("Form") },
+                                                                        { "BBox", createNumberArrayObject({ 0, 0, 200, 200 }) },
+                                                                        { "Group", group } }, "1 0 0 rg 20 20 160 160 re f");
+
+            pdf::PDFDictionary resources;
+            if (isColorSpaceResource)
+            {
+                pdf::PDFObject formResources = createDictionaryObject({ { "ColorSpace", createDictionaryObject({ { "LocalGray", pdf::PDFObject::createName("DeviceGray") } }) },
+                                                                        { "XObject", createDictionaryObject({ { "Fm2", groupFormObject } }) } });
+                pdf::PDFObject formObject = addStreamObject(builder, { { "Subtype", pdf::PDFObject::createName("Form") },
+                                                                       { "BBox", createNumberArrayObject({ 0, 0, 200, 200 }) },
+                                                                       { "Resources", formResources } }, "/Fm2 Do");
+                resources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"), createDictionaryObject({ { "Fm1", formObject } }));
+            }
+            else
+            {
+                resources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"), createDictionaryObject({ { "Fm1", groupFormObject } }));
+            }
+            return resources;
+        });
+
+        pdf::PDFEditedPageContent content;
+        QVERIFY(processPageContent(&document, &content).isEmpty());
+        QCOMPARE(content.getElementCount(), size_t(1));
+
+        const pdf::PDFEditedPageContentTransparencyGroupPointer& group = content.getElement(0)->getTransparencyGroup();
+        QVERIFY(group);
+        QVERIFY(group->colorSpaceObject == pdf::PDFObject::createName("DeviceGray"));
+
+        pdf::PDFDocumentPointer modifiedDocument = rewritePageContent(&document, content, false, nullptr);
+        QVERIFY(modifiedDocument);
+
+        pdf::PDFEditedPageContent modifiedContent;
+        QList<pdf::PDFRenderError> errors = processPageContent(modifiedDocument.data(), &modifiedContent);
+        QVERIFY2(errors.isEmpty(), qPrintable(errors.isEmpty() ? QString() : errors.front().message));
+        QCOMPARE(modifiedContent.getElementCount(), size_t(1));
+
+        const QImage originalImage = renderPageWithTransparency(&document);
+        const QImage modifiedImage = renderPageWithTransparency(modifiedDocument.data());
+
+        const QColor color = getPageColor(originalImage, QPointF(100, 100));
+        QVERIFY2(color.red() == color.green() && color.green() == color.blue() && color.red() < 128, qPrintable(color.name()));
+        QCOMPARE(getDifferentPixelCount(modifiedImage, originalImage, 2), 0);
+    }
+}
+
+void ContentEditorTest::test_shading_icc_alternate_color_space_from_form_resources_is_preserved()
+{
+    // Issue #337 - the alternate color space of the ICC based color space of the shading
+    // painted by a form XObject can be a name of the color space resource of the form.
+    const QByteArray iccProfile = QColorSpace(QColorSpace::SRgb).iccProfile();
+    QVERIFY(!iccProfile.isEmpty());
+
+    QByteArray pageContent = "q /Fm1 Do Q";
+    QByteArray formContent = "q 20 20 160 160 re W n /Sh0 sh Q";
+
+    pdf::PDFDocument document = createDocument(pageContent, [&formContent, &iccProfile](pdf::PDFDocumentBuilder* builder)
+    {
+        pdf::PDFObject function = createDictionaryObject({ { "FunctionType", pdf::PDFObject::createInteger(2) },
+                                                           { "Domain", createNumberArrayObject({ 0, 1 }) },
+                                                           { "C0", createNumberArrayObject({ 1, 0, 0 }) },
+                                                           { "C1", createNumberArrayObject({ 0, 0, 1 }) },
+                                                           { "N", pdf::PDFObject::createInteger(1) } });
+
+        pdf::PDFObject profileObject = addStreamObject(builder, { { "N", pdf::PDFObject::createInteger(3) },
+                                                                  { "Alternate", pdf::PDFObject::createName("LocalRGB") } }, iccProfile);
+
+        pdf::PDFArray colorSpace;
+        colorSpace.appendItem(pdf::PDFObject::createName("ICCBased"));
+        colorSpace.appendItem(profileObject);
+
+        pdf::PDFObject shading = createDictionaryObject({ { "ShadingType", pdf::PDFObject::createInteger(2) },
+                                                          { "ColorSpace", pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(std::move(colorSpace))) },
+                                                          { "Coords", createNumberArrayObject({ 20, 0, 180, 0 }) },
+                                                          { "Function", function } });
+
+        pdf::PDFObject formResources = createDictionaryObject({ { "Shading", createDictionaryObject({ { "Sh0", shading } }) },
+                                                                { "ColorSpace", createDictionaryObject({ { "LocalRGB", pdf::PDFObject::createName("DeviceRGB") } }) } });
+
+        pdf::PDFObject formObject = addStreamObject(builder, { { "Type", pdf::PDFObject::createName("XObject") },
+                                                               { "Subtype", pdf::PDFObject::createName("Form") },
+                                                               { "BBox", createNumberArrayObject({ 0, 0, 200, 200 }) },
+                                                               { "Resources", formResources } }, formContent);
+
+        pdf::PDFDictionary resources;
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"), createDictionaryObject({ { "Fm1", formObject } }));
+        return resources;
+    });
+
+    pdf::PDFEditedPageContent content;
+    QVERIFY(processPageContent(&document, &content).isEmpty());
+    QCOMPARE(getShadingElementCount(content), size_t(1));
+
+    QByteArray outputContent;
+    pdf::PDFDocumentPointer modifiedDocument = rewritePageContent(&document, content, false, &outputContent);
+    QVERIFY(modifiedDocument);
+    QCOMPARE(outputContent.count(" sh\n"), 1);
+
+    pdf::PDFEditedPageContent modifiedContent;
+    QList<pdf::PDFRenderError> errors = processPageContent(modifiedDocument.data(), &modifiedContent);
+    QVERIFY2(errors.isEmpty(), qPrintable(errors.isEmpty() ? QString() : errors.front().message));
+    QCOMPARE(getShadingElementCount(modifiedContent), size_t(1));
+
+    QImage originalImage = renderPage(&document);
+    QVERIFY(getPageColor(originalImage, QPointF(100, 100)) != QColor(Qt::white));
+    QCOMPARE(renderPage(modifiedDocument.data()), originalImage);
 }
 
 QTEST_MAIN(ContentEditorTest)

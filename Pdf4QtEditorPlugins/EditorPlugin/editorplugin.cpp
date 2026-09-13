@@ -953,7 +953,9 @@ bool EditorPlugin::updateTextElement(pdf::PDFPageContentElementEdited* element)
             // The font keys of the processed page can differ from the keys of the target
             // element (fonts are written under the keys of the page resources), so the
             // font resources and the text items as text must correspond to each other.
-            targetTextElement->setFontResources(sourceElementText->getFontResources());
+            // The processed document is temporary - font objects created only in it
+            // (for example a fallback font) are not valid in the edited document.
+            targetTextElement->setFontResources(pdf::PDFEditedPageContentElementText::getFontResourcesValidInDocument(sourceElementText->getFontResources(), document, m_document));
             targetTextElement->setItemsAsText(sourceElementText->getItemsAsText());
         }
         else

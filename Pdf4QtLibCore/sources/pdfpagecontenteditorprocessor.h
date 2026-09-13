@@ -42,6 +42,28 @@ class PDFEditedPageContentElementText;
 class PDFEditedPageContentElementImage;
 class PDFEditedPageContentElementShading;
 
+struct PDFEditedPageContentTransparencyGroup;
+using PDFEditedPageContentTransparencyGroupPointer = std::shared_ptr<const PDFEditedPageContentTransparencyGroup>;
+
+/// Transparency group, which is composed onto its backdrop with a blend mode
+/// or a constant alpha, or which is isolated or knockout, or which has its own
+/// blending color space (the colors are converted into it). Such group can't be
+/// flattened into the page - the blend mode (or the alpha) can't be applied to each
+/// object of the group separately, because the objects of the group are composed
+/// with each other first, and the isolation (knockout) changes, how the objects
+/// are composed. So the elements of the group refer to it and the group is written
+/// back as a form XObject. Elements of the same group refer to the same object.
+struct PDFEditedPageContentTransparencyGroup
+{
+    PDFEditedPageContentTransparencyGroupPointer parent; ///< Enclosing transparency group (or null)
+    BlendMode blendMode = BlendMode::Normal;
+    PDFReal alphaFilling = 1.0;
+    PDFReal alphaStroking = 1.0;
+    bool isolated = false;
+    bool knockout = false;
+    PDFObject colorSpaceObject; ///< Blending color space of the group, valid in the page resources (or null)
+};
+
 class PDF4QTLIBCORESHARED_EXPORT PDFEditedPageContentElement
 {
 public:
@@ -90,10 +112,16 @@ public:
     /// \param clipPath Clip path (an empty path means no clipping)
     void setClipPath(const QPainterPath& clipPath);
 
+    /// Returns the innermost transparency group, which contains the element
+    /// (null, if the element is painted directly onto the page)
+    const PDFEditedPageContentTransparencyGroupPointer& getTransparencyGroup() const;
+    void setTransparencyGroup(const PDFEditedPageContentTransparencyGroupPointer& transparencyGroup);
+
 protected:
     PDFPageContentProcessorState m_state;
     QTransform m_transform;
     QPainterPath m_clipPath;
+    PDFEditedPageContentTransparencyGroupPointer m_transparencyGroup;
 };
 
 class PDF4QTLIBCORESHARED_EXPORT PDFEditedPageContentElementPath : public PDFEditedPageContentElement
@@ -253,6 +281,18 @@ public:
     const std::vector<FontResource>& getFontResources() const;
     void setFontResources(const std::vector<FontResource>& fontResources);
 
+    /// Returns font resources of a text processed in the source document, which
+    /// can be used by a text written into the target document. Font objects, which
+    /// are not the same in the target document, including the objects they refer to
+    /// (for example font objects created only in the source document), are removed.
+    /// Such a font is then selected by its key, or it is replaced by a fallback font.
+    /// \param fontResources Font resources of the text in the source document
+    /// \param sourceDocument Source document
+    /// \param targetDocument Target document
+    static std::vector<FontResource> getFontResourcesValidInDocument(const std::vector<FontResource>& fontResources,
+                                                                     const PDFDocument* sourceDocument,
+                                                                     const PDFDocument* targetDocument);
+
     /// Returns key of the font in the text element. If the font
     /// is not found, the font identifier is returned.
     /// \param font Font
@@ -366,15 +406,6 @@ private:
         PDFObject fontObject;
     };
 
-    /// Blend mode and constant alpha, with which a transparency group
-    /// is composed onto its backdrop.
-    struct TransparencyGroupState
-    {
-        BlendMode blendMode = BlendMode::Normal;
-        PDFReal alphaFilling = 1.0;
-        PDFReal alphaStroking = 1.0;
-    };
-
     /// Returns the current clip path mapped into the coordinate space
     /// of an element with the given transformation matrix. If the element
     /// is not clipped (or the matrix is not invertible, in which case
@@ -383,11 +414,18 @@ private:
     /// \param elementTransform Element transformation matrix
     QPainterPath getCurrentClipPathInElementSpace(const QTransform& elementTransform) const;
 
-    /// Returns the graphic state of a new element. Transparency groups can't
-    /// be represented by the edited content elements - the content of a group
-    /// is written directly into the page. So the blend mode and the constant
-    /// alpha of the enclosing transparency groups are applied to the element.
-    PDFPageContentProcessorState getElementState() const;
+    /// Returns the innermost transparency group being processed, which can't
+    /// be flattened into the page (or null, if there is no such group)
+    PDFEditedPageContentTransparencyGroupPointer getCurrentTransparencyGroup() const;
+
+    /// Returns the shading object, which can be painted from the page content stream.
+    /// Names of the color space resources in the color space of the shading (including
+    /// the color spaces, on which it depends, such as the alternate color space of the
+    /// separation) are replaced by the color space objects from the current resources
+    /// (the shading can be painted by a form XObject, whose resources differ from the
+    /// page resources).
+    /// \param shadingObject Shading object from the current shading resource dictionary
+    PDFObject getShadingObjectWithResolvedColorSpace(const PDFObject& shadingObject) const;
 
     /// Adds fonts used by the text element (the initial font and the fonts
     /// selected by the text items) into the font resources of the element.
@@ -411,8 +449,10 @@ private:
     /// Text font before the currently processed operator
     PDFFontPointer m_textFontBeforeOperator;
 
-    /// Stack of the transparency groups being processed
-    std::vector<TransparencyGroupState> m_transparencyGroups;
+    /// Stack of the transparency groups being processed. Each item is the innermost
+    /// group, which can't be flattened, at the corresponding nesting level (groups,
+    /// which can be flattened, repeat the item of the enclosing group).
+    std::vector<PDFEditedPageContentTransparencyGroupPointer> m_transparencyGroups;
 
     /// Shading object painted by the currently processed 'sh' operator
     PDFObject m_shadingObject;

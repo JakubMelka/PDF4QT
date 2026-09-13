@@ -532,6 +532,7 @@ PDFPageContentProcessor::PDFTransparencyGroup PDFPageContentProcessor::parseTran
         if (!colorSpaceObject.isNull())
         {
             group.colorSpacePointer = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, colorSpaceObject);
+            group.colorSpaceObject = transparencyDictionary->get("CS");
 
             if (group.colorSpacePointer && !group.colorSpacePointer->isBlendColorSpace())
             {
@@ -830,6 +831,7 @@ void PDFPageContentProcessor::processForm(const QTransform& matrix,
         if (!colorSpaceObject.isNull())
         {
             group.colorSpacePointer = PDFAbstractColorSpace::createColorSpace(m_colorSpaceDictionary, m_document, colorSpaceObject);
+            group.colorSpaceObject = transparencyDictionary->get("CS");
         }
         group.isolated = loader.readBooleanFromDictionary(transparencyDictionary, "I", false);
         group.knockout = loader.readBooleanFromDictionary(transparencyDictionary, "K", false);

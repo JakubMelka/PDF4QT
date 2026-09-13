@@ -554,6 +554,7 @@ protected:
     struct PDFTransparencyGroup
     {
         PDFColorSpacePointer colorSpacePointer;
+        PDFObject colorSpaceObject; ///< Color space object of the group (/CS entry), null, if not present
         bool isolated = false;
         bool knockout = false;
     };

@@ -26,6 +26,7 @@
 #include "pdfstreamfilters.h"
 #include "pdfpainterutils.h"
 
+#include <algorithm>
 #include <exception>
 #include <QBuffer>
 #include <QPainter>
@@ -602,6 +603,8 @@ void PDFPageContentEditorContentStreamBuilder::writeStateDifference(QTextStream&
 
 void PDFPageContentEditorContentStreamBuilder::writeEditedElement(const PDFEditedPageContentElement* element)
 {
+    updateTransparencyGroups(element);
+
     PDFPageContentProcessorState state = element->getState();
     state.setCurrentTransformationMatrix(element->getTransform());
 
@@ -733,9 +736,202 @@ void PDFPageContentEditorContentStreamBuilder::writeEditedElement(const PDFEdite
     }
 }
 
-const QByteArray& PDFPageContentEditorContentStreamBuilder::getOutputContent() const
+const QByteArray& PDFPageContentEditorContentStreamBuilder::getOutputContent()
 {
+    finishTransparencyGroups();
     return m_outputContent;
+}
+
+void PDFPageContentEditorContentStreamBuilder::finishTransparencyGroups()
+{
+    while (!m_transparencyGroups.empty())
+    {
+        endTransparencyGroup();
+    }
+}
+
+void PDFPageContentEditorContentStreamBuilder::updateTransparencyGroups(const PDFEditedPageContentElement* element)
+{
+    std::vector<PDFEditedPageContentTransparencyGroupPointer> groups;
+    for (PDFEditedPageContentTransparencyGroupPointer group = element->getTransparencyGroup(); group; group = group->parent)
+    {
+        groups.push_back(group);
+    }
+    std::reverse(groups.begin(), groups.end());
+
+    size_t commonGroupCount = 0;
+    while (commonGroupCount < groups.size() &&
+           commonGroupCount < m_transparencyGroups.size() &&
+           m_transparencyGroups[commonGroupCount].group == groups[commonGroupCount])
+    {
+        ++commonGroupCount;
+    }
+
+    while (m_transparencyGroups.size() > commonGroupCount)
+    {
+        endTransparencyGroup();
+    }
+
+    for (size_t i = commonGroupCount; i < groups.size(); ++i)
+    {
+        beginTransparencyGroup(groups[i]);
+    }
+
+    if (!m_transparencyGroups.empty())
+    {
+        const QRectF boundingBox = getPaintedAreaBoundingBox(element);
+        if (!boundingBox.isEmpty())
+        {
+            for (OpenTransparencyGroup& openGroup : m_transparencyGroups)
+            {
+                openGroup.boundingBox = openGroup.boundingBox.united(boundingBox);
+            }
+        }
+    }
+}
+
+QRectF PDFPageContentEditorContentStreamBuilder::getPaintedAreaBoundingBox(const PDFEditedPageContentElement* element)
+{
+    const QTransform transform = element->getTransform();
+
+    // Bounding box of the element geometry, which is not limited by the clip path
+    QRectF boundingBox;
+    if (const PDFEditedPageContentElementPath* pathElement = element->asPath())
+    {
+        boundingBox = transform.map(pathElement->getPath()).boundingRect();
+    }
+    else if (const PDFEditedPageContentElementText* textElement = element->asText())
+    {
+        boundingBox = transform.mapRect(textElement->getTextPath().boundingRect());
+    }
+    else if (const PDFEditedPageContentElementImage* imageElement = element->asImage())
+    {
+        Q_UNUSED(imageElement);
+        boundingBox = transform.mapRect(QRectF(0.0, 0.0, 1.0, 1.0));
+    }
+    else if (const PDFEditedPageContentElementShading* shadingElement = element->asShading())
+    {
+        boundingBox = transform.mapRect(shadingElement->getArea().boundingRect());
+    }
+    else
+    {
+        boundingBox = element->getBoundingBox();
+    }
+
+    // The geometry doesn't contain the stroke of the path (or of the text). A miter join
+    // exceeds the geometry at most by the half of the line width multiplied by the miter
+    // limit (the painter uses the whole line width as the unit of the miter limit, so it
+    // is used here to be safe). Line caps exceed the geometry by less than the line width.
+    const PDFPageContentProcessorState& state = element->getState();
+    const PDFReal scale = qMax(qAbs(transform.m11()) + qAbs(transform.m21()), qAbs(transform.m12()) + qAbs(transform.m22()));
+    const PDFReal margin = state.getLineWidth() * qMax<PDFReal>(state.getMitterLimit(), 1.0) * scale + 1.0;
+    boundingBox.adjust(-margin, -margin, margin, margin);
+
+    // The element can't paint anything outside of its clip path
+    const QPainterPath& clipPath = element->getClipPath();
+    if (!clipPath.isEmpty())
+    {
+        boundingBox = boundingBox.intersected(transform.map(clipPath).boundingRect());
+    }
+
+    return boundingBox;
+}
+
+void PDFPageContentEditorContentStreamBuilder::beginTransparencyGroup(const PDFEditedPageContentTransparencyGroupPointer& group)
+{
+    OpenTransparencyGroup openGroup;
+    openGroup.group = group;
+    openGroup.outputContent = std::move(m_outputContent);
+    openGroup.state = m_currentState;
+    openGroup.state.setStateFlags(PDFPageContentProcessorState::StateFlags());
+    m_transparencyGroups.push_back(std::move(openGroup));
+
+    m_outputContent.clear();
+
+    // The blend mode, the constant alpha and the soft mask are reset to the default
+    // values at the beginning of the transparency group (they are used to compose
+    // the group onto its backdrop).
+    m_currentState.setBlendMode(BlendMode::Normal);
+    m_currentState.setAlphaFilling(1.0);
+    m_currentState.setAlphaStroking(1.0);
+    m_currentState.setSoftMask(nullptr);
+    m_currentState.setStateFlags(PDFPageContentProcessorState::StateFlags());
+}
+
+void PDFPageContentEditorContentStreamBuilder::endTransparencyGroup()
+{
+    Q_ASSERT(!m_transparencyGroups.empty());
+
+    OpenTransparencyGroup openGroup = std::move(m_transparencyGroups.back());
+    m_transparencyGroups.pop_back();
+
+    QByteArray groupContent = std::move(m_outputContent);
+    m_outputContent = std::move(openGroup.outputContent);
+    m_currentState = openGroup.state;
+
+    const PDFEditedPageContentTransparencyGroup* group = openGroup.group.get();
+
+    // The elements are written in the page coordinate space and the form XObject
+    // is painted with the identity transformation matrix, so the bounding box
+    // of the elements is the bounding box of the form XObject.
+    QRectF boundingBox = openGroup.boundingBox;
+    if (boundingBox.isNull())
+    {
+        boundingBox = QRectF(0.0, 0.0, 1.0, 1.0);
+    }
+
+    PDFArray boundingBoxArray;
+    boundingBoxArray.appendItem(PDFObject::createReal(boundingBox.left()));
+    boundingBoxArray.appendItem(PDFObject::createReal(boundingBox.top()));
+    boundingBoxArray.appendItem(PDFObject::createReal(boundingBox.right()));
+    boundingBoxArray.appendItem(PDFObject::createReal(boundingBox.bottom()));
+
+    PDFDictionary groupDictionary;
+    groupDictionary.setEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("Group"));
+    groupDictionary.setEntry(PDFInplaceOrMemoryString("S"), PDFObject::createName("Transparency"));
+    groupDictionary.setEntry(PDFInplaceOrMemoryString("I"), PDFObject::createBool(group->isolated));
+    groupDictionary.setEntry(PDFInplaceOrMemoryString("K"), PDFObject::createBool(group->knockout));
+    if (!group->colorSpaceObject.isNull())
+    {
+        groupDictionary.setEntry(PDFInplaceOrMemoryString("CS"), PDFObject(group->colorSpaceObject));
+    }
+
+    PDFArray filter;
+    filter.appendItem(PDFObject::createName("FlateDecode"));
+
+    // The form XObject has no resource dictionary, so it uses the resources of the page,
+    // into which all resources used by the elements of the group are written.
+    QByteArray compressedData = PDFFlateDecodeFilter::compress(groupContent);
+    PDFDictionary formDictionary;
+    formDictionary.setEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("XObject"));
+    formDictionary.setEntry(PDFInplaceOrMemoryString("Subtype"), PDFObject::createName("Form"));
+    formDictionary.setEntry(PDFInplaceOrMemoryString("BBox"), PDFObject::createArray(std::make_shared<PDFArray>(qMove(boundingBoxArray))));
+    formDictionary.setEntry(PDFInplaceOrMemoryString("Group"), PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(groupDictionary))));
+    formDictionary.setEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(compressedData.size()));
+    formDictionary.setEntry(PDFInplaceOrMemoryString("Filter"), PDFObject::createArray(std::make_shared<PDFArray>(qMove(filter))));
+    PDFObject formObject = PDFObject::createStream(std::make_shared<PDFStream>(qMove(formDictionary), qMove(compressedData)));
+
+    QByteArray key;
+    for (int i = 1; key.isEmpty() || m_xobjectDictionary.hasKey(key); ++i)
+    {
+        key = "Fm" + QByteArray::number(i);
+    }
+    m_xobjectDictionary.addEntry(PDFInplaceOrMemoryString(key), qMove(formObject));
+
+    QTextStream stream(&m_outputContent, QDataStream::WriteOnly | QDataStream::Append);
+    stream << "q" << Qt::endl;
+
+    PDFPageContentProcessorState groupState = m_currentState;
+    groupState.setBlendMode(group->blendMode);
+    groupState.setAlphaFilling(group->alphaFilling);
+    groupState.setAlphaStroking(group->alphaStroking);
+    writeStateDifference(stream, groupState);
+
+    stream << "/" << key << " Do" << Qt::endl;
+    stream << "Q" << Qt::endl;
+
+    // The graphic state is restored by the 'Q' operator
+    m_currentState = openGroup.state;
 }
 
 void PDFPageContentEditorContentStreamBuilder::writePathGeometry(QTextStream& stream, const QPainterPath& path)
@@ -1443,9 +1639,18 @@ QByteArray PDFPageContentEditorContentStreamBuilder::selectFont(const QByteArray
     {
         m_textFont = overrideIt.value();
 
-        if (auto objectIt = m_fontResourceObjects.constFind(font); objectIt != m_fontResourceObjects.cend())
+        // The font object must be valid in the document, into which the content
+        // is written (the text element can come from another document).
+        if (auto objectIt = m_fontResourceObjects.constFind(font); objectIt != m_fontResourceObjects.cend() && m_document->getDictionaryFromObject(objectIt.value()))
         {
             fontKey = getFontResourceKey(font, objectIt.value());
+        }
+
+        if (!m_fontDictionary.hasKey(fontKey))
+        {
+            // The font can't be selected by the key, which is missing in the font
+            // dictionary, so the fallback font is used instead.
+            m_textFont = nullptr;
         }
     }
 
@@ -1619,6 +1824,8 @@ void PDFPageContentEditorContentStreamBuilder::writeStyledPath(const QPainterPat
                                                                bool isStroking,
                                                                bool isFilling)
 {
+    finishTransparencyGroups();
+
     PDFPageContentProcessorState newState = m_currentState;
     newState.setCurrentTransformationMatrix(QTransform());
 
@@ -1649,6 +1856,8 @@ void PDFPageContentEditorContentStreamBuilder::writeStyledPath(const QPainterPat
                                                                bool isFilling,
                                                                const QPainterPath& clipPath)
 {
+    finishTransparencyGroups();
+
     QTextStream stream(&m_outputContent, QDataStream::WriteOnly | QDataStream::Append);
     writeStateDifference(stream, state);
 
@@ -1683,6 +1892,8 @@ void PDFPageContentEditorContentStreamBuilder::writeStyledPath(const QPainterPat
 void PDFPageContentEditorContentStreamBuilder::writeImage(const QImage& image,
                                                           const QRectF& rectangle)
 {
+    finishTransparencyGroups();
+
     QTextStream stream(&m_outputContent, QDataStream::WriteOnly | QDataStream::Append);
 
     // This overload places a newly created image into the page coordinate space,
@@ -1729,6 +1940,8 @@ void PDFPageContentEditorContentStreamBuilder::writeImage(const QImage& image,
 
 void PDFPageContentEditorContentStreamBuilder::writeImage(const QImage& image, QTransform transform, const QRectF& rectangle, const QPainterPath& clipPath)
 {
+    finishTransparencyGroups();
+
     QTransform oldTransform = m_currentState.getCurrentTransformationMatrix();
     m_currentState.setCurrentTransformationMatrix(transform);
 

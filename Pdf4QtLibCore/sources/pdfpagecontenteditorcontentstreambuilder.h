@@ -58,14 +58,24 @@ class PDF4QTLIBCORESHARED_EXPORT PDFPageContentEditorContentStreamBuilder
 public:
     PDFPageContentEditorContentStreamBuilder(PDFDocument* document);
 
+    /// Writes the edited element. Elements of a transparency group, which can't be
+    /// flattened into the page, are written into a form XObject of the group. The group
+    /// is finished, when an element outside of the group is written, or when the output
+    /// (the content or the resource dictionaries) is requested.
     void writeEditedElement(const PDFEditedPageContentElement* element);
 
-    const QByteArray& getOutputContent() const;
+    /// Finishes all open transparency groups (their form XObjects are written
+    /// into the XObject dictionary and painted by the output content).
+    void finishTransparencyGroups();
 
-    const PDFDictionary& getFontDictionary() const { return m_fontDictionary; }
-    const PDFDictionary& getXObjectDictionary() const { return m_xobjectDictionary; }
-    const PDFDictionary& getGraphicStateDictionary() const { return m_graphicStateDictionary; }
-    const PDFDictionary& getShadingDictionary() const { return m_shadingDictionary; }
+    /// Returns the output content (open transparency groups are finished first)
+    const QByteArray& getOutputContent();
+
+    /// Resource dictionaries (open transparency groups are finished first)
+    const PDFDictionary& getFontDictionary() { finishTransparencyGroups(); return m_fontDictionary; }
+    const PDFDictionary& getXObjectDictionary() { finishTransparencyGroups(); return m_xobjectDictionary; }
+    const PDFDictionary& getGraphicStateDictionary() { finishTransparencyGroups(); return m_graphicStateDictionary; }
+    const PDFDictionary& getShadingDictionary() { finishTransparencyGroups(); return m_shadingDictionary; }
 
     void setFontDictionary(const PDFDictionary& newFontDictionary);
     void setXObjectDictionary(const PDFDictionary& newXObjectDictionary);
@@ -112,6 +122,25 @@ public:
     static void writePathGeometry(QTextStream& stream, const QPainterPath& path);
 
 private:
+    /// Transparency group, whose elements are being written
+    struct OpenTransparencyGroup
+    {
+        PDFEditedPageContentTransparencyGroupPointer group;
+        QByteArray outputContent;           ///< Output content of the enclosing group (or of the page)
+        PDFPageContentProcessorState state; ///< Current state of the enclosing group (or of the page)
+        QRectF boundingBox;                 ///< Bounding box of the elements of the group, in the page coordinate space
+    };
+
+    /// Finishes transparency groups, which don't contain the element, and starts
+    /// transparency groups of the element, which are not yet started.
+    void updateTransparencyGroups(const PDFEditedPageContentElement* element);
+    void beginTransparencyGroup(const PDFEditedPageContentTransparencyGroupPointer& group);
+    void endTransparencyGroup();
+
+    /// Returns the bounding box of the area, which can be painted by the element
+    /// (including the stroke and limited by the clip path), in the page coordinate space
+    static QRectF getPaintedAreaBoundingBox(const PDFEditedPageContentElement* element);
+
     bool isNeededToWriteCurrentTransformationMatrix() const;
 
     void writeCurrentTransformationMatrix(QTextStream& stream);
@@ -172,6 +201,7 @@ private:
     PDFEditorFallbackFontManager m_fallbackFontManager;
     QByteArray m_currentTextFontKey;    ///< Resource key of the last written Tf operator
     PDFReal m_currentTextFontSize = 0.0;
+    std::vector<OpenTransparencyGroup> m_transparencyGroups; ///< Open transparency groups, from the outermost one
 };
 
 }   // namespace pdf
