@@ -134,6 +134,7 @@ private slots:
     void test_shading_composite_color_space_from_form_resources_is_preserved();
     void test_transparency_group_color_space_is_preserved();
     void test_shading_icc_alternate_color_space_from_form_resources_is_preserved();
+    void test_clip_path_curves_are_preserved();
 
 private:
     enum class Variant
@@ -2309,6 +2310,102 @@ void ContentEditorTest::test_shading_icc_alternate_color_space_from_form_resourc
 
     QImage originalImage = renderPage(&document);
     QVERIFY(getPageColor(originalImage, QPointF(100, 100)) != QColor(Qt::white));
+    QCOMPARE(renderPage(modifiedDocument.data()), originalImage);
+}
+
+void ContentEditorTest::test_clip_path_curves_are_preserved()
+{
+    // Issue #204 - a logo is painted as a large filled rectangle, which is clipped by
+    // the outlines of the letters (a curved path with holes), by the bounding boxes of
+    // nested form XObjects, by rectangles containing the outlines and by a rectangular
+    // band crossing them. If the clipping is lost, the logo becomes a solid rectangle.
+    // The curves of the outlines must not be flattened, when the clip paths are combined.
+    QByteArray pageContent = "q 0.5 0 0 0.5 20 20 cm /Fx1 Do Q";
+
+    // The outer circle of the ring is counterclockwise and the inner circle is
+    // clockwise, so the inner circle is a hole under the nonzero winding rule.
+    QByteArray outerFormContent = "250 150 m 250 205.23 205.23 250 150 250 c 94.77 250 50 205.23 50 150 c "
+                                  "50 94.77 94.77 50 150 50 c 205.23 50 250 94.77 250 150 c h "
+                                  "200 150 m 200 122.39 177.61 100 150 100 c 122.39 100 100 122.39 100 150 c "
+                                  "100 177.61 122.39 200 150 200 c 177.61 200 200 177.61 200 150 c h W n "
+                                  "q 20 20 260 260 re W n /Fm1 Do Q";
+    QByteArray innerFormContent = "q -5 -5 m 305 -5 l 305 305 l -5 305 l h W* n "
+                                  "0 150 300 60 re W n 0 0 1 rg -20 -20 340 340 re f Q";
+
+    pdf::PDFDocument document = createDocument(pageContent, [&outerFormContent, &innerFormContent](pdf::PDFDocumentBuilder* builder)
+    {
+        pdf::PDFObject innerFormObject = addStreamObject(builder, { { "Type", pdf::PDFObject::createName("XObject") },
+                                                                    { "Subtype", pdf::PDFObject::createName("Form") },
+                                                                    { "BBox", createNumberArrayObject({ -10, -10, 310, 310 }) } }, innerFormContent);
+        pdf::PDFObject outerFormObject = addStreamObject(builder, { { "Type", pdf::PDFObject::createName("XObject") },
+                                                                    { "Subtype", pdf::PDFObject::createName("Form") },
+                                                                    { "BBox", createNumberArrayObject({ 0, 0, 300, 300 }) },
+                                                                    { "Resources", createDictionaryObject({ { "XObject", createDictionaryObject({ { "Fm1", innerFormObject } }) } }) } }, outerFormContent);
+
+        pdf::PDFDictionary resources;
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"), createDictionaryObject({ { "Fx1", outerFormObject } }));
+        return resources;
+    });
+
+    // Points in the page space. The ring has the center (95, 95), the outer radius 50
+    // and the inner radius 25, the band covers the vertical range from 95 to 125.
+    const QPointF ringInsideBand(132.5, 110.0);
+    const QPointF holeInsideBand(95.0, 110.0);
+    const QPointF ringBelowBand(132.5, 80.0);
+    const QPointF outsideRingInsideBand(152.5, 110.0);
+
+    auto verifyClipPath = [&](const pdf::PDFEditedPageContent& editedContent)
+    {
+        QCOMPARE(editedContent.getElementCount(), size_t(1));
+
+        const pdf::PDFEditedPageContentElement* element = editedContent.getElement(0);
+        QVERIFY(element->asPath());
+
+        const QPainterPath clipPath = element->getTransform().map(element->getClipPath());
+        QVERIFY(clipPath.contains(ringInsideBand));
+        QVERIFY(!clipPath.contains(holeInsideBand));
+        QVERIFY(!clipPath.contains(ringBelowBand));
+        QVERIFY(!clipPath.contains(outsideRingInsideBand));
+
+        int curveCount = 0;
+        for (int i = 0; i < clipPath.elementCount(); ++i)
+        {
+            if (clipPath.elementAt(i).isCurveTo())
+            {
+                ++curveCount;
+            }
+        }
+        QVERIFY(curveCount > 0);
+    };
+
+    pdf::PDFEditedPageContent content;
+    QVERIFY(processPageContent(&document, &content).isEmpty());
+    verifyClipPath(content);
+    if (QTest::currentTestFailed())
+    {
+        return;
+    }
+
+    QImage originalImage = renderPage(&document);
+    QCOMPARE(getPageColor(originalImage, ringInsideBand), QColor(Qt::blue));
+    QCOMPARE(getPageColor(originalImage, holeInsideBand), QColor(Qt::white));
+    QCOMPARE(getPageColor(originalImage, ringBelowBand), QColor(Qt::white));
+    QCOMPARE(getPageColor(originalImage, outsideRingInsideBand), QColor(Qt::white));
+
+    QByteArray outputContent;
+    pdf::PDFDocumentPointer modifiedDocument = rewritePageContent(&document, content, false, &outputContent);
+    QVERIFY(modifiedDocument);
+    QVERIFY2(outputContent.contains("W n") && outputContent.contains(" c\n"), outputContent.constData());
+
+    pdf::PDFEditedPageContent modifiedContent;
+    QList<pdf::PDFRenderError> errors = processPageContent(modifiedDocument.data(), &modifiedContent);
+    QVERIFY2(errors.isEmpty(), qPrintable(errors.isEmpty() ? QString() : errors.front().message));
+    verifyClipPath(modifiedContent);
+    if (QTest::currentTestFailed())
+    {
+        return;
+    }
+
     QCOMPARE(renderPage(modifiedDocument.data()), originalImage);
 }
 
