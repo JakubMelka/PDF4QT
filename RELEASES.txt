@@ -16,12 +16,14 @@ CURRENT:
  - Issue #397: No Audio Output When Using Text-to-Speech
  - Issue #395: [idea] white crosshair easier to see in dark mode
  - Issue #393: Text in some PDFs is displayed incorrectly
- - Issue #328: PDF viewer display error visible only at some zoom levels
  - Issue #332: Some suggestions and problem requests for PDF editors
+ - Issue #328: PDF viewer display error visible only at some zoom levels
  - Issue #299: PDF element display error
  - Issue #258: feat: Insert page number
  - Issue #238: Pdf Editor: "Edit page content" makes image disappear
  - Issue #231: PDF4Qt Diff does not open files on Linux
+ - Issue #211: Text is inverted on edit
+ - Issue #203: Editor seems to forget location of text after editing it
  - Issue #169: Option to render text as text when using Qpainter backend
 
 V: 1.6.0.0 14.6.2026
