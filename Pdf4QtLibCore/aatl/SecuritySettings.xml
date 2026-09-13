@@ -3224,7 +3224,7 @@
 			</Identification>
 		</Identity>
 		<Identity>
-			<ImportAction>1</ImportAction>
+			<ImportAction>3</ImportAction>
 			<Certificate>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</Certificate>
 			<Trust>
 				<Root>1</Root>
@@ -5637,7 +5637,7 @@
 			</Identification>
 		</Identity>
 		<Identity>
-			<ImportAction>1</ImportAction>
+			<ImportAction>3</ImportAction>
 			<Certificate>MIIFdDCCA1ygAwIBAgIQHssQ8F+Ejlmb9vpMH76/jDANBgkqhkiG9w0BAQsFADBlMQswCQYDVQQGEwJNWTEfMB0GA1UEChMWUG9zIERpZ2ljZXJ0IFNkbi4gQmhkLjERMA8GA1UECxMINDU3NjA4LUsxIjAgBgNVBAMTGVBvcyBEaWdpY2VydCBBQVRMIFJvb3QgQ0EwHhcNMTgxMTI4MDg0NTEyWhcNMjMxMTI4MDg0NTEyWjBpMQswCQYDVQQGEwJNWTEfMB0GA1UEChMWUG9zIERpZ2ljZXJ0IFNkbi4gQmhkLjERMA8GA1UECxMINDU3NjA4LUsxJjAkBgNVBAMTHVBvcyBEaWdpY2VydCBEb2N1bWVudCBTaWduaW5nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoco9hEinbfk7flkGBU1EmEtcLNTkz9bk1LjKY/1uXZU2vieH+PrkgJ86Yj9tG7k8oz0C3Z0mIgWGpdB+9vt1nYKnn2rMmlKoYYKQFssVs0/3NtGJQrRyYEFrVWuclFx8SDtXKME3zoD+5xCbmMwtJNZdcuHsD/5AxHjMabAROExstkJd5X0koxEGaQNrKE/I2qM/TFqITsQvZN4T5D8DFYHWBd/bS82m0zzsjZzsd0m15L7Rqc0DZUPuhJgfuzB2ndzE95o1NvAV3fW0u84fNxzx4jxPyNUHRXpuuTesARiPui2jrUBks6helnuJBLLK7qbKNmzCNFvM3jnSZu2dEQIDAQABo4IBGjCCARYwDwYDVR0TAQH/BAUwAwEB/zARBgNVHQ4ECgQITeYhVB93vdQwUwYDVR0gBEwwSjBIBgkrBgEEAYOKRQEwOzA5BggrBgEFBQcCARYtaHR0cHM6Ly93d3cucG9zZGlnaWNlcnQuY29tLm15L3JlcG9zaXRvcnkvY3BzMBMGA1UdIwQMMAqACEiRFA1tQdtOMDoGCCsGAQUFBwEBBC4wLDAqBggrBgEFBQcwAYYeaHR0cDovL29jc3AucG9zZGlnaWNlcnQuY29tLm15MAsGA1UdDwQEAwIBBjA9BgNVHR8ENjA0MDKgMKAuhixodHRwOi8vY3JsLnBvc2RpZ2ljZXJ0LmNvbS5teS9BQVRMUm9vdENBLmNybDANBgkqhkiG9w0BAQsFAAOCAgEAqT+FGURkMZ6+aabRjKSWXvdf5IRaRvfMvCivYWBZ4/vzO0g37dBBe12r2TiCzXVI/2vkQh57hteVtnNMs2cVQUDrSLBeJgPHGiaCZiPqL8TjFakyskMi1pR9ckZuhuHzZ75+abjFpGE2hyRBsBynvQ+gvPlzCys5GH5PxaUMAlAuWy50DN/dl5kDeCejm6Ncy0gllVtBQcXJyeWE5LOr6YLPyOIwtMrPv7dtGqBKQEiv6LcvY+6T2EJwzoLav/rzGSPo9GTf7rKxgbDg3RY8wqYFxZ5UmzV7YGoFPRC0RXUy5ipiKSyLBI80LaWtDfkshSBxz04idCP+RAJMgevkJ0NS+uX4rWXLzVsAJr25TZ4r2ij2obheZDjir4eAoYepJXfh7r8tNdRp0+w34nTs2QDsvLgc3pB9m/U4Qp14O05ZMM/muZLtncjhjr2AqeGtozm5soRogdeE08O64FHhURKLmNbLSkTN/7eq/VCwFtPooTLJ5at1frrsKbPwi7va3gX98e0PTueLgEeTH8uTXe5c/YfovgWVbkIzWPUno6kOC332GiifLFhpACQQRBD9RthKHBacbnL+6MXCYPoGCh8uLluwd9z14CiuoQOShyb2kEsxwda0ai1F1QxAht2L9pQA9v2fq3y5k3kFnwRB67ytzDqtERJ1MoJ6/PfzQGY=</Certificate>
 			<Trust>
 				<Root>0</Root>
@@ -5661,7 +5661,7 @@
 			</Identification>
 		</Identity>
 		<Identity>
-			<ImportAction>1</ImportAction>
+			<ImportAction>3</ImportAction>
 			<Certificate>MIIFajCCA1KgAwIBAgIQVny1ZxD7RGOdCiBN8y4TGTANBgkqhkiG9w0BAQsFADBlMQswCQYDVQQGEwJNWTEfMB0GA1UEChMWUG9zIERpZ2ljZXJ0IFNkbi4gQmhkLjERMA8GA1UECxMINDU3NjA4LUsxIjAgBgNVBAMTGVBvcyBEaWdpY2VydCBBQVRMIFJvb3QgQ0EwHhcNMTkwNzEyMTA0MDA2WhcNMjQwNzEyMTA0MDA2WjBcMQswCQYDVQQGEwJNWTEfMB0GA1UEChMWUG9zIERpZ2ljZXJ0IFNkbi4gQmhkLjERMA8GA1UECxMINDU3NjA4LUsxGTAXBgNVBAMTEFBvcyBEaWdpY2VydCBUU0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCnVAf1lvOY7/jfEyWhWQHkStQL/AicemK/r0F/uARcmPnPnWN2KzM9sq3KRL6scfeRiG8YUT+uIRVA8lfpRPhbA0OCQyFNfWaxgc/iY/0adIA0P38XeyNX5TRsSJuTFR1xlGDKpwe8pkTczDvYMOPh0edSghO8sc0Ysjc5lUsvwaSrPMr/q687qIDRrpmm4JBtCmpBO/KupFCeWbzy7a0xulw38kJ5fQiEeL5q1I2Ckj8QqQJxm5/JClGeguKqgXvSMAazsg6l5M2SDGZ/VKuoozPfOlEiC0B61b74FfN5SjVzHJBtoNy6dcIqbDU0DFHP8l9HsreF+6Wki2OcEb9LAgMBAAGjggEdMIIBGTAPBgNVHRMBAf8EBTADAQH/MBEGA1UdDgQKBAhHVjgTtKYFxTBWBgNVHSAETzBNMEsGCSsGAQQBg4pFAzA+MDwGCCsGAQUFBwIBFjBodHRwczovL3d3dy5wb3NkaWdpY2VydC5jb20ubXkvcmVwb3NpdG9yeS90c2FwcHMwEwYDVR0jBAwwCoAISJEUDW1B204wOgYIKwYBBQUHAQEELjAsMCoGCCsGAQUFBzABhh5odHRwOi8vb2NzcC5wb3NkaWdpY2VydC5jb20ubXkwCwYDVR0PBAQDAgEGMD0GA1UdHwQ2MDQwMqAwoC6GLGh0dHA6Ly9jcmwucG9zZGlnaWNlcnQuY29tLm15L0FBVExSb290Q0EuY3JsMA0GCSqGSIb3DQEBCwUAA4ICAQBsZXIM/cvWQ7vX+hYp/N3OJftI7ISsBTZi0Pg/Ut9TIm9xbV7mtUdH4BsxnCqgWsw7zm8x9NrEUlfRp7ncqaLPD+Bm2RhcrwIdx/I9PjQB1KE/yYCaeT1a4X1mRvYYD3tVqmzxqMYFEYuUhPsCyihQTjGZz8FElRZ/oudFQGKztebYz0tkb2l4K1i5xVGbZnmj1AMS6zXCFoVeeSAptXgW4YtsCmlqBcBaX1cDNSl+V+xtzPKeIbDt2BoVxOKOwQhbFSXc1TKU8Lv5J4yANpubja+hy7DaNzu6iJfvUwcEmKSdjJiEojQQAX9BxTrawgUMxh5MTY3SRJVMl6FQFu7ZK3/Ceo79eShMejTSq3E9FJY/4Qd71cx7zNAkJefUNQfy0VwOGPRdltBmenGNTZa0Prg+jlUm+4CUE4u0z9jgORw4pF4EpEb25vjxbORLl/M72+JbPFRNLGNz9vE6vx4uAFxjSDoRtuea3MjSYLEWG4fHCZxE0BghbSR5x5fkAfthGVv315AGv+j/4ChMIs6zp5BKWeHQNCkycn5L1uGHzDL/bIhcvyOKLb/qar74k2S392dfHFWzRlNQfCDzbh4DPW3MPZVvoFX68Xk3y0qBqRMDt7BZg9uhDTwb4/KCKwEXx++hCqWpIt3uEe7B/h0IFTW5ta7Fl8m2jhHVswKfvQ==</Certificate>
 			<Trust>
 				<Root>0</Root>
@@ -6128,7 +6128,7 @@
 			</Identification>
 		</Identity>
 		<Identity>
-			<ImportAction>1</ImportAction>
+			<ImportAction>2</ImportAction>
 			<Certificate>MIIF0TCCA7mgAwIBAgIJAOOiocT+gaENMA0GCSqGSIb3DQEBDAUAMIGFMQswCQYDVQQGEwJKUDEmMCQGA1UEChMdU0VDT00gVHJ1c3QgU3lzdGVtcyBDby4sIEx0ZC4xMDAuBgNVBAMTJ1NFQ09NIERvY3VtZW50IFNpZ25pbmcgUlNBIFJvb3QgQ0EgMjAyMzEcMBoGA1UEYRMTTlRSSlAtNDAxMTAwMTA0MDc4MTAeFw0yMzAxMjUwODMzNTlaFw00ODAxMDEwODMzNTlaMIGFMQswCQYDVQQGEwJKUDEmMCQGA1UEChMdU0VDT00gVHJ1c3QgU3lzdGVtcyBDby4sIEx0ZC4xMDAuBgNVBAMTJ1NFQ09NIERvY3VtZW50IFNpZ25pbmcgUlNBIFJvb3QgQ0EgMjAyMzEcMBoGA1UEYRMTTlRSSlAtNDAxMTAwMTA0MDc4MTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAKyMB9lGvBCA99HZrvIqzl/AQy8EFLvxSLWA+13ZonAeMUhuSPxzfhwkuDs+vWXeKJSFQj0Xv0jfHc7n3e2Mjf26vP7IrCc8MWr8VFJ4LMM/TaTO+N5DwUBUY0bMStZhTakJF9jrultP2N44hkoZTMfIKY07LsWkCj9NVteVHmWfrUzdd73Mf7847d4melxs6RL/8mbhcf0u9oSZf6lRVJ5MjdJWMBOcWSrn6XwB6b0OzfAmy3Sopq508740UkFb55sKslKw19xalw5Djx/HLXcMpWlhlrDJgg30MLFSN8lFEqM9gD1fkLSpgL8O9QMzlbuRYiAOOiKJrzdGZOa+2lzxCPb8Yx6P0przBmPVpPm8qorYWO1sbtinx7B58poFVT5YyTzuWiw+smj5E0Dd1SRu7gR1PDJshuP1qHoy7KuffdqErctLEVak7mLCFJAlzPzjE3MdBH5IpYJ/m2zOKI/S9a7RgM1iugOBsjuIRiNMQcNhFyMX5u+vA4mugQtTt9/pn/6rF1uPt3rv/D4WJwFaBN0vBkRgWYqHqAZVavScRV4lfYAFan5nmLui9bZB8ufI+NBv1vkAFuO3Lw1q/ob314Ae9bi9iu35pGSAYHEazp+Zbxsk5XGTGkk2W+gNiFgJJEp8YG+2OcLWcy6mZefRnQF3rPDs6Fe3qC77YzC5AgMBAAGjQjBAMB0GA1UdDgQWBBQB3bEkMIksyAODXhCucR5J8u5LBzAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQwFAAOCAgEAoyB4wkvZg/bXHSyvp5g/H+0AGKBsGNOGUpE3GF2ZC3lnw2KB8NFK2hkLfehaPl3mPGIC7cJdCR8lpAnCAtBuSDyhTEx+FUyM9cJzx0Vefz8xEN5f4tYOmQl5QGpRNMkQZKbj9xRHbeDOWGD5lcXC/7NXIOhgqf1uBEWHKb6qz6fSsrC/JNSSEuyBE9h2l9A64G7CwhmZX9bjLBfTaMGZHB4iVjXEO7ZpoYYA6yw8Y16vEn4IsHbJ62aBSvqefCKGWZGgu2BLNBfxdmLmd5IcHFaZPatcnusbE02+RmS94w28Ujb4MXGiPP0oHeiirO/a6ARKvep/6cBsPMxJzDpFXTUzXbnSFkHzLxCOfCuWIVsO9VBkvRzvGzLhb7GwfqO0FGqhXZbZ/2d9+Bi2FOJ1yBI7xfdyUjygxROBL3WRCWNqO4ZiTCC3t0sq40a9Fs4k07HNjp9vSVszNChBAhBXCOtCbuvUWGKNj1/txsCzmpgsBmlyOt+wTJhj+Rx5v0j+YzxJYbjKJVZ8It+/jkzwdwoRoF9UqrKzrX+o+9+NAhnONLINiuw9ZbCt3b0f6oCi92u6QoI6WVH/ZW5IdfewXQbDuX16BJYSZ7Yt2eSQnr+vfogU+t0XpB1s2QUEC03y6mcxBevoILtv/023F8U2/5Mukg0vtjwR1N4J7abHqTo=</Certificate>
 			<Trust>
 				<Root>1</Root>
@@ -6145,6 +6145,7 @@
 				</SystemOperations>
 			</Trust>
 			<PolicyRestrictions>
+				<Description>Certificate Policy for AATL Document Signing</Description>
 				<CertificatePolicies>
 					<OID>1.2.392.200091.100.382.1</OID>
 				</CertificatePolicies>
@@ -8025,6 +8026,329 @@
 			</Trust>
 			<PolicyRestrictions>
 				<NonExplicitProcessing>0</NonExplicitProcessing>
+			</PolicyRestrictions>
+			<Identification>
+				<Source>AATL</Source>
+			</Identification>
+		</Identity>
+		<Identity>
+			<ImportAction>1</ImportAction>
+			<Certificate>MIIGiDCCBHCgAwIBAgIBATANBgkqhkiG9w0BAQsFADCBnDELMAkGA1UEBhMCSVQxGTAXBgNVBAoMEFp1Y2NoZXR0aSBTLnAuQS4xHzAdBgNVBAsMFlRydXN0IFNlcnZpY2UgUHJvdmlkZXIxGjAYBgNVBGEMEVZBVElULTA1MDA2OTAwOTYyMTUwMwYDVQQDDCxadWNjaGV0dGkgQWR2YW5jZWQgRWxlY3Ryb25pYyBTaWduYXR1cmUgQ0EgMjAeFw0yMTEyMTQxMDMyMDFaFw0zNzEyMTQxMTMyMDFaMIGcMQswCQYDVQQGEwJJVDEZMBcGA1UECgwQWnVjY2hldHRpIFMucC5BLjEfMB0GA1UECwwWVHJ1c3QgU2VydmljZSBQcm92aWRlcjEaMBgGA1UEYQwRVkFUSVQtMDUwMDY5MDA5NjIxNTAzBgNVBAMMLFp1Y2NoZXR0aSBBZHZhbmNlZCBFbGVjdHJvbmljIFNpZ25hdHVyZSBDQSAyMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAyHBK4hyDm9kyYcPrSnOIV0TatnBYi13dAymyhFbx1hbM/Dch10Qt8eZjI5qEomDe0riYESQgeTlwLdI9aLB/sVUSijjoiKoO/sDN3HQpEx94TN31z27QjGYohnyWJcHtmWcbnJO6fkSw9PNCS6eI7tqfGxjQb+pi4LwOr03iUsju9JwI5U0dTj3fdhxPdY/Xgjv/OVE6kHBFRZOPAfT2ctdqWYc8eKBfhdq5GivTO65JLsMiH55S4RHBlT/L9PRfLqlQYRHOtysaUI9kFgUhayon+e1vpYyD9SbFwnS5OLFx22kbHf8nesEheg37wmY0nsSQnIkXg2NMP75p9871Osf7QsABmte9pwiB5AYE0YJ8BAGPMKEW+prJ02o7N/zlPQOx+U5irffD129eZwA8RdRZH6sqhKpLTw+1999+N04VumbFBR0pGMFrXz3jKLzKgRnRc78+vAWKN79nHM3FQZKqbtcO9T0jPMwMadX4RBPkCb+JnPkJOL7SKXTDIp8OuHkqIRsVx6y22+V9y2R9g7L0E9kSV9gCfVsdcZ7do+ApJS4kClaatZrE+d1Ld0+HKkbDxt8/AoHkcvdT3CULB2iNy76mRlGXZO7z94zNB28vEnmuN64YFm3zXo7X2kHMQTGR9bOaewe59KtF1FS/h8LrqtdB4BTFBZ4vWS3gDhECAwEAAaOB0jCBzzAPBgNVHRMBAf8EBTADAQH/MEkGA1UdIARCMEAwPgYEVR0gADA2MDQGCCsGAQUFBwIBFihodHRwczovL2NhLnp1Y2NoZXR0aWNlcnRpZmljYS5pdC9kb2MvbW8vMEIGA1UdHwQ7MDkwN6A1oDOGMWh0dHA6Ly9jcmwuY2EyLnp1Y2NoZXR0aWNlcnRpZmljYS5pdC9hZGVzL0FSTC5jcmwwDgYDVR0PAQH/BAQDAgEGMB0GA1UdDgQWBBQJtNnM8qye7W+yE7Vf61Y73FXXVDANBgkqhkiG9w0BAQsFAAOCAgEAgbGTHuiZTeeDspupALjvBIC0JQvU+OJfhNAalMHhI2E5yJ6oEcmr1eAAVDXs4R+w3wGl0+Rm6ZPSe9mfNNwk1urNV4V+2Mp3im7B2l0rDr2X18ORjotgTiS575zNoPV7S5a7xD7hLhWfHgjSgJ7LcXawRGZHZt/Evx/1Atn5ddR/7VW/DaS7e2Cag5lUsQK0o9maCVwOTP0Jj1S0fD567kPx23kP/6J8GutBni+2zxryLthcTKbXIJtJzxctiAc7ZuKZk16QskBvcX+PbmWfl38+pz6X7KbrWUMT8lOUUgi58IhSt71OZvio11j5lBS7E3AUNTQlMx64ggM+bGh9hZbKWF+xJY5vuPwYjdq9uNpwtv2cy9xB5X4CHtWHtSm/dSpnMdwJzs6ejvhZ3T690smXCF7sN7vRIGm2CAjqcDUUAVmYSknDrVzZB8OnyzmEZZOSv2U880dyxWV9/zMi4kZAif6fJQUgRB6LhDV70I520G/pBcCtPFZVU+K0NPCOoBwe4UpUqDuGRYDTyIJLs5LAh0x1buLG0d89rMC2Vp/02BCP9KAPAxA+JE03G2hj9I7mqvt8u5hkK9s46kMJ11uFVB4Nac3kZIt9mxoisWeFxRshd6nt0/zyqhgs3RX0c8YeswCI91TJczvV3PTPuuMIVlKkZpzfDfWLGHIoRfI=</Certificate>
+			<Trust>
+				<Root>1</Root>
+				<CertifiedDocuments>1</CertifiedDocuments>
+				<DynamicContent>0</DynamicContent>
+				<JavaScript>0</JavaScript>
+				<SystemOperations>
+					<CrossDomain>0</CrossDomain>
+					<ExternalStream>0</ExternalStream>
+					<SilentPrint>0</SilentPrint>
+					<WebLink>0</WebLink>
+					<DataInjection>0</DataInjection>
+					<ScriptInjection>0</ScriptInjection>
+				</SystemOperations>
+			</Trust>
+			<PolicyRestrictions>
+				<NonExplicitProcessing>0</NonExplicitProcessing>
+			</PolicyRestrictions>
+			<Identification>
+				<Source>AATL</Source>
+			</Identification>
+		</Identity>
+		<Identity>
+			<ImportAction>1</ImportAction>
+			<Certificate>MIICaDCCAcmgAwIBAgIUZQN0R5EVDjRy5wVPCzhsV/fTC0swCgYIKoZIzj0EAwQwPDELMAkGA1UEBhMCVVMxEjAQBgNVBAoMCVByb29mLmNvbTEZMBcGA1UEAwwQUHJvb2YgUm9vdCBDQSBSMTAeFw0yNTA3MTYwMDAwMDBaFw00NTA3MTYwMDAwMDBaMDwxCzAJBgNVBAYTAlVTMRIwEAYDVQQKDAlQcm9vZi5jb20xGTAXBgNVBAMMEFByb29mIFJvb3QgQ0EgUjEwgZswEAYHKoZIzj0CAQYFK4EEACMDgYYABAC58cq5SFUdb3sUpD/26o6VwWPPbBhWembs+Ynyx7lJzynoI/JLbdj/m4aLf8OFPAqK6M5xGV/NKlj1VG0MeyQ/JgAnzkX8FZMJlILNi6z8jm7Dw6wBOnt2fOeSx4CdYWfVvJzSYTtcqzqDTDqDUHyW+NpA4ulSPE1md/hOq0jzZz4+ZaNmMGQwDgYDVR0PAQH/BAQDAgEGMBIGA1UdEwEB/wQIMAYBAf8CAQIwHQYDVR0OBBYEFBwMLyXY2aMAAOHzNtrbIkfi/b7KMB8GA1UdIwQYMBaAFBwMLyXY2aMAAOHzNtrbIkfi/b7KMAoGCCqGSM49BAMEA4GMADCBiAJCALbYDcwIET9C43d4+CXHGSEiurEFLQOn1wpukSyCiIQC/HRyJ8yW6ok5S6yDXqiS07q1yimBzoJXIHTO9w4iYruUAkIAx77dgeh8XXmR785O7hTtWpJj2IDtP/CSJ1VERYWD12mh2xvxNbI1HxansQuqLHN2b8ijqnZmK2vdYa2U7mSkfJY=</Certificate>
+			<Trust>
+				<Root>1</Root>
+				<CertifiedDocuments>1</CertifiedDocuments>
+				<DynamicContent>0</DynamicContent>
+				<JavaScript>0</JavaScript>
+				<SystemOperations>
+					<CrossDomain>0</CrossDomain>
+					<ExternalStream>0</ExternalStream>
+					<SilentPrint>0</SilentPrint>
+					<WebLink>0</WebLink>
+					<DataInjection>0</DataInjection>
+					<ScriptInjection>0</ScriptInjection>
+				</SystemOperations>
+			</Trust>
+			<PolicyRestrictions>
+				<NonExplicitProcessing>0</NonExplicitProcessing>
+			</PolicyRestrictions>
+			<Identification>
+				<Source>AATL</Source>
+			</Identification>
+		</Identity>
+		<Identity>
+			<ImportAction>1</ImportAction>
+			<Certificate>MIIFmDCCA4CgAwIBAgIEVRpusTANBgkqhkiG9w0BAQsFADBDMQswCQYDVQQGEwJaQTERMA8GA1UEChMITEFXdHJ1c3QxITAfBgNVBAMTGExBV3RydXN0IFJvb3QgQ0EyICg0MDk2KTAgFw0yMzAyMTQwOTE5MzhaGA8yMDUzMDIxNDA5NDkzOFowQzELMAkGA1UEBhMCWkExETAPBgNVBAoTCExBV3RydXN0MSEwHwYDVQQDExhMQVd0cnVzdCBSb290IENBMiAoNDA5NikwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQDMF8srQ7ps+cmTimUNEkzsJxS3E3ng1NUtGFbx+eoqEBZObETHamVG85qJNdGH+DOJL4gJGpIQkZDBa58Obn8mihNdGKxoAQ0QeGVw2I6PhFqXMBjQEQ5KjVIQpYErUSj1Y8S27ECzAeWtd73lOO+8jbPdGaB7DY2022r7JTNa+pGvxHFFMPiIKXvLv9W6JwSO3bIA98pcmTUU6v11BhUIu8pXaPs/+7Q0c2PR1ePIOFppfWp6RAwNik7tkh0QjzsiLLbf7cXG8Il5VGVeXxu9j33fubft6+TFB9FnPJU7kf5CelJAgATSOVdL9JJ9/5vv5Z3JCbKREjimKQg7ruvKzO1N504hAQf8bzLOaYyEUsZ36icwCt6lrzAraB+s1OwhrSJJds4PwvIHKvlqEoOaOwSuGXr+oYYk+kFeJXxArCe24yk2bzXiV9AZWN//ZPbDAUl22yu+vLlPFArVG1gh9hwuAHz4lLXLNxoU5DK5FtRg7AWqXzL6aiMSrNQQu9KigrRLDotwJ6rWB8FniPqEwwjJioTI0jdygQ+NFkrk1zVRpTgPjIRLlTbA9ded4F2Pq5HuAAi5nVIf7PiZu3lWsUna0uXYYYtbr/CrN8V7Go6Gvn7FexUeYWjoC4eLc0mhF3N+KXiOyuBBL3VzdKKXOn/3LnQJuExgi0Y2GRAtnQIDAQABo4GRMIGOMA8GA1UdEwEB/wQFMAMBAf8wDgYDVR0PAQH/BAQDAgEGMCsGA1UdEAQkMCKADzIwMjMwMjE0MDkxOTM4WoEPMjA1MzAyMTQwOTQ5MzhaMB8GA1UdIwQYMBaAFNfWVmJcPxeB5nNEKfVRBe8LYDesMB0GA1UdDgQWBBTX1lZiXD8XgeZzRCn1UQXvC2A3rDANBgkqhkiG9w0BAQsFAAOCAgEASZwp/j3snkV/qz48/iNvNz53p1P/eJ/8SUSAV2acbtp5/81FrUyTv7VZxukQt+X4jPuHxR6L2LM/ApYKu4qO79e0wIMgOJdZRWT89ncT8gnXocg4dAjq+UhM+h8EnLT/7G5WNnKTbJU+LF/eDwurycwVPhaPZvyyELih0bTewGMZzO9TqnU2IoslH7+byNfBX+ymNwmqe2K89iIt8dZY3Yy7UvQLp3apensajdytmoFiLoYFkHJHL6HJZ4SwDWywuJsWt9CZFC+cEpsjqI2mQx7p5S3leKcfZJRktneyqFz7Casp6x5tddH20MWlwx2fHvMaLbLIH+UoCm7zX/3a5iOhdpBcS5gBgizuRy0CGl9/NMVptXKtPvPPnm34KegRJyvgWQsbYetKymmlpNXNURuUjnnN3/audF2xLBuGU/7RMAZBNAdigkz0fseHdA6wIR4JIIDBsxU9Rm3T8QaSP++glYocbncxtut4KQx77oKlT36kKV6eqi34jsDz/A0GhZtO3PfiCXzQFFEeerMjr/rRYSpltQHZuOMHyiR20vBKvu+GBIBCFXARaH7Xx7v+506bnJWlHEqkydAJjKrOSNIekpfXEentZsw33PXXG3SbpupCrF0y4Fj0gUf/0hLifhzcSXaWwx2fS8pcKjdbPYrROJsh2uO/RUPT4Fh3Hyg=</Certificate>
+			<Trust>
+				<Root>1</Root>
+				<CertifiedDocuments>1</CertifiedDocuments>
+				<DynamicContent>0</DynamicContent>
+				<JavaScript>0</JavaScript>
+				<SystemOperations>
+					<CrossDomain>0</CrossDomain>
+					<ExternalStream>0</ExternalStream>
+					<SilentPrint>0</SilentPrint>
+					<WebLink>0</WebLink>
+					<DataInjection>0</DataInjection>
+					<ScriptInjection>0</ScriptInjection>
+				</SystemOperations>
+			</Trust>
+			<PolicyRestrictions>
+				<Description>Meets AUTH CA and SIGNING CA Policy Requirenments</Description>
+				<CertificatePolicies>
+					<OID>1.3.6.1.4.1.54383.1.2.1</OID>
+					<OID>1.3.6.1.4.1.54383.1.2.2</OID>
+				</CertificatePolicies>
+				<NonExplicitProcessing>1</NonExplicitProcessing>
+			</PolicyRestrictions>
+			<Identification>
+				<Source>AATL</Source>
+			</Identification>
+		</Identity>
+		<Identity>
+			<ImportAction>1</ImportAction>
+			<Certificate>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</Certificate>
+			<Trust>
+				<Root>0</Root>
+				<CertifiedDocuments>1</CertifiedDocuments>
+				<DynamicContent>0</DynamicContent>
+				<JavaScript>0</JavaScript>
+				<SystemOperations>
+					<CrossDomain>0</CrossDomain>
+					<ExternalStream>0</ExternalStream>
+					<SilentPrint>0</SilentPrint>
+					<WebLink>0</WebLink>
+					<DataInjection>0</DataInjection>
+					<ScriptInjection>0</ScriptInjection>
+				</SystemOperations>
+			</Trust>
+			<PolicyRestrictions>
+				<NonExplicitProcessing>0</NonExplicitProcessing>
+			</PolicyRestrictions>
+			<Identification>
+				<Source>AATL</Source>
+			</Identification>
+		</Identity>
+		<Identity>
+			<ImportAction>1</ImportAction>
+			<Certificate>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</Certificate>
+			<Trust>
+				<Root>1</Root>
+				<CertifiedDocuments>1</CertifiedDocuments>
+				<DynamicContent>0</DynamicContent>
+				<JavaScript>0</JavaScript>
+				<SystemOperations>
+					<CrossDomain>0</CrossDomain>
+					<ExternalStream>0</ExternalStream>
+					<SilentPrint>0</SilentPrint>
+					<WebLink>0</WebLink>
+					<DataInjection>0</DataInjection>
+					<ScriptInjection>0</ScriptInjection>
+				</SystemOperations>
+			</Trust>
+			<PolicyRestrictions>
+				<Description>Certificate resides in AATL compliant hardware</Description>
+				<CertificatePolicies>
+					<OID>1.3.6.1.4.1.13862.821.7.1</OID>
+					<OID>1.3.6.1.4.1.13862.821.7.2</OID>
+				</CertificatePolicies>
+				<NonExplicitProcessing>1</NonExplicitProcessing>
+			</PolicyRestrictions>
+			<Identification>
+				<Source>AATL</Source>
+			</Identification>
+		</Identity>
+		<Identity>
+			<ImportAction>1</ImportAction>
+			<Certificate>MIIFdzCCA1+gAwIBAgIQbp1e+yaQRol4jfE2wwsoMTANBgkqhkiG9w0BAQsFADBlMQswCQYDVQQGEwJNWTEfMB0GA1UEChMWUG9zIERpZ2ljZXJ0IFNkbi4gQmhkLjERMA8GA1UECxMINDU3NjA4LUsxIjAgBgNVBAMTGVBvcyBEaWdpY2VydCBBQVRMIFJvb3QgQ0EwHhcNMTgxMTI4MDg0NTEyWhcNMzExMTI4MDg0NTEyWjBpMQswCQYDVQQGEwJNWTEfMB0GA1UEChMWUG9zIERpZ2ljZXJ0IFNkbi4gQmhkLjERMA8GA1UECxMINDU3NjA4LUsxJjAkBgNVBAMTHVBvcyBEaWdpY2VydCBEb2N1bWVudCBTaWduaW5nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoco9hEinbfk7flkGBU1EmEtcLNTkz9bk1LjKY/1uXZU2vieH+PrkgJ86Yj9tG7k8oz0C3Z0mIgWGpdB+9vt1nYKnn2rMmlKoYYKQFssVs0/3NtGJQrRyYEFrVWuclFx8SDtXKME3zoD+5xCbmMwtJNZdcuHsD/5AxHjMabAROExstkJd5X0koxEGaQNrKE/I2qM/TFqITsQvZN4T5D8DFYHWBd/bS82m0zzsjZzsd0m15L7Rqc0DZUPuhJgfuzB2ndzE95o1NvAV3fW0u84fNxzx4jxPyNUHRXpuuTesARiPui2jrUBks6helnuJBLLK7qbKNmzCNFvM3jnSZu2dEQIDAQABo4IBHTCCARkwDwYDVR0TAQH/BAUwAwEB/zARBgNVHQ4ECgQITeYhVB93vdQwUwYDVR0gBEwwSjBIBgkrBgEEAYOKRQEwOzA5BggrBgEFBQcCARYtaHR0cHM6Ly93d3cucG9zZGlnaWNlcnQuY29tLm15L3JlcG9zaXRvcnkvY3BzMBMGA1UdIwQMMAqACEiRFA1tQdtOMDoGCCsGAQUFBwEBBC4wLDAqBggrBgEFBQcwAYYeaHR0cDovL29jc3AucG9zZGlnaWNlcnQuY29tLm15MA4GA1UdDwEB/wQEAwIBBjA9BgNVHR8ENjA0MDKgMKAuhixodHRwOi8vY3JsLnBvc2RpZ2ljZXJ0LmNvbS5teS9BQVRMUm9vdENBLmNybDANBgkqhkiG9w0BAQsFAAOCAgEAHOgMBOb8YyEcwzYoKz67rl35haO+YeXQ9JZ7hSlrmXe52MSrWmZrK7KYRk71xqRCt1jxy2ZENovmAMrkkhUydoI1cnnrdTe9WikKs928gQaYXWtQMH3FcfsLCk7HFrSShKl4M1CUU5Mi+pOwzh+/Rst3K71k9f3TaXFU7VnFMc+RmOG/Q3rk7s3wbyGHGzJ9xtpX0UPjMN3SBoLr8X1sropO2n8UP1VcVcTs3Vy//rtcz7gcO/7oPaRMTw2nye/OUAwLH0Ev7Cti3as/CdYkBsHUXOL/ENhII0Ppb4Qkj7wQ1Q/rS6+PnQxs58YS7i7yGdBA02aTrwfwWnSNz4/gw3jXY4mBvtwGaUw6m4khg19OY0bPRTvCHJozEWQYnHrvfPTcO7gJXirPiB62FxvZSucqLRdmMYIME8K+5o6OVJ7IKv5B+ebey/HEEegQBlvcdWaLJEELp9jWjwCXMOkXxsV0WLREwzYEb6G95YsZzHxPSXskaUl0HmaqSB+zLyyFLyV8t3ZCNCC9EUbbCbnkaIkBm5kT26/EMc56SPb1u4eSTEufB+5uxbpZR1pysatI3IBq+ULWGeF3edHePD9yOmqic6aJHYs9mBNSpHpnZcElxq7DVYHXvwMbKv7r8ABlPRY2e1RUnqTSKaeaoDrrzOu1vOJvnMJ+U+PqFy/q/7M=</Certificate>
+			<Trust>
+				<Root>0</Root>
+				<CertifiedDocuments>1</CertifiedDocuments>
+				<DynamicContent>0</DynamicContent>
+				<JavaScript>0</JavaScript>
+				<SystemOperations>
+					<CrossDomain>0</CrossDomain>
+					<ExternalStream>0</ExternalStream>
+					<SilentPrint>0</SilentPrint>
+					<WebLink>0</WebLink>
+					<DataInjection>0</DataInjection>
+					<ScriptInjection>0</ScriptInjection>
+				</SystemOperations>
+			</Trust>
+			<PolicyRestrictions>
+				<NonExplicitProcessing>0</NonExplicitProcessing>
+			</PolicyRestrictions>
+			<Identification>
+				<Source>AATL</Source>
+			</Identification>
+		</Identity>
+		<Identity>
+			<ImportAction>1</ImportAction>
+			<Certificate>MIIFbTCCA1WgAwIBAgIQTeOugOL1AxDtYhZoyb1KETANBgkqhkiG9w0BAQsFADBlMQswCQYDVQQGEwJNWTEfMB0GA1UEChMWUG9zIERpZ2ljZXJ0IFNkbi4gQmhkLjERMA8GA1UECxMINDU3NjA4LUsxIjAgBgNVBAMTGVBvcyBEaWdpY2VydCBBQVRMIFJvb3QgQ0EwHhcNMTkwNzEyMTA0MDA2WhcNMzEwNzEyMTA0MDA2WjBcMQswCQYDVQQGEwJNWTEfMB0GA1UEChMWUG9zIERpZ2ljZXJ0IFNkbi4gQmhkLjERMA8GA1UECxMINDU3NjA4LUsxGTAXBgNVBAMTEFBvcyBEaWdpY2VydCBUU0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCnVAf1lvOY7/jfEyWhWQHkStQL/AicemK/r0F/uARcmPnPnWN2KzM9sq3KRL6scfeRiG8YUT+uIRVA8lfpRPhbA0OCQyFNfWaxgc/iY/0adIA0P38XeyNX5TRsSJuTFR1xlGDKpwe8pkTczDvYMOPh0edSghO8sc0Ysjc5lUsvwaSrPMr/q687qIDRrpmm4JBtCmpBO/KupFCeWbzy7a0xulw38kJ5fQiEeL5q1I2Ckj8QqQJxm5/JClGeguKqgXvSMAazsg6l5M2SDGZ/VKuoozPfOlEiC0B61b74FfN5SjVzHJBtoNy6dcIqbDU0DFHP8l9HsreF+6Wki2OcEb9LAgMBAAGjggEgMIIBHDAPBgNVHRMBAf8EBTADAQH/MBEGA1UdDgQKBAhHVjgTtKYFxTBWBgNVHSAETzBNMEsGCSsGAQQBg4pFAzA+MDwGCCsGAQUFBwIBFjBodHRwczovL3d3dy5wb3NkaWdpY2VydC5jb20ubXkvcmVwb3NpdG9yeS90c2FwcHMwEwYDVR0jBAwwCoAISJEUDW1B204wOgYIKwYBBQUHAQEELjAsMCoGCCsGAQUFBzABhh5odHRwOi8vb2NzcC5wb3NkaWdpY2VydC5jb20ubXkwDgYDVR0PAQH/BAQDAgEGMD0GA1UdHwQ2MDQwMqAwoC6GLGh0dHA6Ly9jcmwucG9zZGlnaWNlcnQuY29tLm15L0FBVExSb290Q0EuY3JsMA0GCSqGSIb3DQEBCwUAA4ICAQBoDD4GHAJCfQrusgTZfzhIW2Am+w1kArsIkNPdQlJtTRQySRLymuN36gM1Fu4Q8Km9U2V0BWwl0DvYBM6IwlHJ1/EXQ14beyFxAkXeeWb7cDvldVrJSBdDeB7gD9p9kxls1g801nZRlY3tl47Xjxab9RmwiXkDmKvLk6ZMb5FUCk3gjGJb/t1NjLdC/J2K/jqD6hZ1uRdSiaq3WbmnKyjLTdQDIO9gF66+BHzkn5EuqeEi8B2qdhwGIkokBm/R2SHxpriSfE/xTqWWOMx/g6HQ/gTA8KWCCAVaIlT/7VL2IDwGCj4VqvsX1/XR6u9qtWONNdwqwA0j+yjwtt6vXR/1w8lihKATcEX37J8NX+RM00aO1ivgM3kNI9jtVLlWCPpsuOIPnQXhNdmz2cIXM/hUYDs1/m8Niw/oECjmnKJSdQkMg2kZrxSWdauYCc0fm73cSRvaOxV8SHeUk7/pfzo/enq/A4vgU2IuUI/vgBwKzDGmJmox3qIqFRtujnfivveyPdppfexf0AAgBd9won3EWxZJTdHpfNtSp8Q6w/tgsaTOzDtUQ1Rb13VSFo+iI2Rg7efmSylFG5EfpfV40HOSVaipR6z3BgLCBCxsSBplTGeUHaJOLYztrJFmzPvhdXrmyX5271+ro7JBBtMndZY563Yhw8oaXHwcOvgLvEPX/A==</Certificate>
+			<Trust>
+				<Root>0</Root>
+				<CertifiedDocuments>0</CertifiedDocuments>
+				<DynamicContent>0</DynamicContent>
+				<JavaScript>0</JavaScript>
+				<SystemOperations>
+					<CrossDomain>0</CrossDomain>
+					<ExternalStream>0</ExternalStream>
+					<SilentPrint>0</SilentPrint>
+					<WebLink>0</WebLink>
+					<DataInjection>0</DataInjection>
+					<ScriptInjection>0</ScriptInjection>
+				</SystemOperations>
+			</Trust>
+			<PolicyRestrictions>
+				<NonExplicitProcessing>0</NonExplicitProcessing>
+			</PolicyRestrictions>
+			<Identification>
+				<Source>AATL</Source>
+			</Identification>
+		</Identity>
+		<Identity>
+			<ImportAction>2</ImportAction>
+			<Certificate>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</Certificate>
+			<Trust>
+				<Root>0</Root>
+				<CertifiedDocuments>0</CertifiedDocuments>
+				<DynamicContent>0</DynamicContent>
+				<JavaScript>0</JavaScript>
+				<SystemOperations>
+					<CrossDomain>0</CrossDomain>
+					<ExternalStream>0</ExternalStream>
+					<SilentPrint>0</SilentPrint>
+					<WebLink>0</WebLink>
+					<DataInjection>0</DataInjection>
+					<ScriptInjection>0</ScriptInjection>
+				</SystemOperations>
+			</Trust>
+			<PolicyRestrictions>
+				<NonExplicitProcessing>0</NonExplicitProcessing>
+			</PolicyRestrictions>
+			<Identification>
+				<Source>AATL</Source>
+			</Identification>
+		</Identity>
+		<Identity>
+			<ImportAction>1</ImportAction>
+			<Certificate>MIIFwzCCA6ugAwIBAgIUCn6m30tEntpqJIWe5rgV0xZ/u7EwDQYJKoZIhvcNAQELBQAwRjELMAkGA1UEBhMCTFUxFjAUBgNVBAoMDUx1eFRydXN0IFMuQS4xHzAdBgNVBAMMFkx1eFRydXN0IEdsb2JhbCBSb290IDIwHhcNMTUwMzA1MTMyMTU3WhcNMzUwMzA1MTMyMTU3WjBGMQswCQYDVQQGEwJMVTEWMBQGA1UECgwNTHV4VHJ1c3QgUy5BLjEfMB0GA1UEAwwWTHV4VHJ1c3QgR2xvYmFsIFJvb3QgMjCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBANeFl78RmOnwYoNMPIf5U2o3C/IPPIfOb9wmKb3FibrJgz337spbxm1Jc7TJRqMbNBM/wYlFV/TZsfs2ZUv7COJIcRHIbjuend+JZTemhfY7RBi2xjcwYkSSl2l9QjAk5A0MiWtj3sXh306pFGxT4GHO9hcvHTy95iJMHZP1EMShduxq3sVs35a0VkBCwGKSMKEtFZSg0iAGCW5qbeXrt77U8PEVfIvmTroTzEsnXpk8F12PgX8zPU/TPxvsXD/wPEx1bvKm1Z3aLQdjAsZy6ZS8TEmVT4hSyNvoaYL4zDRbIvCGp4m9SAptZoFtyMhk+wHh9OHe2Z7d21vUKpkmFRseTJIpgp7VkoGSQXAZ96Tlk0u8d2cx3Rz9MXANF5kM+Qw5GSoXtTBxVdUPrljhPS80m8+f9niFwpN6cj5mj5wWEWCPnolvZ77gR1o7DJpni89Gxq44o/KnvObWhWszJHAiS8sIm7vI+AIpHb4gDEa/a4ebsypmQjVGbKq6rfmYe+lQVRQxv7HaLe2ArWgk+2mr2HETMOZns4dA/Yl+8kPREd8vZS9kzl8UubG/Mb2HeFpZZYiq/FkySIbWTLkpS5XTdvN3JW1CHDiDTf2jX5t/Lax5Gw5CMZdjpPuKadUiDTSQMC6otOBttpSsvItO13D8xTiOZCXhTTmQzsmHhFhxAgMBAAGjgagwgaUwDwYDVR0TAQH/BAUwAwEB/zBCBgNVHSAEOzA5MDcGByuBKwEBAQowLDAqBggrBgEFBQcCARYeaHR0cHM6Ly9yZXBvc2l0b3J5Lmx1eHRydXN0Lmx1MA4GA1UdDwEB/wQEAwIBBjAfBgNVHSMEGDAWgBT/GCh2+UgFLKGu8SsbK7JT+Et8szAdBgNVHQ4EFgQU/xgodvlIBSyhrvErGyuyU/hLfLMwDQYJKoZIhvcNAQELBQADggIBAGoZFO1uecEsh9QNcH7X9njJCwROxLHOk3D+sFTAMs2ZMGQXvw/l4jP9BzZAcg4atmpZ1gDlaCDdLnINH2pkMSCEfUmmWjfrRcmF9dTHF5kH5ptV5AzoqbTOjFu1EVzPig4N1qx3gf4ynCSecs5U89BvolbW7MM3LGVYvlcAGvI1+ut7MV3CwRI9loGIlonBWVx65n9wNOeD4rHh4bhY79SV5GCc8JaXcozrhAIuZY+kt9J/Z93I055cqqmkoCUUBpvsT34tC38ddfEz2O3OuHVtPlu5mB0xDVbYQw8wkbIEa91WvpWAVWe+2M2D2RjuLg+GLZKecBPs3lHJQ3gCpU3I+V/EkVhGFndadKpAvAefMLmx9xIX3eP/JEAdemrRTxgKqpAd60Ae36EeRJIQmvKN4dFLRp7oRUKX6kWZ8+xm1QL68qZKJKrezrnK+T+Tb/mjuuqlPpmt/f97mfVl7vBZKGfXkJWkE4SphMHozs51k2MavDzq1WQfLSoSOcbDWjLtR5EWDrw4wVDej8oqkDQc7kGUnF4ZLvhFSZl0kbAEb+MEWrGrKqv+x9CWttrhSmQGbmBNvUJO/3jaJMobtNeWOWyu8Q6qp31IiyBMz2TWuJdGsE7RKlY6oJO9r4Ak4Ap+58rVyuiFVdw2KuGUaJPHZnJED4AhMmwlxyOAgwrr</Certificate>
+			<Trust>
+				<Root>1</Root>
+				<CertifiedDocuments>1</CertifiedDocuments>
+				<DynamicContent>0</DynamicContent>
+				<JavaScript>0</JavaScript>
+				<SystemOperations>
+					<CrossDomain>0</CrossDomain>
+					<ExternalStream>0</ExternalStream>
+					<SilentPrint>0</SilentPrint>
+					<WebLink>0</WebLink>
+					<DataInjection>0</DataInjection>
+					<ScriptInjection>0</ScriptInjection>
+				</SystemOperations>
+			</Trust>
+			<PolicyRestrictions>
+				<Description>LuxTrust Global Root CA Certificate Specifications</Description>
+				<CertificatePolicies>
+					<OID>1.3.171.1.1.10.3.1</OID>
+					<OID>1.3.171.1.1.10.3.6</OID>
+					<OID>1.3.171.1.1.10.3.10</OID>
+					<OID>1.3.171.1.1.10.3.13</OID>
+					<OID>1.3.171.1.1.10.3.26</OID>
+					<OID>1.3.171.1.1.10.3.30</OID>
+					<OID>1.3.171.1.1.10.3.32</OID>
+					<OID>1.3.171.1.1.10.3.34</OID>
+				</CertificatePolicies>
+				<NonExplicitProcessing>1</NonExplicitProcessing>
+			</PolicyRestrictions>
+			<Identification>
+				<Source>AATL</Source>
+			</Identification>
+		</Identity>
+		<Identity>
+			<ImportAction>1</ImportAction>
+			<Certificate>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</Certificate>
+			<Trust>
+				<Root>1</Root>
+				<CertifiedDocuments>1</CertifiedDocuments>
+				<DynamicContent>0</DynamicContent>
+				<JavaScript>0</JavaScript>
+				<SystemOperations>
+					<CrossDomain>0</CrossDomain>
+					<ExternalStream>0</ExternalStream>
+					<SilentPrint>0</SilentPrint>
+					<WebLink>0</WebLink>
+					<DataInjection>0</DataInjection>
+					<ScriptInjection>0</ScriptInjection>
+				</SystemOperations>
+			</Trust>
+			<PolicyRestrictions>
+				<Description>Meets NCP+ and AATL requirements</Description>
+				<CertificatePolicies>
+					<OID>1.3.171.1.1.10.4.3</OID>
+					<OID>1.3.171.1.1.10.4.4</OID>
+					<OID>1.3.171.1.1.10.4.5</OID>
+				</CertificatePolicies>
+				<NonExplicitProcessing>1</NonExplicitProcessing>
+			</PolicyRestrictions>
+			<Identification>
+				<Source>AATL</Source>
+			</Identification>
+		</Identity>
+		<Identity>
+			<ImportAction>1</ImportAction>
+			<Certificate>MIICMTCCAbagAwIBAgIMC3MoERh0MBzvbwiEMAoGCCqGSM49BAMDMEsxCzAJBgNVBAYTAkRFMQ0wCwYDVQQKDARBdG9zMS0wKwYDVQQDDCRBdG9zIFRydXN0ZWRSb290IFJvb3QgQ0EgRUNDIEcyIDIwMjAwHhcNMjAxMjE1MDgzOTEwWhcNNDAxMjEwMDgzOTA5WjBLMQswCQYDVQQGEwJERTENMAsGA1UECgwEQXRvczEtMCsGA1UEAwwkQXRvcyBUcnVzdGVkUm9vdCBSb290IENBIEVDQyBHMiAyMDIwMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEyFyAyk7CKB9XvzjmYSP80KlblhYWwwxeFaWQCf84KLR6HgrWUyrBu5BAdDfpgeiNL2gBNXxSLtj0WLMRHFvZhxiTkS3sndpsnm2ESPzCiQXrmBMCAWxTHg5JY1hHsa/Co2MwYTAPBgNVHRMBAf8EBTADAQH/MB8GA1UdIwQYMBaAFFsfxHFsshufvlwfjP2ztvuzDgmHMB0GA1UdDgQWBBRbH8RxbLIbn75cH4z9s7b7sw4JhzAOBgNVHQ8BAf8EBAMCAYYwCgYIKoZIzj0EAwMDaQAwZgIxAOzgmf3d5FTByx/oPijXFVlKgspTMOzrNqW5yM6TR1bIYabhbZJTlY/241VT8N165wIxALCH1RuzYPyRjYDKohtRSzhUy6oee9flRJUWLzxEeC4luuqQ5OxS7lfsA4TzXtsWDQ==</Certificate>
+			<Trust>
+				<Root>1</Root>
+				<CertifiedDocuments>1</CertifiedDocuments>
+				<DynamicContent>0</DynamicContent>
+				<JavaScript>0</JavaScript>
+				<SystemOperations>
+					<CrossDomain>0</CrossDomain>
+					<ExternalStream>0</ExternalStream>
+					<SilentPrint>0</SilentPrint>
+					<WebLink>0</WebLink>
+					<DataInjection>0</DataInjection>
+					<ScriptInjection>0</ScriptInjection>
+				</SystemOperations>
+			</Trust>
+			<PolicyRestrictions>
+				<Description>Atos TrustedRoot Client CA SC Policy</Description>
+				<CertificatePolicies>
+					<OID>1.3.6.1.4.1.6189.5.1.1.1.1</OID>
+				</CertificatePolicies>
+				<NonExplicitProcessing>1</NonExplicitProcessing>
+			</PolicyRestrictions>
+			<Identification>
+				<Source>AATL</Source>
+			</Identification>
+		</Identity>
+		<Identity>
+			<ImportAction>1</ImportAction>
+			<Certificate>MIIFfzCCA2egAwIBAgIMR7opRlU+FpKXsKtAMA0GCSqGSIb3DQEBDAUAMEsxCzAJBgNVBAYTAkRFMQ0wCwYDVQQKDARBdG9zMS0wKwYDVQQDDCRBdG9zIFRydXN0ZWRSb290IFJvb3QgQ0EgUlNBIEcyIDIwMjAwHhcNMjAxMjE1MDg0MTIzWhcNNDAxMjEwMDg0MTIyWjBLMQswCQYDVQQGEwJERTENMAsGA1UECgwEQXRvczEtMCsGA1UEAwwkQXRvcyBUcnVzdGVkUm9vdCBSb290IENBIFJTQSBHMiAyMDIwMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAljGFSqoPMv554UOHnPsjt45/DVS9x2KTd+QcNQR2owOLIu7EhN2lk25uso4JA+tRFjEXqmkVGA5ndCNe6pp9tTk+PYKpa+H+qRywrVpNTHiDQYvP8h1impgEnGPpq2X+SB0kZQdHPrmRLumdm38aNak0sLflcDPvSnJRtge/YD8qn51U3/PXlElRA1pAqWjdEVlc+HamvFBSEO2s7JXg1INrSdoKT5mD3jKDSINnlbJ+54GFPc2C98oC7W2IXQiNuDW/KmkwmbtL0UHbRaCTmVGBkDYIqoq26I+zy+7lRg1ydfVJbOGify+87YSmN+7ewk85Tvae8MnRmzCdSW3h2v8SEIzW5Zl7BbZ9sAnHpPiyHDmVOTP0Nc4lYnuwXyDzy234bFIUZESP08ipdgflr3GZLS0EJUh2r8PnzEPyB7xKJCQ33fpulAlvTF4BtP5U7COWpV7dhv/pRirx6NzspT2vb6oOD7R1+j4IuSZFT2aGTLwZuOHVNe6ChMjTqxLnzXMzYnf0F8u9NHYqBc6V5Xh5S56wjfk8WDiR6l6HOMC3Qv2qTIcjrQQgsX52Qtq7tha6V8iOE/p11QhMrziRqu+P+p9JLlR8ClaxevrETi/Uo/oWitCV5Zem/8P8fA5HWPN/B3sS3Fc/LeOhTVtSTDOHmagJe2x+DvLPVkKe6wUCAwEAAaNjMGEwDwYDVR0TAQH/BAUwAwEB/zAfBgNVHSMEGDAWgBQgJfMH/adv8ZbukRBpzJrvfchoeDAdBgNVHQ4EFgQUICXzB/2nb/GW7pEQacya733IaHgwDgYDVR0PAQH/BAQDAgGGMA0GCSqGSIb3DQEBDAUAA4ICAQAkK06Y8h0X7dl2JrYwM+hpRaFRS1LYejowtuQS6r+fTOAEpPY1xv6hMPdThZKtVAVXX5LlKt42J557E0fJanWv/PM35wz1PQFztWlR+L1Z0boL+Lq6ZCdDs3yDlYrnnhOW129KlkFJiw4grRbG96aHW4gSiYuJyhLSVq8iASFG6auYP6eI3uTLKpp1Gfo5XgkF1wMyGrgXUQjHAEB99L74DFn0aXZu06RYW14mc+RCVQZeeEAP0zif7yZRcHSR8XdiAejZy+uh3zkyHbtr/XH+68+l5hT9AIATxpoASLCZBemugEj7CT9RFLW552BNTcovgSHuUgxletz1iUlMMJI0WIAyWbEN/yRhD+cKQtB7vPiOJ0c/cJ0n2bYGPaW7y16Prg5Tx5xqbztMD6NAcKiaB87UblsHotLiVLa9bzNyY61RmOGPdvFqBzgl/vZizl/bY8Jume8G3LneGRroVD190nZ12V4+MkinjPKecgz4uFi4FyOlFId1WHoAgQciOWpMlKC1otunLMGw8aObwEz3bXDqMZ/xrn0+cyjZod/6k/CbsPDizSUgde/ifTIFyZt27su9MR75lJhLJFhWSMDeBky9pjRd7RZhY3P7GeL6W9iXddRtnmA5XpSLAizrmc5gKm4bjKdLvP025pgfZfJ/8eOPTIBGNli2oWXLzhxEdQ==</Certificate>
+			<Trust>
+				<Root>1</Root>
+				<CertifiedDocuments>1</CertifiedDocuments>
+				<DynamicContent>0</DynamicContent>
+				<JavaScript>0</JavaScript>
+				<SystemOperations>
+					<CrossDomain>0</CrossDomain>
+					<ExternalStream>0</ExternalStream>
+					<SilentPrint>0</SilentPrint>
+					<WebLink>0</WebLink>
+					<DataInjection>0</DataInjection>
+					<ScriptInjection>0</ScriptInjection>
+				</SystemOperations>
+			</Trust>
+			<PolicyRestrictions>
+				<Description>Atos TrustedRoot Client CA SC Policy</Description>
+				<CertificatePolicies>
+					<OID>1.3.6.1.4.1.6189.5.1.1.1.1</OID>
+				</CertificatePolicies>
+				<NonExplicitProcessing>1</NonExplicitProcessing>
 			</PolicyRestrictions>
 			<Identification>
 				<Source>AATL</Source>
