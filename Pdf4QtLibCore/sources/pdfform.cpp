@@ -537,7 +537,8 @@ bool PDFFormFieldButton::setValue(const SetValueParameters& parameters)
 
     // If form field is readonly, and scope is user (form field is changed by user,
     // not by calculated value), then we must not allow value change.
-    if (getFlags().testFlag(ReadOnly) && parameters.scope == SetValueParameters::Scope::User)
+    const bool isReadOnly = parameters.formManager ? parameters.formManager->isReadOnly(this) : getFlags().testFlag(ReadOnly);
+    if (isReadOnly && parameters.scope == SetValueParameters::Scope::User)
     {
         return false;
     }
@@ -683,7 +684,81 @@ PDFFormManager::FormAppearanceFlags PDFFormManager::getAppearanceFlags() const
 
 void PDFFormManager::setAppearanceFlags(FormAppearanceFlags flags)
 {
-    m_flags = flags;
+    if (m_flags != flags)
+    {
+        m_flags = flags;
+        onAppearanceFlagsChanged();
+    }
+}
+
+bool PDFFormManager::isUnlockedCalculatedField(const PDFFormField* formField) const
+{
+    if (!formField ||
+        !formField->getFlags().testFlag(PDFFormField::ReadOnly) ||
+        formField->getFieldType() == PDFFormField::FieldType::Signature ||
+        m_form.getSignatureFlags().testFlag(PDFForm::SignatureExists))
+    {
+        return false;
+    }
+
+    // JavaScript is not executed, so value of the calculated field is never
+    // computed, and user must be allowed to enter the value manually.
+    for (const PDFFormField* field = formField; field; field = field->getParentField())
+    {
+        if (field->getAction(PDFAnnotationAdditionalActions::FormFieldCalculated))
+        {
+            return true;
+        }
+    }
+
+    const PDFFormWidgets& widgets = formField->getWidgets();
+    return std::any_of(widgets.cbegin(), widgets.cend(), [](const PDFFormWidget& widget) { return widget.getAction(PDFAnnotationAdditionalActions::FormFieldCalculated) != nullptr; });
+}
+
+bool PDFFormManager::hasUnlockedCalculatedFields() const
+{
+    if (!m_document)
+    {
+        return false;
+    }
+
+    auto isWidgetVisible = [this](const PDFFormWidget& widget)
+    {
+        PDFDocumentDataLoaderDecorator loader(m_document);
+        const PDFDictionary* dictionary = m_document->getDictionaryFromObject(m_document->getObjectByReference(widget.getWidget()));
+        const PDFAnnotation::Flags flags = dictionary ? PDFAnnotation::Flags(loader.readIntegerFromDictionary(dictionary, "F", 0)) : PDFAnnotation::Flags();
+        return !flags.testFlag(PDFAnnotation::Hidden) && !flags.testFlag(PDFAnnotation::NoView);
+    };
+
+    bool result = false;
+    auto checkField = [this, &result, &isWidgetVisible](const PDFFormField* formField)
+    {
+        if (!result && isUnlockedCalculatedField(formField))
+        {
+            const PDFFormWidgets& widgets = formField->getWidgets();
+            result = std::any_of(widgets.cbegin(), widgets.cend(), isWidgetVisible);
+        }
+    };
+    apply(checkField);
+
+    return result;
+}
+
+bool PDFFormManager::isReadOnly(const PDFFormField* formField) const
+{
+    if (!formField->getFlags().testFlag(PDFFormField::ReadOnly))
+    {
+        return false;
+    }
+
+    return !m_flags.testFlag(EditReadOnlyFields) && !isUnlockedCalculatedField(formField);
+}
+
+PDFFormField::FieldFlags PDFFormManager::getEffectiveFieldFlags(const PDFFormField* formField) const
+{
+    PDFFormField::FieldFlags flags = formField->getFlags();
+    flags.setFlag(PDFFormField::ReadOnly, isReadOnly(formField));
+    return flags;
 }
 
 bool PDFFormManager::hasFormFieldWidgetText(PDFObjectReference widgetAnnotation) const
@@ -984,7 +1059,8 @@ bool PDFFormFieldText::setValue(const SetValueParameters& parameters)
 {
     // If form field is readonly, and scope is user (form field is changed by user,
     // not by calculated value), then we must not allow value change.
-    if (getFlags().testFlag(ReadOnly) && parameters.scope == SetValueParameters::Scope::User)
+    const bool isReadOnly = parameters.formManager ? parameters.formManager->isReadOnly(this) : getFlags().testFlag(ReadOnly);
+    if (isReadOnly && parameters.scope == SetValueParameters::Scope::User)
     {
         return false;
     }
@@ -1030,7 +1106,8 @@ bool PDFFormFieldChoice::setValue(const SetValueParameters& parameters)
 {
     // If form field is readonly, and scope is user (form field is changed by user,
     // not by calculated value), then we must not allow value change.
-    if (getFlags().testFlag(ReadOnly) && parameters.scope == SetValueParameters::Scope::User)
+    const bool isReadOnly = parameters.formManager ? parameters.formManager->isReadOnly(this) : getFlags().testFlag(ReadOnly);
+    if (isReadOnly && parameters.scope == SetValueParameters::Scope::User)
     {
         return false;
     }

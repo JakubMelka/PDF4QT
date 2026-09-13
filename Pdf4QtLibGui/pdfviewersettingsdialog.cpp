@@ -489,6 +489,7 @@ void PDFViewerSettingsDialog::loadData()
     // Form Settings
     ui->formHighlightFieldsCheckBox->setChecked(m_settings.m_formAppearanceFlags.testFlag(pdf::PDFFormManager::HighlightFields));
     ui->formHighlightRequiredFieldsCheckBox->setChecked(m_settings.m_formAppearanceFlags.testFlag(pdf::PDFFormManager::HighlightRequiredFields));
+    ui->formEditReadOnlyFieldsCheckBox->setChecked(m_settings.m_formAppearanceFlags.testFlag(pdf::PDFFormManager::EditReadOnlyFields));
 
     // Signature Settings
     ui->signatureVerificationEnableCheckBox->setChecked(m_settings.m_signatureVerificationEnabled);
@@ -736,6 +737,10 @@ void PDFViewerSettingsDialog::saveData()
     else if (sender == ui->formHighlightRequiredFieldsCheckBox)
     {
         m_settings.m_formAppearanceFlags.setFlag(pdf::PDFFormManager::HighlightRequiredFields, ui->formHighlightRequiredFieldsCheckBox->isChecked());
+    }
+    else if (sender == ui->formEditReadOnlyFieldsCheckBox)
+    {
+        m_settings.m_formAppearanceFlags.setFlag(pdf::PDFFormManager::EditReadOnlyFields, ui->formEditReadOnlyFieldsCheckBox->isChecked());
     }
     else if (sender == ui->maximumUndoStepsEdit)
     {

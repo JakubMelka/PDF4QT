@@ -62,6 +62,14 @@ Section 12: Issues
  - 12.5.6.3 Annotation's states are not implemented in viewer
  - 12.5.6.22 Watermark annotation - matrix and fixed print entry is not used
  - 12.6.3 Some trigger events are not executed or not implemented
+ - 12.6.3 JavaScript of form field trigger events is not executed.
+   Format (F) and keystroke (K) actions consisting of a single call
+   of a standard Acrobat form function with literal arguments
+   (AFNumber_*, AFPercent_*, AFDate_*, AFTime_*, AFSpecial_*) are
+   implemented natively, validation and calculation scripts are ignored.
+   Read only fields having a calculate (C) action are editable by the user
+   (except in signed documents), editing of all read only fields can be
+   enabled in the application options.
  - 12.6.4 Some action are not executed in viewer
  - 12.6.4.8 URI actions doesn't use IsMap
  - 12.7.4.3 Variable text is implemented by Qt's QTextLayout

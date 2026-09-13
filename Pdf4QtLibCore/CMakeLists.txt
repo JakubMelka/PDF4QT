@@ -59,6 +59,8 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdffile.h
     sources/pdfform.cpp
     sources/pdfform.h
+    sources/pdfformfieldformat.cpp
+    sources/pdfformfieldformat.h
     sources/pdficontheme.cpp
     sources/pdficontheme.h
     sources/pdfjavascriptscanner.cpp

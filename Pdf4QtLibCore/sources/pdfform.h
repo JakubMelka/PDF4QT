@@ -508,6 +508,7 @@ public:
         None                    = 0x0000,
         HighlightFields         = 0x0001,
         HighlightRequiredFields = 0x0002,
+        EditReadOnlyFields      = 0x0004, ///< Allow the user to edit read only form fields
     };
     Q_DECLARE_FLAGS(FormAppearanceFlags, FormAppearanceFlag)
 
@@ -532,6 +533,25 @@ public:
 
     FormAppearanceFlags getAppearanceFlags() const;
     void setAppearanceFlags(FormAppearanceFlags flags);
+
+    /// Returns true, if read only form field is unlocked for editing, because
+    /// its value is calculated by a script (calculate action), which is not
+    /// executed. Fields are never unlocked in signed documents.
+    /// \param formField Form field
+    bool isUnlockedCalculatedField(const PDFFormField* formField) const;
+
+    /// Returns true, if some visible read only form field is unlocked
+    /// for editing, because its value is calculated by a script.
+    bool hasUnlockedCalculatedFields() const;
+
+    /// Returns true, if user is not allowed to change the value of the form field
+    /// \param formField Form field
+    bool isReadOnly(const PDFFormField* formField) const;
+
+    /// Returns flags of the form field, read only flag is cleared,
+    /// if user is allowed to change the value of the form field.
+    /// \param formField Form field
+    PDFFormField::FieldFlags getEffectiveFieldFlags(const PDFFormField* formField) const;
 
     /// Returns true, if form field has text (for example, it is a text box,
     /// or editable combo box)
@@ -611,6 +631,7 @@ public:
 protected:
     virtual void updateFieldValues();
     virtual void onDocumentReset() { }
+    virtual void onAppearanceFlagsChanged() { }
 
 signals:
     void actionTriggered(const pdf::PDFAction* action);

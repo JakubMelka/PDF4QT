@@ -2148,6 +2148,12 @@ void PDFProgramController::onDocumentReadingFinished()
                 QMessageBox::warning(m_mainWindow, QApplication::applicationDisplayName(), requirementResult.message);
             }
 
+            if (m_formManager && m_formManager->hasUnlockedCalculatedFields())
+            {
+                QMessageBox::information(m_mainWindow, QApplication::applicationDisplayName(),
+                                         tr("The form contains fields, whose values are calculated by scripts. Scripts are not executed, so these fields were unlocked and you have to fill in their values manually."));
+            }
+
             QSettings settings(QSettings::IniFormat, QSettings::UserScope, QCoreApplication::organizationName(), QCoreApplication::applicationName());
 
             settings.beginGroup("LastOpenedDocumentPages");

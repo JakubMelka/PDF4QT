@@ -154,6 +154,7 @@ public:
 protected:
     virtual void updateFieldValues() override;
     virtual void onDocumentReset() override;
+    virtual void onAppearanceFlagsChanged() override;
 
 private:
     void updateFormWidgetEditors();

@@ -19,6 +19,7 @@ CURRENT:
  - Issue #337: Text removed from page when adding image with editor
  - Issue #332: Some suggestions and problem requests for PDF editors
  - Issue #328: PDF viewer display error visible only at some zoom levels
+ - Issue #327: Does not handle forms correctly
  - Issue #299: PDF element display error
  - Issue #258: feat: Insert page number
  - Issue #238: Pdf Editor: "Edit page content" makes image disappear

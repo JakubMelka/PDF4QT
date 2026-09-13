@@ -29,6 +29,8 @@
 #include <QRectF>
 #include <QColor>
 
+#include <functional>
+
 class QWidget;
 class QKeyEvent;
 
@@ -83,6 +85,15 @@ public:
     /// even if widget is readonly.
     /// \param text Text to be set
     void setText(const QString& text);
+
+    /// Sets validator of the edited text. Text insertion is refused, if
+    /// validator doesn't accept the whole text after the insertion.
+    /// \param validator Validator (can be empty)
+    void setTextValidator(std::function<bool(const QString&)> validator) { m_textValidator = std::move(validator); }
+
+    /// Sets text color
+    /// \param color Text color
+    void setTextColor(const QColor& color) { m_textColor = color; }
 
     /// Sets widget appearance, such as font, font size, color, text alignment,
     /// and rectangle, in which widget resides on page (in page coordinates)
@@ -193,7 +204,14 @@ private:
     int getCursorLineUp() const;
     int getCursorLineDown() const;
 
+    /// Returns number of empty comb cells before the text,
+    /// which is given by the horizontal text alignment.
+    int getCombCellOffset() const;
+
     PDFFormField::FieldFlags m_flags;
+
+    /// Validator of the edited text
+    std::function<bool(const QString&)> m_textValidator;
 
     /// Text edited by the user
     QString m_editText;

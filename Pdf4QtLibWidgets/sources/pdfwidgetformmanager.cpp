@@ -28,6 +28,7 @@
 #include "pdfpainterutils.h"
 #include "pdfwidgetannotation.h"
 #include "pdfdocumentbuilder.h"
+#include "pdfformfieldformat.h"
 
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -250,7 +251,16 @@ protected:
     virtual void setFocusImpl(bool focused) override;
 
 private:
+    /// Returns text value of the form field
+    QString getFieldText() const;
+
     PDFTextEditPseudowidget m_textEdit;
+
+    /// Format function of the format (F) action
+    PDFFormFieldFormat m_format;
+
+    /// Keystroke function of the keystroke (K) action
+    PDFFormFieldFormat m_keystroke;
 };
 
 /// Editor for signatures
@@ -1293,8 +1303,8 @@ void PDFFormFieldCheckableButtonEditor::click()
 
 PDFFormFieldComboBoxEditor::PDFFormFieldComboBoxEditor(PDFWidgetFormManager* formManager, PDFFormWidget formWidget) :
     BaseClass(formManager, formWidget),
-    m_textEdit(getTextEditFlags(formWidget.getParent()->getFlags())),
-    m_listBox(formWidget.getParent()->getFlags()),
+    m_textEdit(getTextEditFlags(formManager->getEffectiveFieldFlags(formWidget.getParent()))),
+    m_listBox(formManager->getEffectiveFieldFlags(formWidget.getParent())),
     m_listBoxVisible(false)
 {
     const PDFFormFieldChoice* parentField = dynamic_cast<const PDFFormFieldChoice*>(m_formWidget.getParent());
@@ -1533,7 +1543,7 @@ void PDFFormFieldComboBoxEditor::draw(AnnotationDrawParameters& parameters, bool
     else
     {
         // Draw static contents
-        PDFTextEditPseudowidget pseudowidget(m_formWidget.getParent()->getFlags());
+        PDFTextEditPseudowidget pseudowidget(m_formManager->getEffectiveFieldFlags(m_formWidget.getParent()));
         initializeTextEdit(&pseudowidget);
         pseudowidget.draw(parameters, false);
     }
@@ -1628,7 +1638,13 @@ void PDFFormFieldTextBoxEditor::initializeTextEdit(PDFTextEditPseudowidget* text
 
     // Initialize text edit
     textEdit->setAppearance(PDFAnnotationDefaultAppearance::parse(defaultAppearance), alignment, m_formManager->getWidgetRectangle(m_formWidget), parentField->getTextMaximalLength());
-    textEdit->setText(loader.readTextString(parentField->getValue(), QString()));
+    textEdit->setText(m_keystroke.getEditText(getFieldText()));
+}
+
+QString PDFFormFieldTextBoxEditor::getFieldText() const
+{
+    PDFDocumentDataLoaderDecorator loader(m_formManager->getDocument());
+    return loader.readTextString(m_formWidget.getParent()->getValue(), QString());
 }
 
 void PDFFormFieldTextBoxEditor::setFocusImpl(bool focused)
@@ -1640,8 +1656,23 @@ void PDFFormFieldTextBoxEditor::setFocusImpl(bool focused)
     }
     else if (!m_textEdit.isPassword() && !m_formManager->isCommitDisabled()) // Passwords are not saved in the document
     {
+        QString text = m_textEdit.getText();
+
+        if (m_keystroke.isKeystroke())
+        {
+            std::optional<QString> committedText = m_keystroke.commit(text);
+            if (!committedText)
+            {
+                // Text is rejected by the keystroke function, restore the field value
+                reloadValue();
+                return;
+            }
+
+            text = *committedText;
+        }
+
         // If text has been changed, then commit it
-        PDFObject object = PDFObjectFactory::createTextString(m_textEdit.getText());
+        PDFObject object = PDFObjectFactory::createTextString(text);
 
         if (object != m_formWidget.getParent()->getValue())
         {
@@ -1658,8 +1689,18 @@ void PDFFormFieldTextBoxEditor::setFocusImpl(bool focused)
 
 PDFFormFieldTextBoxEditor::PDFFormFieldTextBoxEditor(PDFWidgetFormManager* formManager, PDFFormWidget formWidget) :
     BaseClass(formManager, formWidget),
-    m_textEdit(formWidget.getParent()->getFlags())
+    m_textEdit(formManager->getEffectiveFieldFlags(formWidget.getParent()))
 {
+    // JavaScript is not executed, but standard format and keystroke
+    // functions of the Acrobat form library are implemented natively.
+    m_format = PDFFormFieldFormat::parse(m_formManager->getAction(PDFAnnotationAdditionalActions::FormFieldFormatted, &m_formWidget));
+    m_keystroke = PDFFormFieldFormat::parse(m_formManager->getAction(PDFAnnotationAdditionalActions::FormFieldModified, &m_formWidget));
+
+    if (m_keystroke.isKeystroke())
+    {
+        m_textEdit.setTextValidator([this](const QString& text) { return m_keystroke.isKeystrokeAccepted(text); });
+    }
+
     initializeTextEdit(&m_textEdit);
 }
 
@@ -1739,8 +1780,7 @@ void PDFFormFieldTextBoxEditor::mouseMoveEvent(QWidget* widget, QMouseEvent* eve
 
 void PDFFormFieldTextBoxEditor::reloadValue()
 {
-    PDFDocumentDataLoaderDecorator loader(m_formManager->getDocument());
-    m_textEdit.setText(loader.readTextString(m_formWidget.getParent()->getValue(), QString()));
+    m_textEdit.setText(m_keystroke.getEditText(getFieldText()));
 }
 
 void PDFFormFieldTextBoxEditor::draw(AnnotationDrawParameters& parameters, bool edit) const
@@ -1752,8 +1792,20 @@ void PDFFormFieldTextBoxEditor::draw(AnnotationDrawParameters& parameters, bool 
     else
     {
         // Draw static contents
-        PDFTextEditPseudowidget pseudowidget(m_formWidget.getParent()->getFlags());
+        PDFTextEditPseudowidget pseudowidget(m_formManager->getEffectiveFieldFlags(m_formWidget.getParent()));
         initializeTextEdit(&pseudowidget);
+
+        if (m_format.isFormat())
+        {
+            PDFFormFieldFormat::FormattedText formattedText = m_format.format(getFieldText());
+            pseudowidget.setText(formattedText.text);
+
+            if (formattedText.textColor.isValid())
+            {
+                pseudowidget.setTextColor(formattedText.textColor);
+            }
+        }
+
         pseudowidget.draw(parameters, false);
     }
 }
@@ -2103,7 +2155,7 @@ int PDFListBoxPseudowidget::getIndexFromWidgetPosition(const QPointF& point) con
 
 PDFFormFieldListBoxEditor::PDFFormFieldListBoxEditor(PDFWidgetFormManager* formManager, PDFFormWidget formWidget) :
     BaseClass(formManager, formWidget),
-    m_listBox(formWidget.getParent()->getFlags())
+    m_listBox(formManager->getEffectiveFieldFlags(formWidget.getParent()))
 {
     initializeListBox(&m_listBox);
 }
@@ -2225,7 +2277,7 @@ void PDFFormFieldListBoxEditor::draw(AnnotationDrawParameters& parameters, bool 
     else
     {
         // Draw static contents
-        PDFListBoxPseudowidget pseudowidget(m_formWidget.getParent()->getFlags());
+        PDFListBoxPseudowidget pseudowidget(m_formManager->getEffectiveFieldFlags(m_formWidget.getParent()));
         initializeListBox(&pseudowidget);
         pseudowidget.draw(parameters, false);
     }
@@ -2358,6 +2410,12 @@ bool PDFWidgetFormManager::isEditorDrawEnabled(const PDFObjectReference& referen
 
 void PDFWidgetFormManager::onDocumentReset()
 {
+    updateFormWidgetEditors();
+}
+
+void PDFWidgetFormManager::onAppearanceFlagsChanged()
+{
+    // Editors must be recreated, because read only state of fields may have changed
     updateFormWidgetEditors();
 }
 

@@ -557,6 +557,23 @@ void PDFTextEditPseudowidget::performInsertText(const QString& text)
         return;
     }
 
+    if (m_textValidator)
+    {
+        QString newText = m_editText;
+        int position = m_positionCursor;
+        if (isTextSelected())
+        {
+            newText.remove(m_selectionStart, getSelectionLength());
+            position = m_selectionStart;
+        }
+        newText.insert(position, text);
+
+        if (!m_textValidator(newText))
+        {
+            return;
+        }
+    }
+
     // Insert text at the cursor
     performRemoveSelectedText();
     m_editText.insert(m_positionCursor, text);
@@ -667,7 +684,7 @@ void PDFTextEditPseudowidget::draw(AnnotationDrawParameters& parameters, bool ed
     {
         const qreal combCount = qMax(m_maxTextLength, 1);
         qreal combWidth = m_widgetRect.width() / combCount;
-        QRectF combRect(0.0, 0.0, combWidth, m_widgetRect.height());
+        QRectF combRect(combWidth * getCombCellOffset(), 0.0, combWidth, m_widgetRect.height());
         painter->setFont(m_textLayout.font());
 
         QColor textColor = parameters.colorConvertor.convert(m_textColor, false, true);
@@ -707,6 +724,12 @@ void PDFTextEditPseudowidget::draw(AnnotationDrawParameters& parameters, bool ed
         if (edit && m_positionCursor == getPositionEnd())
         {
             QRectF cursorRect(combRect.left(), combRect.bottom() - 1, combRect.width(), 1);
+            if (combRect.center().x() > m_widgetRect.width())
+            {
+                // Next cell is outside of the widget (text is aligned to the right),
+                // draw the cursor as a vertical line after the last character.
+                cursorRect = QRectF(combRect.left() - 1, 0.0, 1, combRect.height());
+            }
             painter->fillRect(cursorRect, textColor);
         }
     }
@@ -766,7 +789,8 @@ int PDFTextEditPseudowidget::getCursorPositionFromWidgetPosition(const QPointF& 
     {
         // If it is comb, then characters are spaced equidistantly
         const qreal x = qBound(0.0, textBoxPoint.x(), m_widgetRect.width());
-        const size_t position = qFloor(x * qreal(m_maxTextLength) / qreal(m_widgetRect.width()));
+        const int cell = qFloor(x * qreal(m_maxTextLength) / qreal(m_widgetRect.width()));
+        const size_t position = static_cast<size_t>(qMax(cell - getCombCellOffset(), 0));
         std::vector<int> positions = getCursorPositions();
         if (position < positions.size())
         {
@@ -914,6 +938,26 @@ int PDFTextEditPseudowidget::getCurrentLineTextEnd() const
 {
     QTextLine textLine = m_textLayout.lineForTextPosition(m_positionCursor);
     return textLine.textStart() + textLine.textLength();
+}
+
+int PDFTextEditPseudowidget::getCombCellOffset() const
+{
+    const int cellCount = qMax(m_maxTextLength, 1);
+    const int characterCount = static_cast<int>(getCursorPositions().size()) - 1;
+    const int emptyCellCount = qMax(cellCount - characterCount, 0);
+
+    const Qt::Alignment alignment = m_textLayout.textOption().alignment();
+    if (alignment.testFlag(Qt::AlignRight))
+    {
+        return emptyCellCount;
+    }
+
+    if (alignment.testFlag(Qt::AlignHCenter))
+    {
+        return emptyCellCount / 2;
+    }
+
+    return 0;
 }
 
 int PDFTextEditPseudowidget::getCursorLineUp() const
