@@ -25,16 +25,22 @@
 
 #include "pdfpagecontentprocessor.h"
 
+#include <map>
 #include <memory>
+#include <functional>
 
+class QPainter;
 class QXmlStreamReader;
 
 namespace pdf
 {
 
+class PDFMesh;
+class PDFColorConvertor;
 class PDFEditedPageContentElementPath;
 class PDFEditedPageContentElementText;
 class PDFEditedPageContentElementImage;
+class PDFEditedPageContentElementShading;
 
 class PDF4QTLIBCORESHARED_EXPORT PDFEditedPageContentElement
 {
@@ -47,7 +53,8 @@ public:
     {
         Path,
         Text,
-        Image
+        Image,
+        Shading
     };
 
     virtual Type getType() const = 0;
@@ -61,6 +68,9 @@ public:
 
     virtual PDFEditedPageContentElementImage* asImage() { return nullptr; }
     virtual const PDFEditedPageContentElementImage* asImage() const { return nullptr; }
+
+    virtual PDFEditedPageContentElementShading* asShading() { return nullptr; }
+    virtual const PDFEditedPageContentElementShading* asShading() const { return nullptr; }
 
     const PDFPageContentProcessorState& getState() const;
     void setState(const PDFPageContentProcessorState& newState);
@@ -143,6 +153,46 @@ private:
     QImage m_image;
 };
 
+/// Shading painted by the 'sh' operator. The shading is written back into
+/// the content stream using its shading object, the mesh is used only
+/// to display the shading in the editor.
+class PDF4QTLIBCORESHARED_EXPORT PDFEditedPageContentElementShading : public PDFEditedPageContentElement
+{
+public:
+    /// Creates shading element
+    /// \param state Graphic state, with which the shading is painted
+    /// \param shadingObject Shading object (from the shading resource dictionary)
+    /// \param area Area covered by the shading, in the element coordinate space
+    /// \param mesh Mesh of the shading, in the element coordinate space
+    /// \param transform Transformation matrix (maps the shading space to the page space)
+    PDFEditedPageContentElementShading(PDFPageContentProcessorState state,
+                                       PDFObject shadingObject,
+                                       QPainterPath area,
+                                       std::shared_ptr<const PDFMesh> mesh,
+                                       QTransform transform);
+    virtual ~PDFEditedPageContentElementShading() = default;
+
+    virtual Type getType() const override;
+    virtual PDFEditedPageContentElementShading* clone() const override;
+    virtual PDFEditedPageContentElementShading* asShading() override { return this; }
+    virtual const PDFEditedPageContentElementShading* asShading() const override { return this; }
+    virtual QRectF getBoundingBox() const override;
+
+    const PDFObject& getShadingObject() const;
+    const QPainterPath& getArea() const;
+
+    /// Paints the shading mesh. Painter transformation must map
+    /// the element coordinate space to the device space.
+    /// \param painter Painter
+    /// \param convertor Color convertor
+    void paint(QPainter* painter, const PDFColorConvertor& convertor) const;
+
+private:
+    PDFObject m_shadingObject;
+    QPainterPath m_area;
+    std::shared_ptr<const PDFMesh> m_mesh;
+};
+
 class PDF4QTLIBCORESHARED_EXPORT PDFEditedPageContentElementText : public PDFEditedPageContentElement
 {
 public:
@@ -154,6 +204,18 @@ public:
         TextSequence textSequence;
 
         PDFPageContentProcessorState state;
+    };
+
+    /// Font used by the text element. The key identifies the font uniquely
+    /// in the text element and it is used by the font command of the text
+    /// items. It is the name of the font in the resource dictionary of the
+    /// content stream, in which the font was selected (the name can denote
+    /// a different font in the page resources, if it was a form XObject).
+    struct FontResource
+    {
+        QByteArray key;
+        PDFFontPointer font;
+        PDFObject fontObject; ///< Font object from the resource dictionary (null, if unknown)
     };
 
     PDFEditedPageContentElementText(PDFPageContentProcessorState state, QTransform transform);
@@ -179,8 +241,30 @@ public:
     QPainterPath getTextPath() const;
     void setTextPath(QPainterPath newTextPath);
 
+    /// Adds font used by the text element. If the font is already present,
+    /// its key is returned. Otherwise the font is added under the given key,
+    /// or under a modified key, if the key is already used by another font.
+    /// \param font Font
+    /// \param fontObject Font object from the resource dictionary (can be null)
+    /// \param key Preferred key (name of the font in the resource dictionary)
+    /// \returns Key of the font
+    QByteArray addFontResource(const PDFFontPointer& font, const PDFObject& fontObject, const QByteArray& key);
+
+    const std::vector<FontResource>& getFontResources() const;
+    void setFontResources(const std::vector<FontResource>& fontResources);
+
+    /// Returns key of the font in the text element. If the font
+    /// is not found, the font identifier is returned.
+    /// \param font Font
+    QByteArray getFontResourceKey(const PDFFont* font) const;
+
+    /// Creates the text representation of the text items
+    /// \param initialState Graphic state at the beginning of the text object
+    /// \param items Text items
+    /// \param getFontKey Returns the key of the font used by the font command
     static QString createItemsAsText(const PDFPageContentProcessorState& initialState,
-                                     const std::vector<Item>& items);
+                                     const std::vector<Item>& items,
+                                     const std::function<QByteArray(const PDFFont*)>& getFontKey);
 
     QString getItemsAsText() const;
     void setItemsAsText(const QString& newItemsAsText);
@@ -191,6 +275,7 @@ private:
     std::vector<Item> m_items;
     QPainterPath m_textPath;
     QString m_itemsAsText;
+    std::vector<FontResource> m_fontResources;
 };
 
 class PDF4QTLIBCORESHARED_EXPORT PDFEditedPageContent
@@ -224,11 +309,15 @@ public:
     PDFDictionary getGraphicStateDictionary() const;
     void setGraphicStateDictionary(const PDFDictionary& newGraphicStateDictionary);
 
+    PDFDictionary getShadingDictionary() const;
+    void setShadingDictionary(const PDFDictionary& newShadingDictionary);
+
 private:
     std::vector<std::unique_ptr<PDFEditedPageContentElement>> m_contentElements;
     PDFDictionary m_fontDictionary;
     PDFDictionary m_xobjectDictionary;
     PDFDictionary m_graphicStateDictionary;
+    PDFDictionary m_shadingDictionary;
 };
 
 class PDF4QTLIBCORESHARED_EXPORT PDFPageContentEditorProcessor : public PDFPageContentProcessor
@@ -250,6 +339,7 @@ public:
 protected:
     virtual void performInterceptInstruction(Operator currentOperator, ProcessOrder processOrder, const QByteArray& operatorAsText) override;
     virtual void performPathPainting(const QPainterPath& path, bool stroke, bool fill, bool text, Qt::FillRule fillRule) override;
+    virtual bool performPathPaintingUsingShading(const QPainterPath& path, bool stroke, bool fill, const PDFShadingPattern* shadingPattern) override;
     virtual bool isContentKindSuppressed(ContentKind kind) const override;
     virtual bool isTilingPatternProcessingAllowed(PDFInteger tileCount) const override;
     virtual bool performOriginalImagePainting(const PDFImage& image, const PDFStream* stream, PDFObjectReference reference) override;
@@ -259,11 +349,31 @@ protected:
     virtual void performRestoreGraphicState(ProcessOrder order) override;
     virtual void performUpdateGraphicsState(const PDFPageContentProcessorState& state) override;
     virtual void performProcessTextSequence(const TextSequence& textSequence, ProcessOrder order) override;
+    virtual void performBeginTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup) override;
+    virtual void performEndTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup) override;
 
 private:
     /// Maximum number of tiles of a tiling pattern, which is decomposed into
     /// the edited content elements. Patterns with more tiles are not painted.
     static constexpr PDFInteger MAXIMUM_TILING_PATTERN_TILE_COUNT = 512;
+
+    /// Font selected by the font operator, with its object and name
+    /// from the resource dictionary, in which the font was found.
+    struct FontResourceInfo
+    {
+        PDFFontPointer font;
+        QByteArray name;
+        PDFObject fontObject;
+    };
+
+    /// Blend mode and constant alpha, with which a transparency group
+    /// is composed onto its backdrop.
+    struct TransparencyGroupState
+    {
+        BlendMode blendMode = BlendMode::Normal;
+        PDFReal alphaFilling = 1.0;
+        PDFReal alphaStroking = 1.0;
+    };
 
     /// Returns the current clip path mapped into the coordinate space
     /// of an element with the given transformation matrix. If the element
@@ -272,6 +382,17 @@ private:
     /// is returned.
     /// \param elementTransform Element transformation matrix
     QPainterPath getCurrentClipPathInElementSpace(const QTransform& elementTransform) const;
+
+    /// Returns the graphic state of a new element. Transparency groups can't
+    /// be represented by the edited content elements - the content of a group
+    /// is written directly into the page. So the blend mode and the constant
+    /// alpha of the enclosing transparency groups are applied to the element.
+    PDFPageContentProcessorState getElementState() const;
+
+    /// Adds fonts used by the text element (the initial font and the fonts
+    /// selected by the text items) into the font resources of the element.
+    /// \param textElement Text element
+    void registerFontResources(PDFEditedPageContentElementText* textElement) const;
 
     PDFEditedPageContent m_content;
 
@@ -282,6 +403,26 @@ private:
 
     std::unique_ptr<PDFEditedPageContentElementText> m_contentElementText;
     QPainterPath m_textPath;
+
+    /// Fonts selected by the font operator. The font pointer is held,
+    /// so the address of the font can't be reused by another font.
+    std::map<const PDFFont*, FontResourceInfo> m_fontResources;
+
+    /// Text font before the currently processed operator
+    PDFFontPointer m_textFontBeforeOperator;
+
+    /// Stack of the transparency groups being processed
+    std::vector<TransparencyGroupState> m_transparencyGroups;
+
+    /// Shading object painted by the currently processed 'sh' operator
+    PDFObject m_shadingObject;
+
+    /// Graphic state of the element painted by the currently processed 'sh'
+    /// operator (before the fill color space is changed by the operator)
+    PDFPageContentProcessorState m_shadingState;
+
+    /// Is the 'sh' operator being processed?
+    bool m_isShadingOperatorActive = false;
 };
 
 }   // namespace pdf

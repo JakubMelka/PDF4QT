@@ -217,6 +217,7 @@ bool EditorPlugin::updatePageContent(pdf::PDFInteger pageIndex,
     contentStreamBuilder.setFontDictionary(editedPageContent.getFontDictionary());
     contentStreamBuilder.setXObjectDictionary(editedPageContent.getXObjectDictionary());
     contentStreamBuilder.setGraphicStateDictionary(editedPageContent.getGraphicStateDictionary());
+    contentStreamBuilder.setShadingDictionary(editedPageContent.getShadingDictionary());
 
     for (const pdf::PDFPageContentElement* element : elements)
     {
@@ -331,10 +332,12 @@ bool EditorPlugin::updatePageContent(pdf::PDFInteger pageIndex,
     pdf::PDFDictionary fontDictionary = contentStreamBuilder.getFontDictionary();
     pdf::PDFDictionary xobjectDictionary = contentStreamBuilder.getXObjectDictionary();
     pdf::PDFDictionary graphicStateDictionary = contentStreamBuilder.getGraphicStateDictionary();
+    pdf::PDFDictionary shadingDictionary = contentStreamBuilder.getShadingDictionary();
 
     builder->replaceObjectsByReferences(fontDictionary);
     builder->replaceObjectsByReferences(xobjectDictionary);
     builder->replaceObjectsByReferences(graphicStateDictionary);
+    builder->replaceObjectsByReferences(shadingDictionary);
 
     pdf::PDFArray array;
     array.appendItem(pdf::PDFObject::createName("FlateDecode"));
@@ -372,6 +375,7 @@ bool EditorPlugin::updatePageContent(pdf::PDFInteger pageIndex,
     setResources("Font", fontDictionary);
     setResources("XObject", xobjectDictionary);
     setResources("ExtGState", graphicStateDictionary);
+    setResources("Shading", shadingDictionary);
 
     pdf::PDFObjectFactory factory;
     factory.beginDictionary();
@@ -945,6 +949,12 @@ bool EditorPlugin::updateTextElement(pdf::PDFPageContentElementEdited* element)
             targetTextElement->setItems(sourceElementText->getItems());
             targetTextElement->setTransform(sourceElementText->getTransform());
             targetTextElement->setClipPath(sourceElementText->getClipPath());
+
+            // The font keys of the processed page can differ from the keys of the target
+            // element (fonts are written under the keys of the page resources), so the
+            // font resources and the text items as text must correspond to each other.
+            targetTextElement->setFontResources(sourceElementText->getFontResources());
+            targetTextElement->setItemsAsText(sourceElementText->getItemsAsText());
         }
         else
         {

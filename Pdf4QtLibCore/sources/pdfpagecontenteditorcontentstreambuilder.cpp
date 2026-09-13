@@ -656,6 +656,11 @@ void PDFPageContentEditorContentStreamBuilder::writeEditedElement(const PDFEdite
         writePainterPath(stream, pathElement->getPath(), isStroking, isFilling);
     }
 
+    if (const PDFEditedPageContentElementShading* shadingElement = element->asShading())
+    {
+        writeShadingObject(stream, shadingElement->getShadingObject());
+    }
+
     if (const PDFEditedPageContentElementText* textElement = element->asText())
     {
         QString text = textElement->getItemsAsText();
@@ -663,11 +668,30 @@ void PDFPageContentEditorContentStreamBuilder::writeEditedElement(const PDFEdite
         if (!text.isEmpty())
         {
             auto previousOverrides = m_fontOverrides;
+            auto previousFontResourceObjects = m_fontResourceObjects;
             m_fontOverrides.clear();
+            m_fontResourceObjects.clear();
+
+            // Fonts are identified by the keys of the text element. The same key can
+            // denote a different font in the page resources (the text can be painted
+            // by a form XObject, which has its own resources), so the font object is
+            // used to find (or to create) the right entry of the font dictionary.
+            for (const PDFEditedPageContentElementText::FontResource& fontResource : textElement->getFontResources())
+            {
+                if (fontResource.font)
+                {
+                    m_fontOverrides.insert(fontResource.key, fontResource.font);
+                }
+
+                if (!fontResource.fontObject.isNull())
+                {
+                    m_fontResourceObjects.insert(fontResource.key, fontResource.fontObject);
+                }
+            }
 
             auto addFontOverride = [this](const PDFFontPointer& font)
             {
-                if (font && !font->getFontId().isEmpty())
+                if (font && !font->getFontId().isEmpty() && !m_fontOverrides.contains(font->getFontId()))
                 {
                     m_fontOverrides.insert(font->getFontId(), font);
                 }
@@ -697,8 +721,9 @@ void PDFPageContentEditorContentStreamBuilder::writeEditedElement(const PDFEdite
                 }
             }
 
-            writeText(stream, text);
+            writeText(stream, text, textElement->getFontResourceKey(m_currentState.getTextFont().data()));
             m_fontOverrides = std::move(previousOverrides);
+            m_fontResourceObjects = std::move(previousFontResourceObjects);
         }
     }
 
@@ -822,8 +847,12 @@ void PDFPageContentEditorContentStreamBuilder::writePainterPath(QTextStream& str
     }
 }
 
-void PDFPageContentEditorContentStreamBuilder::writeText(QTextStream& stream, const QString& text)
+void PDFPageContentEditorContentStreamBuilder::writeText(QTextStream& stream, const QString& text, const QByteArray& fontKey)
 {
+    // The text object is enclosed in the q/Q operators, so the graphic state,
+    // which is changed inside the text object, is restored at its end.
+    const PDFPageContentProcessorState savedState = m_currentState;
+
     stream << "q BT" << Qt::endl;
 
     QString xml = QString("<?xml version=\"1.0\" encoding=\"UTF-8\"?><doc>%1</doc>").arg(text);
@@ -838,10 +867,10 @@ void PDFPageContentEditorContentStreamBuilder::writeText(QTextStream& stream, co
     // would be invalid and the text would not be displayed at all.
     if (m_textFont)
     {
-        QByteArray fontKey = selectFont(m_textFont->getFontId());
-        m_currentTextFontKey = fontKey;
+        QByteArray currentFontKey = selectFont(!fontKey.isEmpty() ? fontKey : m_textFont->getFontId());
+        m_currentTextFontKey = currentFontKey;
         m_currentTextFontSize = m_currentState.getTextFontSize();
-        stream << "/" << fontKey << " " << formatNumber(m_currentState.getTextFontSize()) << " Tf" << Qt::endl;
+        stream << "/" << currentFontKey << " " << formatNumber(m_currentState.getTextFontSize()) << " Tf" << Qt::endl;
     }
 
     if (!qFuzzyIsNull(m_currentState.getTextCharacterSpacing()))
@@ -922,6 +951,8 @@ void PDFPageContentEditorContentStreamBuilder::writeText(QTextStream& stream, co
     }
 
     stream << "ET Q" << Qt::endl;
+
+    m_currentState = savedState;
 }
 
 void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& stream, const QXmlStreamReader& reader)
@@ -1051,6 +1082,52 @@ void PDFPageContentEditorContentStreamBuilder::writeTextCommand(QTextStream& str
             state.setTextKnockout(isTrue);
             writeStateDifference(stream, state);
         }
+    }
+    else if (tag == "fill" || tag == "stroke")
+    {
+        const bool isFilling = tag == "fill";
+
+        QByteArray colorOperator;
+        QStringList componentNames;
+        if (attributes.size() == 1 && attributes.hasAttribute("gray"))
+        {
+            componentNames = QStringList{ "gray" };
+            colorOperator = isFilling ? "g" : "G";
+        }
+        else if (attributes.size() == 3 && attributes.hasAttribute("r") && attributes.hasAttribute("g") && attributes.hasAttribute("b"))
+        {
+            componentNames = QStringList{ "r", "g", "b" };
+            colorOperator = isFilling ? "rg" : "RG";
+        }
+        else if (attributes.size() == 4 && attributes.hasAttribute("c") && attributes.hasAttribute("m") && attributes.hasAttribute("y") && attributes.hasAttribute("k"))
+        {
+            componentNames = QStringList{ "c", "m", "y", "k" };
+            colorOperator = isFilling ? "k" : "K";
+        }
+
+        if (colorOperator.isEmpty())
+        {
+            addError(PDFTranslationContext::tr("Color command requires attribute gray, attributes r, g, b, or attributes c, m, y, k."));
+            return;
+        }
+
+        QByteArray colorCommand;
+        for (const QString& componentName : componentNames)
+        {
+            bool ok = false;
+            const QString value = attributes.value(componentName).toString();
+            const PDFReal component = value.toDouble(&ok);
+
+            if (!ok)
+            {
+                reportInvalidNumber(value);
+                return;
+            }
+
+            colorCommand += formatNumber(component) + " ";
+        }
+
+        stream << colorCommand << colorOperator << Qt::endl;
     }
     else if (tag == "space")
     {
@@ -1360,18 +1437,24 @@ void PDFPageContentEditorContentStreamBuilder::writeImageObject(QTextStream& str
 QByteArray PDFPageContentEditorContentStreamBuilder::selectFont(const QByteArray& font)
 {
     m_textFont = nullptr;
+    QByteArray fontKey = font;
 
     if (auto overrideIt = m_fontOverrides.constFind(font); overrideIt != m_fontOverrides.cend() && !overrideIt.value().isNull())
     {
         m_textFont = overrideIt.value();
+
+        if (auto objectIt = m_fontResourceObjects.constFind(font); objectIt != m_fontResourceObjects.cend())
+        {
+            fontKey = getFontResourceKey(font, objectIt.value());
+        }
     }
 
-    PDFObject fontObject = m_fontDictionary.get(font);
+    PDFObject fontObject = m_fontDictionary.get(fontKey);
     if (!m_textFont && !fontObject.isNull())
     {
         try
         {
-            m_textFont = PDFFont::createFont(fontObject, font, m_document);
+            m_textFont = PDFFont::createFont(fontObject, fontKey, m_document);
         }
         catch (const PDFException& exception)
         {
@@ -1441,7 +1524,68 @@ QByteArray PDFPageContentEditorContentStreamBuilder::selectFont(const QByteArray
         return font;
     }
 
-    return font;
+    return fontKey;
+}
+
+QByteArray PDFPageContentEditorContentStreamBuilder::getFontResourceKey(const QByteArray& key, const PDFObject& fontObject)
+{
+    // The key is the name of the font in the resource dictionary of the content
+    // stream, in which the font was selected. It can be a form XObject, whose
+    // resources differ from the page resources - the same name can denote another
+    // font, or it can be missing in the page resources. So the font is looked up
+    // by its object and if it is not found, it is added under an unused key.
+    if (m_fontDictionary.get(key) == fontObject)
+    {
+        return key;
+    }
+
+    for (size_t i = 0; i < m_fontDictionary.getCount(); ++i)
+    {
+        if (m_fontDictionary.getValue(i) == fontObject)
+        {
+            return m_fontDictionary.getKey(i).getString();
+        }
+    }
+
+    QByteArray uniqueKey = key;
+    for (int i = 1; uniqueKey.isEmpty() || m_fontDictionary.hasKey(uniqueKey); ++i)
+    {
+        uniqueKey = key + "_" + QByteArray::number(i);
+    }
+
+    m_fontDictionary.addEntry(PDFInplaceOrMemoryString(uniqueKey), PDFObject(fontObject));
+    return uniqueKey;
+}
+
+void PDFPageContentEditorContentStreamBuilder::writeShadingObject(QTextStream& stream, const PDFObject& shadingObject)
+{
+    QByteArray key;
+
+    for (size_t i = 0; i < m_shadingDictionary.getCount(); ++i)
+    {
+        if (m_shadingDictionary.getValue(i) == shadingObject)
+        {
+            key = m_shadingDictionary.getKey(i).getString();
+            break;
+        }
+    }
+
+    if (key.isEmpty())
+    {
+        int i = 0;
+        while (true)
+        {
+            QByteArray currentKey = QString("Sh%1").arg(++i).toLatin1();
+            if (!m_shadingDictionary.hasKey(currentKey))
+            {
+                m_shadingDictionary.addEntry(PDFInplaceOrMemoryString(currentKey), PDFObject(shadingObject));
+                key = currentKey;
+                break;
+            }
+        }
+    }
+
+    stream << "/" << key << " sh" << Qt::endl;
 }
 
 void PDFPageContentEditorContentStreamBuilder::addError(const QString& error)
@@ -1462,6 +1606,11 @@ void PDFPageContentEditorContentStreamBuilder::setXObjectDictionary(const PDFDic
 void PDFPageContentEditorContentStreamBuilder::setGraphicStateDictionary(const PDFDictionary& newGraphicStateDictionary)
 {
     m_graphicStateDictionary = newGraphicStateDictionary;
+}
+
+void PDFPageContentEditorContentStreamBuilder::setShadingDictionary(const PDFDictionary& newShadingDictionary)
+{
+    m_shadingDictionary = newShadingDictionary;
 }
 
 void PDFPageContentEditorContentStreamBuilder::writeStyledPath(const QPainterPath& path,

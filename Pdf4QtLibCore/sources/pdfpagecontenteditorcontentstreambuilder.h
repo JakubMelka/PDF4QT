@@ -65,10 +65,12 @@ public:
     const PDFDictionary& getFontDictionary() const { return m_fontDictionary; }
     const PDFDictionary& getXObjectDictionary() const { return m_xobjectDictionary; }
     const PDFDictionary& getGraphicStateDictionary() const { return m_graphicStateDictionary; }
+    const PDFDictionary& getShadingDictionary() const { return m_shadingDictionary; }
 
     void setFontDictionary(const PDFDictionary& newFontDictionary);
     void setXObjectDictionary(const PDFDictionary& newXObjectDictionary);
     void setGraphicStateDictionary(const PDFDictionary& newGraphicStateDictionary);
+    void setShadingDictionary(const PDFDictionary& newShadingDictionary);
 
     const QStringList& getErrors() const { return m_errors; }
     void clearErrors() { m_errors.clear(); }
@@ -124,7 +126,11 @@ private:
     /// by "W n" or "W* n", according to the path fill rule).
     void writeClipPath(QTextStream& stream, const QPainterPath& clipPath);
 
-    void writeText(QTextStream& stream, const QString& text);
+    /// Writes the text object
+    /// \param stream Stream
+    /// \param text Text items as text
+    /// \param fontKey Key of the font of the current graphic state (empty, if unknown)
+    void writeText(QTextStream& stream, const QString& text, const QByteArray& fontKey);
     void writeTextCommand(QTextStream& stream, const QXmlStreamReader& reader);
 
     /// Writes text characters using the current text font. Characters, which
@@ -137,17 +143,31 @@ private:
     void writeImage(QTextStream& stream, const QImage& image);
     void writeImageObject(QTextStream& stream, const PDFObject& imageObject);
 
+    /// Writes the 'sh' operator painting the shading object. The shading object
+    /// is added into the shading dictionary, if it is not already present.
+    void writeShadingObject(QTextStream& stream, const PDFObject& shadingObject);
+
     QByteArray selectFont(const QByteArray& font);
+
+    /// Returns the key of the font object in the font dictionary. If the font
+    /// object is not present in the font dictionary, it is added under the given
+    /// key, or under a modified key, if the key denotes another font.
+    /// \param key Preferred key
+    /// \param fontObject Font object
+    QByteArray getFontResourceKey(const QByteArray& key, const PDFObject& fontObject);
+
     void addError(const QString& error);
 
     PDFDocument* m_document = nullptr;
     PDFDictionary m_fontDictionary;
     PDFDictionary m_xobjectDictionary;
     PDFDictionary m_graphicStateDictionary;
+    PDFDictionary m_shadingDictionary;
     QByteArray m_outputContent;
     PDFPageContentProcessorState m_currentState;
     PDFFontPointer m_textFont;
     QHash<QByteArray, PDFFontPointer> m_fontOverrides;
+    QHash<QByteArray, PDFObject> m_fontResourceObjects; ///< Font objects of the fonts of the written text element
     QStringList m_errors;
     PDFEditorFallbackFontManager m_fallbackFontManager;
     QByteArray m_currentTextFontKey;    ///< Resource key of the last written Tf operator

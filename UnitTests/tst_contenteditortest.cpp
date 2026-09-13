@@ -42,6 +42,7 @@
 #include <QRegularExpression>
 
 #include <array>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -119,6 +120,10 @@ private slots:
     void test_minus_sign_in_the_middle_of_number_is_ignored();
     void test_invalid_token_keeps_previous_operands();
     void test_invalid_token_invalidates_operator();
+    void test_form_xobject_fonts_are_preserved();
+    void test_text_colors_are_preserved();
+    void test_shading_is_preserved();
+    void test_transparency_group_blend_mode_is_preserved();
 
 private:
     enum class Variant
@@ -159,6 +164,29 @@ private:
     /// Creates a document with a single page, which contains the page content
     /// \p pageContent and the standard font Helvetica as the resource /F1
     static pdf::PDFDocument createDocumentWithText(QByteArray pageContent);
+
+    using DictionaryEntries = std::vector<std::pair<const char*, pdf::PDFObject>>;
+
+    /// Creates a document with a single page 200 x 200, which contains the page content
+    /// \p pageContent. Page resources are created by \p createResources, which can add
+    /// objects (fonts, form XObjects, ...) into the document using the document builder.
+    static pdf::PDFDocument createDocument(QByteArray pageContent, const std::function<pdf::PDFDictionary(pdf::PDFDocumentBuilder*)>& createResources);
+
+    /// Creates a dictionary object with the given entries
+    static pdf::PDFObject createDictionaryObject(DictionaryEntries entries);
+
+    /// Creates an array object of the given numbers
+    static pdf::PDFObject createNumberArrayObject(std::vector<pdf::PDFReal> numbers);
+
+    /// Adds a stream object with the given dictionary entries and content into
+    /// the document and returns a reference to it
+    static pdf::PDFObject addStreamObject(pdf::PDFDocumentBuilder* builder, DictionaryEntries entries, QByteArray content);
+
+    /// Adds a standard Type 1 font object into the document and returns a reference to it
+    static pdf::PDFObject addStandardFontObject(pdf::PDFDocumentBuilder* builder, const char* baseFont);
+
+    /// Returns the number of shading elements of the page content
+    static size_t getShadingElementCount(const pdf::PDFEditedPageContent& content);
 
     /// Returns bounding boxes of all text elements of the page content
     static std::vector<QRectF> getTextBoundingBoxes(const pdf::PDFEditedPageContent& content);
@@ -595,6 +623,7 @@ pdf::PDFDocumentPointer ContentEditorTest::rewritePageContent(const pdf::PDFDocu
     contentStreamBuilder.setFontDictionary(content.getFontDictionary());
     contentStreamBuilder.setXObjectDictionary(content.getXObjectDictionary());
     contentStreamBuilder.setGraphicStateDictionary(content.getGraphicStateDictionary());
+    contentStreamBuilder.setShadingDictionary(content.getShadingDictionary());
 
     const size_t elementCount = content.getElementCount();
     for (size_t i = 0; i < elementCount; ++i)
@@ -628,10 +657,12 @@ pdf::PDFDocumentPointer ContentEditorTest::rewritePageContent(const pdf::PDFDocu
     pdf::PDFDictionary fontDictionary = contentStreamBuilder.getFontDictionary();
     pdf::PDFDictionary xobjectDictionary = contentStreamBuilder.getXObjectDictionary();
     pdf::PDFDictionary graphicStateDictionary = contentStreamBuilder.getGraphicStateDictionary();
+    pdf::PDFDictionary shadingDictionary = contentStreamBuilder.getShadingDictionary();
 
     builder->replaceObjectsByReferences(fontDictionary);
     builder->replaceObjectsByReferences(xobjectDictionary);
     builder->replaceObjectsByReferences(graphicStateDictionary);
+    builder->replaceObjectsByReferences(shadingDictionary);
 
     pdf::PDFArray array;
     array.appendItem(pdf::PDFObject::createName("FlateDecode"));
@@ -662,6 +693,7 @@ pdf::PDFDocumentPointer ContentEditorTest::rewritePageContent(const pdf::PDFDocu
     setResources("Font", fontDictionary);
     setResources("XObject", xobjectDictionary);
     setResources("ExtGState", graphicStateDictionary);
+    setResources("Shading", shadingDictionary);
 
     pdf::PDFObjectFactory factory;
     factory.beginDictionary();
@@ -1441,6 +1473,273 @@ void ContentEditorTest::test_invalid_token_invalidates_operator()
     QCOMPARE(getPageColor(image, QPointF(40, 50)), QColor(Qt::white));
     QCOMPARE(getPageColor(image, QPointF(40, 140)), QColor(Qt::white));
     QCOMPARE(getPageColor(image, QPointF(140, 140)), QColor(Qt::blue));
+}
+
+pdf::PDFDocument ContentEditorTest::createDocument(QByteArray pageContent, const std::function<pdf::PDFDictionary(pdf::PDFDocumentBuilder*)>& createResources)
+{
+    pdf::PDFDocumentBuilder builder;
+    pdf::PDFObjectReference pageRef = builder.appendPage(QRectF(0, 0, 200, 200));
+
+    pdf::PDFObject contentObject = addStreamObject(&builder, DictionaryEntries(), std::move(pageContent));
+    pdf::PDFDictionary resources = createResources(&builder);
+
+    pdf::PDFDictionary pageUpdate;
+    pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Resources"), pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(resources))));
+    pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Contents"), std::move(contentObject));
+
+    builder.mergeTo(pageRef, pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(pageUpdate))));
+
+    return builder.build();
+}
+
+pdf::PDFObject ContentEditorTest::createDictionaryObject(DictionaryEntries entries)
+{
+    pdf::PDFDictionary dictionary;
+    for (auto& entry : entries)
+    {
+        dictionary.addEntry(pdf::PDFInplaceOrMemoryString(entry.first), std::move(entry.second));
+    }
+
+    return pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(dictionary)));
+}
+
+pdf::PDFObject ContentEditorTest::createNumberArrayObject(std::vector<pdf::PDFReal> numbers)
+{
+    pdf::PDFArray array;
+    for (pdf::PDFReal number : numbers)
+    {
+        array.appendItem(pdf::PDFObject::createReal(number));
+    }
+
+    return pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(std::move(array)));
+}
+
+pdf::PDFObject ContentEditorTest::addStreamObject(pdf::PDFDocumentBuilder* builder, DictionaryEntries entries, QByteArray content)
+{
+    pdf::PDFDictionary dictionary;
+    for (auto& entry : entries)
+    {
+        dictionary.addEntry(pdf::PDFInplaceOrMemoryString(entry.first), std::move(entry.second));
+    }
+    dictionary.addEntry(pdf::PDFInplaceOrMemoryString(pdf::PDF_STREAM_DICT_LENGTH), pdf::PDFObject::createInteger(content.size()));
+
+    pdf::PDFObject streamObject = pdf::PDFObject::createStream(std::make_shared<pdf::PDFStream>(std::move(dictionary), std::move(content)));
+    return pdf::PDFObject::createReference(builder->addObject(std::move(streamObject)));
+}
+
+pdf::PDFObject ContentEditorTest::addStandardFontObject(pdf::PDFDocumentBuilder* builder, const char* baseFont)
+{
+    pdf::PDFObject fontObject = createDictionaryObject({ { "Type", pdf::PDFObject::createName("Font") },
+                                                         { "Subtype", pdf::PDFObject::createName("Type1") },
+                                                         { "BaseFont", pdf::PDFObject::createName(baseFont) },
+                                                         { "Encoding", pdf::PDFObject::createName("WinAnsiEncoding") } });
+    return pdf::PDFObject::createReference(builder->addObject(std::move(fontObject)));
+}
+
+size_t ContentEditorTest::getShadingElementCount(const pdf::PDFEditedPageContent& content)
+{
+    size_t count = 0;
+    for (size_t i = 0; i < content.getElementCount(); ++i)
+    {
+        if (content.getElement(i)->asShading())
+        {
+            ++count;
+        }
+    }
+    return count;
+}
+
+void ContentEditorTest::test_form_xobject_fonts_are_preserved()
+{
+    // Issue #337 - text painted by a form XObject uses the fonts of the form resources.
+    // The font name /F1 denotes a different font in the page resources and the font
+    // name /F2 is missing there at all. The rewritten page must use the right fonts.
+    QByteArray pageContent = "BT /F1 16 Tf 20 160 Td (Page) Tj ET q /Fm1 Do Q";
+    QByteArray formContent = "BT /F1 16 Tf 20 110 Td (Form) Tj /F2 16 Tf 0 -40 Td (Bold) Tj ET";
+
+    pdf::PDFDocument document = createDocument(pageContent, [&formContent](pdf::PDFDocumentBuilder* builder)
+    {
+        pdf::PDFObject formFonts = createDictionaryObject({ { "F1", addStandardFontObject(builder, "Courier") },
+                                                            { "F2", addStandardFontObject(builder, "Times-Bold") } });
+        pdf::PDFObject formObject = addStreamObject(builder, { { "Type", pdf::PDFObject::createName("XObject") },
+                                                               { "Subtype", pdf::PDFObject::createName("Form") },
+                                                               { "BBox", createNumberArrayObject({ 0, 0, 200, 200 }) },
+                                                               { "Resources", createDictionaryObject({ { "Font", formFonts } }) } }, formContent);
+
+        pdf::PDFDictionary resources;
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("Font"), createDictionaryObject({ { "F1", addStandardFontObject(builder, "Helvetica") } }));
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"), createDictionaryObject({ { "Fm1", formObject } }));
+        return resources;
+    });
+
+    pdf::PDFEditedPageContent content;
+    QVERIFY(processPageContent(&document, &content).isEmpty());
+    QCOMPARE(getTextBoundingBoxes(content).size(), size_t(2));
+
+    QByteArray outputContent;
+    pdf::PDFDocumentPointer modifiedDocument = rewritePageContent(&document, content, false, &outputContent);
+    QVERIFY(modifiedDocument);
+
+    pdf::PDFEditedPageContent modifiedContent;
+    QList<pdf::PDFRenderError> errors = processPageContent(modifiedDocument.data(), &modifiedContent);
+    QVERIFY2(errors.isEmpty(), qPrintable(errors.isEmpty() ? QString() : errors.front().message));
+    QCOMPARE(getTextBoundingBoxes(modifiedContent).size(), size_t(2));
+
+    // Each font used by the rewritten content stream must denote the original font
+    const pdf::PDFPage* page = modifiedDocument->getCatalog()->getPage(0);
+    const pdf::PDFDictionary* resources = modifiedDocument->getDictionaryFromObject(page->getResources());
+    QVERIFY(resources);
+    const pdf::PDFDictionary* fonts = modifiedDocument->getDictionaryFromObject(resources->get("Font"));
+    QVERIFY(fonts);
+
+    QSet<QByteArray> baseFonts;
+    QRegularExpression fontExpression("/(\\S+) [0-9.]+ Tf");
+    QRegularExpressionMatchIterator iterator = fontExpression.globalMatch(QString::fromLatin1(outputContent));
+    while (iterator.hasNext())
+    {
+        const QByteArray key = iterator.next().captured(1).toLatin1();
+        const pdf::PDFDictionary* font = modifiedDocument->getDictionaryFromObject(fonts->get(key));
+        QVERIFY2(font, key.constData());
+        baseFonts.insert(modifiedDocument->getObject(font->get("BaseFont")).getString());
+    }
+
+    QVERIFY2(baseFonts == QSet<QByteArray>({ "Helvetica", "Courier", "Times-Bold" }), outputContent.constData());
+    QCOMPARE(renderPage(modifiedDocument.data()), renderPage(&document));
+}
+
+void ContentEditorTest::test_text_colors_are_preserved()
+{
+    // Issue #337 - colors changed inside the text object must be preserved
+    QByteArray pageContent = "BT /F1 24 Tf 20 170 Td "
+                             "1 0 0 rg (Red) Tj "
+                             "0 -35 Td 0 0 1 rg (Blue) Tj "
+                             "0 -35 Td 0.5 g (Gray) Tj "
+                             "0 -35 Td 1 0 1 0 k (Cmyk) Tj "
+                             "0 -35 Td 2 Tr 0 1 0 RG (Stroke) Tj ET "
+                             "150 20 30 30 re f";
+
+    pdf::PDFDocument document = createDocumentWithText(pageContent);
+    pdf::PDFEditedPageContent content = processPageContent(&document);
+    QCOMPARE(getTextBoundingBoxes(content).size(), size_t(1));
+
+    QByteArray outputContent;
+    pdf::PDFDocumentPointer modifiedDocument = rewritePageContent(&document, content, false, &outputContent);
+    QVERIFY(modifiedDocument);
+
+    QVERIFY2(outputContent.contains("\n0 0 1 rg\n"), outputContent.constData());
+    QVERIFY2(outputContent.contains("\n1 0 1 0 k\n"), outputContent.constData());
+    QVERIFY2(outputContent.contains("\n0 1 0 RG\n"), outputContent.constData());
+
+    QImage originalImage = renderPage(&document);
+    QCOMPARE(getPageColor(originalImage, QPointF(165, 35)), QColor(0, 255, 0));
+    QCOMPARE(renderPage(modifiedDocument.data()), originalImage);
+}
+
+void ContentEditorTest::test_shading_is_preserved()
+{
+    // Issue #337 - shadings painted by the 'sh' operator must be preserved, including the
+    // shading painted by a form XObject, whose shading name denotes a different shading
+    // in the page resources.
+    QByteArray pageContent = "q 20 20 160 70 re W n /Sh0 sh Q q /Fm1 Do Q";
+    QByteArray formContent = "q 20 110 160 70 re W n /Sh0 sh Q";
+
+    auto createAxialShading = [](std::vector<pdf::PDFReal> coords, std::vector<pdf::PDFReal> c0, std::vector<pdf::PDFReal> c1)
+    {
+        pdf::PDFArray extend;
+        extend.appendItem(pdf::PDFObject::createBool(true));
+        extend.appendItem(pdf::PDFObject::createBool(true));
+
+        pdf::PDFObject function = createDictionaryObject({ { "FunctionType", pdf::PDFObject::createInteger(2) },
+                                                           { "Domain", createNumberArrayObject({ 0, 1 }) },
+                                                           { "C0", createNumberArrayObject(std::move(c0)) },
+                                                           { "C1", createNumberArrayObject(std::move(c1)) },
+                                                           { "N", pdf::PDFObject::createInteger(1) } });
+
+        return createDictionaryObject({ { "ShadingType", pdf::PDFObject::createInteger(2) },
+                                        { "ColorSpace", pdf::PDFObject::createName("DeviceRGB") },
+                                        { "Coords", createNumberArrayObject(std::move(coords)) },
+                                        { "Function", function },
+                                        { "Extend", pdf::PDFObject::createArray(std::make_shared<pdf::PDFArray>(std::move(extend))) } });
+    };
+
+    pdf::PDFDocument document = createDocument(pageContent, [&](pdf::PDFDocumentBuilder* builder)
+    {
+        pdf::PDFObject formShading = createAxialShading({ 0, 110, 0, 180 }, { 0, 1, 0 }, { 1, 1, 0 });
+        pdf::PDFObject formObject = addStreamObject(builder, { { "Type", pdf::PDFObject::createName("XObject") },
+                                                               { "Subtype", pdf::PDFObject::createName("Form") },
+                                                               { "BBox", createNumberArrayObject({ 0, 0, 200, 200 }) },
+                                                               { "Resources", createDictionaryObject({ { "Shading", createDictionaryObject({ { "Sh0", formShading } }) } }) } }, formContent);
+
+        pdf::PDFDictionary resources;
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("Shading"), createDictionaryObject({ { "Sh0", createAxialShading({ 20, 0, 180, 0 }, { 1, 0, 0 }, { 0, 0, 1 }) } }));
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"), createDictionaryObject({ { "Fm1", formObject } }));
+        return resources;
+    });
+
+    pdf::PDFEditedPageContent content;
+    QVERIFY(processPageContent(&document, &content).isEmpty());
+    QCOMPARE(content.getElementCount(), size_t(2));
+    QCOMPARE(getShadingElementCount(content), size_t(2));
+    QVERIFY(QRectF(19, 19, 162, 72).contains(content.getElement(0)->getBoundingBox()));
+    QVERIFY(QRectF(19, 109, 162, 72).contains(content.getElement(1)->getBoundingBox()));
+
+    QByteArray outputContent;
+    pdf::PDFDocumentPointer modifiedDocument = rewritePageContent(&document, content, false, &outputContent);
+    QVERIFY(modifiedDocument);
+    QCOMPARE(outputContent.count(" sh\n"), 2);
+
+    pdf::PDFEditedPageContent modifiedContent;
+    QVERIFY(processPageContent(modifiedDocument.data(), &modifiedContent).isEmpty());
+    QCOMPARE(getShadingElementCount(modifiedContent), size_t(2));
+
+    // The page shading goes from red to blue, the form shading from green to yellow
+    QImage originalImage = renderPage(&document);
+    QColor leftColor = getPageColor(originalImage, QPointF(25, 50));
+    QColor rightColor = getPageColor(originalImage, QPointF(175, 50));
+    QColor formColor = getPageColor(originalImage, QPointF(100, 115));
+    QVERIFY(leftColor.red() > 200 && leftColor.blue() < 55);
+    QVERIFY(rightColor.blue() > 200 && rightColor.red() < 55);
+    QVERIFY(formColor.green() > 200 && formColor.blue() < 55);
+    QCOMPARE(getPageColor(originalImage, QPointF(100, 100)), QColor(Qt::white));
+
+    QCOMPARE(renderPage(modifiedDocument.data()), originalImage);
+}
+
+void ContentEditorTest::test_transparency_group_blend_mode_is_preserved()
+{
+    // Issue #337 - the content of a transparency group is written directly into the page,
+    // so the blend mode, with which the group is composed onto the page, must be applied
+    // to the content of the group. Otherwise the white rectangle of the group covers
+    // the gray rectangle below it, instead of being multiplied with it.
+    QByteArray pageContent = "0.5 g 20 20 160 160 re f q /GS1 gs /Fm1 Do Q";
+    QByteArray formContent = "1 g 40 40 120 120 re f 1 0 0 rg 80 80 40 40 re f";
+
+    pdf::PDFDocument document = createDocument(pageContent, [&formContent](pdf::PDFDocumentBuilder* builder)
+    {
+        pdf::PDFObject group = createDictionaryObject({ { "Type", pdf::PDFObject::createName("Group") },
+                                                        { "S", pdf::PDFObject::createName("Transparency") } });
+        pdf::PDFObject formObject = addStreamObject(builder, { { "Type", pdf::PDFObject::createName("XObject") },
+                                                               { "Subtype", pdf::PDFObject::createName("Form") },
+                                                               { "BBox", createNumberArrayObject({ 0, 0, 200, 200 }) },
+                                                               { "Group", group } }, formContent);
+
+        pdf::PDFDictionary resources;
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("ExtGState"), createDictionaryObject({ { "GS1", createDictionaryObject({ { "Type", pdf::PDFObject::createName("ExtGState") },
+                                                                                                                                  { "BM", pdf::PDFObject::createName("Multiply") } }) } }));
+        resources.addEntry(pdf::PDFInplaceOrMemoryString("XObject"), createDictionaryObject({ { "Fm1", formObject } }));
+        return resources;
+    });
+
+    pdf::PDFEditedPageContent content;
+    QVERIFY(processPageContent(&document, &content).isEmpty());
+    QCOMPARE(content.getElementCount(), size_t(3));
+    QVERIFY(content.getElement(0)->getState().getBlendMode() == pdf::BlendMode::Normal);
+    QVERIFY(content.getElement(1)->getState().getBlendMode() == pdf::BlendMode::Multiply);
+    QVERIFY(content.getElement(2)->getState().getBlendMode() == pdf::BlendMode::Multiply);
+
+    pdf::PDFDocumentPointer modifiedDocument = rewritePageContent(&document, content, false, nullptr);
+    QVERIFY(modifiedDocument);
+    QCOMPARE(renderPage(modifiedDocument.data()), renderPage(&document));
 }
 
 QTEST_MAIN(ContentEditorTest)

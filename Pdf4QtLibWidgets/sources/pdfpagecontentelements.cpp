@@ -2776,6 +2776,11 @@ void PDFPageContentElementEdited::drawPage(QPainter* painter,
         painter->setBrush(convertor.convert(pdf::PDFPainterHelper::createBrushFromState(&state, state.getAlphaFilling())));
         painter->fillPath(textElement->getTextPath(), painter->brush());
     }
+
+    if (const PDFEditedPageContentElementShading* shadingElement = m_element->asShading())
+    {
+        shadingElement->paint(painter, convertor);
+    }
 }
 
 uint PDFPageContentElementEdited::getManipulationMode(const QPointF& point, PDFReal snapPointDistanceThreshold) const
@@ -2837,6 +2842,11 @@ QString PDFPageContentElementEdited::getDescription() const
     if (m_element->asPath())
     {
         return formatDescription(PDFTranslationContext::tr("Path"));
+    }
+
+    if (m_element->asShading())
+    {
+        return formatDescription(PDFTranslationContext::tr("Shading"));
     }
 
     return formatDescription(PDFTranslationContext::tr("Unknown"));

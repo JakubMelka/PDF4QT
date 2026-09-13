@@ -21,6 +21,12 @@
 // SOFTWARE.
 
 #include "pdfpagecontenteditorprocessor.h"
+#include "pdfcolorconvertor.h"
+#include "pdfpattern.h"
+
+#include <QPainter>
+
+#include <algorithm>
 
 namespace pdf
 {
@@ -50,6 +56,11 @@ PDFPageContentEditorProcessor::PDFPageContentEditorProcessor(const PDFPage* page
     {
         m_content.setGraphicStateDictionary(*graphicStateDictionary);
     }
+
+    if (auto shadingDictionary = getShadingDictionary())
+    {
+        m_content.setShadingDictionary(*shadingDictionary);
+    }
 }
 
 const PDFEditedPageContent& PDFPageContentEditorProcessor::getEditedPageContent() const
@@ -78,16 +89,89 @@ void PDFPageContentEditorProcessor::performInterceptInstruction(Operator current
             // because the text object is not yet started). The text element is written into
             // its own BT/ET block, so its initial state must contain the identity matrices.
             // Otherwise a text matrix equal to the stale one would not be serialized at all.
-            PDFPageContentProcessorState state = *getGraphicState();
+            PDFPageContentProcessorState state = getElementState();
             state.setTextMatrix(QTransform());
             state.setTextLineMatrix(QTransform());
 
             m_contentElementText.reset(new PDFEditedPageContentElementText(state, getGraphicState()->getCurrentTransformationMatrix()));
             m_contentElementText->setClipPath(getCurrentClipPathInElementSpace(m_contentElementText->getTransform()));
         }
+
+        if (currentOperator == Operator::TextSetFontAndFontSize)
+        {
+            m_textFontBeforeOperator = getGraphicState()->getTextFont();
+        }
+
+        if (currentOperator == Operator::ShadingPaintShape)
+        {
+            // The shading object is needed to write the shading back into the content
+            // stream. The graphic state must be taken before the operator is performed,
+            // because the operator changes the fill color space to the shading pattern.
+            m_shadingObject = PDFObject();
+            const PDFPageContentProcessorState elementState = getElementState();
+            m_shadingState = elementState;
+            m_isShadingOperatorActive = true;
+
+            const PDFFlatArray<PDFLexicalAnalyzer::Token, 33>& operands = getOperands();
+            const PDFDictionary* shadingDictionary = getShadingDictionary();
+            if (shadingDictionary && operands.size() == 1 && operands[0].type == PDFLexicalAnalyzer::TokenType::Name)
+            {
+                m_shadingObject = shadingDictionary->get(operands[0].data.toByteArray());
+            }
+        }
     }
     else
     {
+        if (currentOperator == Operator::TextSetFontAndFontSize)
+        {
+            // Remember the font object from the current resource dictionary. The text
+            // can be painted by a form XObject, whose font names can denote other fonts
+            // than the same names in the page resources (or they can be missing there).
+            const PDFFlatArray<PDFLexicalAnalyzer::Token, 33>& operands = getOperands();
+            const PDFDictionary* fontDictionary = getFontDictionary();
+            const PDFFontPointer& font = getGraphicState()->getTextFont();
+
+            if (font && fontDictionary && operands.size() == 2 && operands[0].type == PDFLexicalAnalyzer::TokenType::Name)
+            {
+                const QByteArray fontName = operands[0].data.toByteArray();
+                const PDFObject& fontObject = fontDictionary->get(fontName);
+
+                // If the font can't be created, the operator fails and the previous
+                // font stays selected, so it must be checked, that the font is really
+                // the font from the resource dictionary. Fonts referenced by an object
+                // reference are cached, the other ones are created each time.
+                bool isFontFromResources = false;
+                if (fontObject.isReference())
+                {
+                    try
+                    {
+                        isFontFromResources = getFontCache() && getFontCache()->getFont(fontObject, fontName) == font;
+                    }
+                    catch (const PDFException&)
+                    {
+                        isFontFromResources = false;
+                    }
+                }
+                else if (!fontObject.isNull())
+                {
+                    isFontFromResources = font != m_textFontBeforeOperator;
+                }
+
+                if (isFontFromResources)
+                {
+                    m_fontResources[font.data()] = FontResourceInfo{ font, fontName, fontObject };
+                }
+            }
+
+            m_textFontBeforeOperator.reset();
+        }
+
+        if (currentOperator == Operator::ShadingPaintShape)
+        {
+            m_isShadingOperatorActive = false;
+            m_shadingObject = PDFObject();
+        }
+
         if (currentOperator == Operator::TextEnd && !isTextProcessing())
         {
             if (m_contentElementText)
@@ -96,8 +180,12 @@ void PDFPageContentEditorProcessor::performInterceptInstruction(Operator current
 
                 if (!m_contentElementText->isEmpty())
                 {
-                    m_contentElementText->setTextPath(std::move(m_textPath));
-                    m_contentElementText->setItemsAsText(PDFEditedPageContentElementText::createItemsAsText(m_contentElementText->getState(), m_contentElementText->getItems()));
+                    PDFEditedPageContentElementText* textElement = m_contentElementText.get();
+                    registerFontResources(textElement);
+
+                    auto getFontKey = [textElement](const PDFFont* font) { return textElement->getFontResourceKey(font); };
+                    textElement->setTextPath(std::move(m_textPath));
+                    textElement->setItemsAsText(PDFEditedPageContentElementText::createItemsAsText(textElement->getState(), textElement->getItems(), getFontKey));
                     m_content.addContentElement(std::move(m_contentElementText));
                 }
             }
@@ -122,7 +210,7 @@ void PDFPageContentEditorProcessor::performPathPainting(const QPainterPath& path
     }
     else
     {
-        m_content.addContentPath(*getGraphicState(), path, stroke, fill);
+        m_content.addContentPath(getElementState(), path, stroke, fill);
         if (PDFEditedPageContentElement* backElement = m_content.getBackElement())
         {
             backElement->setClipPath(getCurrentClipPathInElementSpace(backElement->getTransform()));
@@ -163,7 +251,7 @@ bool PDFPageContentEditorProcessor::performOriginalImagePainting(const PDFImage&
     BaseClass::performOriginalImagePainting(image, stream, reference);
 
     PDFObject imageObject = PDFObject::createStream(std::make_shared<PDFStream>(*stream));
-    m_content.addContentImage(*getGraphicState(), std::move(imageObject), QImage());
+    m_content.addContentImage(getElementState(), std::move(imageObject), QImage());
     if (PDFEditedPageContentElement* backElement = m_content.getBackElement())
     {
         backElement->setClipPath(getCurrentClipPathInElementSpace(backElement->getTransform()));
@@ -263,7 +351,10 @@ bool PDFPageContentEditorProcessor::isContentKindSuppressed(ContentKind kind) co
     // decomposed into the standard edited content elements. Otherwise
     // everything, which is painted by a tiling pattern (images, paths, text),
     // would be silently lost, when the page content is written back.
-    return kind == ContentKind::Shading;
+    // Shadings are not suppressed either - the shading painted by the 'sh'
+    // operator is converted to the shading element, see performPathPaintingUsingShading.
+    Q_UNUSED(kind);
+    return false;
 }
 
 bool PDFPageContentEditorProcessor::isTilingPatternProcessingAllowed(PDFInteger tileCount) const
@@ -272,6 +363,140 @@ bool PDFPageContentEditorProcessor::isTilingPatternProcessingAllowed(PDFInteger 
     // with a huge number of tiles would produce an unusable amount of elements.
     // Such patterns are not processed at all and an error is reported instead.
     return tileCount <= MAXIMUM_TILING_PATTERN_TILE_COUNT;
+}
+
+bool PDFPageContentEditorProcessor::performPathPaintingUsingShading(const QPainterPath& path, bool stroke, bool fill, const PDFShadingPattern* shadingPattern)
+{
+    BaseClass::performPathPaintingUsingShading(path, stroke, fill, shadingPattern);
+
+    // Only shadings painted by the 'sh' operator are converted to the edited
+    // content elements, because their shading object can be written back into
+    // the content stream. Paths filled or stroked by a shading pattern are
+    // skipped - the painting is reported as performed, so no mesh is created.
+    if (!m_isShadingOperatorActive || m_shadingObject.isNull() || stroke || !fill)
+    {
+        return true;
+    }
+
+    const QTransform worldMatrix = getCurrentWorldMatrix();
+    const QTransform transform = m_shadingState.getCurrentTransformationMatrix();
+    if (!worldMatrix.isInvertible() || !transform.isInvertible())
+    {
+        // Degenerate transformation matrix - the shading is not visible
+        return true;
+    }
+
+    PDFMeshQualitySettings settings;
+    settings.deviceSpaceMeshingArea = getPageBoundingRectDeviceSpace();
+    settings.userSpaceToDeviceSpaceMatrix = getPatternBaseMatrix();
+    settings.initResolution();
+
+    PDFMesh mesh = shadingPattern->createMesh(settings, getCMS(), m_shadingState.getRenderingIntent(), this, nullptr);
+
+    // The mesh is created in the device space, but the element is displayed
+    // in its own coordinate space, so it follows the element, when it is moved.
+    mesh.transform(worldMatrix.inverted());
+
+    // The 'sh' operator paints the whole page (the path is the page rectangle
+    // in the user space), limited by the bounding box of the shading.
+    QPainterPath area = path;
+    if (!mesh.getBoundingPath().isEmpty())
+    {
+        area = area.intersected(mesh.getBoundingPath());
+    }
+
+    auto element = std::make_unique<PDFEditedPageContentElementShading>(m_shadingState, m_shadingObject, std::move(area), std::make_shared<const PDFMesh>(std::move(mesh)), transform);
+    element->setClipPath(getCurrentClipPathInElementSpace(transform));
+    m_content.addContentElement(std::move(element));
+
+    return true;
+}
+
+void PDFPageContentEditorProcessor::performBeginTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup)
+{
+    BaseClass::performBeginTransparencyGroup(order, transparencyGroup);
+
+    if (order == ProcessOrder::BeforeOperation)
+    {
+        // The graphic state still contains the blend mode and the constant alpha,
+        // with which the transparency group is composed onto its backdrop (they
+        // are reset in the graphic state of the group, when the group is started).
+        const PDFPageContentProcessorState* state = getGraphicState();
+        m_transparencyGroups.push_back(TransparencyGroupState{ state->getBlendMode(), state->getAlphaFilling(), state->getAlphaStroking() });
+    }
+}
+
+void PDFPageContentEditorProcessor::performEndTransparencyGroup(ProcessOrder order, const PDFTransparencyGroup& transparencyGroup)
+{
+    BaseClass::performEndTransparencyGroup(order, transparencyGroup);
+
+    if (order == ProcessOrder::AfterOperation && !m_transparencyGroups.empty())
+    {
+        m_transparencyGroups.pop_back();
+    }
+}
+
+PDFPageContentProcessorState PDFPageContentEditorProcessor::getElementState() const
+{
+    PDFPageContentProcessorState state = *getGraphicState();
+
+    if (!m_transparencyGroups.empty())
+    {
+        PDFReal alphaFilling = state.getAlphaFilling();
+        PDFReal alphaStroking = state.getAlphaStroking();
+        BlendMode blendMode = state.getBlendMode();
+
+        // From the innermost transparency group to the outermost one
+        for (auto it = m_transparencyGroups.crbegin(); it != m_transparencyGroups.crend(); ++it)
+        {
+            alphaFilling *= it->alphaFilling;
+            alphaStroking *= it->alphaStroking;
+
+            if (blendMode == BlendMode::Normal)
+            {
+                blendMode = it->blendMode;
+            }
+        }
+
+        state.setAlphaFilling(alphaFilling);
+        state.setAlphaStroking(alphaStroking);
+        state.setBlendMode(blendMode);
+    }
+
+    return state;
+}
+
+void PDFPageContentEditorProcessor::registerFontResources(PDFEditedPageContentElementText* textElement) const
+{
+    auto registerFont = [this, textElement](const PDFFontPointer& font)
+    {
+        if (!font)
+        {
+            return;
+        }
+
+        auto it = m_fontResources.find(font.data());
+        if (it != m_fontResources.cend())
+        {
+            textElement->addFontResource(font, it->second.fontObject, it->second.name);
+        }
+        else
+        {
+            // The font object is not known (for example, the font is selected by
+            // the graphic state parameter dictionary), so the font identifier is used.
+            textElement->addFontResource(font, PDFObject(), font->getFontId());
+        }
+    };
+
+    registerFont(textElement->getState().getTextFont());
+
+    for (const PDFEditedPageContentElementText::Item& item : textElement->getItems())
+    {
+        if (item.isUpdateGraphicState)
+        {
+            registerFont(item.state.getTextFont());
+        }
+    }
 }
 
 QString PDFEditedPageContent::getOperatorToString(PDFPageContentProcessor::Operator operatorValue)
@@ -563,6 +788,16 @@ void PDFEditedPageContent::setGraphicStateDictionary(const PDFDictionary& newGra
     m_graphicStateDictionary = newGraphicStateDictionary;
 }
 
+PDFDictionary PDFEditedPageContent::getShadingDictionary() const
+{
+    return m_shadingDictionary;
+}
+
+void PDFEditedPageContent::setShadingDictionary(const PDFDictionary& newShadingDictionary)
+{
+    m_shadingDictionary = newShadingDictionary;
+}
+
 PDFEditedPageContentElement::PDFEditedPageContentElement(PDFPageContentProcessorState state, QTransform transform) :
     m_state(std::move(state)),
     m_transform(transform)
@@ -716,6 +951,72 @@ void PDFEditedPageContentElementImage::setImage(const QImage& newImage)
     m_image = newImage;
 }
 
+PDFEditedPageContentElementShading::PDFEditedPageContentElementShading(PDFPageContentProcessorState state,
+                                                                       PDFObject shadingObject,
+                                                                       QPainterPath area,
+                                                                       std::shared_ptr<const PDFMesh> mesh,
+                                                                       QTransform transform) :
+    PDFEditedPageContentElement(std::move(state), transform),
+    m_shadingObject(std::move(shadingObject)),
+    m_area(std::move(area)),
+    m_mesh(std::move(mesh))
+{
+
+}
+
+PDFEditedPageContentElement::Type PDFEditedPageContentElementShading::getType() const
+{
+    return Type::Shading;
+}
+
+PDFEditedPageContentElementShading* PDFEditedPageContentElementShading::clone() const
+{
+    PDFEditedPageContentElementShading* copy = new PDFEditedPageContentElementShading(getState(), getShadingObject(), getArea(), m_mesh, getTransform());
+    copy->setClipPath(getClipPath());
+    return copy;
+}
+
+QRectF PDFEditedPageContentElementShading::getBoundingBox() const
+{
+    QRectF boundingBox = getTransform().mapRect(m_area.boundingRect());
+
+    if (!m_clipPath.isEmpty())
+    {
+        boundingBox = boundingBox.intersected(getTransform().mapRect(m_clipPath.boundingRect()));
+    }
+
+    return boundingBox;
+}
+
+const PDFObject& PDFEditedPageContentElementShading::getShadingObject() const
+{
+    return m_shadingObject;
+}
+
+const QPainterPath& PDFEditedPageContentElementShading::getArea() const
+{
+    return m_area;
+}
+
+void PDFEditedPageContentElementShading::paint(QPainter* painter, const PDFColorConvertor& convertor) const
+{
+    if (!m_mesh)
+    {
+        return;
+    }
+
+    if (convertor.isActive())
+    {
+        PDFMesh convertedMesh = *m_mesh;
+        convertedMesh.convertColors(convertor);
+        convertedMesh.paint(painter, getState().getAlphaFilling());
+    }
+    else
+    {
+        m_mesh->paint(painter, getState().getAlphaFilling());
+    }
+}
+
 PDFEditedPageContentElementText::PDFEditedPageContentElementText(PDFPageContentProcessorState state, QTransform transform) :
     PDFEditedPageContentElement(state, transform)
 {
@@ -744,6 +1045,7 @@ PDFEditedPageContentElementText* PDFEditedPageContentElementText::clone() const
 {
     PDFEditedPageContentElementText* copy = new PDFEditedPageContentElementText(getState(), getItems(), getTextPath(), getTransform(), getItemsAsText());
     copy->setClipPath(getClipPath());
+    copy->setFontResources(getFontResources());
     return copy;
 }
 
@@ -784,8 +1086,81 @@ void PDFEditedPageContentElementText::setTextPath(QPainterPath newTextPath)
     m_textPath = newTextPath;
 }
 
+QByteArray PDFEditedPageContentElementText::addFontResource(const PDFFontPointer& font, const PDFObject& fontObject, const QByteArray& key)
+{
+    for (const FontResource& fontResource : m_fontResources)
+    {
+        if (fontResource.font == font)
+        {
+            return fontResource.key;
+        }
+    }
+
+    auto isKeyUsed = [this](const QByteArray& currentKey)
+    {
+        return std::any_of(m_fontResources.cbegin(), m_fontResources.cend(), [&currentKey](const FontResource& fontResource) { return fontResource.key == currentKey; });
+    };
+
+    // The same name can denote different fonts (the fonts can be selected
+    // in different content streams), but the key must identify the font.
+    QByteArray uniqueKey = key;
+    for (int i = 1; uniqueKey.isEmpty() || isKeyUsed(uniqueKey); ++i)
+    {
+        uniqueKey = key + "_" + QByteArray::number(i);
+    }
+
+    m_fontResources.push_back(FontResource{ uniqueKey, font, fontObject });
+    return uniqueKey;
+}
+
+const std::vector<PDFEditedPageContentElementText::FontResource>& PDFEditedPageContentElementText::getFontResources() const
+{
+    return m_fontResources;
+}
+
+void PDFEditedPageContentElementText::setFontResources(const std::vector<FontResource>& fontResources)
+{
+    m_fontResources = fontResources;
+}
+
+QByteArray PDFEditedPageContentElementText::getFontResourceKey(const PDFFont* font) const
+{
+    for (const FontResource& fontResource : m_fontResources)
+    {
+        if (fontResource.font.data() == font)
+        {
+            return fontResource.key;
+        }
+    }
+
+    return font ? font->getFontId() : QByteArray();
+}
+
+/// Creates the color command of the text items. Colors are represented in the same
+/// way, as the content stream builder writes the colors of the graphic state -
+/// DeviceGray and DeviceCMYK colors are kept, other colors are converted to RGB.
+/// \param tag Tag of the command ("fill" or "stroke")
+/// \param colorSpace Color space
+/// \param color Color converted to RGB
+/// \param originalColor Color in the color space
+static QString createColorCommand(const char* tag, const PDFAbstractColorSpace* colorSpace, const QColor& color, const PDFColor& originalColor)
+{
+    if (colorSpace && colorSpace->getColorSpace() == PDFAbstractColorSpace::ColorSpace::DeviceGray)
+    {
+        return QString("<%1 gray=\"%2\"/>").arg(QLatin1String(tag)).arg(qGray(color.rgb()) / 255.0);
+    }
+
+    if (colorSpace && colorSpace->getColorSpace() == PDFAbstractColorSpace::ColorSpace::DeviceCMYK && originalColor.size() >= 4)
+    {
+        return QString("<%1 c=\"%2\" m=\"%3\" y=\"%4\" k=\"%5\"/>").arg(QLatin1String(tag)).arg(originalColor[0]).arg(originalColor[1]).arg(originalColor[2]).arg(originalColor[3]);
+    }
+
+    return QString("<%1 r=\"%2\" g=\"%3\" b=\"%4\"/>").arg(QLatin1String(tag)).arg(color.redF()).arg(color.greenF()).arg(color.blueF());
+}
+
 QString PDFEditedPageContentElementText::createItemsAsText(const PDFPageContentProcessorState& initialState,
-                                                           const std::vector<Item>& items)
+                                                           const std::vector<Item>& items,
+                                                           const std::function<QByteArray(const PDFFont*)>& getFontKey)
 {
     QString text;
 
@@ -827,6 +1202,18 @@ QString PDFEditedPageContentElementText::createItemsAsText(const PDFPageContentP
             newState.setState(item.state);
             PDFPageContentProcessorState::StateFlags flags = newState.getStateFlags();
 
+            if (flags.testFlag(PDFPageContentProcessorState::StateFillColor) ||
+                flags.testFlag(PDFPageContentProcessorState::StateFillColorSpace))
+            {
+                text += createColorCommand("fill", newState.getFillColorSpace(), newState.getFillColor(), newState.getFillColorOriginal());
+            }
+
+            if (flags.testFlag(PDFPageContentProcessorState::StateStrokeColor) ||
+                flags.testFlag(PDFPageContentProcessorState::StateStrokeColorSpace))
+            {
+                text += createColorCommand("stroke", newState.getStrokeColorSpace(), newState.getStrokeColor(), newState.getStrokeColorOriginal());
+            }
+
             if (flags.testFlag(PDFPageContentProcessorState::StateTextRenderingMode))
             {
                 text += QString("<tr v=\"%1\"/>").arg(int(newState.getTextRenderingMode()));
@@ -867,7 +1254,8 @@ QString PDFEditedPageContentElementText::createItemsAsText(const PDFPageContentP
             {
                 if (const PDFFontPointer& font = newState.getTextFont())
                 {
-                    text += QString("<tf font=\"%1\" size=\"%2\"/>").arg(QString::fromLatin1(font->getFontId())).arg(newState.getTextFontSize());
+                    const QByteArray fontKey = getFontKey ? getFontKey(font.data()) : font->getFontId();
+                    text += QString("<tf font=\"%1\" size=\"%2\"/>").arg(QString::fromLatin1(fontKey).toHtmlEscaped()).arg(newState.getTextFontSize());
                 }
             }
 
