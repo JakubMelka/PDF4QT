@@ -72,7 +72,17 @@ void PDFPageContentEditorProcessor::performInterceptInstruction(Operator current
     {
         if (currentOperator == Operator::TextBegin && !isTextProcessing())
         {
-            m_contentElementText.reset(new PDFEditedPageContentElementText(*getGraphicState(), getGraphicState()->getCurrentTransformationMatrix()));
+            // This intercept is called before the BT operator is performed, so the graphic
+            // state still contains the text matrices of the previous text object. The operator
+            // resets both matrices to the identity (and the reset is not recorded as an item,
+            // because the text object is not yet started). The text element is written into
+            // its own BT/ET block, so its initial state must contain the identity matrices.
+            // Otherwise a text matrix equal to the stale one would not be serialized at all.
+            PDFPageContentProcessorState state = *getGraphicState();
+            state.setTextMatrix(QTransform());
+            state.setTextLineMatrix(QTransform());
+
+            m_contentElementText.reset(new PDFEditedPageContentElementText(state, getGraphicState()->getCurrentTransformationMatrix()));
             m_contentElementText->setClipPath(getCurrentClipPathInElementSpace(m_contentElementText->getTransform()));
         }
     }

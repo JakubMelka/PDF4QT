@@ -2749,6 +2749,15 @@ void PDFPageContentProcessor::operatorTextEnd()
         m_textClippingPath = QPainterPath();
     }
     performTextEnd(ProcessOrder::AfterOperation);
+
+    // The text matrix and the text line matrix exist only inside the text object,
+    // so discard them. Otherwise the matrices of this text object would be visible
+    // in the graphic state until the next BT operator. The reset is not a change
+    // of the graphic state for the consumers, so the state flags are preserved.
+    PDFPageContentProcessorState::StateFlags stateFlags = m_graphicState.getStateFlags();
+    m_graphicState.setTextMatrix(QTransform());
+    m_graphicState.setTextLineMatrix(QTransform());
+    m_graphicState.setStateFlags(stateFlags);
 }
 
 void PDFPageContentProcessor::operatorTextSetCharacterSpacing(PDFReal charSpacing)

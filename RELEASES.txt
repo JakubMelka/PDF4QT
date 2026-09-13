@@ -1,14 +1,15 @@
 CURRENT:
  - Issue #427: Bitonal scans lose thin strokes: precompiled page images are downsampled bilinearly instead of area-averaged
  - Issue #425: Update bitonal document feature
- - Issue #413: Editor: embedded images (signatures) flipped vertically after editing page content
  - Issue #424: Improved measurement functionality.
  - Issue #422: Feature Request: Streamline Outline Creation.
  - Issue #420: [follow-up] also allow changing default border color when redacting rectangles
  - Issue #419: [idea] invert redaction rectangles as well in dark mode
  - Issue #416: [enhancement request] Optimize Images: allow global defaults to be run for multiple/all
  - Issue #415: PDF is presented as completely blank
+ - Issue #413: Editor: embedded images (signatures) flipped vertically after editing page content
  - Issue #412: Change default Note author name (and please do not use the system name)
+ - Issue #410: All text is inverted after exiting edit mode
  - Issue #409: [idea] choose color of Redact Rectangle
  - Issue #408: [idea] Make XYZ shortcut refer to outline item when selected
  - Issue #398: Enhancing Speech Support: Locale Addons and System Voice Detection

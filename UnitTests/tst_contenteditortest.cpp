@@ -45,6 +45,53 @@
 #include <memory>
 #include <vector>
 
+/// Records the text matrices at the beginning of each text object and the
+/// graphic state updates, which report a change of the text matrices after
+/// the end of the first text object, outside of the text objects.
+class TextMatrixRecordingProcessor : public pdf::PDFPageContentProcessor
+{
+public:
+    using pdf::PDFPageContentProcessor::PDFPageContentProcessor;
+
+    std::vector<QTransform> textMatricesAtTextBegin;
+    std::vector<QTransform> textLineMatricesAtTextBegin;
+    int textMatrixUpdatesOutsideTextObject = 0;
+
+protected:
+    virtual void performInterceptInstruction(Operator currentOperator, ProcessOrder processOrder, const QByteArray& operatorAsText) override
+    {
+        pdf::PDFPageContentProcessor::performInterceptInstruction(currentOperator, processOrder, operatorAsText);
+
+        if (currentOperator == Operator::TextBegin && processOrder == ProcessOrder::BeforeOperation)
+        {
+            textMatricesAtTextBegin.push_back(getGraphicState()->getTextMatrix());
+            textLineMatricesAtTextBegin.push_back(getGraphicState()->getTextLineMatrix());
+        }
+
+        if (currentOperator == Operator::TextEnd && processOrder == ProcessOrder::AfterOperation)
+        {
+            m_isTextObjectEnded = true;
+        }
+    }
+
+    virtual void performUpdateGraphicsState(const pdf::PDFPageContentProcessorState& state) override
+    {
+        pdf::PDFPageContentProcessor::performUpdateGraphicsState(state);
+
+        // The first update of the page reports the whole initial state as changed
+        const pdf::PDFPageContentProcessorState::StateFlags flags = state.getStateFlags();
+        const bool isTextMatrixChanged = flags.testFlag(pdf::PDFPageContentProcessorState::StateTextMatrix) ||
+                                         flags.testFlag(pdf::PDFPageContentProcessorState::StateTextLineMatrix);
+        if (m_isTextObjectEnded && !isTextProcessing() && isTextMatrixChanged)
+        {
+            ++textMatrixUpdatesOutsideTextObject;
+        }
+    }
+
+private:
+    bool m_isTextObjectEnded = false;
+};
+
 class ContentEditorTest : public QObject
 {
     Q_OBJECT
@@ -67,6 +114,8 @@ private slots:
     void test_inserted_image_is_placed_into_the_rectangle();
     void test_inserted_image_does_not_inherit_transparency_state();
     void test_inserted_image_keeps_the_alpha_channel();
+    void test_text_positions_are_preserved();
+    void test_text_matrix_is_discarded_at_text_end();
 
 private:
     enum class Variant
@@ -103,6 +152,13 @@ private:
 
     /// Creates a document with a single page, which contains a single image
     static pdf::PDFDocument createDocumentWithImage(Variant variant);
+
+    /// Creates a document with a single page, which contains the page content
+    /// \p pageContent and the standard font Helvetica as the resource /F1
+    static pdf::PDFDocument createDocumentWithText(QByteArray pageContent);
+
+    /// Returns bounding boxes of all text elements of the page content
+    static std::vector<QRectF> getTextBoundingBoxes(const pdf::PDFEditedPageContent& content);
 
     /// Processes the page content of the first page and returns the edited page content
     static pdf::PDFEditedPageContent processPageContent(const pdf::PDFDocument* document);
@@ -1092,6 +1148,182 @@ void ContentEditorTest::test_inserted_image_keeps_the_alpha_channel()
     QByteArray imageData = modifiedDocument->getDecodedStream(insertedImageStream);
     QCOMPARE(imageData.size(), qsizetype(4 * 4 * 3));
     QCOMPARE(imageData.left(6), QByteArray::fromHex("00ff0000ff00"));
+}
+
+pdf::PDFDocument ContentEditorTest::createDocumentWithText(QByteArray pageContent)
+{
+    pdf::PDFDocumentBuilder builder;
+    pdf::PDFObjectReference pageRef = builder.appendPage(QRectF(0, 0, 200, 200));
+
+    pdf::PDFDictionary contentDict;
+    contentDict.addEntry(pdf::PDFInplaceOrMemoryString(pdf::PDF_STREAM_DICT_LENGTH),
+                         pdf::PDFObject::createInteger(pageContent.size()));
+    pdf::PDFStream contentStream(std::move(contentDict), std::move(pageContent));
+    pdf::PDFObjectReference contentRef = builder.addObject(
+        pdf::PDFObject::createStream(std::make_shared<pdf::PDFStream>(contentStream)));
+
+    pdf::PDFDictionary font;
+    font.addEntry(pdf::PDFInplaceOrMemoryString("Type"), pdf::PDFObject::createName("Font"));
+    font.addEntry(pdf::PDFInplaceOrMemoryString("Subtype"), pdf::PDFObject::createName("Type1"));
+    font.addEntry(pdf::PDFInplaceOrMemoryString("BaseFont"), pdf::PDFObject::createName("Helvetica"));
+    font.addEntry(pdf::PDFInplaceOrMemoryString("Encoding"), pdf::PDFObject::createName("WinAnsiEncoding"));
+    pdf::PDFObjectReference fontRef = builder.addObject(
+        pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(font))));
+
+    pdf::PDFDictionary fonts;
+    fonts.addEntry(pdf::PDFInplaceOrMemoryString("F1"), pdf::PDFObject::createReference(fontRef));
+
+    pdf::PDFDictionary resources;
+    resources.addEntry(pdf::PDFInplaceOrMemoryString("Font"),
+                       pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(fonts))));
+
+    pdf::PDFDictionary pageUpdate;
+    pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Resources"),
+                        pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(resources))));
+    pageUpdate.addEntry(pdf::PDFInplaceOrMemoryString("Contents"), pdf::PDFObject::createReference(contentRef));
+
+    builder.mergeTo(pageRef, pdf::PDFObject::createDictionary(std::make_shared<pdf::PDFDictionary>(std::move(pageUpdate))));
+
+    return builder.build();
+}
+
+std::vector<QRectF> ContentEditorTest::getTextBoundingBoxes(const pdf::PDFEditedPageContent& content)
+{
+    std::vector<QRectF> boundingBoxes;
+
+    const size_t elementCount = content.getElementCount();
+    for (size_t i = 0; i < elementCount; ++i)
+    {
+        const pdf::PDFEditedPageContentElement* element = const_cast<pdf::PDFEditedPageContent&>(content).getElement(i);
+
+        if (element->asText())
+        {
+            boundingBoxes.push_back(element->getBoundingBox());
+        }
+    }
+
+    return boundingBoxes;
+}
+
+void ContentEditorTest::test_text_positions_are_preserved()
+{
+    // Each text element is written into its own BT/ET block, in which the text
+    // matrix starts as the identity. The text matrix left by the previous text
+    // object must not be used as the initial state of the element - a text object,
+    // whose text matrix is equal to that stale matrix, would be written without
+    // the Tm operator and displayed at the origin, mirrored by the flipped matrix.
+    // In real documents, the stale matrix is equal to the position of the next
+    // text object, when that object continues where the previous one ended.
+    QByteArray pageContent = "q 1 0 0 -1 0 200 cm "
+                             // The text matrix is set after the text is shown, so the
+                             // text object ends with the text matrix of the next object
+                             "BT /F1 12 Tf 1 0 0 -1 20 30 Tm (A) Tj 1 0 0 -1 60 30 Tm ET "
+                             "BT 1 0 0 -1 60 30 Tm (B) Tj ET "
+                             // The font is selected before the text matrix
+                             "BT /F1 12 Tf 1 0 0 -1 20 80 Tm (C) Tj ET "
+                             "Q "
+                             // Relative positioning, and text shown at the identity text matrix
+                             "BT /F1 12 Tf 40 150 Td (D) Tj ET "
+                             "q 1 0 0 1 100 100 cm BT (E) Tj ET Q";
+
+    pdf::PDFDocument document = createDocumentWithText(pageContent);
+    pdf::PDFEditedPageContent content = processPageContent(&document);
+
+    std::vector<QRectF> originalBoundingBoxes = getTextBoundingBoxes(content);
+    QCOMPARE(originalBoundingBoxes.size(), size_t(5));
+
+    for (const QRectF& boundingBox : originalBoundingBoxes)
+    {
+        QVERIFY(boundingBox.isValid());
+    }
+
+    QByteArray outputContent;
+    pdf::PDFDocumentPointer modifiedDocument = rewritePageContent(&document, content, false, &outputContent);
+    QVERIFY(modifiedDocument);
+
+    // Each text object, which was positioned in the original content stream,
+    // must be positioned in the rewritten content stream as well.
+    QRegularExpression textObjectExpression("BT(.*?)ET", QRegularExpression::DotMatchesEverythingOption);
+    QRegularExpressionMatchIterator iterator = textObjectExpression.globalMatch(QString::fromLatin1(outputContent));
+    int textObjectCount = 0;
+    int positionedTextObjectCount = 0;
+    while (iterator.hasNext())
+    {
+        QRegularExpressionMatch match = iterator.next();
+        ++textObjectCount;
+
+        if (match.captured(1).contains(" Tm"))
+        {
+            ++positionedTextObjectCount;
+        }
+    }
+
+    QVERIFY2(textObjectCount == 5, outputContent.constData());
+    QVERIFY2(positionedTextObjectCount == 4, outputContent.constData());
+
+    // The reset of the text matrix by the BT operator must not be written as the text matrix
+    QVERIFY2(!outputContent.contains("1 0 0 1 0 0 Tm"), outputContent.constData());
+
+    std::vector<QRectF> modifiedBoundingBoxes = getTextBoundingBoxes(processPageContent(modifiedDocument.data()));
+    QCOMPARE(modifiedBoundingBoxes.size(), originalBoundingBoxes.size());
+
+    for (size_t i = 0; i < originalBoundingBoxes.size(); ++i)
+    {
+        const QRectF& original = originalBoundingBoxes[i];
+        const QRectF& modified = modifiedBoundingBoxes[i];
+
+        const bool isSame = qAbs(original.left() - modified.left()) < 0.001 &&
+                            qAbs(original.top() - modified.top()) < 0.001 &&
+                            qAbs(original.right() - modified.right()) < 0.001 &&
+                            qAbs(original.bottom() - modified.bottom()) < 0.001;
+
+        if (!isSame)
+        {
+            qDebug() << "Text element" << i << "original:" << original << "modified:" << modified;
+            qDebug() << "Content stream:" << outputContent;
+        }
+
+        QVERIFY(isSame);
+    }
+
+    QImage originalImage = renderPage(&document);
+    QImage modifiedImage = renderPage(modifiedDocument.data());
+    QCOMPARE(modifiedImage, originalImage);
+}
+
+void ContentEditorTest::test_text_matrix_is_discarded_at_text_end()
+{
+    // The text matrix and the text line matrix exist only inside the text object.
+    // The matrices of the previous text object must not be visible in the graphic
+    // state at the beginning of the next one, and discarding them at the end of the
+    // text object must not be reported as a change of the graphic state.
+    QByteArray pageContent = "BT /F1 12 Tf 1 0 0 1 20 30 Tm (A) Tj 0 20 Td (B) Tj ET "
+                             "1 0 0 1 5 5 cm 0 0 1 rg "
+                             "BT (C) Tj ET";
+
+    pdf::PDFDocument document = createDocumentWithText(pageContent);
+    const pdf::PDFPage* page = document.getCatalog()->getPage(0);
+
+    pdf::PDFCMSGeneric cms;
+    pdf::PDFFontCache fontCache(32, 32);
+    pdf::PDFOptionalContentActivity activity(&document, pdf::OCUsage::View, nullptr);
+    fontCache.setDocument(pdf::PDFModifiedDocument(&document, &activity));
+
+    TextMatrixRecordingProcessor processor(page, &document, &fontCache, &cms, &activity,
+                                           QTransform(), pdf::PDFMeshQualitySettings());
+    QList<pdf::PDFRenderError> errors = processor.processContents();
+    QVERIFY(errors.isEmpty());
+
+    QCOMPARE(processor.textMatricesAtTextBegin.size(), size_t(2));
+    QCOMPARE(processor.textLineMatricesAtTextBegin.size(), size_t(2));
+
+    for (size_t i = 0; i < processor.textMatricesAtTextBegin.size(); ++i)
+    {
+        QVERIFY(processor.textMatricesAtTextBegin[i].isIdentity());
+        QVERIFY(processor.textLineMatricesAtTextBegin[i].isIdentity());
+    }
+
+    QCOMPARE(processor.textMatrixUpdatesOutsideTextObject, 0);
 }
 
 QTEST_MAIN(ContentEditorTest)
