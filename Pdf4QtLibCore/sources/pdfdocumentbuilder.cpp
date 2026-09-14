@@ -42,6 +42,72 @@
 namespace pdf
 {
 
+PDFObjectReference PDFDocumentBuilder::createSignatureField(QString fieldName,
+                                                            PDFObjectReference signatureValue,
+                                                            PDFObjectReference page,
+                                                            PDFObjectReference appearanceStream,
+                                                            QRectF rect)
+{
+    // The generated widget helpers concatenate direct arrays. Resolve /Annots
+    // first so that an existing indirect array is not replaced by the new widget.
+    const PDFDictionary* pageDictionary = m_storage.getDictionaryFromObject(m_storage.getObjectByReference(page));
+    if (pageDictionary && pageDictionary->get("Annots").isReference())
+    {
+        PDFObjectFactory annotations;
+        annotations.beginDictionary();
+        annotations.beginDictionaryItem("Annots");
+        annotations << m_storage.getObject(pageDictionary->get("Annots"));
+        annotations.endDictionaryItem();
+        annotations.endDictionary();
+        mergeTo(page, annotations.takeObject());
+    }
+
+    const PDFObjectReference field = createFormFieldSignature(fieldName, {}, signatureValue);
+    if (m_storage.getObjectByReference(appearanceStream).isStream() && !rect.isEmpty())
+    {
+        createFormFieldWidget(field, page, appearanceStream, rect);
+    }
+    else
+    {
+        createInvisibleFormFieldWidget(field, page);
+    }
+
+    PDFObjectFactory factory;
+    factory.beginDictionary();
+    factory.beginDictionaryItem("F");
+    factory << PDFInteger(PDFAnnotation::Print);
+    factory.endDictionaryItem();
+    factory.endDictionary();
+    mergeTo(field, factory.takeObject());
+
+    const PDFDictionary* catalog = m_storage.getDictionaryFromObject(m_storage.getObjectByReference(getCatalogReference()));
+    const PDFObject acroFormObject = catalog->get("AcroForm");
+    const PDFDictionary* existingForm = m_storage.getDictionaryFromObject(acroFormObject);
+    auto form = existingForm ? std::make_shared<PDFDictionary>(*existingForm) : std::make_shared<PDFDictionary>();
+    const PDFObject fieldsObject = m_storage.getObject(form->get("Fields"));
+    auto fields = fieldsObject.isArray() ? std::make_shared<PDFArray>(*fieldsObject.getArray()) : std::make_shared<PDFArray>();
+    fields->appendItem(PDFObject::createReference(field));
+    form->setEntry(PDFInplaceOrMemoryString("Fields"), PDFObject::createArray(std::move(fields)));
+
+    const PDFObject flags = m_storage.getObject(form->get("SigFlags"));
+    form->setEntry(PDFInplaceOrMemoryString("SigFlags"), PDFObject::createInteger((flags.isInt() ? flags.getInteger() : 0) | 3));
+    if (!existingForm)
+    {
+        form->setEntry(PDFInplaceOrMemoryString("NeedAppearances"), PDFObject::createBool(false));
+    }
+
+    PDFObject updatedForm = PDFObject::createDictionary(std::move(form));
+    if (existingForm && acroFormObject.isReference())
+    {
+        setObject(acroFormObject.getReference(), std::move(updatedForm));
+    }
+    else
+    {
+        setCatalogAcroForm(addObject(std::move(updatedForm)));
+    }
+    return field;
+}
+
 QByteArray PDFDocumentBuilder::formatPDFReal(PDFReal value)
 {
     QByteArray text = QByteArray::number(value, 'f', 6);

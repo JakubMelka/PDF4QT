@@ -26,8 +26,6 @@
 #include "pdfcertificatemanager.h"
 #include "pdfcertificatelisthelper.h"
 
-#include <openssl/pkcs7.h>
-
 #include <QMessageBox>
 
 namespace pdfplugin
@@ -39,13 +37,9 @@ SignDialog::SignDialog(QWidget* parent, bool isSceneEmpty) :
 {
     ui->setupUi(this);
 
-    if (!isSceneEmpty)
-    {
-        ui->methodCombo->addItem(tr("Sign digitally"), SignDigitally);
-    }
-
+    ui->methodCombo->addItem(tr("Sign digitally (visible signature)"), SignDigitally);
     ui->methodCombo->addItem(tr("Sign digitally (invisible signature)"), SignDigitallyInvisible);
-    ui->methodCombo->setCurrentIndex(0);
+    ui->methodCombo->setCurrentIndex(isSceneEmpty ? 1 : 0);
 
     m_certificates = pdf::PDFCertificateManager::getCertificates();
 

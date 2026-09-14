@@ -108,8 +108,8 @@ QTransform PDFRenderer::createMediaBoxToDevicePointMatrix(const QRectF& mediaBox
             matrix.translate(rectangle.left(), rectangle.top());
             matrix.scale(rectangle.width() / mediaBox.width(), rectangle.height() / mediaBox.height());
             matrix.translate(mediaBox.width(), 0);
-            matrix.translate(-mediaBox.left(), -mediaBox.top());
             matrix.scale(-1.0, 1.0);
+            matrix.translate(-mediaBox.left(), -mediaBox.top());
             break;
         }
 

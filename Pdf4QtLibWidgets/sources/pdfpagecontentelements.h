@@ -618,8 +618,9 @@ public:
     /// \param state Snapshot to be restored
     void restoreState(SceneState state);
 
-    /// Returns bounding box of elements on page
-    QRectF getBoundingBox(PDFInteger pageIndex) const;
+    /// Returns bounding box of elements on page.
+    /// Include stroke extents when exporting graphics to an appearance stream.
+    QRectF getBoundingBox(PDFInteger pageIndex, bool includeStroke = false) const;
 
     /// Set selected items
     void setSelectedElementIds(const std::set<PDFInteger>& selectedElementIds);

@@ -493,6 +493,16 @@ public:
     /// \param handler New security handler, or nullptr
     void setSecurityHandler(PDFSecurityHandlerPointer handler);
 
+    /// Creates a printable signature widget and appends its field to AcroForm,
+    /// preserving existing fields and settings and adding both signature flags.
+    /// The rectangle uses the page's unrotated PDF coordinates. An absent
+    /// appearance stream or an empty rectangle creates an invisible widget.
+    PDFObjectReference createSignatureField(QString fieldName,
+                                            PDFObjectReference signatureValue,
+                                            PDFObjectReference page,
+                                            PDFObjectReference appearanceStream = PDFObjectReference(),
+                                            QRectF rect = QRectF());
+
 /* START GENERATED CODE */
 
     /// Appends a new page after last page.

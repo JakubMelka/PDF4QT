@@ -341,6 +341,35 @@ void SignaturePlugin::onSignDigitally()
     SignDialog dialog(m_dataExchangeInterface->getMainWindow(), m_scene.isEmpty());
     if (dialog.exec() == SignDialog::Accepted)
     {
+        bool visibleSignature = dialog.getSignMethod() == SignDialog::SignDigitally;
+        const std::set<pdf::PDFInteger> pageIndices = m_scene.getPageIndices();
+        if (visibleSignature && pageIndices.empty())
+        {
+            if (QMessageBox::warning(m_widget, tr("Confirm Signature"),
+                                    tr("No signature graphics were created, the signature will have no visible appearance. Continue?"),
+                                    QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes)
+            {
+                return;
+            }
+            visibleSignature = false;
+        }
+        else if (visibleSignature && pageIndices.size() > 1)
+        {
+            if (QMessageBox::warning(m_widget, tr("Confirm Signature"),
+                                    tr("Signature graphics span multiple pages. Only the first page containing graphics will be used. Continue?"),
+                                    QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes)
+            {
+                return;
+            }
+        }
+
+        const pdf::PDFCatalog* catalog = m_document->getCatalog();
+        if (catalog->getPageCount() == 0)
+        {
+            QMessageBox::critical(m_widget, tr("Error"), tr("The document has no page for a signature widget."));
+            return;
+        }
+
         const pdf::PDFCertificateEntry* certificate = dialog.getCertificate();
         Q_ASSERT(certificate);
 
@@ -360,33 +389,28 @@ void SignaturePlugin::onSignDigitally()
 
         pdf::PDFDocumentBuilder builder(m_document);
         pdf::PDFObjectReference signatureDictionary = builder.createSignatureDictionary("Adobe.PPKLite", "adbe.pkcs7.detached", signature, QDateTime::currentDateTime(), offsetMark);
-        pdf::PDFObjectReference formField = builder.createFormFieldSignature(signatureName, { }, signatureDictionary);
-        builder.createAcroForm({ formField });
-
-        const pdf::PDFCatalog* catalog = m_document->getCatalog();
-        if (dialog.getSignMethod() == SignDialog::SignDigitallyInvisible)
+        if (!visibleSignature)
         {
-            if (catalog->getPageCount() > 0)
-            {
-                const pdf::PDFObjectReference pageReference = catalog->getPage(0)->getPageReference();
-                builder.createInvisibleFormFieldWidget(formField, pageReference);
-            }
+            builder.createSignatureField(signatureName, signatureDictionary, catalog->getPage(0)->getPageReference());
         }
-        else if (dialog.getSignMethod() == SignDialog::SignDigitally)
+        else
         {
-            Q_ASSERT(!m_scene.isEmpty());
-            const pdf::PDFInteger pageIndex = *m_scene.getPageIndices().begin();
+            const pdf::PDFInteger pageIndex = *pageIndices.begin();
             const pdf::PDFPage* page = catalog->getPage(pageIndex);
             pdf::PDFColorConvertor convertor;
 
             pdf::PDFContentStreamBuilder contentBuilder(page->getMediaBox().size(), pdf::PDFContentStreamBuilder::CoordinateSystem::PDF);
             QPainter* painter = contentBuilder.begin();
+            // Scene elements use unrotated PDF coordinates, including the MediaBox origin.
+            // QPdfWriter's temporary page starts at zero; keep the Form BBox in that space.
+            const QPointF mediaOrigin = page->getMediaBox().topLeft();
+            painter->translate(-mediaOrigin);
             QList<pdf::PDFRenderError> errors;
             pdf::PDFTextLayoutGetter nullGetter(nullptr, pageIndex);
-            m_scene.drawPage(painter, pageIndex, nullptr, nullGetter, QTransform(), convertor, errors);
+            m_scene.drawElements(painter, pageIndex, nullGetter, QTransform(), nullptr, convertor, errors);
             pdf::PDFContentStreamBuilder::ContentStream contentStream = contentBuilder.end(painter);
 
-            QRectF boundingRect = m_scene.getBoundingBox(pageIndex);
+            QRectF boundingRect = m_scene.getBoundingBox(pageIndex, true);
             std::vector<pdf::PDFObject> copiedObjects = builder.copyFrom({ contentStream.resources, contentStream.contents }, contentStream.document.getStorage(), true);
             Q_ASSERT(copiedObjects.size() == 2);
 
@@ -407,7 +431,7 @@ void SignaturePlugin::onSignDigitally()
             formFactory.endDictionaryItem();
 
             formFactory.beginDictionaryItem("BBox");
-            formFactory << boundingRect;
+            formFactory << boundingRect.translated(-mediaOrigin);
             formFactory.endDictionaryItem();
 
             formFactory.beginDictionaryItem("Resources");
@@ -418,7 +442,7 @@ void SignaturePlugin::onSignDigitally()
 
             builder.mergeTo(formReference, formFactory.takeObject());
 
-            builder.createFormFieldWidget(formField, page->getPageReference(), formReference, boundingRect);
+            builder.createSignatureField(signatureName, signatureDictionary, page->getPageReference(), formReference, boundingRect);
         }
 
         QString reasonText = dialog.getReasonText();
@@ -621,6 +645,7 @@ void SignaturePlugin::updateActions()
             action->setEnabled(false);
         }
 
+        m_actions[SignDigitally]->setEnabled(m_document && m_widget && !m_widget->isAnySceneActive(&m_scene));
         return;
     }
 

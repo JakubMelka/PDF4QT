@@ -1,6 +1,14 @@
 
 Conformance to PDF 2.0 specification notes and tasks:
 
+Digital signatures (issue #417):
+ - Signing still rewrites the complete document. Incremental updates and preserving
+   earlier digital signatures are not supported; signing again invalidates them.
+ - Visible signature graphics use unrotated PDF page coordinates. Page rotation
+   is applied by the viewer to both page content and signature appearance.
+ - Manual interoperability checks in PDF4QT and Adobe Acrobat are still required
+   for visible/invisible signatures, including rotated pages and certificate trust.
+
 Section 1: OK
 Section 2: OK
 Section 3: OK

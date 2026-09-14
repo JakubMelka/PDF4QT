@@ -1008,7 +1008,7 @@ void PDFPageContentScene::restoreState(SceneState state)
     setSelectedElementIds(state.selectedElementIds);
 }
 
-QRectF PDFPageContentScene::getBoundingBox(PDFInteger pageIndex) const
+QRectF PDFPageContentScene::getBoundingBox(PDFInteger pageIndex, bool includeStroke) const
 {
     QRectF rect;
 
@@ -1016,7 +1016,24 @@ QRectF PDFPageContentScene::getBoundingBox(PDFInteger pageIndex) const
     {
         if (element->getPageIndex() == pageIndex)
         {
-            rect = rect.united(element->getBoundingBox());
+            QRectF elementRect = element->getBoundingBox();
+            if (includeStroke)
+            {
+                if (const auto* styled = dynamic_cast<const PDFPageContentStyledElement*>(element.get()))
+                {
+                    const QPen& pen = styled->getPen();
+                    if (pen.style() != Qt::NoPen)
+                    {
+                        // Conservative bounds include square caps and miter joins, and
+                        // keep horizontal/vertical lines and dots from being clipped away.
+                        const bool miterJoin = pen.joinStyle() == Qt::MiterJoin || pen.joinStyle() == Qt::SvgMiterJoin;
+                        const qreal joinExtent = miterJoin ? qMax(qreal(1.0), pen.miterLimit()) : 1.0;
+                        const qreal margin = qMax(qreal(1.0), pen.widthF()) * joinExtent;
+                        elementRect.adjust(-margin, -margin, margin, margin);
+                    }
+                }
+            }
+            rect = rect.united(elementRect);
         }
     }
 

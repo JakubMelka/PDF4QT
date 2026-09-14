@@ -287,6 +287,17 @@ PDFFormFieldSignatureEditor::PDFFormFieldSignatureEditor(PDFWidgetFormManager* f
 
 bool PDFFormFieldSignatureEditor::isEditorDrawEnabled() const
 {
+    const PDFDocument* document = m_formManager->getDocument();
+    const PDFDictionary* widget = document->getDictionaryFromObject(document->getObjectByReference(m_formWidget.getWidget()));
+    if (widget && !m_formManager->getWidgetRectangle(m_formWidget).isEmpty())
+    {
+        const PDFDictionary* appearance = document->getDictionaryFromObject(widget->get("AP"));
+        if (appearance && document->getObject(appearance->get("N")).isStream())
+        {
+            return false;
+        }
+    }
+
     PDFDrawWidgetProxy* proxy = m_formManager->getProxy();
 
     if (proxy)
