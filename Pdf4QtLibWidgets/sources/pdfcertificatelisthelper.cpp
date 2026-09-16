@@ -70,15 +70,31 @@ void PDFCertificateListHelper::fillComboBox(QComboBox* comboBox, const PDFCertif
     {
         const PDFCertificateEntry& entry = entries[i];
 
+        const QString commonName = entry.info.getName(PDFCertificateInfo::NameEntry::CommonName);
+
+        // Jakub Melka: certificates from the system storage are often named
+        // by a generated identifier, so we prefer the friendly name, under
+        // which the operating system displays them. The common name is then
+        // moved to the second column, so the certificate remains identifiable.
+        QString firstInfoEntry = entry.friendlyName;
+        if (firstInfoEntry.isEmpty())
+        {
+            firstInfoEntry = commonName;
+        }
+
         QString secondInfoEntry = entry.info.getName(PDFCertificateInfo::NameEntry::OrganizationName);
         if (secondInfoEntry.isEmpty())
         {
             secondInfoEntry = entry.info.getName(PDFCertificateInfo::NameEntry::Email);
         }
+        if (secondInfoEntry.isEmpty() && firstInfoEntry != commonName)
+        {
+            secondInfoEntry = commonName;
+        }
 
         if (entry.pkcs12fileName.isEmpty())
         {
-            model->setItem(i, 0, new QStandardItem(entry.info.getName(PDFCertificateInfo::NameEntry::CommonName)));
+            model->setItem(i, 0, new QStandardItem(firstInfoEntry));
             model->setItem(i, 1, new QStandardItem(secondInfoEntry));
             model->setItem(i, 2, new QStandardItem(entry.info.getNotValidBefore().toLocalTime().toString()));
             model->setItem(i, 3, new QStandardItem(entry.info.getNotValidAfter().toLocalTime().toString()));

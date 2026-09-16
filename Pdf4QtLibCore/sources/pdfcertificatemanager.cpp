@@ -149,9 +149,9 @@ void PDFCertificateManager::createCertificate(const NewCertificateInfo& info)
     }
 }
 
-PDFCertificateEntries PDFCertificateManager::getCertificates()
+PDFCertificateEntries PDFCertificateManager::getCertificates(PDFCertificateUsageFilter filter)
 {
-    PDFCertificateEntries entries = PDFCertificateStore::getPersonalCertificates();
+    PDFCertificateEntries entries = PDFCertificateStore::getPersonalCertificates(filter);
 
     QDir directory(getCertificateDirectory());
     QFileInfoList pfxFiles = directory.entryInfoList(QStringList() << "*.pfx", QDir::Files | QDir::NoDotAndDotDot | QDir::Readable, QDir::Name);

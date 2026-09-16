@@ -25,6 +25,7 @@
 #include "pdfdrawwidget.h"
 #include "pdfdrawspacecontroller.h"
 #include "pdfprogress.h"
+#include "pdfoptionalcontent.h"
 #include "pdfpagecontentelements.h"
 #include "pdfwidgetannotation.h"
 #include "pdfwidgetformmanager.h"
@@ -53,6 +54,7 @@ namespace
 struct Fixture
 {
     PDFDocument document;
+    PDFOptionalContentActivity optionalContentActivity{&document, OCUsage::View, nullptr};
     PDFCMSManager cms{nullptr};
     PDFProgress progress{nullptr};
     PDFWidget widget{&cms, RendererEngine::QPainter, nullptr};
@@ -69,7 +71,7 @@ struct Fixture
         PDFSignatureVerificationResult result;
         result.setSignatureFieldQualifiedName("Signature");
         result.setFlag(PDFSignatureVerificationResult::OK, valid);
-        const PDFModifiedDocument modified(&document, nullptr);
+        const PDFModifiedDocument modified(&document, &optionalContentActivity);
         widget.setDocument(modified, verified ? std::vector{result} : std::vector<PDFSignatureVerificationResult>());
         forms.setDocument(modified);
         forms.setAppearanceFlags({});

@@ -41,7 +41,7 @@ SignDialog::SignDialog(QWidget* parent, bool isSceneEmpty) :
     ui->methodCombo->addItem(tr("Sign digitally (invisible signature)"), SignDigitallyInvisible);
     ui->methodCombo->setCurrentIndex(isSceneEmpty ? 1 : 0);
 
-    m_certificates = pdf::PDFCertificateManager::getCertificates();
+    m_certificates = pdf::PDFCertificateManager::getCertificates(pdf::PDFCertificateUsageFilter::DigitalSignature);
 
     pdf::PDFCertificateListHelper::initComboBox(ui->certificateCombo);
     pdf::PDFCertificateListHelper::fillComboBox(ui->certificateCombo, m_certificates);

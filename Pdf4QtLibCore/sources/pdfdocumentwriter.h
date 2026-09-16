@@ -60,6 +60,20 @@ public:
     /// \param document Document
     PDFOperationResult write(QIODevice* device, const PDFDocument* document);
 
+    /// Writes the document as an incremental update of the original data. The
+    /// original data are written first, followed by the objects which differ
+    /// from the original document and by a new cross-reference section linked
+    /// to the previous one. The bytes of the original document are therefore
+    /// preserved, including the byte ranges covered by its digital signatures.
+    /// The document must be derived from the original data, so that the object
+    /// numbers of the unchanged objects match. The format of the appended
+    /// cross-reference section (classic table or stream) follows the format
+    /// used by the original document.
+    /// \param device Output device positioned at the start of the file
+    /// \param originalData Data of the original document
+    /// \param document Document to be written
+    PDFOperationResult writeIncrementalUpdate(QIODevice* device, const QByteArray& originalData, const PDFDocument* document);
+
     /// Calculates document file size, as if it is written to the disk.
     /// No file is accessed by this function; document is written
     /// to fake stream, which counts operations. If error occurs, and
@@ -77,6 +91,13 @@ public:
     static QByteArray getSerializedObject(const PDFObject& object);
 
 private:
+    /// Finds the last cross-reference section of the document data, to which
+    /// the incremental update must be linked
+    /// \param data Document data
+    /// \param offset Offset of the section
+    /// \param isCrossReferenceStream Section is a cross-reference stream (not a classic table)
+    static bool findLastCrossReferenceSection(const QByteArray& data, PDFInteger& offset, bool& isCrossReferenceStream);
+
     static void writeCRLF(QIODevice* device);
     static void writeObjectHeader(QIODevice* device, PDFObjectReference reference);
     static void writeObjectFooter(QIODevice* device);

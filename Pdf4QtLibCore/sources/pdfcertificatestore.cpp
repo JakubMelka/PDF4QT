@@ -169,6 +169,11 @@ void PDFCertificateInfo::setKeyUsage(KeyUsageFlags keyUsage)
     m_keyUsage = keyUsage;
 }
 
+bool PDFCertificateInfo::isUsableForDigitalSignature() const
+{
+    return m_keyUsage.testAnyFlags(KeyUsageFlags(KeyUsageDigitalSignature | KeyUsageNonRepudiation));
+}
+
 std::optional<PDFCertificateInfo> PDFCertificateInfo::getCertificateInfo(const QByteArray& certificateData)
 {
     std::optional<PDFCertificateInfo> result;
@@ -579,11 +584,32 @@ pdf::PDFCertificateEntries pdf::PDFCertificateStore::getSystemCertificates()
     return result;
 }
 
-pdf::PDFCertificateEntries pdf::PDFCertificateStore::getPersonalCertificates()
+pdf::PDFCertificateEntries pdf::PDFCertificateStore::getPersonalCertificates(PDFCertificateUsageFilter filter)
 {
     PDFCertificateEntries result;
 
 #ifdef Q_OS_WIN
+    // Jakub Melka: the personal certificate storage contains also certificates,
+    // which are automatically created by the operating system and by various
+    // applications. Reading the friendly name, under which they are displayed
+    // in the system, makes them recognizable for the user.
+    auto getFriendlyName = [](PCCERT_CONTEXT certificateContext) -> QString
+    {
+        DWORD size = 0;
+        if (!CertGetCertificateContextProperty(certificateContext, CERT_FRIENDLY_NAME_PROP_ID, nullptr, &size) || size == 0)
+        {
+            return QString();
+        }
+
+        QByteArray buffer(int(size), char(0));
+        if (!CertGetCertificateContextProperty(certificateContext, CERT_FRIENDLY_NAME_PROP_ID, buffer.data(), &size))
+        {
+            return QString();
+        }
+
+        return QString::fromWCharArray(reinterpret_cast<const wchar_t*>(buffer.constData()));
+    };
+
     HCERTSTORE certStore = CertOpenStore(CERT_STORE_PROV_SYSTEM, 0, NULL, CERT_SYSTEM_STORE_CURRENT_USER, L"MY");
     PCCERT_CONTEXT context = nullptr;
     if (certStore)
@@ -595,15 +621,23 @@ pdf::PDFCertificateEntries pdf::PDFCertificateStore::getPersonalCertificates()
             std::optional<PDFCertificateInfo> info = PDFCertificateInfo::getCertificateInfo(data);
             if (info)
             {
+                if (filter == PDFCertificateUsageFilter::DigitalSignature && !info->isUsableForDigitalSignature())
+                {
+                    continue;
+                }
+
                 PDFCertificateEntry entry;
                 entry.type = PDFCertificateEntry::EntryType::System;
                 entry.info = qMove(*info);
+                entry.friendlyName = getFriendlyName(context);
                 result.emplace_back(qMove(entry));
             }
         }
 
         CertCloseStore(certStore, CERT_CLOSE_STORE_FORCE_FLAG);
     }
+#else
+    Q_UNUSED(filter);
 #endif
 
     return result;

@@ -55,7 +55,13 @@ public:
 
     void createCertificate(const NewCertificateInfo& info);
 
-    static PDFCertificateEntries getCertificates();
+    /// Returns certificates, which can be used by the application - personal
+    /// certificates from the system storage and certificates stored in the
+    /// certificate directory of the application. Certificates from the
+    /// certificate directory are never filtered out, because they are
+    /// usually password protected and their key usage cannot be read.
+    /// \param filter Which certificates from the system storage are returned
+    static PDFCertificateEntries getCertificates(PDFCertificateUsageFilter filter = PDFCertificateUsageFilter::Any);
     static QString getCertificateDirectory();
     static QString generateCertificateFileName();
     static bool isCertificateValid(const PDFCertificateEntry& certificateEntry, QString password);

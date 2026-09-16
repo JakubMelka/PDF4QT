@@ -45,6 +45,8 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfdocumentbuilder.h
     sources/pdfdocumentmanipulator.cpp
     sources/pdfdocumentmanipulator.h
+    sources/pdfdocumentsigner.cpp
+    sources/pdfdocumentsigner.h
     sources/pdfpagegeometry.cpp
     sources/pdfpagegeometry.h
     sources/pdfdocumenttextflow.cpp

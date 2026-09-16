@@ -143,6 +143,13 @@ public:
     KeyUsageFlags getKeyUsage() const;
     void setKeyUsage(KeyUsageFlags keyUsage);
 
+    /// Returns true, if the certificate declares in its key usage extension,
+    /// that it can be used for creating digital signatures. Certificates
+    /// which do not have the key usage extension at all are not considered
+    /// signature certificates - they are usually certificates generated
+    /// automatically by the operating system for internal purposes.
+    bool isUsableForDigitalSignature() const;
+
     QByteArray getCertificateData() const;
     void setCertificateData(const QByteArray& certificateData);
 
@@ -169,6 +176,14 @@ private:
 
 using PDFCertificateInfos = std::vector<PDFCertificateInfo>;
 
+/// Determines, which certificates are returned, when personal certificates
+/// are enumerated.
+enum class PDFCertificateUsageFilter
+{
+    Any,                ///< All certificates found in the storage
+    DigitalSignature    ///< Only certificates, which can be used for digital signatures
+};
+
 struct PDFCertificateEntry
 {
     enum class EntryType : int
@@ -189,6 +204,10 @@ struct PDFCertificateEntry
     PDFCertificateInfo info;
     QByteArray pkcs12;
     QString pkcs12fileName;
+
+    /// Display name of the certificate taken from the system certificate
+    /// storage. It is only a display hint, so it is not serialized.
+    QString friendlyName;
 };
 
 using PDFCertificateEntries = std::vector<PDFCertificateEntry>;
@@ -251,7 +270,8 @@ public:
     static PDFCertificateEntries getSystemCertificates();
 
     /// Returns a list of personal certificates (usually used for signing documents)
-    static PDFCertificateEntries getPersonalCertificates();
+    /// \param filter Which certificates should be returned
+    static PDFCertificateEntries getPersonalCertificates(PDFCertificateUsageFilter filter = PDFCertificateUsageFilter::Any);
 
 private:
     static constexpr int persist_version = 1;

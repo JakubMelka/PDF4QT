@@ -47,6 +47,8 @@ Tests are QtTest executables, one per area, all built into `<build>/usr/bin`:
 | `UnitTestsContentEditor` | [tst_contenteditortest.cpp](UnitTests/tst_contenteditortest.cpp) |
 | `UnitTestsMeasure` | [tst_measuretest.cpp](UnitTests/tst_measuretest.cpp) |
 | `UnitTestsDimensions` | [tst_dimensionstest.cpp](UnitTests/tst_dimensionstest.cpp) |
+| `UnitTestsSignatureBuilder` | [tst_signaturebuildertest.cpp](UnitTests/tst_signaturebuildertest.cpp) — `PDFDocumentSigner` (unstable signature size, reserved space growth, error reporting, multiple signatures over incremental updates) and the signature field/widget structure |
+| `UnitTestsDocumentWriter` | [tst_documentwritertest.cpp](UnitTests/tst_documentwritertest.cpp) — incremental update of `PDFDocumentWriter`: classic table and cross-reference stream originals, changed/added/removed objects |
 
 Coverage of the codecs is measured with clang: configure a second tree with `-DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DPDF4QT_ENABLE_COVERAGE=ON -DPDF4QT_BUILD_ONLY_CORE_LIBRARY=ON` (clang-cl, llvm-profdata and llvm-cov ship with Visual Studio under `VC/Tools/Llvm/x64/bin`; pass the existing `vcpkg_installed` prefix paths instead of the vcpkg toolchain), run the tests with `LLVM_PROFILE_FILE=<dir>/%p-%m.profraw`, then `llvm-profdata merge -sparse *.profraw -o coverage.profdata` and `llvm-cov report <test.exe> -object usr/bin/Pdf4QtLibCore.dll -instr-profile coverage.profdata <sources>`.
 

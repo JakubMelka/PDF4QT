@@ -21,6 +21,7 @@
 // SOFTWARE.
 
 #include "pdfdocumentwriter.h"
+#include "pdfdocumentreader.h"
 #include "pdfconstants.h"
 #include "pdfvisitor.h"
 #include "pdfparser.h"
@@ -28,6 +29,8 @@
 #include <QFile>
 #include <QBuffer>
 #include <QSaveFile>
+
+#include <map>
 
 #include "pdfdbgheap.h"
 
@@ -370,6 +373,268 @@ PDFOperationResult PDFDocumentWriter::write(QIODevice* device, const PDFDocument
 
     // Write footer
     device->write("%%EOF");
+
+    return true;
+}
+
+bool PDFDocumentWriter::findLastCrossReferenceSection(const QByteArray& data, PDFInteger& offset, bool& isCrossReferenceStream)
+{
+    const qsizetype startXrefPosition = data.lastIndexOf("startxref");
+    if (startXrefPosition < 0)
+    {
+        return false;
+    }
+
+    auto isWhitespace = [](char c) { return c == ' ' || c == '\r' || c == '\n' || c == '\t' || c == '\f' || c == '\0'; };
+
+    qsizetype position = startXrefPosition + qsizetype(std::strlen("startxref"));
+    while (position < data.size() && isWhitespace(data[position]))
+    {
+        ++position;
+    }
+
+    PDFInteger parsedOffset = 0;
+    qsizetype digitCount = 0;
+    while (position < data.size() && data[position] >= '0' && data[position] <= '9')
+    {
+        parsedOffset = parsedOffset * 10 + (data[position] - '0');
+        ++position;
+        ++digitCount;
+    }
+
+    if (digitCount == 0 || parsedOffset < 0 || parsedOffset >= data.size())
+    {
+        return false;
+    }
+
+    // The section is either a classic table starting with the 'xref' keyword,
+    // or a cross-reference stream, which is an indirect object.
+    qsizetype sectionPosition = parsedOffset;
+    while (sectionPosition < data.size() && isWhitespace(data[sectionPosition]))
+    {
+        ++sectionPosition;
+    }
+
+    if (data.mid(sectionPosition, 4) == "xref")
+    {
+        isCrossReferenceStream = false;
+    }
+    else if (sectionPosition < data.size() && data[sectionPosition] >= '0' && data[sectionPosition] <= '9')
+    {
+        isCrossReferenceStream = true;
+    }
+    else
+    {
+        return false;
+    }
+
+    offset = parsedOffset;
+    return true;
+}
+
+PDFOperationResult PDFDocumentWriter::writeIncrementalUpdate(QIODevice* device, const QByteArray& originalData, const PDFDocument* document)
+{
+    if (!device->isWritable())
+    {
+        return tr("Device is not writable.");
+    }
+
+    // The original document is parsed again from its data, because the document
+    // being written can be derived from an edited version of it - the objects are
+    // compared with what is really stored in the data.
+    PDFDocumentReader reader(nullptr, nullptr, false, false);
+    const PDFDocument originalDocument = reader.readFromBuffer(originalData);
+    if (reader.getReadingResult() != PDFDocumentReader::Result::OK)
+    {
+        return tr("Original document cannot be read, so it cannot be updated incrementally.");
+    }
+
+    PDFInteger previousXrefOffset = -1;
+    bool previousXrefIsStream = false;
+    if (!findLastCrossReferenceSection(originalData, previousXrefOffset, previousXrefIsStream))
+    {
+        return tr("Cross-reference section of the original document was not found, so it cannot be updated incrementally.");
+    }
+
+    const PDFObjectStorage& storage = document->getStorage();
+    const PDFObjectStorage::PDFObjects& objects = storage.getObjects();
+    const PDFObjectStorage::PDFObjects& originalObjects = originalDocument.getStorage().getObjects();
+    const bool isEncrypted = storage.getSecurityHandler()->getMode() != EncryptionMode::None;
+    if (!storage.getSecurityHandler()->isEncryptionAllowed())
+    {
+        return tr("Writing of encrypted documents is not supported.");
+    }
+
+    // Only the objects, which differ from the original document, are written.
+    // A removed object is written as null, because a free entry in the update
+    // would be overridden by the older occupied entry of the original document.
+    std::vector<size_t> changedObjects;
+    for (size_t i = 1; i < objects.size(); ++i)
+    {
+        const bool isNewObject = i >= originalObjects.size();
+        if (isNewObject ? !objects[i].object.isNull() : objects[i] != originalObjects[i])
+        {
+            changedObjects.push_back(i);
+        }
+    }
+
+    PDFObjectReference encryptObjectReference;
+    PDFObject encryptObject = document->getTrailerDictionary()->get("Encrypt");
+    if (encryptObject.isReference())
+    {
+        encryptObjectReference = encryptObject.getReference();
+    }
+
+    // The update is appended after the original data, so the offsets written
+    // into the cross-reference section are the positions in the device.
+    device->write(originalData);
+    if (!originalData.endsWith('\n') && !originalData.endsWith('\r'))
+    {
+        writeCRLF(device);
+    }
+
+    std::map<size_t, PDFInteger> offsets;
+    for (const size_t i : changedObjects)
+    {
+        const PDFObjectStorage::Entry& entry = objects[i];
+        const PDFObjectReference reference(PDFInteger(i), entry.generation);
+        offsets[i] = device->pos();
+
+        PDFObject objectToWrite = entry.object;
+        if (isEncrypted && reference != encryptObjectReference)
+        {
+            objectToWrite = storage.getSecurityHandler()->encryptObject(objectToWrite, reference);
+        }
+
+        PDFWriteObjectVisitor visitor(device);
+        writeObjectHeader(device, reference);
+        objectToWrite.accept(&visitor);
+        writeObjectFooter(device);
+    }
+
+    // Entries of the trailer, which is either a classic trailer dictionary, or
+    // the dictionary of the cross-reference stream - depending on the format of
+    // the last cross-reference section of the original document. Mixing the
+    // formats is not allowed by the specification.
+    PDFInteger size = qMax<PDFInteger>(PDFInteger(objects.size()), PDFInteger(originalObjects.size()));
+    PDFDictionary trailerDictionary;
+    auto addTrailerEntries = [&]()
+    {
+        for (const char* entry : { "Root", "Encrypt", "Info", "ID" })
+        {
+            PDFObject object = document->getTrailerDictionary()->get(entry);
+            if (!object.isNull())
+            {
+                trailerDictionary.addEntry(PDFInplaceOrMemoryString(entry), qMove(object));
+            }
+        }
+        trailerDictionary.addEntry(PDFInplaceOrMemoryString("Prev"), PDFObject::createInteger(previousXrefOffset));
+    };
+
+    // Groups consecutive object numbers into subsections
+    auto getSubsections = [](const std::vector<size_t>& objectNumbers) -> std::vector<std::pair<size_t, size_t>>
+    {
+        std::vector<std::pair<size_t, size_t>> subsections;
+        for (const size_t objectNumber : objectNumbers)
+        {
+            if (!subsections.empty() && subsections.back().first + subsections.back().second == objectNumber)
+            {
+                ++subsections.back().second;
+            }
+            else
+            {
+                subsections.emplace_back(objectNumber, 1);
+            }
+        }
+        return subsections;
+    };
+
+    const PDFInteger xrefOffset = device->pos();
+
+    if (!previousXrefIsStream)
+    {
+        device->write("xref");
+        writeCRLF(device);
+
+        for (const auto& [firstObjectNumber, count] : getSubsections(changedObjects))
+        {
+            device->write(QString("%1 %2").arg(firstObjectNumber).arg(count).toLatin1());
+            writeCRLF(device);
+
+            for (size_t i = firstObjectNumber; i < firstObjectNumber + count; ++i)
+            {
+                device->write(QString::number(offsets[i]).rightJustified(10, QChar('0'), true).toLatin1());
+                device->write(" ");
+                device->write(QString::number(objects[i].generation).rightJustified(5, QChar('0'), true).toLatin1());
+                device->write(" n");
+                writeCRLF(device);
+            }
+        }
+
+        trailerDictionary.addEntry(PDFInplaceOrMemoryString("Size"), PDFObject::createInteger(size));
+        addTrailerEntries();
+
+        device->write("trailer");
+        writeCRLF(device);
+        PDFWriteObjectVisitor trailerVisitor(device);
+        PDFObject::createDictionary(std::make_shared<PDFDictionary>(qMove(trailerDictionary))).accept(&trailerVisitor);
+        writeCRLF(device);
+    }
+    else
+    {
+        // The cross-reference stream is an object itself and it contains its own entry
+        const size_t xrefStreamObjectNumber = size_t(size);
+        ++size;
+
+        std::vector<size_t> entries = changedObjects;
+        entries.push_back(xrefStreamObjectNumber);
+        offsets[xrefStreamObjectNumber] = xrefOffset;
+
+        auto indexArray = std::make_shared<PDFArray>();
+        QByteArray data;
+        for (const auto& [firstObjectNumber, count] : getSubsections(entries))
+        {
+            indexArray->appendItem(PDFObject::createInteger(PDFInteger(firstObjectNumber)));
+            indexArray->appendItem(PDFObject::createInteger(PDFInteger(count)));
+
+            for (size_t i = firstObjectNumber; i < firstObjectNumber + count; ++i)
+            {
+                // Field widths are 1 byte for the type, 8 bytes for the offset and 2 bytes for the generation
+                const PDFInteger generation = i == xrefStreamObjectNumber ? 0 : objects[i].generation;
+                data.append(char(1));
+                for (int shift = 56; shift >= 0; shift -= 8)
+                {
+                    data.append(char((quint64(offsets[i]) >> shift) & 0xFF));
+                }
+                data.append(char((generation >> 8) & 0xFF));
+                data.append(char(generation & 0xFF));
+            }
+        }
+
+        auto widthArray = std::make_shared<PDFArray>();
+        widthArray->appendItem(PDFObject::createInteger(1));
+        widthArray->appendItem(PDFObject::createInteger(8));
+        widthArray->appendItem(PDFObject::createInteger(2));
+
+        trailerDictionary.addEntry(PDFInplaceOrMemoryString("Type"), PDFObject::createName("XRef"));
+        trailerDictionary.addEntry(PDFInplaceOrMemoryString("Size"), PDFObject::createInteger(size));
+        trailerDictionary.addEntry(PDFInplaceOrMemoryString("W"), PDFObject::createArray(qMove(widthArray)));
+        trailerDictionary.addEntry(PDFInplaceOrMemoryString("Index"), PDFObject::createArray(qMove(indexArray)));
+        addTrailerEntries();
+        trailerDictionary.addEntry(PDFInplaceOrMemoryString("Length"), PDFObject::createInteger(data.size()));
+
+        PDFWriteObjectVisitor visitor(device);
+        writeObjectHeader(device, PDFObjectReference(PDFInteger(xrefStreamObjectNumber), 0));
+        PDFObject::createStream(std::make_shared<PDFStream>(qMove(trailerDictionary), qMove(data))).accept(&visitor);
+        writeObjectFooter(device);
+    }
+
+    device->write("startxref");
+    writeCRLF(device);
+    device->write(QString::number(xrefOffset).toLatin1());
+    writeCRLF(device);
+    device->write("%%EOF");
+    writeCRLF(device);
 
     return true;
 }

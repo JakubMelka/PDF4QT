@@ -283,6 +283,15 @@ set_target_properties(UnitTestsSignatureBuilder PROPERTIES
 )
 add_test(UnitTestsSignatureBuilder "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsSignatureBuilder")
 
+add_executable(UnitTestsDocumentWriter tst_documentwritertest.cpp)
+target_link_libraries(UnitTestsDocumentWriter PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+set_target_properties(UnitTestsDocumentWriter PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsDocumentWriter "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDocumentWriter")
+
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_executable(UnitTestsSignatureAppearance
         tst_signatureappearancetest.cpp

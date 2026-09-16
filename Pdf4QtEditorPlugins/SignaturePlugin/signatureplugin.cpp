@@ -28,7 +28,7 @@
 #include "pdfdocumentbuilder.h"
 #include "pdfcertificatemanagerdialog.h"
 #include "signdialog.h"
-#include "pdfdocumentwriter.h"
+#include "pdfdocumentsigner.h"
 
 #include <QBuffer>
 #include <QAction>
@@ -328,11 +328,11 @@ void SignaturePlugin::onSignDigitally()
     // Jakub Melka: do we have certificates? If not,
     // open certificate dialog, so the user can create
     // a new one.
-    if (pdf::PDFCertificateManager::getCertificates().empty())
+    if (pdf::PDFCertificateManager::getCertificates(pdf::PDFCertificateUsageFilter::DigitalSignature).empty())
     {
         onOpenCertificatesManager();
 
-        if (pdf::PDFCertificateManager::getCertificates().empty())
+        if (pdf::PDFCertificateManager::getCertificates(pdf::PDFCertificateUsageFilter::DigitalSignature).empty())
         {
             return;
         }
@@ -373,144 +373,112 @@ void SignaturePlugin::onSignDigitally()
         const pdf::PDFCertificateEntry* certificate = dialog.getCertificate();
         Q_ASSERT(certificate);
 
-        QByteArray data = "SampleDataToBeSigned" + QByteArray::number(QDateTime::currentMSecsSinceEpoch());
-        QByteArray signature;
-        if (!pdf::PDFSignatureFactory::sign(*certificate, dialog.getPassword(), data, signature))
+        const QString signatureName = QString("pdf4qt_signature_%1").arg(QString::number(QDateTime::currentMSecsSinceEpoch()));
+        const QString reasonText = dialog.getReasonText();
+        const QString contactInfoText = dialog.getContactInfoText();
+
+        pdf::PDFDocumentSigner::Parameters parameters;
+        parameters.document = m_document;
+        parameters.progress = m_widget->getDrawWidgetProxy()->getProgress();
+
+        // The signed document is written as an incremental update of the file
+        // the document was loaded from, so the signatures already present in it
+        // stay valid.
+        QFile originalFile(m_dataExchangeInterface->getOriginalFileName());
+        if (originalFile.open(QFile::ReadOnly))
         {
-            QMessageBox::critical(m_widget, tr("Error"), tr("Failed to create digital signature."));
-            return;
+            parameters.originalDocumentData = originalFile.readAll();
+            originalFile.close();
         }
 
-        QString signatureName = QString("pdf4qt_signature_%1").arg(QString::number(QDateTime::currentMSecsSinceEpoch()));
-
-        pdf::PDFInteger offsetMark = 123456789123;
-        constexpr const char* offsetMarkString = "123456789123";
-        const auto offsetMarkStringLength = std::strlen(offsetMarkString);
-
-        pdf::PDFDocumentBuilder builder(m_document);
-        pdf::PDFObjectReference signatureDictionary = builder.createSignatureDictionary("Adobe.PPKLite", "adbe.pkcs7.detached", signature, QDateTime::currentDateTime(), offsetMark);
-        if (!visibleSignature)
+        parameters.signFunction = [certificate, &dialog](const QByteArray& dataToBeSigned, QByteArray& signature)
         {
-            builder.createSignatureField(signatureName, signatureDictionary, catalog->getPage(0)->getPageReference());
-        }
-        else
-        {
-            const pdf::PDFInteger pageIndex = *pageIndices.begin();
-            const pdf::PDFPage* page = catalog->getPage(pageIndex);
-            pdf::PDFColorConvertor convertor;
-
-            pdf::PDFContentStreamBuilder contentBuilder(page->getMediaBox().size(), pdf::PDFContentStreamBuilder::CoordinateSystem::PDF);
-            QPainter* painter = contentBuilder.begin();
-            // Scene elements use unrotated PDF coordinates, including the MediaBox origin.
-            // QPdfWriter's temporary page starts at zero; keep the Form BBox in that space.
-            const QPointF mediaOrigin = page->getMediaBox().topLeft();
-            painter->translate(-mediaOrigin);
-            QList<pdf::PDFRenderError> errors;
-            pdf::PDFTextLayoutGetter nullGetter(nullptr, pageIndex);
-            m_scene.drawElements(painter, pageIndex, nullGetter, QTransform(), nullptr, convertor, errors);
-            pdf::PDFContentStreamBuilder::ContentStream contentStream = contentBuilder.end(painter);
-
-            QRectF boundingRect = m_scene.getBoundingBox(pageIndex, true);
-            std::vector<pdf::PDFObject> copiedObjects = builder.copyFrom({ contentStream.resources, contentStream.contents }, contentStream.document.getStorage(), true);
-            Q_ASSERT(copiedObjects.size() == 2);
-
-            pdf::PDFObjectReference resourcesReference = copiedObjects[0].getReference();
-            pdf::PDFObjectReference formReference = copiedObjects[1].getReference();
-
-            // Create form object
-            pdf::PDFObjectFactory formFactory;
-
-            formFactory.beginDictionary();
-
-            formFactory.beginDictionaryItem("Type");
-            formFactory << pdf::WrapName("XObject");
-            formFactory.endDictionaryItem();
-
-            formFactory.beginDictionaryItem("Subtype");
-            formFactory << pdf::WrapName("Form");
-            formFactory.endDictionaryItem();
-
-            formFactory.beginDictionaryItem("BBox");
-            formFactory << boundingRect.translated(-mediaOrigin);
-            formFactory.endDictionaryItem();
-
-            formFactory.beginDictionaryItem("Resources");
-            formFactory << resourcesReference;
-            formFactory.endDictionaryItem();
-
-            formFactory.endDictionary();
-
-            builder.mergeTo(formReference, formFactory.takeObject());
-
-            builder.createSignatureField(signatureName, signatureDictionary, page->getPageReference(), formReference, boundingRect);
-        }
-
-        QString reasonText = dialog.getReasonText();
-        if (!reasonText.isEmpty())
-        {
-            builder.setSignatureReason(signatureDictionary, reasonText);
-        }
-
-        QString contactInfoText = dialog.getContactInfoText();
-        if (!contactInfoText.isEmpty())
-        {
-            builder.setSignatureContactInfo(signatureDictionary, contactInfoText);
-        }
-
-        pdf::PDFDocument signedDocument = builder.build();
-
-        // 1) Save the document with incorrect signature
-        QBuffer buffer;
-        pdf::PDFDocumentWriter writer(m_widget->getDrawWidgetProxy()->getProgress());
-        buffer.open(QBuffer::ReadWrite);
-        writer.write(&buffer, &signedDocument);
-
-        const int indexOfSignature = buffer.data().indexOf(signature.toHex());
-        if (indexOfSignature == -1)
-        {
-            QMessageBox::critical(m_widget, tr("Error"), tr("Failed to create digital signature."));
-            buffer.close();
-            return;
-        }
-
-        // 2) Write ranges to be checked
-        const pdf::PDFInteger i1 = 0;
-        const pdf::PDFInteger i2 = indexOfSignature - 1;
-        const pdf::PDFInteger i3 = i2 + signature.size() * 2 + 2;
-        const pdf::PDFInteger i4 = buffer.data().size() - i3;
-
-        auto writeInt = [&](pdf::PDFInteger offset)
-        {
-            QString offsetString = QString::number(offset);
-            offsetString = offsetString.leftJustified(static_cast<int>(offsetMarkStringLength), ' ', true);
-            const auto index = buffer.data().lastIndexOf(QByteArray(offsetMarkString, offsetMarkStringLength), indexOfSignature);
-            buffer.seek(index);
-            buffer.write(offsetString.toLocal8Bit());
+            return pdf::PDFSignatureFactory::sign(*certificate, dialog.getPassword(), dataToBeSigned, signature);
         };
 
-        writeInt(i4);
-        writeInt(i3);
-        writeInt(i2);
-        writeInt(i1);
-
-        // 3) Sign the data
-        QByteArray dataToBeSigned;
-        buffer.seek(i1);
-        dataToBeSigned.append(buffer.read(i2));
-        buffer.seek(i3);
-        dataToBeSigned.append(buffer.read(i4));
-
-        if (!pdf::PDFSignatureFactory::sign(*certificate, dialog.getPassword(), dataToBeSigned, signature))
+        // Jakub Melka: the signature field is created by the signer, because the
+        // document must be built again, when the space reserved for the signature
+        // turns out to be too small.
+        parameters.createSignatureFieldFunction = [&](pdf::PDFDocumentBuilder& builder, pdf::PDFObjectReference signatureDictionary)
         {
-            QMessageBox::critical(m_widget, tr("Error"), tr("Failed to create digital signature."));
-            buffer.close();
+            pdf::PDFObjectReference signatureField;
+
+            if (!visibleSignature)
+            {
+                signatureField = builder.createSignatureField(signatureName, signatureDictionary, catalog->getPage(0)->getPageReference());
+            }
+            else
+            {
+                const pdf::PDFInteger pageIndex = *pageIndices.begin();
+                const pdf::PDFPage* page = catalog->getPage(pageIndex);
+                pdf::PDFColorConvertor convertor;
+
+                pdf::PDFContentStreamBuilder contentBuilder(page->getMediaBox().size(), pdf::PDFContentStreamBuilder::CoordinateSystem::PDF);
+                QPainter* painter = contentBuilder.begin();
+                // Scene elements use unrotated PDF coordinates, including the MediaBox origin.
+                // QPdfWriter's temporary page starts at zero; keep the Form BBox in that space.
+                const QPointF mediaOrigin = page->getMediaBox().topLeft();
+                painter->translate(-mediaOrigin);
+                QList<pdf::PDFRenderError> errors;
+                pdf::PDFTextLayoutGetter nullGetter(nullptr, pageIndex);
+                m_scene.drawElements(painter, pageIndex, nullGetter, QTransform(), nullptr, convertor, errors);
+                pdf::PDFContentStreamBuilder::ContentStream contentStream = contentBuilder.end(painter);
+
+                QRectF boundingRect = m_scene.getBoundingBox(pageIndex, true);
+                std::vector<pdf::PDFObject> copiedObjects = builder.copyFrom({ contentStream.resources, contentStream.contents }, contentStream.document.getStorage(), true);
+                Q_ASSERT(copiedObjects.size() == 2);
+
+                pdf::PDFObjectReference resourcesReference = copiedObjects[0].getReference();
+                pdf::PDFObjectReference formReference = copiedObjects[1].getReference();
+
+                // Create form object
+                pdf::PDFObjectFactory formFactory;
+
+                formFactory.beginDictionary();
+
+                formFactory.beginDictionaryItem("Type");
+                formFactory << pdf::WrapName("XObject");
+                formFactory.endDictionaryItem();
+
+                formFactory.beginDictionaryItem("Subtype");
+                formFactory << pdf::WrapName("Form");
+                formFactory.endDictionaryItem();
+
+                formFactory.beginDictionaryItem("BBox");
+                formFactory << boundingRect.translated(-mediaOrigin);
+                formFactory.endDictionaryItem();
+
+                formFactory.beginDictionaryItem("Resources");
+                formFactory << resourcesReference;
+                formFactory.endDictionaryItem();
+
+                formFactory.endDictionary();
+
+                builder.mergeTo(formReference, formFactory.takeObject());
+
+                signatureField = builder.createSignatureField(signatureName, signatureDictionary, page->getPageReference(), formReference, boundingRect);
+            }
+
+            if (!reasonText.isEmpty())
+            {
+                builder.setSignatureReason(signatureDictionary, reasonText);
+            }
+
+            if (!contactInfoText.isEmpty())
+            {
+                builder.setSignatureContactInfo(signatureDictionary, contactInfoText);
+            }
+
+            return signatureField;
+        };
+
+        QByteArray signedDocument;
+        const pdf::PDFDocumentSigner::Result signingResult = pdf::PDFDocumentSigner::sign(parameters, signedDocument);
+        if (signingResult != pdf::PDFDocumentSigner::Result::OK)
+        {
+            QMessageBox::critical(m_widget, tr("Error"), pdf::PDFDocumentSigner::getResultMessage(signingResult));
             return;
         }
-
-        buffer.seek(i2 + 1);
-        buffer.write(signature.toHex());
-
-        buffer.close();
 
         QString fileName = QFileDialog::getSaveFileName(m_dataExchangeInterface->getMainWindow(), tr("Save Signed Document"), getSignedFileName(), tr("Portable Document (*.pdf);;All files (*.*)"));
         if (!fileName.isEmpty())
@@ -518,8 +486,12 @@ void SignaturePlugin::onSignDigitally()
             QFile signedFile(fileName);
             if (signedFile.open(QFile::WriteOnly | QFile::Truncate))
             {
-                signedFile.write(buffer.data());
+                signedFile.write(signedDocument);
                 signedFile.close();
+            }
+            else
+            {
+                QMessageBox::critical(m_widget, tr("Error"), tr("Failed to save the signed document."));
             }
         }
     }
