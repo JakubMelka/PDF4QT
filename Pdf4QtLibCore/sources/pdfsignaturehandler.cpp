@@ -770,6 +770,7 @@ void PDFPublicKeySignatureHandler::verifySignature(PDFSignatureVerificationResul
                 STACK_OF(PKCS7_SIGNER_INFO)* signerInfo = PKCS7_get_signer_info(pkcs7);
                 addHashAlgorithmFromSignerInfoStack(signerInfo, result);
                 addSignatureDateFromSignerInfoStack(signerInfo, result);
+                addTimestampDateFromSignerInfoStack(signerInfo, result);
                 const int signerInfoCount = sk_PKCS7_SIGNER_INFO_num(signerInfo);
                 STACK_OF(X509)* certificates = getCertificates(pkcs7);
                 if (signerInfo && signerInfoCount > 0 && certificates)
@@ -1674,6 +1675,43 @@ void PDFPublicKeySignatureHandler::addSignatureDateFromSignerInfoStack(STACK_OF(
     }
 }
 
+void PDFPublicKeySignatureHandler::addTimestampDateFromSignerInfoStack(STACK_OF(PKCS7_SIGNER_INFO)* signerInfoStack, PDFSignatureVerificationResult& result)
+{
+    if (!signerInfoStack)
+    {
+        // No signature info provided
+        return;
+    }
+
+    if (sk_PKCS7_SIGNER_INFO_num(signerInfoStack) != 1)
+    {
+        // Multiple signature infos, or no signature info
+        return;
+    }
+
+    // Jakub Melka: the timestamp of the signature is a RFC 3161 timestamp token
+    // of the signature value, which is stored as an unsigned attribute of the
+    // signer info (RFC 3161, appendix A).
+    PKCS7_SIGNER_INFO* signerInfo = sk_PKCS7_SIGNER_INFO_value(signerInfoStack, 0);
+    ASN1_TYPE* attribute = PKCS7_get_attribute(signerInfo, NID_id_smime_aa_timeStampToken);
+
+    if (!attribute || attribute->type != V_ASN1_SEQUENCE)
+    {
+        return;
+    }
+
+    const unsigned char* tokenData = ASN1_STRING_get0_data(attribute->value.sequence);
+    if (PKCS7* token = d2i_PKCS7(nullptr, &tokenData, ASN1_STRING_length(attribute->value.sequence)))
+    {
+        if (TS_TST_INFO* info = PKCS7_to_TS_TST_INFO(token))
+        {
+            result.setTimestampDate(getDateTimeFromASN(TS_TST_INFO_get_time(info)));
+            TS_TST_INFO_free(info);
+        }
+
+        PKCS7_free(token);
+    }
+}
 
 }   // namespace pdf
 

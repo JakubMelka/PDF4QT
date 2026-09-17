@@ -82,6 +82,14 @@ protected:
     /// \param result Verification, to which signature date is being set
     static void addSignatureDateFromSignerInfoStack(STACK_OF(PKCS7_SIGNER_INFO)* signerInfoStack, PDFSignatureVerificationResult& result);
 
+    /// Add date/time of the RFC 3161 timestamp, which is stored in the unsigned
+    /// attributes of the signer info, if the signature is timestamped. If there
+    /// are multiple signature infos, nothing is added (because we can't decide,
+    /// which one is right).
+    /// \param signerInfoStack Signer info stack
+    /// \param result Verification, to which timestamp date is being set
+    static void addTimestampDateFromSignerInfoStack(STACK_OF(PKCS7_SIGNER_INFO)* signerInfoStack, PDFSignatureVerificationResult& result);
+
 protected:
     const PDFFormFieldSignature* m_signatureField;
     QByteArray m_sourceData;

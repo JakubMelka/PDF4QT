@@ -506,7 +506,7 @@ void SignatureBuilderTest::preservesAcroForm()
     original.mergeTo(original.getCatalogReference(), dictionary({{"AcroForm", indirectForm ? PDFObject::createReference(formReference) : form}}));
     const PDFDocument source = original.build();
     PDFDocumentBuilder builder(&source);
-    const auto signature = builder.createSignatureDictionary("Adobe.PPKLite", "adbe.pkcs7.detached", "test", QDateTime::currentDateTime(), 0);
+    const auto signature = builder.createSignatureDictionary("Adobe.PPKLite", "adbe.pkcs7.detached", "test", QDateTime::currentDateTime(), 0, "Sig");
     const auto field = builder.createSignatureField("Signature", signature, page);
     const PDFDocument document = builder.build();
     const PDFObject acroForm = document.getObjectByReference(builder.getCatalogReference()).getDictionary()->get("AcroForm");
@@ -569,7 +569,7 @@ void SignatureBuilderTest::widgetStructure()
     const QRectF bbox(20, 30, 80, 40);
     const QRectF rect = bbox.translated(origin);
     const auto stream = visible ? appearance(builder, bbox) : PDFObjectReference();
-    const auto signature = builder.createSignatureDictionary("Adobe.PPKLite", "adbe.pkcs7.detached", "test", QDateTime::currentDateTime(), 0);
+    const auto signature = builder.createSignatureDictionary("Adobe.PPKLite", "adbe.pkcs7.detached", "test", QDateTime::currentDateTime(), 0, "Sig");
     const auto field = builder.createSignatureField("Signature", signature, page, stream, visible ? rect : QRectF());
     PDFDocument document = builder.build();
 

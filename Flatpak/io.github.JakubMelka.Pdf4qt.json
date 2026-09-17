@@ -12,6 +12,7 @@
         "--socket=pulseaudio",
         "--device=dri",
         "--share=ipc",
+        "--share=network",
         "--filesystem=host",
         "--filesystem=xdg-run/speech-dispatcher",
         "--filesystem=xdg-cache/speech-dispatcher",

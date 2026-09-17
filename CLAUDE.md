@@ -60,7 +60,7 @@ Run all of them with `ctest` from the build dir, a single binary directly (`./Un
 
 Strictly layered; each layer is a shared library that only depends on the ones above it.
 
-- **[Pdf4QtLibCore/](Pdf4QtLibCore/)** — the PDF engine. No Qt Widgets dependency (Core, Gui, Svg, Xml only), so it can be built stand-alone via `PDF4QT_BUILD_ONLY_CORE_LIBRARY`. Parsing, object model, rendering, fonts, color management, encryption, signatures, forms, annotations, optimization, XFA.
+- **[Pdf4QtLibCore/](Pdf4QtLibCore/)** — the PDF engine. No Qt Widgets dependency (Core, Gui, Svg, Xml, Network only), so it can be built stand-alone via `PDF4QT_BUILD_ONLY_CORE_LIBRARY`. Parsing, object model, rendering, fonts, color management, encryption, signatures, forms, annotations, optimization, XFA.
 - **[Pdf4QtLibWidgets/](Pdf4QtLibWidgets/)** — widget layer: the page draw widget, draw space controller, asynchronous compilers, tool framework, annotation/form widget managers, page content editor tools.
 - **[Pdf4QtLibGui/](Pdf4QtLibGui/)** — the application shell shared by Editor and Viewer: main windows, `PDFProgramController`, `PDFActionManager`, settings, sidebar, dialogs, text-to-speech.
 - **Applications** — [Pdf4QtEditor/](Pdf4QtEditor/), [Pdf4QtViewer/](Pdf4QtViewer/) (both are thin `main.cpp` shells over Pdf4QtLibGui, Editor with editing features, Viewer read-only), [Pdf4QtPageMaster/](Pdf4QtPageMaster/), [Pdf4QtDiff/](Pdf4QtDiff/), [Pdf4QtLaunchPad/](Pdf4QtLaunchPad/) (launcher for the others), [PdfTool/](PdfTool/) (CLI; one `pdftool*.cpp` per subcommand, all deriving from `PDFToolAbstractApplication` and self-registering).

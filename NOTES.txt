@@ -96,7 +96,10 @@ Section 12: Issues
  - 12.8.4 Long term validation of signatures not performed
  - 12.8.4.5 Validation data in custom VRI are not used, instead of them,
    validation data in DSS or embedded in the signature are used
- - 12.8.5 Document timestamp dictionary not implemented
+ - 12.8.5 Document timestamp dictionary is implemented (issue #188) - document
+   timestamps of a RFC 3161 timestamp authority are created and verified;
+   the validation data of the timestamp are not stored in the DSS, so the
+   long term validation of PAdES (PAdES-LTA) is not complete
  - 12.8.6 Permissions not implemented
  - 12.9 Measure feature is partially implemented - measure and viewport
    dictionaries are parsed (see pdfmeasure.h), number formats including

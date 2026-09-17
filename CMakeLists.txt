@@ -64,9 +64,9 @@ include(GNUInstallDirs)
 find_package(Qt6 REQUIRED COMPONENTS Core LinguistTools)
 
 if(PDF4QT_BUILD_ONLY_CORE_LIBRARY)
-    find_package(Qt6 REQUIRED COMPONENTS Core Gui Svg Xml)
+    find_package(Qt6 REQUIRED COMPONENTS Core Gui Svg Xml Network)
 else()
-    find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg Xml PrintSupport TextToSpeech Concurrent)
+    find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Svg Xml PrintSupport TextToSpeech Concurrent Network)
 endif()
 
 if(PDF4QT_BUILD_TESTS)

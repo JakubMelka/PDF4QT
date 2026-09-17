@@ -1,4 +1,5 @@
 CURRENT:
+ - Issue #188: Timestamp feature request
  - Issue #417: Allow Digital Signature support with visible signatures
  - Issue #427: Bitonal scans lose thin strokes: precompiled page images are downsampled bilinearly instead of area-averaged
  - Issue #425: Update bitonal document feature

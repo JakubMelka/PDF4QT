@@ -1316,11 +1316,13 @@ public:
     /// \param contents Contents (reserved data for signature).
     /// \param signingTime Signing date/time
     /// \param byteRangeItem Item which will fill byte range array.
+    /// \param type Type of the signature dictionary (Sig, DocTimeStamp)
     PDFObjectReference createSignatureDictionary(QByteArray filter,
                                                  QByteArray subfilter,
                                                  QByteArray contents,
                                                  QDateTime signingTime,
-                                                 PDFInteger byteRangeItem);
+                                                 PDFInteger byteRangeItem,
+                                                 QByteArray type);
 
 
     /// This function is used to create a new trailer dictionary, when blank document is created. Do not call this 

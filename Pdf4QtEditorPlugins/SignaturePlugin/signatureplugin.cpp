@@ -32,6 +32,7 @@
 
 #include <QBuffer>
 #include <QAction>
+#include <QApplication>
 #include <QToolButton>
 #include <QMainWindow>
 #include <QMessageBox>
@@ -327,21 +328,24 @@ void SignaturePlugin::onSignDigitally()
 {
     // Jakub Melka: do we have certificates? If not,
     // open certificate dialog, so the user can create
-    // a new one.
+    // a new one. A document timestamp is signed by the timestamp authority
+    // and not by the user, so we continue even when no certificate exists -
+    // the dialog reports the missing certificate for the other signature types.
     if (pdf::PDFCertificateManager::getCertificates(pdf::PDFCertificateUsageFilter::DigitalSignature).empty())
     {
         onOpenCertificatesManager();
-
-        if (pdf::PDFCertificateManager::getCertificates(pdf::PDFCertificateUsageFilter::DigitalSignature).empty())
-        {
-            return;
-        }
     }
 
     SignDialog dialog(m_dataExchangeInterface->getMainWindow(), m_scene.isEmpty());
     if (dialog.exec() == SignDialog::Accepted)
     {
-        bool visibleSignature = dialog.getSignMethod() == SignDialog::SignDigitally;
+        const SignDialog::SignatureType signatureType = dialog.getSignatureType();
+
+        // A document timestamp only attests, that the document existed at the time
+        // of the timestamp - it has no signer and no visible appearance.
+        const bool isDocumentTimestamp = signatureType == SignDialog::TimestampOnly;
+
+        bool visibleSignature = !isDocumentTimestamp && dialog.getSignMethod() == SignDialog::SignDigitally;
         const std::set<pdf::PDFInteger> pageIndices = m_scene.getPageIndices();
         if (visibleSignature && pageIndices.empty())
         {
@@ -371,15 +375,22 @@ void SignaturePlugin::onSignDigitally()
         }
 
         const pdf::PDFCertificateEntry* certificate = dialog.getCertificate();
-        Q_ASSERT(certificate);
+        Q_ASSERT(certificate || isDocumentTimestamp);
 
-        const QString signatureName = QString("pdf4qt_signature_%1").arg(QString::number(QDateTime::currentMSecsSinceEpoch()));
-        const QString reasonText = dialog.getReasonText();
-        const QString contactInfoText = dialog.getContactInfoText();
+        const QString signatureNamePrefix = isDocumentTimestamp ? QString("pdf4qt_timestamp_") : QString("pdf4qt_signature_");
+        const QString signatureName = signatureNamePrefix + QString::number(QDateTime::currentMSecsSinceEpoch());
+        const QString reasonText = isDocumentTimestamp ? QString() : dialog.getReasonText();
+        const QString contactInfoText = isDocumentTimestamp ? QString() : dialog.getContactInfoText();
 
         pdf::PDFDocumentSigner::Parameters parameters;
         parameters.document = m_document;
         parameters.progress = m_widget->getDrawWidgetProxy()->getProgress();
+
+        if (isDocumentTimestamp)
+        {
+            parameters.subfilter = "ETSI.RFC3161";
+            parameters.signatureDictionaryType = "DocTimeStamp";
+        }
 
         // The signed document is written as an incremental update of the file
         // the document was loaded from, so the signatures already present in it
@@ -391,10 +402,41 @@ void SignaturePlugin::onSignDigitally()
             originalFile.close();
         }
 
-        parameters.signFunction = [certificate, &dialog](const QByteArray& dataToBeSigned, QByteArray& signature)
+        pdf::PDFSignatureFactory::TimestampSettings timestampSettings;
+        timestampSettings.url = dialog.getTimestampUrl();
+
+        // Jakub Melka: the failures of the timestamping are described in detail,
+        // because most of them are caused by the timestamp authority and not by
+        // the signing itself.
+        QString timestampErrorMessage;
+
+        switch (signatureType)
         {
-            return pdf::PDFSignatureFactory::sign(*certificate, dialog.getPassword(), dataToBeSigned, signature);
-        };
+            case SignDialog::SignatureOnly:
+                parameters.signFunction = [certificate, &dialog](const QByteArray& dataToBeSigned, QByteArray& signature)
+                {
+                    return pdf::PDFSignatureFactory::sign(*certificate, dialog.getPassword(), dataToBeSigned, signature);
+                };
+                break;
+
+            case SignDialog::SignatureWithTimestamp:
+                parameters.signFunction = [certificate, &dialog, timestampSettings, &timestampErrorMessage](const QByteArray& dataToBeSigned, QByteArray& signature)
+                {
+                    return pdf::PDFSignatureFactory::signWithTimestamp(*certificate, dialog.getPassword(), dataToBeSigned, timestampSettings, signature, timestampErrorMessage);
+                };
+                break;
+
+            case SignDialog::TimestampOnly:
+                parameters.signFunction = [timestampSettings, &timestampErrorMessage](const QByteArray& dataToBeSigned, QByteArray& signature)
+                {
+                    return pdf::PDFSignatureFactory::createTimestampToken(dataToBeSigned, timestampSettings, signature, timestampErrorMessage);
+                };
+                break;
+
+            default:
+                Q_ASSERT(false);
+                return;
+        }
 
         // Jakub Melka: the signature field is created by the signer, because the
         // document must be built again, when the space reserved for the signature
@@ -472,11 +514,18 @@ void SignaturePlugin::onSignDigitally()
             return signatureField;
         };
 
+        // Creating the timestamp needs the timestamp authority to be contacted over
+        // the network, so the signing can take a while.
         QByteArray signedDocument;
+        QApplication::setOverrideCursor(Qt::WaitCursor);
         const pdf::PDFDocumentSigner::Result signingResult = pdf::PDFDocumentSigner::sign(parameters, signedDocument);
+        QApplication::restoreOverrideCursor();
+
         if (signingResult != pdf::PDFDocumentSigner::Result::OK)
         {
-            QMessageBox::critical(m_widget, tr("Error"), pdf::PDFDocumentSigner::getResultMessage(signingResult));
+            const QString errorMessage = !timestampErrorMessage.isEmpty() ? timestampErrorMessage
+                                                                         : pdf::PDFDocumentSigner::getResultMessage(signingResult);
+            QMessageBox::critical(m_widget, tr("Error"), errorMessage);
             return;
         }
 
