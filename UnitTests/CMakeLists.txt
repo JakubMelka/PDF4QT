@@ -316,6 +316,28 @@ set_target_properties(UnitTestsTimestamp PROPERTIES
 )
 add_test(UnitTestsTimestamp "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsTimestamp")
 
+add_executable(UnitTestsAnnotationManipulator tst_annotationmanipulatortest.cpp)
+target_link_libraries(UnitTestsAnnotationManipulator PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+set_target_properties(UnitTestsAnnotationManipulator PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(UnitTestsAnnotationManipulator "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAnnotationManipulator")
+set_tests_properties(UnitTestsAnnotationManipulator PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    add_executable(UnitTestsAnnotationSelection tst_annotationselectiontest.cpp)
+    target_link_libraries(UnitTestsAnnotationSelection PRIVATE Pdf4QtLibWidgets Pdf4QtLibCore Qt6::Widgets Qt6::Test)
+    set_target_properties(UnitTestsAnnotationSelection PROPERTIES
+        WIN32_EXECUTABLE OFF
+        MACOSX_BUNDLE OFF
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+    )
+    add_test(UnitTestsAnnotationSelection "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAnnotationSelection")
+    set_tests_properties(UnitTestsAnnotationSelection PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()
+
 add_executable(UnitTestsDocumentWriter tst_documentwritertest.cpp)
 target_link_libraries(UnitTestsDocumentWriter PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
 set_target_properties(UnitTestsDocumentWriter PROPERTIES
