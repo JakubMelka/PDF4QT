@@ -185,6 +185,7 @@ void PDFWidgetAnnotationManager::setDocument(const PDFModifiedDocument& document
         m_editableAnnotationPage = PDFObjectReference();
         m_hoveredAnnotation = HoveredAnnotation();
         m_hoveredHandle = Handle::None;
+        m_hoveredPoint = -1;
         m_interaction = InteractionState();
         m_dragState = DragState();
 
@@ -954,8 +955,9 @@ void PDFWidgetAnnotationManager::mousePressEvent(QWidget* widget, QMouseEvent* e
             return;
         }
 
-        // 1) Handles of the selection frame
-        if (!isSelectionModifier && beginHandleInteraction(event->pos()))
+        // 1) Points of the selected annotation and handles of the selection frame.
+        //    Points go first - for a line, they are close to the corners of the frame.
+        if (!isSelectionModifier && (beginPointInteraction(event->pos()) || beginHandleInteraction(event->pos())))
         {
             event->accept();
             return;
@@ -1062,7 +1064,7 @@ void PDFWidgetAnnotationManager::mousePressEvent(QWidget* widget, QMouseEvent* e
         if (hasSelection() || canPasteAnnotations() || hasAnnotations)
         {
             event->accept();
-            showSelectionMenu(pdfWidget->mapToGlobal(event->pos()), event->pos());
+            showSelectionMenu(pdfWidget->mapToGlobal(event->pos()), event->pos(), getPointMenuContext(event->pos()));
         }
     }
 }
@@ -1092,10 +1094,10 @@ void PDFWidgetAnnotationManager::showAnnotationMenu(PDFObjectReference annotatio
     Q_EMIT selectionChanged();
     requestRepaint();
 
-    showSelectionMenu(globalMenuPosition, std::nullopt);
+    showSelectionMenu(globalMenuPosition, std::nullopt, PointMenuContext());
 }
 
-void PDFWidgetAnnotationManager::showSelectionMenu(QPoint globalPosition, std::optional<QPoint> widgetPosition)
+void PDFWidgetAnnotationManager::showSelectionMenu(QPoint globalPosition, std::optional<QPoint> widgetPosition, const PointMenuContext& pointContext)
 {
     PDFWidget* pdfWidget = m_proxy->getWidget();
     QMenu menu(tr("Annotation"), pdfWidget);
@@ -1179,6 +1181,23 @@ void PDFWidgetAnnotationManager::showSelectionMenu(QPoint globalPosition, std::o
     QAction* flipVerticalAction = menu.addAction(tr("Flip Vertical"));
     flipVerticalAction->setEnabled(canTransformAny);
     connect(flipVerticalAction, &QAction::triggered, this, [this]() { flipSelectedAnnotations(Qt::Vertical); });
+
+    if (pointContext.annotation.isValid() && (pointContext.insertSegment != -1 || pointContext.removedPoint != -1))
+    {
+        menu.addSeparator();
+
+        if (pointContext.insertSegment != -1)
+        {
+            QAction* insertPointAction = menu.addAction(tr("Insert Point"));
+            connect(insertPointAction, &QAction::triggered, this, [this, pointContext]() { insertAnnotationPoint(pointContext.annotation, size_t(pointContext.insertSegment), pointContext.insertPosition); });
+        }
+
+        if (pointContext.removedPoint != -1)
+        {
+            QAction* removePointAction = menu.addAction(tr("Delete Point"));
+            connect(removePointAction, &QAction::triggered, this, [this, pointContext]() { removeAnnotationPoint(pointContext.annotation, size_t(pointContext.removedPoint)); });
+        }
+    }
 
     menu.addSeparator();
 
@@ -1523,6 +1542,11 @@ void PDFWidgetAnnotationManager::mouseMoveEvent(QWidget* widget, QMouseEvent* ev
                 m_cursor = QCursor(Qt::CrossCursor);
                 break;
 
+            case Interaction::Point:
+                updatePointInteraction(event->pos(), event->modifiers());
+                m_cursor = QCursor(Qt::CrossCursor);
+                break;
+
             case Interaction::Handle:
                 updateHandleInteraction(event->pos(), event->modifiers());
                 m_cursor = m_interaction.handle == Handle::Rotate ? getRotationCursor() : QCursor(getCursorShapeForHandle(m_interaction.handle));
@@ -1576,8 +1600,10 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
 
     const HoveredAnnotation oldHoveredAnnotation = m_hoveredAnnotation;
     const Handle oldHoveredHandle = m_hoveredHandle;
+    const int oldHoveredPoint = m_hoveredPoint;
     m_hoveredAnnotation = HoveredAnnotation();
     m_hoveredHandle = Handle::None;
+    m_hoveredPoint = -1;
 
     if (!m_document || !hasAnyPageAnnotation(currentPages))
     {
@@ -1687,8 +1713,27 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
     // Selection frame handles and the annotation under the cursor
     if (m_interaction.type == Interaction::None && !m_dragState.isActive)
     {
+        // Points of the selected annotation have priority over the selection frame
+        const PointEditInfo pointInfo = getPointEditInfo();
+        if (pointInfo.isValid())
+        {
+            if (const PDFWidgetSnapshot::SnapshotItem* snapshotItem = snapshot.getPageSnapshot(pointInfo.pageIndex))
+            {
+                m_hoveredPoint = hitTestPoint(pointInfo, snapshotItem->pageToDeviceMatrix, event->pos());
+                if (m_hoveredPoint != -1)
+                {
+                    m_cursor = QCursor(Qt::CrossCursor);
+                }
+            }
+        }
+
         for (const PDFWidgetSnapshot::SnapshotItem& snapshotItem : snapshot.items)
         {
+            if (m_hoveredPoint != -1)
+            {
+                break;
+            }
+
             const HandleLayout layout = computeHandleLayout(getSelectionBoundingRectangle(snapshotItem.pageIndex, true), snapshotItem.pageToDeviceMatrix);
             const Handle handle = hitTestHandle(layout, event->pos());
             if (handle != Handle::None)
@@ -1699,7 +1744,7 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
             }
         }
 
-        if (m_hoveredHandle == Handle::None)
+        if (m_hoveredHandle == Handle::None && m_hoveredPoint == -1)
         {
             PDFInteger pageIndex = -1;
             if (const PageAnnotation* pageAnnotation = findSelectableAnnotation(event->pos(), &pageIndex))
@@ -1718,6 +1763,7 @@ void PDFWidgetAnnotationManager::updateFromMouseEvent(QMouseEvent* event)
     // If appearance has changed, then we must redraw the page
     if (appearanceChanged ||
         oldHoveredHandle != m_hoveredHandle ||
+        oldHoveredPoint != m_hoveredPoint ||
         oldHoveredAnnotation.pageIndex != m_hoveredAnnotation.pageIndex ||
         oldHoveredAnnotation.annotation != m_hoveredAnnotation.annotation)
     {
@@ -1867,6 +1913,302 @@ QTransform PDFWidgetAnnotationManager::computeHandleTransform(const QPoint& devi
     return m_interaction.pageToDevice * deviceTransform * m_interaction.deviceToPage;
 }
 
+PDFWidgetAnnotationManager::PointEditInfo PDFWidgetAnnotationManager::getPointEditInfo() const
+{
+    PointEditInfo info;
+
+    // Jakub Melka: points are edited only if a single annotation is selected,
+    // otherwise the handles of several annotations would be mixed together
+    if (!m_document || m_selection.size() != 1)
+    {
+        return info;
+    }
+
+    const SelectedAnnotation& item = m_selection.front();
+    const PageAnnotation* pageAnnotation = findPageAnnotation(item.pageIndex, item.annotation);
+    if (!pageAnnotation || !canTransformAnnotation(*pageAnnotation))
+    {
+        return info;
+    }
+
+    info.points = PDFAnnotationManipulator::getEditablePoints(pageAnnotation->annotation.data());
+    if (info.points.isValid())
+    {
+        info.pageIndex = item.pageIndex;
+        info.annotation = item.annotation;
+    }
+
+    return info;
+}
+
+PDFAnnotationManipulator::EditablePoints PDFWidgetAnnotationManager::getModifiablePoints(PDFObjectReference annotation) const
+{
+    const PDFInteger pageIndex = findAnnotationPage(annotation);
+    if (pageIndex == -1)
+    {
+        return PDFAnnotationManipulator::EditablePoints();
+    }
+
+    const PageAnnotation* pageAnnotation = findPageAnnotation(pageIndex, annotation);
+    if (!pageAnnotation || !canTransformAnnotation(*pageAnnotation))
+    {
+        return PDFAnnotationManipulator::EditablePoints();
+    }
+
+    return PDFAnnotationManipulator::getEditablePoints(pageAnnotation->annotation.data());
+}
+
+int PDFWidgetAnnotationManager::hitTestPoint(const PointEditInfo& info, const QTransform& pageToDevice, const QPointF& devicePosition) const
+{
+    if (!info.isValid())
+    {
+        return -1;
+    }
+
+    const QWidget* widget = m_proxy->getWidget();
+    const qreal radius = PDFWidgetUtils::scaleDPI_x(widget, 4) + PDFWidgetUtils::scaleDPI_x(widget, 3);
+
+    int result = -1;
+    qreal resultDistance = radius;
+    for (size_t i = 0; i < info.points.points.size(); ++i)
+    {
+        const QPointF difference = pageToDevice.map(info.points.points[i]) - devicePosition;
+        const qreal distance = std::hypot(difference.x(), difference.y());
+        if (distance <= resultDistance)
+        {
+            result = int(i);
+            resultDistance = distance;
+        }
+    }
+
+    return result;
+}
+
+int PDFWidgetAnnotationManager::hitTestSegment(const PointEditInfo& info, const QTransform& pageToDevice, const QPointF& devicePosition, QPointF* pagePosition) const
+{
+    if (!info.isValid() || info.points.points.size() < 2)
+    {
+        return -1;
+    }
+
+    const std::vector<QPointF>& points = info.points.points;
+    const size_t segmentCount = info.points.isClosed ? points.size() : points.size() - 1;
+
+    int result = -1;
+    qreal resultDistance = PDFWidgetUtils::scaleDPI_x(m_proxy->getWidget(), 5);
+    for (size_t i = 0; i < segmentCount; ++i)
+    {
+        const QPointF& pageStart = points[i];
+        const QPointF& pageEnd = points[(i + 1) % points.size()];
+        const QPointF start = pageToDevice.map(pageStart);
+        const QPointF end = pageToDevice.map(pageEnd);
+        const QPointF direction = end - start;
+        const qreal lengthSquared = QPointF::dotProduct(direction, direction);
+        if (qFuzzyIsNull(lengthSquared))
+        {
+            continue;
+        }
+
+        // The matrix is affine, so the parameter of the projection is the same in both spaces
+        const qreal parameter = qBound(0.0, QPointF::dotProduct(devicePosition - start, direction) / lengthSquared, 1.0);
+        const QPointF difference = start + direction * parameter - devicePosition;
+        const qreal distance = std::hypot(difference.x(), difference.y());
+        if (distance <= resultDistance)
+        {
+            result = int(i);
+            resultDistance = distance;
+
+            if (pagePosition)
+            {
+                *pagePosition = pageStart + (pageEnd - pageStart) * parameter;
+            }
+        }
+    }
+
+    return result;
+}
+
+bool PDFWidgetAnnotationManager::beginPointInteraction(const QPoint& devicePosition)
+{
+    const PointEditInfo info = getPointEditInfo();
+    if (!info.isValid())
+    {
+        return false;
+    }
+
+    const PDFWidgetSnapshot snapshot = m_proxy->getSnapshot();
+    const PDFWidgetSnapshot::SnapshotItem* snapshotItem = snapshot.getPageSnapshot(info.pageIndex);
+    if (!snapshotItem)
+    {
+        return false;
+    }
+
+    const int pointIndex = hitTestPoint(info, snapshotItem->pageToDeviceMatrix, devicePosition);
+    if (pointIndex == -1)
+    {
+        return false;
+    }
+
+    bool invertible = false;
+    const QTransform deviceToPage = snapshotItem->pageToDeviceMatrix.inverted(&invertible);
+    if (!invertible)
+    {
+        return false;
+    }
+
+    m_interaction = InteractionState();
+    m_interaction.type = Interaction::Point;
+    m_interaction.pageIndex = info.pageIndex;
+    m_interaction.pageToDevice = snapshotItem->pageToDeviceMatrix;
+    m_interaction.deviceToPage = deviceToPage;
+    m_interaction.startDevicePosition = devicePosition;
+    m_interaction.currentDevicePosition = devicePosition;
+    m_interaction.pointIndex = pointIndex;
+    m_interaction.pointAnnotation = info.annotation;
+    m_interaction.previewPoints = info.points.points;
+    m_interaction.isPreviewClosed = info.points.isClosed;
+    m_hoveredAnnotation = HoveredAnnotation();
+    requestRepaint();
+    return true;
+}
+
+void PDFWidgetAnnotationManager::updatePointInteraction(const QPoint& devicePosition, Qt::KeyboardModifiers modifiers)
+{
+    std::vector<QPointF>& points = m_interaction.previewPoints;
+    if (m_interaction.pointIndex < 0 || m_interaction.pointIndex >= int(points.size()))
+    {
+        return;
+    }
+
+    m_interaction.currentDevicePosition = devicePosition;
+    QPointF position = m_interaction.deviceToPage.map(QPointF(devicePosition));
+
+    if (modifiers.testFlag(Qt::ShiftModifier) && points.size() >= 2)
+    {
+        // Constrain the direction from the neighbouring point to the multiples of 45 degrees.
+        // The page is displayed rotated by a multiple of 90 degrees, so the angles are the
+        // same on the screen.
+        const size_t pointIndex = size_t(m_interaction.pointIndex);
+        const size_t neighbourIndex = pointIndex > 0 ? pointIndex - 1 : (m_interaction.isPreviewClosed ? points.size() - 1 : 1);
+        const QPointF neighbour = points[neighbourIndex];
+        const QPointF vector = position - neighbour;
+
+        if (!qFuzzyIsNull(vector.x()) || !qFuzzyIsNull(vector.y()))
+        {
+            const qreal step = M_PI / 4.0;
+            const qreal angle = std::round(std::atan2(vector.y(), vector.x()) / step) * step;
+            const QPointF direction(std::cos(angle), std::sin(angle));
+            position = neighbour + direction * QPointF::dotProduct(vector, direction);
+        }
+    }
+
+    points[size_t(m_interaction.pointIndex)] = position;
+}
+
+PDFWidgetAnnotationManager::PointMenuContext PDFWidgetAnnotationManager::getPointMenuContext(const QPoint& devicePosition) const
+{
+    PointMenuContext context;
+
+    const PointEditInfo info = getPointEditInfo();
+    if (!info.isValid())
+    {
+        return context;
+    }
+
+    const PDFWidgetSnapshot snapshot = m_proxy->getSnapshot();
+    const PDFWidgetSnapshot::SnapshotItem* snapshotItem = snapshot.getPageSnapshot(info.pageIndex);
+    if (!snapshotItem)
+    {
+        return context;
+    }
+
+    const int pointIndex = hitTestPoint(info, snapshotItem->pageToDeviceMatrix, devicePosition);
+    if (pointIndex != -1)
+    {
+        if (info.points.canRemovePoint())
+        {
+            context.annotation = info.annotation;
+            context.removedPoint = pointIndex;
+        }
+        return context;
+    }
+
+    if (info.points.canInsertPoint())
+    {
+        QPointF pagePosition;
+        const int segmentIndex = hitTestSegment(info, snapshotItem->pageToDeviceMatrix, devicePosition, &pagePosition);
+        if (segmentIndex != -1)
+        {
+            context.annotation = info.annotation;
+            context.insertSegment = segmentIndex;
+            context.insertPosition = pagePosition;
+        }
+    }
+
+    return context;
+}
+
+bool PDFWidgetAnnotationManager::setAnnotationPoints(PDFObjectReference annotation, const std::vector<QPointF>& points)
+{
+    if (!m_document || !isModificationAllowed())
+    {
+        return false;
+    }
+
+    PDFDocumentModifier modifier(m_document);
+    modifier.markAnnotationsChanged();
+
+    if (!PDFAnnotationManipulator::setEditablePoints(modifier.getBuilder(), annotation, points) || !modifier.finalize())
+    {
+        return false;
+    }
+
+    Q_EMIT documentModified(PDFModifiedDocument(modifier.getDocument(), nullptr, modifier.getFlags()));
+    return true;
+}
+
+bool PDFWidgetAnnotationManager::moveAnnotationPoint(PDFObjectReference annotation, size_t pointIndex, const QPointF& pagePoint)
+{
+    PDFAnnotationManipulator::EditablePoints points = getModifiablePoints(annotation);
+    if (!points.isValid() || pointIndex >= points.points.size())
+    {
+        return false;
+    }
+
+    points.points[pointIndex] = pagePoint;
+    return setAnnotationPoints(annotation, points.points);
+}
+
+bool PDFWidgetAnnotationManager::insertAnnotationPoint(PDFObjectReference annotation, size_t segmentIndex, const QPointF& pagePoint)
+{
+    PDFAnnotationManipulator::EditablePoints points = getModifiablePoints(annotation);
+    if (!points.canInsertPoint())
+    {
+        return false;
+    }
+
+    const size_t segmentCount = points.isClosed ? points.points.size() : points.points.size() - 1;
+    if (segmentIndex >= segmentCount)
+    {
+        return false;
+    }
+
+    points.points.insert(std::next(points.points.begin(), segmentIndex + 1), pagePoint);
+    return setAnnotationPoints(annotation, points.points);
+}
+
+bool PDFWidgetAnnotationManager::removeAnnotationPoint(PDFObjectReference annotation, size_t pointIndex)
+{
+    PDFAnnotationManipulator::EditablePoints points = getModifiablePoints(annotation);
+    if (!points.canRemovePoint() || pointIndex >= points.points.size())
+    {
+        return false;
+    }
+
+    points.points.erase(std::next(points.points.begin(), pointIndex));
+    return setAnnotationPoints(annotation, points.points);
+}
+
 QRectF PDFWidgetAnnotationManager::getRubberBandRectangle() const
 {
     if (m_interaction.type != Interaction::RubberBand)
@@ -1918,6 +2260,15 @@ void PDFWidgetAnnotationManager::finishInteraction()
             }
 
             setSelectedAnnotations(selection);
+            break;
+        }
+
+        case Interaction::Point:
+        {
+            if (interaction.currentDevicePosition != interaction.startDevicePosition && !interaction.previewPoints.empty())
+            {
+                setAnnotationPoints(interaction.pointAnnotation, interaction.previewPoints);
+            }
             break;
         }
 
@@ -2793,6 +3144,55 @@ void PDFWidgetAnnotationManager::drawSelection(QPainter* painter,
 
                 painter->drawEllipse(layout.rotationHandle, layout.rotationHandleRadius, layout.rotationHandleRadius);
             }
+        }
+    }
+
+    // Points of the selected annotation, which can be edited one by one
+    const bool hasPointPreview = m_interaction.type == Interaction::Point && m_interaction.pageIndex == pageIndex;
+    const PointEditInfo pointInfo = getPointEditInfo();
+    if (pointInfo.isValid() && pointInfo.pageIndex == pageIndex &&
+        (hasPointPreview || (m_interaction.type == Interaction::None && !m_dragState.isDragging)))
+    {
+        const std::vector<QPointF>& points = hasPointPreview ? m_interaction.previewPoints : pointInfo.points.points;
+
+        QPolygonF devicePoints;
+        devicePoints.reserve(qsizetype(points.size()));
+        for (const QPointF& point : points)
+        {
+            devicePoints << pagePointToDevicePointMatrix.map(point);
+        }
+
+        // Jakub Melka: handles of the points are red, so they can be distinguished
+        // at first sight from the blue handles of the selection frame
+        const QColor pointColor = convertor.convert(QColor(220, 0, 0), false, true);
+
+        if (hasPointPreview)
+        {
+            // Preview of the shape with the dragged point
+            QPen previewPen(pointColor, 1.0);
+            previewPen.setCosmetic(true);
+            previewPen.setStyle(Qt::DashLine);
+            painter->setPen(previewPen);
+            painter->setBrush(Qt::NoBrush);
+            if (m_interaction.isPreviewClosed)
+            {
+                painter->drawPolygon(devicePoints);
+            }
+            else
+            {
+                painter->drawPolyline(devicePoints);
+            }
+        }
+
+        const QColor handleColor = convertor.convert(QColor(Qt::white), false, false);
+        const qreal radius = PDFWidgetUtils::scaleDPI_x(m_proxy->getWidget(), 4);
+        const int activePoint = hasPointPreview ? m_interaction.pointIndex : m_hoveredPoint;
+        for (qsizetype i = 0; i < devicePoints.size(); ++i)
+        {
+            const bool isActive = int(i) == activePoint;
+            painter->setPen(isActive ? QPen(pointColor, 2.0) : QPen(handleColor, 1.0));
+            painter->setBrush(isActive ? handleColor : pointColor);
+            painter->drawEllipse(devicePoints[i], radius, radius);
         }
     }
 

@@ -58,6 +58,10 @@ private slots:
     void resizeHandleScalesSelection();
     void rotationHandleRotatesLine();
     void menuRotationAndFlip();
+    void pointHandleMovesPolygonVertex();
+    void shiftConstrainsPointDirection();
+    void insertAndRemovePoints();
+    void pointHandlesNeedSingleSelection();
     void lockedAnnotationIsNotTransformed();
     void dropFromAnotherDocumentInsertsCopy();
     void selectionSurvivesDocumentModification();
@@ -565,6 +569,138 @@ void AnnotationSelectionTest::menuRotationAndFlip()
         QVERIFY(std::abs(flipped[i] - numbers[i]) < 0.01);
     }
     QCOMPARE(fixture.modificationCount, 4);
+}
+
+void AnnotationSelectionTest::pointHandleMovesPolygonVertex()
+{
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+    const QPolygonF triangle = { QPointF(50, 50), QPointF(150, 50), QPointF(100, 150) };
+    const PDFObjectReference polygon = builder.createAnnotationPolygon(page, triangle, 1.0, Qt::yellow, Qt::black, "Title", "Subject", "Contents");
+    SelectionFixture fixture(builder.build());
+    fixture.annotations.setSelectedAnnotations({ polygon });
+
+    // The vertex is close to the corner of the selection frame, the point handle wins
+    const QPoint handle = fixture.device(QPointF(150, 50));
+    const QPoint target = fixture.device(QPointF(220, 90));
+    QVERIFY(fixture.press(handle));
+    QVERIFY(fixture.move(target));
+    QVERIFY(fixture.release(target));
+    QCOMPARE(fixture.modificationCount, 1);
+
+    std::vector<PDFReal> vertices = fixture.numbers(polygon, "Vertices");
+    QCOMPARE(vertices.size(), size_t(6));
+    QVERIFY(std::abs(vertices[0] - 50.0) < 0.01);
+    QVERIFY(std::abs(vertices[1] - 50.0) < 0.01);
+    QVERIFY(std::abs(vertices[2] - 220.0) < 0.5);
+    QVERIFY(std::abs(vertices[3] - 90.0) < 0.5);
+    QVERIFY(std::abs(vertices[4] - 100.0) < 0.01);
+    QVERIFY(std::abs(vertices[5] - 150.0) < 0.01);
+    QVERIFY(fixture.rectangle(polygon).contains(QPointF(219, 90)));
+    QVERIFY(fixture.annotations.isAnnotationSelected(polygon));
+
+    // A click on the handle without a movement does not modify the document
+    QVERIFY(fixture.click(fixture.device(QPointF(100, 150))));
+    QCOMPARE(fixture.modificationCount, 1);
+
+    // Escape cancels the dragging
+    QVERIFY(fixture.press(fixture.device(QPointF(100, 150))));
+    QVERIFY(fixture.move(fixture.device(QPointF(10, 10))));
+    QVERIFY(fixture.key(Qt::Key_Escape));
+    fixture.release(fixture.device(QPointF(10, 10)));
+    QCOMPARE(fixture.modificationCount, 1);
+    QVERIFY(fixture.annotations.isAnnotationSelected(polygon));
+}
+
+void AnnotationSelectionTest::shiftConstrainsPointDirection()
+{
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+    const PDFObjectReference line = builder.createAnnotationLine(page, QRectF(0, 0, 300, 300), QPointF(100, 150), QPointF(200, 150), 1.0, Qt::red, Qt::blue,
+                                                                 "Title", "Subject", "Contents", AnnotationLineEnding::None, AnnotationLineEnding::None);
+    SelectionFixture fixture(builder.build());
+    fixture.annotations.setSelectedAnnotations({ line });
+
+    // The end point is dragged roughly in the diagonal direction, Shift makes it exact
+    const QPoint handle = fixture.device(QPointF(200, 150));
+    const QPoint target = fixture.device(QPointF(180, 226));
+    QVERIFY(fixture.press(handle));
+    QVERIFY(fixture.move(target, Qt::ShiftModifier));
+    QVERIFY(fixture.release(target, Qt::ShiftModifier));
+    QCOMPARE(fixture.modificationCount, 1);
+
+    const std::vector<PDFReal> numbers = fixture.numbers(line, "L");
+    QCOMPARE(numbers.size(), size_t(4));
+    QVERIFY(std::abs(numbers[0] - 100.0) < 0.01);
+    QVERIFY(std::abs(numbers[1] - 150.0) < 0.01);
+    QVERIFY(std::abs((numbers[2] - 100.0) - (numbers[3] - 150.0)) < 0.01);
+    QVERIFY(std::abs(numbers[2] - 178.0) < 1.5);
+}
+
+void AnnotationSelectionTest::insertAndRemovePoints()
+{
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+    const QPolygonF triangle = { QPointF(50, 50), QPointF(150, 50), QPointF(100, 150) };
+    const PDFObjectReference polygon = builder.createAnnotationPolygon(page, triangle, 1.0, Qt::yellow, Qt::black, "Title", "Subject", "Contents");
+    const PDFObjectReference line = builder.createAnnotationLine(page, QRectF(0, 0, 300, 300), QPointF(100, 250), QPointF(200, 250), 1.0, Qt::red, Qt::blue,
+                                                                 "Title", "Subject", "Contents", AnnotationLineEnding::None, AnnotationLineEnding::None);
+    SelectionFixture fixture(builder.build());
+
+    // Triangle cannot lose a point
+    QVERIFY(!fixture.annotations.removeAnnotationPoint(polygon, 0));
+    QCOMPARE(fixture.modificationCount, 0);
+
+    // Insert a point into the last segment (from the last point to the first one)
+    QVERIFY(fixture.annotations.insertAnnotationPoint(polygon, 2, QPointF(60, 110)));
+    QVERIFY(!fixture.annotations.insertAnnotationPoint(polygon, 4, QPointF(60, 110)));
+    QCOMPARE(fixture.modificationCount, 1);
+    std::vector<PDFReal> vertices = fixture.numbers(polygon, "Vertices");
+    QCOMPARE(vertices.size(), size_t(8));
+    QVERIFY(std::abs(vertices[6] - 60.0) < 0.01);
+    QVERIFY(std::abs(vertices[7] - 110.0) < 0.01);
+
+    QVERIFY(fixture.annotations.removeAnnotationPoint(polygon, 1));
+    QVERIFY(!fixture.annotations.removeAnnotationPoint(polygon, 7));
+    QCOMPARE(fixture.modificationCount, 2);
+    vertices = fixture.numbers(polygon, "Vertices");
+    QCOMPARE(vertices.size(), size_t(6));
+    QVERIFY(std::abs(vertices[2] - 100.0) < 0.01);
+    QVERIFY(std::abs(vertices[3] - 150.0) < 0.01);
+
+    QVERIFY(fixture.annotations.moveAnnotationPoint(polygon, 0, QPointF(40, 45)));
+    QVERIFY(!fixture.annotations.moveAnnotationPoint(polygon, 3, QPointF(40, 45)));
+    vertices = fixture.numbers(polygon, "Vertices");
+    QVERIFY(std::abs(vertices[0] - 40.0) < 0.01);
+    QVERIFY(std::abs(vertices[1] - 45.0) < 0.01);
+    QCOMPARE(fixture.modificationCount, 3);
+
+    // Number of points of a line is fixed
+    QVERIFY(!fixture.annotations.insertAnnotationPoint(line, 0, QPointF(150, 260)));
+    QVERIFY(!fixture.annotations.removeAnnotationPoint(line, 0));
+    QVERIFY(fixture.annotations.moveAnnotationPoint(line, 1, QPointF(250, 280)));
+    QCOMPARE(fixture.modificationCount, 4);
+}
+
+void AnnotationSelectionTest::pointHandlesNeedSingleSelection()
+{
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 300));
+    const QPolygonF triangle = { QPointF(50, 50), QPointF(150, 50), QPointF(100, 150) };
+    const PDFObjectReference polygon = builder.createAnnotationPolygon(page, triangle, 1.0, Qt::yellow, Qt::black, "Title", "Subject", "Contents");
+    const PDFObjectReference square = builder.createAnnotationSquare(page, QRectF(200, 200, 40, 40), 1.0, Qt::green, Qt::black, "Title", "Subject", "Contents");
+    SelectionFixture fixture(builder.build());
+    fixture.annotations.setSelectedAnnotations({ polygon, square });
+
+    // With two selected annotations, there are no point handles - the press in the
+    // top vertex of the triangle (far from the handles of the common frame) is
+    // an ordinary press on the annotation
+    const QPoint vertex = fixture.device(QPointF(100, 149));
+    QVERIFY(fixture.press(vertex));
+    fixture.release(vertex);
+    QCOMPARE(fixture.modificationCount, 0);
+    QCOMPARE(fixture.annotations.getSelectedAnnotations().size(), size_t(2));
+    QCOMPARE(fixture.numbers(polygon, "Vertices").size(), size_t(6));
 }
 
 void AnnotationSelectionTest::lockedAnnotationIsNotTransformed()

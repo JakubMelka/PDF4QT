@@ -1213,7 +1213,11 @@ QByteArray PDFDocumentBuilder::getDecodedStream(const PDFStream* stream) const
 
 std::array<PDFReal, 4> PDFDocumentBuilder::getAnnotationReductionRectangle(const QRectF& boundingRect, const QRectF& innerRect) const
 {
-    return { qAbs(innerRect.left() - boundingRect.left()), qAbs(boundingRect.bottom() - innerRect.bottom()), qAbs(boundingRect.right() - innerRect.right()), qAbs(boundingRect.top() - innerRect.top()) };
+    // Jakub Melka: the differences are stored in the order left, bottom, right, top
+    // of the PDF coordinate system. The rectangles are in the page space, where the
+    // y axis points upwards, so QRectF::top() is the bottom edge and QRectF::bottom()
+    // is the top edge (the same convention is used, when the entry RD is parsed).
+    return { qAbs(innerRect.left() - boundingRect.left()), qAbs(innerRect.top() - boundingRect.top()), qAbs(boundingRect.right() - innerRect.right()), qAbs(boundingRect.bottom() - innerRect.bottom()) };
 }
 
 PDFPageContentStreamBuilder::PDFPageContentStreamBuilder(PDFDocumentBuilder* builder,

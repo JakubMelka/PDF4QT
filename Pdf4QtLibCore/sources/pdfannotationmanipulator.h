@@ -114,6 +114,38 @@ public:
     /// \param transform Transformation in page coordinates
     static QPolygonF getTransformedOutline(AnnotationType type, const QRectF& rectangle, const QTransform& transform);
 
+    /// Points of an annotation, which can be edited one by one - end points of
+    /// a line, vertices of a polygon or of a polyline and points of the callout
+    /// line of a free text annotation.
+    struct EditablePoints
+    {
+        std::vector<QPointF> points;
+        bool isClosed = false;      ///< Points form a closed shape (polygon)
+        bool isCountFixed = true;   ///< Points cannot be inserted or removed
+        size_t minimalCount = 0;    ///< Minimal number of the points
+
+        bool isValid() const { return !points.empty(); }
+        bool canInsertPoint() const { return isValid() && !isCountFixed; }
+        bool canRemovePoint() const { return isValid() && !isCountFixed && points.size() > minimalCount; }
+    };
+
+    /// Returns the points of the annotation, which can be edited one by one. If
+    /// the annotation has no such points (or they are not stored as plain points,
+    /// for example a polygon defined by a curved path), then invalid points are returned.
+    /// \param annotation Annotation
+    static EditablePoints getEditablePoints(const PDFAnnotation* annotation);
+
+    /// Sets the points returned by \ref getEditablePoints. The number of points
+    /// can be changed only if the annotation allows it, and it cannot drop below
+    /// the minimal count. The annotation rectangle is updated (for free text
+    /// annotations the text rectangle stays where it is) and the appearance
+    /// stream is regenerated.
+    /// \param builder Document builder
+    /// \param annotation Annotation
+    /// \param points New points
+    /// \returns true, if the annotation has been modified
+    static bool setEditablePoints(PDFDocumentBuilder* builder, PDFObjectReference annotation, const std::vector<QPointF>& points);
+
     /// Creates a copy of the annotation on a page of the same document. The popup
     /// annotation is copied too, replies are not. The appearance streams are shared
     /// between the original and the copy. Returns the reference of the copy.
@@ -186,6 +218,10 @@ private:
     /// Creates an object with a unique annotation name (entry NM)
     static PDFObject createUniqueName();
 
+    /// Returns the bounding rectangle of the points (it can have zero width
+    /// or height). At least one point is required.
+    static QRectF getPointsBoundingRectangle(const std::vector<QPointF>& points);
+
     /// Moves the rectangle, so it is centered at the given point
     static QRectF centerRectangle(const QRectF& rectangle, const QPointF& center);
 
@@ -255,7 +291,7 @@ private:
     /// Links the annotation with the page and its (optional) popup
     static void linkAnnotation(PDFDocumentBuilder* builder, PDFObjectReference annotation, PDFObjectReference popup, PDFObjectReference page, bool createName);
 
-    /// Appends annotations to the annotation array of the page
+    /// Appends annotations (at least one) to the annotation array of the page
     static void appendAnnotationsToPage(PDFDocumentBuilder* builder, PDFObjectReference page, const std::vector<PDFObjectReference>& annotations);
 
     /// Removes annotation from the annotation array of the page. Returns true, if
