@@ -214,7 +214,7 @@ void SignatureAppearanceTest::rendering()
     const auto page = builder.appendPage(QRectF(origin, QSizeF(300, 400)));
     builder.setPageRotation(page, static_cast<PageRotation>(rotation / 90));
     const auto appearance = makeAppearance(builder, origin);
-    const auto signature = builder.createSignatureDictionary("Adobe.PPKLite", "adbe.pkcs7.detached", "test", QDateTime::currentDateTime(), 0, "Sig");
+    const auto signature = builder.createSignatureDictionary("Adobe.PPKLite", "adbe.pkcs7.detached", "test", QDateTime::currentDateTime(), 0);
     const auto field = builder.createSignatureField("Signature", signature, page, appearance, QRectF(20, 30, 80, 40).translated(origin));
     Fixture fixture(builder.build(), true, valid);
     QVERIFY(fixture.forms.getFormFieldForWidget(field));
@@ -264,7 +264,7 @@ void SignatureAppearanceTest::fallback()
     PDFDocumentBuilder builder;
     const auto page = builder.appendPage(QRectF(0, 0, 300, 400));
     const auto appearance = makeAppearance(builder, QPointF());
-    const auto signature = builder.createSignatureDictionary("Adobe.PPKLite", "adbe.pkcs7.detached", "test", QDateTime::currentDateTime(), 0, "Sig");
+    const auto signature = builder.createSignatureDictionary("Adobe.PPKLite", "adbe.pkcs7.detached", "test", QDateTime::currentDateTime(), 0);
     const auto field = builder.createSignatureField("Signature", signature, page, appearance, QRectF(20, 30, 80, 40));
     // Exercise existing PDFs with missing, malformed, direct or indirect appearances.
     auto widget = std::make_shared<PDFDictionary>(*builder.getStorage()->getObjectByReference(field).getDictionary());

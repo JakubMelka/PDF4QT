@@ -284,7 +284,7 @@ set_target_properties(UnitTestsSignatureBuilder PROPERTIES
 add_test(UnitTestsSignatureBuilder "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsSignatureBuilder")
 
 add_executable(UnitTestsTimestamp tst_timestamptest.cpp)
-target_link_libraries(UnitTestsTimestamp PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test OpenSSL::Crypto)
+target_link_libraries(UnitTestsTimestamp PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Network Qt6::Test OpenSSL::Crypto)
 set_target_properties(UnitTestsTimestamp PROPERTIES
     WIN32_EXECUTABLE OFF
     MACOSX_BUNDLE OFF

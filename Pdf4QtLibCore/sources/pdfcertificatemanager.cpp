@@ -329,6 +329,23 @@ bool PDFSignatureFactory::sign(const PDFCertificateEntry& certificateEntry,
 namespace
 {
 
+/// Fills the verification context of a RFC 3161 timestamp. The functions with
+/// the 0 in their name have clear ownership semantics, but they were introduced
+/// in OpenSSL 3.4, so the older ones are used with the older versions, which the
+/// project still supports. All objects are owned by the context in both cases.
+void setTimestampVerifyContextData(TS_VERIFY_CTX* context, X509_STORE* store, STACK_OF(X509)* certificates, BIO* data)
+{
+#if OPENSSL_VERSION_NUMBER >= 0x30400000L
+    TS_VERIFY_CTX_set0_store(context, store);
+    TS_VERIFY_CTX_set0_certs(context, certificates);
+    TS_VERIFY_CTX_set0_data(context, data);
+#else
+    TS_VERIFY_CTX_set_store(context, store);
+    TS_VERIFY_CTS_set_certs(context, certificates);
+    TS_VERIFY_CTX_set_data(context, data);
+#endif
+}
+
 /// Sends the RFC 3161 timestamp request to the timestamp authority and reads
 /// its response. Returns false, when the authority cannot be contacted or it
 /// does not answer with a timestamp response.
@@ -372,7 +389,13 @@ bool postTimestampRequest(const QByteArray& requestData,
     const QNetworkReply::NetworkError error = reply->error();
     const QString errorString = reply->errorString();
     const QVariant statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
-    response = reply->readAll();
+
+    // The reply is not readable, when the request has been aborted
+    if (error == QNetworkReply::NoError)
+    {
+        response = reply->readAll();
+    }
+
     reply->deleteLater();
 
     if (error != QNetworkReply::NoError)
@@ -674,9 +697,7 @@ bool PDFSignatureFactory::verifyTimestampToken(const QByteArray& data, const QBy
     isContextInitialized = isContextInitialized && dataBuffer;
 
     // All objects given to the context are owned by it and are released by it
-    TS_VERIFY_CTX_set0_store(verifyContext, store);
-    TS_VERIFY_CTX_set0_certs(verifyContext, certificates);
-    TS_VERIFY_CTX_set0_data(verifyContext, dataBuffer);
+    setTimestampVerifyContextData(verifyContext, store, certificates, dataBuffer);
     TS_VERIFY_CTX_set_flags(verifyContext, TS_VFY_SIGNATURE | TS_VFY_VERSION | TS_VFY_DATA);
 
     const int verifyResult = isContextInitialized ? TS_RESP_verify_token(verifyContext, tokenObject.get()) : 0;

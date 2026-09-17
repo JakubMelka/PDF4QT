@@ -62,6 +62,28 @@
 namespace pdf
 {
 
+namespace
+{
+
+/// Fills the verification context of a RFC 3161 timestamp. The functions with
+/// the 0 in their name have clear ownership semantics, but they were introduced
+/// in OpenSSL 3.4, so the older ones are used with the older versions, which the
+/// project still supports. All objects are owned by the context in both cases.
+void setTimestampVerifyContextData(TS_VERIFY_CTX* context, X509_STORE* store, STACK_OF(X509)* certificates, BIO* data)
+{
+#if OPENSSL_VERSION_NUMBER >= 0x30400000L
+    TS_VERIFY_CTX_set0_store(context, store);
+    TS_VERIFY_CTX_set0_certs(context, certificates);
+    TS_VERIFY_CTX_set0_data(context, data);
+#else
+    TS_VERIFY_CTX_set_store(context, store);
+    TS_VERIFY_CTS_set_certs(context, certificates);
+    TS_VERIFY_CTX_set_data(context, data);
+#endif
+}
+
+}   // namespace
+
 template<typename T>
 using openssl_ptr = std::unique_ptr<T, void(*)(T*)>;
 
@@ -336,6 +358,15 @@ void PDFSignatureVerificationResult::addSignatureNotCoveredBytesWarning(PDFInteg
     {
         m_flags.setFlag(Warning_Signature_NotCoveredBytes);
         m_warnings << PDFTranslationContext::tr("%1 bytes are not covered by signature.").arg(count);
+    }
+}
+
+void PDFSignatureVerificationResult::addSignatureTimestampNotVerifiedWarning()
+{
+    if (!m_flags.testFlag(Warning_Signature_TimestampNotVerified))
+    {
+        m_flags.setFlag(Warning_Signature_TimestampNotVerified);
+        m_warnings << PDFTranslationContext::tr("Timestamp of the signature could not be verified, the time of the signing is not attested by a timestamp authority.");
     }
 }
 
@@ -770,7 +801,7 @@ void PDFPublicKeySignatureHandler::verifySignature(PDFSignatureVerificationResul
                 STACK_OF(PKCS7_SIGNER_INFO)* signerInfo = PKCS7_get_signer_info(pkcs7);
                 addHashAlgorithmFromSignerInfoStack(signerInfo, result);
                 addSignatureDateFromSignerInfoStack(signerInfo, result);
-                addTimestampDateFromSignerInfoStack(signerInfo, result);
+                verifySignatureTimestampAttribute(signerInfo, result);
                 const int signerInfoCount = sk_PKCS7_SIGNER_INFO_num(signerInfo);
                 STACK_OF(X509)* certificates = getCertificates(pkcs7);
                 if (signerInfo && signerInfoCount > 0 && certificates)
@@ -922,10 +953,8 @@ void PDFSignatureHandler_ETSI_RFC3161::verifySignatureTimestamp(PDFSignatureVeri
             // Initialization of verification context
             TS_VERIFY_CTX* ts_context = TS_VERIFY_CTX_new();
             TS_VERIFY_CTX_init(ts_context);
-            TS_VERIFY_CTX_set_data(ts_context, inputBuffer);
             TS_VERIFY_CTX_set_flags(ts_context, TS_VFY_ALL_DATA & ~TS_VFY_POLICY & ~TS_VFY_NONCE & ~TS_VFY_TSA_NAME);
-            TS_VERIFY_CTX_set_store(ts_context, store);
-            TS_VERIFY_CTS_set_certs(ts_context, usedCertificates);
+            setTimestampVerifyContextData(ts_context, store, usedCertificates, inputBuffer);
 
             // Get timestamp and hash algorithm
             if (TS_TST_INFO* info = PKCS7_to_TS_TST_INFO(pkcs7))
@@ -1675,7 +1704,7 @@ void PDFPublicKeySignatureHandler::addSignatureDateFromSignerInfoStack(STACK_OF(
     }
 }
 
-void PDFPublicKeySignatureHandler::addTimestampDateFromSignerInfoStack(STACK_OF(PKCS7_SIGNER_INFO)* signerInfoStack, PDFSignatureVerificationResult& result)
+void PDFPublicKeySignatureHandler::verifySignatureTimestampAttribute(STACK_OF(PKCS7_SIGNER_INFO)* signerInfoStack, PDFSignatureVerificationResult& result) const
 {
     if (!signerInfoStack)
     {
@@ -1689,27 +1718,89 @@ void PDFPublicKeySignatureHandler::addTimestampDateFromSignerInfoStack(STACK_OF(
         return;
     }
 
-    // Jakub Melka: the timestamp of the signature is a RFC 3161 timestamp token
-    // of the signature value, which is stored as an unsigned attribute of the
-    // signer info (RFC 3161, appendix A).
     PKCS7_SIGNER_INFO* signerInfo = sk_PKCS7_SIGNER_INFO_value(signerInfoStack, 0);
     ASN1_TYPE* attribute = PKCS7_get_attribute(signerInfo, NID_id_smime_aa_timeStampToken);
 
-    if (!attribute || attribute->type != V_ASN1_SEQUENCE)
+    if (!attribute)
     {
+        // The signature is not timestamped
         return;
     }
 
-    const unsigned char* tokenData = ASN1_STRING_get0_data(attribute->value.sequence);
-    if (PKCS7* token = d2i_PKCS7(nullptr, &tokenData, ASN1_STRING_length(attribute->value.sequence)))
-    {
-        if (TS_TST_INFO* info = PKCS7_to_TS_TST_INFO(token))
-        {
-            result.setTimestampDate(getDateTimeFromASN(TS_TST_INFO_get_time(info)));
-            TS_TST_INFO_free(info);
-        }
+    // Jakub Melka: the timestamp of the signature is an unsigned attribute, so it
+    // is not covered by the signature of the signer and anyone can replace it. The
+    // time it carries can therefore be used only when the token itself is verified -
+    // its signature, the data it timestamps, which must be the signature value of
+    // the signer, and the certificate of the timestamp authority, which must be
+    // trusted (RFC 3161, chapter 2.4.2). An unverified time is never presented as
+    // the time of the signing.
+    bool isTimestampVerified = false;
 
-        PKCS7_free(token);
+    if (attribute->type == V_ASN1_SEQUENCE)
+    {
+        const unsigned char* tokenData = ASN1_STRING_get0_data(attribute->value.sequence);
+        if (PKCS7* token = d2i_PKCS7(nullptr, &tokenData, ASN1_STRING_length(attribute->value.sequence)))
+        {
+            X509_STORE* store = X509_STORE_new();
+            Q_ASSERT(store);
+            addTrustedCertificates(store);
+
+            STACK_OF(X509)* usedCertificates = sk_X509_new_null();
+
+            // First, add all certificates from the token
+            STACK_OF(X509)* certificatesFromToken = getCertificates(token);
+            for (int i = 0; i < sk_X509_num(certificatesFromToken); ++i)
+            {
+                X509* certificate = sk_X509_value(certificatesFromToken, i);
+                sk_X509_push(usedCertificates, certificate);
+                X509_up_ref(certificate);
+            }
+
+            if (m_parameters.dss && !m_parameters.dss->getMasterItem()->Cert.empty())
+            {
+                // Second, add all certificates from document's security store
+                for (const QByteArray& certificateData : m_parameters.dss->getMasterItem()->Cert)
+                {
+                    const unsigned char* certificateDataBuffer = convertByteArrayToUcharPtr(certificateData);
+                    if (X509* certificate = d2i_X509(nullptr, &certificateDataBuffer, certificateData.size()))
+                    {
+                        sk_X509_push(usedCertificates, certificate);
+                    }
+                }
+            }
+
+            // The token timestamps the signature value of the signer
+            BIO* timestampedData = BIO_new_mem_buf(ASN1_STRING_get0_data(signerInfo->enc_digest),
+                                                   ASN1_STRING_length(signerInfo->enc_digest));
+
+            TS_VERIFY_CTX* ts_context = TS_VERIFY_CTX_new();
+            TS_VERIFY_CTX_init(ts_context);
+            TS_VERIFY_CTX_set_flags(ts_context, TS_VFY_ALL_DATA & ~TS_VFY_POLICY & ~TS_VFY_NONCE & ~TS_VFY_TSA_NAME);
+            setTimestampVerifyContextData(ts_context, store, usedCertificates, timestampedData);
+
+            isTimestampVerified = TS_RESP_verify_token(ts_context, token) > 0;
+
+            if (isTimestampVerified)
+            {
+                if (TS_TST_INFO* info = PKCS7_to_TS_TST_INFO(token))
+                {
+                    result.setTimestampDate(getDateTimeFromASN(TS_TST_INFO_get_time(info)));
+                    TS_TST_INFO_free(info);
+                }
+            }
+
+            // Function TS_VERIFY_CTX_cleanup also frees the store, the certificates
+            // and the data buffer given to the context.
+            TS_VERIFY_CTX_cleanup(ts_context);
+            TS_VERIFY_CTX_free(ts_context);
+
+            PKCS7_free(token);
+        }
+    }
+
+    if (!isTimestampVerified)
+    {
+        result.addSignatureTimestampNotVerifiedWarning();
     }
 }
 

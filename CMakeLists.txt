@@ -75,7 +75,7 @@ endif()
 
 qt_standard_project_setup(I18N_TRANSLATED_LANGUAGES en de cs es ko zh_CN zh_TW fr tr ru)
 
-find_package(OpenSSL REQUIRED)
+find_package(OpenSSL 3.0 REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(OpenJPEG CONFIG REQUIRED)

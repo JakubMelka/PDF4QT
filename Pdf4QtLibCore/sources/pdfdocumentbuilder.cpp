@@ -6293,4 +6293,13 @@ void PDFDocumentBuilder::removePageThumbnail(PDFObjectReference pageReference)
 
 /* END GENERATED CODE */
 
+PDFObjectReference PDFDocumentBuilder::createSignatureDictionary(QByteArray filter,
+                                                                 QByteArray subfilter,
+                                                                 QByteArray contents,
+                                                                 QDateTime signingTime,
+                                                                 PDFInteger byteRangeItem)
+{
+    return createSignatureDictionary(filter, subfilter, contents, signingTime, byteRangeItem, "Sig");
+}
+
 }   // namespace pdf
