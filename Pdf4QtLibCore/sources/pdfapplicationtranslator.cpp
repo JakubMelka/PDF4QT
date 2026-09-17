@@ -50,6 +50,15 @@ PDFApplicationTranslator::ELanguage PDFApplicationTranslator::getLanguage() cons
 void PDFApplicationTranslator::installTranslator()
 {
     QDir applicationDirectory(QCoreApplication::applicationDirPath());
+#ifdef Q_OS_MACOS
+    // GUI bundles keep resources alongside MacOS; command-line tools use the
+    // regular installation layout.
+    if (applicationDirectory.dirName() == QLatin1String("MacOS"))
+    {
+        applicationDirectory.cd("../Resources/translations");
+    }
+    else
+#endif
     applicationDirectory.cd(PDF4QT_TRANSLATIONS_RELATIVE_PATH);
     QString translationPath = applicationDirectory.absolutePath();
 

@@ -726,7 +726,7 @@ bool PDFFormManager::hasUnlockedCalculatedFields() const
     {
         PDFDocumentDataLoaderDecorator loader(m_document);
         const PDFDictionary* dictionary = m_document->getDictionaryFromObject(m_document->getObjectByReference(widget.getWidget()));
-        const PDFAnnotation::Flags flags = dictionary ? PDFAnnotation::Flags(loader.readIntegerFromDictionary(dictionary, "F", 0)) : PDFAnnotation::Flags();
+        const PDFAnnotation::Flags flags = dictionary ? PDFAnnotation::Flags::fromInt(static_cast<PDFAnnotation::Flags::Int>(loader.readIntegerFromDictionary(dictionary, "F", 0))) : PDFAnnotation::Flags();
         return !flags.testFlag(PDFAnnotation::Hidden) && !flags.testFlag(PDFAnnotation::NoView);
     };
 

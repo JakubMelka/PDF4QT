@@ -20,6 +20,15 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+add_executable(UnitTestsVisitor tst_visitortest.cpp)
+target_link_libraries(UnitTestsVisitor PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
+set_target_properties(UnitTestsVisitor PROPERTIES
+    WIN32_EXECUTABLE OFF
+    MACOSX_BUNDLE OFF
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
+)
+add_test(NAME UnitTestsVisitor COMMAND UnitTestsVisitor)
+
 add_executable(UnitTests
 	tst_lexicalanalyzertest.cpp
 )
@@ -271,7 +280,9 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
     )
     add_test(UnitTestsAnnotationTools "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAnnotationTools")
-    set_tests_properties(UnitTestsAnnotationTools PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    if(NOT APPLE)
+        set_tests_properties(UnitTestsAnnotationTools PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endif()
 endif()
 
 add_executable(UnitTestsSignatureBuilder tst_signaturebuildertest.cpp)
@@ -306,5 +317,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
     )
     add_test(UnitTestsSignatureAppearance "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsSignatureAppearance")
-    set_tests_properties(UnitTestsSignatureAppearance PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    if(NOT APPLE)
+        set_tests_properties(UnitTestsSignatureAppearance PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endif()
 endif()

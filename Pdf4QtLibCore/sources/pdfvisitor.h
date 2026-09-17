@@ -26,12 +26,13 @@
 #include "pdfglobal.h"
 #include "pdfobject.h"
 #include "pdfdocument.h"
+#include "pdfexecutionpolicy.h"
 
 #include <QMutex>
 
 #include <map>
 #include <atomic>
-#include <execution>
+#include <algorithm>
 
 namespace pdf
 {
@@ -167,7 +168,7 @@ struct PDFApplyVisitorImpl<Visitor, PDFAbstractVisitor::Strategy::Parallel>
         const PDFObjectStorage::PDFObjects& objects = storage.getObjects();
         const PDFObject& trailerDictionary = storage.getTrailerDictionary();
 
-        std::for_each(std::execution::par, objects.cbegin(), objects.cend(), [visitor](const PDFObjectStorage::Entry& entry) { entry.object.accept(visitor); });
+        PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, objects.cbegin(), objects.cend(), [visitor](const PDFObjectStorage::Entry& entry) { entry.object.accept(visitor); });
         trailerDictionary.accept(visitor);
     }
 };
@@ -192,7 +193,7 @@ struct PDFApplyVisitorImpl<Visitor, PDFAbstractVisitor::Strategy::Merging>
             visitor->merge(&localVisitor);
         };
 
-        std::for_each(std::execution::par, objects.cbegin(), objects.cend(), process);
+        PDFExecutionPolicy::execute(PDFExecutionPolicy::Scope::Unknown, objects.cbegin(), objects.cend(), process);
         trailerDictionary.accept(visitor);
     }
 };
@@ -206,7 +207,7 @@ struct PDFApplyVisitorImpl<Visitor, PDFAbstractVisitor::Strategy::Sequential>
         const PDFObjectStorage::PDFObjects& objects = storage.getObjects();
         const PDFObject& trailerDictionary = storage.getTrailerDictionary();
 
-        std::for_each(std::execution::seq, objects.cbegin(), objects.cend(), [visitor](const PDFObjectStorage::Entry& entry) { entry.object.accept(visitor); });
+        std::for_each(objects.cbegin(), objects.cend(), [visitor](const PDFObjectStorage::Entry& entry) { entry.object.accept(visitor); });
         trailerDictionary.accept(visitor);
     }
 };

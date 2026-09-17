@@ -1,0 +1,36 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 29, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "macos-arm64",
+      "displayName": "macOS Apple Silicon (vcpkg Qt)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/macos-arm64",
+      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_POLICY_DEFAULT_CMP0156": "NEW",
+        "CMAKE_CXX_COMPILER": "/usr/bin/clang++",
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/build/macos-arm64/install",
+        "VCPKG_TARGET_TRIPLET": "arm64-osx-dynamic",
+        "VCPKG_HOST_TRIPLET": "arm64-osx-dynamic",
+        "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/vcpkg/triplets",
+        "VCPKG_MANIFEST_FEATURES": "qt",
+        "PDF4QT_INSTALL_TO_USR": "OFF",
+        "PDF4QT_INSTALL_INCLUDE": "OFF",
+        "PDF4QT_BUILD_TESTS": "ON",
+        "PDF4QT_BUILD_DEVELOPER_TOOLS": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [ { "name": "macos-arm64", "configurePreset": "macos-arm64" } ],
+  "testPresets": [
+    {
+      "name": "macos-arm64",
+      "configurePreset": "macos-arm64",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}

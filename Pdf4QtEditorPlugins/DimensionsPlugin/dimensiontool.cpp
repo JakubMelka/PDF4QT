@@ -210,6 +210,9 @@ Dimension::Type DimensionTool::getDimensionType() const
 
         case DimensionTool::Angle:
             return Dimension::Type::Angular;
+
+        case DimensionTool::LastStyle:
+            break;
     }
 
     Q_ASSERT(false);
