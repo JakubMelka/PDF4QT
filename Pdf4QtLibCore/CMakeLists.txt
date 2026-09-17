@@ -28,6 +28,8 @@ add_library(Pdf4QtLibCore SHARED
     sources/pdfalgorithmlcs.h
     sources/pdfannotation.cpp
     sources/pdfannotation.h
+    sources/pdfannotationmanipulator.cpp
+    sources/pdfannotationmanipulator.h
     sources/pdfblendfunction.cpp
     sources/pdfblendfunction.h
     sources/pdfccittfaxcodes.h
