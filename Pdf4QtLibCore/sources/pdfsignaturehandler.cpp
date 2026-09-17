@@ -923,8 +923,6 @@ void PDFSignatureHandler_ETSI_RFC3161::verifySignatureTimestamp(PDFSignatureVeri
             // case, this library will crash anyway.
             Q_ASSERT(store);
 
-            addTrustedCertificates(store);
-
             // Add certificates from DSS store
             STACK_OF(X509)* certificatesFromPkcs7 = getCertificates(pkcs7);
             STACK_OF(X509)* usedCertificates = sk_X509_new_null();
@@ -950,26 +948,48 @@ void PDFSignatureHandler_ETSI_RFC3161::verifySignatureTimestamp(PDFSignatureVeri
                 }
             }
 
+            // Jakub Melka: the signature of the timestamp token and the trust in
+            // the timestamp authority are two different things. The certificate
+            // of the authority is verified by the function verifyCertificateCAdES
+            // and its result is reported as a certificate error, so here we check
+            // only, that the token is correctly signed and that it really covers
+            // the data of the document - otherwise an untrusted or an expired
+            // certificate of the authority would be reported as damaged signed
+            // data. The certificate, which signed the token, therefore ends the
+            // chain here and neither its issuers nor its validity are verified.
+            X509_STORE_set_flags(store, X509_V_FLAG_PARTIAL_CHAIN | X509_V_FLAG_NO_CHECK_TIME);
+            if (STACK_OF(X509)* signers = PKCS7_get0_signers(pkcs7, usedCertificates, 0))
+            {
+                if (sk_X509_num(signers) > 0)
+                {
+                    X509_STORE_add_cert(store, sk_X509_value(signers, 0));
+                }
+
+                sk_X509_free(signers);
+            }
+
             // Initialization of verification context
             TS_VERIFY_CTX* ts_context = TS_VERIFY_CTX_new();
             TS_VERIFY_CTX_init(ts_context);
             TS_VERIFY_CTX_set_flags(ts_context, TS_VFY_ALL_DATA & ~TS_VFY_POLICY & ~TS_VFY_NONCE & ~TS_VFY_TSA_NAME);
             setTimestampVerifyContextData(ts_context, store, usedCertificates, inputBuffer);
 
-            // Get timestamp and hash algorithm
-            if (TS_TST_INFO* info = PKCS7_to_TS_TST_INFO(pkcs7))
-            {
-                // Date/time of timestamp
-                const ASN1_GENERALIZEDTIME* time = TS_TST_INFO_get_time(info);
-                result.setTimestampDate(getDateTimeFromASN(time));
-            }
-
             STACK_OF(PKCS7_SIGNER_INFO)* signerInfos = PKCS7_get_signer_info(pkcs7);
             addHashAlgorithmFromSignerInfoStack(signerInfos, result);
             addSignatureDateFromSignerInfoStack(signerInfos, result);
 
             const int verifyValue = TS_RESP_verify_token(ts_context, pkcs7);
-            if (verifyValue <= 0)
+            if (verifyValue > 0)
+            {
+                // The time of a token, which does not belong to the document,
+                // says nothing about it, so it is read only from a verified one.
+                if (TS_TST_INFO* info = PKCS7_to_TS_TST_INFO(pkcs7))
+                {
+                    result.setTimestampDate(getDateTimeFromASN(TS_TST_INFO_get_time(info)));
+                    TS_TST_INFO_free(info);
+                }
+            }
+            else
             {
                 const int reason = ERR_GET_REASON(ERR_get_error());
                 switch (reason)
@@ -1772,6 +1792,11 @@ void PDFPublicKeySignatureHandler::verifySignatureTimestampAttribute(STACK_OF(PK
             // The token timestamps the signature value of the signer
             BIO* timestampedData = BIO_new_mem_buf(ASN1_STRING_get0_data(signerInfo->enc_digest),
                                                    ASN1_STRING_length(signerInfo->enc_digest));
+
+            if (m_parameters.ignoreExpirationDate)
+            {
+                X509_STORE_set_flags(store, X509_V_FLAG_NO_CHECK_TIME);
+            }
 
             TS_VERIFY_CTX* ts_context = TS_VERIFY_CTX_new();
             TS_VERIFY_CTX_init(ts_context);

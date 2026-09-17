@@ -404,6 +404,7 @@ private slots:
     void timestampTokenMatchesTimestampedData();
     void signatureTimestampIsAttachedToSignature();
     void documentTimestampIsCreatedAndVerified();
+    void documentTimestampOfUntrustedAuthorityIsSignatureValid();
     void documentTimestampOfEncryptedDocument();
     void signatureWithTimestampIsCreatedAndVerified();
     void timestampOfUntrustedAuthorityIsNotUsed();
@@ -865,6 +866,35 @@ void TimestampTest::documentTimestampIsCreatedAndVerified()
     QCOMPARE(results.size(), size_t(1));
     QVERIFY2(results.front().isSignatureValid(), qPrintable(results.front().getErrors().join('\n')));
     QVERIFY(results.front().isCertificateValid());
+    QVERIFY(results.front().getTimestampDate().isValid());
+}
+
+void TimestampTest::documentTimestampOfUntrustedAuthorityIsSignatureValid()
+{
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 400));
+    PDFDocument document = builder.build();
+
+    QString errorMessage;
+    auto signFunction = [&](const QByteArray& data, QByteArray& timestamp)
+    {
+        return PDFSignatureFactory::createTimestampToken(data, getTimestampSettings(), timestamp, errorMessage);
+    };
+
+    QByteArray signedDocument;
+    QCOMPARE(signDocument(document, page, signFunction, true, signedDocument), PDFDocumentSigner::Result::OK);
+
+    // The authority is not trusted here. That is a property of its certificate
+    // and it must be reported as such - the token itself is correctly signed and
+    // it covers the document, so the data of the signature are not damaged.
+    const auto results = verifySignedDocument(signedDocument);
+    QCOMPARE(results.size(), size_t(1));
+    QVERIFY2(results.front().isSignatureValid(), qPrintable(results.front().getErrors().join('\n')));
+    QVERIFY(!results.front().isCertificateValid());
+    QVERIFY(results.front().hasFlag(PDFSignatureVerificationResult::Error_Certificate_TrustedNotFound) ||
+            results.front().hasFlag(PDFSignatureVerificationResult::Error_Certificate_SelfSigned));
+
+    // The time of the timestamp is known, the trust in it is a decision of the user.
     QVERIFY(results.front().getTimestampDate().isValid());
 }
 
