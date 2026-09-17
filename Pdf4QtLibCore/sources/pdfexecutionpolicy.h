@@ -31,7 +31,7 @@
 #include <QThreadPool>
 
 #include <atomic>
-#include <execution>
+#include <algorithm>
 #include <exception>
 #include <limits>
 #include <stdexcept>
@@ -187,7 +187,7 @@ public:
         Q_UNUSED(scope);
 
         // We always sort by single thread
-        std::sort(std::execution::seq, first, last, f);
+        std::sort(first, last, f);
     }
 
     /// Returns number of active threads for given scope
