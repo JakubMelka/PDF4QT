@@ -597,8 +597,15 @@ public:
         const QString simplifiedText = text.simplified().toCaseFolded();
         if (m_filterText != simplifiedText)
         {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 10, 0)
+            beginFilterChange();
+#endif
             m_filterText = simplifiedText;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 10, 0)
+            endFilterChange(QSortFilterProxyModel::Direction::Rows);
+#else
             invalidateRowsFilter();
+#endif
         }
     }
 

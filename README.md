@@ -110,6 +110,8 @@ On Linux, a GCC version >= 8 should work, altough we tested it with GCC 11.
 
 ### Compiling from sources
 
+For macOS Apple Silicon with Qt built by vcpkg, see [Building on macOS](docs/build-macos.md).
+
 1. Install [vcpkg](https://vcpkg.io/en/getting-started.html)
 
         git clone https://github.com/Microsoft/vcpkg.git

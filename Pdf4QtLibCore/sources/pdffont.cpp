@@ -540,6 +540,7 @@ private:
 
 #ifdef Q_OS_UNIX
     static void checkFontConfigError(FcBool result);
+    std::unique_ptr<FcConfig, decltype(&FcConfigDestroy)> m_fontConfig{ nullptr, &FcConfigDestroy };
 #endif
 
     /// Create a postscript name for comparation purposes
@@ -972,10 +973,10 @@ SystemFontData PDFSystemFontInfoStorage::loadFontImpl(const FontDescriptor* desc
         checkFontConfigError(FcPatternAddInteger(p, FC_WIDTH, sit->second));
     }
 
-    checkFontConfigError(FcConfigSubstitute(nullptr, p, FcMatchPattern));
+    checkFontConfigError(FcConfigSubstitute(m_fontConfig.get(), p, FcMatchPattern));
     FcDefaultSubstitute(p);
     FcResult res = FcResultNoMatch;
-    FcPattern* match = FcFontMatch(nullptr, p, &res);
+    FcPattern* match = FcFontMatch(m_fontConfig.get(), p, &res);
     if (match)
     {
         // Fontconfig substitutes an arbitrary font for an unknown family. When a list
@@ -1044,6 +1045,18 @@ SystemFontData PDFSystemFontInfoStorage::loadFontImpl(const FontDescriptor* desc
 
 PDFSystemFontInfoStorage::PDFSystemFontInfoStorage()
 {
+#ifdef Q_OS_MACOS
+    // Use system font directories without depending on an external Fontconfig
+    // installation or changing the host application's global configuration.
+    m_fontConfig.reset(FcConfigCreate());
+    checkFontConfigError(m_fontConfig != nullptr);
+    QFile configurationFile(QStringLiteral(":/fonts/fontconfig-macos.conf"));
+    checkFontConfigError(configurationFile.open(QIODevice::ReadOnly));
+    const QByteArray configuration = configurationFile.readAll();
+    checkFontConfigError(FcConfigParseAndLoadFromMemory(m_fontConfig.get(),
+                         reinterpret_cast<const FcChar8*>(configuration.constData()), FcTrue));
+    checkFontConfigError(FcConfigBuildFonts(m_fontConfig.get()));
+#endif
 #ifdef Q_OS_WIN
     LOGFONT logfont;
     std::memset(&logfont, 0, sizeof(logfont));

@@ -205,6 +205,11 @@ target_link_libraries(Pdf4QtLibCore PRIVATE Freetype::Freetype)
 target_link_libraries(Pdf4QtLibCore PRIVATE openjp2)
 target_link_libraries(Pdf4QtLibCore PRIVATE JPEG::JPEG)
 
+if(APPLE)
+    find_package(Fontconfig REQUIRED)
+    target_link_libraries(Pdf4QtLibCore PRIVATE Fontconfig::Fontconfig)
+endif()
+
 if(LINUX_GCC)
     target_link_libraries(Pdf4QtLibCore PUBLIC TBB::tbb)
 endif()

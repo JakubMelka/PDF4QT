@@ -2519,6 +2519,8 @@ void PDFProgramController::loadPlugins()
     QDir directory(QApplication::applicationDirPath() + "/" PDF4QT_PLUGINS_RELATIVE_PATH);
 #if defined(Q_OS_WIN)
     availablePlugins = directory.entryList(QStringList("*.dll"));
+#elif defined(Q_OS_MACOS)
+    availablePlugins = directory.entryList(QStringList("*.dylib"), QDir::Files | QDir::NoSymLinks);
 #elif defined(Q_OS_UNIX)
     availablePlugins = directory.entryList(QStringList("*.so"));
 #else

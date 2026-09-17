@@ -48,6 +48,7 @@ endif()
 
 option(PDF4QT_BUILD_ONLY_CORE_LIBRARY "Build only core library" OFF)
 option(PDF4QT_BUILD_TESTS "Build UnitTests" ON)
+option(PDF4QT_BUILD_DEVELOPER_TOOLS "Build code and example generators and the JBIG2 viewer" ON)
 option(PDF4QT_ENABLE_COVERAGE "Instrument the code for the source based code coverage of clang (llvm-cov)" OFF)
 
 set(PDF4QT_QT_ROOT "" CACHE PATH "Qt root directory")
@@ -176,6 +177,9 @@ cmake_path(RELATIVE_PATH PDF4QT_PLUGINS_DIR
 cmake_path(RELATIVE_PATH PDF4QT_INSTALL_TRANS_DIR
            BASE_DIRECTORY "${PDF4QT_INSTALL_BIN_DIR}"
            OUTPUT_VARIABLE PDF4QT_TRANSLATIONS_RELATIVE_PATH)
+if(APPLE)
+    set(PDF4QT_PLUGINS_RELATIVE_PATH "../PlugIns/pdf4qt")
+endif()
 configure_file(config.h.cmake config.h)
 
 add_subdirectory(Pdf4QtLibCore)
@@ -202,9 +206,11 @@ endif()
 
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_subdirectory(Pdf4QtLibWidgets)
-    add_subdirectory(CodeGenerator)
-    add_subdirectory(JBIG2_Viewer)
-    add_subdirectory(PdfExampleGenerator)
+    if(PDF4QT_BUILD_DEVELOPER_TOOLS)
+        add_subdirectory(CodeGenerator)
+        add_subdirectory(JBIG2_Viewer)
+        add_subdirectory(PdfExampleGenerator)
+    endif()
     add_subdirectory(PdfTool)
     add_subdirectory(Pdf4QtLibGui)
     add_subdirectory(Pdf4QtEditorPlugins)
@@ -278,7 +284,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         configure_file(${CMAKE_CURRENT_SOURCE_DIR}/AppxManifest.xml.in ${CMAKE_CURRENT_BINARY_DIR}/AppxManifest.xml)
         install(FILES ${CMAKE_CURRENT_BINARY_DIR}/AppxManifest.xml DESTINATION ${PDF4QT_INSTALL_BIN_DIR})
         install(FILES assets/logo.png DESTINATION ${PDF4QT_INSTALL_BIN_DIR}/assets)
-    else()
+    elseif(PDF4QT_LINUX)
         configure_file(make-package.sh.in make-package.sh)
 
         install(FILES Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDiff.desktop
@@ -304,7 +310,11 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
 
 endif()
 
-if(PDF4QT_INSTALL_DEPENDENCIES AND NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+if(APPLE AND NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    include(cmake/MacOSBundles.cmake)
+endif()
+
+if(PDF4QT_INSTALL_DEPENDENCIES AND NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY AND NOT APPLE)
     install(DIRECTORY ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin/
         RUNTIME DESTINATION ${PDF4QT_INSTALL_LIB_DIR}/
         FILES_MATCHING
