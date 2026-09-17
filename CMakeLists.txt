@@ -48,6 +48,7 @@ endif()
 
 option(PDF4QT_BUILD_ONLY_CORE_LIBRARY "Build only core library" OFF)
 option(PDF4QT_BUILD_TESTS "Build UnitTests" ON)
+option(PDF4QT_BUILD_DEVELOPER_TOOLS "Build code and example generators and the JBIG2 viewer" ON)
 option(PDF4QT_ENABLE_COVERAGE "Instrument the code for the source based code coverage of clang (llvm-cov)" OFF)
 option(PDF4QT_ENABLE_OCR "Build the OCR support with the Tesseract engine (requires Tesseract and Leptonica)" ON)
 option(PDF4QT_OCR_REQUIRED "Release gate of the OCR support: fail the configuration instead of disabling OCR silently when the Tesseract engine is not found, when a built-in language model declared by a manifest (ocr/tesseract/<profile>/manifest.json) has no archive or is not extracted, or when a runtime library of the engine is missing in the installer. Turn it on for the distributed builds, which must ship the OCR engine and the declared built-in model set (OPS-01, LANG-01, LANG-02)" OFF)
@@ -208,6 +209,9 @@ cmake_path(RELATIVE_PATH PDF4QT_INSTALL_TRANS_DIR
 cmake_path(RELATIVE_PATH PDF4QT_INSTALL_OCR_DIR
            BASE_DIRECTORY "${PDF4QT_INSTALL_BIN_DIR}"
            OUTPUT_VARIABLE PDF4QT_OCR_DATA_RELATIVE_PATH)
+if(APPLE)
+    set(PDF4QT_PLUGINS_RELATIVE_PATH "../PlugIns/pdf4qt")
+endif()
 configure_file(config.h.cmake config.h)
 
 add_subdirectory(Pdf4QtLibCore)
@@ -369,9 +373,11 @@ endif()
 
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_subdirectory(Pdf4QtLibWidgets)
-    add_subdirectory(CodeGenerator)
-    add_subdirectory(JBIG2_Viewer)
-    add_subdirectory(PdfExampleGenerator)
+    if(PDF4QT_BUILD_DEVELOPER_TOOLS)
+        add_subdirectory(CodeGenerator)
+        add_subdirectory(JBIG2_Viewer)
+        add_subdirectory(PdfExampleGenerator)
+    endif()
     add_subdirectory(PdfTool)
     add_subdirectory(Pdf4QtLibGui)
     add_subdirectory(Pdf4QtEditorPlugins)
@@ -445,7 +451,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         configure_file(${CMAKE_CURRENT_SOURCE_DIR}/AppxManifest.xml.in ${CMAKE_CURRENT_BINARY_DIR}/AppxManifest.xml)
         install(FILES ${CMAKE_CURRENT_BINARY_DIR}/AppxManifest.xml DESTINATION ${PDF4QT_INSTALL_BIN_DIR})
         install(FILES assets/logo.png DESTINATION ${PDF4QT_INSTALL_BIN_DIR}/assets)
-    else()
+    elseif(PDF4QT_LINUX)
         configure_file(make-package.sh.in make-package.sh)
 
         install(FILES Desktop/io.github.JakubMelka.Pdf4qt.Pdf4QtDiff.desktop
@@ -471,7 +477,11 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
 
 endif()
 
-if(PDF4QT_INSTALL_DEPENDENCIES AND NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+if(APPLE AND NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
+    include(cmake/MacOSBundles.cmake)
+endif()
+
+if(PDF4QT_INSTALL_DEPENDENCIES AND NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY AND NOT APPLE)
     install(DIRECTORY ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin/
         RUNTIME DESTINATION ${PDF4QT_INSTALL_LIB_DIR}/
         FILES_MATCHING

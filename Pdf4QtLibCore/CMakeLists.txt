@@ -238,6 +238,17 @@ target_link_libraries(Pdf4QtLibCore PRIVATE Freetype::Freetype)
 target_link_libraries(Pdf4QtLibCore PRIVATE openjp2)
 target_link_libraries(Pdf4QtLibCore PRIVATE JPEG::JPEG)
 
+if(APPLE)
+    # Match OpenJPEG's spelling so CMake can deduplicate the math library.
+    get_target_property(clipper_link_libraries Clipper2::Clipper2 INTERFACE_LINK_LIBRARIES)
+    if(clipper_link_libraries)
+        list(TRANSFORM clipper_link_libraries REPLACE "^-lm$" "m")
+        set_property(TARGET Clipper2::Clipper2 PROPERTY INTERFACE_LINK_LIBRARIES "${clipper_link_libraries}")
+    endif()
+    find_package(Fontconfig REQUIRED)
+    target_link_libraries(Pdf4QtLibCore PRIVATE Fontconfig::Fontconfig)
+endif()
+
 if(LINUX_GCC)
     target_link_libraries(Pdf4QtLibCore PUBLIC TBB::tbb)
 endif()

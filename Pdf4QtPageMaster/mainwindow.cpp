@@ -601,10 +601,11 @@ public:
         {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 10, 0)
             beginFilterChange();
+#endif
             m_filterText = simplifiedText;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 10, 0)
             endFilterChange(QSortFilterProxyModel::Direction::Rows);
 #else
-            m_filterText = simplifiedText;
             invalidateRowsFilter();
 #endif
         }

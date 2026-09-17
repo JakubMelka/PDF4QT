@@ -20,6 +20,13 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+# The vcpkg Qt build on macOS provides minimal as its headless platform plugin.
+if(APPLE)
+    set(PDF4QT_TEST_QPA_PLATFORM minimal)
+else()
+    set(PDF4QT_TEST_QPA_PLATFORM offscreen)
+endif()
+
 add_executable(UnitTestsVisitor tst_visitortest.cpp)
 target_link_libraries(UnitTestsVisitor PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Test)
 set_target_properties(UnitTestsVisitor PROPERTIES
@@ -280,7 +287,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
     )
     add_test(UnitTestsAnnotationTools "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAnnotationTools")
-    set_tests_properties(UnitTestsAnnotationTools PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    set_tests_properties(UnitTestsAnnotationTools PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=${PDF4QT_TEST_QPA_PLATFORM}")
 endif()
 
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
@@ -292,7 +299,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
     )
     add_test(UnitTestsPageContentEditorTools "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsPageContentEditorTools")
-    set_tests_properties(UnitTestsPageContentEditorTools PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    set_tests_properties(UnitTestsPageContentEditorTools PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=${PDF4QT_TEST_QPA_PLATFORM}")
 endif()
 
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
@@ -304,7 +311,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
     )
     add_test(UnitTestsDrawSpace "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDrawSpace")
-    set_tests_properties(UnitTestsDrawSpace PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    set_tests_properties(UnitTestsDrawSpace PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=${PDF4QT_TEST_QPA_PLATFORM}")
 endif()
 
 add_executable(UnitTestsSignatureBuilder tst_signaturebuildertest.cpp)
@@ -333,7 +340,7 @@ set_target_properties(UnitTestsAnnotationManipulator PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
 )
 add_test(UnitTestsAnnotationManipulator "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAnnotationManipulator")
-set_tests_properties(UnitTestsAnnotationManipulator PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+set_tests_properties(UnitTestsAnnotationManipulator PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=${PDF4QT_TEST_QPA_PLATFORM}")
 
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_executable(UnitTestsAnnotationSelection tst_annotationselectiontest.cpp)
@@ -344,7 +351,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
     )
     add_test(UnitTestsAnnotationSelection "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAnnotationSelection")
-    set_tests_properties(UnitTestsAnnotationSelection PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    set_tests_properties(UnitTestsAnnotationSelection PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=${PDF4QT_TEST_QPA_PLATFORM}")
 
     add_executable(UnitTestsAnnotationIntegration tst_annotationintegrationtest.cpp)
     target_link_libraries(UnitTestsAnnotationIntegration PRIVATE Pdf4QtLibGui Pdf4QtLibWidgets Pdf4QtLibCore Qt6::Widgets Qt6::Test)
@@ -354,7 +361,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
     )
     add_test(UnitTestsAnnotationIntegration "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsAnnotationIntegration")
-    set_tests_properties(UnitTestsAnnotationIntegration PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    set_tests_properties(UnitTestsAnnotationIntegration PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=${PDF4QT_TEST_QPA_PLATFORM}")
 
     add_executable(UnitTestsFormFields tst_formfieldstest.cpp)
     target_link_libraries(UnitTestsFormFields PRIVATE Pdf4QtLibWidgets Pdf4QtLibCore Qt6::Widgets Qt6::Test)
@@ -364,7 +371,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
     )
     add_test(UnitTestsFormFields "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsFormFields")
-    set_tests_properties(UnitTestsFormFields PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    set_tests_properties(UnitTestsFormFields PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=${PDF4QT_TEST_QPA_PLATFORM}")
 endif()
 
 add_executable(UnitTestsDocumentWriter tst_documentwritertest.cpp)
@@ -393,7 +400,7 @@ set_target_properties(UnitTestsScanPreparation PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
 )
 add_test(UnitTestsScanPreparation "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsScanPreparation")
-set_tests_properties(UnitTestsScanPreparation PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+set_tests_properties(UnitTestsScanPreparation PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=${PDF4QT_TEST_QPA_PLATFORM}")
 
 add_executable(UnitTestsOCR tst_ocrtest.cpp)
 target_link_libraries(UnitTestsOCR PRIVATE Pdf4QtLibCore Qt6::Core Qt6::Gui Qt6::Network Qt6::Test)
@@ -411,7 +418,7 @@ if(PDF4QT_OCR_REQUIRED)
     target_compile_definitions(UnitTestsOCR PRIVATE PDF4QT_OCR_TESTS_REQUIRED)
 endif()
 add_test(UnitTestsOCR "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsOCR")
-set_tests_properties(UnitTestsOCR PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;PDF4QT_OCR_DATA_DIRECTORY=${PDF4QT_OCR_BUILD_DATA_DIR}")
+set_tests_properties(UnitTestsOCR PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=${PDF4QT_TEST_QPA_PLATFORM};PDF4QT_OCR_DATA_DIRECTORY=${PDF4QT_OCR_BUILD_DATA_DIR}")
 
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
     add_executable(UnitTestsOCRDialog tst_ocrdialogtest.cpp)
@@ -429,7 +436,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         target_compile_definitions(UnitTestsOCRDialog PRIVATE PDF4QT_OCR_TESTS_REQUIRED)
     endif()
     add_test(UnitTestsOCRDialog "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsOCRDialog")
-    set_tests_properties(UnitTestsOCRDialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;PDF4QT_OCR_DATA_DIRECTORY=${PDF4QT_OCR_BUILD_DATA_DIR}")
+    set_tests_properties(UnitTestsOCRDialog PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=${PDF4QT_TEST_QPA_PLATFORM};PDF4QT_OCR_DATA_DIRECTORY=${PDF4QT_OCR_BUILD_DATA_DIR}")
 endif()
 
 # Smoke test of the command 'PdfTool ocr' with the Tesseract engine and the built-in models
@@ -445,7 +452,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY AND PDF4QT_ENABLE_OCR)
                                       -DOCR_REQUIRED=${PDF4QT_OCR_SMOKE_REQUIRED}
                                       -P ${CMAKE_CURRENT_SOURCE_DIR}/pdftoolocrsmoke.cmake)
     set_tests_properties(PdfToolOcrSmoke PROPERTIES
-                         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;PDF4QT_OCR_DATA_DIRECTORY=${PDF4QT_OCR_BUILD_DATA_DIR}"
+                         ENVIRONMENT "QT_QPA_PLATFORM=${PDF4QT_TEST_QPA_PLATFORM};PDF4QT_OCR_DATA_DIRECTORY=${PDF4QT_OCR_BUILD_DATA_DIR}"
                          SKIP_REGULAR_EXPRESSION "PDF4QT_OCR_SKIP")
 endif()
 
@@ -463,7 +470,7 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
     )
     add_test(UnitTestsSignatureAppearance "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsSignatureAppearance")
-    set_tests_properties(UnitTestsSignatureAppearance PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    set_tests_properties(UnitTestsSignatureAppearance PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=${PDF4QT_TEST_QPA_PLATFORM}")
 endif()
 
 if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
@@ -488,5 +495,5 @@ if(NOT PDF4QT_BUILD_ONLY_CORE_LIBRARY)
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}
     )
     add_test(UnitTestsDiffOverlay "${CMAKE_BINARY_DIR}/${PDF4QT_INSTALL_BIN_DIR}/UnitTestsDiffOverlay")
-    set_tests_properties(UnitTestsDiffOverlay PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    set_tests_properties(UnitTestsDiffOverlay PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=${PDF4QT_TEST_QPA_PLATFORM}")
 endif()
