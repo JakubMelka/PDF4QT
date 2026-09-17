@@ -27,6 +27,7 @@
 #include "pdfannotation.h"
 #include "pdfdocumentdrawinterface.h"
 #include "pdfsnapper.h"
+#include "pdfannotationmanipulator.h"
 
 #include <QPixmap>
 #include <QUuid>
@@ -54,6 +55,11 @@ class PDFDrawWidgetProxy;
 ///    page, or to another document; holding Ctrl while dropping copies them),
 ///    resized using the handles of the selection frame and rotated using the
 ///    rotation handle above the frame,
+///  - if a single annotation defined by points is selected (line, polygon,
+///    polyline, callout line of a free text), then each point has its own handle
+///    and it can be dragged (Shift constrains the direction to multiples of 45
+///    degrees); points of polygons and polylines can be inserted and removed
+///    using the context menu,
 ///  - Delete removes the selection, Ctrl+C / Ctrl+X / Ctrl+V copy, cut and paste
 ///    the selection through the clipboard (also between documents and between
 ///    running instances of the application), arrows nudge the selection,
@@ -196,6 +202,29 @@ public:
     /// \param orientation Orientation
     void flipSelectedAnnotations(Qt::Orientation orientation);
 
+    /// Moves a single point of the annotation (end point of a line, vertex of
+    /// a polygon or of a polyline, point of the callout line of a free text).
+    /// \param annotation Annotation
+    /// \param pointIndex Index of the point
+    /// \param pagePoint New position of the point in the page coordinates
+    /// \returns true, if the annotation has been modified
+    bool moveAnnotationPoint(PDFObjectReference annotation, size_t pointIndex, const QPointF& pagePoint);
+
+    /// Inserts a new point into a polygon or a polyline. The point is inserted
+    /// into the segment, which starts at the point with the given index.
+    /// \param annotation Annotation
+    /// \param segmentIndex Index of the segment (of its first point)
+    /// \param pagePoint Position of the new point in the page coordinates
+    /// \returns true, if the annotation has been modified
+    bool insertAnnotationPoint(PDFObjectReference annotation, size_t segmentIndex, const QPointF& pagePoint);
+
+    /// Removes a point from a polygon or a polyline. The point is not removed,
+    /// if the shape would degenerate (polygon needs three points, polyline two).
+    /// \param annotation Annotation
+    /// \param pointIndex Index of the point
+    /// \returns true, if the annotation has been modified
+    bool removeAnnotationPoint(PDFObjectReference annotation, size_t pointIndex);
+
 signals:
     void actionTriggered(const PDFAction* action);
     void documentModified(PDFModifiedDocument document);
@@ -242,7 +271,8 @@ private:
     {
         None,
         RubberBand,     ///< Selection of annotations by a dragged rectangle
-        Handle          ///< Resizing or rotation using a handle of the selection frame
+        Handle,         ///< Resizing or rotation using a handle of the selection frame
+        Point           ///< Dragging of a single point of the selected annotation
     };
 
     struct InteractionState
@@ -258,6 +288,29 @@ private:
         QTransform previewTransform;    ///< Transformation of the manipulated annotations (page coordinates)
         qreal previewAngle = 0.0;       ///< Rotation angle of the preview (degrees, clockwise on screen)
         bool isAdditive = false;        ///< Rubber band adds annotations to the selection
+        int pointIndex = -1;            ///< Index of the dragged point
+        PDFObjectReference pointAnnotation; ///< Annotation, whose point is dragged
+        std::vector<QPointF> previewPoints; ///< Points of the annotation with the dragged point (page coordinates)
+        bool isPreviewClosed = false;   ///< Preview points form a closed shape
+    };
+
+    /// Points of the selected annotation, which can be edited one by one
+    struct PointEditInfo
+    {
+        PDFInteger pageIndex = -1;
+        PDFObjectReference annotation;
+        PDFAnnotationManipulator::EditablePoints points;
+
+        bool isValid() const { return pageIndex != -1 && points.isValid(); }
+    };
+
+    /// Point or segment of the selected annotation, for which the context menu is shown
+    struct PointMenuContext
+    {
+        PDFObjectReference annotation;
+        int removedPoint = -1;      ///< Point, which can be removed
+        int insertSegment = -1;     ///< Segment, into which a point can be inserted
+        QPointF insertPosition;     ///< Position of the inserted point (page coordinates)
     };
 
     /// Annotation, which is under the mouse cursor and which can be selected
@@ -349,6 +402,35 @@ private:
     /// Cancels the interaction
     void cancelInteraction();
 
+    /// Returns the points of the selection, which can be edited one by one. They
+    /// are available only if a single annotation, which can be transformed, is selected.
+    PointEditInfo getPointEditInfo() const;
+
+    /// Returns the editable points of the annotation, if the user can modify it
+    PDFAnnotationManipulator::EditablePoints getModifiablePoints(PDFObjectReference annotation) const;
+
+    /// Returns the index of the point handle at the device position, or -1
+    int hitTestPoint(const PointEditInfo& info, const QTransform& pageToDevice, const QPointF& devicePosition) const;
+
+    /// Returns the index of the segment at the device position, or -1
+    /// \param info Points
+    /// \param pageToDevice Page to device matrix
+    /// \param devicePosition Device position
+    /// \param[out] pagePosition Nearest position on the segment in the page coordinates
+    int hitTestSegment(const PointEditInfo& info, const QTransform& pageToDevice, const QPointF& devicePosition, QPointF* pagePosition) const;
+
+    /// Starts dragging of the point handle at the device position
+    bool beginPointInteraction(const QPoint& devicePosition);
+
+    /// Updates the preview of the dragged point
+    void updatePointInteraction(const QPoint& devicePosition, Qt::KeyboardModifiers modifiers);
+
+    /// Returns the point (segment) at the device position for the context menu
+    PointMenuContext getPointMenuContext(const QPoint& devicePosition) const;
+
+    /// Sets the editable points of the annotation and emits the modified document
+    bool setAnnotationPoints(PDFObjectReference annotation, const std::vector<QPointF>& points);
+
     /// Returns the rubber band rectangle in the page coordinates
     QRectF getRubberBandRectangle() const;
 
@@ -367,7 +449,8 @@ private:
     /// Shows the context menu for the current selection
     /// \param globalPosition Position of the menu
     /// \param widgetPosition Position of the mouse in the widget (for pasting)
-    void showSelectionMenu(QPoint globalPosition, std::optional<QPoint> widgetPosition);
+    /// \param pointContext Point or segment of the selected annotation under the mouse
+    void showSelectionMenu(QPoint globalPosition, std::optional<QPoint> widgetPosition, const PointMenuContext& pointContext);
 
     /// Draws the selection, the selection frame with handles, the preview of
     /// the manipulated annotations and the rubber band.
@@ -414,6 +497,7 @@ private:
     mutable std::optional<QCursor> m_rotationCursor;
     HoveredAnnotation m_hoveredAnnotation;
     Handle m_hoveredHandle = Handle::None;
+    int m_hoveredPoint = -1;
     InteractionState m_interaction;
     DragState m_dragState;
 

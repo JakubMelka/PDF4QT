@@ -421,11 +421,9 @@ bool PDFAnnotationManipulator::transformAnnotation(PDFDocumentBuilder* builder,
         return false;
     }
 
+    // Parsing fails only if the dictionary is missing, which is already checked
     const PDFAnnotationPtr parsedAnnotation = PDFAnnotation::parse(storage, annotation);
-    if (!parsedAnnotation)
-    {
-        return false;
-    }
+    Q_ASSERT(parsedAnnotation);
 
     const GeometryKind kind = getGeometryKind(parsedAnnotation->getType());
     if (kind == GeometryKind::NotSupported)
@@ -446,79 +444,63 @@ bool PDFAnnotationManipulator::transformAnnotation(PDFDocumentBuilder* builder,
     QRectF newRectangle = rectangle;
     bool regenerateAppearance = false;
 
-    switch (kind)
+    if (kind == GeometryKind::Points)
     {
-        case GeometryKind::Points:
+        transformPointArray(modifiedDictionary, storage, "QuadPoints", transform);
+        transformPointArray(modifiedDictionary, storage, "Vertices", transform);
+        transformPointArray(modifiedDictionary, storage, "L", transform);
+        transformInkList(modifiedDictionary, storage, transform);
+
+        if (!isTranslation)
         {
-            transformPointArray(modifiedDictionary, storage, "QuadPoints", transform);
-            transformPointArray(modifiedDictionary, storage, "Vertices", transform);
-            transformPointArray(modifiedDictionary, storage, "L", transform);
-            transformInkList(modifiedDictionary, storage, transform);
-
-            if (!isTranslation)
-            {
-                // Lengths of the leader lines are scaled by the mean scale factor
-                const PDFReal factor = std::sqrt(std::abs(transform.determinant()));
-                scaleNumber(modifiedDictionary, storage, "LL", factor);
-                scaleNumber(modifiedDictionary, storage, "LLE", factor);
-                scaleNumber(modifiedDictionary, storage, "LLO", factor);
-            }
-
-            newRectangle = transform.mapRect(rectangle);
-            regenerateAppearance = !isTranslation;
-            break;
+            // Lengths of the leader lines are scaled by the mean scale factor
+            const PDFReal factor = std::sqrt(std::abs(transform.determinant()));
+            scaleNumber(modifiedDictionary, storage, "LL", factor);
+            scaleNumber(modifiedDictionary, storage, "LLE", factor);
+            scaleNumber(modifiedDictionary, storage, "LLO", factor);
         }
 
-        case GeometryKind::Box:
-        {
-            const bool hasCalloutLine = transformPointArray(modifiedDictionary, storage, "CL", transform);
-
-            if (axisAligned)
-            {
-                newRectangle = transform.mapRect(rectangle);
-                transformRectangleDifferences(modifiedDictionary, storage, rectangle, newRectangle, transform);
-                regenerateAppearance = !isTranslation;
-            }
-            else
-            {
-                // Rectangle based shapes cannot be rotated, so the annotation
-                // is just moved to the transformed position.
-                newRectangle = centerRectangle(rectangle, transform.map(rectangle.center()));
-                regenerateAppearance = hasCalloutLine;
-            }
-            break;
-        }
-
-        case GeometryKind::Icon:
-        {
-            newRectangle = centerRectangle(rectangle, transform.map(rectangle.center()));
-            break;
-        }
-
-        case GeometryKind::Appearance:
-        {
-            newRectangle = transform.mapRect(rectangle);
-            if (!isPositiveAxisAligned(transform))
-            {
-                transformAppearanceStreams(builder, modifiedDictionary, rectangle, transform, newRectangle);
-            }
-            break;
-        }
-
-        default:
-            Q_ASSERT(false);
-            return false;
+        newRectangle = transform.mapRect(rectangle);
+        regenerateAppearance = !isTranslation;
     }
+    else if (kind == GeometryKind::Box)
+    {
+        const bool hasCalloutLine = transformPointArray(modifiedDictionary, storage, "CL", transform);
+
+        if (axisAligned)
+        {
+            newRectangle = transform.mapRect(rectangle);
+            transformRectangleDifferences(modifiedDictionary, storage, rectangle, newRectangle, transform);
+            regenerateAppearance = !isTranslation;
+        }
+        else
+        {
+            // Rectangle based shapes cannot be rotated, so the annotation
+            // is just moved to the transformed position.
+            newRectangle = centerRectangle(rectangle, transform.map(rectangle.center()));
+            regenerateAppearance = hasCalloutLine;
+        }
+    }
+    else if (kind == GeometryKind::Icon)
+    {
+        newRectangle = centerRectangle(rectangle, transform.map(rectangle.center()));
+    }
+    else
+    {
+        Q_ASSERT(kind == GeometryKind::Appearance);
+
+        newRectangle = transform.mapRect(rectangle);
+        if (!isPositiveAxisAligned(transform))
+        {
+            transformAppearanceStreams(builder, modifiedDictionary, rectangle, transform, newRectangle);
+        }
+    }
+
+    // Popup window follows its parent annotation
+    translatePopup(builder, dictionary, newRectangle.center() - rectangle.center());
 
     modifiedDictionary.setEntry(PDFInplaceOrMemoryString("Rect"), createRectangle(newRectangle));
     builder->setObject(annotation, PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(modifiedDictionary))));
-
-    // Popup window follows its parent annotation
-    const PDFDictionary* modifiedDictionaryPointer = storage->getDictionaryFromObject(storage->getObjectByReference(annotation));
-    if (modifiedDictionaryPointer)
-    {
-        translatePopup(builder, modifiedDictionaryPointer, newRectangle.center() - rectangle.center());
-    }
 
     if (regenerateAppearance)
     {
@@ -554,6 +536,171 @@ QPolygonF PDFAnnotationManipulator::getTransformedOutline(AnnotationType type, c
     }
 
     return outline;
+}
+
+PDFAnnotationManipulator::EditablePoints PDFAnnotationManipulator::getEditablePoints(const PDFAnnotation* annotation)
+{
+    EditablePoints result;
+
+    if (!annotation)
+    {
+        return result;
+    }
+
+    if (const PDFLineAnnotation* lineAnnotation = dynamic_cast<const PDFLineAnnotation*>(annotation))
+    {
+        const QLineF& line = lineAnnotation->getLine();
+        if (!line.isNull())
+        {
+            result.points = { line.p1(), line.p2() };
+            result.minimalCount = 2;
+        }
+    }
+    else if (const PDFPolygonalGeometryAnnotation* polygonalAnnotation = dynamic_cast<const PDFPolygonalGeometryAnnotation*>(annotation))
+    {
+        // Jakub Melka: if the vertices are missing, then the shape is defined
+        // by a path with curves (PDF 2.0), which cannot be edited point by point
+        const bool isPolygon = annotation->getType() == AnnotationType::Polygon;
+        const size_t minimalCount = isPolygon ? 3 : 2;
+        if (polygonalAnnotation->getVertices().size() >= minimalCount)
+        {
+            result.points = polygonalAnnotation->getVertices();
+            result.isClosed = isPolygon;
+            result.isCountFixed = false;
+            result.minimalCount = minimalCount;
+        }
+    }
+    else if (const PDFFreeTextAnnotation* freeTextAnnotation = dynamic_cast<const PDFFreeTextAnnotation*>(annotation))
+    {
+        const PDFAnnotationCalloutLine& calloutLine = freeTextAnnotation->getCalloutLine();
+        switch (calloutLine.getType())
+        {
+            case PDFAnnotationCalloutLine::Type::StartEnd:
+                result.points = { calloutLine.getPoint(0), calloutLine.getPoint(1) };
+                result.minimalCount = 2;
+                break;
+
+            case PDFAnnotationCalloutLine::Type::StartKneeEnd:
+                result.points = { calloutLine.getPoint(0), calloutLine.getPoint(1), calloutLine.getPoint(2) };
+                result.minimalCount = 3;
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    return result;
+}
+
+bool PDFAnnotationManipulator::setEditablePoints(PDFDocumentBuilder* builder, PDFObjectReference annotation, const std::vector<QPointF>& points)
+{
+    if (!builder || !annotation.isValid())
+    {
+        return false;
+    }
+
+    const PDFObjectStorage* storage = builder->getStorage();
+    const PDFDictionary* dictionary = storage->getDictionaryFromObject(storage->getObjectByReference(annotation));
+    if (!dictionary)
+    {
+        return false;
+    }
+
+    const PDFAnnotationPtr parsedAnnotation = PDFAnnotation::parse(storage, annotation);
+    const EditablePoints currentPoints = getEditablePoints(parsedAnnotation.data());
+    if (!currentPoints.isValid())
+    {
+        return false;
+    }
+
+    const bool isCountValid = currentPoints.isCountFixed ? (points.size() == currentPoints.points.size())
+                                                         : (points.size() >= currentPoints.minimalCount);
+    if (!isCountValid)
+    {
+        return false;
+    }
+
+    std::vector<PDFReal> numbers;
+    numbers.reserve(points.size() * 2);
+    for (const QPointF& point : points)
+    {
+        numbers.push_back(point.x());
+        numbers.push_back(point.y());
+    }
+
+    const QRectF rectangle = readRectangle(storage, dictionary, "Rect");
+    const QRectF newPointsBounds = getPointsBoundingRectangle(points);
+    PDFDictionary modifiedDictionary = *dictionary;
+    QRectF newRectangle;
+
+    if (parsedAnnotation->getType() == AnnotationType::FreeText)
+    {
+        modifiedDictionary.setEntry(PDFInplaceOrMemoryString("CL"), createNumberArray(numbers));
+
+        // Jakub Melka: the annotation rectangle covers the text box and the callout
+        // line, the text box is defined by the rectangle differences. The text box
+        // must not move, when the callout line is changed.
+        PDFDocumentDataLoaderDecorator loader(storage);
+        QRectF textRectangle = rectangle;
+        const std::vector<PDFReal> differences = loader.readNumberArrayFromDictionary(dictionary, "RD");
+        if (differences.size() == 4)
+        {
+            const QRectF innerRectangle = rectangle.adjusted(differences[0], differences[1], -differences[2], -differences[3]);
+            if (innerRectangle.isValid())
+            {
+                textRectangle = innerRectangle;
+            }
+        }
+
+        // Space for the line ending
+        const PDFReal margin = std::max(1.0, parsedAnnotation->getBorder().getWidth()) * 5.0;
+        newRectangle = textRectangle.united(newPointsBounds.adjusted(-margin, -margin, margin, margin));
+        modifiedDictionary.setEntry(PDFInplaceOrMemoryString("RD"), createNumberArray({ textRectangle.left() - newRectangle.left(),
+                                                                                         textRectangle.top() - newRectangle.top(),
+                                                                                         newRectangle.right() - textRectangle.right(),
+                                                                                         newRectangle.bottom() - textRectangle.bottom() }));
+    }
+    else
+    {
+        const char* key = parsedAnnotation->getType() == AnnotationType::Line ? "L" : "Vertices";
+        modifiedDictionary.setEntry(PDFInplaceOrMemoryString(key), createNumberArray(numbers));
+
+        // Keep the margin between the points and the rectangle (line width, line
+        // endings). Regenerated appearance stream sets the exact rectangle later.
+        const QRectF oldPointsBounds = getPointsBoundingRectangle(currentPoints.points);
+        const PDFReal margin = std::max({ 1.0,
+                                          oldPointsBounds.left() - rectangle.left(),
+                                          oldPointsBounds.top() - rectangle.top(),
+                                          rectangle.right() - oldPointsBounds.right(),
+                                          rectangle.bottom() - oldPointsBounds.bottom() });
+        newRectangle = newPointsBounds.adjusted(-margin, -margin, margin, margin);
+    }
+
+    modifiedDictionary.setEntry(PDFInplaceOrMemoryString("Rect"), createRectangle(newRectangle));
+    builder->setObject(annotation, PDFObject::createDictionary(std::make_shared<PDFDictionary>(std::move(modifiedDictionary))));
+    builder->updateAnnotationAppearanceStreams(annotation);
+    return true;
+}
+
+QRectF PDFAnnotationManipulator::getPointsBoundingRectangle(const std::vector<QPointF>& points)
+{
+    Q_ASSERT(!points.empty());
+
+    PDFReal left = points.front().x();
+    PDFReal right = left;
+    PDFReal top = points.front().y();
+    PDFReal bottom = top;
+
+    for (const QPointF& point : points)
+    {
+        left = std::min(left, point.x());
+        right = std::max(right, point.x());
+        top = std::min(top, point.y());
+        bottom = std::max(bottom, point.y());
+    }
+
+    return QRectF(QPointF(left, top), QPointF(right, bottom));
 }
 
 PDFDictionary PDFAnnotationManipulator::prepareAnnotationForCopy(const PDFDictionary& dictionary, bool removeOptionalContent)
@@ -645,10 +792,7 @@ void PDFAnnotationManipulator::appendAnnotationsToPage(PDFDocumentBuilder* build
                                                        PDFObjectReference page,
                                                        const std::vector<PDFObjectReference>& annotations)
 {
-    if (annotations.empty())
-    {
-        return;
-    }
+    Q_ASSERT(!annotations.empty());
 
     PDFObjectFactory factory;
     factory.beginDictionary();
@@ -882,13 +1026,11 @@ QByteArray PDFAnnotationManipulator::serializeAnnotations(const PDFDocument* doc
     QBuffer buffer;
     buffer.open(QIODevice::WriteOnly);
     PDFDocumentWriter writer(nullptr);
-    const PDFOperationResult result = writer.write(&buffer, &serializedDocument);
+    // Jakub Melka: the document is not encrypted and the buffer is writable,
+    // so there is no reason, why the writing should fail.
+    [[maybe_unused]] const PDFOperationResult result = writer.write(&buffer, &serializedDocument);
+    Q_ASSERT(result);
     buffer.close();
-
-    if (!result)
-    {
-        return QByteArray();
-    }
 
     return buffer.data();
 }
