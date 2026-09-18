@@ -334,13 +334,17 @@ QPainterPath PDFAnnotation::parsePath(const PDFObjectStorage* storage, const PDF
     {
         for (const PDFObject& pathItemObject : *pathObject.getArray())
         {
+            // Jakub Melka: QPainterPath::isEmpty() cannot be used to detect the first item,
+            // because a path with a single 'Move to' element is considered to be empty.
+            const bool isFirstItem = path.elementCount() == 0;
+
             std::vector<PDFReal> pathItem = loader.readNumberArray(pathItemObject);
             switch (pathItem.size())
             {
                 case 2:
                 {
                     QPointF point(pathItem[0], pathItem[1]);
-                    if (path.isEmpty())
+                    if (isFirstItem)
                     {
                         path.moveTo(point);
                     }
@@ -353,7 +357,7 @@ QPainterPath PDFAnnotation::parsePath(const PDFObjectStorage* storage, const PDF
 
                 case 4:
                 {
-                    if (path.isEmpty())
+                    if (isFirstItem)
                     {
                         // First path item must be 'Move to' command
                         continue;
@@ -365,7 +369,7 @@ QPainterPath PDFAnnotation::parsePath(const PDFObjectStorage* storage, const PDF
 
                 case 6:
                 {
-                    if (path.isEmpty())
+                    if (isFirstItem)
                     {
                         // First path item must be 'Move to' command
                         continue;
@@ -2193,9 +2197,10 @@ static void drawMeasurementCaption(QPainter& painter, const QString& text, const
 
 void PDFPolygonalGeometryAnnotation::draw(AnnotationDrawParameters& parameters) const
 {
-    if (m_vertices.empty())
+    if (m_vertices.empty() && m_path.isEmpty())
     {
-        // Jakub Melka: do not draw empty lines
+        // Jakub Melka: do not draw empty lines. The shape can be defined
+        // by the path only (entry Path), the vertices are missing then.
         return;
     }
 
@@ -2292,7 +2297,7 @@ void PDFPolygonalGeometryAnnotation::draw(AnnotationDrawParameters& parameters) 
             break;
     }
 
-    if (m_intent == Intent::Dimension && !getContents().isEmpty())
+    if (m_intent == Intent::Dimension && !getContents().isEmpty() && !m_vertices.empty())
     {
         // Measurement annotation displays the measured value. Without it, only
         // the bare geometry would be visible in the viewers.
