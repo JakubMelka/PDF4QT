@@ -23,6 +23,7 @@
 #ifndef PDFTEXTTOSPEECH_H
 #define PDFTEXTTOSPEECH_H
 
+#include "pdfviewerglobal.h"
 #include "pdftextlayout.h"
 
 #include <QObject>
@@ -46,7 +47,7 @@ namespace pdfviewer
 class PDFViewerSettings;
 
 /// Text to speech engine used to reading the document
-class PDFTextToSpeech : public QObject
+class PDF4QTLIBGUILIBSHARED_EXPORT PDFTextToSpeech : public QObject
 {
     Q_OBJECT
 

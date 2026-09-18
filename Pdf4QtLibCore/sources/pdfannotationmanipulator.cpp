@@ -270,6 +270,24 @@ void PDFAnnotationManipulator::reversePointArray(PDFDictionary& dictionary, cons
     dictionary.setEntry(PDFInplaceOrMemoryString(key), createNumberArray(reversedNumbers));
 }
 
+void PDFAnnotationManipulator::reverseArray(PDFDictionary& dictionary, const PDFObjectStorage* storage, const char* key)
+{
+    const PDFObject& object = storage->getObject(dictionary.get(key));
+    if (!object.isArray())
+    {
+        return;
+    }
+
+    const PDFArray* array = object.getArray();
+    PDFArray reversedArray;
+    for (size_t i = array->getCount(); i > 0; --i)
+    {
+        reversedArray.appendItem(array->getItem(i - 1));
+    }
+
+    dictionary.setEntry(PDFInplaceOrMemoryString(key), PDFObject::createArray(std::make_shared<PDFArray>(std::move(reversedArray))));
+}
+
 void PDFAnnotationManipulator::scaleNumber(PDFDictionary& dictionary,
                                            const PDFObjectStorage* storage,
                                            const char* key,
@@ -624,6 +642,7 @@ bool PDFAnnotationManipulator::transformAnnotation(PDFDocumentBuilder* builder,
             if (transform.determinant() < 0.0 && isAngularMeasurement(parsedAnnotation.data()))
             {
                 reversePointArray(modifiedDictionary, storage, "Vertices");
+                reverseArray(modifiedDictionary, storage, "Path");
             }
         }
 
@@ -773,6 +792,59 @@ QTransform PDFAnnotationManipulator::getEffectiveTransform(AnnotationType type, 
     return QTransform::fromTranslate(offset.x(), offset.y());
 }
 
+bool PDFAnnotationManipulator::setRectangle(PDFDocumentBuilder* builder, PDFObjectReference annotation, const QRectF& rectangle)
+{
+    const QRectF targetRectangle = rectangle.normalized();
+    if (!builder || !targetRectangle.isValid())
+    {
+        return false;
+    }
+
+    // Jakub Melka: the rectangle of the annotation is regenerated together with its appearance.
+    // It is the geometry with a margin, and the margin does not follow the scale, so a single
+    // transformation of the old rectangle onto the new one does not give exactly the new one.
+    // Each next transformation reduces the error by the ratio of the margin and of the size
+    // (the margin of a line with arrows is large, and it depends on the direction of the line).
+    constexpr int MAX_ITERATIONS = 16;
+    constexpr PDFReal TOLERANCE = 1e-4;
+
+    bool isModified = false;
+    for (int i = 0; i < MAX_ITERATIONS; ++i)
+    {
+        const PDFAnnotationPtr parsedAnnotation = PDFAnnotation::parse(builder->getStorage(), annotation);
+        const QRectF currentRectangle = parsedAnnotation ? parsedAnnotation->getRectangle().normalized() : QRectF();
+        if (!currentRectangle.isValid())
+        {
+            break;
+        }
+
+        const bool canResize = getCapabilities(parsedAnnotation.data()).testFlag(Resize);
+        const QPointF offset = targetRectangle.center() - currentRectangle.center();
+        const PDFReal sizeError = canResize ? std::max(std::abs(targetRectangle.width() - currentRectangle.width()), std::abs(targetRectangle.height() - currentRectangle.height())) : 0.0;
+        if (std::max({ std::abs(offset.x()), std::abs(offset.y()), sizeError }) < TOLERANCE)
+        {
+            break;
+        }
+
+        QTransform transform = QTransform::fromTranslate(offset.x(), offset.y());
+        if (canResize)
+        {
+            transform = QTransform::fromTranslate(-currentRectangle.left(), -currentRectangle.top()) *
+                        QTransform::fromScale(targetRectangle.width() / currentRectangle.width(), targetRectangle.height() / currentRectangle.height()) *
+                        QTransform::fromTranslate(targetRectangle.left(), targetRectangle.top());
+        }
+
+        if (!transformAnnotation(builder, annotation, transform))
+        {
+            break;
+        }
+
+        isModified = true;
+    }
+
+    return isModified;
+}
+
 QPolygonF PDFAnnotationManipulator::getTransformedOutline(AnnotationType type, const QRectF& rectangle, const QTransform& transform)
 {
     return getEffectiveTransform(type, rectangle, transform).map(QPolygonF(rectangle.normalized()));
@@ -804,8 +876,7 @@ PDFAnnotationManipulator::EditablePoints PDFAnnotationManipulator::getEditablePo
         // edit points, which are not the points of the displayed shape. A path with
         // curves cannot be edited point by point.
         const bool isPolygon = annotation->getType() == AnnotationType::Polygon;
-        const std::vector<QPointF> points = polygonalAnnotation->getPath().isEmpty() ? polygonalAnnotation->getVertices()
-                                                                                     : getPathPoints(polygonalAnnotation->getPath());
+        const std::vector<QPointF> points = getPolygonalPoints(polygonalAnnotation);
 
         size_t minimalCount = isPolygon ? 3 : 2;
         size_t maximalCount = std::numeric_limits<size_t>::max();
@@ -855,17 +926,37 @@ PDFAnnotationManipulator::EditablePoints PDFAnnotationManipulator::getEditablePo
         // of its start and in the middle of its end. The corners are stored in the order
         // top left, top right, bottom left, bottom right (the same order is expected by
         // the renderer). Too many points would cover the whole annotation.
-        constexpr size_t MAXIMAL_QUADRILATERAL_COUNT = 32;
-        const PDFAnnotationQuadrilaterals::Quadrilaterals& quads = quadrilaterals->getQuadrilaterals();
-        if (quads.size() <= MAXIMAL_QUADRILATERAL_COUNT)
+        for (const PDFAnnotationQuadrilaterals::Quadrilateral& quad : quadrilaterals->getQuadrilaterals())
         {
-            for (const PDFAnnotationQuadrilaterals::Quadrilateral& quad : quads)
+            result.points.push_back((quad[0] + quad[2]) * 0.5);
+            result.points.push_back((quad[1] + quad[3]) * 0.5);
+        }
+
+        result.isQuadEnds = true;
+        result.minimalCount = result.points.size();
+        result.maximalCount = result.points.size();
+    }
+    else if (const PDFInkAnnotation* inkAnnotation = dynamic_cast<const PDFInkAnnotation*>(annotation))
+    {
+        // Jakub Melka: points of the strokes. A stroke drawn by hand has hundreds of points, which
+        // cannot be edited one by one (the handles would cover the ink), such an ink is edited
+        // by its parts. An ink defined by a path (PDF 2.0) can contain curves.
+        constexpr int MAXIMAL_INK_POINT_COUNT = 64;
+        const QPainterPath& path = inkAnnotation->getInkPath();
+        if (!inkAnnotation->isDefinedByPath() && path.elementCount() <= MAXIMAL_INK_POINT_COUNT)
+        {
+            for (int i = 0, count = path.elementCount(); i < count; ++i)
             {
-                result.points.push_back((quad[0] + quad[2]) * 0.5);
-                result.points.push_back((quad[1] + quad[3]) * 0.5);
+                const QPainterPath::Element element = path.elementAt(i);
+                if (element.isMoveTo())
+                {
+                    result.strokeSizes.push_back(0);
+                }
+
+                result.points.emplace_back(element.x, element.y);
+                ++result.strokeSizes.back();
             }
 
-            result.isQuadEnds = true;
             result.minimalCount = result.points.size();
             result.maximalCount = result.points.size();
         }
@@ -972,13 +1063,18 @@ std::vector<QPointF> PDFAnnotationManipulator::getPathPoints(const QPainterPath&
     return points;
 }
 
+std::vector<QPointF> PDFAnnotationManipulator::getPolygonalPoints(const PDFPolygonalGeometryAnnotation* annotation)
+{
+    return annotation->getPath().isEmpty() ? annotation->getVertices() : getPathPoints(annotation->getPath());
+}
+
 bool PDFAnnotationManipulator::isAngularMeasurement(const PDFAnnotation* annotation)
 {
     const PDFPolygonalGeometryAnnotation* polygonalAnnotation = dynamic_cast<const PDFPolygonalGeometryAnnotation*>(annotation);
     return polygonalAnnotation &&
            polygonalAnnotation->getType() == AnnotationType::Polyline &&
            polygonalAnnotation->getIntent() == PDFPolygonalGeometryAnnotation::Intent::Dimension &&
-           polygonalAnnotation->getVertices().size() == 3;
+           getPolygonalPoints(polygonalAnnotation).size() == 3;
 }
 
 bool PDFAnnotationManipulator::setEditablePoints(PDFDocumentBuilder* builder, PDFObjectReference annotation, const std::vector<QPointF>& points)
@@ -1047,6 +1143,20 @@ bool PDFAnnotationManipulator::setEditablePoints(PDFDocumentBuilder* builder, PD
         if (parsedAnnotation->getType() == AnnotationType::Line)
         {
             modifiedDictionary.setEntry(PDFInplaceOrMemoryString("L"), createNumberArray(numbers));
+        }
+        else if (currentPoints.isStrokePoints())
+        {
+            // Points of the strokes of an ink
+            PDFObjectFactory inkListFactory;
+            inkListFactory.beginArray();
+            auto it = numbers.cbegin();
+            for (const size_t strokeSize : currentPoints.strokeSizes)
+            {
+                inkListFactory << std::vector<PDFReal>(it, std::next(it, 2 * strokeSize));
+                std::advance(it, 2 * strokeSize);
+            }
+            inkListFactory.endArray();
+            modifiedDictionary.setEntry(PDFInplaceOrMemoryString("InkList"), inkListFactory.takeObject());
         }
         else if (!currentPoints.isQuadEnds)
         {
@@ -1146,6 +1256,14 @@ std::vector<PDFAnnotationManipulator::NumberToken> PDFAnnotationManipulator::par
             continue;
         }
 
+        // Digits, which follow a letter, are a part of a word - of an identifier, or of
+        // a unit ("m2", "m^2"). They are not a number, which could be a measured value.
+        if (position > 0 && (text[position - 1].isLetter() || text[position - 1] == QChar('^')))
+        {
+            position += length;
+            continue;
+        }
+
         qsizetype decimalPosition = -1;
         while (position + length < text.size())
         {
@@ -1220,9 +1338,9 @@ QString PDFAnnotationManipulator::formatNumberToken(const NumberToken& token, PD
     return result;
 }
 
-std::vector<PDFReal> PDFAnnotationManipulator::getMeasuredValues(const PDFAnnotation* annotation, const PDFMeasure& measure)
+std::vector<PDFAnnotationManipulator::MeasuredValue> PDFAnnotationManipulator::getMeasuredValues(const PDFAnnotation* annotation, const PDFMeasure& measure)
 {
-    std::vector<PDFReal> values;
+    std::vector<MeasuredValue> values;
     std::vector<QPointF> points;
     bool isClosed = false;
 
@@ -1237,7 +1355,20 @@ std::vector<PDFReal> PDFAnnotationManipulator::getMeasuredValues(const PDFAnnota
     {
         if (polygonalAnnotation->getIntent() == PDFPolygonalGeometryAnnotation::Intent::Dimension)
         {
-            points = polygonalAnnotation->getVertices();
+            // Jakub Melka: the displayed shape is measured. The path (PDF 2.0) has precedence
+            // over the vertices, when the annotation is drawn, so it has precedence here too.
+            // Curves of the path are measured as polylines.
+            const QPainterPath& path = polygonalAnnotation->getPath();
+            if (path.isEmpty())
+            {
+                points = polygonalAnnotation->getVertices();
+            }
+            else
+            {
+                const QPolygonF polygon = path.toSubpathPolygons().front();
+                points.assign(polygon.cbegin(), polygon.cend());
+            }
+
             isClosed = annotation->getType() == AnnotationType::Polygon;
         }
     }
@@ -1255,6 +1386,21 @@ std::vector<PDFReal> PDFAnnotationManipulator::getMeasuredValues(const PDFAnnota
         return formats.empty() ? 1.0 : formats.front().getConversionFactor();
     };
 
+    // The value is converted and formatted by the number format (the text
+    // is the text, which a producer following the specification displays)
+    auto createValue = [&getFactor](PDFReal value, MeasuredQuantity quantity, const std::vector<PDFNumberFormat>& formats)
+    {
+        MeasuredValue result;
+        result.value = value * getFactor(formats);
+        result.quantity = quantity;
+        if (!formats.empty())
+        {
+            result.unit = formats.front().getUnitLabel();
+            result.text = PDFNumberFormat::format(formats, value);
+        }
+        return result;
+    };
+
     const PDFReal scaleX = getFactor(measure.getXFormat());
     // If the measure does not define the y axis, then it has the format of the x axis
     const PDFReal scaleY = getFactor(measure.getYFormat()) * measure.getFactorYX();
@@ -1264,7 +1410,7 @@ std::vector<PDFReal> PDFAnnotationManipulator::getMeasuredValues(const PDFAnnota
         // The same angle, as it is drawn by the annotation
         const QLineF firstArm(points[1], points[0]);
         const QLineF secondArm(points[1], points[2]);
-        values.push_back(firstArm.angleTo(secondArm) * getFactor(measure.getAngleFormat()));
+        values.push_back(createValue(firstArm.angleTo(secondArm), MeasuredQuantity::Unknown, measure.getAngleFormat()));
         return values;
     }
 
@@ -1284,23 +1430,101 @@ std::vector<PDFReal> PDFAnnotationManipulator::getMeasuredValues(const PDFAnnota
         area += start.x() * end.y() - start.y() * end.x();
     }
 
-    // If the distance format is missing, then the distance is displayed
-    // using the format of the x axis, which has been applied already.
-    values.push_back(length * getFactor(measure.getDistanceFormat()));
+    // If the distance format is missing, then the distance is displayed using
+    // the format of the x axis (the length is in the units of the x axis already).
+    // Perimeter and area of a polygon must be distinguished in the text.
+    const bool hasDistanceFormat = !measure.getDistanceFormat().empty();
+    values.push_back(createValue(hasDistanceFormat ? length : length / scaleX,
+                                 isClosed ? MeasuredQuantity::Length : MeasuredQuantity::Unknown,
+                                 hasDistanceFormat ? measure.getDistanceFormat() : measure.getXFormat()));
 
     if (isClosed)
     {
-        values.push_back(std::abs(area) * 0.5 * getFactor(measure.getAreaFormat()));
+        values.push_back(createValue(std::abs(area) * 0.5, MeasuredQuantity::Area, measure.getAreaFormat()));
     }
 
     return values;
 }
 
+PDFAnnotationManipulator::MeasuredQuantity PDFAnnotationManipulator::getQuantityCue(const QString& before, const QString& after)
+{
+    // Symbol of the quantity ("A = 12 m2", "Perimeter: 5 m")
+    static const QRegularExpression symbolExpression(QStringLiteral("(\\p{L}+)\\s*[:=]\\s*$"), QRegularExpression::UseUnicodePropertiesOption);
+
+    // Unit of area ("sq m", "m2", "m^2", unit with the superscript two)
+    static const QRegularExpression areaExpression(QStringLiteral("^(sq\\b|\\p{L}+\\^?[2\\x{00B2}](?![\\p{L}\\p{N}]))"),
+                                                   QRegularExpression::UseUnicodePropertiesOption | QRegularExpression::CaseInsensitiveOption);
+
+    MeasuredQuantity symbolCue = MeasuredQuantity::Unknown;
+
+    const QRegularExpressionMatch symbolMatch = symbolExpression.match(before);
+    if (symbolMatch.hasMatch())
+    {
+        const QChar symbol = symbolMatch.captured(1).front().toUpper();
+        if (symbol == QChar('A'))
+        {
+            symbolCue = MeasuredQuantity::Area;
+        }
+        else if (QStringLiteral("PLD").contains(symbol))
+        {
+            // Perimeter, length, distance
+            symbolCue = MeasuredQuantity::Length;
+        }
+    }
+
+    if (areaExpression.match(after).hasMatch())
+    {
+        // The symbol and the unit can contradict each other, then we know nothing
+        return symbolCue == MeasuredQuantity::Length ? MeasuredQuantity::Unknown : MeasuredQuantity::Area;
+    }
+
+    return symbolCue;
+}
+
+int PDFAnnotationManipulator::getMeasurementFieldScore(const QString& text, const NumberToken& token, const MeasuredValue& value)
+{
+    const QString before = text.left(token.position);
+    const QString after = text.mid(token.position + token.length).trimmed();
+
+    // Jakub Melka: number followed by a colon (by an equal sign) is a part of a label
+    // written by the user ("Wall 100: 25.00 mm"), it is not a measured value.
+    if (after.startsWith(QChar(':')) || after.startsWith(QChar('=')))
+    {
+        return -1;
+    }
+
+    int score = 0;
+
+    // Symbol of the quantity, unit of area
+    const MeasuredQuantity cue = getQuantityCue(before, after);
+    if (value.quantity != MeasuredQuantity::Unknown && cue != MeasuredQuantity::Unknown)
+    {
+        if (cue != value.quantity)
+        {
+            return -1;
+        }
+
+        score += 2;
+    }
+
+    // Unit defined by the measure
+    if (!value.unit.isEmpty())
+    {
+        const QRegularExpression unitExpression(QStringLiteral("^%1(?![\\p{L}\\p{N}^])").arg(QRegularExpression::escape(value.unit)),
+                                                QRegularExpression::UseUnicodePropertiesOption);
+        if (unitExpression.match(after).hasMatch())
+        {
+            score += 4;
+        }
+    }
+
+    return score;
+}
+
 QString PDFAnnotationManipulator::updateMeasurementText(const QString& text,
                                                         bool isMeasureValid,
-                                                        bool isPolygon,
-                                                        const std::vector<PDFReal>& oldValues,
-                                                        const std::vector<PDFReal>& newValues)
+                                                        const std::vector<MeasuredValue>& oldValues,
+                                                        const std::vector<MeasuredValue>& newValues)
 {
     Q_ASSERT(oldValues.size() == newValues.size());
 
@@ -1315,31 +1539,165 @@ QString PDFAnnotationManipulator::updateMeasurementText(const QString& text,
 
     if (isMeasureValid)
     {
-        // Jakub Melka: we know the scale, so we know the value, which was displayed
-        // for the old geometry. If the text contains it, then it is replaced by the
-        // value of the new geometry. If it does not, then the text is a comment
-        // written by the user and we leave it alone.
+        // Jakub Melka: we know the scale, so we know the values, which were displayed
+        // for the old geometry. A number of the text is replaced only if it is the
+        // measured value. An equal number is not enough - the text can contain numbers
+        // written by the user ("Wall 100: 100.00 mm"), and a polygon measures two
+        // quantities, which can have the same value. So we look for:
+        //
+        //   1) the value formatted by the number format of the measure (with its unit),
+        //      which is the text displayed by producers following the specification,
+        //   2) the number, which is equal to the measured value, and the text around
+        //      it does not contradict, that it is the measured value of the quantity
+        //      (symbol of the quantity, unit). Numbers, for which the text around
+        //      speaks, have precedence over the numbers, which are just equal.
+        //
+        // If the measured value is not found, or if it is ambiguous, then the text
+        // is left alone - it is a comment written by the user.
+        struct Replacement
+        {
+            qsizetype position = 0;
+            qsizetype length = 0;
+            QString text;
+        };
+        std::vector<Replacement> replacements;
+        std::vector<size_t> unresolvedValues;
+
         for (size_t i = 0; i < oldValues.size(); ++i)
         {
-            for (const NumberToken& token : tokens)
+            const QString& oldText = oldValues[i].text;
+            const auto hasSameText = [&oldText](const MeasuredValue& value) { return value.text == oldText; };
+
+            if (!oldText.isEmpty() && std::count_if(oldValues.cbegin(), oldValues.cend(), hasSameText) == 1)
             {
-                const PDFReal tolerance = 0.5 * std::pow(10.0, -token.decimals) + 1e-6 * std::max(1.0, oldValues[i]);
-                if (std::abs(token.value - oldValues[i]) <= tolerance)
+                // The formatted value must not be a part of a longer number, or of a longer unit
+                const QRegularExpression expression(QStringLiteral("(?<![\\p{N}.,])%1(?![\\p{L}\\p{N}^])").arg(QRegularExpression::escape(oldText)),
+                                                    QRegularExpression::UseUnicodePropertiesOption);
+                QRegularExpressionMatchIterator it = expression.globalMatch(text);
+                if (it.hasNext())
                 {
-                    return replaceToken(token, newValues[i]);
+                    const QRegularExpressionMatch match = it.next();
+                    if (!it.hasNext())
+                    {
+                        replacements.push_back(Replacement{ match.capturedStart(), match.capturedLength(), newValues[i].text });
+                        continue;
+                    }
+                }
+            }
+
+            unresolvedValues.push_back(i);
+        }
+
+        struct Candidate
+        {
+            size_t valueIndex = 0;
+            size_t tokenIndex = 0;
+            NumberToken token;
+            PDFReal divisor = 1.0;
+            int score = 0;
+        };
+        std::vector<Candidate> candidates;
+
+        for (const size_t valueIndex : unresolvedValues)
+        {
+            const PDFReal oldValue = oldValues[valueIndex].value;
+
+            for (size_t tokenIndex = 0; tokenIndex < tokens.size(); ++tokenIndex)
+            {
+                const NumberToken& token = tokens[tokenIndex];
+                const auto containsToken = [&token](const Replacement& replacement)
+                {
+                    return token.position >= replacement.position && token.position < replacement.position + replacement.length;
+                };
+
+                if (std::any_of(replacements.cbegin(), replacements.cend(), containsToken))
+                {
+                    // The number is a part of a measured value of another quantity
+                    continue;
                 }
 
-                // Three digits after the dot (comma) can be a group of thousands
-                if (token.decimals == 3 && std::abs(token.value * 1000.0 - oldValues[i]) <= 0.5 + 1e-6 * oldValues[i])
+                Candidate candidate;
+                candidate.valueIndex = valueIndex;
+                candidate.tokenIndex = tokenIndex;
+                candidate.token = token;
+
+                const PDFReal tolerance = 0.5 * std::pow(10.0, -token.decimals) + 1e-6 * std::max(1.0, oldValue);
+                if (std::abs(token.value - oldValue) > tolerance)
                 {
-                    NumberToken groupedToken = token;
-                    groupedToken.groupSeparator = token.decimalSeparator;
-                    return replaceToken(groupedToken, newValues[i] / 1000.0);
+                    // Three digits after the dot (comma) can be a group of thousands
+                    if (token.decimals != 3 || std::abs(token.value * 1000.0 - oldValue) > 0.5 + 1e-6 * oldValue)
+                    {
+                        continue;
+                    }
+
+                    candidate.token.groupSeparator = token.decimalSeparator;
+                    candidate.divisor = 1000.0;
+                }
+
+                candidate.score = getMeasurementFieldScore(text, token, oldValues[valueIndex]);
+                if (candidate.score >= 0)
+                {
+                    candidates.push_back(candidate);
                 }
             }
         }
 
-        return text;
+        // Numbers, for which the text around speaks, have precedence
+        const bool hasEvidence = std::any_of(candidates.cbegin(), candidates.cend(), [](const Candidate& candidate) { return candidate.score > 0; });
+        const int minimalScore = hasEvidence ? 1 : 0;
+
+        // The best number for each quantity
+        std::vector<const Candidate*> bestCandidates(oldValues.size(), nullptr);
+        std::vector<bool> isAmbiguous(oldValues.size(), false);
+        for (const Candidate& candidate : candidates)
+        {
+            if (candidate.score < minimalScore)
+            {
+                continue;
+            }
+
+            const Candidate*& bestCandidate = bestCandidates[candidate.valueIndex];
+            if (!bestCandidate || candidate.score > bestCandidate->score)
+            {
+                bestCandidate = &candidate;
+                isAmbiguous[candidate.valueIndex] = false;
+            }
+            else if (candidate.score == bestCandidate->score)
+            {
+                isAmbiguous[candidate.valueIndex] = true;
+            }
+        }
+
+        // The same number cannot be the value of two quantities. The scores are the same
+        // in such a case (a symbol, or a unit of area, would reject one of the quantities).
+        std::map<size_t, size_t> tokenUsage;
+        for (const Candidate* candidate : bestCandidates)
+        {
+            if (candidate)
+            {
+                ++tokenUsage[candidate->tokenIndex];
+            }
+        }
+
+        for (size_t i = 0; i < bestCandidates.size(); ++i)
+        {
+            const Candidate* candidate = bestCandidates[i];
+            if (candidate && !isAmbiguous[i] && tokenUsage[candidate->tokenIndex] == 1)
+            {
+                replacements.push_back(Replacement{ candidate->token.position, candidate->token.length, formatNumberToken(candidate->token, newValues[i].value / candidate->divisor) });
+            }
+        }
+
+        // Replace from the end of the text, so the positions stay valid
+        std::sort(replacements.begin(), replacements.end(), [](const Replacement& left, const Replacement& right) { return left.position > right.position; });
+
+        QString result = text;
+        for (const Replacement& replacement : replacements)
+        {
+            result.replace(replacement.position, replacement.length, replacement.text);
+        }
+
+        return result;
     }
 
     // Jakub Melka: the scale is not known. We can still scale the displayed value
@@ -1356,33 +1714,33 @@ QString PDFAnnotationManipulator::updateMeasurementText(const QString& text,
     const QString suffix = text.mid(token.position + token.length).trimmed();
 
     static const QRegularExpression prefixExpression(QStringLiteral("^(\\w{1,3}\\s*[=:])?$"), QRegularExpression::UseUnicodePropertiesOption);
-    static const QRegularExpression suffixExpression(QStringLiteral("^\\S*$"));
+    static const QRegularExpression suffixExpression(QStringLiteral("^(sq\\s+)?\\S*$"), QRegularExpression::CaseInsensitiveOption);
     if (!prefixExpression.match(prefix).hasMatch() || !suffixExpression.match(suffix).hasMatch())
     {
         return text;
     }
 
     size_t index = 0;
-    if (isPolygon)
+    if (oldValues.size() > 1)
     {
-        // Polygon measures its perimeter, or its area. The scale is not known,
-        // so they can be distinguished only by the symbol of the quantity.
-        if (prefix.startsWith(QChar('A'), Qt::CaseInsensitive))
-        {
-            index = 1;
-        }
-        else if (!prefix.startsWith(QChar('P'), Qt::CaseInsensitive))
+        // Polygon measures its perimeter, and its area. The scale is not known, so they
+        // can be distinguished only by the symbol of the quantity, or by a unit of area.
+        const MeasuredQuantity cue = getQuantityCue(prefix, suffix);
+        const auto it = std::find_if(oldValues.cbegin(), oldValues.cend(), [cue](const MeasuredValue& value) { return value.quantity == cue; });
+        if (it == oldValues.cend())
         {
             return text;
         }
+
+        index = size_t(std::distance(oldValues.cbegin(), it));
     }
 
-    if (qFuzzyIsNull(oldValues[index]))
+    if (qFuzzyIsNull(oldValues[index].value))
     {
         return text;
     }
 
-    return replaceToken(token, token.value * newValues[index] / oldValues[index]);
+    return replaceToken(token, token.value * newValues[index].value / oldValues[index].value);
 }
 
 bool PDFAnnotationManipulator::updateMeasurement(PDFDocumentBuilder* builder, PDFObjectReference annotation, const PDFAnnotation* oldAnnotation)
@@ -1400,8 +1758,8 @@ bool PDFAnnotationManipulator::updateMeasurement(PDFDocumentBuilder* builder, PD
         measure = PDFMeasure();
     }
 
-    const std::vector<PDFReal> oldValues = getMeasuredValues(oldAnnotation, measure);
-    const std::vector<PDFReal> newValues = getMeasuredValues(newAnnotation.data(), measure);
+    const std::vector<MeasuredValue> oldValues = getMeasuredValues(oldAnnotation, measure);
+    const std::vector<MeasuredValue> newValues = getMeasuredValues(newAnnotation.data(), measure);
     if (oldValues.empty())
     {
         return false;
@@ -1412,7 +1770,7 @@ bool PDFAnnotationManipulator::updateMeasurement(PDFDocumentBuilder* builder, PD
     Q_ASSERT(oldValues.size() == newValues.size());
 
     const QString contents = newAnnotation->getContents();
-    const QString newContents = updateMeasurementText(contents, isMeasureValid, newAnnotation->getType() == AnnotationType::Polygon, oldValues, newValues);
+    const QString newContents = updateMeasurementText(contents, isMeasureValid, oldValues, newValues);
     if (newContents == contents)
     {
         return false;
@@ -1422,6 +1780,116 @@ bool PDFAnnotationManipulator::updateMeasurement(PDFDocumentBuilder* builder, PD
     factory.beginDictionary();
     factory.beginDictionaryItem("Contents");
     factory << newContents;
+    factory.endDictionaryItem();
+    factory.endDictionary();
+    builder->mergeTo(annotation, factory.takeObject());
+    return true;
+}
+
+PDFObjectReference PDFAnnotationManipulator::addReply(PDFDocumentBuilder* builder, PDFObjectReference annotation, const QString& author, const QString& contents)
+{
+    if (!builder || contents.trimmed().isEmpty())
+    {
+        return PDFObjectReference();
+    }
+
+    const PDFObjectStorage* storage = builder->getStorage();
+    const PDFAnnotationPtr parsedAnnotation = PDFAnnotation::parse(storage, annotation);
+    const PDFObjectReference page = findAnnotationPage(storage, annotation);
+    if (!parsedAnnotation || !parsedAnnotation->asMarkupAnnotation() || !page.isValid())
+    {
+        return PDFObjectReference();
+    }
+
+    // Jakub Melka: the reply has the place of its parent (it is not displayed, but a viewer,
+    // which does not understand the replies, displays it as a note at the parent)
+    const QRectF rectangle = parsedAnnotation->getRectangle().normalized();
+    const PDFObjectReference reply = builder->createAnnotationText(page, QRectF(rectangle.left(), rectangle.bottom() - 20.0, 20.0, 20.0), TextAnnotationIcon::Comment,
+                                                                   author, parsedAnnotation->asMarkupAnnotation()->getSubject(), contents, false);
+
+    PDFObjectFactory factory;
+    factory.beginDictionary();
+    factory.beginDictionaryItem("IRT");
+    factory << annotation;
+    factory.endDictionaryItem();
+    factory.beginDictionaryItem("RT");
+    factory << WrapName("R");
+    factory.endDictionaryItem();
+    factory.endDictionary();
+    builder->mergeTo(reply, factory.takeObject());
+
+    return reply;
+}
+
+bool PDFAnnotationManipulator::setFileAttachment(PDFDocumentBuilder* builder, PDFObjectReference annotation, const QString& fileName, const QByteArray& data)
+{
+    if (!builder || fileName.isEmpty())
+    {
+        return false;
+    }
+
+    const PDFAnnotationPtr parsedAnnotation = PDFAnnotation::parse(builder->getStorage(), annotation);
+    if (!parsedAnnotation || parsedAnnotation->getType() != AnnotationType::FileAttachment)
+    {
+        return false;
+    }
+
+    // Embedded file stream (the data are not compressed, the writer of the document can do it)
+    PDFObjectFactory streamFactory;
+    streamFactory.beginDictionary();
+    streamFactory.beginDictionaryItem("Type");
+    streamFactory << WrapName("EmbeddedFile");
+    streamFactory.endDictionaryItem();
+    streamFactory.beginDictionaryItem("Length");
+    streamFactory << PDFInteger(data.size());
+    streamFactory.endDictionaryItem();
+    streamFactory.beginDictionaryItem("Params");
+    streamFactory.beginDictionary();
+    streamFactory.beginDictionaryItem("Size");
+    streamFactory << PDFInteger(data.size());
+    streamFactory.endDictionaryItem();
+    streamFactory.beginDictionaryItem("ModDate");
+    streamFactory << WrapCurrentDateTime();
+    streamFactory.endDictionaryItem();
+    streamFactory.endDictionary();
+    streamFactory.endDictionaryItem();
+    streamFactory.endDictionary();
+
+    PDFDictionary streamDictionary = *streamFactory.takeObject().getDictionary();
+    const PDFObjectReference embeddedFile = builder->addObject(PDFObject::createStream(std::make_shared<PDFStream>(std::move(streamDictionary), QByteArray(data))));
+
+    // File specification
+    PDFObjectFactory specificationFactory;
+    specificationFactory.beginDictionary();
+    specificationFactory.beginDictionaryItem("Type");
+    specificationFactory << WrapName("Filespec");
+    specificationFactory.endDictionaryItem();
+    specificationFactory.beginDictionaryItem("F");
+    specificationFactory << fileName;
+    specificationFactory.endDictionaryItem();
+    specificationFactory.beginDictionaryItem("UF");
+    specificationFactory << fileName;
+    specificationFactory.endDictionaryItem();
+    specificationFactory.beginDictionaryItem("EF");
+    specificationFactory.beginDictionary();
+    specificationFactory.beginDictionaryItem("F");
+    specificationFactory << embeddedFile;
+    specificationFactory.endDictionaryItem();
+    specificationFactory.beginDictionaryItem("UF");
+    specificationFactory << embeddedFile;
+    specificationFactory.endDictionaryItem();
+    specificationFactory.endDictionary();
+    specificationFactory.endDictionaryItem();
+    specificationFactory.endDictionary();
+    const PDFObjectReference fileSpecification = builder->addObject(specificationFactory.takeObject());
+
+    PDFObjectFactory factory;
+    factory.beginDictionary();
+    factory.beginDictionaryItem("FS");
+    factory << fileSpecification;
+    factory.endDictionaryItem();
+    factory.beginDictionaryItem("M");
+    factory << WrapCurrentDateTime();
     factory.endDictionaryItem();
     factory.endDictionary();
     builder->mergeTo(annotation, factory.takeObject());
@@ -1446,6 +1914,7 @@ PDFAnnotationManipulator::Parts PDFAnnotationManipulator::getParts(const PDFObje
         // Marked regions. The corners are stored in the order top left, top right,
         // bottom left, bottom right, so the polygon goes around the region.
         parts.isFilled = true;
+        parts.isSupported = true;
         for (const PDFAnnotationQuadrilaterals::Quadrilateral& quad : quadrilaterals->getQuadrilaterals())
         {
             parts.shapes.push_back(QPolygonF({ quad[0], quad[1], quad[3], quad[2] }));
@@ -1454,6 +1923,7 @@ PDFAnnotationManipulator::Parts PDFAnnotationManipulator::getParts(const PDFObje
     else if (parsedAnnotation->getType() == AnnotationType::Ink && !storage->getObject(dictionary->get("Path")).isArray())
     {
         // Strokes of the ink list. An ink defined by a path (PDF 2.0) is a single stroke.
+        parts.isSupported = true;
         PDFDocumentDataLoaderDecorator loader(storage);
         const PDFObject inkList = storage->getObject(dictionary->get("InkList"));
         if (inkList.isArray())
@@ -1484,8 +1954,150 @@ bool PDFAnnotationManipulator::removePart(PDFDocumentBuilder* builder, PDFObject
     }
 
     parts.shapes.erase(std::next(parts.shapes.begin(), index));
+    return setParts(builder, annotation, parts.shapes);
+}
 
-    // Remaining parts and their bounding rectangle
+bool PDFAnnotationManipulator::addPart(PDFDocumentBuilder* builder, PDFObjectReference annotation, const QPolygonF& shape)
+{
+    if (!builder)
+    {
+        return false;
+    }
+
+    Parts parts = getParts(builder->getStorage(), annotation);
+    parts.shapes.push_back(shape);
+    return setParts(builder, annotation, parts.shapes);
+}
+
+bool PDFAnnotationManipulator::eraseInk(PDFDocumentBuilder* builder, PDFObjectReference annotation, const QPointF& center, PDFReal radius)
+{
+    if (!builder || radius <= 0.0)
+    {
+        return false;
+    }
+
+    const Parts parts = getParts(builder->getStorage(), annotation);
+    if (!parts.isSupported || parts.isFilled)
+    {
+        return false;
+    }
+
+    // Jakub Melka: each segment of a stroke is cut by the circle. The parameters of the
+    // intersections of the line (start + t * (end - start)) with the circle are the roots
+    // of a quadratic equation. The segment is affected, if the interval between the roots
+    // overlaps the interval of the segment (0, 1).
+    std::vector<QPolygonF> shapes;
+    bool isErased = false;
+
+    for (const QPolygonF& stroke : parts.shapes)
+    {
+        QPolygonF current;
+        auto finishStroke = [&shapes, &current]()
+        {
+            if (current.size() >= 2)
+            {
+                shapes.push_back(current);
+            }
+            current.clear();
+        };
+
+        if (!stroke.isEmpty() && QLineF(center, stroke.front()).length() > radius)
+        {
+            current << stroke.front();
+        }
+
+        for (qsizetype i = 1; i < stroke.size(); ++i)
+        {
+            const QPointF start = stroke[i - 1];
+            const QPointF end = stroke[i];
+            const QPointF direction = end - start;
+            const QPointF offset = start - center;
+
+            const PDFReal a = QPointF::dotProduct(direction, direction);
+            const PDFReal b = 2.0 * QPointF::dotProduct(offset, direction);
+            const PDFReal c = QPointF::dotProduct(offset, offset) - radius * radius;
+            const PDFReal discriminant = b * b - 4.0 * a * c;
+
+            // A segment without a length is a point, which is either in the circle, or out of it
+            PDFReal t1 = c <= 0.0 ? 0.0 : 2.0;
+            PDFReal t2 = c <= 0.0 ? 1.0 : 2.0;
+            if (a > 0.0 && discriminant > 0.0)
+            {
+                t1 = (-b - std::sqrt(discriminant)) / (2.0 * a);
+                t2 = (-b + std::sqrt(discriminant)) / (2.0 * a);
+            }
+            else if (a > 0.0)
+            {
+                t1 = 2.0;
+                t2 = 2.0;
+            }
+
+            if (t1 >= 1.0 || t2 <= 0.0)
+            {
+                // The segment is out of the circle
+                current << end;
+                continue;
+            }
+
+            isErased = true;
+
+            if (t1 > 0.0)
+            {
+                current << start + direction * t1;
+            }
+            finishStroke();
+
+            if (t2 < 1.0)
+            {
+                current << start + direction * t2 << end;
+            }
+        }
+
+        if (stroke.size() == 1 && current.isEmpty())
+        {
+            // The stroke is a single point, which is in the circle
+            isErased = true;
+        }
+
+        finishStroke();
+    }
+
+    if (!isErased || shapes.empty())
+    {
+        return false;
+    }
+
+    return setParts(builder, annotation, shapes);
+}
+
+bool PDFAnnotationManipulator::setParts(PDFDocumentBuilder* builder, PDFObjectReference annotation, const std::vector<QPolygonF>& shapes)
+{
+    if (!builder || shapes.empty())
+    {
+        return false;
+    }
+
+    const PDFObjectStorage* storage = builder->getStorage();
+    Parts parts = getParts(storage, annotation);
+    if (!parts.isSupported)
+    {
+        return false;
+    }
+
+    // Marked area has four corners, a stroke has at least two points
+    const qsizetype minimalSize = parts.isFilled ? 4 : 2;
+    const qsizetype maximalSize = parts.isFilled ? 4 : std::numeric_limits<qsizetype>::max();
+    for (const QPolygonF& shape : shapes)
+    {
+        if (shape.size() < minimalSize || shape.size() > maximalSize)
+        {
+            return false;
+        }
+    }
+
+    parts.shapes = shapes;
+
+    // Parts and their bounding rectangle
     PDFObjectFactory factory;
     std::vector<PDFReal> quadPoints;
     QRectF boundingRectangle;

@@ -26,6 +26,8 @@
 #include <QLabel>
 #include <QLocale>
 #include <QLineF>
+#include <QtMath>
+#include <QSpinBox>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QGroupBox>
@@ -51,7 +53,8 @@ PDFAnnotationGeometryDialog::PDFAnnotationGeometryDialog(const QRectF& rectangle
     m_originalRectangle(rectangle.normalized()),
     m_rectangle(rectangle.normalized()),
     m_points(points.isQuadEnds ? std::vector<QPointF>() : points.points),
-    m_capabilities(capabilities)
+    m_capabilities(capabilities),
+    m_isClosed(points.isClosed)
 {
     setWindowTitle(tr("Geometry of Annotation"));
 
@@ -76,15 +79,31 @@ PDFAnnotationGeometryDialog::PDFAnnotationGeometryDialog(const QRectF& rectangle
     };
 
     // Rectangle. The origin is the bottom left corner, as in the page coordinate system.
+    // Jakub Melka: the position is the position of the reference point of the rectangle. The
+    // reference point stays at its place, when the size is changed, and it is the center of the
+    // rotation. Data of the items are the relative coordinates of the point in the rectangle.
     m_rectangleGroupBox = new QGroupBox(tr("Position and Size"), this);
     QFormLayout* rectangleLayout = new QFormLayout(m_rectangleGroupBox);
+    m_referencePointComboBox = new QComboBox(m_rectangleGroupBox);
+    m_referencePointComboBox->addItem(tr("Top left"), QPointF(0.0, 1.0));
+    m_referencePointComboBox->addItem(tr("Top"), QPointF(0.5, 1.0));
+    m_referencePointComboBox->addItem(tr("Top right"), QPointF(1.0, 1.0));
+    m_referencePointComboBox->addItem(tr("Left"), QPointF(0.0, 0.5));
+    m_referencePointComboBox->addItem(tr("Center"), QPointF(0.5, 0.5));
+    m_referencePointComboBox->addItem(tr("Right"), QPointF(1.0, 0.5));
+    m_referencePointComboBox->addItem(tr("Bottom left"), QPointF(0.0, 0.0));
+    m_referencePointComboBox->addItem(tr("Bottom"), QPointF(0.5, 0.0));
+    m_referencePointComboBox->addItem(tr("Bottom right"), QPointF(1.0, 0.0));
+    m_referencePointComboBox->setCurrentIndex(int(ReferencePoint::Center));
+    m_referencePointComboBox->setToolTip(tr("The reference point stays at its place, when the size is changed, and the annotation is rotated around it."));
     m_leftSpinBox = createSpinBox(-1000000.0);
     m_bottomSpinBox = createSpinBox(-1000000.0);
     m_widthSpinBox = createSpinBox(0.001);
     m_heightSpinBox = createSpinBox(0.001);
     m_keepAspectRatioCheckBox = new QCheckBox(tr("Keep aspect ratio"), m_rectangleGroupBox);
-    rectangleLayout->addRow(tr("Left (X)"), m_leftSpinBox);
-    rectangleLayout->addRow(tr("Bottom (Y)"), m_bottomSpinBox);
+    rectangleLayout->addRow(tr("Reference point"), m_referencePointComboBox);
+    rectangleLayout->addRow(tr("X of the reference point"), m_leftSpinBox);
+    rectangleLayout->addRow(tr("Y of the reference point"), m_bottomSpinBox);
     rectangleLayout->addRow(tr("Width"), m_widthSpinBox);
     rectangleLayout->addRow(tr("Height"), m_heightSpinBox);
     rectangleLayout->addRow(QString(), m_keepAspectRatioCheckBox);
@@ -110,7 +129,7 @@ PDFAnnotationGeometryDialog::PDFAnnotationGeometryDialog(const QRectF& rectangle
     m_rotationSpinBox->setDecimals(canRotateArbitrary ? 2 : 0);
     m_rotationSpinBox->setSingleStep(canRotateArbitrary ? 1.0 : 90.0);
     m_rotationSpinBox->setSuffix(QString::fromUtf8("°"));
-    rotationLayout->addRow(tr("Rotate clockwise by"), m_rotationSpinBox);
+    rotationLayout->addRow(tr("Rotate clockwise around the reference point by"), m_rotationSpinBox);
     m_rotationGroupBox->setEnabled(canRotate);
     if (!canRotate)
     {
@@ -130,6 +149,29 @@ PDFAnnotationGeometryDialog::PDFAnnotationGeometryDialog(const QRectF& rectangle
     m_pointsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     m_lineInfoLabel = new QLabel(m_pointsGroupBox);
     pointsLayout->addWidget(m_pointsTable);
+
+    // Jakub Melka: length and direction of a segment can be typed directly (length and
+    // absolute angle of a line). The start of the segment stays, its end is moved.
+    QFormLayout* segmentLayout = new QFormLayout();
+    m_segmentSpinBox = new QSpinBox(m_pointsGroupBox);
+    m_segmentSpinBox->setRange(1, qMax(getSegmentCount(), 1));
+    m_segmentLengthSpinBox = createSpinBox(0.001);
+    m_segmentAngleSpinBox = new QDoubleSpinBox(m_pointsGroupBox);
+    m_segmentAngleSpinBox->setRange(-360.0, 360.0);
+    m_segmentAngleSpinBox->setDecimals(2);
+    m_segmentAngleSpinBox->setKeyboardTracking(false);
+    m_segmentAngleSpinBox->setSuffix(QString::fromUtf8("°"));
+    m_segmentAngleSpinBox->setToolTip(tr("Angle of the segment, counterclockwise from the direction of the x axis."));
+    segmentLayout->addRow(tr("Segment"), m_segmentSpinBox);
+    segmentLayout->addRow(tr("Length"), m_segmentLengthSpinBox);
+    segmentLayout->addRow(tr("Angle"), m_segmentAngleSpinBox);
+    pointsLayout->addLayout(segmentLayout);
+
+    const bool canEditSegment = m_capabilities.testFlag(PDFAnnotationManipulator::EditPoints) && getSegmentCount() > 0;
+    m_segmentSpinBox->setEnabled(getSegmentCount() > 1);
+    m_segmentLengthSpinBox->setEnabled(canEditSegment);
+    m_segmentAngleSpinBox->setEnabled(canEditSegment);
+
     pointsLayout->addWidget(m_lineInfoLabel);
     m_pointsGroupBox->setVisible(!m_points.empty());
     layout->addWidget(m_pointsGroupBox);
@@ -141,6 +183,10 @@ PDFAnnotationGeometryDialog::PDFAnnotationGeometryDialog(const QRectF& rectangle
     connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
     connect(m_unitComboBox, &QComboBox::currentIndexChanged, this, &PDFAnnotationGeometryDialog::onUnitChanged);
     connect(m_pointsTable, &QTableWidget::cellChanged, this, &PDFAnnotationGeometryDialog::onPointEdited);
+    connect(m_referencePointComboBox, &QComboBox::currentIndexChanged, this, &PDFAnnotationGeometryDialog::onUnitChanged);
+    connect(m_segmentSpinBox, &QSpinBox::valueChanged, this, &PDFAnnotationGeometryDialog::onUnitChanged);
+    connect(m_segmentLengthSpinBox, &QDoubleSpinBox::valueChanged, this, &PDFAnnotationGeometryDialog::onSegmentEdited);
+    connect(m_segmentAngleSpinBox, &QDoubleSpinBox::valueChanged, this, &PDFAnnotationGeometryDialog::onSegmentEdited);
 
     for (QDoubleSpinBox* spinBox : { m_leftSpinBox, m_bottomSpinBox, m_widthSpinBox, m_heightSpinBox })
     {
@@ -174,12 +220,65 @@ qreal PDFAnnotationGeometryDialog::getRotation() const
     return m_capabilities.testFlag(PDFAnnotationManipulator::RotateArbitrary) ? rotation : std::round(rotation / 90.0) * 90.0;
 }
 
+int PDFAnnotationGeometryDialog::getSegmentCount() const
+{
+    if (m_points.size() < 2)
+    {
+        return 0;
+    }
+
+    return int(m_isClosed ? m_points.size() : m_points.size() - 1);
+}
+
+QPointF PDFAnnotationGeometryDialog::getReferencePoint(const QRectF& rectangle) const
+{
+    // The y axis points upwards, so QRectF::top() is the bottom edge of the rectangle
+    const QRectF normalizedRectangle = rectangle.normalized();
+    const QPointF relativePosition = m_referencePointComboBox->currentData().toPointF();
+    return QPointF(normalizedRectangle.left() + relativePosition.x() * normalizedRectangle.width(),
+                   normalizedRectangle.top() + relativePosition.y() * normalizedRectangle.height());
+}
+
+void PDFAnnotationGeometryDialog::setReferencePoint(ReferencePoint referencePoint)
+{
+    m_referencePointComboBox->setCurrentIndex(int(referencePoint));
+}
+
+void PDFAnnotationGeometryDialog::setSize(const QSizeF& size)
+{
+    const qreal factor = getUnitFactor();
+    m_widthSpinBox->setValue(size.width() * factor);
+    m_heightSpinBox->setValue(size.height() * factor);
+}
+
+void PDFAnnotationGeometryDialog::setSegment(int index)
+{
+    m_segmentSpinBox->setValue(index + 1);
+}
+
+void PDFAnnotationGeometryDialog::setSegmentLength(qreal length)
+{
+    m_segmentLengthSpinBox->setValue(length * getUnitFactor());
+}
+
+void PDFAnnotationGeometryDialog::setSegmentAngle(qreal degrees)
+{
+    m_segmentAngleSpinBox->setValue(degrees);
+}
+
 void PDFAnnotationGeometryDialog::setRectangle(const QRectF& rectangle)
 {
     const qreal factor = getUnitFactor();
-    const QRectF normalizedRectangle = rectangle.normalized();
-    m_leftSpinBox->setValue(normalizedRectangle.left() * factor);
-    m_bottomSpinBox->setValue(normalizedRectangle.top() * factor);
+    QRectF normalizedRectangle = rectangle.normalized();
+    if (!m_widthSpinBox->isEnabled())
+    {
+        // The size is fixed, the annotation is moved to the corner of the rectangle
+        normalizedRectangle.setSize(m_rectangle.size());
+    }
+
+    const QPointF referencePoint = getReferencePoint(normalizedRectangle);
+    m_leftSpinBox->setValue(referencePoint.x() * factor);
+    m_bottomSpinBox->setValue(referencePoint.y() * factor);
 
     if (m_widthSpinBox->isEnabled())
     {
@@ -247,8 +346,12 @@ void PDFAnnotationGeometryDialog::onRectangleEdited()
     }
 
     // The rectangle is in the page coordinate system (y axis points upwards), so
-    // QRectF::top() is the bottom edge of the rectangle
-    m_rectangle = QRectF(m_leftSpinBox->value() / factor, m_bottomSpinBox->value() / factor, width, height);
+    // QRectF::top() is the bottom edge of the rectangle. The reference point is, where
+    // the user has put it, the rectangle of the new size is placed around it.
+    const QPointF relativePosition = m_referencePointComboBox->currentData().toPointF();
+    m_rectangle = QRectF(m_leftSpinBox->value() / factor - relativePosition.x() * width,
+                         m_bottomSpinBox->value() / factor - relativePosition.y() * height,
+                         width, height);
     m_isRectangleChanged = true;
 
     // The rectangle is derived from the points, so both cannot be edited
@@ -289,13 +392,35 @@ void PDFAnnotationGeometryDialog::onPointEdited()
     updateWidgets();
 }
 
+void PDFAnnotationGeometryDialog::onSegmentEdited()
+{
+    const int segment = m_segmentSpinBox->value() - 1;
+    if (m_isUpdating || segment < 0 || segment >= getSegmentCount())
+    {
+        return;
+    }
+
+    // The start of the segment stays, the end is moved. The angle is counterclockwise
+    // in the page coordinate system, where the y axis points upwards.
+    const QPointF start = m_points[size_t(segment)];
+    const qreal length = m_segmentLengthSpinBox->value() / getUnitFactor();
+    const qreal angle = qDegreesToRadians(m_segmentAngleSpinBox->value());
+    m_points[size_t(segment + 1) % m_points.size()] = start + QPointF(std::cos(angle), std::sin(angle)) * length;
+
+    m_isPointsChanged = true;
+    m_rectangleGroupBox->setEnabled(false);
+    m_rectangleGroupBox->setToolTip(tr("The rectangle cannot be edited, because the points were changed."));
+    updateWidgets();
+}
+
 void PDFAnnotationGeometryDialog::updateWidgets()
 {
     m_isUpdating = true;
 
     const qreal factor = getUnitFactor();
-    m_leftSpinBox->setValue(m_rectangle.left() * factor);
-    m_bottomSpinBox->setValue(m_rectangle.top() * factor);
+    const QPointF referencePoint = getReferencePoint(m_rectangle);
+    m_leftSpinBox->setValue(referencePoint.x() * factor);
+    m_bottomSpinBox->setValue(referencePoint.y() * factor);
     m_widthSpinBox->setValue(m_rectangle.width() * factor);
     m_heightSpinBox->setValue(m_rectangle.height() * factor);
 
@@ -320,12 +445,17 @@ void PDFAnnotationGeometryDialog::updateWidgets()
         }
     }
 
-    if (m_points.size() >= 2)
+    const int segment = m_segmentSpinBox->value() - 1;
+    if (segment >= 0 && segment < getSegmentCount())
     {
-        // Length and direction of the first segment (of the line)
-        const QLineF line(m_points[0], m_points[1]);
-        m_lineInfoLabel->setText(tr("First segment: length %1, angle %2°").arg(QLocale().toString(line.length() * factor, 'f', 3),
-                                                                             QLocale().toString(std::fmod(360.0 - line.angle(), 360.0), 'f', 2)));
+        // Length and direction of the selected segment. QLineF::angle() is counterclockwise in
+        // a coordinate system, where the y axis points downwards, the y axis of the page points upwards.
+        const QLineF line(m_points[size_t(segment)], m_points[size_t(segment + 1) % m_points.size()]);
+        const qreal angle = std::fmod(360.0 - line.angle(), 360.0);
+        m_segmentLengthSpinBox->setValue(line.length() * factor);
+        m_segmentAngleSpinBox->setValue(angle);
+        m_lineInfoLabel->setText(tr("Segment %1: length %2, angle %3°").arg(segment + 1).arg(QLocale().toString(line.length() * factor, 'f', 3),
+                                                                                              QLocale().toString(angle, 'f', 2)));
     }
 
     m_isUpdating = false;

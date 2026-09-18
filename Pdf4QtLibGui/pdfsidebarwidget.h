@@ -24,6 +24,7 @@
 #define PDFSIDEBARWIDGET_H
 
 #include "pdfglobal.h"
+#include "pdfviewerglobal.h"
 #include "pdfbookmarkmanager.h"
 
 #include <QWidget>
@@ -63,7 +64,7 @@ class PDFTextToSpeech;
 class PDFViewerSettings;
 class PDFBookmarkItemModel;
 
-class PDFSidebarWidget : public QWidget
+class PDF4QTLIBGUILIBSHARED_EXPORT PDFSidebarWidget : public QWidget
 {
     Q_OBJECT
 

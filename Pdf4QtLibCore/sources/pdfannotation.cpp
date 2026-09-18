@@ -734,6 +734,7 @@ PDFAnnotationPtr PDFAnnotation::parse(const PDFObjectStorage* storage, PDFObject
         result.reset(annotation);
 
         annotation->m_inkPath = parsePath(storage, dictionary, false);
+        annotation->m_isDefinedByPath = !annotation->m_inkPath.isEmpty();
         if (annotation->m_inkPath.isEmpty())
         {
             PDFObject inkList = storage->getObject(dictionary->get("InkList"));
