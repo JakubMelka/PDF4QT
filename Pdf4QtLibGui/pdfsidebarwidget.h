@@ -153,6 +153,8 @@ private:
     void onBookmarsCurrentIndexChanged(const QModelIndex& current, const QModelIndex& previous);
     void onBookmarkClicked(const QModelIndex& index);
     void onNotesItemClicked(const QModelIndex& index);
+    void onNotesSelectionChanged();
+    void onAnnotationSelectionChanged();
 
     // Outline item actions (created once, shared between the context menu and,
     // once registered with the action manager, keyboard shortcuts)
@@ -241,6 +243,7 @@ private:
     std::vector<std::pair<pdf::PDFObjectReference, pdf::PDFInteger>> m_markupAnnotations;
     Page m_currentPage = Invalid;
     bool m_bookmarkChangeInProgress = false;
+    bool m_notesSelectionChangeInProgress = false;
 
     // Outline item actions (valid only when outline editing is enabled)
     QAction* m_outlineActionFollow = nullptr;

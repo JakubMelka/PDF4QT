@@ -294,9 +294,11 @@ PDFObject PDFObjectEditorAbstractModel::writeAttributeValueToObject(size_t attri
 
         --arrayIndex;
 
+        // Jakub Melka: missing items are filled by the default value of the attribute, not by
+        // null objects - an array of numbers with a null object is not a valid array of numbers
         while (arrayIndex >= array.getCount())
         {
-            array.appendItem(PDFObject());
+            array.appendItem(m_attributes.at(attribute).defaultValue);
         }
 
         array.setItem(qMove(value), arrayIndex);
@@ -553,11 +555,12 @@ PDFObjectEditorAnnotationsModel::PDFObjectEditorAnnotationsModel(QObject* parent
 
     // Border style/effect
     size_t borderSelector = createSelectorAttribute(tr("General"), tr("Options"), tr("Modify border"));
-    createAttribute(ObjectEditorAttributeType::Double, QByteArrayList() << "BS" << "W", tr("Border"), tr("Border Style"), tr("Width"), PDFObject::createReal(0.0), Link | Line | Circle | Square | Polygon | PolyLine | Ink);
+    // Free text annotation draws the border of its text box and its callout line by the border style
+    createAttribute(ObjectEditorAttributeType::Double, QByteArrayList() << "BS" << "W", tr("Border"), tr("Border Style"), tr("Width"), PDFObject::createReal(0.0), Link | FreeText | Line | Circle | Square | Polygon | PolyLine | Ink);
     m_attributes.back().selectorAttribute = borderSelector;
     m_attributes.back().minValue = 0.0;
 
-    createAttribute(ObjectEditorAttributeType::ComboBox, QByteArrayList() << "BS" << "S", tr("Border"), tr("Border Style"), tr("Style"), PDFObject::createName("S"), Link | Line | Circle | Square | Polygon | PolyLine | Ink);
+    createAttribute(ObjectEditorAttributeType::ComboBox, QByteArrayList() << "BS" << "S", tr("Border"), tr("Border Style"), tr("Style"), PDFObject::createName("S"), Link | FreeText | Line | Circle | Square | Polygon | PolyLine | Ink);
     PDFObjectEditorModelAttributeEnumItems borderStyleEnumItems;
     borderStyleEnumItems.emplace_back(tr("Solid"), 1, PDFObject::createName("S"));
     borderStyleEnumItems.emplace_back(tr("Dashed"), 2, PDFObject::createName("D"));
@@ -627,14 +630,19 @@ PDFObjectEditorAnnotationsModel::PDFObjectEditorAnnotationsModel(QObject* parent
     createLineEndingAttribute("LE", tr("Line"), tr("Style"), tr("Line end"), Line | PolyLine);
     m_attributes.back().arrayIndex = 2;
 
-    createAttribute(ObjectEditorAttributeType::Double, "LL", tr("Line"), tr("Style"), tr("Leader line length"), PDFObject::createReal(0.0), Line, PDFObjectEditorModelAttribute::HideInsteadOfDisable);
-    m_attributes.back().minValue = 0.0;
+    // Jakub Melka: length of the leader lines is oriented - a negative
+    // length draws the leader lines on the other side of the line
+    createAttribute(ObjectEditorAttributeType::Double, "LL", tr("Line"), tr("Style"), tr("Leader line length (negative for the other side)"), PDFObject::createReal(0.0), Line, PDFObjectEditorModelAttribute::HideInsteadOfDisable);
+    m_attributes.back().minValue = -10000.0;
+    m_attributes.back().maxValue = 10000.0;
 
     createAttribute(ObjectEditorAttributeType::Double, "LLE", tr("Line"), tr("Style"), tr("Leader line extension"), PDFObject::createReal(0.0), Line, PDFObjectEditorModelAttribute::HideInsteadOfDisable);
     m_attributes.back().minValue = 0.0;
+    m_attributes.back().maxValue = 10000.0;
 
     createAttribute(ObjectEditorAttributeType::Double, "LLO", tr("Line"), tr("Style"), tr("Leader line offset"), PDFObject::createReal(0.0), Line, PDFObjectEditorModelAttribute::HideInsteadOfDisable);
     m_attributes.back().minValue = 0.0;
+    m_attributes.back().maxValue = 10000.0;
 
     createAttribute(ObjectEditorAttributeType::ComboBox, "IT", tr("Line"), tr("Style"), tr("Intent"), PDFObject::createName("LineArrow"), Line, PDFObjectEditorModelAttribute::HideInsteadOfDisable);
     PDFObjectEditorModelAttributeEnumItems lineIntent;
@@ -651,6 +659,17 @@ PDFObjectEditorAnnotationsModel::PDFObjectEditorAnnotationsModel(QObject* parent
     m_attributes.back().enumItems = qMove(polygonIntent);
 
     createAttribute(ObjectEditorAttributeType::Boolean, "Cap", tr("Line"), tr("Text"), tr("Caption"), PDFObject::createBool(false), Line);
+
+    // Offset of the caption from its normal position
+    createAttribute(ObjectEditorAttributeType::Double, "CO", tr("Line"), tr("Text"), tr("Caption offset along the line"), PDFObject::createReal(0.0), Line);
+    m_attributes.back().arrayIndex = 1;
+    m_attributes.back().minValue = -10000.0;
+    m_attributes.back().maxValue = 10000.0;
+
+    createAttribute(ObjectEditorAttributeType::Double, "CO", tr("Line"), tr("Text"), tr("Caption offset perpendicular to the line"), PDFObject::createReal(0.0), Line);
+    m_attributes.back().arrayIndex = 2;
+    m_attributes.back().minValue = -10000.0;
+    m_attributes.back().maxValue = 10000.0;
 
     createAttribute(ObjectEditorAttributeType::ComboBox, "CP", tr("Line"), tr("Text"), tr("Caption position"), PDFObject::createName("Inline"), Line);
     PDFObjectEditorModelAttributeEnumItems lineCaptionPosition;

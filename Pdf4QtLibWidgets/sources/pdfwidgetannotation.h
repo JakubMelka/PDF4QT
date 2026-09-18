@@ -50,16 +50,34 @@ class PDFDrawWidgetProxy;
 ///
 ///  - a left click selects an annotation, Ctrl/Shift + click adds the annotation
 ///    to the selection (or removes it from the selection), Ctrl/Shift + drag on
-///    an empty area selects all annotations inside the dragged rectangle,
+///    an empty area selects all annotations inside the dragged rectangle. Thin
+///    shapes (lines, outlines of polygons, ink) are selected by a click near
+///    the shape, so they do not block the annotations inside their rectangle;
+///    Alt + click selects the next annotation under the cursor,
 ///  - selected annotations can be dragged to a new position (also to another
 ///    page, or to another document; holding Ctrl while dropping copies them),
 ///    resized using the handles of the selection frame and rotated using the
-///    rotation handle above the frame,
+///    rotation handle above the frame. Only the handles, which the selection
+///    supports, are displayed (for example, a sticky note can only be moved). If
+///    several annotations are selected, then the layout of the group is always
+///    transformed - annotations, which do not support the transformation, are
+///    moved to the transformed position. Handles have precedence over the
+///    modifiers of the selection, so Shift can be held before the handle is pressed,
 ///  - if a single annotation defined by points is selected (line, polygon,
 ///    polyline, callout line of a free text), then each point has its own handle
 ///    and it can be dragged (Shift constrains the direction to multiples of 45
-///    degrees); points of polygons and polylines can be inserted and removed
-///    using the context menu,
+///    degrees, the point snaps to the geometry of the page and of the other
+///    annotations, Ctrl disables the snapping); points of polygons and polylines
+///    can be inserted and removed using the context menu. Points can be edited
+///    also from the keyboard - Alt + Left/Right selects a point, arrows move it,
+///    Insert adds a point behind it, Delete removes it,
+///  - text markup annotations (highlight, ...) have handles at the ends of each
+///    marked line, so a single line can be made longer or shorter; a single marked
+///    line (a single stroke of an ink) can be deleted using the context menu,
+///  - the frame of a free text annotation with a callout line is the frame of its
+///    text box - the text box is moved and resized, the tip of the callout line
+///    stays at its place. The whole annotation is moved by dragging its callout
+///    line (or with Alt pressed), and by the arrows,
 ///  - Delete removes the selection, Ctrl+C / Ctrl+X / Ctrl+V copy, cut and paste
 ///    the selection through the clipboard (also between documents and between
 ///    running instances of the application), arrows nudge the selection,
@@ -109,7 +127,11 @@ public:
 
     virtual int getInputPriority() const override { return AnnotationPriority; }
 
-    /// Selects the annotation and shows the context menu for it
+    /// Shows the context menu for the annotation. If the annotation can be selected,
+    /// then it is selected and the menu of the selection is displayed. Annotations, which
+    /// cannot be selected on the page (hidden annotations, replies), get a menu with the
+    /// operations, which do not need the geometry (properties, deleting) - so a hidden
+    /// annotation can be made visible again from the list of the annotations.
     /// \param annotationReference Annotation
     /// \param pageReference Page of the annotation
     /// \param globalMenuPosition Position of the menu in global coordinates
@@ -134,12 +156,27 @@ public:
     /// not be locked or read only and the document must allow the modification.
     bool canTransformAnnotation(const PageAnnotation& annotation) const;
 
+    /// Returns true, if the user can modify (edit, delete) the annotation - the
+    /// document must allow it and the annotation must not be locked or read only.
+    /// Unlike \ref canDeleteAnnotation, the annotation does not have to be visible,
+    /// so it is used for the annotations managed from a list (hidden annotations, replies).
+    bool canModifyAnnotation(const PageAnnotation& annotation) const;
+
+    /// Returns the operations, which the user can do with the annotation
+    PDFAnnotationManipulator::Capabilities getAnnotationCapabilities(const PageAnnotation& annotation) const;
+
+    /// Returns the operations, which the user can do with the selection. If several
+    /// annotations are selected on a page, then the layout of the group can be
+    /// resized, rotated and mirrored regardless of the capabilities of the annotations.
+    PDFAnnotationManipulator::Capabilities getSelectionCapabilities() const;
+
     /// Returns true, if the document permits modification of the annotations
     bool isModificationAllowed() const;
 
     /// Returns snap information generated from editable annotation geometry on a page.
     /// \param pageIndex Page index
-    PDFSnapInfo getSnapInfo(PDFInteger pageIndex) const;
+    /// \param excludedAnnotation Annotation, whose geometry is skipped (the annotation being edited)
+    PDFSnapInfo getSnapInfo(PDFInteger pageIndex, PDFObjectReference excludedAnnotation = PDFObjectReference()) const;
 
     /// Returns references of the selected annotations
     std::vector<PDFObjectReference> getSelectedAnnotations() const;
@@ -181,7 +218,13 @@ public:
     /// a page, then annotations are centered at it, otherwise they are pasted
     /// onto the first displayed page at their original position.
     /// \param widgetPosition Position in the widget (optional)
-    void pasteAnnotations(std::optional<QPoint> widgetPosition);
+    /// \param keepPosition Paste the annotations at their original position (the widget position selects just the page)
+    void pasteAnnotations(std::optional<QPoint> widgetPosition, bool keepPosition = false);
+
+    /// Copies the selected annotations (with their popup windows and replies)
+    /// onto the pages. An annotation is not copied onto its own page.
+    /// \param pageIndices Indices of the target pages
+    void copySelectedAnnotationsToPages(const std::vector<PDFInteger>& pageIndices);
 
     /// Deletes the selected annotations, which can be deleted
     void deleteSelectedAnnotations();
@@ -189,6 +232,13 @@ public:
     /// Moves the selected annotations by an offset given in the page coordinates
     /// \param offset Offset
     void translateSelectedAnnotations(const QPointF& offset);
+
+    /// Moves the selected annotations in a direction given on the screen. The
+    /// direction is converted to the page coordinates for each page separately,
+    /// because the pages can be rotated differently.
+    /// \param deviceDirection Direction on the screen (y axis points downwards)
+    /// \param distance Distance in the page units
+    void nudgeSelectedAnnotations(const QPointF& deviceDirection, PDFReal distance);
 
     /// Rotates the selected annotations of each page around the center of
     /// their bounding rectangle. Positive angle rotates clockwise, as seen
@@ -201,6 +251,67 @@ public:
     /// side (as seen by the user on the screen), vertical top and bottom.
     /// \param orientation Orientation
     void flipSelectedAnnotations(Qt::Orientation orientation);
+
+    /// Alignment of the selected annotations (as the user sees it on the screen)
+    enum class Alignment
+    {
+        Left,
+        HorizontalCenter,
+        Right,
+        Top,
+        VerticalCenter,
+        Bottom
+    };
+
+    /// Aligns the selected annotations of each page to the frame of the selection
+    /// \param alignment Alignment
+    void alignSelectedAnnotations(Alignment alignment);
+
+    /// Distributes the selected annotations of each page, so the gaps between
+    /// them are the same (at least three annotations are needed)
+    /// \param orientation Orientation (on the screen)
+    void distributeSelectedAnnotations(Qt::Orientation orientation);
+
+    /// Sets the rectangle of the annotation (position and size). The geometry of
+    /// the annotation (its points) is transformed together with the rectangle. If the
+    /// annotation cannot be resized, then it is just moved to the center of the rectangle.
+    /// \param annotation Annotation
+    /// \param rectangle New rectangle (page coordinates)
+    /// \returns true, if the annotation has been modified
+    bool setAnnotationRectangle(PDFObjectReference annotation, const QRectF& rectangle);
+
+    /// Sets the text box of a free text annotation, the tip of its callout line stays
+    /// \returns true, if the annotation has been modified
+    bool setAnnotationTextRectangle(PDFObjectReference annotation, const QRectF& textRectangle);
+
+    /// Adds a callout line to a free text annotation. The line ends
+    /// at the edge of the text box, which is the nearest one to the tip.
+    /// \param annotation Annotation
+    /// \param tip Place, to which the callout line points (page coordinates)
+    /// \returns true, if the annotation has been modified
+    bool addAnnotationCalloutLine(PDFObjectReference annotation, const QPointF& tip);
+
+    /// Removes the callout line of a free text annotation
+    /// \returns true, if the annotation has been modified
+    bool removeAnnotationCalloutLine(PDFObjectReference annotation);
+
+    /// Removes a part of the annotation (a marked region of a text markup, a stroke of an ink)
+    /// \returns true, if the annotation has been modified
+    bool removeAnnotationPart(PDFObjectReference annotation, size_t index);
+
+    /// Sets the color of the selected annotations
+    void setSelectedAnnotationsColor(const QColor& color);
+
+    /// Sets the opacity of the selected annotations
+    /// \param opacity Opacity (from 0 to 1)
+    void setSelectedAnnotationsOpacity(PDFReal opacity);
+
+    /// Sets the width of the border (line) of the selected annotations, which have a border
+    void setSelectedAnnotationsBorderWidth(PDFReal width);
+
+    /// Returns the index of the point of the selected annotation,
+    /// which is edited from the keyboard, or -1
+    int getActivePoint() const { return m_activePoint; }
 
     /// Moves a single point of the annotation (end point of a line, vertex of
     /// a polygon or of a polyline, point of the callout line of a free text).
@@ -260,6 +371,10 @@ private:
         bool isValid = false;
         QRectF frame;                       ///< Selection frame (bounding rectangle of the selection)
         std::array<QPointF, 8> handles;     ///< Resize handles, in the order of the enum Handle (TopLeft ... Left)
+        bool isTextBox = false;             ///< Frame of the text box of a free text annotation with a callout line
+        bool hasResizeHandles = false;      ///< Selection can be resized
+        bool hasRotationHandle = false;     ///< Selection can be rotated
+        bool isRotationArbitrary = false;   ///< Selection can be rotated by any angle (otherwise in steps of 90 degrees)
         QPointF rotationHandle;             ///< Center of the rotation handle
         QPointF rotationHandleBase;         ///< Point on the frame, from which the line to the rotation handle is drawn
         qreal handleSize = 0.0;             ///< Size of the resize handle
@@ -279,8 +394,9 @@ private:
     {
         Interaction type = Interaction::None;
         PDFInteger pageIndex = -1;
-        QTransform pageToDevice;
+        QTransform pageToDevice;        ///< Matrix, by which the manipulated geometry is displayed (see getSelectionToDeviceMatrix)
         QTransform deviceToPage;
+        QTransform pageToDeviceBase;    ///< Page to device matrix of the page
         QPoint startDevicePosition;
         QPoint currentDevicePosition;
         Handle handle = Handle::None;
@@ -292,6 +408,19 @@ private:
         PDFObjectReference pointAnnotation; ///< Annotation, whose point is dragged
         std::vector<QPointF> previewPoints; ///< Points of the annotation with the dragged point (page coordinates)
         bool isPreviewClosed = false;   ///< Preview points form a closed shape
+        bool isPreviewQuadEnds = false; ///< Preview points are the ends of the marked regions
+        bool isSnapped = false;         ///< Dragged point is snapped
+        QRectF textRectangle;           ///< Text box, which is manipulated by the handles (page coordinates)
+    };
+
+    /// Text box of the selected free text annotation with a callout line
+    struct TextBoxInfo
+    {
+        PDFInteger pageIndex = -1;
+        PDFObjectReference annotation;
+        QRectF textRectangle;
+
+        bool isValid() const { return pageIndex != -1; }
     };
 
     /// Points of the selected annotation, which can be edited one by one
@@ -336,6 +465,7 @@ private:
         QPointF cursorOffset;
         QPixmap dragPixmap;
         QPoint dragHotSpot;
+        bool isTextBoxOnly = false;     ///< Only the text box of a free text annotation is dragged (the tip of its callout line stays)
     };
 
     void updateFromMouseEvent(QMouseEvent* event);
@@ -347,6 +477,78 @@ private:
     /// Returns page annotation under the widget position, which can be selected.
     /// If several annotations are under the position, then the topmost is returned.
     const PageAnnotation* findSelectableAnnotation(QPoint widgetPos, PDFInteger* pageIndex) const;
+
+    /// Returns all page annotations under the widget position, which can be selected.
+    /// Annotations, whose shape is under the position, go first (from the topmost one),
+    /// they are followed by the annotations, which have just their rectangle there.
+    std::vector<const PageAnnotation*> findSelectableAnnotations(QPoint widgetPos, PDFInteger* pageIndex) const;
+
+    /// Returns the annotation, which should be selected by the next step of cycling
+    /// through the annotations under the position (the one below the selected one)
+    const PageAnnotation* findNextSelectableAnnotation(QPoint widgetPos, PDFInteger* pageIndex) const;
+
+    /// Returns true, if the shape of the annotation (not just its rectangle) is at the
+    /// device position. Annotations without a thin shape are tested by the rectangle.
+    bool isAnnotationShapeAtPosition(const PageAnnotation& annotation, const QTransform& annotationToDevice, const QPointF& devicePosition) const;
+
+    /// Returns the matrix, which maps the geometry of the annotation (in page coordinates)
+    /// to the device. It is the page to device matrix, unless the annotation has flags,
+    /// which change the way it is displayed (NoRotate, NoZoom).
+    QTransform getAnnotationToDeviceMatrix(const PageAnnotation& annotation, PDFInteger pageIndex, const QTransform& pageToDevice) const;
+
+    /// Returns the matrix, which maps the geometry of the transformable selection on the
+    /// page to the device. If a single annotation is selected, then it is its matrix (see
+    /// \ref getAnnotationToDeviceMatrix), so the handles and the preview match the displayed
+    /// annotation. A group of annotations is always manipulated in the space of the page.
+    QTransform getSelectionToDeviceMatrix(PDFInteger pageIndex, const QTransform& pageToDevice) const;
+
+    /// Returns the page to device matrix of the page. If the page is not displayed,
+    /// then a matrix with the same orientation is returned (it can be used to convert
+    /// directions and orientations between the screen and the page).
+    QTransform getPageToDeviceMatrix(PDFInteger pageIndex) const;
+
+    /// Returns the operations, which the user can do with the selection on the page
+    PDFAnnotationManipulator::Capabilities getSelectionCapabilities(PDFInteger pageIndex) const;
+
+    /// Returns true, if some annotation on the displayed pages can be selected
+    bool hasSelectableAnnotation() const;
+
+    /// Copies the annotations to the clipboard, returns true on success
+    bool copyAnnotationsToClipboard(const std::vector<PDFObjectReference>& annotations);
+
+    /// Returns the selected annotations, which can be deleted
+    std::vector<PDFObjectReference> getDeletableSelectedAnnotations() const;
+
+    /// Returns the text box of the selection, which is manipulated instead of the annotation
+    /// rectangle - a single free text annotation with a callout line must be selected
+    TextBoxInfo getTextBoxInfo() const;
+
+    /// Returns the index of the part of the selected annotation (see
+    /// PDFAnnotationManipulator::getParts), which can be removed and which is
+    /// at the device position, or -1
+    int hitTestPart(const QPoint& devicePosition, PDFObjectReference* annotation) const;
+
+    /// Applies the function to the selected annotations, which can be modified,
+    /// in a single modification of the document. The function returns true, if
+    /// it has modified the annotation.
+    void modifySelectedAnnotations(const std::function<bool(PDFDocumentBuilder*, const PageAnnotation&)>& function);
+
+    /// Applies a translation to each selected annotation of the pages. The function returns
+    /// the translation (in device coordinates) for the annotation from its displayed
+    /// rectangle, the frame of the selection on the page and the index of the annotation.
+    void translateSelectedAnnotationsOnScreen(const std::function<QPointF(const QRectF&, const QRectF&, const std::vector<QRectF>&, size_t)>& function);
+
+    /// Handles the keys, which edit the points of the selected annotation
+    bool handlePointKeys(QKeyEvent* event);
+
+    /// Draws a text with the numeric feedback next to the mouse cursor
+    void drawInfoText(QPainter* painter, const QString& text, const PDFColorConvertor& convertor) const;
+
+    /// Draws the annotation, as it will look like after the transformation
+    void drawAnnotationPreview(QPainter* painter, const PageAnnotation& annotation, PDFInteger pageIndex, const QTransform& annotationToDevice) const;
+
+    /// Returns the explanation of the limited capabilities of the annotation for the user
+    QString getCapabilitiesHint(PDFAnnotationManipulator::Capabilities capabilities) const;
 
     /// Returns the page annotation of the annotation on the given page, or nullptr
     const PageAnnotation* findPageAnnotation(PDFInteger pageIndex, PDFObjectReference annotation) const;
@@ -373,10 +575,11 @@ private:
     /// Removes annotations, which do not exist any more, from the selection
     void updateSelectionAfterDocumentChange();
 
-    /// Computes the layout of the selection frame
-    /// \param boundingRectangle Bounding rectangle of the selection (page coordinates)
+    /// Computes the layout of the selection frame of the page. The frame is the
+    /// bounding rectangle of the selected annotations, as they are displayed.
+    /// \param pageIndex Page index
     /// \param pageToDevice Page to device matrix
-    HandleLayout computeHandleLayout(const QRectF& boundingRectangle, const QTransform& pageToDevice) const;
+    HandleLayout computeHandleLayout(PDFInteger pageIndex, const QTransform& pageToDevice) const;
 
     /// Returns the handle at the device position
     Handle hitTestHandle(const HandleLayout& layout, const QPointF& devicePosition) const;
@@ -441,10 +644,14 @@ private:
     void transformSelectedAnnotations(PDFInteger pageIndex, const QTransform& transform);
 
     /// Applies the transformation (in page coordinates) to the selected annotations
-    /// of all pages. The transformation is computed for each page separately
-    /// from the bounding rectangle of the selection on the page.
-    /// \param transformFactory Function creating the transformation from the bounding rectangle and the page
-    void transformSelectedAnnotations(const std::function<QTransform(const QRectF&, const PDFPage*)>& transformFactory);
+    /// of all pages in a single modification of the document. The transformation
+    /// is computed for each page separately from the bounding rectangle of the
+    /// selection on the page.
+    /// \param transformFactory Function creating the transformation from the bounding rectangle and the page index
+    void transformSelectedAnnotations(const std::function<QTransform(const QRectF&, PDFInteger)>& transformFactory);
+
+    /// Shows the context menu for an annotation, which cannot be selected
+    void showUnselectableAnnotationMenu(const PageAnnotation& annotation, PDFObjectReference pageReference, QPoint globalPosition);
 
     /// Shows the context menu for the current selection
     /// \param globalPosition Position of the menu
@@ -465,6 +672,7 @@ private:
     void onShowPopupAnnotation();
     void onCopyAnnotation();
     void onEditAnnotation();
+    void onEditGeometry();
     void onDeleteAnnotation();
 
     /// Creates dialog for markup annotations. This function is used only for markup annotations,
@@ -492,8 +700,12 @@ private:
     PDFObjectReference m_editableAnnotation;    ///< Annotation to be edited or deleted
     PDFObjectReference m_editableAnnotationPage;    ///< Page of annotation above
     bool m_suppressLinkActivationOnRelease = false;
+    bool m_isLinkPressed = false;               ///< The mouse button was pressed over a link (so its release can activate it)
+    PDFObjectReference m_pendingDeselection;    ///< Selected annotation clicked with a modifier, it is deselected on release (if it is not dragged)
 
     std::vector<SelectedAnnotation> m_selection;
+    int m_activePoint = -1;                 ///< Point of the selected annotation, which is edited from the keyboard
+    PDFSnapper m_snapper;                   ///< Snapping of the dragged point
     mutable std::optional<QCursor> m_rotationCursor;
     HoveredAnnotation m_hoveredAnnotation;
     Handle m_hoveredHandle = Handle::None;

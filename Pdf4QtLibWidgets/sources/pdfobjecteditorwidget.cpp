@@ -41,6 +41,8 @@
 #include <QCheckBox>
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
+#include <QFormLayout>
+#include <QLocale>
 
 #include "pdfdbgheap.h"
 
@@ -378,7 +380,6 @@ void PDFObjectEditorWidgetMapper::createMappedAdapter(QGroupBox* groupBox, QGrid
             QLabel* label = new QLabel(groupBox);
             QPushButton* pushButton = new QPushButton(groupBox);
             pushButton->setText(tr("Rectangle"));
-            pushButton->setFlat(true);
 
             layout->addWidget(label, row, 0);
             layout->addWidget(pushButton, row, 1);
@@ -756,6 +757,8 @@ PDFObjectEditorMappedRectangleAdapter::PDFObjectEditorMappedRectangleAdapter(QLa
     m_pushButton(pushButton)
 {
     initLabel(label);
+
+    connect(pushButton, &QPushButton::clicked, this, &PDFObjectEditorMappedRectangleAdapter::onEditRectangle);
 }
 
 PDFObject PDFObjectEditorMappedRectangleAdapter::getValue() const
@@ -766,6 +769,70 @@ PDFObject PDFObjectEditorMappedRectangleAdapter::getValue() const
 void PDFObjectEditorMappedRectangleAdapter::setValue(PDFObject object)
 {
     m_rectangle = qMove(object);
+    updateButtonText();
+}
+
+QRectF PDFObjectEditorMappedRectangleAdapter::getRectangle() const
+{
+    PDFDocumentDataLoaderDecorator loader(m_model->getStorage());
+    return loader.readRectangle(m_rectangle, QRectF()).normalized();
+}
+
+void PDFObjectEditorMappedRectangleAdapter::setRectangle(const QRectF& rectangle)
+{
+    PDFObjectFactory factory;
+    factory << rectangle.normalized();
+    m_rectangle = factory.takeObject();
+    updateButtonText();
+
+    Q_EMIT commitRequested(m_attribute);
+}
+
+void PDFObjectEditorMappedRectangleAdapter::updateButtonText()
+{
+    // Position of the bottom left corner and the size (in the page coordinate system)
+    const QRectF rectangle = getRectangle();
+    if (rectangle.isValid())
+    {
+        QLocale locale;
+        m_pushButton->setText(tr("[%1; %2] %3 × %4").arg(locale.toString(rectangle.left(), 'f', 1), locale.toString(rectangle.top(), 'f', 1),
+                                                       locale.toString(rectangle.width(), 'f', 1), locale.toString(rectangle.height(), 'f', 1)));
+    }
+    else
+    {
+        m_pushButton->setText(tr("Rectangle"));
+    }
+}
+
+void PDFObjectEditorMappedRectangleAdapter::onEditRectangle()
+{
+    const QRectF rectangle = getRectangle();
+
+    QDialog dialog(m_pushButton);
+    dialog.setWindowTitle(tr("Rectangle"));
+
+    QFormLayout* layout = new QFormLayout(&dialog);
+    std::array<QDoubleSpinBox*, 4> spinBoxes = { };
+    const std::array<QString, 4> labels = { tr("Left (X)"), tr("Bottom (Y)"), tr("Width"), tr("Height") };
+    const std::array<qreal, 4> values = { rectangle.left(), rectangle.top(), rectangle.width(), rectangle.height() };
+    for (size_t i = 0; i < spinBoxes.size(); ++i)
+    {
+        spinBoxes[i] = new QDoubleSpinBox(&dialog);
+        spinBoxes[i]->setDecimals(3);
+        spinBoxes[i]->setRange(i < 2 ? -1000000.0 : 0.001, 1000000.0);
+        spinBoxes[i]->setValue(values[i]);
+        layout->addRow(labels[i], spinBoxes[i]);
+    }
+
+    QDialogButtonBox* buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    layout->addRow(buttonBox);
+    connect(buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    if (dialog.exec() == QDialog::Accepted)
+    {
+        setRectangle(QRectF(spinBoxes[0]->value(), spinBoxes[1]->value(), spinBoxes[2]->value(), spinBoxes[3]->value()));
+    }
 }
 
 void PDFObjectEditorMappedRectangleAdapter::update()

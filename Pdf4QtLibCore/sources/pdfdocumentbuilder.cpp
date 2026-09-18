@@ -28,6 +28,7 @@
 #include "pdfnametreeloader.h"
 #include "pdfparser.h"
 #include "pdfstreamfilters.h"
+#include "pdfannotationmanipulator.h"
 
 #include <QBuffer>
 #include <QFontMetricsF>
@@ -1553,14 +1554,25 @@ void PDFDocumentBuilder::updateAnnotationAppearanceStreams(PDFObjectReference an
         }
     }
 
+    // Jakub Melka: the entry P of the annotation is optional, so the page
+    // is searched in the page tree, if the annotation does not refer to it.
     const PDFDictionary* pageDictionary = m_storage.getDictionaryFromObject(m_storage.getObject(annotation->getPageReference()));
     if (!pageDictionary)
     {
-        return;
+        pageDictionary = m_storage.getDictionaryFromObject(m_storage.getObject(PDFAnnotationManipulator::findAnnotationPage(&m_storage, annotationReference)));
     }
 
+    // The media box is inheritable, so it can be defined by a node
+    // of the page tree instead of the page itself.
     PDFDocumentDataLoaderDecorator loader(&m_storage);
-    QRectF mediaBox = loader.readRectangle(pageDictionary->get("MediaBox"), QRectF());
+    QRectF mediaBox;
+    std::set<const PDFDictionary*> visitedNodes;
+    while (pageDictionary && !mediaBox.isValid() && visitedNodes.insert(pageDictionary).second)
+    {
+        mediaBox = loader.readRectangle(pageDictionary->get("MediaBox"), QRectF());
+        pageDictionary = m_storage.getDictionaryFromObject(pageDictionary->get("Parent"));
+    }
+
     if (!mediaBox.isValid())
     {
         return;

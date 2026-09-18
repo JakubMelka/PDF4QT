@@ -211,7 +211,18 @@ public:
     virtual void setValue(PDFObject object) override;
     virtual void update() override;
 
+    /// Returns the edited rectangle
+    QRectF getRectangle() const;
+
+    /// Sets the rectangle, as if the user edited it
+    void setRectangle(const QRectF& rectangle);
+
 private:
+    /// Opens the dialog, in which the user edits the rectangle
+    void onEditRectangle();
+
+    void updateButtonText();
+
     QLabel* m_label;
     QPushButton* m_pushButton;
     PDFObject m_rectangle;

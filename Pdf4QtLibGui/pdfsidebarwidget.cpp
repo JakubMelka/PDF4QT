@@ -181,6 +181,10 @@ PDFSidebarWidget::PDFSidebarWidget(pdf::PDFDrawWidgetProxy* proxy,
     connect(ui->notesSearchLineEdit, &QLineEdit::editingFinished, this, &PDFSidebarWidget::onNotesSearchText);
     connect(ui->notesSearchLineEdit, &QLineEdit::textChanged, this, &PDFSidebarWidget::onNotesSearchText);
     connect(ui->notesTreeView, &QTreeView::clicked, this, &PDFSidebarWidget::onNotesItemClicked);
+
+    // Selection of the notes is synchronized with the selection of the annotations on the pages
+    ui->notesTreeView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    connect(ui->notesTreeView->selectionModel(), &QItemSelectionModel::selectionChanged, this, &PDFSidebarWidget::onNotesSelectionChanged);
     connect(ui->notesTreeView, &QTreeView::customContextMenuRequested, this, &PDFSidebarWidget::onNotesTreeViewContextMenuRequested);
 
     m_pageInfo[Invalid] = { nullptr, ui->emptyPage };
@@ -800,6 +804,9 @@ void PDFSidebarWidget::updateNotes()
     const bool updatesEnabled = ui->notesTreeView->updatesEnabled();
     ui->notesTreeView->setUpdatesEnabled(false);
 
+    // The list is rebuilt, which clears its selection - it must not clear the selection of the annotations
+    m_notesSelectionChangeInProgress = true;
+
     m_notesTreeModel->clear();
     m_markupAnnotations.clear();
 
@@ -877,6 +884,14 @@ void PDFSidebarWidget::updateNotes()
 
     ui->notesTreeView->setUpdatesEnabled(updatesEnabled);
     ui->notesTreeView->expandAll();
+    m_notesSelectionChangeInProgress = false;
+
+    // The annotation manager is created later, than the sidebar, so the connection is made here
+    if (pdf::PDFWidgetAnnotationManager* annotationManager = m_proxy->getAnnotationManager())
+    {
+        connect(annotationManager, &pdf::PDFWidgetAnnotationManager::selectionChanged, this, &PDFSidebarWidget::onAnnotationSelectionChanged, Qt::UniqueConnection);
+        onAnnotationSelectionChanged();
+    }
 }
 
 void PDFSidebarWidget::onOutlineSearchText()
@@ -1908,6 +1923,72 @@ void PDFSidebarWidget::onBookmarkClicked(const QModelIndex& index)
     {
         pdf::PDFTemporaryValueChange<bool> guard(&m_bookmarkChangeInProgress, true);
         m_bookmarkManager->goToCurrentBookmark();
+    }
+}
+
+void PDFSidebarWidget::onNotesSelectionChanged()
+{
+    pdf::PDFWidgetAnnotationManager* annotationManager = m_proxy->getAnnotationManager();
+    if (m_notesSelectionChangeInProgress || !annotationManager)
+    {
+        return;
+    }
+
+    // Jakub Melka: notes selected in the list are selected on the pages. Annotations, which
+    // cannot be selected on the pages (hidden annotations, replies), are skipped by the manager.
+    std::vector<pdf::PDFObjectReference> annotations;
+    for (const QModelIndex& index : ui->notesTreeView->selectionModel()->selectedIndexes())
+    {
+        const QVariant userData = index.data(Qt::UserRole);
+        const int i = userData.isValid() ? userData.toInt() : -1;
+        if (i >= 0 && i < int(m_markupAnnotations.size()))
+        {
+            annotations.push_back(m_markupAnnotations[i].first);
+        }
+    }
+
+    pdf::PDFTemporaryValueChange<bool> guard(&m_notesSelectionChangeInProgress, true);
+    annotationManager->setSelectedAnnotations(annotations);
+}
+
+void PDFSidebarWidget::onAnnotationSelectionChanged()
+{
+    pdf::PDFWidgetAnnotationManager* annotationManager = m_proxy->getAnnotationManager();
+    if (m_notesSelectionChangeInProgress || !annotationManager)
+    {
+        return;
+    }
+
+    // Annotations selected on the pages are selected in the list of the notes
+    pdf::PDFTemporaryValueChange<bool> guard(&m_notesSelectionChangeInProgress, true);
+
+    QItemSelection selection;
+    for (int pageRow = 0; pageRow < m_notesTreeModel->rowCount(); ++pageRow)
+    {
+        const QStandardItem* pageItem = m_notesTreeModel->item(pageRow);
+        for (int userRow = 0; userRow < pageItem->rowCount(); ++userRow)
+        {
+            const QStandardItem* userItem = pageItem->child(userRow);
+            for (int annotationRow = 0; annotationRow < userItem->rowCount(); ++annotationRow)
+            {
+                const QStandardItem* annotationItem = userItem->child(annotationRow);
+                const int i = annotationItem->data(Qt::UserRole).toInt();
+                if (i >= 0 && i < int(m_markupAnnotations.size()) && annotationManager->isAnnotationSelected(m_markupAnnotations[i].first))
+                {
+                    const QModelIndex index = m_notesSortProxyTreeModel->mapFromSource(annotationItem->index());
+                    if (index.isValid())
+                    {
+                        selection.select(index, index);
+                    }
+                }
+            }
+        }
+    }
+
+    ui->notesTreeView->selectionModel()->select(selection, QItemSelectionModel::ClearAndSelect);
+    if (!selection.isEmpty())
+    {
+        ui->notesTreeView->scrollTo(selection.indexes().front());
     }
 }
 
