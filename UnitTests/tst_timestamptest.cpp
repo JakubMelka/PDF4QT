@@ -45,13 +45,30 @@
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 
+#include <array>
 #include <memory>
 #include <utility>
+#include <vector>
 
 using namespace pdf;
 
 namespace
 {
+
+/// Returns the DER encoded certificate
+QByteArray encodeCertificate(X509* certificate)
+{
+    unsigned char* buffer = nullptr;
+    const int size = i2d_X509(certificate, &buffer);
+    if (size <= 0)
+    {
+        return QByteArray();
+    }
+
+    QByteArray result(reinterpret_cast<const char*>(buffer), size);
+    OPENSSL_free(buffer);
+    return result;
+}
 
 /// Minimal RFC 3161 timestamp authority listening on the loopback interface. The
 /// tests use it instead of a public authority, so they do not depend on a network
@@ -79,7 +96,20 @@ public:
         Garbage,
 
         /// The request is never answered
-        NoAnswer
+        NoAnswer,
+
+        /// The answer has no nonce, although the request had one
+        NoNonce,
+
+        /// The answer has a nonce of some other request
+        DifferentNonce,
+
+        /// The answer uses a different hash algorithm than the request
+        DifferentAlgorithm,
+
+        /// Tokens created after the first one are larger, so the space
+        /// reserved for them in the document must be enlarged
+        GrowingToken
     };
 
     TestTimestampAuthority() = default;
@@ -89,28 +119,44 @@ public:
     TestTimestampAuthority& operator=(const TestTimestampAuthority&) = delete;
 
     /// Creates the certificate of the authority and starts listening
-    bool start();
+    /// \param isCertificateExpired Certificate of the authority is expired
+    bool start(bool isCertificateExpired = false);
 
-    void setBehaviour(Behaviour behaviour) { m_behaviour = behaviour; }
+    void setBehaviour(Behaviour behaviour);
 
     QString getUrl() const;
 
     /// Certificate of the authority, DER encoded
     QByteArray getCertificate() const;
 
+    /// Certificate of the same key as the certificate of the authority,
+    /// but without the time stamping extended key usage, DER encoded
+    QByteArray getCertificateWithoutTimeStamping() const;
+
+    /// Count of the requests answered since the last change of the behaviour
+    int getRequestCount() const { return m_requestCount; }
+
 private:
-    bool createCertificate();
+    X509* createCertificate(const char* commonName, long serialNumber, const char* extendedKeyUsage, bool isExpired) const;
+    bool createCertificates(bool isCertificateExpired);
     void onConnection();
     void onRequest(QTcpSocket* socket, const QByteArray& request);
     QByteArray createResponse(const QByteArray& request);
     QByteArray createRejection() const;
 
+    /// Creates the request, which is answered instead of the received one,
+    /// so the answer does not match the request in the tested way
+    QByteArray modifyRequest(const QByteArray& request) const;
+
     QTcpServer m_server;
     Behaviour m_behaviour = Granted;
     EVP_PKEY* m_key = nullptr;
     X509* m_certificate = nullptr;
+    X509* m_certificateWithoutTimeStamping = nullptr;
+    STACK_OF(X509)* m_fillerCertificates = nullptr;
     TS_RESP_CTX* m_responseContext = nullptr;
     QByteArray m_firstResponse;
+    int m_requestCount = 0;
 };
 
 TestTimestampAuthority::~TestTimestampAuthority()
@@ -122,62 +168,112 @@ TestTimestampAuthority::~TestTimestampAuthority()
         TS_RESP_CTX_free(m_responseContext);
     }
 
+    sk_X509_pop_free(m_fillerCertificates, X509_free);
+    X509_free(m_certificateWithoutTimeStamping);
     X509_free(m_certificate);
     EVP_PKEY_free(m_key);
 }
 
-bool TestTimestampAuthority::createCertificate()
+X509* TestTimestampAuthority::createCertificate(const char* commonName, long serialNumber, const char* extendedKeyUsage, bool isExpired) const
 {
-    m_key = EVP_RSA_gen(2048);
-    m_certificate = X509_new();
-
-    if (!m_key || !m_certificate)
+    X509* certificate = X509_new();
+    if (!certificate)
     {
-        return false;
+        return nullptr;
     }
 
-    X509_set_version(m_certificate, 2);
-    ASN1_INTEGER_set(X509_get_serialNumber(m_certificate), 1);
-    X509_gmtime_adj(X509_getm_notBefore(m_certificate), -3600);
-    X509_gmtime_adj(X509_getm_notAfter(m_certificate), 365 * 24 * 3600);
-    X509_set_pubkey(m_certificate, m_key);
+    X509_set_version(certificate, 2);
+    ASN1_INTEGER_set(X509_get_serialNumber(certificate), serialNumber);
 
-    X509_NAME* name = X509_get_subject_name(m_certificate);
-    X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, reinterpret_cast<const unsigned char*>("PDF4QT test timestamp authority"), -1, -1, 0);
-    X509_set_issuer_name(m_certificate, name);
+    if (isExpired)
+    {
+        X509_gmtime_adj(X509_getm_notBefore(certificate), -2 * 365 * 24 * 3600);
+        X509_gmtime_adj(X509_getm_notAfter(certificate), -24 * 3600);
+    }
+    else
+    {
+        X509_gmtime_adj(X509_getm_notBefore(certificate), -3600);
+        X509_gmtime_adj(X509_getm_notAfter(certificate), 365 * 24 * 3600);
+    }
 
-    // The certificate of a timestamp authority must have exactly one extended key
-    // usage, it must be the time stamping one and it must be critical (RFC 3161,
-    // chapter 2.3).
+    X509_set_pubkey(certificate, m_key);
+
+    X509_NAME* name = X509_get_subject_name(certificate);
+    X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, reinterpret_cast<const unsigned char*>(commonName), -1, -1, 0);
+    X509_set_issuer_name(certificate, name);
+
     X509V3_CTX context;
     X509V3_set_ctx_nodb(&context);
-    X509V3_set_ctx(&context, m_certificate, m_certificate, nullptr, nullptr, 0);
+    X509V3_set_ctx(&context, certificate, certificate, nullptr, nullptr, 0);
 
-    const std::pair<int, const char*> extensions[] =
+    std::vector<std::pair<int, const char*>> extensions =
     {
         { NID_basic_constraints, "critical,CA:FALSE" },
-        { NID_key_usage, "critical,digitalSignature,nonRepudiation" },
-        { NID_ext_key_usage, "critical,timeStamping" }
+        { NID_key_usage, "critical,digitalSignature,nonRepudiation" }
     };
+
+    if (extendedKeyUsage)
+    {
+        extensions.emplace_back(NID_ext_key_usage, extendedKeyUsage);
+    }
 
     for (const auto& extension : extensions)
     {
         X509_EXTENSION* object = X509V3_EXT_conf_nid(nullptr, &context, extension.first, extension.second);
         if (!object)
         {
-            return false;
+            X509_free(certificate);
+            return nullptr;
         }
 
-        X509_add_ext(m_certificate, object, -1);
+        X509_add_ext(certificate, object, -1);
         X509_EXTENSION_free(object);
     }
 
-    return X509_sign(m_certificate, m_key, EVP_sha256()) > 0;
+    if (X509_sign(certificate, m_key, EVP_sha256()) <= 0)
+    {
+        X509_free(certificate);
+        return nullptr;
+    }
+
+    return certificate;
 }
 
-bool TestTimestampAuthority::start()
+bool TestTimestampAuthority::createCertificates(bool isCertificateExpired)
 {
-    if (!createCertificate())
+    m_key = EVP_RSA_gen(2048);
+    if (!m_key)
+    {
+        return false;
+    }
+
+    // The certificate of a timestamp authority must have exactly one extended key
+    // usage, it must be the time stamping one and it must be critical (RFC 3161,
+    // chapter 2.3).
+    m_certificate = createCertificate("PDF4QT test timestamp authority", 1, "critical,timeStamping", isCertificateExpired);
+
+    // The same key, but the certificate is not allowed to sign timestamps, so it
+    // can be used to test, that such a certificate is not accepted.
+    m_certificateWithoutTimeStamping = createCertificate("PDF4QT test certificate without time stamping", 2, nullptr, isCertificateExpired);
+
+    // Certificates, which only enlarge the created tokens
+    m_fillerCertificates = sk_X509_new_null();
+    for (int i = 0; i < 3; ++i)
+    {
+        X509* certificate = createCertificate("PDF4QT test filler certificate", 100 + i, nullptr, false);
+        if (!certificate || !sk_X509_push(m_fillerCertificates, certificate))
+        {
+            X509_free(certificate);
+            return false;
+        }
+    }
+
+    return m_certificate && m_certificateWithoutTimeStamping;
+}
+
+bool TestTimestampAuthority::start(bool isCertificateExpired)
+{
+    if (!createCertificates(isCertificateExpired))
     {
         return false;
     }
@@ -193,7 +289,8 @@ bool TestTimestampAuthority::start()
                                       TS_RESP_CTX_set_signer_key(m_responseContext, m_key) == 1 &&
                                       TS_RESP_CTX_set_signer_digest(m_responseContext, EVP_sha256()) == 1 &&
                                       policy && TS_RESP_CTX_set_def_policy(m_responseContext, policy) == 1 &&
-                                      TS_RESP_CTX_add_md(m_responseContext, EVP_sha256()) == 1;
+                                      TS_RESP_CTX_add_md(m_responseContext, EVP_sha256()) == 1 &&
+                                      TS_RESP_CTX_add_md(m_responseContext, EVP_sha512()) == 1;
     ASN1_OBJECT_free(policy);
 
     if (!isContextInitialized)
@@ -205,6 +302,16 @@ bool TestTimestampAuthority::start()
     return m_server.listen(QHostAddress::LocalHost);
 }
 
+void TestTimestampAuthority::setBehaviour(Behaviour behaviour)
+{
+    m_behaviour = behaviour;
+    m_firstResponse.clear();
+    m_requestCount = 0;
+
+    // The tokens are enlarged only after the first one has been created
+    TS_RESP_CTX_set_certs(m_responseContext, nullptr);
+}
+
 QString TestTimestampAuthority::getUrl() const
 {
     return QString("http://127.0.0.1:%1/tsa").arg(m_server.serverPort());
@@ -212,16 +319,12 @@ QString TestTimestampAuthority::getUrl() const
 
 QByteArray TestTimestampAuthority::getCertificate() const
 {
-    unsigned char* buffer = nullptr;
-    const int size = i2d_X509(m_certificate, &buffer);
-    if (size <= 0)
-    {
-        return QByteArray();
-    }
+    return encodeCertificate(m_certificate);
+}
 
-    QByteArray result(reinterpret_cast<const char*>(buffer), size);
-    OPENSSL_free(buffer);
-    return result;
+QByteArray TestTimestampAuthority::getCertificateWithoutTimeStamping() const
+{
+    return encodeCertificate(m_certificateWithoutTimeStamping);
 }
 
 void TestTimestampAuthority::onConnection()
@@ -266,6 +369,8 @@ void TestTimestampAuthority::onConnection()
 
 void TestTimestampAuthority::onRequest(QTcpSocket* socket, const QByteArray& request)
 {
+    ++m_requestCount;
+
     if (m_behaviour == NoAnswer)
     {
         return;
@@ -277,10 +382,6 @@ void TestTimestampAuthority::onRequest(QTcpSocket* socket, const QByteArray& req
 
     switch (m_behaviour)
     {
-        case Granted:
-            body = createResponse(request);
-            break;
-
         case Replay:
             if (m_firstResponse.isEmpty())
             {
@@ -303,7 +404,16 @@ void TestTimestampAuthority::onRequest(QTcpSocket* socket, const QByteArray& req
             body = "this is not a timestamp response";
             break;
 
+        case GrowingToken:
+            body = createResponse(request);
+
+            // The tokens created from now on carry more certificates, so they are
+            // larger than the first one.
+            TS_RESP_CTX_set_certs(m_responseContext, m_fillerCertificates);
+            break;
+
         default:
+            body = createResponse(request);
             break;
     }
 
@@ -318,9 +428,85 @@ void TestTimestampAuthority::onRequest(QTcpSocket* socket, const QByteArray& req
     socket->disconnectFromHost();
 }
 
+QByteArray TestTimestampAuthority::modifyRequest(const QByteArray& request) const
+{
+    const unsigned char* buffer = reinterpret_cast<const unsigned char*>(request.constData());
+    TS_REQ* originalRequest = d2i_TS_REQ(nullptr, &buffer, request.size());
+    TS_REQ* modifiedRequest = TS_REQ_new();
+
+    QByteArray result;
+    if (originalRequest && modifiedRequest)
+    {
+        TS_REQ_set_version(modifiedRequest, 1);
+        TS_REQ_set_cert_req(modifiedRequest, TS_REQ_get_cert_req(originalRequest));
+
+        if (m_behaviour == DifferentAlgorithm)
+        {
+            // The authority answers with a different hash algorithm than the one
+            // of the request. The imprint of the request cannot be kept, because
+            // its length belongs to the algorithm.
+            TS_MSG_IMPRINT* imprint = TS_MSG_IMPRINT_new();
+            X509_ALGOR* algorithm = X509_ALGOR_new();
+            std::array<unsigned char, 64> digest = { };
+
+            if (imprint && algorithm)
+            {
+                X509_ALGOR_set0(algorithm, OBJ_nid2obj(NID_sha512), V_ASN1_NULL, nullptr);
+                TS_MSG_IMPRINT_set_algo(imprint, algorithm);
+                TS_MSG_IMPRINT_set_msg(imprint, digest.data(), int(digest.size()));
+                TS_REQ_set_msg_imprint(modifiedRequest, imprint);
+            }
+
+            X509_ALGOR_free(algorithm);
+            TS_MSG_IMPRINT_free(imprint);
+        }
+        else
+        {
+            // The imprint stays correct, only the nonce of the answer is wrong
+            TS_REQ_set_msg_imprint(modifiedRequest, TS_REQ_get_msg_imprint(originalRequest));
+        }
+
+        if (m_behaviour == DifferentNonce)
+        {
+            ASN1_INTEGER* nonce = ASN1_INTEGER_new();
+            if (nonce)
+            {
+                ASN1_INTEGER_set_uint64(nonce, 0x0123456789ABCDEFull);
+                TS_REQ_set_nonce(modifiedRequest, nonce);
+            }
+            ASN1_INTEGER_free(nonce);
+        }
+
+        // In the NoNonce case no nonce is set at all, so the answer has none
+
+        unsigned char* requestBuffer = nullptr;
+        const int size = i2d_TS_REQ(modifiedRequest, &requestBuffer);
+        if (size > 0)
+        {
+            result = QByteArray(reinterpret_cast<const char*>(requestBuffer), size);
+            OPENSSL_free(requestBuffer);
+        }
+    }
+
+    TS_REQ_free(modifiedRequest);
+    TS_REQ_free(originalRequest);
+    return result;
+}
+
 QByteArray TestTimestampAuthority::createResponse(const QByteArray& request)
 {
-    BIO* requestBuffer = BIO_new_mem_buf(request.constData(), int(request.size()));
+    QByteArray requestData = request;
+
+    if (m_behaviour == NoNonce || m_behaviour == DifferentNonce || m_behaviour == DifferentAlgorithm)
+    {
+        requestData = modifyRequest(request);
+        if (requestData.isEmpty())
+        {
+            return QByteArray();
+        }
+    }
+
+    BIO* requestBuffer = BIO_new_mem_buf(requestData.constData(), int(requestData.size()));
     if (!requestBuffer)
     {
         return QByteArray();
@@ -400,6 +586,11 @@ private slots:
     void authorityFailureIsReported_data();
     void authorityFailureIsReported();
     void replayedTokenIsRejected();
+    void answerOfOtherRequestIsRejected_data();
+    void answerOfOtherRequestIsRejected();
+    void answerWithDifferentHashAlgorithmIsRejected();
+    void tokenOfCertificateWithoutTimeStampingIsRejected();
+    void expiredAuthorityCertificateIsRejected();
 
     void timestampTokenMatchesTimestampedData();
     void signatureTimestampIsAttachedToSignature();
@@ -409,6 +600,10 @@ private slots:
     void signatureWithTimestampIsCreatedAndVerified();
     void timestampOfUntrustedAuthorityIsNotUsed();
     void timestampOfOtherDataIsNotUsed();
+    void forgedTimestampTimeIsNotUsed();
+    void enlargedReservedSpace_data();
+    void enlargedReservedSpace();
+    void timestampAddedToSignedDocument();
 
     void publicTimestampAuthority();
 
@@ -431,6 +626,12 @@ private:
     /// Stores the token in the unsigned attributes of the first signer of the
     /// signature, whatever data the token timestamps
     static QByteArray setSignatureTimestampToken(const QByteArray& signature, const QByteArray& token);
+
+    /// Changes the time of the timestamp token, without signing it again
+    static QByteArray setTokenTime(const QByteArray& token, const QByteArray& time);
+
+    /// Replaces the certificates carried by the token by the given one
+    static QByteArray setTokenCertificate(const QByteArray& token, const QByteArray& certificate);
 
     /// Signs the document by an invisible signature
     static PDFDocumentSigner::Result signDocument(const PDFDocument& document,
@@ -590,6 +791,90 @@ QByteArray TimestampTest::setSignatureTimestampToken(const QByteArray& signature
     }
 
     CMS_ContentInfo_free(cms);
+    return result;
+}
+
+QByteArray TimestampTest::setTokenTime(const QByteArray& token, const QByteArray& time)
+{
+    const unsigned char* buffer = reinterpret_cast<const unsigned char*>(token.constData());
+    PKCS7* tokenObject = d2i_PKCS7(nullptr, &buffer, token.size());
+    if (!tokenObject || !PKCS7_type_is_signed(tokenObject) || !tokenObject->d.sign)
+    {
+        PKCS7_free(tokenObject);
+        return QByteArray();
+    }
+
+    QByteArray result;
+    if (TS_TST_INFO* info = PKCS7_to_TS_TST_INFO(tokenObject))
+    {
+        ASN1_GENERALIZEDTIME* changedTime = ASN1_GENERALIZEDTIME_new();
+        if (changedTime && ASN1_GENERALIZEDTIME_set_string(changedTime, time.constData()) == 1 &&
+            TS_TST_INFO_set_time(info, changedTime) == 1)
+        {
+            unsigned char* infoBuffer = nullptr;
+            const int infoSize = i2d_TS_TST_INFO(info, &infoBuffer);
+            if (infoSize > 0)
+            {
+                ASN1_OCTET_STRING_set(tokenObject->d.sign->contents->d.other->value.octet_string, infoBuffer, infoSize);
+                OPENSSL_free(infoBuffer);
+
+                unsigned char* tokenBuffer = nullptr;
+                const int tokenSize = i2d_PKCS7(tokenObject, &tokenBuffer);
+                if (tokenSize > 0)
+                {
+                    result = QByteArray(reinterpret_cast<const char*>(tokenBuffer), tokenSize);
+                    OPENSSL_free(tokenBuffer);
+                }
+            }
+        }
+
+        ASN1_GENERALIZEDTIME_free(changedTime);
+        TS_TST_INFO_free(info);
+    }
+
+    PKCS7_free(tokenObject);
+    return result;
+}
+
+QByteArray TimestampTest::setTokenCertificate(const QByteArray& token, const QByteArray& certificate)
+{
+    const unsigned char* buffer = reinterpret_cast<const unsigned char*>(token.constData());
+    PKCS7* tokenObject = d2i_PKCS7(nullptr, &buffer, token.size());
+    if (!tokenObject || !PKCS7_type_is_signed(tokenObject) || !tokenObject->d.sign)
+    {
+        PKCS7_free(tokenObject);
+        return QByteArray();
+    }
+
+    const unsigned char* certificateBuffer = reinterpret_cast<const unsigned char*>(certificate.constData());
+    X509* certificateObject = d2i_X509(nullptr, &certificateBuffer, certificate.size());
+
+    QByteArray result;
+    if (certificateObject)
+    {
+        STACK_OF(X509)* certificates = tokenObject->d.sign->cert;
+        while (sk_X509_num(certificates) > 0)
+        {
+            X509_free(sk_X509_pop(certificates));
+        }
+
+        if (sk_X509_push(certificates, certificateObject) > 0)
+        {
+            unsigned char* tokenBuffer = nullptr;
+            const int tokenSize = i2d_PKCS7(tokenObject, &tokenBuffer);
+            if (tokenSize > 0)
+            {
+                result = QByteArray(reinterpret_cast<const char*>(tokenBuffer), tokenSize);
+                OPENSSL_free(tokenBuffer);
+            }
+        }
+        else
+        {
+            X509_free(certificateObject);
+        }
+    }
+
+    PKCS7_free(tokenObject);
     return result;
 }
 
@@ -1053,6 +1338,250 @@ void TimestampTest::timestampOfOtherDataIsNotUsed()
     QVERIFY(results.front().isSignatureValid());
     QVERIFY(!results.front().getTimestampDate().isValid());
     QVERIFY(results.front().hasFlag(PDFSignatureVerificationResult::Warning_Signature_TimestampNotVerified));
+}
+
+void TimestampTest::answerOfOtherRequestIsRejected_data()
+{
+    QTest::addColumn<int>("behaviour");
+
+    QTest::newRow("no nonce") << int(TestTimestampAuthority::NoNonce);
+    QTest::newRow("different nonce") << int(TestTimestampAuthority::DifferentNonce);
+}
+
+void TimestampTest::answerOfOtherRequestIsRejected()
+{
+    QFETCH(int, behaviour);
+
+    // The authority answers with a correctly signed token of the requested data,
+    // but the nonce of the request is not repeated in it, so the answer cannot be
+    // recognized as the answer of our request (RFC 3161, chapter 2.4.2).
+    m_authority.setBehaviour(static_cast<TestTimestampAuthority::Behaviour>(behaviour));
+
+    QByteArray token;
+    QString errorMessage;
+    const bool isCreated = PDFSignatureFactory::createTimestampToken("data", getTimestampSettings(), token, errorMessage);
+    m_authority.setBehaviour(TestTimestampAuthority::Granted);
+
+    QVERIFY(!isCreated);
+    QVERIFY(token.isEmpty());
+    QVERIFY(!errorMessage.isEmpty());
+}
+
+void TimestampTest::answerWithDifferentHashAlgorithmIsRejected()
+{
+    // The authority must use the hash algorithm of the request. The imprint of a
+    // different algorithm cannot match the requested one, so both checks refuse
+    // such an answer.
+    m_authority.setBehaviour(TestTimestampAuthority::DifferentAlgorithm);
+
+    QByteArray token;
+    QString errorMessage;
+    const bool isCreated = PDFSignatureFactory::createTimestampToken("data", getTimestampSettings(), token, errorMessage);
+    m_authority.setBehaviour(TestTimestampAuthority::Granted);
+
+    QVERIFY(!isCreated);
+    QVERIFY(token.isEmpty());
+    QVERIFY(!errorMessage.isEmpty());
+}
+
+void TimestampTest::tokenOfCertificateWithoutTimeStampingIsRejected()
+{
+    const QByteArray data = "PDF4QT timestamped data";
+
+    QByteArray token;
+    QString errorMessage;
+    QVERIFY2(PDFSignatureFactory::createTimestampToken(data, getTimestampSettings(), token, errorMessage), qPrintable(errorMessage));
+
+    // The certificate carried by the token is replaced by another certificate of
+    // the same key, which has no time stamping extended key usage. The signature
+    // of the token still matches the key, but such a certificate is not allowed
+    // to sign timestamps and the certificate identifier stored in the token does
+    // not belong to it (RFC 3161, chapters 2.3 and 2.4.2).
+    const QByteArray exchangedToken = setTokenCertificate(token, m_authority.getCertificateWithoutTimeStamping());
+    QVERIFY(!exchangedToken.isEmpty());
+    QVERIFY(!PDFSignatureFactory::verifyTimestampToken(data, exchangedToken));
+}
+
+void TimestampTest::expiredAuthorityCertificateIsRejected()
+{
+    TestTimestampAuthority expiredAuthority;
+    QVERIFY(expiredAuthority.start(true));
+
+    PDFSignatureFactory::TimestampSettings settings;
+    settings.url = expiredAuthority.getUrl();
+    settings.timeoutMilliseconds = 15000;
+
+    // The authority signs the token by an expired certificate, so the token is
+    // not a usable timestamp and it is not stored in the document at all.
+    QByteArray token;
+    QString errorMessage;
+    QVERIFY(!PDFSignatureFactory::createTimestampToken("data", settings, token, errorMessage));
+    QVERIFY(token.isEmpty());
+    QVERIFY(!errorMessage.isEmpty());
+}
+
+void TimestampTest::forgedTimestampTimeIsNotUsed()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    PDFCertificateEntry certificate;
+    QString password;
+    QVERIFY(createTestCertificate(directory, certificate, password));
+
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 400));
+    PDFDocument document = builder.build();
+
+    QString errorMessage;
+    auto signFunction = [&](const QByteArray& data, QByteArray& signature)
+    {
+        QByteArray plainSignature;
+        if (!PDFSignatureFactory::sign(certificate, password, data, plainSignature))
+        {
+            return false;
+        }
+
+        // A real timestamp of the signature value, whose time is changed afterwards.
+        // The timestamp is an unsigned attribute, so the change does not damage the
+        // signature of the document - only the signature of the authority.
+        QByteArray token;
+        if (!PDFSignatureFactory::createTimestampToken(getSignatureValue(plainSignature), getTimestampSettings(), token, errorMessage))
+        {
+            return false;
+        }
+
+        const QByteArray forgedToken = setTokenTime(token, "20000101000000Z");
+        if (forgedToken.isEmpty())
+        {
+            return false;
+        }
+
+        signature = setSignatureTimestampToken(plainSignature, forgedToken);
+        return !signature.isEmpty();
+    };
+
+    QByteArray signedDocument;
+    QCOMPARE(signDocument(document, page, signFunction, false, signedDocument), PDFDocumentSigner::Result::OK);
+
+    // The signature of the document is valid, but the changed time must not be
+    // presented as the time of the signing, although the authority is trusted.
+    const auto results = verifySignedDocument(signedDocument, m_authority.getCertificate());
+    QCOMPARE(results.size(), size_t(1));
+    QVERIFY(results.front().isSignatureValid());
+    QVERIFY(!results.front().getTimestampDate().isValid());
+    QVERIFY(results.front().hasFlag(PDFSignatureVerificationResult::Warning_Signature_TimestampNotVerified));
+}
+
+void TimestampTest::enlargedReservedSpace_data()
+{
+    QTest::addColumn<bool>("isDocumentTimestamp");
+
+    QTest::newRow("signature with timestamp") << false;
+    QTest::newRow("document timestamp") << true;
+}
+
+void TimestampTest::enlargedReservedSpace()
+{
+    QFETCH(bool, isDocumentTimestamp);
+
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    PDFCertificateEntry certificate;
+    QString password;
+    QVERIFY(createTestCertificate(directory, certificate, password));
+
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 400));
+    PDFDocument document = builder.build();
+
+    QString errorMessage;
+    auto signFunction = [&](const QByteArray& data, QByteArray& signature)
+    {
+        if (isDocumentTimestamp)
+        {
+            return PDFSignatureFactory::createTimestampToken(data, getTimestampSettings(), signature, errorMessage);
+        }
+
+        return PDFSignatureFactory::signWithTimestamp(certificate, password, data, getTimestampSettings(), signature, errorMessage);
+    };
+
+    // The tokens created after the trial one are larger than it, so the space
+    // reserved for the timestamp in the document does not suffice and the whole
+    // document must be built and signed again.
+    m_authority.setBehaviour(TestTimestampAuthority::GrowingToken);
+
+    QByteArray signedDocument;
+    const PDFDocumentSigner::Result result = signDocument(document, page, signFunction, isDocumentTimestamp, signedDocument);
+    const int requestCount = m_authority.getRequestCount();
+    m_authority.setBehaviour(TestTimestampAuthority::Granted);
+
+    QVERIFY2(result == PDFDocumentSigner::Result::OK, qPrintable(errorMessage));
+    QVERIFY(!signedDocument.isEmpty());
+
+    // The trial token, the token which did not fit and the token of the
+    // repeated attempt - the space really had to be enlarged.
+    QVERIFY2(requestCount >= 3, qPrintable(QString("%1 requests").arg(requestCount)));
+
+    const auto results = verifySignedDocument(signedDocument, m_authority.getCertificate());
+    QCOMPARE(results.size(), size_t(1));
+    QVERIFY2(results.front().isSignatureValid(), qPrintable(results.front().getErrors().join(' ')));
+    QVERIFY(results.front().getTimestampDate().isValid());
+}
+
+void TimestampTest::timestampAddedToSignedDocument()
+{
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    PDFCertificateEntry certificate;
+    QString password;
+    QVERIFY(createTestCertificate(directory, certificate, password));
+
+    PDFDocumentBuilder builder;
+    const PDFObjectReference page = builder.appendPage(QRectF(0, 0, 300, 400));
+    PDFDocument document = builder.build();
+
+    QString errorMessage;
+    auto signFunction = [&](const QByteArray& data, QByteArray& signature)
+    {
+        return PDFSignatureFactory::signWithTimestamp(certificate, password, data, getTimestampSettings(), signature, errorMessage);
+    };
+
+    QByteArray signedDocument;
+    QCOMPARE(signDocument(document, page, signFunction, false, signedDocument), PDFDocumentSigner::Result::OK);
+
+    // The document timestamp is added as an incremental update of the signed
+    // document, so the bytes covered by the signature are not touched by it.
+    PDFDocumentReader reader(nullptr, nullptr, false, false);
+    PDFDocument readDocument = reader.readFromBuffer(signedDocument);
+    QCOMPARE(reader.getReadingResult(), PDFDocumentReader::Result::OK);
+
+    PDFDocumentSigner::Parameters parameters;
+    parameters.document = &readDocument;
+    parameters.originalDocumentData = signedDocument;
+    parameters.subfilter = "ETSI.RFC3161";
+    parameters.signatureDictionaryType = "DocTimeStamp";
+    parameters.signFunction = [&](const QByteArray& data, QByteArray& timestamp)
+    {
+        return PDFSignatureFactory::createTimestampToken(data, getTimestampSettings(), timestamp, errorMessage);
+    };
+    parameters.createSignatureFieldFunction = [&](PDFDocumentBuilder& timestampBuilder, PDFObjectReference signatureDictionary)
+    {
+        const PDFObjectReference firstPage = readDocument.getCatalog()->getPage(0)->getPageReference();
+        return timestampBuilder.createSignatureField("Timestamp", signatureDictionary, firstPage);
+    };
+
+    QByteArray timestampedDocument;
+    QCOMPARE(PDFDocumentSigner::sign(parameters, timestampedDocument), PDFDocumentSigner::Result::OK);
+    QVERIFY(timestampedDocument.startsWith(signedDocument));
+
+    // Both the signature and the document timestamp of the result must be valid.
+    const auto results = verifySignedDocument(timestampedDocument, m_authority.getCertificate());
+    QCOMPARE(results.size(), size_t(2));
+    for (const PDFSignatureVerificationResult& result : results)
+    {
+        QVERIFY2(result.isSignatureValid(), qPrintable(result.getErrors().join(' ')));
+        QVERIFY(result.getTimestampDate().isValid());
+    }
 }
 
 void TimestampTest::publicTimestampAuthority()
